@@ -4,16 +4,17 @@ Muddle suppport for Git
 
 from muddled.version_control import *
 import muddled.utils as utils
+import os
 
 class Git(VersionControlHandler):
-    def __init__(self, inv, co_name, repo, rev, rel):
-        VersionControlHandler.__init__(self, inv, co_name, repo, rev, rel)
+    def __init__(self, inv, checkout_name, repo, rev, rel):
+        VersionControlHandler.__init__(self, inv, checkout_name, repo, rev, rel)
         sp = conventional_repo_url(repo, rel)
         if sp is None:
             raise utils.Error("Cannot extract repository URL from %s, checkout %s"%(repo, rel))
 
         self.git_repo = sp[0]
-        self.co_path = self.invocation.checkout_path(self.co_name)
+        self.co_path = self.invocation.checkout_path(self.checkout_name)
         self.parse_revision(rev)
 
     def parse_revision(self, rev):
@@ -40,10 +41,11 @@ class Git(VersionControlHandler):
         co_path = self.invocation.checkout_path(None)
         
         utils.ensure_dir(co_path)
-        utils.run_cmd("git clone %s %s"%(self.git_repo,self.co_name))
+        os.chdir(co_path)
+        utils.run_cmd("git clone %s %s"%(self.git_repo,self.checkout_name))
         
         if not ((self.revision is None) or (not self.revision)):
-            os.chdir(self.co_name)
+            os.chdir(self.checkout_name)
             utils.run_cmd("git checkout %s"%self.revision)
 
     def pull(self):
@@ -67,8 +69,8 @@ class GitVCSFactory(VersionControlHandlerFactory):
     def describe(self):
         return "GIT"
 
-    def manufacture(self, inv, co_name, repo, rev, rel):
-        return Git(inv, co_name, repo, rev, rel)
+    def manufacture(self, inv, checkout_name, repo, rev, rel):
+        return Git(inv, checkout_name, repo, rev, rel)
 
 # Register us with the VCS handler factory
 register_vcs_handler("git", GitVCSFactory())

@@ -76,6 +76,11 @@ class LabelKind:
     Checkout = "checkout"
     Package = "package"
     Deployment = "deploy"
+    
+    # Synthetic labels used purely to trick the dependency
+    # mechanism into doing what I want.
+    Synthetic = "synth"
+    
 
 def label_kind_to_string(val):
     """

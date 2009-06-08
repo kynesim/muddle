@@ -252,6 +252,9 @@ class Builder:
         self.muddle_binary = muddle_binary
         self.muddle_dir = os.path.dirname(self.muddle_binary)
 
+    def resource_file_name(self, file_name):
+        return os.path.join(self.muddle_dir, "muddled", "resources", file_name)
+
     def instruct(self, pkg, role, instruction_file):
         """
         Register the existence or non-existence of an instruction file.
@@ -277,6 +280,30 @@ class Builder:
                              utils.Tags.Deployed)
         self.invocation.add_default_label(label)
 
+    def by_default_deploy_list(self, deployments):
+        """
+        Build a synthetic label that depends on all the deployments
+        """
+
+        label = depend.Label(utils.LabelKind.Synthetic,
+                             "_synthetic_default",
+                             None,
+                             utils.Tags.Temporary,
+                             transient = True, 
+                             system = True)
+
+        a_rule = depend.Rule(label, pkg.NoneDependable())
+
+        for d in deployments:
+            dep_label = depend.Label(utils.LabelKind.Deployment,
+                                     d, 
+                                     None,
+                                     utils.Tags.Deployed)
+            a_rule.add(dep_label)
+
+        self.invocation.ruleset.add(a_rule)
+        self.invocation.add_default_label(label)
+            
 
     def load_instructions(self, label):
         """
@@ -438,7 +465,8 @@ class Builder:
                 # Add anything the rest of the system has put in.
                 self.invocation.setup_environment(r.target, os.environ)
                     
-                r.obj.build_label(r.target)
+                if (r.obj is not None):
+                    r.obj.build_label(r.target)
 
                 # .. and restore
                 os.environ = old_env
@@ -471,6 +499,7 @@ class BuildDescriptionDependable(pkg.Dependable):
                 traceback.print_exc()
                 print "Cannot load %s - %s"%(desc, a)
             else:
+                traceback.print_exc()
                 print "No describe_to() attribute in module %s"%setup
                 print "Available attributes: %s"%(dir(setup))
                 print "Error was %s"%str(a)

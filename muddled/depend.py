@@ -184,9 +184,10 @@ class Rule:
 
         self.target = target_dep
         self.obj = obj
-        if (not isinstance(obj, pkg.Dependable)):
+        if (self.obj is not None) and (not isinstance(obj, pkg.Dependable)):
             raise utils.Error("Attempt to create a rule with an object rule " + 
                               "which isn't a dependable but a %s."%(obj.__class__.__name__))
+
 
     def set_arg(self, arg):
         """ 
@@ -204,6 +205,14 @@ class Rule:
         """
         for i in deps.deps:
             self.add(i)
+
+        # This is important to ensure that empty dependencies
+        # (which are rules with None as their dependable object)
+        # get correctly overridden by merged rules when they're
+        # registered
+        if (deps.obj is not None):
+            self.obj = deps.obj
+
 
     def depend_checkout(self, co_name, tag):
         dep = Label(utils.TagKind.CheckoutTag, co_name, None, tag)
@@ -285,15 +294,19 @@ class RuleSet:
 
         return rules
             
-
-    def rule_for_target(self, target):
+    def rule_for_target(self, target, createIfNotPresent = False):
         """
         Return the rule for this target - this contains all the labels that
         need to be asserted in order to build the target.
 
         If there is no rule for this target, we return None
         """
-        return self.map.get(target, None)
+        rv =  self.map.get(target, None)
+        if (createIfNotPresent and (rv is None)):
+            rv = Rule(target, None)
+            self.map[target] = rv
+
+        return rv
         
 
     def rules_which_depend_on(self, label, useTags = True, useMatch = True):
@@ -380,6 +393,10 @@ def depend_chain(obj, label, tags, ruleset):
     """
 
     last = label.copy()
+
+    # The base .. 
+    r = Rule(last, obj)
+    ruleset.add(r)
 
     for tag in tags:
         next = last.copy()
@@ -513,9 +530,8 @@ def needed_to_build(ruleset, target, useTags = True):
             # This is slightly icky. Technically, in the presence of wildcard
             # rules, there can be several rules which build a target.
             #
-            # We will make no attempt to pick the best rule - we simply
-            # pick the one with the fewest dependencies. In any sane 
-            # configuration there will be only one possibility.
+            # Since we use wildcard rules to add extra rules to targets,
+            # we need to satisfy every rule that builds this target.
 
             # Every dependency has either already been satisfied or
             # needs to be.
@@ -524,23 +540,26 @@ def needed_to_build(ruleset, target, useTags = True):
             if len(rules) == 0:
                 raise utils.Error("Rule list is empty for target %s"%tgt)
 
-            rule = rule_with_least_dependencies(rules)
-            
-            for dep in rule.deps:
-                if not (dep in rule_target_set):
-                    # Not satisfied. We need to satisfy it, so add it
-                    # to targets. The test here is purely so we can 
-                    # detect circular dependencies.
-                    if (not (dep in new_targets) and not (dep in targets)):
-                        if (trace):
-                            print "Add new target = %s"%str(dep)
-                        new_targets.add(dep)
-                        done_something = True
 
-                    if (trace):
-                        print "Cannot build %s because of dependency %s"%(tgt, dep)
-                    # .. and we can't build this target until we have.
-                    can_build_target = False
+            if (trace):
+                print "Rules for %s = %s"%(tgt, " ".join(map(str, rules)))
+
+            for rule in rules:            
+                for dep in rule.deps:
+                    if not (dep in rule_target_set):
+                        # Not satisfied. We need to satisfy it, so add it
+                        # to targets. The test here is purely so we can 
+                        # detect circular dependencies.
+                        if (not (dep in new_targets) and not (dep in targets)):
+                            if (trace):
+                                print "Add new target = %s"%str(dep)
+                            new_targets.add(dep)
+                            done_something = True
+
+                        if (trace):
+                            print "Cannot build %s because of dependency %s"%(tgt, dep)
+                            # .. and we can't build this target until we have.
+                        can_build_target = False
                         
             if can_build_target:
                 # All dependencies are already satisfied, so we can ..

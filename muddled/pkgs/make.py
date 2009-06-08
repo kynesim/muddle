@@ -6,6 +6,7 @@ use Make
 import muddled.pkg as pkg
 from muddled.pkg import PackageBuilder
 import muddled.utils as utils
+import muddled.checkouts.simple as simple_checkouts
 import os
 
 class MakeBuilder(PackageBuilder):
@@ -17,13 +18,14 @@ class MakeBuilder(PackageBuilder):
     involving cp) will lead to dependency-based disaster.
     """
     
-    def __init__(self, name, role, builder, co):
+    def __init__(self, name, role, builder, co, config = True):
         """
         Constructor for the make package.
         """
         PackageBuilder.__init__(self, name, role)
         self.builder = builder
         self.co = co
+        self.has_make_config = config
 
 
     def ensure_dirs(self):
@@ -52,7 +54,8 @@ class MakeBuilder(PackageBuilder):
             pass
         elif (tag == utils.Tags.Configured):
             # We should probably do the configure thing ..
-            utils.run_cmd("make config")
+            if (self.has_make_config):
+                utils.run_cmd("make config")
         elif (tag == utils.Tags.Built):
             utils.run_cmd("make")
         elif (tag == utils.Tags.Installed):
@@ -68,12 +71,19 @@ class MakeBuilder(PackageBuilder):
                               "MakePackage building %s"%(label))
         
 
-def simple(builder, name, role, checkout):
+def simple(builder, name, role, checkout, simpleCheckout = False, config = True):
     """
     Build a package controlled by make, called name with role role 
     from the sources in checkout checkout
+    
+    @param simpleCheckout If True, register the checkout too.
+    @param config   If True, we have make config. If false, we don't.
+
     """
-    the_pkg = MakeBuilder(name, role, builder, checkout)
+    if (simpleCheckout):
+        simple_checkouts.relative(builder, checkout)
+
+    the_pkg = MakeBuilder(name, role, builder, checkout, config = config)
     # Add the standard dependencies ..
     pkg.add_package_rules(builder.invocation.ruleset, 
                           name, role, the_pkg)
@@ -81,6 +91,26 @@ def simple(builder, name, role, checkout):
     pkg.package_depends_on_checkout(builder.invocation.ruleset,
                                     name, role, checkout, the_pkg)
 
+
+def medium(builder, name, roles, checkout, deps, dep_tag = utils.Tags.PreConfig, 
+           simpleCheckout = True, config = True):
+    """
+    Build a package controlled by make, in the given roles with the
+    given dependencies in each role.
+    
+    @param simpleCheckout  If True, register the checkout as simple checkout too.
+    @param dep_tag         The tag to depend on being installed before you'll build.
+    """
+    if (simpleCheckout):
+        simple_checkouts.relative(builder, checkout)
+        
+    for r in roles:
+        simple(builder, name, r, checkout, config = config)
+        pkg.package_depends_on_packages(builder.invocation.ruleset,
+                                       name, r, dep_tag, 
+                                       deps)
+                                       
+    
 
 # End file.
             

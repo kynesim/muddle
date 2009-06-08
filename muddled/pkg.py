@@ -181,6 +181,28 @@ def package_depends_on_checkout(ruleset, pkg_name, role_name, co_name, obj):
     ruleset.add(new_rule)
                     
 
+def package_depends_on_packages(ruleset, pkg_name, role, tag_name, deps):
+    """
+    Make pkg_name depend on the list in deps.
+
+    pkg_name's tag_name tag ends up depending on the deps having been installed -
+    this can be PreConfig or Built, depending on whether you need that dependency
+    to configure yourself or not.
+    """
+    target_label = depend.Label(utils.LabelKind.Package,
+                                pkg_name, role, tag_name)
+
+    r = ruleset.rule_for_target(target_label, createIfNotPresent = True)
+
+    for d in deps:
+        dep_label = depend.Label(utils.LabelKind.Package,
+                                 d,
+                                 role, 
+                                 utils.Tags.PostInstalled)
+        r.add(dep_label)
+
+    
+
 def add_package_rules(ruleset, pkg_name, role_name, obj):
     """
     Add the standard package rules to a ruleset.

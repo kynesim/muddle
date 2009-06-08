@@ -130,6 +130,11 @@ def main(args):
         
         if (build_root is None):
             # There is no build root here .. 
+            if with_default_args and not (failed_build_root):
+                # Guess that you wanted help.
+                print usage()
+                sys.exit(0)
+
             if (not command.requires_build_tree()):
                 return command.without_build_tree(muddle_binary, specified_root, args)
             else:

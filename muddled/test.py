@@ -11,8 +11,11 @@ import mechanics
 import commands
 import filespec
 import pkg
+import subst
 
 def unit_test():
+    print "> subst"
+    subst_unit_test()
     print "> filespec"
     filespec_unit_test()
     print "> Commands"
@@ -26,6 +29,17 @@ def unit_test():
     print "> Mechanics"
     mechanics_unit_test()
     print "> All done."
+
+def subst_unit_test():
+    """
+    Substitution unit test
+    """
+    
+    test_env = { "FISH" : "soup", "WOMBAT" : "herring" }
+    result = subst.subst_str("${WOMBAT} is ${FISH}", None, test_env)
+    assert result == "herring is soup"
+
+    return 0
 
 def filespec_unit_test():
     """

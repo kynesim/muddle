@@ -1,0 +1,21 @@
+<?xml version="1.0"?>
+<instructions>
+  <chown>
+    <filespec>
+      <root>/bin</root>
+      <spec>hello_world</spec>
+    </filespec>
+    <user>root</user>
+    <group>root</group>
+  </chown>
+  <chmod>
+    <filespec>
+      <root>/bin</root>
+      <spec>hello_world</spec>
+    </filespec>
+    <mode>ugo+rx</mode>
+  </chmod>
+</instructions>
+
+<!-- End file -->
+

@@ -1,0 +1,14 @@
+<?xml version="1.0"?>
+<instructions priority="0">
+  <chown>
+    <filespec>
+      <root>/bin</root>
+      <spec>hello_world</spec>
+    </filespec>
+    <user>root</user>
+  </chown>
+
+</instructions>
+
+<!-- End file -->
+

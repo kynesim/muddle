@@ -311,14 +311,9 @@ class Builder:
         """
         
         (desc_co, desc_path) = self.invocation.build_co_and_path()
-        
-        checked_out = depend.Label(utils.LabelKind.Checkout, 
-                                   desc_co, None, 
-                                   utils.Tags.CheckedOut, 
-                                   system = True)
 
-        updated = checked_out.re_tag(utils.Tags.UpToDate)
-        loaded = updated.re_tag(utils.Tags.Loaded, system = True, transient = True)
+        # Essentially, we register the build as a perfectly normal checkout
+        # but add a dependency of loaded on checked_out and then build it .. 
         
         vcs_handler = version_control.vcs_handler_for(self.invocation,
                                                       desc_co, 
@@ -326,17 +321,23 @@ class Builder:
                                                       "HEAD",
                                                       desc_co)
         
-        # Right. Let's set up some dependencies ..
+        # This is a perfectly normal build .. 
         vcs = pkg.VcsCheckoutBuilder(desc_co, vcs_handler)
-        self.invocation.ruleset.add(depend.depend_empty(vcs, checked_out))
+        pkg.add_checkout_rules(self.invocation.ruleset, desc_co, vcs)
 
-        self.invocation.ruleset.add(depend.depend_one(vcs, 
-                                                      updated, checked_out))
+
+        # But we want to load it once we've checked it out...
+        checked_out = depend.Label(utils.LabelKind.Checkout, 
+                                   desc_co, None, 
+                                   utils.Tags.CheckedOut, 
+                                   system = True)
+
+        loaded = checked_out.re_tag(utils.Tags.Loaded, system = True, transient = True)
 
         loader = BuildDescriptionDependable(self, 
                                             self.invocation.db.build_desc_file_name())
         self.invocation.ruleset.add(depend.depend_one(loader, 
-                                                      loaded, updated))
+                                                      loaded, checked_out))
 
         # .. and load the build description.
         self.build_label(loaded, silent = True)

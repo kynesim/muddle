@@ -53,6 +53,9 @@ class Bazaar(VersionControlHandler):
         os.chdir(self.co_path)
         utils.run_cmd("bzr push %s"%self.bzr_repo)
 
+    def must_update_to_commit(self):
+        return False
+
     def r_option(self):
         """
         Return the -r option to pass to bzr commands, if any

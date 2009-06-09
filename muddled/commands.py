@@ -23,6 +23,9 @@ class Command:
     Abstract base class for muddle commands
     """
 
+    def __init__(self):
+        self.options = { }
+
     def help(self):
         return self.__doc__
 
@@ -38,6 +41,19 @@ class Command:
          build tree, False otherwise.
         """
         return True
+
+    def set_options(self, opt_dict):
+        """
+        Set command options - usually from the options passed to mudddle
+        """
+        self.options = opt_dict
+
+    def no_op(self):
+        """
+        Is this is a no-op (just print) operation?
+        """
+        return ("no_operation" in self.options)
+
 
     def with_build_tree(self, builder, local_pkgs, args):
         """
@@ -100,19 +116,22 @@ class Init(Command):
 
         repo = args[0]
         build = args[1]
-        
-        db = Database(root_path)
-        db.repo.set(repo)
-        db.build_desc.set(build)
-        db.commit()
+
+        if (not self.no_op()):
+            db = Database(root_path)
+            db.repo.set(repo)
+            db.build_desc.set(build)
+            db.commit()
 
         print "Initialised build tree in %s "%root_path
         print "Repository: %s"%repo
         print "Build description: %s"%build
         print "\n"
 
-        print "Checking out build description .. \n"
-        mechanics.load_builder(root_path, muddle_binary)
+        if (not self.no_op()):
+            print "Checking out build description .. \n"
+            mechanics.load_builder(root_path, muddle_binary)
+
         print "Done.\n"
         
         return 0
@@ -503,7 +522,12 @@ class DistClean(Command):
         labels = decode_package_arguments(builder, args, local_pkgs, 
                                           utils.Tags.Built)
 
-        rv = build_a_kill_b(builder, labels, utils.Tags.DistClean, utils.Tags.PreConfig)
+        if (self.no_op()):
+            print "Would have disctleaned: %s"%(join(" ", map(str, labels)))
+            rv = 0
+        else:
+            rv = build_a_kill_b(builder, labels, utils.Tags.DistClean, utils.Tags.PreConfig)
+
         return rv
 
 class Instruct(Command):
@@ -561,15 +585,19 @@ class Instruct(Command):
                 raise utils.Failure("Attempt to register instructions in " + 
                                     "%s: file does not exist"%filename)
 
-            # Try loading it.
-            ifile = db.InstructionFile(filename, instr.factory)
-            ifile.get()
+            if (self.no_op()):
+                print "Register instructions in %s"%(filename)
+            else:
+                # Try loading it.
+                ifile = db.InstructionFile(filename, instr.factory)
+                ifile.get()
 
             # If we got here, it's obviously OK
 
         
         # Last, but not least, do the instruction ..
-        builder.instruct(lbls[0].name, lbls[0].role, ifile)
+        if (not self.no_op()):
+            builder.instruct(lbls[0].name, lbls[0].role, ifile)
                                     
 class Update(Command):
     """
@@ -591,9 +619,12 @@ class Update(Command):
         checkouts = decode_checkout_arguments(builder, args, local_pkgs,
                                               utils.Tags.UpToDate)
         # Forcibly retract all the updated tags.
-        for co in checkouts:
-            builder.kill_label(co)
-            builder.build_label(co)
+        if (self.no_op()):
+            print "Updating checkouts: %s "%(depend.label_list_to_string(checkouts))
+        else:
+            for co in checkouts:
+                builder.kill_label(co)
+                builder.build_label(co)
 
 class Commit(Command):
     """
@@ -615,9 +646,12 @@ class Commit(Command):
         checkouts = decode_checkout_arguments(builder, args, local_pkgs,
                                               utils.Tags.ChangesCommitted)
         # Forcibly retract all the updated tags.
-        for co in checkouts:
-            builder.kill_label(co)
-            builder.build_label(co)
+        if (self.no_op()):
+            print "Committing checkouts: %s"%(depend.label_list_to_string(checkouts))
+        else:
+            for co in checkouts:
+                builder.kill_label(co)
+                builder.build_label(co)
 
 
 class Push(Command):
@@ -640,9 +674,12 @@ class Push(Command):
         checkouts = decode_checkout_arguments(builder, args, local_pkgs,
                                               utils.Tags.ChangesPushed)
         # Forcibly retract all the updated tags.
-        for co in checkouts:
-            builder.invocation.db.clear_tag(co)
-            builder.build_label(co)
+        if (self.no_op()):
+            print "Pushing checkouts: %s"%(depend.label_list_to_string(checkouts))
+        else:
+            for co in checkouts:
+                builder.invocation.db.clear_tag(co)
+                builder.build_label(co)
 
 
 class Import(Command):
@@ -672,10 +709,13 @@ class Import(Command):
     def with_build_tree(self, builder, local_pkgs, args):
         checkouts = decode_checkout_arguments(builder, args, local_pkgs,
                                               utils.Tags.CheckedOut)
-        for c in checkouts:
-            builder.invocation.db.set_tag(c)
-            d = c.re_tag(utils.Tags.UpToDate)
-            builder.invocation.db.set_tag(d)
+        if (self.no_op()):
+            print "Importing checkouts: %s"%(depend.label_list_to_string(checkouts))
+        else:
+            for c in checkouts:
+                builder.invocation.db.set_tag(c)
+                d = c.re_tag(utils.Tags.UpToDate)
+                builder.invocation.db.set_tag(d)
 
 class Assert(Command):
     """
@@ -697,8 +737,11 @@ class Assert(Command):
             return 1
 
         labels = decode_labels(builder, args)
-        for l in labels:
-            builder.invocation.db.set_tag(l)
+        if self.no_op():
+            print "Asserting: %s"%(depend.label_list_to_string(labels))
+        else:
+            for l in labels:
+                builder.invocation.db.set_tag(l)
 
 class Retract(Command):
     """
@@ -721,8 +764,11 @@ class Retract(Command):
             return 1
 
         labels = decode_labels(builder, args)
-        for l in labels:
-            builder.kill_label(l)
+        if (self.no_op()):
+            print "Retracting: %s"%(depend.label_list_to_string(labels))
+        else:
+            for l in labels:
+                builder.kill_label(l)
 
 class Changed(Command):
     """
@@ -746,8 +792,11 @@ class Changed(Command):
     def with_build_tree(self, builder, local_pkgs, args):
         labels = decode_package_arguments(builder, args, local_pkgs,
                                           utils.Tags.Built)
-        for l in labels:
-            builder.kill_label(l)
+        if (self.no_op()):
+            print "Marking changed: %s"%(depend.label_list_to_string(labels))
+        else:
+            for l in labels:
+                builder.kill_label(l)
 
 
 def get_all_checkouts(builder, tag):
@@ -792,7 +841,18 @@ def decode_checkout_arguments(builder, args, local_pkgs, tag):
         out_set = ()
         
         if (local_pkgs is None or len(local_pkgs) == 0):
-            return get_all_checkouts(builder, tag)
+            # Where are we? If in a checkout, that's what we should do - else
+            # all checkouts.
+            (what, loc, role) = utils.find_location_in_tree(os.getcwd(),
+                                                            builder.invocation.db.root_path)
+            if (what == utils.DirType.CheckOut and (loc is not None)):
+                rv = [ ]
+                rv.append(depend.Label(utils.LabelKind.Checkout, 
+                                       loc, None, tag))
+                return rv
+            else:
+                # Everything
+                return get_all_checkouts(builder, tag)
 
         for pkg in local_pkgs:
             my_label = depend.Label(utils.LabelKind.Package,

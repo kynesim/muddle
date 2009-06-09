@@ -12,6 +12,7 @@ Options include:
 
   --help, -h, -?      This help text
   --tree [dir]        Use the muddle build tree at [dir]
+  --just-print/-n     Just print what you would have done.
 
 If you don't give --tree, we'll traverse directories up to the root
 to try and find a .muddle directory which signifies the top of the
@@ -54,6 +55,7 @@ def main(args):
 
     specified_root = os.getcwd()
     command = None
+    command_options = { }
     muddle_binary = __file__
 
 
@@ -75,6 +77,8 @@ def main(args):
         elif word == '--tree':
             args = args[1:]
             build_root = args[0]
+        elif word == '-n' or word == "--just-print":
+            command_options["no_operation"] = True
         elif word[0] == '-':
             raise muddled.Error, "Unexpected command line option %s"%word
         else:
@@ -108,6 +112,7 @@ def main(args):
         raise muddled.Error("No such command: %s"%command_name)
 
     command = cmd_dict[command_name]
+    command.set_options(command_options)
     failed_build_root = False
 
     try:
@@ -153,7 +158,9 @@ def main(args):
                 if (what == muddled.utils.DirType.Root):
                     # We're at the root.
                     command = cmd_dict["buildlabel"]
+                    command.set_options(command_options)
                     args = map(str, builder.invocation.default_labels)
+
         
             return command.with_build_tree(builder, local_pkgs, args)
 

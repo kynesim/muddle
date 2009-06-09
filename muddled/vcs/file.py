@@ -50,6 +50,10 @@ class File(VersionControlHandler):
         # Nothing to do
         pass
 
+    def must_update_to_commit(self):
+        return False
+
+
 class FileVCSFactory(VersionControlHandlerFactory):
     def describe(self):
         return "Copy data between directories"

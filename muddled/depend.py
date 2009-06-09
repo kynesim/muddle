@@ -470,6 +470,9 @@ def rule_list_to_string(rule_list):
     return "".join(str_list)
 
 
+def label_list_to_string(labels):
+    return " ".join(map(str, labels))
+
 def retag_label_list(labels, new_tag):
     """
     Does what it says on the tin, returning the new label list

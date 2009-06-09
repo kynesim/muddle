@@ -69,6 +69,15 @@ class VersionControlHandler:
         """
         Push local changes to a remote repository
         """
+        pass
+
+    def must_update_to_commit(self):
+        """
+        Must we update to commit? The answer is usually True for
+        centralised VCS's (cvs and svn) and False for decentralised
+        ones (git, bzr, hg).
+        """
+        raise utils.Failure("Attempt to call a base version of must_update_to_commit()")
 
 class VersionControlHandlerFactory:
     """

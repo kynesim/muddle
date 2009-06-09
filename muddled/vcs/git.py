@@ -58,11 +58,16 @@ class Git(VersionControlHandler):
 
     def commit(self):
         os.chdir(self.co_path)
-        utils.run_cmd("git commit")
+        # We may very well fail here. git commit fails for any number
+        # of bizarre reasons we don't care about .. 
+        utils.run_cmd("git commit -a", allowFailure = True)
 
     def push(self):
         os.chdir(self.co_path)
         utils.run_cmd("git push %s"%self.git_repo)
+
+    def must_update_to_commit(self):
+        return False
 
 
 class GitVCSFactory(VersionControlHandlerFactory):

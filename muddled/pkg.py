@@ -59,6 +59,13 @@ class Checkout(Dependable):
 class VcsCheckoutBuilder(Checkout):
     def __init__(self, name, vcs):
         Checkout.__init__(self, name, vcs)
+        
+    def must_update_to_commit(self):
+        """
+        Must we update in order to commit? Only the VCS handler
+        knows .. 
+        """
+        return self.vcs.must_update_to_commit()
 
     def build_label(self, label):
         target_tag = label.tag
@@ -150,19 +157,33 @@ def add_checkout_rules(ruleset, co_name, obj):
     Add the standard checkout rules to a ruleset for a checkout
     with name co_name
     """
-    depend.depend_chain(obj, 
-                        depend.Label(utils.LabelKind.Checkout, 
-                                     co_name, None,
-                                     utils.Tags.CheckedOut, system = True),
-                        [ utils.Tags.UpToDate, 
-                          utils.Tags.ChangesCommitted,
-                          utils.Tags.ChangesPushed ], 
-                        ruleset)
 
-    # Last, but not least, make sure we can ever check out the package.
-    # An affectation, I know .. 
-    ruleset.add(depend.Rule(depend.Label(utils.LabelKind.Checkout, co_name, None,
-                                         utils.Tags.CheckedOut), obj))
+    # This needs to be slightly clever, since uptodate, changescommitted
+    # and changespushed must be transient.
+    co_label = depend.Label(utils.LabelKind.Checkout, 
+                            co_name, None, 
+                            utils.Tags.CheckedOut, system = True)
+    co_rule = depend.Rule(co_label, obj)
+    ruleset.add(co_rule)
+    
+    # We actually need to ask the object whether this is a centralised 
+    # or a decentralised VCS .. 
+    if (obj.must_update_to_commit()):
+        depend.depend_chain(obj, 
+                            co_label.re_tag(utils.Tags.UpToDate, transient = True),
+                            [ utils.Tags.ChangesCommitted,
+                              utils.Tags.ChangesPushed ], 
+                            ruleset)
+    else:
+        # We don't need to update to commit.
+        depend.depend_chain(obj, 
+                            co_label.re_tag(utils.Tags.ChangesCommitted, 
+                                            transient = True),
+                            [ utils.Tags.ChangesPushed ], 
+                            ruleset)
+        update_rule = depend.Rule(co_label.re_tag(utils.Tags.UpToDate, transient = True),
+                                  obj)
+        ruleset.add(update_rule)
 
 
 def package_depends_on_checkout(ruleset, pkg_name, role_name, co_name, obj):

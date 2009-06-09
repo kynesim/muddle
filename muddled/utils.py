@@ -12,6 +12,7 @@ import hashlib
 import imp
 import xml.dom
 import xml.dom.minidom
+import traceback
 
 class Error(Exception):
     """
@@ -309,10 +310,11 @@ def dynamic_load(filename):
         mod = imp.load_source(md5_digest, filename)
     except Exception, e:
         print "Cannot load %s - %s \n"%(filename,e)
+        traceback.print_exc()
         try:
             fin.close()
         except: pass
-        raise Error("Cannot load build description %s - %s"%(filename, e))
+        raise Failure("Cannot load build description %s - %s"%(filename, e))
 
     return mod
 
@@ -373,6 +375,34 @@ def recursively_copy(from_dir, to_dir):
     for i in files_in_src:
         run_cmd("cp -rpf -t \"%s\" \"%s\""%(to_dir, os.path.join(from_dir, i)))
             
+
+def split_path_left(in_path):
+    """
+    Given a path a/b/c .., return a pair
+    (a, b/c..) - ie. like os.path.split(), but leftward.
+
+    What we actually do here is to split the path until we have
+    nothing left, then take the head and rest of the resulting list.
+    """
+    
+    remains = in_path
+    lst = [ ]
+    while len(remains) > 0 and remains != "/":
+        (a,b) = os.path.split(remains)
+        lst.append(b)
+        remains = a
+
+    if (remains == "/"):
+        lst.append("")
+
+    # Our list is in reverse order, so ..
+    lst.reverse()
+    rp = lst[1]
+    for i in lst[2:]:
+        rp = os.path.join(rp, i)
+
+    return (lst[0], rp)
+    
 
 
 # End file.

@@ -11,6 +11,7 @@ import version_control
 import env_store
 import instr
 import traceback
+import sys
 
 class Invocation:
     """
@@ -155,7 +156,10 @@ class Invocation:
         Return a pair (build_co, build_path) 
         """
         build_desc = self.db.build_desc.get()
-        (co,path) = os.path.split(build_desc)
+        
+        # Split off the first         
+        
+        (co,path) = utils.split_path_left(build_desc)
         return (co, path)
 
     def checkout_path(self, co):
@@ -335,7 +339,8 @@ class Builder:
         loaded = checked_out.re_tag(utils.Tags.Loaded, system = True, transient = True)
 
         loader = BuildDescriptionDependable(self, 
-                                            self.invocation.db.build_desc_file_name())
+                                            self.invocation.db.build_desc_file_name(), 
+                                            desc_co)
         self.invocation.ruleset.add(depend.depend_one(loader, 
                                                       loaded, checked_out))
 
@@ -469,9 +474,10 @@ class BuildDescriptionDependable(pkg.Dependable):
     Load the build description
     """
 
-    def __init__(self, builder, file_name):
+    def __init__(self, builder, file_name, build_co):
         self.builder = builder
         self.file_name = file_name
+        self.build_co = build_co
         
 
     def build_label(self, label):
@@ -479,10 +485,14 @@ class BuildDescriptionDependable(pkg.Dependable):
         Actually load the build description into the invocation
         """
         desc = self.builder.invocation.db.build_desc_file_name()
+
         setup = None # To make sure it's defined.
         try:
+            old_path = sys.path
+            sys.path.insert(0, self.builder.invocation.checkout_path(self.build_co))
             setup = utils.dynamic_load(desc)
             setup.describe_to(self.builder)
+            sys.path = old_path
         except AttributeError, a:
             if setup is None:
                 traceback.print_exc()

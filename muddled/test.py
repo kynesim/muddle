@@ -281,6 +281,14 @@ def utils_unit_test():
     s = utils.pad_to("0", 10, "z")
     assert s == "0zzzzzzzzz"
 
+    s = utils.split_path_left("a/b/c")
+
+    assert s == ("a", "b/c")
+
+    s = utils.split_path_left("/a/b/c")
+    print "s = %s %s"%s
+    assert s == ("", "a/b/c")
+
 def vcs_unit_test():
     """
     Perform VCS unit tests

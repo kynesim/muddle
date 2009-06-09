@@ -129,7 +129,7 @@ def setup_default_env(builder, env):
     env.prepend_expr("LD_LIBRARY_PATH", 
                      env_store.append_expr("MUDDLE_TARGET_LOCATION", "/lib"))
     env.prepend_expr("PKG_CONFIG_PATH", 
-                     env_store.append_expr("MUDDLE_TARGET_LOCATION", "/lib/pkgconfig")
+                     env_store.append_expr("MUDDLE_TARGET_LOCATION", "/lib/pkgconfig"))
     env.prepend_expr("PATH", 
                      env_store.append_expr("MUDDLE_TARGET_LOCATION", "/bin"))
                      
@@ -139,7 +139,3 @@ def setup_default_env(builder, env):
 
 # End file.
 
-
-                
-    
-            env = orig_env.copy()

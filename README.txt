@@ -160,6 +160,25 @@ any problems you might have:
                            Instruction files - these hold pending install
                             directions for the deploy step to use.
  
+Multiple Files and Inheritance in Build Descriptions
+----------------------------------------------------
+
+Muddle automatically adds the build description's checkout directory to
+sys.path before it imports your build description. This allows you to
+treat the build description directory as a python package from which
+you can import additional build description helper files at will - e.g.
+
+in builds/foo.py
+
+import bar
+
+
+def describe_to(builder):
+    bar.do_common_setup() 
+    ...
+
+
+
 Environment variables, sudo and instructions
 ---------------------------------------------
 

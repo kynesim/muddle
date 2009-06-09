@@ -49,8 +49,8 @@ def role_depends_on_deployment(builder, role, deployment):
                        "*",
                        role, 
                        utils.Tags.PreConfig)
-    the_rule = Rule(tgt, None)
-    the_rule.add(Label(utils.LabelKind.Deployment,
+    the_rule = depend.Rule(tgt, None)
+    the_rule.add(depend.Label(utils.LabelKind.Deployment,
                        deployment,
                        None,
                        utils.Tags.Deployed))

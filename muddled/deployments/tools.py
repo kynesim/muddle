@@ -13,8 +13,10 @@ import muddled.env_store
 import muddled.depend as depend
 import muddled.utils as utils
 import muddled.filespec as filespec
+import os
+import muddled.deployment as deployment
 
-def attach_env(builder, role, env_store):
+def attach_env(builder, role, env):
     """
     Attach suitable environment variables for the given input role
     to the given environment store.
@@ -56,11 +58,11 @@ def deploy(builder, name, roles, dependentRoles = [ ]):
                            "*",
                            role,
                            "*")
-        env = self.builder.invocation.get_environment_for(lbl)
+        env = builder.invocation.get_environment_for(lbl)
         attach_env(builder, role, env)
 
     for dep in dependentRoles:
-        deployment.role_depends_on_deployment(dep, name)
+        deployment.role_depends_on_deployment(builder, dep, name)
 
     # We actually don't require a role for this.
 

@@ -13,7 +13,7 @@ environment store retrieved with get_env_store()
 
 import muddled
 import muddled.pkg as pkg
-import muddled.env_store
+import muddled.env_store as env_store
 import muddled.depend as depend
 import muddled.utils as utils
 import os
@@ -109,10 +109,10 @@ def get_env(builder, name, role):
     Retrieve the runtime environment builder for this initscripts
     package
     """
-    return self.builder.invocation.get_environment_for(
+    return builder.invocation.get_environment_for(
                 depend.Label(
                     utils.LabelKind.Package,
-                    self.name, self.role,
+                    name, role,
                     utils.Tags.RuntimeEnv))
 
 def setup_default_env(builder, env):

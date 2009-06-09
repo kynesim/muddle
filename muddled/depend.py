@@ -341,13 +341,15 @@ class RuleSet:
         for i in other_deps.items():
             self.add(i)
 
-    def to_string(self, showUser = True, showSystem = True):
+    def to_string(self, matchLabel = None, 
+                  showUser = True, showSystem = True):
         str_list = [ ]
         str_list.append("-----\n")
         for i in self.map.values():
-            if ((i.target.system and showSystem) or 
-                ((not i.target.system) and showUser)):
-                str_list.append(i.to_string(showUser = showUser, showSystem = showSystem))
+            if (matchLabel is None) or (matchLabel.match(i.target) is not None):
+                if ((i.target.system and showSystem) or 
+                    ((not i.target.system) and showUser)):
+                    str_list.append(i.to_string(showUser = showUser, showSystem = showSystem))
         str_list.append("-----\n")
         return "".join(str_list)
         

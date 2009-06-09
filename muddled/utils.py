@@ -75,7 +75,7 @@ class LabelKind:
     
     Checkout = "checkout"
     Package = "package"
-    Deployment = "deploy"
+    Deployment = "deployment"
     
     # Synthetic labels used purely to trick the dependency
     # mechanism into doing what I want.

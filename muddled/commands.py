@@ -186,12 +186,16 @@ class Depend(Command):
         raise utils.Error("Cannot run without a build tree")
 
     def with_build_tree(self, builder, local_pkgs, args):
-        if len(args) != 1:
-            print "Syntax: depend <[system|user|all]>"
+        if len(args) != 1 and len(args) != 2:
+            print "Syntax: depend <[system|user|all]> <[label to match]>"
             print self.__doc__
             return 2
         
         type = args[0]
+        if len(args) == 2:
+            label = depend.label_from_string(args[1])
+        else:
+            label = None
 
         show_sys = False
         show_user = False
@@ -207,7 +211,8 @@ class Depend(Command):
             raise utils.Error("Bad dependency type: %s"%(type))
 
         
-        print builder.invocation.ruleset.to_string(showSystem = show_sys, showUser = show_user)
+        print builder.invocation.ruleset.to_string(matchLabel = label, 
+                                                   showSystem = show_sys, showUser = show_user)
 
 class Query(Command):
     """
@@ -322,6 +327,80 @@ class BuildLabel(Command):
     def with_build_tree(self, builder, local_pkgs, args):
         labels = decode_labels(builder, args)
         build_labels(builder, labels)
+
+class Redeploy(Command):
+    """
+    Syntax: redeploy [deployment .. ]
+
+    Remove all tags for the given deployments, erase their built
+    directories and redeploy them.
+
+    You can use cleandeploy to just clean the relevant deployments
+
+    If no deployments are given, we redeploy the default deployment
+    list. If _all is given, we redeploy all deployments
+    """
+    
+    def name(self):
+        return "redeploy"
+
+    def requires_build_tree(self):
+        return True
+
+    def with_build_tree(self, builder, local_pkgs, args):
+        labels = decode_deployment_arguments(builder, args, local_pkgs,
+                                             utils.Tags.Deployed)
+        rv = build_a_kill_b(builder, labels, utils.Tags.Clean, utils.Tags.Deployed)
+        rv = build_labels(builder, labels)
+        return rv
+        
+
+class Cleandeploy(Command):
+    """
+    Syntax: cleandeploy [deployment .. ]
+
+    Remove all tags for the given deployments and erase their built
+    directories.
+
+    You can use cleandeploy to just clean the relevant deployments
+
+    If no deployments are given, we redeploy the default deployment
+    list. If _all is given, we redeploy all deployments
+    """
+    
+    def name(self):
+        return "cleandeploy"
+
+    def requires_build_tree(self):
+        return True
+
+    def with_build_tree(self, builder, local_pkgs, args):
+        labels = decode_deployment_arguments(builder, args, local_pkgs,
+                                             utils.Tags.Clean)
+        rv = build_a_kill_b(builder, labels, utils.Tags.Clean, utils.Tags.Deployed)
+
+
+class Deploy(Command):
+    """
+    Syntax: deploy [deployment .. ]
+
+    Build appropriate tags for deploying the given deployments.
+
+    If no deployments are given we will use the default deployment list.
+    If _all is given, we'll use all deployments.
+    """
+    def name(self):
+        return "deploy"
+
+    def requires_build_tree(self):
+        return True
+
+    def with_build_tree(self, builder, local_pkgs, args):
+        labels = decode_deployment_arguments(builder, args, local_pkgs, 
+                                             utils.Tags.Deployed)
+
+        build_labels(builder, labels)
+
 
 
 class Build(Command):
@@ -751,6 +830,75 @@ def decode_labels(builder, in_args):
 
     return rv
  
+def decode_deployment_arguments(builder, args, local_pkgs, tag):
+    """
+    Look through args for deployments. _all means all deployments
+    registered.
+    
+    If args is empty, we use the default deployments registered with the
+    builder.
+    """
+    return_list = [ ]
+    
+    for dep in args:
+        if (dep == "_all"):
+            # Everything .. 
+            return all_deployment_labels(builder, tag)
+        else:
+            lbl = depend.Label(utils.LabelKind.Deployment, 
+                               dep, 
+                               "*",
+                               tag)
+            return_list.append(lbl)
+    
+    if len(return_list) == 0:
+        # Input was empty - default deployments.
+        return default_deployment_labels(builder, tag)
+
+
+def all_deployment_labels(builder, tag):
+    """
+    Return all the deployment labels registered with the ruleset.
+    """
+
+    # Important not to set tag here - if there's a deployment
+    #  which doesn't have the right tag, we want an error, 
+    #  not to silently ignore it.
+    match_lbl = depend.Label(utils.LabelKind.Deployment,
+                             "*", "*", "*")
+    matching = builder.invocation.ruleset.rules_for_target(lbl)
+    
+    return_set = set()
+    for m in matching:
+        return_set.add(m.target.name)
+
+    return_list = [ ]
+    for r in return_set:
+        lbl = depend.Label(utils.LabelKind.Deployment, 
+                           r, 
+                           "*", 
+                           tag)
+        return_list.append(lbl)
+
+    return return_list
+
+def default_deployment_labels(builder, tag):
+    """
+    Return labels tagged with tag for all the default deployments.
+    """
+    
+    default_labels = builder.invocation.default_labels
+    return_list = [ ]
+    for d in default_labels:
+        if (d.tag_kind == utils.LabelKind.Deployment):
+            return_list.append(depend.Label(utils.LabelKind.Deployment,
+                                            d.name, 
+                                            d.role,
+                                            tag))
+
+    return return_list
+    
+
 def decode_package_arguments(builder, args, local_pkgs, tag):
     """
     Given your builder, a set of package arguments and the tag you'd
@@ -930,6 +1078,9 @@ def register_commands():
     Commit().register(the_dict)
     Push().register(the_dict)
     Changed().register(the_dict)
+    Deploy().register(the_dict)
+    Redeploy().register(the_dict)
+    Cleandeploy().register(the_dict)
     
     
     return the_dict

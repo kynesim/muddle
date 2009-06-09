@@ -282,27 +282,15 @@ class Builder:
 
     def by_default_deploy_list(self, deployments):
         """
-        Build a synthetic label that depends on all the deployments
+        Now we've got a list of default labels, we can just add them .. 
         """
-
-        label = depend.Label(utils.LabelKind.Synthetic,
-                             "_synthetic_default",
-                             None,
-                             utils.Tags.Temporary,
-                             transient = True, 
-                             system = True)
-
-        a_rule = depend.Rule(label, pkg.NoneDependable())
 
         for d in deployments:
             dep_label = depend.Label(utils.LabelKind.Deployment,
                                      d, 
                                      None,
                                      utils.Tags.Deployed)
-            a_rule.add(dep_label)
-
-        self.invocation.ruleset.add(a_rule)
-        self.invocation.add_default_label(label)
+            self.invocation.add_default_label(dep_label)
             
 
     def load_instructions(self, label):

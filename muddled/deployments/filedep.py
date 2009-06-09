@@ -10,6 +10,7 @@ import muddled.env_store
 import muddled.depend as depend
 import muddled.utils as utils
 import muddled.filespec as filespec
+import muddled.deployment as deployment
 
 class FileInstructionImplementor:
     def apply(self, builder, instruction, role, path):
@@ -246,6 +247,9 @@ def deploy(builder, target_dir, name, roles):
     # Now add 'em ..
     builder.invocation.ruleset.add(deployment_rule)
     builder.invocation.ruleset.add(app_rule)
+
+    # .. and deal with cleanup, which is entirely generic
+    deployment.register_cleanup(builder, name)
 
     # .. and set the environment
     the_dependable.attach_env()

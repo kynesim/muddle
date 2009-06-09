@@ -4,6 +4,7 @@ a set of environment variables
 """
 
 import utils
+import copy
 
 class EnvType:
     """
@@ -46,7 +47,73 @@ class EnvLanguage:
     Value = 2
 
 
+class EnvExpr:
+    """
+    An environment variable expression. This allows us to symbolically
+    represent things like catenating one variable value with another.
+    """
+    
+    # A string
+    StringType = 0
+    
+    # A variable reference
+    RefType = 1
 
+    # A catenation
+    CatType = 2
+
+    def __init__(self, type, val = None):
+        self.type = type
+        if (val is None):
+            self.values = [ ]
+        else:
+            self.values = [ val ]
+
+    def append_str(self, str):
+        self.append(EnvExpr(EnvExpr.StringType, str))
+
+    def append_ref(self, ref):
+        self.append(EnvExpr(EnvExpr.RefType, ref))
+
+    def append(self, other):
+        self.values.append(other)
+
+    def to_sh(self, doQuote):
+        if (self.type == EnvExpr.StringType):
+            return "".join(map(lambda x: utils.maybe_shell_quote(x, doQuote), self.values))
+        elif (self.type == EnvExpr.RefType):
+            return "".join(map(lambda x: utils.maybe_shell_quote("$%s"%x, doQuote), self.values))
+        else:
+            return "".join(map(lambda x: x.to_sh(doQuote), self.values))
+
+    def to_py(self, env_var):
+        """
+        Return a list of expressions you can put into a 
+        literal python list after "".join() to write the
+        correct value for this variable
+        """
+        r_list = [ ]
+        if (self.type == EnvExpr.StringType):
+            r_list.extend(map(lambda x: "\"%s\""%(x), self.values))
+        elif (self.type == EnvExpr.RefType):
+            r_list.extend(map(lambda x: "%s[\"%s\"]"%(env_var,x), self.values))
+        else:
+            for i in self.values:
+                r_list.extend(i.to_py(env_var))
+
+        return r_list
+
+
+    def to_value(self, env):
+        r_list = [ ]
+        if (self.type == EnvExpr.StringType):
+            r_list.extend(self.values)
+        elif (self.type == EnvExpr.RefType):
+            r_list.extend(map(lambda x: env.get(x, ""), self.values))
+        else:
+            r_list.extend(map(lambda x: x.to_value(env), self.values))
+
+        return "".join(r_list)
         
 
 class EnvBuilder:
@@ -59,6 +126,9 @@ class EnvBuilder:
     append_list  List of things to append to the old value.;
     env_type     Type of this environment variable
     erased       Have we been erased?
+
+    All paths are now of EnvExprs.
+
     """
 
     def __init__(self):
@@ -70,6 +140,10 @@ class EnvBuilder:
 
     def set_type(self, type):
         self.env_type = type
+
+    def copy(self):
+        return copy.deepcopy(self)
+        
 
     def merge(self, other):
         """
@@ -95,7 +169,12 @@ class EnvBuilder:
         self.append_list = [ ]
         self.erased = True
 
+
     def prepend(self, val):
+        return self.prepend_expr(EnvExpr(EnvExpr.StringType, val))
+
+
+    def prepend_expr(self, val):
         """
         Prepend val to this environment value
         """
@@ -103,9 +182,13 @@ class EnvBuilder:
         if (self.env_type == EnvType.SimpleValue):
             self.prepend_list.insert(0, val)
         else:
-            self.ensure_prepended(val)
+            self.ensure_prepended_expr(val)
 
-    def append(self,val):
+
+    def append(self, val):
+        return self.append_expr(EnvExpr(EnvExpr.StringType, val))
+
+    def append_expr(self,val):
         """
         Append val to this environment value
         """
@@ -113,9 +196,12 @@ class EnvBuilder:
         if (self.env_type == EnvType.SimpleValue):
             self.append_list.append(val)
         else:
-            self.ensure_appended(val)
+            self.ensure_appended_expr(val)
 
     def ensure_prepended(self, val):
+        return self.ensure_prepended_expr(EnvExpr(EnvExpr.StringType, val))
+
+    def ensure_prepended_expr(self, val):
         """
         Make sure val is part of the value or prepend it.
         What you usually want for paths
@@ -134,6 +220,9 @@ class EnvBuilder:
         return True
 
     def ensure_appended(self, val):
+        return self.ensure_appended_expr(EnvExpr(EnvExpr.StringType, val))
+
+    def ensure_appended_expr(self, val):
         """
         Make sure val is appended to the value or append it.
         
@@ -151,6 +240,9 @@ class EnvBuilder:
         return True
 
     def set(self, val):
+        return self.set_expr(EnvExpr(EnvExpr.StringType, val))
+
+    def set_expr(self, val):
         """
         Set val to this environment value
         """
@@ -169,7 +261,7 @@ class EnvBuilder:
             return self.get_py(inOldValue)
 
 
-    def get_value(self, inOldValue):
+    def get_value(self, inOldValue, env = { }):
 
         if self.erased:
             return None
@@ -177,15 +269,15 @@ class EnvBuilder:
         val_array = [ ]
         atLeastOne = False
 
-        val_array.extend(self.prepend_list)
+        val_array.extend(map(lambda x: x.to_value(env), self.prepend_list))
         if (inOldValue is not None) and self.retain_old_value: 
             val_array.append(inOldValue)
-        val_array.extend(self.append_list)
+        val_array.extend(map(lambda x: x.to_value(env), self.append_list))
 
         return ":".join(val_array)
     
 
-    def get_py(self, inOldValue):
+    def get_py(self, inOldValue, env_name = "os.environ"):
         """
         Like get, but in python syntax
 
@@ -203,7 +295,7 @@ class EnvBuilder:
         for i in self.prepend_list:
             if atLeastOne:
                 newValue.append(", ")
-            newValue.append("\"%s\""%i)
+            newValue.append(",".join(i.to_py(env_name)))
             atLeastOne = True
 
         if self.retain_old_value and (not (inOldValue is None)):
@@ -215,7 +307,7 @@ class EnvBuilder:
         for i in self.append_list:
             if atLeastOne:
                 newValue.append(", ")
-            newValue.append("\"%s\""%i)
+            newValue.append(",".join(i.to_py(env_name)))
             atLeastOne = True
 
         return "".join(newValue)
@@ -240,7 +332,7 @@ class EnvBuilder:
         for i in self.prepend_list:
             if atLeastOne:
                 newValue.append(":")
-            newValue.append(utils.maybe_shell_quote(i, doQuote))
+            newValue.append(i.to_sh(doQuote))
             atLeastOne = True
 
         if self.retain_old_value and (not (inOldValue is None)):
@@ -251,7 +343,7 @@ class EnvBuilder:
         for i in self.append_list:
             if atLeastOne:
                 newValue.append(":")
-            newValue.append(maybe_shell_quote(i, doQuote))
+            newValue.append(i.to_sh(doQuote))
             atLeastOne = True
 
         return "".join(newValue)
@@ -265,6 +357,15 @@ class Store:
     
     def __init__(self):
         self.vars = { }
+
+    def copy(self):
+        # We need to do quite a deep copy here ..
+        new_store = Store()
+
+        for (k,v) in self.vars.items():
+            new_store.vars[k] = v.copy()
+            
+        return new_store
 
     def builder_for_name(self, name):
         """
@@ -291,6 +392,24 @@ class Store:
         for (k,v) in other.vars:
             self.builder_for_name(k).merge(v)
 
+
+    def append_expr(self, name, expr):
+        """
+        Append an EnvExpr to a variable
+        """
+        self.builder_for_name(name).append_expr(expr)
+
+    def prepend_expr(self, name, expr):
+        """
+        Prepend an EnvExpr to a variable
+        """
+        self.builder_for_name(name).prepend_expr(expr)
+
+    def set_expr(self, name, expr):
+        """
+        Set a variable to an EnvExpr
+        """
+        self.builder_for_name(name).set_expr(expr)
 
     def append(self, name, value):
         """
@@ -410,6 +529,18 @@ class Store:
         retText.append("\n # End file.\n")
         
         return "".join(retText)
+
+def append_expr(var, str):
+    """
+    Create an environment expression consisting of the given string appended to the
+    given variable name
+    """
+    top = EnvExpr(EnvExpr.CatType)
+    top.append_ref(var)
+    top.append_str(str)
+    return top
+                   
+
 
     
 # End file.

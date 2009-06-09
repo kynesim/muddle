@@ -14,6 +14,8 @@ import pkg
 import subst
 
 def unit_test():
+    print "> env"
+    env_store_unit_test()
     print "> subst"
     subst_unit_test()
     print "> filespec"
@@ -29,6 +31,40 @@ def unit_test():
     print "> Mechanics"
     mechanics_unit_test()
     print "> All done."
+
+def env_store_unit_test():
+    """
+    Test some bits of the environment store mechanism
+    """
+
+    ee = env_store.EnvExpr(env_store.EnvExpr.StringType, "a")
+    ee.append("b")
+    ee.append("c")
+
+    assert ee.to_sh(True) == "\"a\"\"b\"\"c\""
+
+    ee = env_store.EnvExpr(env_store.EnvExpr.RefType, "a")
+    assert ee.to_sh(True) == "\"$a\""
+
+    # Now try something a bit more complex ..
+    ee = env_store.EnvExpr(env_store.EnvExpr.CatType)
+    ee.append_str("Fish")
+    ee.append_ref("Soup")
+    ee.append_str("Wombat")
+
+    assert ee.to_sh(True) == "\"Fish\"\"$Soup\"\"Wombat\""
+
+    assert ee.to_value(env = { "Soup" : "X"}) == "FishXWombat"
+    
+    lst = ee.to_py(env_var = "env")
+    
+    assert len(lst) == 3
+    
+    assert lst[0] == "\"Fish\""
+    assert lst[1] == "env[\"Soup\"]"
+    assert lst[2] == "\"Wombat\""
+
+
 
 def subst_unit_test():
     """

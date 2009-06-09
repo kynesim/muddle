@@ -447,6 +447,7 @@ def depend_empty(obj, label):
     rv = Rule(label, obj)
     return rv
 
+
 def label_set_to_string(label_set):
     """
     Utility function to convert a label set to a string

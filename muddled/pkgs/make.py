@@ -123,6 +123,13 @@ def medium(builder, name, roles, checkout, deps, dep_tag = utils.Tags.PreConfig,
                                        name, r, dep_tag, 
                                        deps)
                                        
+
+def single(builder, name, role, deps):
+    """
+    A simple make package with a single checkout named after the package and
+    a single role
+    """
+    medium(builder, name, [ role ], name, deps)
     
 
 # End file.

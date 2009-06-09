@@ -43,7 +43,7 @@ def attach_env(builder, role, env_store):
 
 
 
-def deploy(builder, name, roles):
+def deploy(builder, name, roles, dependentRoles = [ ]):
     """
     Register a tools deployment.
 
@@ -58,6 +58,9 @@ def deploy(builder, name, roles):
                            "*")
         env = self.builder.invocation.get_environment_for(lbl)
         attach_env(builder, role, env)
+
+    for dep in dependentRoles:
+        deployment.role_depends_on_deployment(dep, name)
 
     # We actually don't require a role for this.
 

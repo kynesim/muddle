@@ -67,6 +67,9 @@ class Tags:
     # be stored beyond the scope of the current function call
     Temporary = "temporary"
 
+    # Used by the initscripts package to store runtime environments.
+    RuntimeEnv = "runtime_env"
+
 
 class LabelKind:
     """

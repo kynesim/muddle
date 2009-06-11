@@ -162,27 +162,36 @@ def add_checkout_rules(ruleset, co_name, obj):
     # and changespushed must be transient.
     co_label = depend.Label(utils.LabelKind.Checkout, 
                             co_name, None, 
-                            utils.Tags.CheckedOut, system = True)
+                            utils.Tags.CheckedOut)
     co_rule = depend.Rule(co_label, obj)
     ruleset.add(co_rule)
     
+    uptodate_label = co_label.re_tag(utils.Tags.UpToDate, transient = True)
+    rule = ruleset.rule_for_target(uptodate_label, createIfNotPresent = True)
+    rule.add(co_label)
+
     # We actually need to ask the object whether this is a centralised 
     # or a decentralised VCS .. 
     if (obj.must_update_to_commit()):
         depend.depend_chain(obj, 
-                            co_label.re_tag(utils.Tags.UpToDate, transient = True),
+                            uptodate_label,
                             [ utils.Tags.ChangesCommitted,
                               utils.Tags.ChangesPushed ], 
                             ruleset)
+
     else:
         # We don't need to update to commit.
+        commit_label = co_label.re_tag(utils.Tags.ChangesCommitted, 
+                                       transient = True)
         depend.depend_chain(obj, 
-                            co_label.re_tag(utils.Tags.ChangesCommitted, 
-                                            transient = True),
+                            commit_label,
                             [ utils.Tags.ChangesPushed ], 
                             ruleset)
-        update_rule = depend.Rule(co_label.re_tag(utils.Tags.UpToDate, transient = True),
+        commit_rule = ruleset.rule_for_target(commit_label)
+        commit_rule.add(co_label)
+        update_rule = depend.Rule(uptodate_label,
                                   obj)
+        update_rule.add(co_label)
         ruleset.add(update_rule)
 
 
@@ -193,12 +202,12 @@ def package_depends_on_checkout(ruleset, pkg_name, role_name, co_name, obj):
     new_rule = depend.Rule(depend.Label(
             utils.LabelKind.Package, 
             pkg_name, role_name, 
-            utils.Tags.PreConfig, system = True), 
+            utils.Tags.PreConfig), 
                            obj)
 
     new_rule.add(depend.Label(utils.LabelKind.Checkout, 
                               co_name, None,
-                              utils.Tags.UpToDate))
+                              utils.Tags.CheckedOut))
     ruleset.add(new_rule)
                     
 
@@ -232,7 +241,7 @@ def add_package_rules(ruleset, pkg_name, role_name, obj):
     depend.depend_chain(obj,
                         depend.Label(utils.LabelKind.Package, 
                               pkg_name, role_name, 
-                              utils.Tags.PreConfig, system = True),
+                              utils.Tags.PreConfig),
                         [ utils.Tags.Configured, 
                           utils.Tags.Built,
                           utils.Tags.Installed,
@@ -248,13 +257,13 @@ def add_package_rules(ruleset, pkg_name, role_name, obj):
                 (obj, 
                  depend.Label(utils.LabelKind.Package,
                               pkg_name, role_name, 
-                              utils.Tags.Clean, system = True, 
+                              utils.Tags.Clean, 
                               transient = True)))
     ruleset.add(depend.depend_none
                 (obj, 
                  depend.Label(utils.LabelKind.Package,
                               pkg_name, role_name, 
-                              utils.Tags.DistClean, system = True, 
+                              utils.Tags.DistClean, 
                               transient = True)))
     
     

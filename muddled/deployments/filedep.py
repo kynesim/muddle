@@ -221,14 +221,13 @@ def deploy(builder, target_dir, name, roles):
     dep_label = depend.Label(utils.LabelKind.Deployment,
                              name, 
                              None, 
-                             utils.Tags.Deployed,
-                             system = True)
+                             utils.Tags.Deployed)
     
     iapp_label = depend.Label(utils.LabelKind.Deployment,
                               name,
                               None,
                               utils.Tags.InstructionsApplied,
-                              system = True, transient = True)
+                              transient = True)
     
     # We depend on every postinstall for every package in the roles
 

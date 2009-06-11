@@ -64,7 +64,17 @@ def deploy(builder, name, roles, dependentRoles = [ ]):
     for dep in dependentRoles:
         deployment.role_depends_on_deployment(builder, dep, name)
 
-    # We actually don't require a role for this.
+    # .. and build a None rule so the dependency system doesn't
+    # get confused.
+    tgt = depend.Label(utils.LabelKind.Deployment,
+                       name, 
+                       None,
+                       utils.Tags.Deployed)
+    the_rule = depend.Rule(tgt, pkg.NoneDependable())
+    builder.invocation.ruleset.add(the_rule)
+    
+        
+        
 
 
 # End file.

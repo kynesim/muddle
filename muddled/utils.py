@@ -270,6 +270,7 @@ def ensure_dir(dir):
     elif os.path.exists(dir):
         raise Error("%s exists but is not a directory"%dir)
     else:
+        print "> Make directory %s"%dir
         os.makedirs(dir)
 
 def pad_to(str, val, pad_with = " "):

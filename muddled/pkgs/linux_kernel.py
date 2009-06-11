@@ -65,6 +65,7 @@ class LinuxKernel(PackageBuilder):
         elif (tag == utils.Tags.Configured):
             # Copy the .config file across and run a distclean
             self.dist_clean(label)
+            self.ensure_dirs(label)
             config_src = os.path.join(co_path, self.config_file)
             if not (os.path.exists(config_src)):
                 raise utils.Failure("Cannot find kernel config source file %s"%config_src)
@@ -84,7 +85,7 @@ class LinuxKernel(PackageBuilder):
             os.chdir(os.path.join(co_path, self.linux_src))
             utils.run_cmd("%s clean"%make_cmd)
         elif (tag == utils.Tags.DistClean):
-            self.distclean(label)
+            self.dist_clean(label)
         else:
             raise utils.Error("Invalid tag specified for " + 
                               "linux kernel build - %s"%(label))

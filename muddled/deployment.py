@@ -17,7 +17,9 @@ class CleanDeploymentBuilder(pkg.Dependable):
         if (label.tag_kind == utils.LabelKind.Deployment and 
             (label.tag == utils.Tags.Clean or 
             label.tag == utils.Tags.DistClean)):
-            utils.recursively_remove(self.builder.invocation.deploy_path(label.name))
+            deploy_path = self.builder.invocation.deploy_path(label.name)
+            print "> Remove %s"%deploy_path
+            utils.recursively_remove(deploy_path)
         else:
             raise utils.Failure("Attempt to invoke CleanDeploymentBuilder on " + 
                                 "unrecognised label %s"%label)

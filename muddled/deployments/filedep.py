@@ -60,6 +60,8 @@ class FileDeploymentBuilder(pkg.Dependable):
         Then we apply instructions to deploy.
         """
 
+        print "> filedep build_label = %s"%label
+
         if (label.tag == utils.Tags.Deployed):
             # We want to deploy 
             self.deploy(label)

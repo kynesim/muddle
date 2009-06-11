@@ -16,7 +16,7 @@ import muddled.filespec as filespec
 import os
 import muddled.deployment as deployment
 
-def attach_env(builder, role, env):
+def attach_env(builder, role, env, name):
     """
     Attach suitable environment variables for the given input role
     to the given environment store.
@@ -41,11 +41,11 @@ def attach_env(builder, role, env):
     env.prepend("LD_LIBRARY_PATH", os.path.join(role_base, "lib"))
     env.prepend("PKG_CONFIG_PATH", os.path.join(role_base, "lib", "pkgconfig"))
     env.append("PATH", os.path.join(role_base, "bin"))
-    env.set("%s_TOOLS_PATH"%(role), os.path.join(role_base, "bin"))
+    env.set("%s_TOOLS_PATH"%(name.upper()), os.path.join(role_base, "bin"))
 
 
 
-def deploy(builder, name, roles, dependentRoles = [ ]):
+def deploy(builder, name, rolesThatUseThis = [ ], rolesNeededForThis = [ ]):
     """
     Register a tools deployment.
 
@@ -53,15 +53,15 @@ def deploy(builder, name, roles, dependentRoles = [ ]):
     environment
     """
 
-    for role in roles:
+    for role in rolesThatUseThis:
         lbl = depend.Label(utils.LabelKind.Package,
                            "*",
                            role,
                            "*")
         env = builder.invocation.get_environment_for(lbl)
-        attach_env(builder, role, env)
+        attach_env(builder, role, env, name)
 
-    for dep in dependentRoles:
+    for dep in rolesNeededForThis:
         deployment.role_depends_on_deployment(builder, dep, name)
 
     # .. and build a None rule so the dependency system doesn't

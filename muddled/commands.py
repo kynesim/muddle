@@ -502,8 +502,12 @@ class Clean(Command):
     def with_build_tree(self, builder, local_pkgs, args):
         labels = decode_package_arguments(builder, args, local_pkgs, 
                                           utils.Tags.Built)
+        if (self.no_op()):
+            print "Would have cleaned: %s"%(" ".join(map(str, labels)))
+            rv = 0
+        else:
+            rv = build_a_kill_b(builder, labels, utils.Tags.Clean, utils.Tags.Built)
 
-        rv = build_a_kill_b(builder, labels, utils.Tags.Clean, utils.Tags.Built)
         return rv
 
 class DistClean(Command):
@@ -525,7 +529,7 @@ class DistClean(Command):
                                           utils.Tags.Built)
 
         if (self.no_op()):
-            print "Would have disctleaned: %s"%(join(" ", map(str, labels)))
+            print "Would have disctleaned: %s"%(" ".join(map(str, labels)))
             rv = 0
         else:
             rv = build_a_kill_b(builder, labels, utils.Tags.DistClean, utils.Tags.PreConfig)
@@ -627,6 +631,7 @@ class Update(Command):
             for co in checkouts:
                 builder.kill_label(co)
                 builder.build_label(co)
+
 
 class Commit(Command):
     """
@@ -986,6 +991,7 @@ def decode_package_arguments(builder, args, local_pkgs, tag):
 
     to_build = labels_from_pkg_args(effective_args, tag, 
                                         builder.invocation.default_roles)
+
     all_roles = process_labels_all_spec(to_build, 
                                         builder.invocation.default_roles)
     if len(all_roles) > 0:
@@ -1100,11 +1106,17 @@ def labels_from_pkg_args(list, tag, default_roles):
             pkg = m.group(1)
             role = m.group(3)
             if (role is None):
-                # Add the default roles
-                for r in default_roles:
+                if (len(default_roles) > 0):
+                    # Add the default roles
+                    for r in default_roles:
+                        result.append(depend.Label(utils.LabelKind.Package, 
+                                                   pkg, 
+                                                   r,
+                                                   tag))
+                else:
                     result.append(depend.Label(utils.LabelKind.Package, 
-                                               pkg, 
-                                               r,
+                                               pkg,
+                                               "*",
                                                tag))
             else:
                 result.append(depend.Label(utils.LabelKind.Package,

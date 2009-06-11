@@ -54,20 +54,18 @@ class EnvExpr:
     """
     
     # A string
-    StringType = 0
+    StringType = "String"
     
     # A variable reference
-    RefType = 1
+    RefType = "Ref"
 
     # A catenation
-    CatType = 2
+    CatType = "Cat"
 
     def __init__(self, type, val = None):
         self.type = type
-        if (val is None):
-            self.values = [ ]
-        else:
-            self.values = [ val ]
+        self.values = [ ]
+        self.append(val)
 
     def append_str(self, str):
         self.append(EnvExpr(EnvExpr.StringType, str))
@@ -76,7 +74,22 @@ class EnvExpr:
         self.append(EnvExpr(EnvExpr.RefType, ref))
 
     def append(self, other):
-        self.values.append(other)
+        # None just means 'don't append anything'
+        if other is None:
+            return
+
+        if ((self.type == EnvExpr.StringType or 
+             self.type == EnvExpr.RefType) and 
+            type(other) == type(str())):
+            self.values.append(other)
+        elif (self.type == EnvExpr.CatType and
+              (isinstance(other, EnvExpr))):
+            self.values.append(other)
+        else:
+            raise utils.Error("Attempt to append" + 
+                              " %s (type %s) to an EnvExpr of type %s"%(other, 
+                                                                        type(other), 
+                                                                        self.type))
 
     def to_sh(self, doQuote):
         if (self.type == EnvExpr.StringType):
@@ -157,10 +170,10 @@ class EnvBuilder:
         self.retain_old_value = other.retain_old_value
 
         for prep in other.prepend_list:
-            self.prepend(prep)
+            self.prepend_expr(prep)
 
         for app in other.append_list:
-            self.append(app)
+            self.append_expr(app)
 
 
     def erase(self):
@@ -248,7 +261,7 @@ class EnvBuilder:
         """
         self.prepend_list = [ val ]
         self.append_list = [ ]
-        self.retain_old_value = False#
+        self.retain_old_value = False
         self.erased = False
 
         
@@ -389,7 +402,7 @@ class Store:
         Merge another environment store into this one. Instructions from
         the new store will override or augment those in self
         """
-        for (k,v) in other.vars:
+        for (k,v) in other.vars.items():
             self.builder_for_name(k).merge(v)
 
 

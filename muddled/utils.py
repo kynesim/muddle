@@ -187,7 +187,13 @@ def find_local_packages(dir, root, inv):
 
     
     if (what == DirType.CheckOut):
-        return inv.packages_for_checkout(loc)
+        rv = [  ]
+        for p in inv.packages_for_checkout(loc):
+            if (p.role is None):
+                rv.append(p.name)
+            else:
+                rv.append("%s/%s"%(p.name, p.role))
+        return rv
     elif (what == DirType.Object):
         if (role is not None):
             return [ "%s/%s"%(loc, role) ]
@@ -356,6 +362,9 @@ def recursively_remove(a_dir):
         # Again, the most efficient way to do this is to tell UNIX to do it
         # for us.
         run_cmd("rm -rf \"%s\""%(a_dir))
+
+def copy_file(from_name, to_name):
+    run_cmd("cp \"%s\" \"%s\""%(from_name, to_name))
 
 def recursively_copy(from_dir, to_dir):
     """

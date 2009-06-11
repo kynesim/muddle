@@ -463,10 +463,9 @@ class Build(Command):
         return True
     
     def with_build_tree(self, builder, local_pkgs, args):
-
         labels = decode_package_arguments(builder, args, local_pkgs, 
                                           utils.Tags.PostInstalled)
-
+        
         build_labels(builder, labels)
 
 
@@ -703,7 +702,6 @@ class Push(Command):
             for co in checkouts:
                 builder.invocation.db.clear_tag(co)
                 builder.build_label(co)
-
 
 class Import(Command):
     """
@@ -1001,12 +999,13 @@ def decode_package_arguments(builder, args, local_pkgs, tag):
     of the roles specified in the argument list (or the default
     role set if there weren't any).
     """
+
     effective_args = args
     if len(effective_args) == 0:
         effective_args = local_pkgs
 
     to_build = labels_from_pkg_args(effective_args, tag, 
-                                        builder.invocation.default_roles)
+                                    builder.invocation.default_roles)
 
     all_roles = process_labels_all_spec(to_build, 
                                         builder.invocation.default_roles)

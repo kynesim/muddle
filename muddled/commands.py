@@ -396,6 +396,8 @@ class Cleandeploy(Command):
     def with_build_tree(self, builder, local_pkgs, args):
         labels = decode_deployment_arguments(builder, args, local_pkgs,
                                              utils.Tags.Clean)
+        if (labels is None):
+            raise utils.Failure("No deployments specified or implied (this may well be a bug).")
         rv = build_a_kill_b(builder, labels, utils.Tags.Clean, utils.Tags.Deployed)
 
 
@@ -914,6 +916,8 @@ def decode_deployment_arguments(builder, args, local_pkgs, tag):
     if len(return_list) == 0:
         # Input was empty - default deployments.
         return default_deployment_labels(builder, tag)
+
+    return return_list
 
 
 def all_deployment_labels(builder, tag):

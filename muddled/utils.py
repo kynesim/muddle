@@ -404,5 +404,15 @@ def split_path_left(in_path):
     return (lst[0], rp)
     
 
+def print_string_set(ss):
+    """
+    Given a string set, return a string representing it.
+    """
+    result = [ ]
+    for s in ss:
+        result.append(s)
+
+    return " ".join(result)
+
 
 # End file.

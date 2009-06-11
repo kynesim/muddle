@@ -26,10 +26,12 @@ class InitScriptBuilder(pkg.PackageBuilder):
     """
 
     def __init__(self, name, role, script_name,  builder, 
+                 deployments,
                  writeSetvarsSh = True, writeSetvarsPy = False):
         pkg.PackageBuilder.__init__(self, name, role)
         self.builder = builder
         self.script_name = script_name
+        self.deployments = deployments
         self.write_setvars_sh = writeSetvarsSh
         self.write_setvars_py = writeSetvarsPy
 
@@ -50,13 +52,24 @@ class InitScriptBuilder(pkg.PackageBuilder):
             print "> Writing %s .. "%(tgt_file)
             subst.subst_file(src_file, tgt_file, None, os.environ)
         
-            # Write the setvars script
+              # Write the setvars script
             env = get_env(self.builder, self.name, self.role)
-            
+            effective_env = env.copy()
+            setup_default_env(self.builder, effective_env)
+
+            for d in self.deployments:
+                # Merge in the relevant deployment environments.
+                lbl = depend.Label(utils.LabelKind.Deployment, 
+                                   d, 
+                                   None,
+                                   utils.Tags.Deployed)
+                effective_env.merge(self.builder.invocation.get_environment_for(
+                        lbl))
+
             if (self.write_setvars_sh):
                 setenv_file_name = os.path.join(tgt_dir, "setvars")
-                sv_script  = env.get_setvars_script(self.script_name, 
-                                                    env_store.EnvLanguage.Sh)
+                sv_script  = effective_env.get_setvars_script(self.script_name, 
+                                                              env_store.EnvLanguage.Sh)
                 
                 out_f = open(setenv_file_name, "w")
                 out_f.write(sv_script)
@@ -65,7 +78,7 @@ class InitScriptBuilder(pkg.PackageBuilder):
             if (self.write_setvars_py):
                 # Now the python version .. 
                 setenv_file_name = os.path.join(tgt_dir, "setvars.py")
-                sv_script = env.get_setvars_script(self.script_name,
+                sv_script = effective_env.get_setvars_script(self.script_name,
                                                    env_store.EnvLanguage.Python)
                 out_f = open(setenv_file_name, "w")
                 out_f.write(sv_script)
@@ -75,13 +88,15 @@ class InitScriptBuilder(pkg.PackageBuilder):
 
 
 
-def simple(builder, name, role, script_name, writeSetvarsSh = True, 
+def simple(builder, name, role, script_name, deployments = [ ],
+           writeSetvarsSh = True, 
            writeSetvarsPy = False):
     """
     Build an init script for the given role
     """
 
     the_pkg = InitScriptBuilder(name, role, script_name, builder, 
+                                deployments,
                                 writeSetvarsSh = writeSetvarsSh, 
                                 writeSetvarsPy = writeSetvarsPy)
     pkg.add_package_rules(builder.invocation.ruleset, 
@@ -89,7 +104,8 @@ def simple(builder, name, role, script_name, writeSetvarsSh = True,
     setup_default_env(builder, get_env(builder, name, role))
 
 
-def medium(builder, name, roles, script_name, writeSetvarsSh = True, 
+def medium(builder, name, roles, script_name, deployments = [ ],
+           writeSetvarsSh = True, 
            writeSetvarsPy = False):
     """
     Build an init script for the given roles
@@ -97,6 +113,7 @@ def medium(builder, name, roles, script_name, writeSetvarsSh = True,
 
     for role in roles:
         the_pkg = InitScriptBuilder(name, role, script_name, builder, 
+                                    deployments,
                                     writeSetvarsSh = writeSetvarsSh, 
                                     writeSetvarsPy = writeSetvarsPy)
         pkg.add_package_rules(builder.invocation.ruleset, 
@@ -109,7 +126,7 @@ def get_env(builder, name, role):
     Retrieve the runtime environment builder for this initscripts
     package
     """
-    return builder.invocation.get_environment_for(
+    return builder.invocation.effective_environment_for(
                 depend.Label(
                     utils.LabelKind.Package,
                     name, role,

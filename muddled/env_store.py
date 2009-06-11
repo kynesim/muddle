@@ -127,7 +127,20 @@ class EnvExpr:
             r_list.extend(map(lambda x: x.to_value(env), self.values))
 
         return "".join(r_list)
-        
+
+    def augment_dependency_set(self, a_set):
+        """
+        Add the environment variables this expression depends on to 
+        a_set
+        """
+        if (self.type == EnvExpr.RefType):
+            for var in self.values:
+                a_set.add(var)
+        elif (self.type == EnvExpr.CatType):
+            for var in self.values:
+                var.augment_dependency_set(a_set)
+        # Otherwise we just don't care.
+
 
 class EnvBuilder:
     """
@@ -139,17 +152,19 @@ class EnvBuilder:
     append_list  List of things to append to the old value.;
     env_type     Type of this environment variable
     erased       Have we been erased?
+    external     This variable is defined externally.
 
     All paths are now of EnvExprs.
 
     """
 
-    def __init__(self):
+    def __init__(self, external = False):
         self.prepend_list = [ ]
         self.retain_old_value = True
         self.append_list = [ ]
         self.env_type = EnvType.SimpleValue
         self.erased = False
+        self.external = external
 
     def set_type(self, type):
         self.env_type = type
@@ -181,7 +196,7 @@ class EnvBuilder:
         self.retain_old_value = True
         self.append_list = [ ]
         self.erased = True
-
+        self.external = False
 
     def prepend(self, val):
         return self.prepend_expr(EnvExpr(EnvExpr.StringType, val))
@@ -192,6 +207,7 @@ class EnvBuilder:
         Prepend val to this environment value
         """
         self.erased = False
+        self.external = False
         if (self.env_type == EnvType.SimpleValue):
             self.prepend_list.insert(0, val)
         else:
@@ -206,6 +222,7 @@ class EnvBuilder:
         Append val to this environment value
         """
         self.erased = False
+        self.external = False
         if (self.env_type == EnvType.SimpleValue):
             self.append_list.append(val)
         else:
@@ -223,6 +240,7 @@ class EnvBuilder:
            already there.
         """
         self.erased = False
+        self.external = False
         for i in range(0, len(self.prepend_list)):
             if val == self.prepend_list[i]:
                 del self.prepend_list[i:i+1]
@@ -243,6 +261,7 @@ class EnvBuilder:
           already there
           """
         self.erased = False
+        self.external = False
         for i in range(0, len(self.append_list)):
             if val == self.append_list[i]:
                 del self.append_list[i:i+1]
@@ -263,7 +282,10 @@ class EnvBuilder:
         self.append_list = [ ]
         self.retain_old_value = False
         self.erased = False
+        self.external = False
 
+    def set_external(self, external = True):
+        self.external = external
         
     def get(self, inOldValue, language):
         if language == EnvLanguage.Value:
@@ -362,6 +384,24 @@ class EnvBuilder:
         return "".join(newValue)
 
 
+    def dependencies(self):
+        """
+        Return a set of the environment variables that this value
+        depends on 
+        """
+        if self.external:
+            return set()
+
+        result_set = set()
+        for p in self.prepend_list:
+            p.augment_dependency_set(result_set)
+
+        for p in self.append_list:
+            p.augment_dependency_set(result_set)
+            
+        return result_set
+
+
 class Store:
     """
     Maintains a store of environment variables and allows us to apply them
@@ -395,6 +435,10 @@ class Store:
     def set_type(self, name, type):
         b = self.builder_for_name(name)
         b.set_type(type)
+
+    def set_external(self, name):
+        b = self.builder_for_name(name)
+        b.set_external(name)
 
 
     def merge(self, other):
@@ -442,6 +486,9 @@ class Store:
         """
         self.builder_for_name(name).set(value)
 
+    def externaL(self, name):
+        self.builder_for_name(name).set_external(True)
+
 
     def erase(self, name):
         """
@@ -480,7 +527,12 @@ class Store:
         """
         Apply the modifications here to the environment in dict
         """
-        for (k,v) in self.vars.items():
+
+        sorted_items = self.dependency_sort()
+        for (k,v) in sorted_items:
+            if (v.external):
+                continue
+
             if (v.erased):
                 if (k in in_env):
                     del in_env[k]
@@ -504,7 +556,11 @@ class Store:
 
         retText.append("\n")
 
-        for (k,v) in self.vars.items():
+        sorted_items = self.dependency_sort()
+        for (k,v) in sorted_items:
+            if (v.external):
+                continue
+
             if (v.erased):
                 retText.append("if (\"%s\" in os.environ):\n"%k +
                                "  del os.environ[\"%s\"]\n"%k)
@@ -531,7 +587,11 @@ class Store:
 
         retText.append("\n")
 
-        for (k,v) in self.vars.items():
+        sorted_items = self.dependency_sort()
+        for (k,v) in sorted_items:
+            if (v.external):
+                continue
+
             if (v.erased):
                 retText.append("unset %s\n"%k)
             else:
@@ -542,6 +602,80 @@ class Store:
         retText.append("\n # End file.\n")
         
         return "".join(retText)
+
+    def dependency_sort(self):
+        """
+        Sort self.vars.items() in as close to dependency order as you
+        can.
+        """
+        
+        # deps maps environment variables to a set of the variables they 
+        # (directly) depend on.
+        deps = { }
+        remain = set()
+
+        for (k,v) in self.vars.items():
+            deps[k] = v.dependencies()
+            remain.add(k)
+
+        done = set()
+        out_list = [ ]
+        
+        while len(remain) > 0:
+            # Take out anything we can
+            take_out = set()
+            new_remain = set()
+            did_something = False
+
+            for k in remain:
+                can_issue = True
+
+                for cur_dep in deps[k]:
+                    if cur_dep not in done:
+                        # Curses: a dependency not in done.
+                        can_issue = False
+                        break
+
+                if (can_issue):
+                    out_list.append(k)
+                    done.add(k)
+                    did_something = True
+                else:
+                    # Can't issue
+                    new_remain.add(k)
+
+            remain = new_remain
+            # If we didn't do anything, we've reached the end
+            # of the line.
+            if (not did_something):
+                raise utils.Failure("Cannot produce a consistent environment ordering:\n" + 
+                                    "Issued: %s\n"%(" ".join(map(str, out_list))) + 
+                                    "Remaain: %s\n"%utils.print_string_set(remain) + 
+                                    "Deps: %s\n"%(print_deps(deps)))
+
+        # Form the value list ..
+        rv = [ ]
+        for k in out_list:
+            rv.append((k, self.vars[k]))
+
+        return rv
+                                    
+            
+def print_deps(deps):
+    """
+    Given a dictionary mapping environment variable names to sets of
+    dependencies, return a string representing the map
+    """
+    result_str = [ ]
+
+    for (k,v) in deps:
+        result_str.append("%s = { "%k)
+        for dep in v:
+            result_str.append(" %s"%dep)
+        result_str.append("}\n")
+
+    return "".join(result_str)
+
 
 def append_expr(var, str):
     """

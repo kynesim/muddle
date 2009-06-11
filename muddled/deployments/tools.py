@@ -16,6 +16,35 @@ import muddled.filespec as filespec
 import os
 import muddled.deployment as deployment
 
+class ToolsDeploymentBuilder(pkg.Dependable):
+    """
+    Copy the dependent roles into the tools deployment
+    """
+    
+    def __init__(self, builder, dependent_roles):
+        self.builder = builder
+        self.dependent_roles = dependent_roles
+
+    def build_label(self, label):
+        if (label.tag == utils.Tags.Deployed):
+            self.deploy(label)
+        else:
+            raise utils.Failure("Attempt to build " + 
+                                "unrecognised tools deployment label %s"%(label))
+
+    def deploy(self, label):
+        deploy_dir = self.builder.invocation.deploy_path(label.name)
+
+        utils.recursively_remove(deploy_dir)
+        utils.ensure_dir(deploy_dir)
+
+        for role in self.dependent_roles:
+            print "> %s: Deploying role %s .."%(label.name, role)
+            install_dir = self.builder.invocation.role_install_path(role)
+            utils.recursively_copy(install_dir, deploy_dir)
+
+        # We don't obey instructions. W00t.
+
 def attach_env(builder, role, env, name):
     """
     Attach suitable environment variables for the given input role
@@ -35,13 +64,16 @@ def attach_env(builder, role, env, name):
     env.set_type("LD_LIBRARY_PATH", muddled.env_store.EnvType.Path)
     env.set_type("PATH", muddled.env_store.EnvType.Path)
     env.set_type("PKG_CONFIG_PATH", muddled.env_store.EnvType.Path)
-    
-    role_base = builder.invocation.role_install_path(role)
+    env.set_external("LD_LIBRARY_PATH")
+    env.set_external("PATH")
+    env.set_external("PKG_CONFIG_PATH")
 
-    env.prepend("LD_LIBRARY_PATH", os.path.join(role_base, "lib"))
-    env.prepend("PKG_CONFIG_PATH", os.path.join(role_base, "lib", "pkgconfig"))
-    env.append("PATH", os.path.join(role_base, "bin"))
-    env.set("%s_TOOLS_PATH"%(name.upper()), os.path.join(role_base, "bin"))
+    deploy_base = builder.invocation.deploy_path(name)
+
+    env.prepend("LD_LIBRARY_PATH", os.path.join(deploy_base, "lib"))
+    env.prepend("PKG_CONFIG_PATH", os.path.join(deploy_base, "lib", "pkgconfig"))
+    env.append("PATH", os.path.join(deploy_base, "bin"))
+    env.set("%s_TOOLS_PATH"%(name.upper()), deploy_base)
 
 
 
@@ -53,25 +85,29 @@ def deploy(builder, name, rolesThatUseThis = [ ], rolesNeededForThis = [ ]):
     environment
     """
 
-    for role in rolesThatUseThis:
-        lbl = depend.Label(utils.LabelKind.Package,
-                           "*",
-                           role,
-                           "*")
-        env = builder.invocation.get_environment_for(lbl)
-        attach_env(builder, role, env, name)
-
-    for dep in rolesNeededForThis:
-        deployment.role_depends_on_deployment(builder, dep, name)
-
-    # .. and build a None rule so the dependency system doesn't
-    # get confused.
     tgt = depend.Label(utils.LabelKind.Deployment,
                        name, 
                        None,
                        utils.Tags.Deployed)
-    the_rule = depend.Rule(tgt, pkg.NoneDependable())
+
+    for role in rolesThatUseThis:
+        for tag in ( utils.Tags.PreConfig, utils.Tags.Configured, utils.Tags.Built, 
+                     utils.Tags.Installed, utils.Tags.PostInstalled) :
+            lbl = depend.Label(utils.LabelKind.Package,
+                               "*",
+                               role,
+                               tag)
+            env = builder.invocation.get_environment_for(lbl)
+            attach_env(builder, role, env, name)
+
+        deployment.role_depends_on_deployment(builder, role, name)
+
+    the_rule = depend.Rule(tgt, ToolsDeploymentBuilder(builder, rolesNeededForThis))
     builder.invocation.ruleset.add(the_rule)
+
+    deployment.deployment_depends_on_roles(builder, name, rolesNeededForThis)
+
+    deployment.register_cleanup(builder, name)
     
         
         

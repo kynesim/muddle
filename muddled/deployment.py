@@ -58,4 +58,23 @@ def role_depends_on_deployment(builder, role, deployment):
                        utils.Tags.Deployed))
     builder.invocation.ruleset.add(the_rule)
 
+def deployment_depends_on_roles(builder, deployment, roles):
+    """
+    Make the deployment of the deployment with the given name
+    depend on the installation of every package in the given
+    role
+    """
+    tgt = depend.Label(utils.LabelKind.Deployment, 
+                       deployment,
+                       None,
+                       utils.Tags.Deployed)
+    rule = builder.invocation.ruleset.rule_for_target(tgt, 
+                                                      createIfNotPresent = True)
+    for r in roles:
+        lbl = depend.Label(utils.LabelKind.Package,
+                           "*",
+                           r,
+                           utils.Tags.PostInstalled)
+        rule.add(lbl)
+
 # End file.

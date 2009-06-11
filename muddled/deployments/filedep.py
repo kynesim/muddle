@@ -60,7 +60,6 @@ class FileDeploymentBuilder(pkg.Dependable):
         Then we apply instructions to deploy.
         """
 
-        print "> filedep build_label = %s"%label
 
         if (label.tag == utils.Tags.Deployed):
             # We want to deploy 
@@ -78,7 +77,7 @@ class FileDeploymentBuilder(pkg.Dependable):
         utils.ensure_dir(deploy_dir)
 
         for role in self.roles:
-            print "> Installing role %s .. "%(role)
+            print "> %s: Deploying role %s .. "%(label.name, role)
             install_dir = self.builder.invocation.role_install_path(role)
             utils.recursively_copy(install_dir, deploy_dir)
         

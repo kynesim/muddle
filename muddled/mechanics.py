@@ -97,6 +97,42 @@ class Invocation:
         self.default_labels.append(label)
       
 
+    def list_environments_for(self, label):
+        """
+        Return a list of environments that contribute to the environment for
+        the given label.
+
+        @return A list of triples (match level, label, environment), in order.
+
+        """
+        to_apply = [ ]
+        
+        for (k,v) in self.env.items():
+            m = k.match(label)
+            if (m is not None):
+                # We matched!
+                to_apply.append((m, k, v))
+        
+        if len(to_apply) == 0:
+            # Nothing to do.
+            return [ ]
+
+        # Now sort in order of first component
+        def bespoke_cmp(a,b):
+            (p,q,r) = a
+            (x,y,z) = b
+
+            if (p<x):
+                return -1
+            elif (p>x):
+                return 1
+            else:
+                return 0
+            
+        to_apply.sort(bespoke_cmp)
+        return to_apply
+        
+
     def get_environment_for(self, label):
         """
         Return the environment store for the given label, inventing one
@@ -110,45 +146,34 @@ class Invocation:
             return store
       
     
+    def effective_environment_for(self, label):
+        """
+        Return an environment which embodies the settings that should be
+        used for the given label. It's the in-order merge of the output
+        of list_environments_for()
+        """
+        to_apply = self.list_environments_for(label)
+
+        a_store = env_store.Store()
+
+        for (lvl, label, env) in to_apply:
+            a_store.merge(env)
+
+        return a_store
+        
+
     def setup_environment(self, label, src_env):
         """
         Modify src_env to reflect the environments which apply to label, 
         in match order.
         """
         # Form a list of pairs (prio, env) ..
+        to_apply = self.list_environments_for(label)
 
-        to_apply = [ ]
-        
-        for (k,v) in self.env.items():
-            m = k.match(label)
-            if (m is not None):
-                # We matched!
-                to_apply.append((m, v))
-        
-        if len(to_apply) == 0:
-            # Nothing to do.
-            return
-
-        # Now sort in order of first component
-        def bespoke_cmp(a,b):
-            (p,q) = a
-            (x,y) = b
-
-            if (p<x):
-                return -1
-            elif (p>x):
-                return 1
-            else:
-                return 0
-            
-        to_apply.sort(bespoke_cmp)
-        for ap in to_apply:
-            (p,q) = ap
-            q.apply(src_env)
+        for (lvl, label, env) in to_apply:
+            env.apply(src_env)
 
         # Done.
-
-
         
 
     def build_co_and_path(self):

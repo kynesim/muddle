@@ -241,6 +241,7 @@ class Query(Command):
     what it depends on, or what depends on it.
 
     env            The environment in which this label will be run.
+    preciseenv     The environment pertaining to exactly this label (no fuzzy matches)
     rule           The rules covering building this label.
     deps           What we need to build to build this label
     results        What this label is required to build
@@ -249,6 +250,8 @@ class Query(Command):
     inst-details   The list of actual instructions, in the order in which
                      they will be applied.
     checkouts      Print a list of known checkouts.
+    envs           Print a list of the environments that will be merged to 
+                    create the resulting environment for this 
 
     Note that both instructions and inst-details are label-sensitive, so you
     will want to supply a label like 'package:*/myrole'.
@@ -273,7 +276,7 @@ class Query(Command):
             print "Putative label %s is not a valid label"%(args[1])
             return 3
 
-        if (type == "env"):
+        if (type == "preciseenv"):
             the_env = builder.invocation.get_environment_for(label)
 
             local_store = env_store.Store()
@@ -282,6 +285,19 @@ class Query(Command):
 
             print "Environment for %s .. "%label
             print local_store.get_setvars_script(label, env_store.EnvLanguage.Sh)
+        elif (type == "envs"):
+            a_list = builder.invocation.list_environments_for(label)
+            
+            for (lvl, label, env) in a_list:
+                print "-- %s [ %d ] --\n%s\n"%(label, lvl, 
+                                                env.get_setvars_script
+                                                (label,
+                                                 env_store.EnvLanguage.Sh))
+            print "---"
+        elif (type == "env"):
+            the_env = builder.invocation.effective_environment_for(label)
+            print "Effective environment for %s .. "%label
+            print the_env.get_setvars_script(label, env_store.EnvLanguage.Sh)
         elif (type == "rule"):
             local_rule = builder.invocation.ruleset.rule_for_target(label)
             if (local_rule is None):

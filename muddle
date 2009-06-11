@@ -155,8 +155,8 @@ def main(args):
             if with_default_args:
                 # Where are we?
                 (what, loc, role) = muddled.utils.find_location_in_tree(current_dir, build_root)
-                if (what == muddled.utils.DirType.Root):
-                    # We're at the root.
+                if (what == muddled.utils.DirType.Root or loc == None):
+                    # We're at the root, or at least not in a checkout/package/deployment
                     command = cmd_dict["buildlabel"]
                     command.set_options(command_options)
                     args = map(str, builder.invocation.default_labels)

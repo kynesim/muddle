@@ -19,7 +19,8 @@ class MakeBuilder(PackageBuilder):
     """
     
     def __init__(self, name, role, builder, co, config = True, 
-                 perRoleMakefiles = False):
+                 perRoleMakefiles = False, 
+                 makefileName = None):
         """
         Constructor for the make package.
         """
@@ -28,6 +29,7 @@ class MakeBuilder(PackageBuilder):
         self.co = co
         self.has_make_config = config
         self.per_role_makefiles = perRoleMakefiles
+        self.makefile_name = makefileName
 
 
     def ensure_dirs(self):
@@ -51,10 +53,15 @@ class MakeBuilder(PackageBuilder):
         self.ensure_dirs()
         os.chdir(self.builder.invocation.checkout_path(self.co))
 
-        if self.per_role_makefiles and label.role is not None:
-            make_args = " -f %s"%(label.role)
+        if self.makefile_name is None:
+            makefile_name = "Makefile"
         else:
-            make_args = ""
+            makefile_name = self.makefile_name
+
+        if self.per_role_makefiles and label.role is not None:
+            make_args = " -f %s.%s"%(makefile_name,label.role)
+        else:
+            make_args = " -f %s"%(makefile_name)
 
         if (tag == utils.Tags.PreConfig):
             # Preconfigure - nothing need be done
@@ -79,7 +86,8 @@ class MakeBuilder(PackageBuilder):
         
 
 def simple(builder, name, role, checkout, simpleCheckout = False, config = True, 
-           perRoleMakefiles = False):
+           perRoleMakefiles = False, 
+           makefileName = None):
     """
     Build a package controlled by make, called name with role role 
     from the sources in checkout checkout
@@ -94,7 +102,8 @@ def simple(builder, name, role, checkout, simpleCheckout = False, config = True,
         simple_checkouts.relative(builder, checkout)
 
     the_pkg = MakeBuilder(name, role, builder, checkout, config = config, 
-                          perRoleMakefiles = perRoleMakefiles)
+                          perRoleMakefiles = perRoleMakefiles,
+                          makefileName = makefileName)
     # Add the standard dependencies ..
     pkg.add_package_rules(builder.invocation.ruleset, 
                           name, role, the_pkg)
@@ -104,7 +113,8 @@ def simple(builder, name, role, checkout, simpleCheckout = False, config = True,
 
 
 def medium(builder, name, roles, checkout, deps, dep_tag = utils.Tags.PreConfig, 
-           simpleCheckout = True, config = True, perRoleMakefiles = False):
+           simpleCheckout = True, config = True, perRoleMakefiles = False, 
+           makefileName = None):
     """
     Build a package controlled by make, in the given roles with the
     given dependencies in each role.
@@ -118,7 +128,9 @@ def medium(builder, name, roles, checkout, deps, dep_tag = utils.Tags.PreConfig,
         simple_checkouts.relative(builder, checkout)
         
     for r in roles:
-        simple(builder, name, r, checkout, config = config, perRoleMakefiles = perRoleMakefiles)
+        simple(builder, name, r, checkout, config = config, 
+               perRoleMakefiles = perRoleMakefiles,
+               makefileName = makefileName)
         pkg.package_depends_on_packages(builder.invocation.ruleset,
                                        name, r, dep_tag, 
                                        deps)

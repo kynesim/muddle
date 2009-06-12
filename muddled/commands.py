@@ -442,7 +442,7 @@ class Deploy(Command):
 
 class Build(Command):
     """
-    Syntax: build [package/role] [package/role]
+    Syntax: build [package{role}] [package{role}]
     
     Build a package. If the package name isn't given, we'll use the
     list of local packages derived from your current directory.
@@ -471,7 +471,7 @@ class Build(Command):
 
 class Rebuild(Command):
     """
-    Syntax: rebuild [package/role] [package/role]
+    Syntax: rebuild [package{role}] [package{role}]
 
     Just like build except that we clear any built tags first 
     (and their dependencies)
@@ -501,7 +501,7 @@ class Rebuild(Command):
 
 class Clean(Command):
     """
-    Syntax: clean [package/role] .. 
+    Syntax: clean [package{role}] .. 
     
     Just like build except that we clean packages rather than 
     building them. Subsequently, packages are regarded as having
@@ -527,7 +527,7 @@ class Clean(Command):
 
 class DistClean(Command):
     """
-    Syntax: distclean [package/role] .. 
+    Syntax: distclean [package{role}] .. 
 
     Just like clean except that we reduce packages to non-preconfigured
     and invoke make distclean
@@ -553,7 +553,7 @@ class DistClean(Command):
 
 class Instruct(Command):
     """
-    Syntax: instruct [pkg/role] <[instruction-file]>
+    Syntax: instruct [pkg{role}] <[instruction-file]>
 
     Sets the instruction file for the given package name and role to 
     the file specified in instruction-file. The role must be explicitly
@@ -582,7 +582,7 @@ class Instruct(Command):
 
     def with_build_tree(self, builder, local_pkgs, args):
         if (len(args) != 2 and len(args) != 1):
-            print "Syntax: instruct [pkg/role] <[instruction-file]>"
+            print "Syntax: instruct [pkg{role}] <[instruction-file]>"
             print self.__doc__
             return 1
 
@@ -595,7 +595,7 @@ class Instruct(Command):
 
 
         if (len(lbls) != 1 or (lbls[0].role is None)):
-            raise utils.Failure("instruct takes precisely one package/role pair " +
+            raise utils.Failure("instruct takes precisely one package{role} pair " +
                                 "and the role must be explicit")
 
 
@@ -1100,12 +1100,12 @@ def process_labels_all_spec(label_list, default_roles):
 
 def labels_from_pkg_args(list, tag, default_roles):
     """
-    Convert a list of packages expressed as package([/role]?) into
+    Convert a list of packages expressed as package([{role}]?) into
     a set of labels with the given tag. This is basically a 
     cartesian product of all the unqualified packages.
     """
 
-    the_re = re.compile("([A-Za-z0-9*_]+)(/([A-Za-z0-9*_]+))?$")
+    the_re = re.compile("([A-Za-z0-9*_-]+)(\{([A-Za-z0-9*_-]+)\})?$")
 
     result = [ ]
 
@@ -1116,7 +1116,7 @@ def labels_from_pkg_args(list, tag, default_roles):
         m = the_re.match(elem)
         if (m is None):
             # Hmm ..
-            raise utils.Error("Package list element %s isn't a well-formed package descriptor (pkg(/role)?)"%elem)
+            raise utils.Error("Package list element %s isn't a well-formed package descriptor (pkg({role})?)"%elem)
         else:
             pkg = m.group(1)
             role = m.group(3)

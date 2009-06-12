@@ -17,11 +17,11 @@ Labels
 (Nearly) everything in muddle is described by a label. 
 A label is structured as:
 
-<type>:<name>-<role>/<tag>[<flags>]
+<type>:<name>{<role>}/<tag>[<flags>]
 
 Any component of a label may be wildcarded with '*' and
 a role (only!) may be omitted. All components are made
-up of the characters [A-Z0-9a-z*_] only. names beginning
+up of the characters [A-Z0-9a-z*-_] only. names beginning
 with an underscore are reserved by muddle.
 
 Muddle does not constrain the values of labels - you may 

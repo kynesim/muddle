@@ -192,11 +192,11 @@ def find_local_packages(dir, root, inv):
             if (p.role is None):
                 rv.append(p.name)
             else:
-                rv.append("%s/%s"%(p.name, p.role))
+                rv.append("%s{%s}"%(p.name, p.role))
         return rv
     elif (what == DirType.Object):
         if (role is not None):
-            return [ "%s/%s"%(loc, role) ]
+            return [ "%s{%s}"%(loc, role) ]
         else:
             return [ loc ]
     else:
@@ -290,14 +290,23 @@ def iso_time():
     """
     return time.strftime("%Y-%m-%d %H:%M:%S")
 
-def run_cmd(cmd, env = os.environ, allowFailure = False):
+def run_cmd(cmd, env = os.environ, allowFailure = False, isSystem = False):
     """
    Run a command via the shell, throwing on failure
+
+   @param isSystem   If True, this is a command being run by the system and
+                      failure should be reported with an Error. Else, it's
+                      being run on behalf of the user and failure should be
+                      reported with Failure.
     """
     print "> %s"%cmd
     rv = subprocess.call(cmd, shell = True, env = env)
     if (not allowFailure) and rv != 0:
-        raise Error("Command execution failed - %d"%rv)
+        if isSystem:
+            raise Error("Command execution failed - %d"%rv)
+        else:
+            raise Failure("Command exection failed - %d"%rv)
+
     return rv
                     
 

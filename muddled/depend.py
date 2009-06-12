@@ -114,7 +114,7 @@ class Label:
         if (self.role is None):
             nam = self.name
         else:
-            nam = "%s-%s"%(self.name, self.role)
+            nam = "%s{%s}"%(self.name, self.role)
 
         rv =  "%s:%s/%s"%(
             utils.label_kind_to_string(self.tag_kind), 
@@ -365,8 +365,8 @@ def label_from_string(str):
     """
 
     # It's quite a .. long .. regex .. 
-    the_re = re.compile("([A-Za-z0-9*_]+):([A-Za-z0-9*_]+)(\-([A-Za-z0-9*_]+))?" + 
-                        "/([A-Za-z0-9*_]+)(\[[A-Za-z0-9]+\])?")
+    the_re = re.compile("([A-Za-z0-9*_-]+):([A-Za-z0-9*_-]+)(\{([A-Za-z0-9*_-]+)\})?" + 
+                        "/([A-Za-z0-9*_-]+)(\[[A-Za-z0-9]+\])?")
     m = the_re.match(str)
     if (m is None):
         return None

@@ -90,7 +90,7 @@ def main(args):
     if len(args) < 1:
         # The command is implicitly 'build' with the default label, or
         # _all if none was specified.
-        command_name = "build"
+        command_name = "rebuild"
         with_default_args = True
     else:
         command_name = args[0]

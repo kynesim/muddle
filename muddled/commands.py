@@ -703,6 +703,33 @@ class Push(Command):
                 builder.invocation.db.clear_tag(co)
                 builder.build_label(co)
 
+class Removed(Command):
+    """
+    Syntax: removed [checkout .. ]
+
+    Signal to muddle that the given checkouts have been removed and will
+    need to be checked out again before they can be used.
+    """
+    
+    def name(self):
+        return "removed"
+
+    def requires_build_tree(self):
+        return True
+
+    def with_build_tree(self, builder, local_pkgs, args):
+        checkouts = decode_checkout_arguments(builder, args, local_pkgs,
+                                              utils.Tags.CheckedOut)
+
+        if (self.no_op()):
+            print "Signalling checkout removal for: "%(depend.label_list_to_string(checkouts))
+        else:
+            for c in checkouts:
+                builder.kill_label(c)
+
+
+        
+
 class Import(Command):
     """
     Syntax: import [checkout.. ]
@@ -1172,7 +1199,7 @@ def register_commands():
     Deploy().register(the_dict)
     Redeploy().register(the_dict)
     Cleandeploy().register(the_dict)
-    
+    Removed().register(the_dict)
     
     return the_dict
 

@@ -319,6 +319,12 @@ def utils_unit_test():
     print "s = %s %s"%s
     assert s == ("", "a/b/c")
 
+    s = utils.replace_root_name("/a", "/b", "/a/c")
+    assert s == "/b/c"
+
+    s = utils.replace_root_name("/a", "/b", "/d/e")
+    assert s == "/d/e"
+
 
 def vcs_unit_test():
     """

@@ -7,6 +7,7 @@ Ugh.
 
 import utils
 import stat
+import filespec
 import os
 
 class File:
@@ -48,6 +49,8 @@ class File:
         self.name = None
         self.data = None
         self.orig_file = None
+        # Children of this directory, if it is one.
+        self.children = [ ]
 
     def rename(self, name):
         self.name = name
@@ -59,6 +62,131 @@ class File:
     def set_contents_from_file(self, file_name):
         self.orig_file = file_name
         self.data = None
+
+class Heirarchy:
+    
+    def __init__(self, map, roots):
+        """
+        self.map   is a mapping from name to fs object.
+        self.roots is a dictionary of root -> fs object.
+        """
+        self.map = map
+        self.roots = roots
+
+    def merge(self, other):
+        """
+        Merge other with self.
+
+        We need to keep the heirarchy sensibly updated.
+
+        We merge the maps. We then kill all children and iterate over
+        everything in the resulting map, finding a parent to add it
+        to. This fails to preserve the order of files in directories,
+        but the result is correct in every other way.
+
+        Anything in the result that does not have a parent is a root.
+        """
+        
+        # Merge
+        for (k,v) in other.map.items():
+            self.map[k] = v
+
+        # Obliterate any children.
+        for v in self.map.values():
+            v.children =  [ ]
+
+        # Wipe roots
+        self.roots = { }
+
+        for (k,v) in self.map.items():
+            (a,b) = os.path.split(k)
+
+            parent_node = self.map.get(a)
+
+            print "Merge: k = %s a = %s b = %s parent_node = %s"%(k,a,b,parent_node)
+            if (parent_node is None):
+                self.roots[k] = v
+            elif (parent_node.mode & File.S_DIR) != 0:
+                # Got a parent.
+                parent_node.children.append(v)
+            else:
+                raise utils.Failure("Attempt to merge file %s when '%s' is a directory"%(k,a))
+
+        # .. and that's all, folks.
+    
+    def render(self, to_file, logProgress = False):
+        
+        # Right. Trace each root into a list ..
+        file_list = [ ]
+        for r in self.roots.values():
+            trace_files(file_list, r)
+
+        ar = Archive()
+        # We know this is in the right order, so we can hack a bit ..
+        ar.files = file_list
+        ar.render(to_file, logProgress)
+        
+
+
+class CpioFileDataProvider(filespec.FileSpecDataProvider):    
+    def __init__(self, heirarchy):
+        """
+        Given a file map like that returned from files_from_fs()
+        and a root name, create a filespec data provider.
+
+        name is the root of the effective heirarchy.
+        """
+        self.heirarchy = heirarchy
+
+        
+    def list_files_under(self, dir, recursively = False):
+        """
+        Return a list of the files under dir.
+        """
+        
+        if (dir[0] == '/'):
+            dir = dir[1:]
+
+        for r in self.heirarchy.roots.keys():
+            abs_path = os.path.join(r, dir)
+        
+            # Find the File representing this directory
+            obj = self.heirarchy.map.get(abs_path)
+            if (obj is not None):
+                break
+
+        if (obj is None):
+            return None
+        
+        # Read everything in this directory.
+        result = [ ]
+        for elem in obj.children:
+            result.append(elem)
+            
+            if (recursively):
+                # .. and recurse ..
+                result.extend(self.list_files_under(os.path.join(dir, elem), True))
+        
+        return result
+
+    def abs_match(self, filespec):
+        """
+        Return a list of the file object for each file that matches
+        filespec.
+        """
+        files = filespec.match(self)
+
+        rv = [ ]
+        for f in files:
+            for r in self.heirarchy.roots.keys():
+                abs_path = os.path.join(r, f)
+                v = self.heirarchy.map.get(abs_path)
+                if (v is not None):
+                    rv.append(v)
+
+        return rv
+
+
 
 def file_for_dir(name):
     """
@@ -81,8 +209,74 @@ def file_from_data(name, data):
     outfile.orig_file = None
     return outfile
 
+    
 
-def file_from_fs(orig_file):
+def merge_maps(dest, src):
+    """ 
+    Merge src into dest. This needs special handling because we need to
+    keep the heirarchy intact
+
+    We merge dest and src and then just rebuild the entire heirarchy - it's
+    the easiest way, frankly.
+    
+    For everything in the merged list, zap its children.
+
+    Now iterate over everything, os.path.split() it to find its parent 
+    and add it to its parents' child list.
+
+    If its parent doesn't exist, it's a root - mark and ignore it.
+    """
+    
+    
+    
+
+def heirarchy_from_fs(name, base_name):
+    """
+    Create a heirarchy of files from a named object in the
+    filesystem.
+
+    The files will be named with 'base_name' substituted for 'name'.
+
+    @return a Heirarchy with everything filled in.
+    """
+
+    # A map of filename to file object, so you can find 'em eas
+    file_map = { }
+    
+    # Add the root .. 
+    file_map[name] = file_from_fs(name,
+                                  base_name)
+    the_paths = os.walk(name)
+    for p in the_paths:
+        (root, dirs, files) = p
+        
+        # This is legit - top-down means that root must have been
+        # visited first. If it isn't, our ordering will collapse
+        # and the cpio archive when we generate it will at the
+        # least be extremely odd.
+        #
+        root_file = file_map[root]
+
+        for d in dirs:
+            new_obj = os.path.join(root, d)
+            # Lop off the initial name and replace with base_name            
+            file_map[new_obj] = file_from_fs(new_obj, 
+                                             utils.replace_root_name(name, base_name, 
+                                                                     new_obj))
+            root_file.children.append(new_obj)
+
+        for f in files:
+            new_obj = os.path.join(root, f)
+            print "new_obj = %s"%new_obj
+            file_map[new_obj] = file_from_fs(new_obj, 
+                                             utils.replace_root_name(name, base_name, 
+                                                                     new_obj))
+            root_file.children.append(new_obj)
+
+    return Heirarchy(file_map, { name : file_map[name] })
+
+
+def file_from_fs(orig_file, new_name = None):
     """
     Create a file object from a file on disc. You'll want to rename() it, unless
     you meant the file in the CPIO archive to have the same name as the one
@@ -104,10 +298,20 @@ def file_from_fs(orig_file):
     outfile.name = orig_file
     outfile.data = None
     outfile.orig_file = orig_file
+    if new_name is not None:
+        outfile.name = new_name
 
     return outfile
-    
 
+def trace_files(file_list, root):
+    """
+    Given a File, add it and all its children, top-down, into
+    file_list. Used as a utility routine by Heirarchy.
+    """
+    file_list.append(root)
+    for c in root.children:
+        trace_files(file_list, c)
+    
 
 class Archive:
     """
@@ -136,6 +340,7 @@ class Archive:
         for f in in_files:
             self.add_file(f)
 
+
     def render(self, to_file, logProgress = False):
         """
         Render a CPIO archive to the given file.
@@ -157,7 +362,7 @@ class Archive:
                     f_in = open(f.orig_file, "rb")
                     file_data = f_in.read()
                     f_in.close()
-                elif (stat.S_ISLINK(orig_stat.st_mode)):
+                elif (stat.S_ISLNK(orig_stat.st_mode)):
                     file_data = os.readlink(f.orig_file)
                 else:
                     # No data

@@ -181,7 +181,10 @@ class Invocation:
         Return a pair (build_co, build_path) 
         """
         build_desc = self.db.build_desc.get()
-        
+
+        if (build_desc is None): 
+            return None
+
         # Split off the first         
         
         (co,path) = utils.split_path_left(build_desc)
@@ -347,9 +350,16 @@ class Builder:
 
         This involves making sure we've checked out the build description and
         then loading it.
+
+        @return True on success, False on failure.
         """
+
         
-        (desc_co, desc_path) = self.invocation.build_co_and_path()
+        co_path = self.invocation.build_co_and_path()
+        if (co_path is None):
+            return False
+
+        (desc_co, desc_path) = co_path
 
         # Essentially, we register the build as a perfectly normal checkout
         # but add a dependency of loaded on checked_out and then build it .. 
@@ -381,6 +391,8 @@ class Builder:
 
         # .. and load the build description.
         self.build_label(loaded, silent = True)
+
+        return True
                                  
 
     def set_default_variables(self, label, store):
@@ -546,7 +558,10 @@ def load_builder(root_path, muddle_binary):
 
     inv = Invocation(root_path)
     build = Builder(inv, muddle_binary)
-    build.load_build_description()
+    can_load = build.load_build_description()
+    if (not can_load):
+        return None
+
     inv.commit()
     return build
 

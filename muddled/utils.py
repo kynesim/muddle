@@ -413,6 +413,7 @@ def split_path_left(in_path):
     
     remains = in_path
     lst = [ ]
+
     while len(remains) > 0 and remains != "/":
         (a,b) = os.path.split(remains)
         lst.append(b)
@@ -447,5 +448,21 @@ def c_escape(v):
     
     return re.sub(r'([\r\n"\'\\])', r'\\\1', v)
 
+def replace_root_name(base, replacement, filename):
+    """
+    Given a filename, a base and a replacement, replace base with replacement
+    at the start of filename.    
+    """
+    print "replace_root_name %s, %s, %s"%(base,replacement, filename)
+    base_len = len(base)
+    if (filename.startswith(base)):
+        left = replacement + filename[base_len:]
+        if len(left) > 1 and left[:2] == '//':
+            left = left[1:]
+        return left
+    else:
+        return filename
+
+    
 
 # End file.

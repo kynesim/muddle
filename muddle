@@ -133,7 +133,7 @@ def main(args):
             failed_build_root = True
         
         
-        if (build_root is None):
+        if (builder is None):
             # There is no build root here .. 
             if with_default_args and not (failed_build_root):
                 # Guess that you wanted help.

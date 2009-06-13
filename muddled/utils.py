@@ -284,6 +284,13 @@ def pad_to(str, val, pad_with = " "):
 
     return "".join(arr)
 
+
+def unix_time():
+    """
+    Return the current UNIX time since the epoch
+    """
+    return int(time.time())
+
 def iso_time():
     """
     Retrieve the current time and date in ISO style YYYY-MM-DD HH:MM:SS

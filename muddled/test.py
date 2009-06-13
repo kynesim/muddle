@@ -12,8 +12,11 @@ import commands
 import filespec
 import pkg
 import subst
+import cpiofile
 
 def unit_test():
+    print "> cpio"
+    cpio_unit_test()
     print "> Utils"
     utils_unit_test()
     print "> env"
@@ -31,6 +34,26 @@ def unit_test():
     print "> Mechanics"
     mechanics_unit_test()
     print "> All done."
+
+def cpio_unit_test():
+    """
+    A brief test of the cpio module. Uses /tmp/test.cpio
+    """
+
+    f1 = cpiofile.file_from_fs("/var/run/motd")
+    f1.rename("foo")
+    f2 = cpiofile.file_for_dir("bar")
+    f3 = cpiofile.File()
+    f3.rename("bar/baz")
+    f3.set_contents("Hello, World!\n")
+    
+    arc = cpiofile.Archive()
+    #arc.add_files([f1, f2, f3])    
+    arc.add_files([f1])
+    arc.render("/tmp/test.cpio", True)
+    # Now just make sure that cpio can read the data
+    
+    rv = utils.run_cmd("cpio -i --to-stdout </tmp/test.cpio")
 
 def env_store_unit_test():
     """

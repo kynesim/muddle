@@ -14,7 +14,8 @@ class LinuxKernel(PackageBuilder):
     Build a Linux kernel.
     """
 
-    def __init__(self, name, role, builder, co, linuxSrc, configFile):
+    def __init__(self, name, role, builder, co, linuxSrc, configFile, 
+                 makeInstall = False):
         """
         
         @param builder    The builder we're going to use to build this kernel.
@@ -22,6 +23,9 @@ class LinuxKernel(PackageBuilder):
                             (usually something like 'linux-2.6.30')
         @param configFile Where the configuration file lives, relative to the
                            linuxSrc directory.
+        @param makeInstall  Should we run 'make install' in the checkout when done?
+                            Commonly used to copy kernel images and the like to 
+                             useful places.
         """
         
         PackageBuilder.__init__(self, name, role)
@@ -29,6 +33,7 @@ class LinuxKernel(PackageBuilder):
         self.co = co
         self.linux_src = linuxSrc
         self.config_file = configFile
+        self.make_install = True
 
     def ensure_dirs(self, label):
         """
@@ -76,8 +81,8 @@ class LinuxKernel(PackageBuilder):
             os.chdir(os.path.join(co_path, self.linux_src))
             utils.run_cmd("%s bzImage"%make_cmd)
         elif (tag == utils.Tags.Installed):
-            # We'll leave installation for another day
-            pass
+            if (self.make_install):
+                utils.run_cmd("make install")
         elif (tag == utils.Tags.PostInstalled):
             # .. and postinstall
             pass
@@ -95,7 +100,8 @@ class LinuxKernel(PackageBuilder):
         utils.recursively_remove(self.builder.invocation.package_obj_path(label.name, 
                                                                           label.role))
 
-def simple(builder, name, role, checkout, linux_dir, config_file):
+def simple(builder, name, role, checkout, linux_dir, config_file, 
+           makeInstall = False):
     """
     Build a linux kernel in the given checkout where the kernel sources
     themselves are in checkout/linux_dir and the config file in 
@@ -103,7 +109,8 @@ def simple(builder, name, role, checkout, linux_dir, config_file):
     """
     
     simple_checkouts.relative(builder, checkout)
-    the_pkg = LinuxKernel(name, role, builder, checkout, linux_dir, config_file)
+    the_pkg = LinuxKernel(name, role, builder, checkout, linux_dir, config_file, 
+                          makeInstall = makeInstall)
     pkg.add_package_rules(builder.invocation.ruleset, 
                           name, role, the_pkg)
     pkg.package_depends_on_checkout(builder.invocation.ruleset, 

@@ -284,20 +284,21 @@ class Query(Command):
             local_store.merge(the_env)
 
             print "Environment for %s .. "%label
-            print local_store.get_setvars_script(label, env_store.EnvLanguage.Sh)
+            print local_store.get_setvars_script(builder, label, env_store.EnvLanguage.Sh)
         elif (type == "envs"):
             a_list = builder.invocation.list_environments_for(label)
             
             for (lvl, label, env) in a_list:
                 print "-- %s [ %d ] --\n%s\n"%(label, lvl, 
                                                 env.get_setvars_script
-                                                (label,
+                                                (builder, 
+                                                 label,
                                                  env_store.EnvLanguage.Sh))
             print "---"
         elif (type == "env"):
             the_env = builder.invocation.effective_environment_for(label)
             print "Effective environment for %s .. "%label
-            print the_env.get_setvars_script(label, env_store.EnvLanguage.Sh)
+            print the_env.get_setvars_script(builder, label, env_store.EnvLanguage.Sh)
         elif (type == "rule"):
             local_rule = builder.invocation.ruleset.rule_for_target(label)
             if (local_rule is None):
@@ -847,6 +848,70 @@ class Changed(Command):
                 builder.kill_label(l)
 
 
+class Env(Command):
+    """
+    Syntax: env [language] [mode] [name] [label.. ]
+    
+    Produce a setenv script in the requested language listing all the
+    runtime environment variables bound to label.
+
+    language may be 'sh', 'c', or 'py'/'python'
+    mode may be 'build' (build time variables) or 'run' (run-time variables)
+    """
+
+    def name(self):
+        return "env"
+
+    def requires_build_tree(self):
+        return True
+
+    def with_build_tree(self,builder, local_pkgs, args):
+        if (len(args) < 3):
+            raise utils.Failure("Syntax: env [language] [build|run] [name] [label .. ]")
+
+        lang = args[0]
+        mode = args[1]
+        name = args[2]
+
+        if (mode == "build"):
+            tag = utils.Tags.Built
+        elif (mode == "run"):
+            tag = utils.Tags.RuntimeEnv
+        else:
+            raise utils.Failure("Mode '%s' is not understood - use build or run."%mode)
+
+
+        labels = decode_package_arguments(builder, args[3:], local_pkgs, 
+                                          tag)
+        if (self.no_op()):
+            print "> Environment for labels %s"%(depend.label_list_to_string(labels))
+        else:
+            env = env_store.Store()
+
+            for lbl in labels:
+                x_env = builder.invocation.effective_environment_for(lbl)
+                env.merge(x_env)
+                
+                if (mode == "run"):
+                    # If we have a MUDDLE_TARGET_LOCATION, use it.
+                    if (not env.empty("MUDDLE_TARGET_LOCATION")):
+                        env_store.add_install_dir_env(env, "MUDDLE_TARGET_LOCATION")
+    
+                        
+            if (lang == "sh"):
+                script = env.get_setvars_script(builder, name, env_store.EnvLanguage.Sh)
+            elif (lang == "py" or lang == "python"):
+                script = env.get_setvars_script(builder, name, env_store.EnvLanguage.Python)
+            elif (lang == "c"):
+                script = env.get_setvars_script(builder, name, env_store.EnvLanguage.C)
+            else:
+                raise utils.Failure("Language must be sh, py, python or c, not %s"%lang)
+            
+            print script
+
+        return 0
+    
+
 def get_all_checkouts(builder, tag):
     """
     Return a list of labels corresponding to all checkouts 
@@ -1200,6 +1265,7 @@ def register_commands():
     Redeploy().register(the_dict)
     Cleandeploy().register(the_dict)
     Removed().register(the_dict)
+    Env().register(the_dict)
     
     return the_dict
 

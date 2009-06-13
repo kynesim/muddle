@@ -70,11 +70,11 @@ def attach_env(builder, role, env, name):
 
     deploy_base = builder.invocation.deploy_path(name)
 
-    env.prepend("LD_LIBRARY_PATH", os.path.join(deploy_base, "lib"))
-    env.prepend("PKG_CONFIG_PATH", os.path.join(deploy_base, "lib", "pkgconfig"))
-    env.append("PATH", os.path.join(deploy_base, "bin"))
+    env.ensure_prepended("LD_LIBRARY_PATH", os.path.join(deploy_base, "lib"))
+    env.ensure_prepended("PKG_CONFIG_PATH", os.path.join(deploy_base, "lib", "pkgconfig"))
+    env.ensure_appended("PATH", os.path.join(deploy_base, "bin"))
     env.set("%s_TOOLS_PATH"%(name.upper()), deploy_base)
-
+    
 
 
 def deploy(builder, name, rolesThatUseThis = [ ], rolesNeededForThis = [ ]):

@@ -284,6 +284,16 @@ class Builder:
     def resource_file_name(self, file_name):
         return os.path.join(self.muddle_dir, "muddled", "resources", file_name)
 
+    def resource_body(self, file_name):
+        """
+        Return the body of a resource as a string
+        """
+        rsrc_file = self.resource_file_name(file_name)
+        f = open(rsrc_file, "r")
+        result = f.read()
+        f.close()
+        return result
+
     def instruct(self, pkg, role, instruction_file):
         """
         Register the existence or non-existence of an instruction file.
@@ -503,7 +513,6 @@ class BuildDescriptionDependable(pkg.Dependable):
         self.builder = builder
         self.file_name = file_name
         self.build_co = build_co
-        
 
     def build_label(self, label):
         """

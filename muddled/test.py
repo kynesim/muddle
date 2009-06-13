@@ -14,6 +14,8 @@ import pkg
 import subst
 
 def unit_test():
+    print "> Utils"
+    utils_unit_test()
     print "> env"
     env_store_unit_test()
     print "> subst"
@@ -22,8 +24,6 @@ def unit_test():
     filespec_unit_test()
     print "> Commands"
     commands_unit_test()
-    print "> Utils"
-    utils_unit_test()
     print "> VCS"
     vcs_unit_test()
     print "> Depends"
@@ -124,7 +124,7 @@ def commands_unit_test():
     Check command utility routines
     """
     
-    sample_list = [ "a", "b/c", "d" ]
+    sample_list = [ "a", "b{c}", "d" ]
     default_roles = [ "d1", "d2" ]
     
     lbls = commands.labels_from_pkg_args(sample_list, "t", default_roles)
@@ -174,7 +174,7 @@ def depend_unit_test():
     l4 = depend.Label(utils.LabelKind.Deployment, "dep_1", "role_2", utils.Tags.Built)
 
     # Check label_from_string ..
-    lx = depend.label_from_string("foo:bar-baz/wombat[T]")
+    lx = depend.label_from_string("foo:bar{baz}/wombat[T]")
     assert (lx is not None)
 
     lx_a = depend.Label("foo", "bar", "baz", "wombat")
@@ -271,6 +271,13 @@ def utils_unit_test():
     """
     Unit testing on various utility code
     """
+
+    s = utils.c_escape("Hello World!")
+    assert s == "Hello World!"
+
+    s = utils.c_escape("Test \" \\ One")
+
+    assert s == "Test \\\" \\\\ One"
     
     s = utils.pad_to("0123456789", 11)
     assert s == "0123456789 "
@@ -288,6 +295,7 @@ def utils_unit_test():
     s = utils.split_path_left("/a/b/c")
     print "s = %s %s"%s
     assert s == ("", "a/b/c")
+
 
 def vcs_unit_test():
     """

@@ -55,7 +55,8 @@ class InitScriptBuilder(pkg.PackageBuilder):
               # Write the setvars script
             env = get_env(self.builder, self.name, self.role)
             effective_env = env.copy()
-            setup_default_env(self.builder, effective_env)
+            env_store.add_install_dir_env(effective_env, "MUDDLE_TARGET_LOCATION")
+
 
             for d in self.deployments:
                 # Merge in the relevant deployment environments.
@@ -68,7 +69,8 @@ class InitScriptBuilder(pkg.PackageBuilder):
 
             if (self.write_setvars_sh):
                 setenv_file_name = os.path.join(tgt_dir, "setvars")
-                sv_script  = effective_env.get_setvars_script(self.script_name, 
+                sv_script  = effective_env.get_setvars_script(self.builder,
+                                                              self.script_name, 
                                                               env_store.EnvLanguage.Sh)
                 
                 out_f = open(setenv_file_name, "w")
@@ -78,7 +80,8 @@ class InitScriptBuilder(pkg.PackageBuilder):
             if (self.write_setvars_py):
                 # Now the python version .. 
                 setenv_file_name = os.path.join(tgt_dir, "setvars.py")
-                sv_script = effective_env.get_setvars_script(self.script_name,
+                sv_script = effective_env.get_setvars_script(self.builder,
+                                                             self.script_name,
                                                    env_store.EnvLanguage.Python)
                 out_f = open(setenv_file_name, "w")
                 out_f.write(sv_script)
@@ -131,26 +134,6 @@ def get_env(builder, name, role):
                     utils.LabelKind.Package,
                     name, role,
                     utils.Tags.RuntimeEnv))
-
-def setup_default_env(builder, env):
-    """
-    Set up the default setenv environment for an initscripts run,
-    assuming that MUDDLE_TARGET_LOCATION includes the target location
-    (which it typically will - it's a convention shared by all the
-    deployments we provide and should be shared by yours too)
-    """
-
-    env.set_type("LD_LIBRARY_PATH", muddled.env_store.EnvType.Path)
-    env.set_type("PATH", muddled.env_store.EnvType.Path)
-    env.set_type("PKG_CONFIG_PATH", muddled.env_store.EnvType.Path)
-    env.prepend_expr("LD_LIBRARY_PATH", 
-                     env_store.append_expr("MUDDLE_TARGET_LOCATION", "/lib"))
-    env.prepend_expr("PKG_CONFIG_PATH", 
-                     env_store.append_expr("MUDDLE_TARGET_LOCATION", "/lib/pkgconfig"))
-    env.prepend_expr("PATH", 
-                     env_store.append_expr("MUDDLE_TARGET_LOCATION", "/bin"))
-                     
-    
 
                                 
 

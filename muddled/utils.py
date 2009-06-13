@@ -433,5 +433,12 @@ def print_string_set(ss):
 
     return " ".join(result)
 
+def c_escape(v):
+    """
+    Escape sensitive characters in v.
+    """
+    
+    return re.sub(r'([\r\n"\'\\])', r'\\\1', v)
+
 
 # End file.

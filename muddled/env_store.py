@@ -1,10 +1,19 @@
 """
 An environment store holds a set of instructions for manipulating
 a set of environment variables
+
+Sometimes we need to generate these for C. This is particularly evil
+because C neither has good environment variable lookup nor good 
+string handling support. 
+
+See the boilerplate in resources/c_env.c for how we handle this. 
+It's not pretty .. 
+
 """
 
 import utils
 import copy
+import subst
 
 class EnvType:
     """
@@ -46,6 +55,8 @@ class EnvLanguage:
     # The actual value for this variable
     Value = 2
 
+    # C
+    C = 3
 
 class EnvExpr:
     """
@@ -116,6 +127,38 @@ class EnvExpr:
 
         return r_list
 
+    def to_c(self, var, prefix):
+        """
+        Returns a list of strings you can join together to make C code
+        for constructing the value of this expression
+        
+        @param var  The name of the C variable we're creating.
+        @param prefix The name of the prefix to prepend to function calls.
+        """
+
+        str_list = [ ]
+
+        if (self.type == EnvExpr.StringType):
+            for v in self.values:
+                str_list.append(" %s = %s_cat(%s, \"%s\");\n"%(var,
+                                                              prefix,
+                                                              var,
+                                                              utils.c_escape(v)))
+        elif (self.type == EnvExpr.RefType):
+            for v in self.values:
+                str_list.append(
+                    " %s = %s_cat(%s, %s_lookup(\"%s\", handle));\n"%(var, 
+                                                                     prefix,
+                                                                     var, 
+                                                                     prefix, 
+                                                                     utils.c_escape(v)))
+        else:
+            for v in self.values:
+                str_list.extend(v.to_c(var, prefix))
+                        
+                                
+        return str_list
+
 
     def to_value(self, env):
         r_list = [ ]
@@ -140,6 +183,49 @@ class EnvExpr:
             for var in self.values:
                 var.augment_dependency_set(a_set)
         # Otherwise we just don't care.
+
+    def same_as(self, other):
+        """
+        Decide if two EnvExprs will produce the same value on output.
+        """
+
+        # None and empty are the same for all intents and purposes.
+        p = self
+        q = other
+
+        if (p is not None) and len(p.values) == 0:
+            p = None
+        if (q is not None) and len(q.values) == 0:
+            q = None
+
+        if (p is None) and (q is None):
+            return True
+        if (p is None) or (q is None):
+            return False
+        
+        if (p.type != q.type):
+            return False
+        
+        # Values must match. Exactly - I don't want to collapse lists
+        #  at this point .. 
+        if (len(p.values) != len(q.values)):
+            return False
+
+        if (p.type == EnvExpr.RefType or p.type == EnvExpr.StringType):
+            for i in range(0, len(p.values)):
+                if p.values[i] != q.values[i]:
+                    return False
+        else:
+            for i in range(0, len(p.values)):
+                if not p.values[i].same_as(q.values[i]):
+                    return False
+
+        # If we get there, they're the same, as far as we can tell.
+        return True
+            
+        
+        
+       
 
 
 class EnvBuilder:
@@ -185,11 +271,23 @@ class EnvBuilder:
         self.retain_old_value = other.retain_old_value
 
         for prep in other.prepend_list:
-            self.prepend_expr(prep)
+            self.ensure_prepended_expr(prep)
 
         for app in other.append_list:
-            self.append_expr(app)
+            self.ensure_appended_expr(app)
 
+    def empty(self):
+        """
+        Is this environment builder empty? i.e. does it have an empty
+        value?
+        """
+        if (self.erased or self.external):
+            return True
+        if (len(self.prepend_list) == 0 and
+            len(self.append_list) == 0):
+            return True
+        
+        return False
 
     def erase(self):
         self.prepend_list = [ ]
@@ -242,7 +340,7 @@ class EnvBuilder:
         self.erased = False
         self.external = False
         for i in range(0, len(self.prepend_list)):
-            if val == self.prepend_list[i]:
+            if val.same_as(self.prepend_list[i]):
                 del self.prepend_list[i:i+1]
                 break
 
@@ -263,7 +361,7 @@ class EnvBuilder:
         self.erased = False
         self.external = False
         for i in range(0, len(self.append_list)):
-            if val == self.append_list[i]:
+            if val.same_as(self.append_list[i]):
                 del self.append_list[i:i+1]
                 break
         
@@ -292,6 +390,8 @@ class EnvBuilder:
             return self.get_value(inOldValue)
         elif language == EnvLanguage.Sh:
             return self.get_sh(inOldValue, True)
+        elif (language == EnvLanguage.C):
+            return self.get_c(True)
         else:
             return self.get_py(inOldValue)
 
@@ -311,6 +411,36 @@ class EnvBuilder:
 
         return ":".join(val_array)
     
+
+    def get_c(self, var, prefix, variable_name):
+        """
+        Return a string containing C code which leaves the value of this
+        builder in 'var'.
+
+        The string does _not_ declare var, - that's the caller's job.
+
+        @param variable_name is the variable name whose value we're processing - it's
+         needed so we can refer to its previous value.
+        """
+        if self.erased:
+            return None
+
+        str_array = [ ]
+        for i in self.prepend_list:
+            str_array.extend(i.to_c(var, prefix))
+
+        if self.retain_old_value and (variable_name is not None):
+            str_array.append(" %s = %s_cat(%s, %s_lookup(\"%s\", handle));\n"%(var, 
+                                                                             prefix,
+                                                                             var,
+                                                                             prefix,
+                                                                             variable_name))
+        for i in self.append_list:
+            str_array.extend(i.to_c(var, prefix))
+
+        return "".join(str_array)
+
+        
 
     def get_py(self, inOldValue, env_name = "os.environ"):
         """
@@ -420,6 +550,21 @@ class Store:
             
         return new_store
 
+    def empty(self, name):
+        """
+        Return True iff name has a builder with an empty value,
+        False otherwise.
+
+        (i.e. if it's likely to actually generate an environment
+        variable setting)
+        """
+        if (name in self.vars):
+            b = self.vars[name]
+            return b.empty()
+        else:
+            return True
+
+    
     def builder_for_name(self, name):
         """
         Return a builder for the given variable, inventing one if
@@ -468,6 +613,12 @@ class Store:
         """
         self.builder_for_name(name).set_expr(expr)
 
+    def ensure_appended(self, name, value):
+        return self.builder_for_name(name).ensure_appended(value)
+
+    def ensure_prepended(self, name, value):
+        return self.builder_for_name(name).ensure_prepended(value)
+
     def append(self, name, value):
         """
         Append a value to a variable
@@ -486,7 +637,7 @@ class Store:
         """
         self.builder_for_name(name).set(value)
 
-    def externaL(self, name):
+    def external(self, name):
         self.builder_for_name(name).set_external(True)
 
 
@@ -511,7 +662,7 @@ class Store:
         elif mode == EnvMode.Prepend:
             var.prepend(value)
 
-    def get_setvars_script(self, name, lang):
+    def get_setvars_script(self, builder,  name, lang):
         """
         Write a setvars script in the chosen language
         """
@@ -519,6 +670,8 @@ class Store:
             return self.get_setvars_sh(name)
         elif (lang == EnvLanguage.Python):
             return self.get_setvars_py(name)
+        elif (lang == EnvLanguage.C):
+            return self.get_setvars_c(builder, name)
         else:
             raise utils.Error("Can't write a setvars script for language %s"%lang)
 
@@ -603,6 +756,43 @@ class Store:
         
         return "".join(retText)
 
+    def get_c_subst_var(self, prefix):
+        """
+        Returns the block of C to use as a substitute for body_impl in 
+        resources/c_env.c
+        """
+        
+        sorted_items = self.dependency_sort()
+        rlist = [ ]
+        doneOne = False
+        for (k,v) in sorted_items:
+            if (doneOne):
+                rlist.append("else ")
+            else:
+                doneOne = True
+
+            rlist.append("if (!strcmp(\"%s\", name))\n"%utils.c_escape(k) + 
+                         "{ \n" + 
+                         " char *rv = NULL;\n")
+            rlist.extend(v.get_c("rv", prefix, k))
+            rlist.append("}\n")
+    
+        if (doneOne):
+            rlist.append("else\n")
+        
+        rlist.append("return %s_UNKNOWN_ENV_VALUE(handle, name);\n"%(prefix.upper()))
+        return "".join(rlist)
+
+    def get_setvars_c(self, builder, prefix):
+        dict = { }
+        dict["prefix"] = prefix
+        dict["ucprefix"] = prefix.upper()
+        dict["body_impl"] = self.get_c_subst_var(prefix)
+        
+        rsrc = builder.resource_body("c_env.c")
+        return subst.subst_str(rsrc, None, dict)
+
+
     def dependency_sort(self):
         """
         Sort self.vars.items() in as close to dependency order as you
@@ -686,7 +876,22 @@ def append_expr(var, str):
     top.append_ref(var)
     top.append_str(str)
     return top
-                   
+
+def add_install_dir_env(env, var_name):
+    """
+    Add an install directory, whose base is held in var_name, to PATH,
+    LD_LIBRARY_PATH, etc.
+    """
+    
+    env.set_type("LD_LIBRARY_PATH", muddled.env_store.EnvType.Path)
+    env.set_type("PATH", muddled.env_store.EnvType.Path)
+    env.set_type("PKG_CONFIG_PATH", muddled.env_store.EnvType.Path)
+    env.prepend_expr("LD_LIBRARY_PATH", 
+                     env_store.append_expr(var_name, "/lib"))
+    env.prepend_expr("PKG_CONFIG_PATH", 
+                     env_store.append_expr(var_name, "/lib/pkgconfig"))
+    env.prepend_expr("PATH", 
+                     env_store.append_expr(var_name, "/bin"))
 
 
     

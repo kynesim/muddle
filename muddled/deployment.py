@@ -8,6 +8,7 @@ import os
 import mechanics
 import utils
 import pkg
+import env_store
 
 class CleanDeploymentBuilder(pkg.Dependable):
     def __init__(self, builder):
@@ -76,5 +77,27 @@ def deployment_depends_on_roles(builder, deployment, roles):
                            r,
                            utils.Tags.PostInstalled)
         rule.add(lbl)
+
+def inform_deployment_path(builder, name, deployment, roles):
+    """
+    Sets an environment variable to tell the given roles about the
+    location of the given deployment.
+
+    Useful when e.g. some tools need to run other tools and therefore
+    want to know where they are at build (rather than run)time.
+    """
+    
+    for role in roles:
+        lbl = depend.Label(utils.LabelKind.Package,
+                           "*",
+                           role,
+                           "*")
+        env = builder.invocation.get_environment_for(lbl)
+        env.set_type(name,env_store.EnvType.SimpleValue)
+        env.set(name, builder.invocation.deploy_path(deployment))
+    
+
+    
+
 
 # End file.

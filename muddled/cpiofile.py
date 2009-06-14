@@ -37,6 +37,12 @@ class File:
         a cpio archive from a default-constructed File you don't
         get utter rubbish. No guarantees you get a valid 
         archive either though .. 
+
+        key_name is the name of the key under which this file is stored
+        in the parent heirarchy. It's a complete hack, but essential for
+        finding a file in the key map quickly without which deletion 
+        becomes an O(n^2) operation (and N = number of files in the root
+        fs, so it's quite high).
         """
         self.dev = 0
         self.ino = 0
@@ -51,6 +57,14 @@ class File:
         self.orig_file = None
         # Children of this directory, if it is one.
         self.children = [ ]
+        self.key_name = None
+
+    def delete_child_with_key(self, in_key):
+        for i in range(0, len(self.children)):
+            if self.children[i].key_name == in_key:
+                del self.children[i]
+                return
+
 
     def rename(self, name):
         self.name = name
@@ -125,6 +139,69 @@ class Heirarchy:
         # We know this is in the right order, so we can hack a bit ..
         ar.files = file_list
         ar.render(to_file, logProgress)
+
+    def erase_target(self, file_name):
+        """
+        Recursively remove file_name and all its descendants from the
+        heirarchy
+        """
+        
+        #print "Erase %s .. "%file_name
+        # Irritatingly, we need to iterate to find the name, since
+        # the map doesn't contain target names - only source ones :-(
+
+        for (k,v) in self.roots.items():
+            if (v.name == file_name):
+                del self.roots[k]
+                break
+
+        file_value = None
+        for (k,v) in self.map.items():
+            if (v.name == file_name):
+                file_value = v
+                del self.map[k]
+                break
+
+        if (file_value is None):
+            # Wasn't there anyway.
+            return
+        
+        # Find its parent
+        parent = self.parent_from_key(file_value.key_name)
+        if (parent is not None):
+            parent.delete_child_with_key(file_value.key_name)
+
+
+        # Otherwise ..
+        for c in file_value.children:
+            self.erase_source(c.key_name)
+
+    def erase_source(self, key_name):
+
+        #print "erase_source = %s "%key_name
+        if (key_name in self.roots):
+            del self.roots[key_name]
+
+        value = self.map.get(key_name)
+        if (value is not None):
+            # Find its parent
+            parent = self.parent_from_key(key_name)
+            if (parent is not None):
+                parent.delete_child_with_key(key_name)
+
+            del self.map[key_name]
+            for c in value.children:
+                self.erase_source(c.key_name)
+
+    def parent_from_key(self, key_name):
+        up = os.path.dirname(key_name)
+
+        if (up in self.map):
+            return self.map[up]
+        else:
+            return None
+        
+    
         
 
 
@@ -298,6 +375,7 @@ def file_from_fs(orig_file, new_name = None):
     outfile.name = orig_file
     outfile.data = None
     outfile.orig_file = orig_file
+    outfile.key_name = orig_file
     if new_name is not None:
         outfile.name = new_name
 

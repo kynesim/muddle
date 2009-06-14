@@ -32,12 +32,14 @@ class CpioDeploymentBuilder(pkg.Dependable):
     """
     
     def __init__(self, roles, builder, target_file, target_base, 
-                 compressionMethod = None):
+                 compressionMethod = None, 
+                 pruneFunc = None):
         self.builder = builder
         self.target_file = target_file
         self.target_base = target_base
         self.roles = roles
         self.compression_method = compressionMethod
+        self.prune_function = pruneFunc
 
     def attach_env(self):
         """
@@ -80,6 +82,9 @@ class CpioDeploymentBuilder(pkg.Dependable):
                 m = cpiofile.heirarchy_from_fs(self.builder.invocation.role_install_path(r), 
                                                self.target_base)
                 the_heirarchy.merge(m)
+
+            if (self.prune_function is not None):
+                self.prune_function(the_heirarchy)
 
             app_dict = get_instruction_dict()
 
@@ -143,7 +148,8 @@ def get_instruction_dict():
     return app_dict
 
 def deploy(builder, target_file, target_base, name, roles, 
-           compressionMethod = None):
+           compressionMethod = None, 
+           pruneFunc = None):
     """
     Set up a cpio deployment
 
@@ -153,10 +159,17 @@ def deploy(builder, target_file, target_base, name, roles,
     @param target_base   Where should we expect to unpack the CPIO file to?
     @param compressionMethod   The compression method to use, if any - gzip -> gzip, 
                                  bzip2 -> bzip2.
+    @param pruneFunc     If not None, this a function to be called like
+                           pruneFunc(Heirarchy) to prune the heirarchy prior to
+                           packing. Usually something like deb.deb_prune, it's
+                           intended to remove spurious stuff like manpages from
+                           initrds and the like.
+                         
     """
     
     the_dependable = CpioDeploymentBuilder(roles, builder, target_file, 
-                                           target_base, compressionMethod)
+                                           target_base, compressionMethod, 
+                                           pruneFunc = pruneFunc)
     
     dep_label = depend.Label(utils.LabelKind.Deployment,
                              name, None,

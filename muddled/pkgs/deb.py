@@ -35,13 +35,16 @@ class DebDependable(PackageBuilder):
     """
 
     def __init__(self, name, role, builder, co, pkg_name, pkg_file,
-                 instr_name = None):
+                 instr_name = None, 
+                 postInstallMakefile = None):
         """
         @param co  Is the checkout name in which the package resides.
         @param pkg_name is the name of the package (dpkg needs it)
         @param pkg_file is the name of the file the package is in, relative to
                           the checkout directory.
         @param instr_name is the name of the instruction file, if any.
+        @param postInstallMakefile if not None, 'make -f postInstallMakefile <pkg-name>'
+                          will be run at post-install time to make links, etc.
         """
         PackageBuilder.__init__(self, name, role)
         self.builder = builder
@@ -49,6 +52,7 @@ class DebDependable(PackageBuilder):
         self.pkg_name = pkg_name
         self.pkg_file = pkg_file
         self.instr_name = instr_name
+        self.post_install_makefile = postInstallMakefile
 
 
     def ensure_dirs(self, label):
@@ -100,7 +104,9 @@ class DebDependable(PackageBuilder):
                 ifile.get()
                 builder.instruct(label.name, label.role, ifile)
         elif (tag == utils.Tags.PostInstalled):
-            pass
+            if self.post_install_makefile is not None:
+                utils.run_cmd("make -f %s %s_postinstall"%(self.post_install_makefile, 
+                                                           label.name))
         elif (tag == utils.Tags.Clean or tag == utils.Tags.DistClean):#
             inv = self.builder.invocation
             admin_dir = os.path.join(inv.package_obj_path(label.name, label.role))
@@ -109,7 +115,9 @@ class DebDependable(PackageBuilder):
             raise utils.Error("Invalid tag specified for deb pkg %s"%(label))
 
 def simple(builder, coName, name, roles, 
-           pkgFile = None, debName = None, instrFile = None):
+           depends_on = [ ],
+           pkgFile = None, debName = None, instrFile = None, 
+           postInstallMakefile = None):
     """
     Build a package called 'name' from co_name / pkg_file with
     an instruction file called instr_file. 
@@ -127,14 +135,31 @@ def simple(builder, coName, name, roles,
 
     for r in roles:
         dep = DebDependable(name, r, builder, coName, debName, 
-                            pkgFile, instrFile)
+                            pkgFile, instrFile, 
+                            postInstallMakefile)
         pkg.add_package_rules(builder.invocation.ruleset, 
                               name, r, dep)
         # We should probably depend on the checkout .. .
         pkg.package_depends_on_checkout(builder.invocation.ruleset, 
                                         name, r, coName, dep)
+        # .. and some other packages. Y'know, because we can ..
+        pkg.package_depends_on_packages(builder.invocation.ruleset, 
+                                        name, r, utils.Tags.PreConfig, 
+                                        depends_on)
         
     # .. and that's it.
+
+def deb_prune(h):
+    """
+    Given a cpiofile heirarchy, prune it so that only the useful 
+    stuff is left.
+    
+    We do this by lopping off directories, which is easy enough in
+    cpiofile heirarchies.
+    """
+    h.erase_target("/usr/share/doc")
+    h.erase_target("/usr/share/man")
+
 
 
 # End file.

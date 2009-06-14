@@ -356,7 +356,7 @@ class Archive:
             # We need to know our data size, so pull in the data now.
             if (f.orig_file is not None):
                 # Is this a real file at all?
-                orig_stat = os.stat(f.orig_file)
+                orig_stat = os.lstat(f.orig_file)
 
                 if (stat.S_ISREG(orig_stat.st_mode)):
                     f_in = open(f.orig_file, "rb")

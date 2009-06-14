@@ -31,11 +31,13 @@ class CpioDeploymentBuilder(pkg.Dependable):
     Builds the specified CPIO deployment
     """
     
-    def __init__(self, roles, builder, target_file, target_base):
+    def __init__(self, roles, builder, target_file, target_base, 
+                 compressionMethod = None):
         self.builder = builder
         self.target_file = target_file
         self.target_base = target_base
         self.roles = roles
+        self.compression_method = compressionMethod
 
     def attach_env(self):
         """
@@ -95,8 +97,18 @@ class CpioDeploymentBuilder(pkg.Dependable):
                             raise utils.Failure("CPIO deployments don't know about " + 
                                                 "the instruction %s (lbl %s, file %s"%(iname, lbl, fn))
             # .. and write the file.
-            print "> Writing %s .. "%deploy_file
+                        print "> Writing %s .. "%deploy_file
             the_heirarchy.render(deploy_file, True)
+            
+            if (self.compression_method is not None):
+                if (self.compression_method == "gzip"):
+                    utils.run_cmd("gzip  %s"%deploy_file)
+                elif (self.compression_method == "bzip2"):
+                    utils.run_cmd("bzip2 %s"%deploy_file)
+                else:
+                    raise utils.Failure("Invalid compression method %s"%compressionMethod + 
+                                        "specified for cpio deployment. Pick gzip or bzip2.")
+
         else:
             raise utils.Failure("Attempt to build a cpio deployment with unknown label %s"%(lbl))
 
@@ -130,17 +142,21 @@ def get_instruction_dict():
     app_dict["chmod"] = CIApplyChmod()
     return app_dict
 
-def deploy(builder, target_file, target_base, name, roles):
+def deploy(builder, target_file, target_base, name, roles, 
+           compressionMethod = None):
     """
     Set up a cpio deployment
 
     @param target_file   Where, relative to the deployment directory, should the
-                          build cpio file end up?
+                          build cpio file end up? Note that compression will add
+                          a suitable '.gz' or '.bz2' suffix.
     @param target_base   Where should we expect to unpack the CPIO file to?
+    @param compressionMethod   The compression method to use, if any - gzip -> gzip, 
+                                 bzip2 -> bzip2.
     """
     
     the_dependable = CpioDeploymentBuilder(roles, builder, target_file, 
-                                           target_base)
+                                           target_base, compressionMethod)
     
     dep_label = depend.Label(utils.LabelKind.Deployment,
                              name, None,

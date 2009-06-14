@@ -79,32 +79,13 @@ class DebDependable(PackageBuilder):
         elif (tag == utils.Tags.Installed):
             # Concoct a suitable dpkg command.
             inv = self.builder.invocation
-            admin_dir = os.path.join(inv.package_obj_path(label.name, label.role))
             inst_dir = inv.package_install_path(label.name, label.role)
             co_dir = inv.checkout_path(self.co_name)
 
-            # Synthetically touch the status file so that dpkg doesn't fail
-            status_file = os.path.join(admin_dir, "status")
-            f = open(status_file, "w")
-            f.close()
-
-            status_file = os.path.join(admin_dir, "available")
-            f = open(status_file, "w")
-            f.close()
-
-            # Make the updates directory, likewise.
-            utils.ensure_dir(os.path.join(admin_dir, "updates"))
-            utils.ensure_dir(os.path.join(admin_dir, "triggers"))
-            utils.ensure_dir(os.path.join(admin_dir, "info"))
-
-            dpkg_cmd = "fakeroot fakechroot dpkg --debug=101 --force-all " + \
-                "--ignore-depends=%s "%self.pkg_name + \
-                "--admindir=%s "%admin_dir + \
-                "--instdir=%s "%inst_dir + \
-                "--log=%s/dpkg-log.txt "%admin_dir + \
-                "--no-triggers"
-            
-            utils.run_cmd("%s -i %s"%(dpkg_cmd, os.path.join(co_dir, self.pkg_file)))
+            # Using dpkg doesn't work here for many reasons.
+            dpkg_cmd = "dpkg-deb -X %s %s"%(os.path.join(co_dir, self.pkg_file), 
+                                            inst_dir)
+            utils.run_cmd(dpkg_cmd)
             
             # Pick up any instructions that got left behind
             instr_file = self.instr_name

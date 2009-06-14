@@ -103,7 +103,7 @@ class Heirarchy:
 
             parent_node = self.map.get(a)
 
-            print "Merge: k = %s a = %s b = %s parent_node = %s"%(k,a,b,parent_node)
+            # print "Merge: k = %s a = %s b = %s parent_node = %s"%(k,a,b,parent_node)
             if (parent_node is None):
                 self.roots[k] = v
             elif (parent_node.mode & File.S_DIR) != 0:
@@ -267,7 +267,7 @@ def heirarchy_from_fs(name, base_name):
 
         for f in files:
             new_obj = os.path.join(root, f)
-            print "new_obj = %s"%new_obj
+            #print "new_obj = %s"%new_obj
             file_map[new_obj] = file_from_fs(new_obj, 
                                              utils.replace_root_name(name, base_name, 
                                                                      new_obj))

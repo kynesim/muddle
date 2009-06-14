@@ -453,7 +453,7 @@ def replace_root_name(base, replacement, filename):
     Given a filename, a base and a replacement, replace base with replacement
     at the start of filename.    
     """
-    print "replace_root_name %s, %s, %s"%(base,replacement, filename)
+    #print "replace_root_name %s, %s, %s"%(base,replacement, filename)
     base_len = len(base)
     if (filename.startswith(base)):
         left = replacement + filename[base_len:]

@@ -463,6 +463,35 @@ def replace_root_name(base, replacement, filename):
     else:
         return filename
 
+
+def parse_mode(in_mode):
+    """
+    Parse a UNIX mode specification into a pair (clear_bits, set_bits).
+    """
+    if (in_mode[0] == '0'):
+        # It's octal.
+        clear_bits = 0777
+        set_bits = int(in_mode, 8)
+
+        return (clear_bits, set_bits)
+    else:
+        # @todo Parse symbolic modes here.
+        raise utils.Failure("Unsupported UNIX modespec %s"%in_mode)
+
+def parse_uid(builder, text_uid):
+    """
+    @todo  One day, we should do something more intelligent than just assuming 
+           your uid is numeric
+    """
+    return int(text_uid)
+
+def parse_gid(builder, text_gid):
+    """
+    @todo  One day, we should do something more intelligent than just assuming 
+           your gid is numeric
+    """
+    return int(text_gid)
+        
     
 
 # End file.

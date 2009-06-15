@@ -111,6 +111,7 @@ class FileSpec:
 
             return_set.update(extras)
 
+        #print "Return return_set len = %d "%(len(return_set))
         return return_set
 
         

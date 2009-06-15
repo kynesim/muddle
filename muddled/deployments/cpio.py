@@ -120,22 +120,33 @@ class CpioDeploymentBuilder(pkg.Dependable):
 class CIApplyChmod(CpioInstructionImplementor):
     def apply(self, builder, instr, role, heirarchy):
         dp = cpiofile.CpioFileDataProvider(heirarchy)
+
+        (clrb, bits) = utils.parse_mode(instr.new_mode)
+
+        print "Apply chmod on %s .. "%instr.filespec 
         files = dp.abs_match(instr.filespec)
         
+
         for f in files:
             # For now ..
-            f.mode = instr.new_mode
+            #print "Change mode of f %s -> %s"%(f.name, instr.new_mode)
+            #print "mode = %o clrb = %o bits = %o\n"%(f.mode, clrb, bits)
+            f.mode = f.mode & ~clrb
+            f.mode = f.mode | bits
 
 class CIApplyChown(CpioInstructionImplementor):
     def apply(self, builder, instr, role, heirarchy):
         dp = cpiofile.CpioFileDataProvider(heirarchy)
         files = dp.abs_match(instr.filespec)
 
+        uid = utils.parse_uid(builder, instr.new_user)
+        gid = utils.parse_gid(builder, instr.new_group)
+
         for f in files:
             if (instr.new_user is not None):
-                f.uid = instr.new_user
+                f.uid = uid
             if (instr.new_group is not None):
-                f.gid = instr.new_group
+                f.gid = gid
 
 def get_instruction_dict():
     """

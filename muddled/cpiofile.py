@@ -119,6 +119,7 @@ class Heirarchy:
 
             # print "Merge: k = %s a = %s b = %s parent_node = %s"%(k,a,b,parent_node)
             if (parent_node is None):
+                print "root[k] = v (%s -> %s)"%(k, v.key_name)
                 self.roots[k] = v
             elif (parent_node.mode & File.S_DIR) != 0:
                 # Got a parent.
@@ -238,7 +239,8 @@ class CpioFileDataProvider(filespec.FileSpecDataProvider):
         # Read everything in this directory.
         result = [ ]
         for elem in obj.children:
-            result.append(elem.name)
+            # We want the last element only ..
+            result.append(os.path.basename(elem.name))
             
             if (recursively):
                 # .. and recurse ..
@@ -255,8 +257,11 @@ class CpioFileDataProvider(filespec.FileSpecDataProvider):
 
         rv = [ ]
         for f in files:
-            for r in self.heirarchy.roots.keys():
-                abs_path = os.path.join(r, f)
+            for r in self.heirarchy.roots.values():
+                if (f[0] == '/'):
+                    f = f[1:]
+
+                abs_path = os.path.join(r.key_name, f)
                 v = self.heirarchy.map.get(abs_path)
                 if (v is not None):
                     rv.append(v)

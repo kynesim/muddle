@@ -393,7 +393,26 @@ class Builder:
         self.build_label(loaded, silent = True)
 
         return True
-                                 
+
+    def get_dependent_package_dirs(self, label):
+        """
+        Find all the dependent packages for label and return a set of
+        the object directories for each. Mainly used as a helper function
+        by set_default_variables()
+        """
+        return_set = set()
+        rules = depend.needed_to_build(self.invocation.ruleset, label)
+        for r in rules:
+            # Exclude wildcards .. 
+            if (r.target.tag_kind == utils.LabelKind.Package and
+                r.target.name is not None and r.target.name != "*" and 
+                ((r.target.role is None) or r.target.role != "*")):
+                obj_dir = self.invocation.package_obj_path(r.target.name, 
+                                                           r.target.role)                
+                return_set.add(obj_dir)
+
+        return return_set
+
 
     def set_default_variables(self, label, store):
         """
@@ -419,6 +438,9 @@ class Builder:
         
         MUDDLE_INSTRUCT      A shortcut to the 'muddle instruct' command for this
                                package, if this is a package build. Unset otherwise.
+        MUDDLE_OBJ_OBJ       $(MUDDLE_OBJ)/obj
+        MUDDLE_OBJ_INCLUDE   $(MUDDLE_OBJ)/include
+        MUDDLE_OBJ_LIB       $(MUDDLE_OBJ)/lib
         """
         store.set("MUDDLE_ROOT", self.invocation.db.root_path)
         store.set("MUDDLE_LABEL", label.__str__())
@@ -434,8 +456,28 @@ class Builder:
         if (label.tag_kind == utils.LabelKind.Checkout):
             store.set("MUDDLE_OBJ", self.invocation.checkout_path(label.name))
         elif (label.tag_kind == utils.LabelKind.Package):
-            store.set("MUDDLE_OBJ", self.invocation.package_obj_path(label.name, 
-                                                                     label.role))
+            obj_dir = self.invocation.package_obj_path(label.name, 
+                                                       label.role)
+            store.set("MUDDLE_OBJ", obj_dir)
+            store.set("MUDDLE_OBJ_LIB", os.path.join(obj_dir, "lib"))
+            store.set("MUDDLE_OBJ_INCLUDE", os.path.join(obj_dir, "include"))
+            store.set("MUDDLE_OBJ_OBJ", os.path.join(obj_dir, "obj"))
+
+            # include and library dirs are slightly interesting .. 
+            dep_dirs = self.get_dependent_package_dirs(label)
+            inc_dirs = [ ]
+            lib_dirs = [ ]
+            for d in dep_dirs:
+                inc_dirs.append(os.path.join(d, "include"))
+                lib_dirs.append(os.path.join(d, "lib"))
+
+            store.set("MUDDLE_INCLUDE", 
+                      " ".join(map(lambda x:utils.maybe_shell_quote(x, True), 
+                                   inc_dirs)))
+            store.set("MUDDLE_LIB", 
+                      " ".join(map(lambda x:utils.maybe_shell_quote(x, True), 
+                                   lib_dirs)))
+
             store.set("MUDDLE_INSTALL", self.invocation.package_install_path(label.name,
                                                                              label.role))
             # It turns out that muddle instruct and muddle uninstruct are the same thing..

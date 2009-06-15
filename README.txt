@@ -205,6 +205,13 @@ sets a number of variables itself:
  MUDDLE             How to call muddle itself
  MUDDLE_INSTRUCT
  MUDDLE_UNINSTRUCT  Used by the instruction system - see below.
+ MUDDLE_INCLUDE_DIRS   Space-separated list of include directories for this
+                        package and all its dependents.
+ MUDDLE_LIB_DIRS       As MUDDLE_INCLUDE_DIRS but with library directories.
+ MUDDLE_OBJ         Package object directory, whose subdirectories include ..
+ MUDDLE_OBJ_OBJ     Where you put actual objects.
+ MUDDLE_OBJ_INCLUDE Where you put include files to be picked up by other packages
+ MUDDLE_OBJ_LIB     Where you put library files to be picked up by other packages.
 
  And the facility to associate environments with a (possibly wildcarded) label.
 This allows you to associate any extra environment variables you want from
@@ -275,6 +282,28 @@ leave these cached instructions lying about:
  $(MUDDLE_UNINSTRUCT) 
 
  Will do the right thing.
+
+Use Of Libraries
+----------------
+
+Library code presents a fairly serious problem: most libraries install
+in essentially two parts - a set of binaries needed to use the 
+library and a set needed to build it.
+
+ As such, there is a convention that package directories should be
+structured:
+
+ obj/<pkg>/<role>/obj   - Object files for the package.
+ obj/<pkg>/<role>/include - Include files;
+ obj/<pkg>/<role>/lib     - Library files.
+
+Makefiles can use:
+
+ CFLAGS += -I$(MUDDLE_INCLUDE_DIRS:%=-I%) 
+ LDFLAGS += -L$(MUDDLE_LIB_DIRS:%=-L%)
+
+To include the appropriate directories.
+
 
 Version control
 ---------------

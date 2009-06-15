@@ -97,6 +97,18 @@ def inform_deployment_path(builder, name, deployment, roles):
         env.set(name, builder.invocation.deploy_path(deployment))
     
 
+def deployment_rule_from_name(builder, name):
+    rules =  builder.invocation.ruleset.rules_for_target(
+        depend.Label(utils.LabelKind.Deployment, name, None, 
+                     utils.Tags.Deployed), 
+        useTags = True, 
+        useMatch = False)
+    if (len(rules) != 1):
+        raise utils.Failure("Attempt to retrieve rule for deployment %s:"%name + 
+                            " returned list had length %d ,not 1.. "%len(rules))
+
+    for r in rules:
+        return r
     
 
 

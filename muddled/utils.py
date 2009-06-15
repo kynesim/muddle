@@ -380,10 +380,16 @@ def recursively_remove(a_dir):
         # for us.
         run_cmd("rm -rf \"%s\""%(a_dir))
 
-def copy_file(from_name, to_name):
-    run_cmd("cp \"%s\" \"%s\""%(from_name, to_name))
+def copy_file(from_name, to_name, object_exactly = False):
+    """
+    Just like recursively_copy, only not recursive :-)
+    """
+    extra_options = ""
+    if object_exactly:
+        extra_options = "-d"
+    run_cmd("cp %s \"%s\" \"%s\""%(extra_options, from_name, to_name))
 
-def recursively_copy(from_dir, to_dir):
+def recursively_copy(from_dir, to_dir, object_exactly = False):
     """
     Take everything in from_dir and copy it to to_dir, overwriting
     anything that might already be there.
@@ -394,12 +400,19 @@ def recursively_copy(from_dir, to_dir):
 
     -p is needed under some special circumstances - specifically,
     when copying as a privileged user.
+    
+    @param object_exactly  If True, don't dereference symlinks.x
     """
     
     files_in_src = os.listdir(from_dir)
 
+    extra_options = ""
+    if (object_exactly):
+        extra_options = "d"
+
     for i in files_in_src:
-        run_cmd("cp -rpf -t \"%s\" \"%s\""%(to_dir, os.path.join(from_dir, i)))
+        run_cmd("cp -rp%sf -t \"%s\" \"%s\""%(extra_options, 
+                                              to_dir, os.path.join(from_dir, i)))
             
 
 def split_path_left(in_path):

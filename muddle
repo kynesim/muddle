@@ -115,6 +115,13 @@ def main(args):
     command.set_options(command_options)
     failed_build_root = False
 
+    # Must make sure this is assigned here, else we may end 
+    # with an unassigned local variable error if exceptions
+    # get raised in the inner try block below.
+    # - rrw 2009-06-15
+    
+    builder = None
+
     try:
         try:
             build_root = muddled.utils.find_root(specified_root)

@@ -238,7 +238,7 @@ class CpioFileDataProvider(filespec.FileSpecDataProvider):
         # Read everything in this directory.
         result = [ ]
         for elem in obj.children:
-            result.append(elem)
+            result.append(elem.name)
             
             if (recursively):
                 # .. and recurse ..
@@ -500,7 +500,6 @@ class Archive:
 
             if (file_data is not None):
                 f_out.write(file_data)
-                f_out.write("\0")
 
             # .. and pad again.
             pos = f_out.tell()

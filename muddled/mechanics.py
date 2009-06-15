@@ -481,11 +481,11 @@ class Builder:
             store.set("MUDDLE_INSTALL", self.invocation.package_install_path(label.name,
                                                                              label.role))
             # It turns out that muddle instruct and muddle uninstruct are the same thing..
-            store.set("MUDDLE_INSTRUCT", "%s instruct %s/%s "%(
+            store.set("MUDDLE_INSTRUCT", "%s instruct %s{%s} "%(
                     self.muddle_binary, label.name,
                     label.role))
 
-            store.set("MUDDLE_UNINSTRUCT", "%s instruct %s/%s "%(
+            store.set("MUDDLE_UNINSTRUCT", "%s instruct %s{%s} "%(
                     self.muddle_binary, label.name,
                     label.role))
 

@@ -501,12 +501,12 @@ class Builder:
         
         # First, find all the labels that match this one.
         all_rules = self.invocation.ruleset.rules_for_target(label, useTags = useTags, 
-                                                             useMatch = False)
+                                                             useMatch = True)
 
         for r in all_rules:
             # Find all our depends.
             all_required = depend.required_by(self.invocation.ruleset, r.target, 
-                                              useMatch = True)
+                                              useMatch = False)
             
             print "Clearing tags: %s %s"%(str(r.target), " ".join(map(str, all_required)))
 

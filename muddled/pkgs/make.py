@@ -7,6 +7,7 @@ import muddled.pkg as pkg
 from muddled.pkg import PackageBuilder
 import muddled.utils as utils
 import muddled.checkouts.simple as simple_checkouts
+import muddled.depend as depend
 import os
 
 class MakeBuilder(PackageBuilder):
@@ -110,7 +111,7 @@ def simple(builder, name, role, checkout, simpleCheckout = False, config = True,
     # .. and make us depend on the checkout.
     pkg.package_depends_on_checkout(builder.invocation.ruleset,
                                     name, role, checkout, the_pkg)
-
+    attach_env(builder, name, role, checkout)
 
 def medium(builder, name, roles, checkout, deps, dep_tag = utils.Tags.PreConfig, 
            simpleCheckout = True, config = True, perRoleMakefiles = False, 
@@ -134,6 +135,7 @@ def medium(builder, name, roles, checkout, deps, dep_tag = utils.Tags.PreConfig,
         pkg.package_depends_on_packages(builder.invocation.ruleset,
                                        name, r, dep_tag, 
                                        deps)
+        attach_env(builder, name, r, checkout)
                                        
 
 def single(builder, name, role, deps):
@@ -143,6 +145,16 @@ def single(builder, name, role, deps):
     """
     medium(builder, name, [ role ], name, deps)
     
+def attach_env(builder, name, role, checkout):
+    """
+    Write the environment which attaches MUDDLE_SRC to makefiles.
+    """
+    env = builder.invocation.get_environment_for(
+        depend.Label(utils.LabelKind.Package, 
+                     name, role, "*"))
+    env.set("MUDDLE_SRC", builder.invocation.checkout_path(checkout))
+
+
 
 # End file.
             

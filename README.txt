@@ -216,11 +216,19 @@ roles.
  This doesn't tell you where your package will end up on the target system.
 It doesn't tell you because it doesn't know. You'll typically be required to
 give this information when you ask muddle to create a deployment, and most
-deployments define:
+deployments and package builders define:
 
  MUDDLE_TARGET_LOCATION
 
  To tell you where the deployment will end up.
+
+ MUDDLE_SRC
+
+ The location of your checkout if one can be sensibly derived - the Make
+ package builder, for example, has an N to 1 correspondence between packages
+ and checkouts, so $(MUDDLE_SRC) is defined as the checkout from which
+ this package is being built. The package builder which imports debian binaries
+ doesn't, so MUDDLE_SRC is left undefined for it.
  
  Even so, there are things that can't be done by your makefile.
 

@@ -259,6 +259,9 @@ class EnvBuilder:
         return copy.deepcopy(self)
         
 
+    def __str__(self):
+        return self.get_sh("$VAR", True)
+
     def merge(self, other):
         """
         Merge another environment builder with this one.

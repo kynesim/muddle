@@ -105,7 +105,7 @@ class DebDependable(PackageBuilder):
                 builder.instruct(label.name, label.role, ifile)
         elif (tag == utils.Tags.PostInstalled):
             if self.post_install_makefile is not None:
-                utils.run_cmd("make -f %s %s_postinstall"%(self.post_install_makefile, 
+                utils.run_cmd("make -f %s %s-postinstall"%(self.post_install_makefile, 
                                                            label.name))
         elif (tag == utils.Tags.Clean or tag == utils.Tags.DistClean):#
             inv = self.builder.invocation

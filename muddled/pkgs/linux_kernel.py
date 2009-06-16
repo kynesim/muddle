@@ -33,7 +33,7 @@ class LinuxKernel(PackageBuilder):
         self.co = co
         self.linux_src = linuxSrc
         self.config_file = configFile
-        self.make_install = True
+        self.make_install = makeInstall
 
     def ensure_dirs(self, label):
         """

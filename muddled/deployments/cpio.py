@@ -148,6 +148,28 @@ class CIApplyChown(CpioInstructionImplementor):
             if (instr.new_group is not None):
                 f.gid = gid
 
+class CIApplyMknod(CpioInstructionImplementor):
+    def apply(self, builder, instr, role, heirarchy):
+        # Find or create the relevant file
+        cpio_file = cpiofile.File()
+
+        (clrb, setb) = utils.parse_mode(instr.mode)
+        cpio_file.mode = setb
+        cpio_file.uid = utils.parse_uid(builder, instr.uid)
+        cpio_file.gid = utils.parse_gid(builder, instr.gid)
+        if (instr.type == "char"):
+            cpio_file.mode = cpio_file.mode | cpiofile.File.S_CHAR
+        else:
+            cpio_file.mode = cpio_file.mode | cpiofile.File.S_BLK
+
+        cpio_file.rdev = os.makedev(int(instr.major), int(instr.minor))
+        # Zero-length file - it's a device node.
+        cpio_file.name = None
+        cpio_file.data = None 
+        cpio_file.key_name = instr.file_name
+        heirarchy.put_target_file(instr.file_name, cpio_file)
+        
+
 def get_instruction_dict():
     """
     Return a dictionary mapping the names of insrtuctions to the
@@ -156,7 +178,9 @@ def get_instruction_dict():
     app_dict = { }
     app_dict["chown"] = CIApplyChown()
     app_dict["chmod"] = CIApplyChmod()
+    app_dict["mknod"] = CIApplyMknod()
     return app_dict
+
 
 def deploy(builder, target_file, target_base, name, roles, 
            compressionMethod = None, 

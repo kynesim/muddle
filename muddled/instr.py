@@ -144,6 +144,99 @@ class ChangeModeInstruction(db.Instruction):
 
         
 
+class MakeDeviceInstruction(db.Instruction):
+    """
+    Create a device file - this is essentially mknod.
+    """
+
+    def __init__(self):
+        """
+        @param type   Is 'block' for a block device, 'char' for a character device
+        """
+        self.file_name = None
+        self.uid = None
+        self.gid = None
+        self.type = None
+        self.major = None
+        self.minor = None
+        self.mode = None
+
+    def to_xml(self, doc):
+        elem = doc.createElement("mknod")
+        
+        elem.appendChild(utils.xml_elem_with_child(doc, "name", self.file_name))
+        elem.appendChild(utils.xml_elem_with_child(doc, "uid", self.uid))
+        elem.appendChild(utils.xml_elem_with_child(doc, "gid", self.gid))
+        elem.appendChild(utils.xml_elem_with_child(doc, "type", self.type))
+        elem.appendChild(utils.xml_elem_with_child(doc, "major", self.major))
+        elem.appendChild(utils.xml_elem_with_child(doc, "minor", self.minor))
+        elem.appendChild(utils.xml_elem_with_child(doc, "mode", self.mode))
+        
+        return elem
+
+    def clone_from_xml(self, node):
+        if (node.nodeType != node.ELEMENT_NODE or 
+            node.nodeName != "mknod"):
+            raise utils.Failure("Invalid outer element for %s user instruction - %s"%("mknod", 
+                                                                                      node))
+        result = MakeDeviceInstruction()
+        
+        for c in node.childNodes:
+            if (c.nodeType == c.ELEMENT_NODE):
+                if (c.nodeName == "name"):
+                    result.file_name = utils.text_in_node(c)
+                elif (c.nodeName == "uid"):
+                    result.uid = utils.text_in_node(c)
+                elif (c.nodeName == "gid"):
+                    result.gid = utils.text_in_node(c)
+                elif (c.nodeName == "type"):
+                    result.type = utils.text_in_node(c)
+                elif (c.nodeName == "major"):
+                    result.major = utils.text_in_node(c)
+                elif (c.nodeName == "minor"):
+                    result.minor = utils.text_in_node(c)
+                elif (c.nodeName == "mode"):
+                    result.mode = utils.text_in_node(c)
+                else:
+                    raise utils.Failure("Invalid node in mknod instruction: %s"%(c.nodeName))
+        
+        result.validate()
+        return result
+
+    def validate(self):
+        if (self.file_name is None):
+            raise utils.Failure("Invalid mknod node - no file name")
+
+        if (self.uid is None):
+            raise utils.Failure("Invalid mknod node - no uid")
+        if (self.gid is None):
+            raise utils.Failure("Invalid mknod node - no gid")
+        if (self.type is None):
+            raise utils.Failure("Invalid mknod node - no device type (block or char)")
+        if (self.major is None):
+            raise utils.Failure("Invalid mknod node - no major number")
+        if (self.minor is None):
+            raise utils.Failure("Invalid mknod node - no minor number")
+        if (self.mode is None):
+            raise utils.Failure("Invalid mknod node - no mode")
+
+        
+        
+    def outer_elem_name(self):
+        return "mknod"
+
+    def equal(self, other):
+        if (not Instruction.equal(self, other)):
+            return False
+
+        return (self.file_name == other.file_name and
+                self.uid == other.uid and
+                self.gid == other.gid and
+                self.type == other.type and
+                self.major == other.major and
+                self.minor == other.minor and
+                self.mode == other.mode)
+        
 
 
 class BuiltinInstructionFactory(db.InstructionFactory):
@@ -180,7 +273,6 @@ class BuiltinInstructionFactory(db.InstructionFactory):
 
 
 
-
 # DANGER WILL ROBINSON!
 #
 # The nature of deployments is that they must understand instructions themselves - 
@@ -202,6 +294,7 @@ class BuiltinInstructionFactory(db.InstructionFactory):
 factory = BuiltinInstructionFactory()
 factory.register("chown", ChangeUserInstruction(None, None, None, "chown"))
 factory.register("chmod", ChangeModeInstruction(None, None, "chmod"))
+factory.register("mknod", MakeDeviceInstruction())
 
 
 # End file.

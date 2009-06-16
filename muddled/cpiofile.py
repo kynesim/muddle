@@ -200,9 +200,28 @@ class Heirarchy:
         if (up in self.map):
             return self.map[up]
         else:
-            return None
+            return None                
+
+    def put_target_file(self, name, obj):
+        """
+        Put a file into the archive. The directory
+        for it must already exist.
+        """
         
-    
+        obj.name = name
+
+        join_name = name
+        if (join_name[0] == '/'):
+            join_name = join_name[1:]
+
+        for (k,v) in self.roots.items():
+            key_name = os.path.join(v.key_name, join_name)
+            obj.key_name = name
+            self.map[key_name] = obj
+            par = self.parent_from_key(key_name)
+            (x, leaf) = os.path.split(name)
+            par.children.append(obj)
+
         
 
 

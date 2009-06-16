@@ -505,6 +505,14 @@ def parse_gid(builder, text_gid):
     """
     return int(text_gid)
         
+
+def xml_elem_with_child(doc, elem_name, child_text):
+    """
+    Return an element 'elem_name' containing the text child_text in doc
+    """
+    el = doc.createElement(elem_name)
+    el.appendChild(doc.createTextNode(child_text))
+    return el
     
 
 # End file.

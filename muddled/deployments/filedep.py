@@ -193,6 +193,31 @@ class FIApplyChown(FileInstructionImplementor):
         # Yep
         return True
 
+
+
+class FIApplyMknod(FileInstructionImplementor):
+    def apply(self, builder, instr, role, path):
+
+        if (instr.type == "char"):
+            mknod_type = "c"
+        else:
+            mknod_type = "b"
+
+        abs_file = os.path.join(path, instr.name)
+        utils.run_cmd("mknod %s %s %s %s"%(
+                abs_file,
+                mknod_type, 
+                instr.major,
+                instr.minor))
+        utils.run_cmd("chown %s:%s %s"%(
+                instr.uid,
+                instr.gid,
+                abs_file))
+        utils.run_cmd("chmod %s %s"%(instr.mode, abs_file))
+
+    def needs_privilege(self, builder, instr, role, path):
+        return True
+
 # Register the relevant instruction providers.
 def get_instruction_dict():
     """
@@ -202,6 +227,7 @@ def get_instruction_dict():
     app_dict = { }
     app_dict["chown"] = FIApplyChown()
     app_dict["chmod"] = FIApplyChmod()
+    app_dict["mknod"] = FIApplyMknod()
     return app_dict
 
 

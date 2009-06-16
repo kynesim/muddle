@@ -911,6 +911,29 @@ class Env(Command):
 
         return 0
     
+class UnCheckout(Command):
+    """
+    Syntax: uncheckout [checkouts]
+
+    Tells muddle that the given checkouts no longer exist in the src directory
+    and should be pulled from version control again.
+    """
+    
+    def name(self):
+        return "uncheckout"
+
+    def requires_build_tree(self):
+        return True
+
+    def with_build_tree(self, builder, local_pkgs, args):
+        checkouts = decode_checkout_arguments(builder, args, local_pkgs, 
+                                              utils.Tags.CheckedOut)
+        if (self.no_op()):
+            print "Uncheckout: %s"%(depend.label_list_to_string(checkouts))
+        else:
+            for co in checkouts:
+                builder.kill_label(co)
+
 
 def get_all_checkouts(builder, tag):
     """
@@ -1266,7 +1289,8 @@ def register_commands():
     Cleandeploy().register(the_dict)
     Removed().register(the_dict)
     Env().register(the_dict)
-    
+    UnCheckout().register(the_dict)
+
     return the_dict
 
 # End file.

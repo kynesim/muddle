@@ -489,7 +489,7 @@ def parse_mode(in_mode):
         return (clear_bits, set_bits)
     else:
         # @todo Parse symbolic modes here.
-        raise utils.Failure("Unsupported UNIX modespec %s"%in_mode)
+        raise Failure("Unsupported UNIX modespec %s"%in_mode)
 
 def parse_uid(builder, text_uid):
     """

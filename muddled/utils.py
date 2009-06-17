@@ -567,7 +567,7 @@ def copy_without(src, dst, without):
                 src_name = os.path.join(root_dir, f)
                 src_p_name = src_name[src_len:]
                 if (src_p_name[0]) == '/':
-                    src_p_name = src_name[1:]
+                    src_p_name = src_p_name[1:]
                 tgt_name = os.path.join(dst, src_p_name)
                 # We need to get cp to do this as we can't preserve special
                 # files (not that any should turn out here, but .. )

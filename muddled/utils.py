@@ -5,6 +5,7 @@ Muddle utilities.
 import string
 import re
 import os
+import stat
 import os.path
 import subprocess
 import time
@@ -515,63 +516,50 @@ def xml_elem_with_child(doc, elem_name, child_text):
     return el
     
 
+
 def copy_without(src, dst, without):
     """
-    Recursively copy from src to dst without 'without'
+    Copy without entries called 'without'.
+    
+    This is horribly involved, since os.walk() doesn't do what
+    we want - it doesn't enumerate symlinks and other special
+    files.
     """
     
-    # This set excludes root directories we've already decided
-    # we shouldn't copy
-    exclude_set = set()
+    # The stack holds paths relative to src.
+    stack = [ ]
 
-    src_len = len(src)
+    stack.append(".")
+    while len(stack) > 0:
+        current = stack.pop()
+        
+        src_object = os.path.join(src, current)
+        dst_object = os.path.join(dst, current)
 
-    results = os.walk(src)
-    for r in results:
-        (root_dir, dirs, files) = r
+        # current is, by definition, not something we want to ignore.
+        # We had probably better copy it.
 
-        if (root_dir in exclude_set):
-            for d in dirs:
-                exclude_set.add(os.path.join(root_dir, d))
+        # We need to lstat() it to check if it's really a directory
+        # or not. os.path.isdir() doesn't do this for us..
+        st_rec = os.lstat(current)
+        if (stat.S_ISDIR(st_rec.st_mode)):
+            things_here = os.listdir(current)
+            for thing in things_here:
+                do_without = False
+                for w in without:
+                    if (thing == w):
+                        do_without = True
+                        break
 
-            continue
+                if not do_without:
+                    stack.append(os.path.join(current, thing))
 
-        for d in dirs:
-            exclude = False
+            if (not os.path.exists(dst_object)):
+                os.mkdir(dst_object, 0755)
+        else:
+            # Not a directory - just copy it.
+            copy_file(src_object, dst_object, object_exactly = True)
 
-            for w in without:
-                if (d == w):
-                    exclude = True
-                    break
-            
-            if not exclude:
-                src_name = os.path.join(root_dir, d)
-                src_name = src_name[src_len:]
-                if (src_name[0] == '/'): 
-                    src_name = src_name[1:]
-                tgt_name = os.path.join(dst, src_name)
-                if (not os.path.exists(tgt_name)):
-                    os.mkdir(tgt_name, 0755)
-            else:
-                exclude_set.add(os.path.join(root_dir, d))
-
-        for f in files:
-            exclude = False
-
-            for w in without:
-                if (f == w):
-                    exclude = True
-                    break
-
-            if not exclude:
-                src_name = os.path.join(root_dir, f)
-                src_p_name = src_name[src_len:]
-                if (src_p_name[0]) == '/':
-                    src_p_name = src_p_name[1:]
-                tgt_name = os.path.join(dst, src_p_name)
-                # We need to get cp to do this as we can't preserve special
-                # files (not that any should turn out here, but .. )
-                copy_file(src_name, tgt_name, object_exactly = True)
 
 
 

@@ -45,8 +45,11 @@ class LinuxKernel(PackageBuilder):
         inst_path = self.builder.invocation.package_install_path(label.name,
                                                                  label.role)
         utils.ensure_dir(co_path)
-        utils.ensure_dir(build_path)
+        utils.ensure_dir(os.path.join(build_path, "obj"))
         utils.ensure_dir(inst_path)
+        
+
+        
 
 
     def build_label(self, label):
@@ -61,8 +64,7 @@ class LinuxKernel(PackageBuilder):
                                                                  label.role)
 
         make_cmd = "make"
-        make_cmd = make_cmd + " O=%s"%(self.builder.invocation.package_obj_path(label.name,
-                                                                     label.role))
+        make_cmd = make_cmd + " O=%s"%(os.path.join(build_path, "obj"))
 
 
         if (tag == utils.Tags.PreConfig):
@@ -75,8 +77,12 @@ class LinuxKernel(PackageBuilder):
             if not (os.path.exists(config_src)):
                 raise utils.Failure("Cannot find kernel config source file %s"%config_src)
             
-            dot_config = os.path.join(build_path, ".config")
+            dot_config = os.path.join(build_path, "obj", ".config")
             utils.copy_file(config_src, dot_config)
+            # ... and symlink the includes.
+            os.symlink(os.path.join(build_path, "obj", "include",), 
+                       os.path.join(build_path, "include"))
+
         elif (tag == utils.Tags.Built):
             os.chdir(os.path.join(co_path, self.linux_src))
             utils.run_cmd("%s bzImage"%make_cmd)

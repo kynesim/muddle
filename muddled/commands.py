@@ -386,7 +386,8 @@ class Redeploy(Command):
     def with_build_tree(self, builder, local_pkgs, args):
         labels = decode_deployment_arguments(builder, args, local_pkgs,
                                              utils.Tags.Deployed)
-        rv = build_a_kill_b(builder, labels, utils.Tags.Clean, utils.Tags.Deployed)
+        rv = build_a_kill_b(builder, labels, utils.Tags.Clean,
+                            utils.Tags.Deployed)
         rv = build_labels(builder, labels)
         return rv
         
@@ -935,6 +936,68 @@ class UnCheckout(Command):
                 builder.kill_label(co)
 
 
+class Checkout(Command):
+    """
+    Syntax: checkout [checkouts]
+
+    Checks out the given series of checkouts.
+    """
+    
+    def name(self):
+        return "checkout"
+
+    def requires_build_tree(self):
+        return True
+
+    def with_build_tree(self, builder, local_pkgs, args):
+        checkouts = decode_checkout_arguments(builder, args, local_pkgs, 
+                                              utils.Tags.CheckedOut)
+        if (self.no_op()):
+            print "Checkout: %s"%(depend.label_list_to_string(checkouts))
+        else:
+            for co in checkouts:
+                builder.build_label(co)
+
+class CopyWithout(Command):
+    """
+    Syntax: copywithout [src] [dst] [without .. ]
+
+    Many VCSs use '.XXX' directories to hold metadata. When installing
+    files in a makefile, it's often useful to have an operation which
+    copies a heirarchy from one place to another without these dotfiles.
+
+    This is that operation. We copy everything from src into dst without
+    copying anything which is in [without .. ]. 
+    """
+    
+    def name(self):
+        return "copywithout"
+
+    def requires_build_tree(self):
+        return False
+
+    def with_build_tree(self, builder, local_pkgs, args):
+        return self.do_copy(args)
+
+    def without_build_tree(self, muddle_binary, root_path, args):
+        return self.do_copy(args)
+
+    def do_copy(self, args):
+        if (len(args) < 2):
+            raise utils.Failure("Bad syntax for copywithout command")
+        
+        src_dir = args[0]
+        dst_dir = args[1]
+        without = args[2:]
+
+        if (self.no_op()):
+            print "Copy from: %s"%(src_dir)
+            print "Copy to  : %s"%(dst_dir)
+            print "Excluding: %s"%(" ".join(without))
+        else:
+            utils.copy_without(src_dir, dst_dir, without)
+
+
 def get_all_checkouts(builder, tag):
     """
     Return a list of labels corresponding to all checkouts 
@@ -1290,6 +1353,8 @@ def register_commands():
     Removed().register(the_dict)
     Env().register(the_dict)
     UnCheckout().register(the_dict)
+    Checkout().register(the_dict)
+    CopyWithout().register(the_dict)
 
     return the_dict
 

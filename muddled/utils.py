@@ -515,4 +515,58 @@ def xml_elem_with_child(doc, elem_name, child_text):
     return el
     
 
+def copy_without(src, dst, without):
+    """
+    Recursively copy from src to dst without 'without'
+    """
+    
+    # This set excludes root directories we've already decided
+    # we shouldn't copy
+    exclude_set = set()
+
+    src_len = len(src)
+
+    results = os.walk(src)
+    for r in results:
+        (root_dir, dirs, files) = r
+
+        if (root_dir in exclude_set):
+            for d in dirs:
+                exclude_set.add(os.path.join(root_dir, d))
+
+            continue
+
+        for d in dirs:
+            exclude = False
+
+            for w in without:
+                if (d == w):
+                    exclude = True
+                    break
+            
+            if not exclude:
+                src_name = os.path.join(root_dir, d)
+                tgt_name = os.path.join(dst, src_name[src_len:])
+                if (not os.path.exists(tgt_name)):
+                    os.mkdir(tgt_name, 0755)
+            else:
+                exclude_set.add(os.path.join(root_dir, d))
+
+        for f in files:
+            exclude = False
+
+            for w in without:
+                if (f == w):
+                    exclude = True
+                    break
+
+            if not exclude:
+                src_name = os.path.join(root_dir, f)
+                tgt_name = os.path.join(dst, src_name[src_len:])
+                # We need to get cp to do this as we can't preserve special
+                # files (not that any should turn out here, but .. )
+                copy_file(src_name, tgt_name, object_exactly = True)
+
+
+
 # End file.

@@ -468,13 +468,18 @@ class Builder:
             inc_dirs = [ ]
             lib_dirs = [ ]
             for d in dep_dirs:
-                inc_dirs.append(os.path.join(d, "include"))
-                lib_dirs.append(os.path.join(d, "lib"))
+                inc_dir = os.path.join(d, "include")
+                if (os.path.exists(inc_dir) and os.path.isdir(inc_dir)):
+                    inc_dirs.append(inc_dir)
 
-            store.set("MUDDLE_INCLUDE", 
+                lib_dir = os.path.join(d, "lib")
+                if (os.path.exists(lib_dir) and os.path.isdir(lib_dir)):
+                    lib_dirs.append(lib_dir)
+
+            store.set("MUDDLE_INCLUDE_DIRS", 
                       " ".join(map(lambda x:utils.maybe_shell_quote(x, True), 
                                    inc_dirs)))
-            store.set("MUDDLE_LIB", 
+            store.set("MUDDLE_LIB_DIRS", 
                       " ".join(map(lambda x:utils.maybe_shell_quote(x, True), 
                                    lib_dirs)))
 

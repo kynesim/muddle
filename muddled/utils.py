@@ -565,10 +565,10 @@ def copy_without(src, dst, without):
 
             if not exclude:
                 src_name = os.path.join(root_dir, f)
-                src_name = src_name[src_len:]
-                if (src_name[0]) == '/':
-                    src_name = src_name[1:]
-                tgt_name = os.path.join(dst, src_name)
+                src_p_name = src_name[src_len:]
+                if (src_p_name[0]) == '/':
+                    src_p_name = src_name[1:]
+                tgt_name = os.path.join(dst, src_p_name)
                 # We need to get cp to do this as we can't preserve special
                 # files (not that any should turn out here, but .. )
                 copy_file(src_name, tgt_name, object_exactly = True)

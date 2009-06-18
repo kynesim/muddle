@@ -66,6 +66,11 @@ class LinuxKernel(PackageBuilder):
         make_cmd = "make"
         make_cmd = make_cmd + " O=%s"%(os.path.join(build_path, "obj"))
 
+        # The kernel will append the necessary 'include' directory.
+        hdr_path = os.path.join(build_path) 
+        fw_path = os.path.join(build_path, "firmware")
+        modules_path = os.path.join(build_path, "modules")
+
 
         if (tag == utils.Tags.PreConfig):
             pass
@@ -79,13 +84,16 @@ class LinuxKernel(PackageBuilder):
             
             dot_config = os.path.join(build_path, "obj", ".config")
             utils.copy_file(config_src, dot_config)
-            # ... and symlink the includes.
-            os.symlink(os.path.join(build_path, "obj", "include",), 
-                       os.path.join(build_path, "include"))
+            #os.symlink(os.path.join(build_path, "obj", "include",), 
+            #           os.path.join(build_path, "include"))
 
         elif (tag == utils.Tags.Built):
             os.chdir(os.path.join(co_path, self.linux_src))
             utils.run_cmd("%s bzImage"%make_cmd)
+            utils.run_cmd("%s modules"%make_cmd)
+            utils.run_cmd("%s INSTALL_HDR_PATH=\"%s\" headers_install"%(make_cmd, hdr_path))
+            utils.run_cmd("%s INSTALL_FW_PATH=\"%s\" firmware_install"%(make_cmd, fw_path))
+            utils.run_cmd("%s INSTALL_MOD_PATH=\"%s\" modules_install"%(make_cmd, modules_path))
         elif (tag == utils.Tags.Installed):
             if (self.make_install):
                 utils.run_cmd("make install")
@@ -126,8 +134,6 @@ def simple(builder, name, role, checkout, linux_dir, config_file,
 
 # End File.
 
-
-                                                                 
                                                                 
                                       
             

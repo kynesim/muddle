@@ -208,6 +208,7 @@ sets a number of variables itself:
  MUDDLE_INCLUDE_DIRS   Space-separated list of include directories for this
                         package and all its dependents.
  MUDDLE_LIB_DIRS       As MUDDLE_INCLUDE_DIRS but with library directories.
+ MUDDLE_PKGCONFIG_DIRS $(MUDDLE_OBJ)/lib/pkgconfig directories - for use as a PKG_CONFIG_PATH.
  MUDDLE_OBJ         Package object directory, whose subdirectories include ..
  MUDDLE_OBJ_OBJ     Where you put actual objects.
  MUDDLE_OBJ_INCLUDE Where you put include files to be picked up by other packages

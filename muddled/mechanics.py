@@ -467,6 +467,7 @@ class Builder:
             dep_dirs = self.get_dependent_package_dirs(label)
             inc_dirs = [ ]
             lib_dirs = [ ]
+            pkg_dirs = [ ]
             for d in dep_dirs:
                 inc_dir = os.path.join(d, "include")
                 if (os.path.exists(inc_dir) and os.path.isdir(inc_dir)):
@@ -476,12 +477,19 @@ class Builder:
                 if (os.path.exists(lib_dir) and os.path.isdir(lib_dir)):
                     lib_dirs.append(lib_dir)
 
+                pkg_dir = os.path.join(d, "lib/pkgconfig")
+                if (os.path.exists(pkg_dir) and os.path.isdir(pkg_dir)):
+                    pkg_dirs.append(pkg_dir)
+                    
             store.set("MUDDLE_INCLUDE_DIRS", 
                       " ".join(map(lambda x:utils.maybe_shell_quote(x, True), 
                                    inc_dirs)))
             store.set("MUDDLE_LIB_DIRS", 
                       " ".join(map(lambda x:utils.maybe_shell_quote(x, True), 
                                    lib_dirs)))
+            store.set("MUDDLE_PKGCONFIG_DIRS", 
+                      " ".join(map(lambda x:utils.maybe_shell_quote(x, True), 
+                                   pkg_dirs)))
 
             store.set("MUDDLE_INSTALL", self.invocation.package_install_path(label.name,
                                                                              label.role))

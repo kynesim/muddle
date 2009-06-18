@@ -52,7 +52,9 @@ class MakeBuilder(PackageBuilder):
         tag = label.tag
 
         self.ensure_dirs()
-        os.chdir(self.builder.invocation.checkout_path(self.co))
+        
+        co_path = self.builder.invocation.checkout_path(self.co)
+        os.chdir(co_path)
 
         if self.makefile_name is None:
             makefile_name = "Makefile"

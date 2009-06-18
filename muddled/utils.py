@@ -541,9 +541,9 @@ def copy_without(src, dst, without):
 
         # We need to lstat() it to check if it's really a directory
         # or not. os.path.isdir() doesn't do this for us..
-        st_rec = os.lstat(current)
+        st_rec = os.lstat(src_object)
         if (stat.S_ISDIR(st_rec.st_mode)):
-            things_here = os.listdir(current)
+            things_here = os.listdir(src_object)
             for thing in things_here:
                 do_without = False
                 for w in without:
@@ -552,6 +552,7 @@ def copy_without(src, dst, without):
                         break
 
                 if not do_without:
+                    print "Stack up %s"%(os.path.join(current, thing))
                     stack.append(os.path.join(current, thing))
 
             if (not os.path.exists(dst_object)):

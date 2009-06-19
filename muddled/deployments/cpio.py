@@ -102,7 +102,7 @@ class CpioDeploymentBuilder(pkg.Dependable):
                             raise utils.Failure("CPIO deployments don't know about " + 
                                                 "the instruction %s (lbl %s, file %s"%(iname, lbl, fn))
             # .. and write the file.
-                        print "> Writing %s .. "%deploy_file
+            print "> Writing %s .. "%deploy_file
             the_heirarchy.render(deploy_file, True)
             
             if (self.compression_method is not None):
@@ -123,7 +123,6 @@ class CIApplyChmod(CpioInstructionImplementor):
 
         (clrb, bits) = utils.parse_mode(instr.new_mode)
 
-        print "Apply chmod on %s .. "%instr.filespec 
         files = dp.abs_match(instr.filespec)
         
 
@@ -131,6 +130,7 @@ class CIApplyChmod(CpioInstructionImplementor):
             # For now ..
             #print "Change mode of f %s -> %s"%(f.name, instr.new_mode)
             #print "mode = %o clrb = %o bits = %o\n"%(f.mode, clrb, bits)
+            #print "Change mode of %s"%(f.name)
             f.mode = f.mode & ~clrb
             f.mode = f.mode | bits
 

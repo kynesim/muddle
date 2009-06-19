@@ -83,8 +83,6 @@ class Database:
         return_list = [ ]
 
         for (path, dirname, files) in the_instruction_files:
-            return_list = [ ]
-
             for f in files:
                 if (f.endswith(".xml")):
                     # Yep

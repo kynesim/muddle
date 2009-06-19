@@ -119,7 +119,7 @@ class Heirarchy:
 
             # print "Merge: k = %s a = %s b = %s parent_node = %s"%(k,a,b,parent_node)
             if (parent_node is None):
-                print "root[k] = v (%s -> %s)"%(k, v.key_name)
+                #print "root[k] = v (%s -> %s)"%(k, v.key_name)
                 self.roots[k] = v
             elif (parent_node.mode & File.S_DIR) != 0:
                 # Got a parent.
@@ -246,6 +246,10 @@ class CpioFileDataProvider(filespec.FileSpecDataProvider):
 
         for r in self.heirarchy.roots.keys():
             abs_path = os.path.join(r, dir)
+            
+            # Trim any trailing '/'s for normalisation reasons.
+            if (abs_path[-1] == '/'):
+                abs_path = abs_path[:-1]
         
             # Find the File representing this directory
             obj = self.heirarchy.map.get(abs_path)
@@ -253,7 +257,8 @@ class CpioFileDataProvider(filespec.FileSpecDataProvider):
                 break
 
         if (obj is None):
-            return None
+            print "> Warning: No files in %s in this cpio archive.. "%dir
+            return [ ]
         
         # Read everything in this directory.
         result = [ ]

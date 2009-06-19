@@ -997,6 +997,33 @@ class CopyWithout(Command):
         else:
             utils.copy_without(src_dir, dst_dir, without)
 
+class Retry(Command):
+    """
+    Syntax: retry [labels ..]
+
+    Removes just the labels in question and then tries to build them.
+    Useful when you're messing about with package rebuild rules.
+    """
+    
+    def name(self):
+        return "retry"
+
+    def requires_build_tree(self):
+        return True
+
+    def with_build_tree(self, builder, local_pkgs, args):
+        labels = decode_labels(builder, args)
+        if (self.no_op()):
+            print "Retry: %s"%(depend.label_list_to_string(labels))
+        else:
+            print "Clear: %s"%(depend.label_list_to_string(labels))
+            for l in labels:
+                builder.invocation.db.clear_tag(l)
+            
+            print "Build: %s"%(depend.label_list_to_string(labels))
+            for l in labels:
+                builder.build_label(l)
+
 
 def get_all_checkouts(builder, tag):
     """
@@ -1355,6 +1382,7 @@ def register_commands():
     UnCheckout().register(the_dict)
     Checkout().register(the_dict)
     CopyWithout().register(the_dict)
+    Retry().register(the_dict)
 
     return the_dict
 

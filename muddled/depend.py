@@ -365,8 +365,8 @@ def label_from_string(str):
     """
 
     # It's quite a .. long .. regex .. 
-    the_re = re.compile("([A-Za-z0-9*_-]+):([A-Za-z0-9*_-]+)(\{([A-Za-z0-9*_-]+)\})?" + 
-                        "/([A-Za-z0-9*_-]+)(\[[A-Za-z0-9]+\])?")
+    the_re = re.compile("([A-Za-z0-9.*_-]+):([A-Za-z.0-9*_-]+)(\{([A-Za-z.0-9*_-]+)\})?" + 
+                        "/([A-Za-z.0-9*_-]+)(\[[A-Za-z.0-9]+\])?")
     m = the_re.match(str)
     if (m is None):
         return None

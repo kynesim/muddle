@@ -546,10 +546,11 @@ def copy_without(src, dst, without):
             things_here = os.listdir(src_object)
             for thing in things_here:
                 do_without = False
-                for w in without:
-                    if (thing == w):
-                        do_without = True
-                        break
+                if without is not None:
+                    for w in without:
+                        if (thing == w):
+                            do_without = True
+                            break
 
                 if not do_without:
                     print "Stack up %s"%(os.path.join(current, thing))

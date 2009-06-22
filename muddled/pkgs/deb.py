@@ -28,6 +28,84 @@ import muddled.utils as utils
 import muddled.checkouts.simple as simple_checkouts
 import os
 
+class DebDevDependable(PackageBuilder):
+    """
+    Use dpkg to extract debian archives into obj/include and obj/lib
+    directories so we can use them to build other packages.
+    """
+    def __init__(self, name, role, builder, co, pkg_name, pkg_file, 
+                 instr_name = None,
+                 postInstallMakefile = None):
+        """
+        As for a DebDependable, really
+        """
+        PackageBuilder.__init__(self, name, role)
+        self.builder = builder
+        self.co_name = co
+        self.pkg_name = pkg_name
+        self.pkg_file = pkg_file
+        self.instr_name = instr_name
+        self.post_install_makefile = postInstallMakefile
+        
+
+    def ensure_dirs(self, label):
+        inv = self.builder.invocation
+
+        if not os.path.exists(inv.checkout_path(self.co_name)):
+            raise utils.Failure("Path for checkout %s does not exist."%self.co_name)
+
+        utils.ensure_dir(os.path.join(inv.package_obj_path(label.name, label.role), "obj"))
+
+    def build_label(self, label):
+        """
+        Actually install the dev package
+        """
+        self.ensure_dirs(label)
+
+        tag = label.tag
+        
+        if (tag == utils.Tags.PreConfig):
+            # Nothing to do
+            pass
+        elif (tag == utils.Tags.Configured):
+            pass
+        elif (tag == utils.Tags.Built):
+            pass
+        elif (tag == utils.Tags.Installed):
+            # Extract into /obj
+            inv = self.builder.invocation
+            co_dir = inv.checkout_path(self.co_name)
+            obj_dir = inv.package_obj_path(label.name, label.role)
+            dpkg_cmd = "dpkg-deb -X %s %s"%(os.path.join(co_dir, self.pkg_file), 
+                                            os.path.join(obj_dir, "obj"))
+
+            utils.run_cmd(dpkg_cmd)
+            
+            # Now install any include or lib files ..
+            installed_into = os.path.join(obj_dir, "obj")
+            inc_dir = os.path.join(obj_dir, "include")
+            lib_dir = os.path.join(obj_dir, "lib")
+            
+            utils.ensure_dir(inc_dir)
+            utils.ensure_dir(lib_dir)
+
+            # Copy everything in usr/include ..
+            utils.copy_without(os.path.join(installed_into, "usr", "include"), 
+                               inc_dir, without = None)
+            utils.copy_without(os.path.join(installed_into, "usr", "lib"), 
+                               lib_dir, without = None)
+        elif (tag == utils.Tags.PostInstalled):
+            if self.post_install_makefile is not None:
+                utils.run_cmd("make -f %s %s-postinstall"%(self.post_install_makefile, 
+                                                       label.name))
+        elif (tag == utils.Tags.Clean or tag == utils.Tags.DistClean):
+            # Just remove the object directory.
+            utils.recursively_remove(builder.invocation.package_obj_path(label.name, label.role))
+        else:
+            raise utils.Error("Invalid tag specified for deb pkg %s"%(label))
+
+
+
 class DebDependable(PackageBuilder):
     """
     Use dpkg to extract debian archives from the given
@@ -117,7 +195,7 @@ class DebDependable(PackageBuilder):
 def simple(builder, coName, name, roles, 
            depends_on = [ ],
            pkgFile = None, debName = None, instrFile = None, 
-           postInstallMakefile = None):
+           postInstallMakefile = None, isDev = False):
     """
     Build a package called 'name' from co_name / pkg_file with
     an instruction file called instr_file. 
@@ -125,6 +203,13 @@ def simple(builder, coName, name, roles,
     'name' is the name of the muddle package and of the debian package.
     if you want them different, set deb_name to something other than
     None
+    
+    Set isDev to True for a dev package, False for an ordinary
+    binary package. Dev packages are installed into the object
+    directory where MUDDLE_INC_DIRS etc. expects to look for them.
+    Actual packages are installed into the installation directory
+    where they will be transported to the target system.
+
     """
     if (debName is None):
         debName = name
@@ -134,9 +219,15 @@ def simple(builder, coName, name, roles,
         pkgFile = debName
 
     for r in roles:
-        dep = DebDependable(name, r, builder, coName, debName, 
-                            pkgFile, instrFile, 
-                            postInstallMakefile)
+        if isDev:
+            dep = DebDevDependable(name, r, builder, coName, debName, 
+                                   pkgFile, instrFile, 
+                                   postInstallMakefile)
+        else:
+            dep = DebDependable(name, r, builder, coName, debName, 
+                                pkgFile, instrFile, 
+                                postInstallMakefile)
+            
         pkg.add_package_rules(builder.invocation.ruleset, 
                               name, r, dep)
         # We should probably depend on the checkout .. .
@@ -148,6 +239,15 @@ def simple(builder, coName, name, roles,
                                         depends_on)
         
     # .. and that's it.
+
+def dev(builder, coName, name, roles,
+        depends_on = [ ],
+        pkgFile = None, debName = None, instrFile = None,
+        postInstallMakefile = None):
+    simple(builder, coName, name, roles, depends_on,
+           pkgFile, debName, instrFile, postInstallMakefile,
+           isDev = True)
+          
 
 def deb_prune(h):
     """

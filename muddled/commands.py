@@ -967,7 +967,8 @@ class CopyWithout(Command):
     copies a heirarchy from one place to another without these dotfiles.
 
     This is that operation. We copy everything from src into dst without
-    copying anything which is in [without .. ]. 
+    copying anything which is in [without .. ].  If you omit without, 
+    we just copy - this is a useful, working, version of 'cp -a'
     """
     
     def name(self):
@@ -1310,7 +1311,7 @@ def labels_from_pkg_args(list, tag, default_roles):
     cartesian product of all the unqualified packages.
     """
 
-    the_re = re.compile("([A-Za-z0-9*_-]+)(\{([A-Za-z0-9*_-]+)\})?$")
+    the_re = re.compile(r'([A-Za-z0-9.*_-]+)(\{([A-Za-z0-9.*_-]+)\})?$')
 
     result = [ ]
 
@@ -1321,7 +1322,8 @@ def labels_from_pkg_args(list, tag, default_roles):
         m = the_re.match(elem)
         if (m is None):
             # Hmm ..
-            raise utils.Error("Package list element %s isn't a well-formed package descriptor (pkg({role})?)"%elem)
+            raise utils.Error("Package list element %s isn't a " + 
+                    "well-formed package descriptor (pkg({role})?)"%elem)
         else:
             pkg = m.group(1)
             role = m.group(3)

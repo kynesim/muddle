@@ -17,6 +17,8 @@ import re
 import traceback
 import os
 import os.path
+import xml.dom.minidom
+import subst
 
 class Command:
     """
@@ -1041,20 +1043,20 @@ class Subst(Command):
         return False
 
     def with_build_tree(self, builder, local_pkgs, args):
-        do_subst(args)
+        self.do_subst(args)
 
     def without_build_tree(self, muddle_binary, root_path, args):
-        do_subst(args)
+        self.do_subst(args)
 
-    def do_subst(args):
+    def do_subst(self, args):
         if len(args) != 3:
             raise utils.Failure("Syntax: subst [src] [xml] [dst]")
         
         src = args[0]
-        xml = args[1]
+        xml_file = args[1]
         dst = args[2]
 
-        f = open(xml, "r")
+        f = open(xml_file, "r")
         xml_doc = xml.dom.minidom.parse(f)
         f.close()
         
@@ -1420,6 +1422,7 @@ def register_commands():
     Checkout().register(the_dict)
     CopyWithout().register(the_dict)
     Retry().register(the_dict)
+    Subst().register(the_dict)
 
     return the_dict
 

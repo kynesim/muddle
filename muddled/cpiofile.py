@@ -43,6 +43,12 @@ class File:
         finding a file in the key map quickly without which deletion 
         becomes an O(n^2) operation (and N = number of files in the root
         fs, so it's quite high).
+
+        self.name     Is the name of the file in the target archive.
+        self.fs_name  Is the name of the file in the underlying filesystem.
+        self.orig_file  Is the name of the file from which the data in this file
+                         object comes.
+
         """
         self.dev = 0
         self.ino = 0
@@ -57,11 +63,11 @@ class File:
         self.orig_file = None
         # Children of this directory, if it is one.
         self.children = [ ]
-        self.key_name = None
+        self.fs_name = None
 
-    def delete_child_with_key(self, in_key):
+    def delete_child_with_name(self, in_name):
         for i in range(0, len(self.children)):
-            if self.children[i].key_name == in_key:
+            if self.children[i].name == in_name:
                 del self.children[i]
                 return
 
@@ -77,12 +83,20 @@ class File:
         self.orig_file = file_name
         self.data = None
 
+    def __str__(self):
+        return "[ %s (fs %s) mode = %o uid = %d gid = %d kids = %s]"%\
+            (self.name, 
+             self.fs_name, 
+             self.mode, self.uid, 
+             self.gid, 
+             " ".join(map(lambda x: x.name, self.children)))
+
 class Heirarchy:
     
     def __init__(self, map, roots):
         """
-        self.map   is a mapping from name to fs object.
-        self.roots is a dictionary of root -> fs object.
+        self.map   - maps names in the target archive to file objects.
+        self.roots - is a subset of self.map that just maps the root objects.
         """
         self.map = map
         self.roots = roots
@@ -118,7 +132,7 @@ class Heirarchy:
             parent_node = self.map.get(a)
 
             # print "Merge: k = %s a = %s b = %s parent_node = %s"%(k,a,b,parent_node)
-            if (parent_node is None):
+            if (parent_node is None) or (a=="/" and b==""):
                 #print "root[k] = v (%s -> %s)"%(k, v.key_name)
                 self.roots[k] = v
             elif (parent_node.mode & File.S_DIR) != 0:
@@ -128,6 +142,56 @@ class Heirarchy:
                 raise utils.Failure("Attempt to merge file %s when '%s' is a directory"%(k,a))
 
         # .. and that's all, folks.
+
+    def normalise(self):
+        """
+        Normalise the heirarchy into one with a single root.
+        
+        We do this by taking each root in turn and removing a component, creating
+        a directory in the process. If the resulting root is in roots, we add it
+        to the children of that root and eliminate it from the map.
+
+        Iterate until there is only one root left.
+        """
+
+        while len(self.roots) > 1:
+            # Pick a key .. 
+            did_something = False
+            new_roots = { }
+        
+            for (k,v) in self.roots.items():
+                #print "Normalise %s => "%k
+                if (k != "/"):
+                    # It can be shortened ..
+                    (dir, name) = os.path.split(k)
+
+                    did_something = True
+
+                    #print "=> dir = %s"%dir
+                    if (dir not in self.map):
+
+                        # Curses. Don't already have that directory - 
+                        # must build it.
+                        new_dir = File()
+                        new_dir.mode = 0755 | File.S_DIR
+                        new_dir.name = dir
+                        new_dir.children.append(v)
+                        # The directory wasn't present, so must be 
+                        # a new root .
+                        new_roots[dir] = new_dir
+                        self.map[dir] = new_dir
+                    else:
+                        new_dir = self.map[dir]
+                        new_dir.children.append(v)
+
+                else:
+                    new_roots[k] = v
+
+            self.roots = new_roots
+            if (not did_something):
+                raise utils.Failure("Failed to normalise a heirarchy -" + 
+                                    " circular roots?: %s"%self)
+            
     
     def render(self, to_file, logProgress = False):
         
@@ -151,48 +215,18 @@ class Heirarchy:
         # Irritatingly, we need to iterate to find the name, since
         # the map doesn't contain target names - only source ones :-(
 
-        for (k,v) in self.roots.items():
-            if (v.name == file_name):
-                del self.roots[k]
-                break
+        if (file_name in self.roots):
+            del self.roots[file_name]
 
-        file_value = None
-        for (k,v) in self.map.items():
-            if (v.name == file_name):
-                file_value = v
-                del self.map[k]
-                break
+        if (file_name in self.map):
+            obj = self.map[file_name]
+            for c in obj.children:
+                self.erase_target(c.name)
 
-        if (file_value is None):
-            # Wasn't there anyway.
-            return
-        
-        # Find its parent
-        parent = self.parent_from_key(file_value.key_name)
-        if (parent is not None):
-            parent.delete_child_with_key(file_value.key_name)
-
-
-        # Otherwise ..
-        for c in file_value.children:
-            self.erase_source(c.key_name)
-
-    def erase_source(self, key_name):
-
-        #print "erase_source = %s "%key_name
-        if (key_name in self.roots):
-            del self.roots[key_name]
-
-        value = self.map.get(key_name)
-        if (value is not None):
-            # Find its parent
-            parent = self.parent_from_key(key_name)
-            if (parent is not None):
-                parent.delete_child_with_key(key_name)
-
-            del self.map[key_name]
-            for c in value.children:
-                self.erase_source(c.key_name)
+        par = self.parent_from_key(file_name)
+        if (par is not None):
+            par.delete_child_with_name(file_name)
+    
 
     def parent_from_key(self, key_name):
         up = os.path.dirname(key_name)
@@ -206,23 +240,33 @@ class Heirarchy:
         """
         Put a file into the archive. The directory
         for it must already exist.
+        
+        @param[in] name   The name of the file in the target archive.
+        @param[in] obj    The file object to insert.
         """
         
+        # Make sure we have referential integrity .. 
         obj.name = name
 
-        join_name = name
-        if (join_name[0] == '/'):
-            join_name = join_name[1:]
+        # Find a parent .. 
+        par = self.parent_from_key(name)
+        if (par is None):
+            raise utils.Failure("Cannot find a parent for %s in put_target_file()"%name)
 
+        par.children.append(obj)
+        self.map[name] = obj        
+
+    def __str__(self):
+        rv = [ ]
+        rv.append("---Roots---\n")
         for (k,v) in self.roots.items():
-            key_name = os.path.join(v.key_name, join_name)
-            obj.key_name = name
-            self.map[key_name] = obj
-            par = self.parent_from_key(key_name)
-            (x, leaf) = os.path.split(name)
-            par.children.append(obj)
+            rv.append("%s -> %s\n"%(k,v))
+        rv.append("---Map---\n")
+        for (k,v) in self.map.items():
+            rv.append("%s -> %s\n"%(k,v))
+        rv.append("---\n")
+        return "".join(rv)
 
-        
 
 
 class CpioFileDataProvider(filespec.FileSpecDataProvider):    
@@ -281,17 +325,12 @@ class CpioFileDataProvider(filespec.FileSpecDataProvider):
 
         rv = [ ]
         for f in files:
-            for r in self.heirarchy.roots.values():
-                if (f[0] == '/'):
-                    f = f[1:]
-
-                abs_path = os.path.join(r.key_name, f)
-                v = self.heirarchy.map.get(abs_path)
-                if (v is not None):
-                    rv.append(v)
+            if (f in self.heirarchy.map):
+                #print "--> Abs_match result = %s"%f
+                rv.append(self.heirarchy.map[f])
 
         return rv
-
+    
 
 
 def file_for_dir(name):
@@ -350,8 +389,16 @@ def heirarchy_from_fs(name, base_name):
     file_map = { }
     
     # Add the root .. 
-    file_map[name] = file_from_fs(name,
+    file_map[base_name] = file_from_fs(name,
                                   base_name)
+
+    # Same as file_map, but indexed by the name in the fs rather
+    # than in the resulting archive - used to find directories 
+    # quickly.
+    by_tgt_map = { }
+
+    by_tgt_map[name] = file_map[base_name]
+
     the_paths = os.walk(name)
     for p in the_paths:
         (root, dirs, files) = p
@@ -361,25 +408,29 @@ def heirarchy_from_fs(name, base_name):
         # and the cpio archive when we generate it will at the
         # least be extremely odd.
         #
-        root_file = file_map[root]
+        root_file = by_tgt_map[root]
 
         for d in dirs:
             new_obj = os.path.join(root, d)
             # Lop off the initial name and replace with base_name            
-            file_map[new_obj] = file_from_fs(new_obj, 
-                                             utils.replace_root_name(name, base_name, 
-                                                                     new_obj))
+            tgt_name =  utils.replace_root_name(name, base_name, 
+                                                new_obj)
+            new_file = file_from_fs(new_obj, tgt_name)
+            file_map[tgt_name] = new_file
+            by_tgt_map[new_obj] = new_file
             root_file.children.append(new_obj)
 
         for f in files:
             new_obj = os.path.join(root, f)
             #print "new_obj = %s"%new_obj
-            file_map[new_obj] = file_from_fs(new_obj, 
-                                             utils.replace_root_name(name, base_name, 
-                                                                     new_obj))
+            tgt_name =  utils.replace_root_name(name, base_name, 
+                                                new_obj)
+            new_file = file_from_fs(new_obj, tgt_name)
+            file_map[tgt_name] = new_file
+            by_tgt_map[new_obj] = new_file
             root_file.children.append(new_obj)
 
-    return Heirarchy(file_map, { name : file_map[name] })
+    return Heirarchy(file_map, { base_name : file_map[base_name] })
 
 
 def file_from_fs(orig_file, new_name = None):
@@ -392,6 +443,9 @@ def file_from_fs(orig_file, new_name = None):
     # Make sure we use lstat or bad things will happen to symlinks.
     stinfo = os.lstat(orig_file)
 
+    if (new_name is None):
+        new_name = orig_file
+
     outfile = File()
     outfile.dev = stinfo.st_dev
     outfile.ino = stinfo.st_ino
@@ -401,10 +455,10 @@ def file_from_fs(orig_file, new_name = None):
     outfile.nlink = stinfo.st_nlink
     outfile.rdev = stinfo.st_rdev
     outfile.mtime = stinfo.st_mtime
-    outfile.name = orig_file
+    outfile.name = new_name
     outfile.data = None
     outfile.orig_file = orig_file
-    outfile.key_name = orig_file
+    outfile.fs_name = orig_file
     if new_name is not None:
         outfile.name = new_name
 

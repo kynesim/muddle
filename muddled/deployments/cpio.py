@@ -87,6 +87,10 @@ class CpioDeploymentBuilder(pkg.Dependable):
                                                self.target_base[r])
                 the_heirarchy.merge(m)
 
+            # Normalise the heirarchy .. 
+            the_heirarchy.normalise()
+            #print "h = %s"%the_heirarchy
+
             if (self.prune_function is not None):
                 self.prune_function(the_heirarchy)
 

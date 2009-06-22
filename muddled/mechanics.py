@@ -195,11 +195,7 @@ class Invocation:
         Return the path in which the given checkout resides. 
         if co is None, returns the root checkout path
         """
-        if co is None:
-            return os.path.join(self.db.root_path, "src")
-        else:
-            return os.path.join(self.db.root_path, "src", co)
-        
+        return self.db.get_checkout_path(co)        
     
     def packages_for_checkout(self, co):
         """

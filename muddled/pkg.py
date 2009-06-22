@@ -268,19 +268,20 @@ def add_package_rules(ruleset, pkg_name, role_name, obj):
     
     
 def depend_across_roles(ruleset, pkg_name, role_name, 
-                        depends_on_pkg, depends_on_role):
+                        depends_on_pkgs, depends_on_role):
     """
     Register that pkg_name{role_name}'s preconfig depends on 
     depends_on_pkg{depends_on_role} having been postinstalled
     """
-    ruleset.add(depend.depend_one(None,
-                                  depend.Label(utils.LabelKind.Package,
-                                               pkg_name, role_name, 
-                                               utils.Tags.PreConfig),
-                                  depend.Label(utils.LabelKind.Package,
-                                               depends_on_pkg,
-                                               depends_on_role,
-                                               utils.Tags.PostInstalled)))
+    for pkg in depends_on_pkgs:
+        ruleset.add(depend.depend_one(None,
+                                      depend.Label(utils.LabelKind.Package,
+                                                   pkg_name, role_name, 
+                                                   utils.Tags.PreConfig),
+                                      depend.Label(utils.LabelKind.Package,
+                                                   pkg,
+                                                   depends_on_role,
+                                                   utils.Tags.PostInstalled)))
 
 
 def set_env_for_package(builder, pkg_name, pkg_roles,

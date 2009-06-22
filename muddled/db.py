@@ -25,16 +25,32 @@ class Database:
         
         root_path          The path to the root of the build tree.
         local_labels       Transient labels which are asserted.
+        checkout_locations Maps a checkout to the directory it's in, relative to src/ -
+                            if there's no mapping, we believe it's directly in src.
         """
         self.root_path = root_path
         utils.ensure_dir(os.path.join(self.root_path, ".muddle"))
         self.repo = PathFile(self.db_file_name("RootRepository"))
         self.build_desc = PathFile(self.db_file_name("Description"))
         self.role_env = { }
+        self.checkout_locations = { }
 
         self.local_tags = set()
 
-        
+
+    def set_checkout_path(self, checkout, dir):
+        self.checkout_locations[checkout] = dir
+
+    def get_checkout_path(self, checkout, isRelative = False):
+        if (checkout is None):
+            return os.path.join(self.root_path, "src")
+
+        rel_dir = self.checkout_locations.get(checkout, checkout)
+        if (isRelative):
+            return rel_dir
+        else:
+            return os.path.join(self.root_path, "src", rel_dir)
+
     def build_desc_file_name(self):
         """
         Return the filename of the build description

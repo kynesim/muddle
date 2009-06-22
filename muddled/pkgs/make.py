@@ -7,6 +7,7 @@ import muddled.pkg as pkg
 from muddled.pkg import PackageBuilder
 import muddled.utils as utils
 import muddled.checkouts.simple as simple_checkouts
+import muddled.checkouts.twolevel as twolevel_checkouts
 import muddled.depend as depend
 import os
 
@@ -39,7 +40,8 @@ class MakeBuilder(PackageBuilder):
         """
         inv = self.builder.invocation
         if not os.path.exists(inv.checkout_path(self.co)):
-            raise utils.Error("Path for checkout %s does not exist"%self.co)
+            raise utils.Error("Path %s for checkout %s does not exist"%
+                              (inv.checkout_path(self.co), self.co))
 
         utils.ensure_dir(inv.package_obj_path(self.name, self.role))
         utils.ensure_dir(inv.package_install_path(self.name, self.role))
@@ -138,6 +140,33 @@ def medium(builder, name, roles, checkout, deps, dep_tag = utils.Tags.PreConfig,
                                        name, r, dep_tag, 
                                        deps)
         attach_env(builder, name, r, checkout)
+
+def twolevel(builder, name, roles, 
+             co_dir, co_name, 
+             deps, dep_tag = utils.Tags.PreConfig, 
+             simpleCheckout = True, config = True, perRoleMakefiles = False, 
+             makefileName = None):
+    """
+    Build a package controlled by make, in the given roles with the
+    given dependencies in each role.
+    
+    @param simpleCheckout  If True, register the checkout as simple checkout too.
+    @param dep_tag         The tag to depend on being installed before you'll build.
+    @param perRoleMakefiles  If True, we run 'make -f Makefile.<rolename>' instead of 
+                              just make.
+    """
+    if (simpleCheckout):
+        twolevel_checkouts.twolevel(builder, co_dir, co_name)
+        
+    for r in roles:
+        simple(builder, name, r, co_name, config = config, 
+               perRoleMakefiles = perRoleMakefiles,
+               makefileName = makefileName)
+        pkg.package_depends_on_packages(builder.invocation.ruleset,
+                                       name, r, dep_tag, 
+                                       deps)
+        attach_env(builder, name, r, co_name)
+
                                        
 
 def single(builder, name, role, deps):

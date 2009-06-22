@@ -7,21 +7,21 @@ import muddled.utils as utils
 import os
 
 class Svn(VersionControlHandler):
-    def __init__(self, inv, checkout_name, repo, rev, rel):
-        VersionControlHandler.__init__(self, inv, checkout_name, repo ,rev, rel)
+    def __init__(self, inv, checkout_name, repo, rev, rel, co_dir):
+        VersionControlHandler.__init__(self, inv, checkout_name, repo ,rev, rel, co_dir)
         sp = conventional_repo_url(repo, rel)
         if sp is None:
             raise utils.Error("Cannot extract repository URL from %s, checkout %s"%(repo,rel))
 
         self.svn_repo = sp[0]
-        self.co_path = self.invocation.checkout_path(self.checkout_name)
+        self.co_path = self.get_checkout_path(self.checkout_name)
         self.rev = rev
 
     def path_in_checkout(self, rel):
         return conventional_repo_path(rel)
 
     def check_out(self):
-        co_path = self.invocation.checkout_path(None)
+        co_path = self.get_checkout_path(None)
         utils.ensure_dir(co_path)
         os.chdir(co_path)
         utils.run_cmd("svn co %s %s %s"%(self.r_option(), self.svn_repo, self.checkout_name))
@@ -60,8 +60,8 @@ class SvnVCSFactory(VersionControlHandlerFactory):
     def describe(self):
         return "Subversion"
 
-    def manufacture(self, inv, checkout_name, repo, rev, rel):
-        return Svn(inv, checkout_name, repo, rev, rel)
+    def manufacture(self, inv, checkout_name, repo, rev, rel, co_dir):
+        return Svn(inv, checkout_name, repo, rev, rel, co_dir)
 
 # Register us with the VCS handler factory
 register_vcs_handler("svn", SvnVCSFactory())

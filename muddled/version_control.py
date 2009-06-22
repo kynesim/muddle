@@ -6,6 +6,7 @@ import utils
 import string
 import re
 import pkg
+import os
 
 class VersionControlHandler:
     """
@@ -24,9 +25,10 @@ class VersionControlHandler:
 
     """
 
-    def __init__(self, inv, co_name, repo, rev, rel):
+    def __init__(self, inv, co_name, repo, rev, rel, co_dir = None):
         self.invocation = inv
         self.checkout_name = co_name
+        self.checkout_dir = co_dir
         self.repository = repo
         self.revision = rev
 
@@ -39,6 +41,15 @@ class VersionControlHandler:
         """
         raise utils.Error("Attempt to call path_in_checkout() of the VersionControlHandler" +
                           " abstract base class.")
+
+    def get_checkout_path(self, co_name):
+        if (self.checkout_dir is not None):
+            p = os.path.join(self.invocation.checkout_path(None), self.checkout_dir)
+            if (co_name is not None):
+                p = os.path.join(co_name)
+            return p
+        else:
+            return self.invocation.checkout_path(co_name)
         
     def check_out(self):
         """
@@ -87,7 +98,7 @@ class VersionControlHandlerFactory:
     def describe():
         return "Generic version control handler factory"
 
-    def manufacture(self, inv, co_name, repo, rev, rel):
+    def manufacture(self, inv, co_name, repo, rev, rel, co_dir = None):
         """
         Manufacture a VCS handler.
         Recall that repo contains the vcs specifier - it's up to the VCS handler
@@ -127,7 +138,7 @@ def list_registered():
 
 
 
-def vcs_handler_for(inv, co_name, repo, rev, rest):
+def vcs_handler_for(inv, co_name, repo, rev, rest, co_dir = None):
     """
     Create a VCS handler for the given url, invocation and 
     checkout name. We do this by interpreting the initial part
@@ -139,6 +150,8 @@ def vcs_handler_for(inv, co_name, repo, rev, rest):
     @param[in] rev  Revision (None for HEAD)
     @param[in] rest Part after the repository URL - typically the CVS module name or 
                     whatever.
+    @param[in] co_dir Directory relative to the checkout directory in which the
+                       checkout resides.
 
     """
     
@@ -154,13 +167,13 @@ def vcs_handler_for(inv, co_name, repo, rev, rest):
     if (rev is None):
         rev = "HEAD"
 
-    return factory.manufacture(inv, co_name, repo, rev, rest)
+    return factory.manufacture(inv, co_name, repo, rev, rest, co_dir)
 
-def vcs_dependable_for(builder, co_name, repo, rev, rest):
+def vcs_dependable_for(builder, co_name, repo, rev, rest, co_dir = None):
     """
     Create a VCS dependable for the given co_name, repo, etc.
     """
-    handler = vcs_handler_for(builder.invocation, co_name, repo, rev, rest)
+    handler = vcs_handler_for(builder.invocation, co_name, repo, rev, rest, co_dir)
     if (handler is None):
         raise utils.Failure("Cannot build a VCS handler for %s rel = %s"%(repo, rel))
 

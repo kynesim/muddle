@@ -34,6 +34,10 @@ class CpioDeploymentBuilder(pkg.Dependable):
     def __init__(self, roles, builder, target_file, target_base, 
                  compressionMethod = None, 
                  pruneFunc = None):
+        """
+        target_base is a dictionary mapping roles to their root addresses
+        in the heirarchy
+        """
         self.builder = builder
         self.target_file = target_file
         self.target_base = target_base
@@ -59,7 +63,7 @@ class CpioDeploymentBuilder(pkg.Dependable):
             env = self.builder.invocation.get_environment_for(lbl)
         
             env.set_type("MUDDLE_TARGET_LOCATION", muddled.env_store.EnvType.SimpleValue)
-            env.set("MUDDLE_TARGET_LOCATION", self.target_base)
+            env.set("MUDDLE_TARGET_LOCATION", self.target_base[role])
     
 
 
@@ -80,7 +84,7 @@ class CpioDeploymentBuilder(pkg.Dependable):
             the_heirarchy = cpiofile.Heirarchy({ }, { })
             for r in self.roles:
                 m = cpiofile.heirarchy_from_fs(self.builder.invocation.role_install_path(r), 
-                                               self.target_base)
+                                               self.target_base[r])
                 the_heirarchy.merge(m)
 
             if (self.prune_function is not None):
@@ -191,7 +195,8 @@ def deploy(builder, target_file, target_base, name, roles,
     @param target_file   Where, relative to the deployment directory, should the
                           build cpio file end up? Note that compression will add
                           a suitable '.gz' or '.bz2' suffix.
-    @param target_base   Where should we expect to unpack the CPIO file to?
+    @param target_bases   Where should we expect to unpack the CPIO file to - this is 
+                           a dictionary mapping roles to target locations.
     @param compressionMethod   The compression method to use, if any - gzip -> gzip, 
                                  bzip2 -> bzip2.
     @param pruneFunc     If not None, this a function to be called like

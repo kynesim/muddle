@@ -14,25 +14,23 @@ class Bazaar(VersionControlHandler):
     It's assumed that the first path component of 'rel' is the name of the repository.
     """
 
-    def __init__(self, inv, co_name, repo, rev, rel):
-        VersionControlHandler.__init__(self, inv, co_name, repo, rev, rel)
+    def __init__(self, inv, co_name, repo, rev, rel, co_dir):
+        VersionControlHandler.__init__(self, inv, co_name, repo, rev, rel, co_dir)
         
         sp = conventional_repo_url(repo, rel)
         if sp is None:
             raise utils.Error("Cannot extract repository URL from %s, co %s"%(repo, rel))
 
         self.bzr_repo = sp[0]
-        self.co_path = self.invocation.checkout_path(self.co_name)
+        self.co_path = self.get_checkout_path(None)
 
     def path_in_checkout(self, rel):
         return conventional_repo_path(rel)
 
     def check_out(self):
         # Check out.
-        co_path = self.invocation.checkout_path(None)
-
-        utils.ensure_dir(co_path)
-        os.chdir(co_path)
+        utils.ensure_dir(self.co_path)
+        os.chdir(self.co_path)
         utils.run_cmd("bzr co %s %s %s"%(self.r_option(), self.bzr_repo, self.co_name))
         os.chdir(self.co_path)
         utils.run_cmd("bzr unbind")
@@ -70,16 +68,12 @@ class BazaarVCSFactory(VersionControlHandlerFactory):
     def describe(self):
         return "The Bazaar VCS"
 
-    def manufacture(self, inv, co_name, repo, rev, rel):
-        return Bazaar(inv, co_name, repo, rev, rel)
+    def manufacture(self, inv, co_name, repo, rev, rel, co_dir):
+        return Bazaar(inv, co_name, repo, rev, rel, co_dir)
 
         
 # Tell the version control handler about us..
 register_vcs_handler("bzr", BazaarVCSFactory())
 
 # End file.
-
-        
-
-
 

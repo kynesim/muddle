@@ -78,6 +78,23 @@ def deployment_depends_on_roles(builder, deployment, roles):
                            utils.Tags.PostInstalled)
         rule.add(lbl)
 
+def deployment_depends_on_deployment(builder, what, depends_on):
+    """
+    Inter-deployment dependencies. Aren't you glad we have a
+    general purpose dependency solver?
+    """
+    tgt = depend.Label(utils.LabelKind.Deployment,
+                       what,
+                       None,
+                       utils.Tags.Deployed)
+    rule = builder.invocation.ruleset.rule_for_target(tgt, 
+                                                      createIfNotPresent = True)
+    rule.add(depend.Label(utils.LabelKind.Deployment, 
+                          depends_on,
+                          None,
+                          utils.Tags.Deployment))
+    
+
 def inform_deployment_path(builder, name, deployment, roles):
     """
     Sets an environment variable to tell the given roles about the

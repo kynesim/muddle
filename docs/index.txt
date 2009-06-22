@@ -1,0 +1,22 @@
+.. Muddle documentation master file, created by
+   sphinx-quickstart on Thu Apr 30 09:48:32 2009.
+   ...and amended shortly thereafter
+
+Welcome to Muddle's documentation!
+==================================
+
+Contents:
+
+.. toctree::
+   :maxdepth: 2
+
+   README
+   muddle-package
+
+Indices and tables
+==================
+
+* :ref:`genindex`
+* :ref:`modindex`
+* :ref:`search`
+

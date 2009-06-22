@@ -1026,6 +1026,41 @@ class Retry(Command):
                 builder.build_label(l)
 
 
+class Subst(Command):
+    """
+    Syntax: subst [src file] [xml file] [dst file]
+
+    Substitute (with ${.. }) src file into dst file using data from
+    the environment or from the given xml file. 
+    """
+    
+    def name (self):
+        return "subst"
+
+    def requires_build_tree(self):
+        return False
+
+    def with_build_tree(self, builder, local_pkgs, args):
+        do_subst(args)
+
+    def without_build_tree(self, muddle_binary, root_path, args):
+        do_subst(args)
+
+    def do_subst(args):
+        if len(args) != 3:
+            raise utils.Failure("Syntax: subst [src] [xml] [dst]")
+        
+        src = args[0]
+        xml = args[1]
+        dst = args[2]
+
+        f = open(xml, "r")
+        xml_doc = xml.dom.minidom.parse(f)
+        f.close()
+        
+        subst.subst_file(src, dst, xml_doc, os.environ)
+        return 0
+
 def get_all_checkouts(builder, tag):
     """
     Return a list of labels corresponding to all checkouts 

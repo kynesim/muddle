@@ -283,6 +283,23 @@ def depend_across_roles(ruleset, pkg_name, role_name,
                                                utils.Tags.PostInstalled)))
 
 
+def set_env_for_package(builder, pkg_name, pkg_roles,
+                        name, value):
+    """
+    Set the environment variable name to value in the given
+    package built in the given roles. Useful for customising
+    package behaviour in particular roles in the build
+    description
+    """
+    
+    for r in pkg_roles:
+        lbl = depend.Label(utils.LabelKind.Package,
+                           pkg_name, 
+                           r, 
+                           "*")
+        env = builder.invocation.get_environment_for(lbl)
+        env.set(name, value)
+
 
 # End file.
 

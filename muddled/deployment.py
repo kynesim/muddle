@@ -110,6 +110,14 @@ def deployment_rule_from_name(builder, name):
     for r in rules:
         return r
     
-
+def set_env(builder, deployment, name, value):
+    """
+    Set NAME=VALUE in the environment for this deployment
+    """
+    lbl = depend.Label(utils.LabelKind.Deployment, 
+                       deployment, None,
+                       utils.Tags.Deployed)
+    env = builder.invocation.get_environment_for(lbl)
+    env.set(name, value)
 
 # End file.

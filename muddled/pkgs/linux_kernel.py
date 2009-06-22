@@ -104,7 +104,10 @@ class LinuxKernel(PackageBuilder):
             utils.copy_file(config_src, dot_config)
 
         elif (tag == utils.Tags.Built):
-            linux_src_path = os.path.join(build_path, "obj", self.linux_src)
+            if self.in_place:
+	        linux_src_path = os.path.join(build_path, "obj", self.linux_src)
+            else:
+		linux_src_path = os.path.join(co_path, self.linux_src)
             os.chdir(os.path.join(linux_src_path))
             utils.run_cmd("%s bzImage"%make_cmd)
             utils.run_cmd("%s modules"%make_cmd)

@@ -175,14 +175,14 @@ class Heirarchy:
                         new_dir = File()
                         new_dir.mode = 0755 | File.S_DIR
                         new_dir.name = dir
-                        new_dir.children.append(k)
+                        new_dir.children.append(v)
                         # The directory wasn't present, so must be 
                         # a new root .
                         new_roots[dir] = new_dir
                         self.map[dir] = new_dir
                     else:
                         new_dir = self.map[dir]
-                        new_dir.children.append(k)
+                        new_dir.children.append(v)
 
                 else:
                     new_roots[k] = v
@@ -253,7 +253,7 @@ class Heirarchy:
         if (par is None):
             raise utils.Failure("Cannot find a parent for %s in put_target_file()"%name)
 
-        par.children.append(name)
+        par.children.append(obj)
         self.map[name] = obj        
 
     def __str__(self):
@@ -312,7 +312,7 @@ class CpioFileDataProvider(filespec.FileSpecDataProvider):
             
             if (recursively):
                 # .. and recurse ..
-                result.extend(self.list_files_under(os.path.join(dir, elem), True))
+                result.extend(self.list_files_under(os.path.join(dir, elem.name), True))
         
         return result
 
@@ -418,7 +418,7 @@ def heirarchy_from_fs(name, base_name):
             new_file = file_from_fs(new_obj, tgt_name)
             file_map[tgt_name] = new_file
             by_tgt_map[new_obj] = new_file
-            root_file.children.append(new_obj)
+            root_file.children.append(new_file)
 
         for f in files:
             new_obj = os.path.join(root, f)
@@ -428,7 +428,7 @@ def heirarchy_from_fs(name, base_name):
             new_file = file_from_fs(new_obj, tgt_name)
             file_map[tgt_name] = new_file
             by_tgt_map[new_obj] = new_file
-            root_file.children.append(new_obj)
+            root_file.children.append(new_file)
 
     return Heirarchy(file_map, { base_name : file_map[base_name] })
 

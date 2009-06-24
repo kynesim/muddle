@@ -175,14 +175,14 @@ class Heirarchy:
                         new_dir = File()
                         new_dir.mode = 0755 | File.S_DIR
                         new_dir.name = dir
-                        new_dir.children.append(v)
+                        new_dir.children.append(k)
                         # The directory wasn't present, so must be 
                         # a new root .
                         new_roots[dir] = new_dir
                         self.map[dir] = new_dir
                     else:
                         new_dir = self.map[dir]
-                        new_dir.children.append(v)
+                        new_dir.children.append(k)
 
                 else:
                     new_roots[k] = v
@@ -253,7 +253,7 @@ class Heirarchy:
         if (par is None):
             raise utils.Failure("Cannot find a parent for %s in put_target_file()"%name)
 
-        par.children.append(obj)
+        par.children.append(name)
         self.map[name] = obj        
 
     def __str__(self):

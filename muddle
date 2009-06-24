@@ -151,7 +151,7 @@ def main(args):
                 return command.without_build_tree(muddle_binary, specified_root, args)
             else:
                 if not failed_build_root:
-                    raise muddled.Failure("Command %s requires a build tree."%(command_name))
+                    raise muddled.utils.Failure("Command %s requires a build tree."%(command_name))
 
         else:
             # There is a build tree...

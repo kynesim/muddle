@@ -36,7 +36,7 @@ class CpioDeploymentBuilder(pkg.Dependable):
                  pruneFunc = None):
         """
         target_base is a dictionary mapping roles to their root addresses
-        in the heirarchy
+        in the heirarchy        
         """
         self.builder = builder
         self.target_file = target_file
@@ -208,6 +208,10 @@ def deploy(builder, target_file, target_base, name, roles,
                            packing. Usually something like deb.deb_prune, it's
                            intended to remove spurious stuff like manpages from
                            initrds and the like.
+    @param  roles        The roles to place in the deployed archive; note that
+                           roles are merged into the archive in the order specified
+                           here, so files in later roles will override those in 
+                           earlier roles.
                          
     """
     

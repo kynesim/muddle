@@ -265,23 +265,53 @@ def add_package_rules(ruleset, pkg_name, role_name, obj):
                               pkg_name, role_name, 
                               utils.Tags.DistClean, 
                               transient = True)))
+
+
+def do_depend(builder, pkg_name, role_names,
+              deps):
+    """
+    Make pkg_name in role_names depend on the contents of
+    deps.
+
+    @param deps  deps is a list of 2-tuples (pkg_name, role_name)
+                  If the role name is None, we depend on the pkg 
+                 name in the role we're currently using, so 
+                  do_depend(a, ['b', 'c'], [ ('d', None) ]) leads
+                 to a{b} depending on d{b} and a{c} depending on 
+                 d{c}.
+    """
     
+    ruleset = builder.invocation.ruleset
+
+    for role_name in role_names:
+        for (pkg, role) in deps:
+            if (role is None):
+                role = role_name
+
+            ruleset.add(depend.depend_one(None,
+                                          depend.Label(utils.LabelKind.Package,
+                                                       pkg_name, role_name,
+                                                       utils.Tags.PreConfig),
+                                          depend.Label(utils.LabelKind.Package,
+                                                       pkg, role, 
+                                                       utils.Tags.PostInstalled)))
     
-def depend_across_roles(ruleset, pkg_name, role_name, 
+def depend_across_roles(ruleset, pkg_name, role_names, 
                         depends_on_pkgs, depends_on_role):
     """
     Register that pkg_name{role_name}'s preconfig depends on 
     depends_on_pkg{depends_on_role} having been postinstalled
     """
     for pkg in depends_on_pkgs:
-        ruleset.add(depend.depend_one(None,
-                                      depend.Label(utils.LabelKind.Package,
-                                                   pkg_name, role_name, 
-                                                   utils.Tags.PreConfig),
-                                      depend.Label(utils.LabelKind.Package,
-                                                   pkg,
-                                                   depends_on_role,
-                                                   utils.Tags.PostInstalled)))
+        for role_name in role_names:
+            ruleset.add(depend.depend_one(None,
+                                          depend.Label(utils.LabelKind.Package,
+                                                       pkg_name, role_name, 
+                                                       utils.Tags.PreConfig),
+                                          depend.Label(utils.LabelKind.Package,
+                                                       pkg,
+                                                       depends_on_role,
+                                                       utils.Tags.PostInstalled)))
 
 
 def set_env_for_package(builder, pkg_name, pkg_roles,

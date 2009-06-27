@@ -193,7 +193,7 @@ def split_vcs_url(url):
     
     return (m.group(1).lower(), "%s:%s"%(m.group(2),m.group(3)))
 
-def conventional_repo_url(repo, rel):
+def conventional_repo_url(repo, rel, co_dir = None):
     """
     Many VCSs adopt the convention that the first element of the relative
     string is the name of the repository.
@@ -211,16 +211,39 @@ def conventional_repo_url(repo, rel):
 
     (vcs_spec, repo_rest) = split
 
-    # Find the first element of rel
-    if (rel.find("/") != -1):
-        (rel_first, rel_rest) = rel.split("/", 1)
-    else:
-        rel_first = rel
-        rel_rest = None
+    # Now, depending on whether we have a co_dir or not, either the
+    # first or the first and second elements of rel are the repository
+    # name. 
 
-    # The first element of the relative path is the repository name, so
-    out_repo = "%s/%s"%(repo_rest, rel_first)
-    out_rel = rel_rest
+    if (co_dir is None):
+        dir_components = 1
+    else:
+        dir_components = 2
+
+    components = rel.split("/", dir_components)    
+    if (len(components) == 1):
+        out_repo = os.path.join(repo_rest, rel)
+        out_rel = None
+    elif (len(components) == 2):
+        if (co_dir is None):
+            out_repo = os.path.join(repo_rest, components[0])
+            out_rel = components[1]
+        else:
+            # The second component is part of the repo, not the relative
+            # path. Need to be a bit careful to do this test right else
+            # otherwise we'll end up misinterpreting things like 
+            # 'builds/01.py'
+            out_repo = os.path.join(repo_rest, components[0], components[1])
+            out_rel = None
+    else:
+        out_repo = os.path.join(repo_rest, components[0], components[1])
+        out_rel = components[2]
+        
+    #if (co_dir is not None):
+    #    print "rel = %s"%rel
+    #    print "components = [%s]"%(" ".join(components))
+    #    print "out_repo = %s out_rel = %s"%(out_repo, out_rel)
+    #    raise utils.Failure("Help!")
 
     return (out_repo, out_rel)
 

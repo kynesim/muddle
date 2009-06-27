@@ -7,6 +7,7 @@ import muddled.pkg as pkg
 from muddled.pkg import PackageBuilder
 import muddled.utils as utils
 import muddled.checkouts.simple as simple_checkouts
+import muddled.checkouts.twolevel as twolevel_checkouts
 import os
 
 class LinuxKernel(PackageBuilder):
@@ -164,6 +165,8 @@ class LinuxKernel(PackageBuilder):
         utils.recursively_remove(self.builder.invocation.package_obj_path(label.name, 
                                                                           label.role))
 
+
+
 def simple(builder, name, role, checkout, linux_dir, config_file, 
            makeInstall = False, inPlace = False):
     """
@@ -180,6 +183,21 @@ def simple(builder, name, role, checkout, linux_dir, config_file,
     pkg.package_depends_on_checkout(builder.invocation.ruleset, 
                                     name, role, checkout, the_pkg)
 
+
+def twolevel(builder, name, role, checkout_dir, checkout_name, linux_dir,
+             config_file, makeInstall = False, inPlace = False):
+    """
+    Build a linux kernel with a two-level checkout name.
+    """
+    twolevel_checkouts.twolevel(builder, checkout_dir, checkout_name)
+
+    the_pkg = LinuxKernel(name, role, builder, checkout_name, linux_dir, config_file, 
+                          makeInstall = makeInstall, inPlace = inPlace)
+    pkg.add_package_rules(builder.invocation.ruleset, 
+                          name, role, the_pkg)
+    pkg.package_depends_on_checkout(builder.invocation.ruleset, 
+                                    name, role, checkout_name, the_pkg)
+    
 
 
 # End File.

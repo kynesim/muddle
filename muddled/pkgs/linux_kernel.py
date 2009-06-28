@@ -16,6 +16,7 @@ class LinuxKernel(PackageBuilder):
     """
 
     def __init__(self, name, role, builder, co, linuxSrc, configFile, 
+                 kernelVersion,
                  makeInstall = False, inPlace = False):
         """
         
@@ -41,6 +42,7 @@ class LinuxKernel(PackageBuilder):
         self.linux_src = linuxSrc
         self.config_file = configFile
         self.make_install = makeInstall
+        self.kernel_version= kernelVersion
         self.in_place = inPlace
 
     def ensure_dirs(self, label):
@@ -115,6 +117,13 @@ class LinuxKernel(PackageBuilder):
             utils.run_cmd("%s INSTALL_HDR_PATH=\"%s\" headers_install"%(make_cmd, hdr_path))
             utils.run_cmd("%s INSTALL_FW_PATH=\"%s\" firmware_install"%(make_cmd, fw_path))
             utils.run_cmd("%s INSTALL_MOD_PATH=\"%s\" modules_install"%(make_cmd, modules_path))
+
+            # Now link up the kerneldir directory so that other people can build modules which
+            # depend on us.
+            utils.run_cmd("ln -fs %s %s"%(os.path.join(modules_path, "lib", "modules", 
+                                                       self.kernel_version, "build"), 
+                                          os.path.join(build_path, "kerneldir")))
+
             # This was a doomed idea, and remains here to show you that it's doomed.
             # Really, really doomed.
             #
@@ -168,15 +177,19 @@ class LinuxKernel(PackageBuilder):
 
 
 def simple(builder, name, role, checkout, linux_dir, config_file, 
+           kernel_version,
            makeInstall = False, inPlace = False):
     """
     Build a linux kernel in the given checkout where the kernel sources
     themselves are in checkout/linux_dir and the config file in 
     checkout/config_file
+
+    @param kernel_version   The version of the kernel (e.g. 2.6.30).
     """
     
     simple_checkouts.relative(builder, checkout)
     the_pkg = LinuxKernel(name, role, builder, checkout, linux_dir, config_file, 
+                          kernel_version,
                           makeInstall = makeInstall, inPlace = inPlace)
     pkg.add_package_rules(builder.invocation.ruleset, 
                           name, role, the_pkg)
@@ -185,13 +198,18 @@ def simple(builder, name, role, checkout, linux_dir, config_file,
 
 
 def twolevel(builder, name, role, checkout_dir, checkout_name, linux_dir,
-             config_file, makeInstall = False, inPlace = False):
+             config_file, 
+             kernel_version ,
+             makeInstall = False, inPlace = False):
     """
     Build a linux kernel with a two-level checkout name.
+
+    @param kernel_version   The version of the kernel (e.g. 2.6.30).
     """
     twolevel_checkouts.twolevel(builder, checkout_dir, checkout_name)
 
     the_pkg = LinuxKernel(name, role, builder, checkout_name, linux_dir, config_file, 
+                          kernel_version,
                           makeInstall = makeInstall, inPlace = inPlace)
     pkg.add_package_rules(builder.invocation.ruleset, 
                           name, role, the_pkg)

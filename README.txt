@@ -208,6 +208,9 @@ sets a number of variables itself:
  MUDDLE_INCLUDE_DIRS   Space-separated list of include directories for this
                         package and all its dependents.
  MUDDLE_LIB_DIRS       As MUDDLE_INCLUDE_DIRS but with library directories.
+ MUDDLE_KERNEL_DIR  If there was a $(MUDDLE_OBJ)/kerneldir directory, the last one of those.
+                      Used by the linux_kernel builder to point module builds at the right
+                      directory for invoking module builds.
  MUDDLE_PKGCONFIG_DIRS $(MUDDLE_OBJ)/lib/pkgconfig directories - for use as a PKG_CONFIG_PATH.
  MUDDLE_OBJ         Package object directory, whose subdirectories include ..
  MUDDLE_OBJ_OBJ     Where you put actual objects.

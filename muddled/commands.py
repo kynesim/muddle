@@ -503,6 +503,37 @@ class Rebuild(Command):
         return rv
 
 
+
+class Distrebuild(Command):
+    """
+    Syntax: distrebuild [package{role}] [package{role}]
+
+    A rebuild that does a distclean before attempting the rebuild.
+    """
+    
+    def name(self):
+        return "distrebuild"
+
+    def requires_build_tree(self):
+        return True
+
+    def with_build_tree(self, builder, local_pkgs, args):
+        labels = decode_package_arguments(builder, args, local_pkgs,
+                                          utils.Tags.PostInstalled)
+
+        if (self.no_op()):
+            print "Would have distrebuilt: %s"%(" ".join(map(str, labels)))
+        else:
+            rv = build_a_kill_b(builder, labels, utils.Tags.DistClean,
+                                utils.Tags.PreConfig)
+            
+            if rv:
+                return rv
+
+            rv = build_labels(builder, labels)
+            return rv
+
+
 class Clean(Command):
     """
     Syntax: clean [package{role}] .. 
@@ -1423,6 +1454,7 @@ def register_commands():
     CopyWithout().register(the_dict)
     Retry().register(the_dict)
     Subst().register(the_dict)
+    Distrebuild().register(the_dict)
 
     return the_dict
 

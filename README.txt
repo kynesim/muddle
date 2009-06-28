@@ -300,8 +300,8 @@ structured:
 
 Makefiles can use:
 
- CFLAGS += -I$(MUDDLE_INCLUDE_DIRS:%=-I%) 
- LDFLAGS += -L$(MUDDLE_LIB_DIRS:%=-L%)
+ CFLAGS += $(MUDDLE_INCLUDE_DIRS:%=-I%) 
+ LDFLAGS += $(MUDDLE_LIB_DIRS:%=-L%)
 
 To include the appropriate directories.
 

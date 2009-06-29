@@ -254,6 +254,8 @@ class Query(Command):
     checkouts      Print a list of known checkouts.
     envs           Print a list of the environments that will be merged to 
                     create the resulting environment for this 
+    objdir         Print the object directory for a label - used to extract
+                    object directories for configure options in builds.
 
     Note that both instructions and inst-details are label-sensitive, so you
     will want to supply a label like 'package:*/myrole'.
@@ -278,7 +280,9 @@ class Query(Command):
             print "Putative label %s is not a valid label"%(args[1])
             return 3
 
-        if (type == "preciseenv"):
+        if (type == "objdir"):
+            print builder.invocation.package_obj_path(label.name, label.role)
+        elif (type == "preciseenv"):
             the_env = builder.invocation.get_environment_for(label)
 
             local_store = env_store.Store()

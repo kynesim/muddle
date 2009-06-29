@@ -38,8 +38,11 @@ class Git(VersionControlHandler):
         return conventional_repo_path(rel)
 
     def check_out(self):
-        utils.ensure_dir(self.co_path)
-        os.chdir(self.co_path)
+        # Clone constructs its own directory .. 
+        (parent_path, d) = os.path.split(self.co_path)
+
+        utils.ensure_dir(parent_path)
+        os.chdir(parent_path)
         utils.run_cmd("git clone %s %s"%(self.git_repo,self.checkout_name))
         
         if not ((self.revision is None) or (not self.revision)):

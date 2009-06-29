@@ -886,15 +886,15 @@ def add_install_dir_env(env, var_name):
     LD_LIBRARY_PATH, etc.
     """
     
-    env.set_type("LD_LIBRARY_PATH", muddled.env_store.EnvType.Path)
-    env.set_type("PATH", muddled.env_store.EnvType.Path)
-    env.set_type("PKG_CONFIG_PATH", muddled.env_store.EnvType.Path)
+    env.set_type("LD_LIBRARY_PATH", EnvType.Path)
+    env.set_type("PATH", EnvType.Path)
+    env.set_type("PKG_CONFIG_PATH", EnvType.Path)
     env.prepend_expr("LD_LIBRARY_PATH", 
-                     env_store.append_expr(var_name, "/lib"))
+                     append_expr(var_name, "/lib"))
     env.prepend_expr("PKG_CONFIG_PATH", 
-                     env_store.append_expr(var_name, "/lib/pkgconfig"))
+                    append_expr(var_name, "/lib/pkgconfig"))
     env.prepend_expr("PATH", 
-                     env_store.append_expr(var_name, "/bin"))
+                     append_expr(var_name, "/bin"))
 
 
     

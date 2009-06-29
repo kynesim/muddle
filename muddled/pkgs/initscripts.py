@@ -124,6 +124,13 @@ def medium(builder, name, roles, script_name, deployments = [ ],
     setup_default_env(builder, get_env(builder, name, role))
 
 
+def setup_default_env(builder, env_store):
+    """
+    Set up the default environment for this initscript
+    """
+    # Nothing to do so far ..
+    pass
+
 def get_env(builder, name, role):
     """
     Retrieve the runtime environment builder for this initscripts

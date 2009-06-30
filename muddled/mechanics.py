@@ -403,9 +403,12 @@ class Builder:
             if (r.target.tag_kind == utils.LabelKind.Package and
                 r.target.name is not None and r.target.name != "*" and 
                 ((r.target.role is None) or r.target.role != "*")):
-                obj_dir = self.invocation.package_obj_path(r.target.name, 
-                                                           r.target.role)                
-                return_set.add(obj_dir)
+
+                # And don't depend on yourself.
+                if (not (r.target.name == label.name and r.target.role == label.role)):
+                    obj_dir = self.invocation.package_obj_path(r.target.name, 
+                                                               r.target.role)                
+                    return_set.add(obj_dir)
 
         return return_set
 

@@ -515,6 +515,19 @@ They will probably need further tuning, and feedback is actively
 solicited on them. If you feel really deeply about it, you could even
 (shock! horror!) submit a patch.
 
+Tips and tricks
+---------------
+
+Q. I want to specify '--my-pkg-dir=' for the place configure should find
+ include/ and lib/ directories for a package?
+
+A. Put something like:
+
+MYCOMPONENTDIR=$(shell $(MUDDLE) query objpath package:mycomponent{$(MUDDLE_ROLE)}/built)
+ 
+ in your Makefile.
+
+
 Licencing
 ---------
 

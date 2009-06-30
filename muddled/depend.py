@@ -294,6 +294,26 @@ class RuleSet:
 
         return rules
             
+    def targets_match(self, target, useMatch = True):
+        """
+        Retrieve all the targets matching target, if useMatch is True.
+        If useMatch is false, just return target.
+
+        @return A set of suitable targets.
+        """
+        result_set = set()
+
+        if (useMatch):
+            for k in self.map.keys():
+                if (k.match(target) is not None):
+                    result_set.add(k)
+        else:
+            result_set.add(target)
+
+        return result_set
+
+                
+    
     def rule_for_target(self, target, createIfNotPresent = False):
         """
         Return the rule for this target - this contains all the labels that
@@ -486,7 +506,7 @@ def retag_label_list(labels, new_tag):
 
     return result
 
-def needed_to_build(ruleset, target, useTags = True):
+def needed_to_build(ruleset, target, useTags = True, useMatch = False):
     """
     Given a rule set and a target, return a complete list of the rules needed
     to build the target.
@@ -501,9 +521,9 @@ def needed_to_build(ruleset, target, useTags = True):
     # (i.e. if you'd obeyed rule_list, you'd have asserted all these labels)
     rule_target_set = set()
 
-   # The set of labels we'd like to see asserted.
+    # The set of labels we'd like to see asserted.
     targets = set()
-    targets.add(target)
+    targets.update(ruleset.targets_match(target, useMatch = useMatch))
 
     done_something = True
     trace = False

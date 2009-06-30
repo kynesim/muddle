@@ -547,9 +547,11 @@ class Builder:
         """
         
         if useDepends:
-            rule_list = depend.needed_to_build(self.invocation.ruleset, label, useTags = useTags)
+            rule_list = depend.needed_to_build(self.invocation.ruleset, label, useTags = useTags, 
+                                               useMatch = True)
         else:
-            rule_list = self.invocation.ruleset.rules_for_target(label, useTags = useTags)
+            rule_list = self.invocation.ruleset.rules_for_target(label, useTags = useTags, 
+                                                                 useMatch = True)
     
         for r in rule_list:
             # Build it.

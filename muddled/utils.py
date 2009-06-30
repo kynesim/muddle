@@ -313,7 +313,7 @@ def run_cmd(cmd, env = os.environ, allowFailure = False, isSystem = False):
         if isSystem:
             raise Error("Command execution failed - %d"%rv)
         else:
-            raise Failure("Command exection failed - %d"%rv)
+            raise Failure("Command execution failed - %d"%rv)
 
     return rv
                     

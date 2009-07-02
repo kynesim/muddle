@@ -124,6 +124,10 @@ class LinuxKernel(PackageBuilder):
                                                        self.kernel_version, "build"), 
                                           os.path.join(build_path, "kerneldir")))
 
+            # .. and link kernelsource to the source directory.
+            utils.run_cmd("ln -fs %s %s"%(linux_src_path,
+                                          os.path.join(build_path, "kernelsource")))
+
             # This was a doomed idea, and remains here to show you that it's doomed.
             # Really, really doomed.
             #
@@ -156,6 +160,7 @@ class LinuxKernel(PackageBuilder):
 
         elif (tag == utils.Tags.Installed):
             if (self.make_install):
+                os.chdir(co_path)
                 utils.run_cmd("make install")
         elif (tag == utils.Tags.PostInstalled):
             # .. and postinstall

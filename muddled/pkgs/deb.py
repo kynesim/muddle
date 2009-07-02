@@ -96,6 +96,9 @@ class DebDevDependable(PackageBuilder):
                                lib_dir, without = None)
         elif (tag == utils.Tags.PostInstalled):
             if self.post_install_makefile is not None:
+                inv = self.builder.invocation
+                co_path =inv.checkout_path(self.co_name) 
+                os.chdir(co_path)
                 utils.run_cmd("make -f %s %s-postinstall"%(self.post_install_makefile, 
                                                        label.name))
         elif (tag == utils.Tags.Clean or tag == utils.Tags.DistClean):
@@ -183,6 +186,9 @@ class DebDependable(PackageBuilder):
                 builder.instruct(label.name, label.role, ifile)
         elif (tag == utils.Tags.PostInstalled):
             if self.post_install_makefile is not None:
+                inv = self.builder.invocation
+                co_path =inv.checkout_path(self.co_name) 
+                os.chdir(co_path)
                 utils.run_cmd("make -f %s %s-postinstall"%(self.post_install_makefile, 
                                                            label.name))
         elif (tag == utils.Tags.Clean or tag == utils.Tags.DistClean):#

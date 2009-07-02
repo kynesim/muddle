@@ -211,6 +211,8 @@ sets a number of variables itself:
  MUDDLE_KERNEL_DIR  If there was a $(MUDDLE_OBJ)/kerneldir directory, the last one of those.
                       Used by the linux_kernel builder to point module builds at the right
                       directory for invoking module builds.
+ MUDDLE_KERNEL_SOURCE_DIR if there was a $(MUDDLE_OBJ)/kernelsourcedir directory, the last one
+                      encountered - usually a symlink to the kernel source.
  MUDDLE_PKGCONFIG_DIRS $(MUDDLE_OBJ)/lib/pkgconfig directories - for use as a PKG_CONFIG_PATH.
  MUDDLE_OBJ         Package object directory, whose subdirectories include ..
  MUDDLE_OBJ_OBJ     Where you put actual objects.

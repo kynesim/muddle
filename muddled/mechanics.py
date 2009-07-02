@@ -468,6 +468,7 @@ class Builder:
             lib_dirs = [ ]
             pkg_dirs = [ ]
             set_kernel_dir = None
+            set_ksource_dir = None
             for d in dep_dirs:
                 inc_dir = os.path.join(d, "include")
                 if (os.path.exists(inc_dir) and os.path.isdir(inc_dir)):
@@ -484,6 +485,10 @@ class Builder:
                 kernel_dir = os.path.join(d, "kerneldir")
                 if (os.path.exists(kernel_dir) and os.path.isdir(kernel_dir)):
                     set_kernel_dir = kernel_dir
+
+                ksource_dir = os.path.join(d, "kernelsource")
+                if (os.path.exists(ksource_dir) and os.path.isdir(ksource_dir)):
+                    set_ksource_dir = ksource_dir
                     
             store.set("MUDDLE_INCLUDE_DIRS", 
                       " ".join(map(lambda x:utils.maybe_shell_quote(x, True), 
@@ -496,8 +501,12 @@ class Builder:
                                    pkg_dirs)))
 
             if set_kernel_dir is not None:
-                store.set("MUDDLE_KERNELDIR", 
+                store.set("MUDDLE_KERNEL_DIR", 
                           set_kernel_dir)
+
+            if set_ksource_dir is not None:
+                store.set("MUDDLE_KERNEL_SOURCE_DIR", 
+                          set_ksource_dir)
 
             store.set("MUDDLE_INSTALL", self.invocation.package_install_path(label.name,
                                                                              label.role))

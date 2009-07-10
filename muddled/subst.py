@@ -56,13 +56,13 @@ def query_result(keys, doc_node):
 
     return result
 
-def split_query(self, query):
+def split_query(query):
     """
     Split a query into a series of keys suitable to be passed to
     query_result()
     """
     
-    result = key.split("/")
+    result = query.split("/")
     if (result[0] == ''):
         # Absolute path - lop off the initial empty string
         result = result[1:]

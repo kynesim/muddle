@@ -41,6 +41,7 @@ class Database:
     def set_checkout_path(self, checkout, dir):
         self.checkout_locations[checkout] = dir
 
+
     def get_checkout_path(self, checkout, isRelative = False):
         if (checkout is None):
             return os.path.join(self.root_path, "src")

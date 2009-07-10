@@ -180,7 +180,7 @@ def find_local_packages(dir, root, inv):
     @return A list of the package names (or package/role names) involved.
     """
 
-    tloc = find_location_in_tree(dir, root)
+    tloc = find_location_in_tree(dir, root, inv)
     if (tloc is None):
         return None
 
@@ -204,7 +204,7 @@ def find_local_packages(dir, root, inv):
         return None
 
 
-def find_location_in_tree(dir, root):
+def find_location_in_tree(dir, root, invocation = None):
     """
     Find the directory type and name of subdirectory in a repository.
     This is mainly used by find_local_packages to work out which
@@ -244,8 +244,31 @@ def find_location_in_tree(dir, root):
                 else:
                     sub_dir = None
                     
+                #print "Infer: rest = %s sub_dir = %s "%(" ".join(rest), sub_dir)
+
                 if (rest[0] == "src"):
+                    if (len(rest) > 1) and (invocation is not None):
+                        # Now, this could be a two-level checkout. There's little way to 
+                        # know, beyond that if rest[1:n] is the rest of the checkout path
+                        # it must be our checkout.
+                        for i in range(2, len(rest)+1):
+                            rel_path = rest[1:i]
+                            putative_name = rest[i-1]
+                            if (invocation.has_checkout_called(putative_name)):
+                                #print "rel_path = %s n = %s"%(rel_path,putative_name)
+                                db_path = invocation.db.get_checkout_path(putative_name, isRelative = True)
+                                check_path = ""
+                                for x in rel_path:
+                                    check_path = os.path.join(check_path, x)
+
+                                    #print "check_path %s db_path %s"%(check_path, db_path)
+                                    if (check_path == db_path):
+                                        return (DirType.CheckOut, putative_name, None)
+
+                    
+                    # If, for whatever reason, we haven't already found this package .. 
                     return (DirType.CheckOut, sub_dir, None)
+
                 elif (rest[0] == "obj"):
                     if (len(rest) > 2):
                         role = rest[2]

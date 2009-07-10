@@ -38,7 +38,7 @@ class Invocation:
         self.env = { }
         self.default_roles = [ ]
         self.default_labels = [ ]
-        
+
     def all_checkouts(self):
         """
         Return a set of the names of all the checkouts in our rule set. 
@@ -55,6 +55,17 @@ class Invocation:
             rv.add(cur.target.name)
 
         return rv
+
+    def has_checkout_called(self, checkout):
+        """
+        Return True if this checkout exists, False if it doesn't
+        """
+        lbl = depend.Label(utils.LabelKind.Checkout, 
+                           checkout,
+                           "*",
+                           "*")
+        all_labels = self.ruleset.rules_for_target(lbl)
+        return (len(all_labels) > 0)
         
 
     def labels_for_role(self, kind,  role, tag):

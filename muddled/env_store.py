@@ -722,7 +722,7 @@ class Store:
                                "  del os.environ[\"%s\"]\n"%k)
             else:
                 retText.append("os.environ[\"%s\"]="%k)
-                retText.append(v.get("os.environ[%s]"%k, EnvLanuage.Python))
+                retText.append(v.get("os.environ[%s]"%k, EnvLanguage.Python))
                 retText.append("\n")
             
         retText.append("\n # End code\n")

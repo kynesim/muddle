@@ -530,6 +530,16 @@ MYCOMPONENTDIR=$(shell $(MUDDLE) query objpath package:mycomponent{$(MUDDLE_ROLE
  in your Makefile.
 
 
+Q. I want to use my deployment as a live install (e.g. to link it to
+ /opt/where/i/want/to/install) but redeployment keeps blowing that directory
+ away. What do I do?
+
+A. Use your install directory: [build_base]/install/role ..  . If you
+ really need a deployment - because you're pulling data from multiple
+ roles, for example - file an issue and we'll add a 'justdeploy' command
+ (or you can do it yourself, of course).
+
+
 Licencing
 ---------
 

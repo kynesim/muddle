@@ -51,8 +51,9 @@ class InitScriptBuilder(pkg.PackageBuilder):
             tgt_file = os.path.join(tgt_dir, self.script_name)
             print "> Writing %s .. "%(tgt_file)
             subst.subst_file(src_file, tgt_file, None, os.environ)
+            os.chmod(tgt_file, 0755)
         
-              # Write the setvars script
+            # Write the setvars script
             env = get_env(self.builder, self.name, self.role)
             effective_env = env.copy()
             env_store.add_install_dir_env(effective_env, "MUDDLE_TARGET_LOCATION")

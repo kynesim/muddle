@@ -214,6 +214,11 @@ def conventional_repo_url(repo, rel, co_dir = None):
     # Now, depending on whether we have a co_dir or not, either the
     # first or the first and second elements of rel are the repository
     # name. 
+    # 
+    # If rel is None, there is no repository name - it's all in repo.
+
+    if (rel is None):
+        return (repo_rest, None)
 
     if (co_dir is None):
         dir_components = 1

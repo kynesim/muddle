@@ -1,0 +1,25 @@
+# A muddle Makefile for kbus.
+# Actually quite easy, since kbus does most of the work for us.
+
+# First, where is kbus itself? 
+KBUS_SRC=$(shell $(MUDDLE) query dir "checkout:kbus{*}/*")
+all:
+	$(MAKE) -C $(KBUS_SRC) O=$(MUDDLE_OBJ) all
+
+install:
+	$(MAKE) -C $(KBUS_SRC) O=$(MUDDLE_OBJ) DESTDIR=$(MUDDLE_INSTALL) install
+
+config:
+	-rm -rf $(MUDDLE_OBJ)
+	-mkdir -p $(MUDDLE_OBJ)
+	@echo $(KBUS_SRC)
+
+clean:
+	$(MAKE) -C $(KBUS_SRC) clean
+
+distclean:
+	-rm -rf $(MUDDLE_OBJ)
+
+
+# End file.
+

@@ -256,6 +256,9 @@ class Query(Command):
                     create the resulting environment for this 
     objdir         Print the object directory for a label - used to extract
                     object directories for configure options in builds.
+    dir            Print a directory: for checkout labels, the checkout dir.
+                    For package labels, the install dir. For deployment labels
+                    the deployment dir.
 
     Note that both instructions and inst-details are label-sensitive, so you
     will want to supply a label like 'package:*/myrole'.
@@ -342,6 +345,26 @@ class Query(Command):
                 a_list.append(c)
             a_list.sort()
             print "Checkouts: %s"%(" ".join(a_list))
+        elif (type == "dir"):
+            dir = None
+
+            if (label.role == "*"):
+                role = None
+            else:
+                role = label.role
+            
+            if label.tag_kind == utils.LabelKind.Checkout:
+                dir = builder.invocation.db.get_checkout_path(label.name)
+            elif label.tag_kind == utils.LabelKind.Package:
+                dir = builder.invocation.package_install_path(label.name, role)
+            elif label.tag.kind == utils.LabelKind.Deployment:
+                dir = builder.invocation.deploy_path(label.name)
+                
+            if dir is not None:
+                print dir
+            else:
+                print None
+
         else:
             print "Unrecognised command '%s'"%type
             print self.__doc__

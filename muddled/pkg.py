@@ -198,6 +198,15 @@ def add_checkout_rules(ruleset, co_name, obj):
 def package_depends_on_checkout(ruleset, pkg_name, role_name, co_name, obj):
     """
     Make the given package depend on the given checkout
+
+    @param ruleset  The ruleset to use - builder.invocation.ruleset, for example.
+    @param pkg_name  The package which depends.
+    @param role_name The role which depends. Can be '*' for a wildcard.
+    @param co_name   The checkout which this package and role depends on.
+    @param obj       If non-None, specifies a Dependable to be invoked to 
+                      get from the checkout to the package preconfig. You'll
+                      normally make this None unless you are doing something
+                      deeply weird.
     """
     new_rule = depend.Rule(depend.Label(
             utils.LabelKind.Package, 

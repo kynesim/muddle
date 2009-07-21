@@ -32,6 +32,23 @@ def twolevel(builder, co_dir, co_name, repo_relative = None, rev = None):
                            vcs_handler)
     
 
+def absolute(builder, co_dir, co_name, repo_url, rev = None):
+    """
+    Check out a twolevel repository from an absolute URL
+    """
+    
+    rest = os.path.join(co_dir, co_name)
+    builder.invocation.db.set_checkout_path(co_name, rest)
+    vcs_handler = version_control.vcs_dependable_for(builder, co_name, 
+                                                     repo_url, rev, 
+                                                     None, co_dir = co_dir)
+    pkg.add_checkout_rules(builder.invocation.ruleset,
+                           co_name, 
+                           vcs_handler)
+
+
+
+
 # End file.
 
 

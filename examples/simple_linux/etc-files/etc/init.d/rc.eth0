@@ -1,0 +1,31 @@
+#! /bin/sh
+#
+# Bring up eth0
+
+ACTION="$1"
+
+case "$ACTION" in
+     start)
+        # -b -> background, don't wait for link to come up (we don't care)
+	# -t 0 -> Never time out.   
+	echo Starting dhcpcd .. 
+	dhcpcd -b eth0 &
+	;;
+     stop)
+        # Make it stop!
+        dhcpcd -x eth0
+	echo dhcpcd stopped.
+	;;
+     restart)
+	$0 stop
+	$0 start
+	;;
+esac
+
+exit 0
+
+
+# End file.
+
+	
+   

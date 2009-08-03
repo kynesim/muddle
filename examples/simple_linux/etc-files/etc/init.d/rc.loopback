@@ -1,0 +1,23 @@
+#! /bin/sh
+#
+# Bring up the loopback interface.
+
+ACTION="$1"
+
+case "$ACTION" in
+     start)
+	ifconfig lo 127.0.0.1 netmask 255.0.0.0
+ 	;;
+     stop)
+	ifconfig lo down
+	;;
+     restart)
+	$0 stop
+	$0 start
+	;;
+esac
+
+exit 0
+
+# End file.
+

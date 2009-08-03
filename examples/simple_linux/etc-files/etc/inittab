@@ -1,0 +1,11 @@
+# At system initialisation time, run rc.S
+::sysinit:/etc/rc.S
+
+# Start a shell on the console
+::respawn:-/bin/login
+
+# CAD means reboot, though we don't expect to have a
+# keyboard attached
+::ctrlaltdel:/sbin/reboot
+
+# End file.

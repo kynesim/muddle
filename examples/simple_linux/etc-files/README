@@ -1,0 +1,5 @@
+This package does what it says on the tin: it provides
+all the little bits of /etc that the system requires.
+
+You'll want to add a user account or a password for root into
+shadow, else you won't be able to log in.

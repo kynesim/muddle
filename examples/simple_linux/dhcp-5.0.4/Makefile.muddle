@@ -1,0 +1,28 @@
+# Muddle makefile for dhcpcd
+
+CFLAGS= -O2 $(MUDDLE_INCLUDE_DIRS:%=-I%)
+LDFLAGS=$(MUDDLE_LIB_DIRS:%=-L%)
+
+
+all:
+	CFLAGS=$(CFLAGS) LDFLAGS=$(LDFLAGS) make -C $(MUDDLE_OBJ) all
+
+config:
+	# Copy everything to the object directory
+	if [ -d $(MUDDLE_OBJ) ]; then \
+	   rm -rf $(MUDDLE_OBJ); \
+	   mkdir $(MUDDLE_OBJ); \
+	fi
+	cp -ar -t $(MUDDLE_OBJ) *
+
+install:
+	DESTDIR=$(MUDDLE_INSTALL) make install
+
+clean:
+	make -f $(MUDDLE_OBJ) clean
+
+distclean:
+	rm -rf $(MUDDLE_OBJ)
+
+# End file.
+

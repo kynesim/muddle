@@ -446,24 +446,68 @@ def split_path_left(in_path):
 
     What we actually do here is to split the path until we have
     nothing left, then take the head and rest of the resulting list.
+
+    For instance:
+
+        >>> split_path_left('a/b/c')
+        ('a', 'b/c')
+        >>> split_path_left('a/b')
+        ('a', 'b')
+
+    For a single element, behave in sympathy (but, of course, reversed) to
+    os.path.split:
+
+        >>> import os
+        >>> os.path.split('a')
+        ('', 'a')
+        >>> split_path_left('a')
+        ('a', '')
+
+    The empty string isn't really a sensible input, but we cope:
+
+        >>> split_path_left('')
+        ('', '')
+
+    And we take some care with delimiters (hopefully the right sort of care):
+
+        >>> split_path_left('/a///b/c')
+        ('', 'a/b/c')
+        >>> split_path_left('//a/b/c')
+        ('', 'a/b/c')
+        >>> split_path_left('///a/b/c')
+        ('', 'a/b/c')
     """
+
+    if not in_path:
+        return ('', '')
+
+    # Remove redundant sequences of '//'
+    # This reduces paths like '///a//b/c' to '/a/b/c', but unfortunately
+    # it leaves '//a/b/c' untouched
+    in_path = os.path.normpath(in_path)
     
     remains = in_path
     lst = [ ]
 
-    while len(remains) > 0 and remains != "/":
-        (a,b) = os.path.split(remains)
-        lst.append(b)
-        remains = a
+    while remains and remains not in ("/", "//"):
+        remains, end = os.path.split(remains)
+        lst.append(end)
 
-    if (remains == "/"):
+    if remains in ("/", "//"):
         lst.append("")
 
     # Our list is in reverse order, so ..
     lst.reverse()
-    rp = lst[1]
-    for i in lst[2:]:
-        rp = os.path.join(rp, i)
+
+    if False:
+        rp = lst[1]
+        for i in lst[2:]:
+            rp = os.path.join(rp, i)
+    else:
+        if len(lst) > 1:
+            rp = os.path.join(*lst[1:])
+        else:
+            rp = ""
 
     return (lst[0], rp)
     

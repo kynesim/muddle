@@ -140,7 +140,7 @@ class Database:
         package and role, what would it be?
         """
         if (label.tag_kind != utils.LabelKind.Package):
-            raise utils.Error("Attempt to retrieve instruction file " +
+            raise utils.Error("Attempt to retrieve instruction file "
                               "name for non-package tag %s"%(str(label)))
 
         # Otherwise .. 
@@ -439,7 +439,7 @@ class InstructionFile:
                     # Try to build an instruction from it ..
                     instr = self.factory.from_xml(i)
                     if (instr is None):
-                        raise utils.Error("Could not manufacture an instruction " + 
+                        raise utils.Error("Could not manufacture an instruction "
                                           "from node %s in file %s."%(i.nodeName, self.file_name))
                     self.values.append(instr)
 

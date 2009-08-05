@@ -171,7 +171,7 @@ class LinuxKernel(PackageBuilder):
         elif (tag == utils.Tags.DistClean):
             self.dist_clean(label)
         else:
-            raise utils.Error("Invalid tag specified for " + 
+            raise utils.Error("Invalid tag specified for "
                               "linux kernel build - %s"%(label))
 
     def dist_clean(self, label):

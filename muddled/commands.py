@@ -106,7 +106,7 @@ class Init(Command):
         return False
 
     def with_build_tree(self, builder, local_pkgs, args):
-        raise utils.Error("Can't initialise a build tree " + 
+        raise utils.Error("Can't initialise a build tree " 
                     "when one already exists (%s)"%builder.invocation.db.root_path)
     
     def without_build_tree(self, muddle_binary, root_path, args):
@@ -657,7 +657,7 @@ class Instruct(Command):
 
 
         if (len(lbls) != 1 or (lbls[0].role is None)):
-            raise utils.Failure("instruct takes precisely one package{role} pair " +
+            raise utils.Failure("instruct takes precisely one package{role} pair "
                                 "and the role must be explicit")
 
 
@@ -665,7 +665,7 @@ class Instruct(Command):
             filename = args[1]
 
             if (not os.path.exists(filename)):
-                raise utils.Failure("Attempt to register instructions in " + 
+                raise utils.Failure("Attempt to register instructions in " 
                                     "%s: file does not exist"%filename)
 
             if (self.no_op()):
@@ -1417,7 +1417,7 @@ def labels_from_pkg_args(list, tag, default_roles):
         m = the_re.match(elem)
         if (m is None):
             # Hmm ..
-            raise utils.Error("Package list element %s isn't a " + 
+            raise utils.Error("Package list element %s isn't a " 
                     "well-formed package descriptor (pkg({role})?)"%elem)
         else:
             pkg = m.group(1)

@@ -22,7 +22,7 @@ class CleanDeploymentBuilder(pkg.Dependable):
             print "> Remove %s"%deploy_path
             utils.recursively_remove(deploy_path)
         else:
-            raise utils.Failure("Attempt to invoke CleanDeploymentBuilder on " + 
+            raise utils.Failure("Attempt to invoke CleanDeploymentBuilder on "
                                 "unrecognised label %s"%label)
         # And, um, that's it.
         

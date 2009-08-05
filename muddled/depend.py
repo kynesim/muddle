@@ -179,13 +179,13 @@ class Rule:
     def __init__(self, target_dep, obj):
         self.deps = set()
         if (not isinstance(target_dep, Label)):
-            raise utils.Error("Attempt to create a rule without a label" + 
+            raise utils.Error("Attempt to create a rule without a label"
                               " as its target")
 
         self.target = target_dep
         self.obj = obj
         if (self.obj is not None) and (not isinstance(obj, pkg.Dependable)):
-            raise utils.Error("Attempt to create a rule with an object rule " + 
+            raise utils.Error("Attempt to create a rule with an object rule "
                               "which isn't a dependable but a %s."%(obj.__class__.__name__))
 
 
@@ -385,7 +385,7 @@ def label_from_string(str):
     """
 
     # It's quite a .. long .. regex .. 
-    the_re = re.compile("([A-Za-z0-9.*_-]+):([A-Za-z.0-9*_-]+)(\{([A-Za-z.0-9*_-]+)\})?" + 
+    the_re = re.compile("([A-Za-z0-9.*_-]+):([A-Za-z.0-9*_-]+)(\{([A-Za-z.0-9*_-]+)\})?"
                         "/([A-Za-z.0-9*_-]+)(\[[A-Za-z.0-9]+\])?")
     m = the_re.match(str)
     if (m is None):

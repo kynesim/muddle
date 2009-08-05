@@ -189,7 +189,7 @@ class Heirarchy:
 
             self.roots = new_roots
             if (not did_something):
-                raise utils.Failure("Failed to normalise a heirarchy -" + 
+                raise utils.Failure("Failed to normalise a heirarchy -"
                                     " circular roots?: %s"%self)
             
     

@@ -86,7 +86,7 @@ class MakeBuilder(PackageBuilder):
         elif (tag == utils.Tags.DistClean):
             utils.run_cmd("make %s distclean"%make_args)
         else:
-            raise utils.Error("Invalid tag specified for " + 
+            raise utils.Error("Invalid tag specified for "
                               "MakePackage building %s"%(label))
         
 

@@ -29,7 +29,7 @@ class ToolsDeploymentBuilder(pkg.Dependable):
         if (label.tag == utils.Tags.Deployed):
             self.deploy(label)
         else:
-            raise utils.Failure("Attempt to build " + 
+            raise utils.Failure("Attempt to build "
                                 "unrecognised tools deployment label %s"%(label))
 
     def deploy(self, label):

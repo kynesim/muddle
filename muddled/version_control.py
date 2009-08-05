@@ -39,7 +39,7 @@ class VersionControlHandler:
         This entry point is mainly used when trying to work out where
         the build description specified in a muddle init command has ended up.
         """
-        raise utils.Error("Attempt to call path_in_checkout() of the VersionControlHandler" +
+        raise utils.Error("Attempt to call path_in_checkout() of the VersionControlHandler"
                           " abstract base class.")
 
     def get_checkout_path(self, co_name):
@@ -104,7 +104,7 @@ class VersionControlHandlerFactory:
         Recall that repo contains the vcs specifier - it's up to the VCS handler
         to remove it.
         """
-        raise utils.Error("Attempt to use the VCS handler factory base class as " +
+        raise utils.Error("Attempt to use the VCS handler factory base class as "
                           "a factory")
 
 # This dictionary holds the global list of registered VCS handler

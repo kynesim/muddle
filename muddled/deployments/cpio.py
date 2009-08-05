@@ -107,7 +107,7 @@ class CpioDeploymentBuilder(pkg.Dependable):
                         if (iname in app_dict):
                             app_dict[iname].apply(self.builder, instr, role, the_heirarchy)
                         else:
-                            raise utils.Failure("CPIO deployments don't know about " + 
+                            raise utils.Failure("CPIO deployments don't know about "
                                                 "the instruction %s (lbl %s, file %s"%(iname, lbl, fn))
             # .. and write the file.
             print "> Writing %s .. "%deploy_file

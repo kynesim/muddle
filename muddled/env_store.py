@@ -97,7 +97,7 @@ class EnvExpr:
               (isinstance(other, EnvExpr))):
             self.values.append(other)
         else:
-            raise utils.Error("Attempt to append" + 
+            raise utils.Error("Attempt to append"
                               " %s (type %s) to an EnvExpr of type %s"%(other, 
                                                                         type(other), 
                                                                         self.type))
@@ -843,7 +843,7 @@ class Store:
             if (not did_something):
                 raise utils.Failure("Cannot produce a consistent environment ordering:\n" + 
                                     "Issued: %s\n"%(" ".join(map(str, out_list))) + 
-                                    "Remaain: %s\n"%utils.print_string_set(remain) + 
+                                    "Remain: %s\n"%utils.print_string_set(remain) + 
                                     "Deps: %s\n"%(print_deps(deps)))
 
         # Form the value list ..

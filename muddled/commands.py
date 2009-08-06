@@ -352,12 +352,12 @@ class Query(Command):
                 role = None
             else:
                 role = label.role
-            
+
             if label.tag_kind == utils.LabelKind.Checkout:
                 dir = builder.invocation.db.get_checkout_path(label.name)
             elif label.tag_kind == utils.LabelKind.Package:
                 dir = builder.invocation.package_install_path(label.name, role)
-            elif label.tag.kind == utils.LabelKind.Deployment:
+            elif label.tag_kind == utils.LabelKind.Deployment:
                 dir = builder.invocation.deploy_path(label.name)
                 
             if dir is not None:

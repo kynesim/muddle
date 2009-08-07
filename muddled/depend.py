@@ -215,15 +215,15 @@ class Rule:
 
 
     def depend_checkout(self, co_name, tag):
-        dep = Label(utils.TagKind.CheckoutTag, co_name, None, tag)
+        dep = Label(utils.LabelKind.Checkout, co_name, None, tag)
         self.deps += dep
 
     def depend_pkg(self, pkg, role, tag):
-        dep = Label(utils.TagKind.PackageTag, pkg, role, tag)
+        dep = Label(utils.LabelKind.Package, pkg, role, tag)
         self.deps += dep
 
     def depend_deploy(self, dep_name, tag):
-        dep = Label(utils.TagKind.DeployTag, dep_name, None, tag)
+        dep = Label(utils.LabelKind.Deployment, dep_name, None, tag)
         self.deps += dep
 
     def __str__(self):

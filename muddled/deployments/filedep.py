@@ -4,6 +4,7 @@ role subdirectory in the /deployed directory, applying
 appropriate instructions.
 """
 
+import os
 import muddled
 import muddled.pkg as pkg
 import muddled.env_store

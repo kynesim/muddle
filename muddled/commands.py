@@ -1160,8 +1160,6 @@ def decode_checkout_arguments(builder, args, local_pkgs, tag):
                                        co, None, tag))
 
     else:
-        out_set = ()
-        
         if (local_pkgs is None or len(local_pkgs) == 0):
             # Where are we? If in a checkout, that's what we should do - else
             # all checkouts.
@@ -1176,6 +1174,7 @@ def decode_checkout_arguments(builder, args, local_pkgs, tag):
                 # Everything
                 return get_all_checkouts(builder, tag)
 
+        out_set = set()
         for pkg in local_pkgs:
             my_label = depend.Label(utils.LabelKind.Package,
                                     pkg,
@@ -1189,9 +1188,8 @@ def decode_checkout_arguments(builder, args, local_pkgs, tag):
                                              d.target.name,
                                              None, 
                                              tag))
-        for o in out_set:
-            rv.append(o)
 
+        rv = list(out_set)
         rv.sort()
 
     return rv
@@ -1250,7 +1248,7 @@ def all_deployment_labels(builder, tag):
     #  not to silently ignore it.
     match_lbl = depend.Label(utils.LabelKind.Deployment,
                              "*", "*", "*")
-    matching = builder.invocation.ruleset.rules_for_target(lbl)
+    matching = builder.invocation.ruleset.rules_for_target(match_lbl)
     
     return_set = set()
     for m in matching:

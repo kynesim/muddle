@@ -69,7 +69,8 @@ class ChangeUserInstruction(db.Instruction):
         return self.name
 
     def equal(self, other):
-        if (not Instruction.equal(self,other)):
+        #if (not db.Instruction.equal(self,other)):
+        if not super(ChangeUserInstruction,self).equal(other):
             return False
 
         if (self.name != other.name):
@@ -130,7 +131,8 @@ class ChangeModeInstruction(db.Instruction):
         return self.name
 
     def equal(self, other):
-        if (not Instruction.equal(self,other)):
+        #if (not db.Instruction.equal(self,other)):
+        if not super(ChangeModeInstruction,self).equal(other):
             return False
 
         if (self.name != other.name):
@@ -226,7 +228,8 @@ class MakeDeviceInstruction(db.Instruction):
         return "mknod"
 
     def equal(self, other):
-        if (not Instruction.equal(self, other)):
+        #if (not db.Instruction.equal(self, other)):
+        if not super(MakeDeviceInstruction,self).equal(other):
             return False
 
         return (self.file_name == other.file_name and

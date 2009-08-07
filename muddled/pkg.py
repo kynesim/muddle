@@ -112,7 +112,7 @@ class PackageBuilder(Dependable):
         self.deps = None
 
     def build_label(self, label):
-        raise utils.Error("Attempt to build unknown label %s"%self.label)
+        raise utils.Error("Attempt to build unknown label %s"%label)
 
 class Deployment(Dependable):
     """
@@ -125,7 +125,7 @@ class Deployment(Dependable):
         Whatever's needed to build the relevant tag for this 
         deployment
         """
-
+        pass
         
     
 

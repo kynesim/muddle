@@ -92,7 +92,7 @@ def deployment_depends_on_deployment(builder, what, depends_on):
     rule.add(depend.Label(utils.LabelKind.Deployment, 
                           depends_on,
                           None,
-                          utils.Tags.Deployment))
+                          utils.Tags.Deployed))
     
 
 def inform_deployment_path(builder, name, deployment, roles):

@@ -31,7 +31,7 @@ class Bazaar(VersionControlHandler):
         # Check out.
         utils.ensure_dir(self.co_path)
         os.chdir(self.co_path)
-        utils.run_cmd("bzr co %s %s %s"%(self.r_option(), self.bzr_repo, self.co_name))
+        utils.run_cmd("bzr co %s %s %s"%(self.r_option(), self.bzr_repo, self.checkout_name))
         os.chdir(self.co_path)
         utils.run_cmd("bzr unbind")
 

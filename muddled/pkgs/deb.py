@@ -23,6 +23,7 @@ it's always empty and stored in the object directory)
 """
 
 import muddled.pkg as pkg
+import muddled.db as db
 from muddled.pkg import PackageBuilder
 import muddled.utils as utils
 import muddled.checkouts.simple as simple_checkouts
@@ -103,7 +104,8 @@ class DebDevDependable(PackageBuilder):
                                                        label.name))
         elif (tag == utils.Tags.Clean or tag == utils.Tags.DistClean):
             # Just remove the object directory.
-            utils.recursively_remove(builder.invocation.package_obj_path(label.name, label.role))
+            inv = self.builder.invocation
+            utils.recursively_remove(inv.package_obj_path(label.name, label.role))
         else:
             raise utils.Error("Invalid tag specified for deb pkg %s"%(label))
 
@@ -183,7 +185,7 @@ class DebDependable(PackageBuilder):
                 # We have instructions ..
                 ifile = db.InstructionFile(instr_path)
                 ifile.get()
-                builder.instruct(label.name, label.role, ifile)
+                self.builder.instruct(label.name, label.role, ifile)
         elif (tag == utils.Tags.PostInstalled):
             if self.post_install_makefile is not None:
                 inv = self.builder.invocation

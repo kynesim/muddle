@@ -251,8 +251,8 @@ class FSFileSpecDataProvider:
             if (recursively and os.path.isdir(abs_elem)):
                 result.extend(
                     map(lambda v: os.path.join(elem, v), 
-                        list_files_under(os.path.join(dir, elem), 
-                                         True)))
+                        self.list_files_under(os.path.join(dir, elem), 
+                            True)))
 
         return result
 

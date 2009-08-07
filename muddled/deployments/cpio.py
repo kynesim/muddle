@@ -119,7 +119,7 @@ class CpioDeploymentBuilder(pkg.Dependable):
                 elif (self.compression_method == "bzip2"):
                     utils.run_cmd("bzip2 -f %s"%deploy_file)
                 else:
-                    raise utils.Failure("Invalid compression method %s"%compressionMethod + 
+                    raise utils.Failure("Invalid compression method %s"%self.compression_method + 
                                         "specified for cpio deployment. Pick gzip or bzip2.")
 
         else:

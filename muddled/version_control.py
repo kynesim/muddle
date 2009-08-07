@@ -95,7 +95,7 @@ class VersionControlHandlerFactory:
     Registered to provide a means of constructing version control handlers
     """
 
-    def describe():
+    def describe(self):
         return "Generic version control handler factory"
 
     def manufacture(self, inv, co_name, repo, rev, rel, co_dir = None):
@@ -175,7 +175,7 @@ def vcs_dependable_for(builder, co_name, repo, rev, rest, co_dir = None):
     """
     handler = vcs_handler_for(builder.invocation, co_name, repo, rev, rest, co_dir)
     if (handler is None):
-        raise utils.Failure("Cannot build a VCS handler for %s rel = %s"%(repo, rel))
+        raise utils.Failure("Cannot build a VCS handler for %s rel = %s"%(repo, rev))
 
     return pkg.VcsCheckoutBuilder(co_name, handler)
 

@@ -10,7 +10,7 @@ import xml.dom.minidom
 import traceback
 import depend
 
-class Database:
+class Database(object):
     """
     Represents the muddle database
 
@@ -229,7 +229,7 @@ class Database:
             
         
 
-class PathFile:
+class PathFile(object):
     """ 
     Manipulates a file containing a single path name
     """
@@ -296,7 +296,7 @@ class PathFile:
             f.close()
 
 
-class Instruction:
+class Instruction(object):
     """
     Something stored in an InstructionFile. Subtypes of this type
     are mainly defined in the instr.py module.
@@ -335,7 +335,7 @@ class Instruction:
     
         
 
-class InstructionFactory:
+class InstructionFactory(object):
     """
     An instruction factory
     """
@@ -349,7 +349,7 @@ class InstructionFactory:
 
 
 
-class InstructionFile:
+class InstructionFile(object):
     """
     An XML file containing a sequence of instructions for deployments
     Each instruction is a subtype of Instruction
@@ -518,7 +518,7 @@ class InstructionFile:
 
     
 
-class TagFile:
+class TagFile(object):
     """
     An XML file containing a set of tags (statements)
     """
@@ -559,7 +559,7 @@ class TagFile:
         """
         Erase this tag file
         """
-        self.value = Set()
+        self.value = set()
 
     def read(self):
         """
@@ -572,7 +572,7 @@ class TagFile:
         </tags>
         """
 
-        new_value = Set()
+        new_value = set()
 
         try:
             top = xml.dom.minidom.parse(self.file_name)
@@ -581,7 +581,7 @@ class TagFile:
             doc = top.documentElement()
             
             for i in doc.childNodes:
-                if (i.nodeType == node.ELEMENT_NODE):
+                if (i.nodeType == i.ELEMENT_NODE):
                     new_value += i.tagName            
         except:
             pass

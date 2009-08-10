@@ -91,10 +91,17 @@ class DebDevDependable(PackageBuilder):
             utils.ensure_dir(lib_dir)
 
             # Copy everything in usr/include ..
-            utils.copy_without(os.path.join(installed_into, "usr", "include"), 
-                               inc_dir, without = None)
-            utils.copy_without(os.path.join(installed_into, "usr", "lib"), 
-                               lib_dir, without = None)
+            src_include = os.path.join(installed_into, "usr", "include")
+            src_lib = os.path.join(installed_into, "usr", "lib")
+
+            if (os.path.exists(src_include) and os.path.isdir(src_include)):
+                utils.copy_without(src_include,
+                                   inc_dir, without = None)
+                
+            if (os.path.exists(src_lib) and os.path.isdir(src_lib)):
+                utils.copy_without(src_lib,
+                                   lib_dir, without = None)
+
         elif (tag == utils.Tags.PostInstalled):
             if self.post_install_makefile is not None:
                 inv = self.builder.invocation

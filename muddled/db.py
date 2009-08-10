@@ -77,7 +77,8 @@ class Database(object):
         file_name = self.instruction_file_name(label)
 
         if instr_file is None:
-            os.unlink(file_name)
+            if os.path.exists(file_name):
+                os.unlink(file_name)
         else:
             instr_file.save_as(file_name)
 

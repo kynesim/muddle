@@ -842,9 +842,9 @@ class Store:
             # of the line.
             if (not did_something):
                 raise utils.Failure("Cannot produce a consistent environment ordering:\n" + 
-                                    "Issued: %s\n"%(" ".join(map(str, out_list))) + 
-                                    "Remain: %s\n"%utils.print_string_set(remain) + 
-                                    "Deps: %s\n"%(print_deps(deps)))
+                                    ("Issued: %s\n"%(" ".join(map(str, out_list)))) + 
+                                    ("Remain: %s\n"%utils.print_string_set(remain)) + 
+                                    ("Deps: %s\n"%(print_deps(deps))))
 
         # Form the value list ..
         rv = [ ]
@@ -861,7 +861,7 @@ def print_deps(deps):
     """
     result_str = [ ]
 
-    for (k,v) in deps:
+    for (k,v) in deps.items():
         result_str.append("%s = { "%k)
         for dep in v:
             result_str.append(" %s"%dep)

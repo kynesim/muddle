@@ -54,7 +54,7 @@ class InitScriptBuilder(pkg.PackageBuilder):
             os.chmod(tgt_file, 0755)
         
             # Write the setvars script
-            env = get_env(self.builder, self.name, self.role)
+            env = get_effective_env(self.builder, self.name, self.role)
             effective_env = env.copy()
             env_store.add_install_dir_env(effective_env, "MUDDLE_TARGET_LOCATION")
 
@@ -132,10 +132,10 @@ def setup_default_env(builder, env_store):
     # Nothing to do so far ..
     pass
 
-def get_env(builder, name, role):
+def get_effective_env(builder, name, role):
     """
-    Retrieve the runtime environment builder for this initscripts
-    package
+    Retrieve the effective runtime environment for this initscripts
+    package. Note that setting variables here will have no effect.
     """
     return builder.invocation.effective_environment_for(
                 depend.Label(
@@ -143,6 +143,20 @@ def get_env(builder, name, role):
                     name, role,
                     utils.Tags.RuntimeEnv))
 
+    
+
+def get_env(builder, name, role):
+    """
+    Retrieve an environment to which you can make changes which will
+    be reflected in the generated init scripts. The actual environment
+    used will have extra values inserted from wildcarded environments -
+    see get_effective_env() above.
+    """
+    return builder.invocation.get_environment_for(
+        depend.Label(
+            utils.LabelKind.Package,
+            name, role, 
+            utils.Tags.RuntimeEnv))
                                 
 
 # End file.

@@ -408,9 +408,9 @@ def copy_file(from_name, to_name, object_exactly = False):
     """
     Just like recursively_copy, only not recursive :-)
     """
-    extra_options = ""
+    extra_options = "-f"
     if object_exactly:
-        extra_options = "-d"
+        extra_options = "-fd"
     run_cmd("cp %s \"%s\" \"%s\""%(extra_options, from_name, to_name))
 
 def recursively_copy(from_dir, to_dir, object_exactly = False):

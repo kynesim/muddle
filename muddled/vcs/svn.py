@@ -17,6 +17,7 @@ class Svn(VersionControlHandler):
         self.svn_repo = sp[0]
 
         self.co_path = self.get_checkout_path(self.checkout_name)
+        self.my_path = self.get_my_absolute_checkout_path()
         self.rev = rev
 
     def path_in_checkout(self, rel):
@@ -33,7 +34,7 @@ class Svn(VersionControlHandler):
         pass
 
     def update(self):
-        os.chdir(self.co_path)
+        os.chdir(self.my_path)
         utils.run_cmd("svn update %s"%(self.r_option()))
         
     def commit(self):
@@ -41,7 +42,7 @@ class Svn(VersionControlHandler):
         pass
 
     def push(self):
-        os.chdir(self.co_path)
+        os.chdir(self.my_path)
         utils.run_cmd("svn commit")
 
     def must_update_to_commit(self):

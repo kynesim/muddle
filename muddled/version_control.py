@@ -42,7 +42,20 @@ class VersionControlHandler:
         raise utils.Error("Attempt to call path_in_checkout() of the VersionControlHandler"
                           " abstract base class.")
 
+    def get_my_absolute_checkout_path(self):
+        """
+        Does what it says on the tin.
+        """
+        return self.invocation.checkout_path(self.checkout_name)
+        
+
     def get_checkout_path(self, co_name):
+        """
+        When called with None, get the parent directory of this checkout.
+        God knows what happens otherwise - 
+        
+        @todo Needs documenting and rewriting!
+        """
         if (self.checkout_dir is not None):
             p = os.path.join(self.invocation.checkout_path(None), self.checkout_dir)
             if (co_name is not None):

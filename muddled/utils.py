@@ -172,6 +172,27 @@ def find_root(dir):
     return None
 
 
+def get_all_checkouts_below(builder, dir):
+    """
+    Check all checkouts to see if their directories are
+    at or below dir.
+    """
+    rv = [ ]
+    all_cos = builder.invocation.all_checkouts()
+    
+    for co in all_cos:
+        co_dir = builder.invocation.checkout_path(co)
+        # Is it below dir? If it isn't, os.path.relpath() will
+        # start with .. ..
+        rp = os.path.relpath(co_dir, dir)
+        if (rp[0:2] != ".."):
+            # It's relative
+            rv.append(co)
+
+    return rv
+
+
+
 def find_local_packages(dir, root, inv):
     """
     This is slightly horrible because if you're in a source checkout
@@ -212,7 +233,7 @@ def find_location_in_tree(dir, root, invocation = None):
 
     @param[in] dir  The directory to analyse
     @param[in] root The root directory.
-    @return a pair (DirType, pkg_name, role_name) or None if no information
+    @return a triple (DirType, pkg_name, role_name) or None if no information
     can be gained.
     """
 
@@ -438,6 +459,8 @@ def recursively_copy(from_dir, to_dir, object_exactly = False):
         run_cmd("cp -rp%sf -t \"%s\" \"%s\""%(extra_options, 
                                               to_dir, os.path.join(from_dir, i)))
             
+
+    
 
 def split_path_left(in_path):
     """

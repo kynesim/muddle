@@ -35,6 +35,7 @@ class Svn(VersionControlHandler):
 
     def update(self):
         os.chdir(self.my_path)
+        #print "> path = %s"%self.my_path
         utils.run_cmd("svn update %s"%(self.r_option()))
         
     def commit(self):

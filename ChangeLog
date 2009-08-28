@@ -1,0 +1,11 @@
+2009-08-28  Richard Watts  <rrw@kynesim.co.uk>
+
+	* commands.py: muddle commit, muddle update, muddle push now work on checkouts
+	rather than packages. The previous commit, update and push have been
+	fixed so that they always take package arguments and renamed
+	pkg-commit, pkg-update, pkg-push
+
+	* vcs/svn.py: Fixed issue 32.
+
+	* Started this changelog.
+	

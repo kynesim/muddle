@@ -19,6 +19,8 @@ import os
 import os.path
 import xml.dom.minidom
 import subst
+import subprocess
+import sys
 
 class Command:
     """
@@ -372,6 +374,70 @@ class Query(Command):
 
         return 0
 
+
+class RunIn(Command):
+    """
+    Syntax: runin [label] [command .. ]
+
+    Run [command..] in the directory corresponding to every label matching
+    [label].
+
+    Checkout labels are run in the directory corresponding to their checkout.
+    Package labels are run in the directory corresponding to their object files.
+    Deployment labels are run in the directory corresponding to their deployments.
+
+    We only ever run the command in any directory once.
+    """
+    
+    def name(self):
+        return "runin"
+
+    def requires_build_tree(self):
+        return True
+
+    def with_build_tree(self, builder, local_pkgs, args):
+        if (len(args) < 2):
+            print "Syntax: runin [label] [command .. ]"
+            print self.__doc__
+            return 2
+
+        labels = decode_labels(builder, args[0:1] );
+        command = " ".join(args[1:])
+        dirs_done = set()
+        for l in labels:
+            matching = builder.invocation.ruleset.rules_for_target(l)
+
+            for m in matching:
+                lbl = m.target
+
+                dir = None
+                if (lbl.name == "*"):
+                    # If it's a wildcard, don't bother.
+                    continue
+
+                if (lbl.tag_kind == utils.LabelKind.Checkout):
+                    dir = builder.invocation.checkout_path(lbl.name)
+                elif (lbl.tag_kind == utils.LabelKind.Package):
+                    if (lbl.role == "*"): 
+                        continue
+                    dir = builder.invocation.package_obj_path(lbl.name, lbl.role)
+                elif (lbl.tag_kind == utils.LabelKind.Deployment):
+                    dir = builder.invocation.deploy_path(lbl.name)
+                    
+                if (dir in dirs_done):
+                    continue
+
+                dirs_done.add(dir)
+                if (os.path.exists(dir)):
+                    os.chdir(dir)
+                    print "> %s"%dir
+                    subprocess.call(command, shell = True)
+                else:
+                    print "! %s does not exist."%dir
+
+        
+        
+
 class BuildLabel(Command):
     """
     Syntax: buildlabel [labels .. ]
@@ -687,9 +753,6 @@ class Update(Command):
     Syntax: update [checkouts]
 
     Update the specified checkouts.
-
-    If no checkouts are given, we'll use those implied by your current
-    location.
     """
     
     def name(self):
@@ -697,7 +760,7 @@ class Update(Command):
 
     def requires_build_tree(self):
         return True
-
+    
     def with_build_tree(self, builder, local_pkgs, args):
         checkouts = decode_checkout_arguments(builder, args, local_pkgs,
                                               utils.Tags.UpToDate)
@@ -721,7 +784,7 @@ class Commit(Command):
     """
     
     def name(self):
-        return "commit"
+        return "dep-commit"
 
     def requires_build_tree(self):
         return True
@@ -738,24 +801,107 @@ class Commit(Command):
                 builder.build_label(co)
 
 
+
 class Push(Command):
     """
-    Syntax: commit [checkouts]
+    Syntax: push [checkouts]
 
-    Push the specified checkouts.
+    Push the specified packages.
 
     If no checkouts are given, we'll use those implied by your current
     location.
     """
     
     def name(self):
-        return "push"
+        return "dep-push"
 
     def requires_build_tree(self):
         return True
 
     def with_build_tree(self, builder, local_pkgs, args):
         checkouts = decode_checkout_arguments(builder, args, local_pkgs,
+                                              utils.Tags.ChangesPushed)
+        # Forcibly retract all the updated tags.
+        if (self.no_op()):
+            print "Pushing checkouts: %s"%(depend.label_list_to_string(checkouts))
+        else:
+            for co in checkouts:
+                builder.invocation.db.clear_tag(co)
+                builder.build_label(co)
+
+
+
+class PkgUpdate(Command):
+    """
+    Syntax: pkg-update [checkouts]
+
+    Update the specified packages.
+    """
+    
+    def name(self):
+        return "pkg-update"
+
+    def requires_build_tree(self):
+        return True
+
+    def with_build_tree(self, builder, local_pkgs, args):
+        checkouts = decode_dep_checkout_arguments(builder, args, local_pkgs,
+                                              utils.Tags.UpToDate)
+        # Forcibly retract all the updated tags.
+        if (self.no_op()):
+            print "Updating checkouts: %s "%(depend.label_list_to_string(checkouts))
+        else:
+            for co in checkouts:
+                builder.kill_label(co)
+                builder.build_label(co)
+
+
+class PkgCommit(Command):
+    """
+    Syntax: dep-commit [checkouts]
+
+    Commit the specified checkouts.
+
+    If no checkouts are given, we'll use those implied by your current
+    location.
+    """
+    
+    def name(self):
+        return "pkg-commit"
+
+    def requires_build_tree(self):
+        return True
+
+    def with_build_tree(self, builder, local_pkgs, args):
+        checkouts = decode_dep_package_arguments(builder, args, local_pkgs,
+                                              utils.Tags.ChangesCommitted)
+        # Forcibly retract all the updated tags.
+        if (self.no_op()):
+            print "Committing checkouts: %s"%(depend.label_list_to_string(checkouts))
+        else:
+            for co in checkouts:
+                builder.kill_label(co)
+                builder.build_label(co)
+
+
+class PkgPush(Command):
+    """
+    Syntax: pkg-push [checkouts]
+
+    Push the specified packages.
+
+    If no checkouts are given, we'll use those implied by your current
+    location.
+    """
+    
+    def name(self):
+        return "pkg-push"
+
+    def requires_build_tree(self):
+        return True
+
+    def with_build_tree(self, builder, local_pkgs, args):
+        checkouts = decode_dep_package_arguments(builder, args, local_pkgs,
                                               utils.Tags.ChangesPushed)
         # Forcibly retract all the updated tags.
         if (self.no_op()):
@@ -1140,14 +1286,14 @@ def get_all_checkouts(builder, tag):
 
 def decode_checkout_arguments(builder, args, local_pkgs, tag):
     """
-    Decode arguments into a set of checkout labels with the given tag.
+    Decode checkout arguments when you're expecting to refer to a
+    checkout rather than a package.
 
     If there are arguments, they specify checkouts.
-    If there aren't, all checkouts dependent on any local_pkgs tag are
-     returned
-
+    If there aren't, all checkouts with directories below the current
+     directory are returned.
     """
-
+    
     rv = [ ]
 
     if (len(args) > 0):
@@ -1160,40 +1306,51 @@ def decode_checkout_arguments(builder, args, local_pkgs, tag):
                                        co, None, tag))
 
     else:
-        if (local_pkgs is None or len(local_pkgs) == 0):
-            # Where are we? If in a checkout, that's what we should do - else
-            # all checkouts.
-            (what, loc, role) = utils.find_location_in_tree(os.getcwd(),
-                                                            builder.invocation.db.root_path)
-            if (what == utils.DirType.CheckOut and (loc is not None)):
-                rv = [ ]
+        # We resolutely ignore local_pkgs...
+        # Where are we? If in a checkout, that's what we should do - else
+        # all checkouts.
+        (what, loc, role) = utils.find_location_in_tree(os.getcwd(),
+                                                        builder.invocation.db.root_path)
+        
+        
+        if (what == utils.DirType.CheckOut):
+            cos_below = utils.get_all_checkouts_below(builder, os.getcwd())
+            for c in cos_below:
                 rv.append(depend.Label(utils.LabelKind.Checkout, 
-                                       loc, None, tag))
-                return rv
-            else:
-                # Everything
-                return get_all_checkouts(builder, tag)
+                                       c, None, tag))
+        return rv
 
-        out_set = set()
-        for pkg in local_pkgs:
-            my_label = depend.Label(utils.LabelKind.Package,
-                                    pkg,
-                                    "*",
-                                    "*")
-            deps = depend.needed_to_build(builder.invocation.ruleset, 
-                                          my_label)
-            for d in deps:
-                if (d.target.tag_kind == utils.LabelKind.Checkout):
-                    out_set.add(depend.Label(utils.LabelKind.Checkout, 
-                                             d.target.name,
-                                             None, 
-                                             tag))
 
-        rv = list(out_set)
-        rv.sort()
+def decode_dep_checkout_arguments(builder, args, local_pkgs, tag):
+    """
+    Any arguments given are package names - we return their dependent 
+    checkouts.
+
+    If there are arguments, they specify checkouts.
+    If there aren't, all checkouts dependent on any local_pkgs tag are
+     returned.
+
+    """
+    
+    labels = decode_package_arguments(builder, args, local_pkgs, 
+                                      utils.Tags.PostInstalled)
+    
+    rv = [ ]
+    out_set = set()
+
+    for my_label in labels:
+        deps = depend.needed_to_build(builder.invocation.ruleset, my_label)
+        for d in deps:
+            if (d.target.tag_kind == utils.LabelKind.Checkout):
+                out_set.add(depend.Label(utils.LabelKind.Checkout, 
+                                         d.target.name,
+                                         None, 
+                                         tag))
+
+    rv = list(out_set)
+    rv.sort()
 
     return rv
-    
     
 
 def decode_labels(builder, in_args):
@@ -1465,9 +1622,14 @@ def register_commands():
     Import().register(the_dict)
     Assert().register(the_dict)
     Retract().register(the_dict)
+    PkgUpdate().register(the_dict)
+    PkgCommit().register(the_dict)
+    PkgPush().register(the_dict)
+
     Update().register(the_dict)
     Commit().register(the_dict)
     Push().register(the_dict)
+
     Changed().register(the_dict)
     Deploy().register(the_dict)
     Redeploy().register(the_dict)
@@ -1480,6 +1642,7 @@ def register_commands():
     Retry().register(the_dict)
     Subst().register(the_dict)
     Distrebuild().register(the_dict)
+    RunIn().register(the_dict)
 
     return the_dict
 

@@ -1,9 +1,20 @@
+2009-08-30  Tony Ibbs  <tibs@tibsnjoan.co.uk>
+
+	* muddled/*.py: Docstrings are now all legal reStructuredText - this
+	is the beginning of fixes for issue 33. The only other change to the
+	Python files is to add full stops at the end of all docstring
+	sentences.
+
+	Note: I've maintained the muddle policy of putting the opening ``"""``
+	of a docstring on a separate line. This actually matters in
+	commands.py (see the comments therein).
+
 2009-08-28  Richard Watts  <rrw@kynesim.co.uk>
 
 	* commands.py: There's a new 'muddle runin <labelspec> <command>' command
 	to run a system command in every directory matching a labelspec. Useful
 	for things like 'svn rebase'
-	
+
 2009-08-28  Richard Watts  <rrw@kynesim.co.uk>
 
 	* commands.py: muddle commit, muddle update, muddle push now work on checkouts
@@ -14,4 +25,4 @@
 	* vcs/svn.py: Fixed issue 32.
 
 	* Started this changelog.
-	
+

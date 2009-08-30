@@ -343,24 +343,30 @@ def iso_time():
     """
     return time.strftime("%Y-%m-%d %H:%M:%S")
 
-def run_cmd(cmd, env = os.environ, allowFailure = False, isSystem = False):
+def run_cmd(cmd, env = None, allowFailure = False, isSystem = False):
     """
-   Run a command via the shell, throwing on failure,
+    Run a command via the shell, raising an exception on failure,
 
-   * isSystem - If True, this is a command being run by the system and
-     failure should be reported with an Error. Else, it's being run on
-     behalf of the user and failure should be reported with Failure.
+    * env is the environment to use when running the command.  If this is None,
+      then ``os.environ`` is used.
+    * if allowFailure is true, then failure of the command will be ignored.
+    * otherwise, isSystem is used to decide what to do if the command fails.
+      If isSystem is true, then this is a command being run by the system and
+      failure should be reported by raising utils.Error. otherwise, it's being
+      run on behalf of the user and failure should be reported by raising
+      utils.Failure.
     """
+    if env is None: # so, for instance, an empty dictionary is allowed
+        env = os.environ
     print "> %s"%cmd
     rv = subprocess.call(cmd, shell = True, env = env)
-    if (not allowFailure) and rv != 0:
+    if allowFailure or rv == 0:
+        return rv
+    else:
         if isSystem:
             raise Error("Command execution failed - %d"%rv)
         else:
             raise Failure("Command execution failed - %d"%rv)
-
-    return rv
-                    
 
 def dynamic_load(filename):
     mod = None

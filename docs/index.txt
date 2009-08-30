@@ -11,7 +11,6 @@ Contents:
    :maxdepth: 2
 
    README
-   README.altered
    muddle-package
 
 Indices and tables

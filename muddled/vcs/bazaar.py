@@ -1,5 +1,5 @@
 """
-Muddle support for Bazaar
+Muddle support for Bazaar.
 """
 
 from muddled.version_control import *

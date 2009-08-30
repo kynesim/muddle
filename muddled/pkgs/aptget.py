@@ -24,7 +24,7 @@ class AptGetBuilder(pkg.PackageBuilder):
 
     def already_installed(self, pkg):
         """
-        Decide if the quoted debian package is already installed
+        Decide if the quoted debian package is already installed.
         """
         process = subprocess.Popen([ "dpkg-query", "-l", 
                                      pkg ], stdout = subprocess.PIPE)
@@ -46,7 +46,7 @@ class AptGetBuilder(pkg.PackageBuilder):
 
     def build_label(self, label):
         """
-        This time, build is the only one we care about
+        This time, build is the only one we care about.
         """
 
         if (label.tag == utils.Tags.Built):
@@ -69,7 +69,7 @@ class AptGetBuilder(pkg.PackageBuilder):
 
 def simple(builder, name, role, apt_pkgs):
     """
-    Construct an apt-get package in the given role with the given apt_pkgs
+    Construct an apt-get package in the given role with the given apt_pkgs.
     """
     
     the_pkg = AptGetBuilder(name, role, builder, apt_pkgs)
@@ -81,8 +81,8 @@ def depends_on_aptget(builder, name, role, pkg, pkg_role):
     """
     Make a package dependant on a particular apt-builder.
 
-    @param pkg The package we want to add a dependency to. 
-     '*' is a good thing to add here .. 
+    * pkg - The package we want to add a dependency to. '*' is a good thing to
+      add here .. 
     """
     
     tgt_label = depend.Label(utils.LabelKind.Package, 

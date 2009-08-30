@@ -51,7 +51,7 @@ copyright = u'2009, Richard Watts'
 # built documents.
 #
 # The short X.Y version.
-version = '2 alpha'
+version = '2'
 # The full version, including alpha/beta/rc tags.
 release = '2 alpha'
 
@@ -202,6 +202,12 @@ latex_documents = [
 
 # If false, no module index is generated.
 #latex_use_modindex = True
+
+# -- Other options --------------------------------------------------
+
+# When automatically documenting a class, include both its "obvious" docstring
+# and the docstring for its __init__ method
+autoclass_content = 'both'
 
 # 'sphinx.ext.todo' options
 # -- should we show "todo" directives in the output

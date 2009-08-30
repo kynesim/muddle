@@ -1,14 +1,14 @@
 """
-Write an initialisation script into 
+Write an initialisation script into
 $(MUDDLE_TARGET_LOCATION)/bin/$(something)
 
 This is really just using utils.subst_file() with the
-current environment, on a resource stored in resources/
+current environment, on a resource stored in resources/.
 
 We also write a setvars script with a suitable set of
 variables for running code in the context of the 
 deployment, and any variables you've set in the 
-environment store retrieved with get_env_store()
+environment store retrieved with get_env_store().
 """
 
 import muddled
@@ -22,7 +22,7 @@ import muddled.subst as subst
 
 class InitScriptBuilder(pkg.PackageBuilder):
     """
-    Build an init script
+    Build an init script.
     """
 
     def __init__(self, name, role, script_name,  builder, 
@@ -96,7 +96,7 @@ def simple(builder, name, role, script_name, deployments = [ ],
            writeSetvarsSh = True, 
            writeSetvarsPy = False):
     """
-    Build an init script for the given role
+    Build an init script for the given role.
     """
 
     the_pkg = InitScriptBuilder(name, role, script_name, builder, 
@@ -112,7 +112,7 @@ def medium(builder, name, roles, script_name, deployments = [ ],
            writeSetvarsSh = True, 
            writeSetvarsPy = False):
     """
-    Build an init script for the given roles
+    Build an init script for the given roles.
     """
 
     for role in roles:
@@ -127,7 +127,7 @@ def medium(builder, name, roles, script_name, deployments = [ ],
 
 def setup_default_env(builder, env_store):
     """
-    Set up the default environment for this initscript
+    Set up the default environment for this initscript.
     """
     # Nothing to do so far ..
     pass

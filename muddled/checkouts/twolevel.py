@@ -12,7 +12,7 @@ import os
 
 def twolevel(builder, co_dir, co_name, repo_relative = None, rev = None):
     """
-    A two-level version of checkout.simple.relative()
+    A two-level version of checkout.simple.relative().
     """
     repo = builder.invocation.db.repo.get()
 
@@ -34,7 +34,7 @@ def twolevel(builder, co_dir, co_name, repo_relative = None, rev = None):
 
 def absolute(builder, co_dir, co_name, repo_url, rev = None):
     """
-    Check out a twolevel repository from an absolute URL
+    Check out a twolevel repository from an absolute URL.
     """
     
     rest = os.path.join(co_dir, co_name)

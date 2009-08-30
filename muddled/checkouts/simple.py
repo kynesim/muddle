@@ -34,7 +34,7 @@ def relative(builder, co_name, repo_relative = None, rev = None):
 
 def absolute(builder, co_name, repo_url, rev = None):
     """
-    Check out a twolevel repository from an absolute URL
+    Check out a twolevel repository from an absolute URL.
     """
     
     vcs_handler = version_control.vcs_dependable_for(builder, co_name, 

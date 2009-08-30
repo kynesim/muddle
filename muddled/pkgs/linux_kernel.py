@@ -20,20 +20,18 @@ class LinuxKernel(PackageBuilder):
                  makeInstall = False, inPlace = False):
         """
         
-        @param builder    The builder we're going to use to build this kernel.
-        @param linuxSrc   Where the Linux kernel is relative to the co directory 
-                            (usually something like 'linux-2.6.30')
-        @param configFile Where the configuration file lives, relative to the
-                           linuxSrc directory.
-        @param makeInstall  Should we run 'make install' in the checkout when done?
-                            Commonly used to copy kernel images and the like to 
-                             useful places.
-        @param inPlace      If True, we copy the kernel source and build it in place.
-                            If False, we build out of tree. Some modules - specifically,
-                            nVidia's graphics drivers - require an in-place build. This
-                            is best done by building them in a separate step and checking
-                            in the binaries since otherwise committing back to source
-                            control gets hard.
+        * builder - The builder we're going to use to build this kernel.
+        * linuxSrc - Where the Linux kernel is relative to the co directory
+          (usually something like 'linux-2.6.30')
+        * configFile - Where the configuration file lives, relative to the
+          linuxSrc directory.
+        * makeInstall - Should we run 'make install' in the checkout when done?
+          Commonly used to copy kernel images and the like to useful places.
+        * inPlace - If true, we copy the kernel source and build it in place.
+          If false, we build out of tree. Some modules - specifically, nVidia's
+          graphics drivers - require an in-place build. This is best done by
+          building them in a separate step and checking in the binaries since
+          otherwise committing back to source control gets hard.
         """
         
         PackageBuilder.__init__(self, name, role)
@@ -187,9 +185,9 @@ def simple(builder, name, role, checkout, linux_dir, config_file,
     """
     Build a linux kernel in the given checkout where the kernel sources
     themselves are in checkout/linux_dir and the config file in 
-    checkout/config_file
+    checkout/config_file.
 
-    @param kernel_version   The version of the kernel (e.g. 2.6.30).
+    * kernel_version - The version of the kernel (e.g. '2.6.30').
     """
     
     simple_checkouts.relative(builder, checkout)
@@ -209,7 +207,7 @@ def twolevel(builder, name, role, checkout_dir, checkout_name, linux_dir,
     """
     Build a linux kernel with a two-level checkout name.
 
-    @param kernel_version   The version of the kernel (e.g. 2.6.30).
+    * kernel_version - The version of the kernel (e.g. '2.6.30').
     """
     twolevel_checkouts.twolevel(builder, checkout_dir, checkout_name)
 

@@ -18,7 +18,7 @@ import muddled.deployment as deployment
 
 class ToolsDeploymentBuilder(pkg.Dependable):
     """
-    Copy the dependent roles into the tools deployment
+    Copy the dependent roles into the tools deployment.
     """
     
     def __init__(self, builder, dependent_roles):
@@ -52,10 +52,10 @@ def attach_env(builder, role, env, name):
     
     We set:
 
-    LD_LIBRARY_PATH   - Prepend $role_installl/lib
-    PATH              - Append $role_install/bin
-    PKG_CONFIG_PATH   - Prepend $role_install/lib/pkgconfig
-    $role_TOOLS_PATH  - Prepend $role_install/bin 
+    * LD_LIBRARY_PATH   - Prepend $role_installl/lib
+    * PATH              - Append $role_install/bin
+    * PKG_CONFIG_PATH   - Prepend $role_install/lib/pkgconfig
+    * $role_TOOLS_PATH  - Prepend $role_install/bin 
 
     The PATH/TOOLS_PATH stuff is so you can still locate tools which were
     in the path even if they've been overridden with your built tools.

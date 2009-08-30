@@ -1346,9 +1346,9 @@ def decode_dep_checkout_arguments(builder, args, local_pkgs, tag):
     checkouts.
 
     If there are arguments, they specify checkouts.
-    If there aren't, all checkouts dependent on any local_pkgs tag are
-     returned.
 
+    If there aren't, all checkouts dependent on any local_pkgs tag are
+    returned.
     """
     
     labels = decode_package_arguments(builder, args, local_pkgs, 

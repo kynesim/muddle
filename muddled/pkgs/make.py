@@ -1,6 +1,5 @@
 """
-Some standard package implementations to cope with packages that
-use Make
+Some standard package implementations to cope with packages that use Make
 """
 
 import muddled.pkg as pkg
@@ -36,7 +35,7 @@ class MakeBuilder(PackageBuilder):
 
     def ensure_dirs(self):
         """
-        Make sure all the relevant directories exist
+        Make sure all the relevant directories exist.
         """
         inv = self.builder.invocation
         if not os.path.exists(inv.checkout_path(self.co)):
@@ -49,7 +48,7 @@ class MakeBuilder(PackageBuilder):
     def build_label(self, label):
         """
         Build the relevant label. We'll assume that the
-        checkout actually exists
+        checkout actually exists.
         """
         tag = label.tag
 
@@ -95,13 +94,12 @@ def simple(builder, name, role, checkout, simpleCheckout = False, config = True,
            makefileName = None):
     """
     Build a package controlled by make, called name with role role 
-    from the sources in checkout checkout
+    from the sources in checkout checkout.
     
-    @param simpleCheckout If True, register the checkout too.
-    @param config   If True, we have make config. If false, we don't.
-    @param perRoleMakefiles  If True, we run 'make -f Makefile.<rolename>' instead of 
-                              just make.
-
+    * simpleCheckout - If True, register the checkout too.
+    * config         - If True, we have make config. If false, we don't.
+    * perRoleMakefiles - If True, we run 'make -f Makefile.<rolename>' instead
+      of just make.
     """
     if (simpleCheckout):
         simple_checkouts.relative(builder, checkout)
@@ -124,10 +122,10 @@ def medium(builder, name, roles, checkout, deps, dep_tag = utils.Tags.PreConfig,
     Build a package controlled by make, in the given roles with the
     given dependencies in each role.
     
-    @param simpleCheckout  If True, register the checkout as simple checkout too.
-    @param dep_tag         The tag to depend on being installed before you'll build.
-    @param perRoleMakefiles  If True, we run 'make -f Makefile.<rolename>' instead of 
-                              just make.
+    * simpleCheckout - If True, register the checkout as simple checkout too.
+    * dep_tag        - The tag to depend on being installed before you'll build.
+    * perRoleMakefiles - If True, we run 'make -f Makefile.<rolename>' instead
+      of just make.
     """
     if (simpleCheckout):
         simple_checkouts.relative(builder, checkout)
@@ -150,10 +148,10 @@ def twolevel(builder, name, roles,
     Build a package controlled by make, in the given roles with the
     given dependencies in each role.
     
-    @param simpleCheckout  If True, register the checkout as simple checkout too.
-    @param dep_tag         The tag to depend on being installed before you'll build.
-    @param perRoleMakefiles  If True, we run 'make -f Makefile.<rolename>' instead of 
-                              just make.
+    * simpleCheckout - If True, register the checkout as simple checkout too.
+    * dep_tag        - The tag to depend on being installed before you'll build.
+    * perRoleMakefiles - If True, we run 'make -f Makefile.<rolename>' instead
+      of just make.
     """
     if (simpleCheckout):
         twolevel_checkouts.twolevel(builder, co_dir, co_name)
@@ -172,7 +170,7 @@ def twolevel(builder, name, roles,
 def single(builder, name, role, deps):
     """
     A simple make package with a single checkout named after the package and
-    a single role
+    a single role.
     """
     medium(builder, name, [ role ], name, deps)
     

@@ -28,7 +28,7 @@ class CpioInstructionImplementor:
 
 class CpioDeploymentBuilder(pkg.Dependable):
     """
-    Builds the specified CPIO deployment
+    Builds the specified CPIO deployment.
     """
     
     def __init__(self, roles, builder, target_file, target_base, 
@@ -36,7 +36,7 @@ class CpioDeploymentBuilder(pkg.Dependable):
                  pruneFunc = None):
         """
         target_base is a dictionary mapping roles to their root addresses
-        in the heirarchy        
+        in the heirarchy.
         """
         self.builder = builder
         self.target_file = target_file
@@ -49,10 +49,10 @@ class CpioDeploymentBuilder(pkg.Dependable):
         """
         Attaches an environment containing:
         
-        MUDDLE_TARGET_LOCATION   the location in the target filesystem where 
-                                  this deployment will end up.
+          MUDDLE_TARGET_LOCATION - the location in the target filesystem where
+          this deployment will end up.
 
-        To every package label in this role.
+        to every package label in this role.
         """
         
         for role in self.roles:
@@ -69,7 +69,7 @@ class CpioDeploymentBuilder(pkg.Dependable):
 
     def build_label(self,label):
         """
-        Actually cpio everything up, following instructions appropriately
+        Actually cpio everything up, following instructions appropriately.
         """
         
         if (label.tag == utils.Tags.Deployed):
@@ -180,8 +180,8 @@ class CIApplyMknod(CpioInstructionImplementor):
 
 def get_instruction_dict():
     """
-    Return a dictionary mapping the names of insrtuctions to the
-    classes that implement them
+    Return a dictionary mapping the names of instructions to the
+    classes that implement them.
     """
     app_dict = { }
     app_dict["chown"] = CIApplyChown()
@@ -196,23 +196,20 @@ def deploy(builder, target_file, target_base, name, roles,
     """
     Set up a cpio deployment
 
-    @param target_file   Where, relative to the deployment directory, should the
-                          build cpio file end up? Note that compression will add
-                          a suitable '.gz' or '.bz2' suffix.
-    @param target_bases   Where should we expect to unpack the CPIO file to - this is 
-                           a dictionary mapping roles to target locations.
-    @param compressionMethod   The compression method to use, if any - gzip -> gzip, 
-                                 bzip2 -> bzip2.
-    @param pruneFunc     If not None, this a function to be called like
-                           pruneFunc(Heirarchy) to prune the heirarchy prior to
-                           packing. Usually something like deb.deb_prune, it's
-                           intended to remove spurious stuff like manpages from
-                           initrds and the like.
-    @param  roles        The roles to place in the deployed archive; note that
-                           roles are merged into the archive in the order specified
-                           here, so files in later roles will override those in 
-                           earlier roles.
-                         
+    * target_file - Where, relative to the deployment directory, should the
+      build cpio file end up? Note that compression will add a suitable '.gz'
+      or '.bz2' suffix.
+    * target_bases - Where should we expect to unpack the CPIO file to - this
+      is a dictionary mapping roles to target locations.
+    * compressionMethod - The compression method to use, if any - gzip -> gzip,
+      bzip2 -> bzip2.
+    * pruneFunc - If not None, this a function to be called like
+      pruneFunc(Heirarchy) to prune the heirarchy prior to packing. Usually
+      something like deb.deb_prune, it's intended to remove spurious stuff like
+      manpages from initrds and the like.
+    * roles - The roles to place in the deployed archive; note that roles are
+      merged into the archive in the order specified here, so files in later
+      roles will override those in earlier roles.
     """
     
     the_dependable = CpioDeploymentBuilder(roles, builder, target_file, 

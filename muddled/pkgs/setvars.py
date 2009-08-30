@@ -1,6 +1,7 @@
 """
-Write a setvars script
-$(MUDDLE_TARGET_LOCATION)/bin/setvars
+Write a setvars script:
+
+    $(MUDDLE_TARGET_LOCATION)/bin/setvars
 
 containing PATH and LD_LIBRARY_PATH modifications
 for MUDDLE_TARGET_LOCATION, plus any environment

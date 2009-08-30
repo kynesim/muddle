@@ -1,3 +1,7 @@
+===================================
+The muddle documentation and sphinx
+===================================
+
 Pre-built documentation
 -----------------------
 For your comfort and convenience, a pre-built version of the muddle
@@ -5,7 +9,7 @@ documentation is available at:
 
     http://code.google.com/p/muddle/
 
-or (since you've extracted this from Subversion) it should be available within
+or (if you've extracted this from Subversion) it should be available within
 this directory at:
 
     _build/html/index.html

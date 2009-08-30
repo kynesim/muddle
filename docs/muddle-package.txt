@@ -268,6 +268,9 @@ muddled.pkgs.setvars
 
 .. muddled.profiles
 .. ----------------
+.. This does not currently have an __init__.py file, so appears not
+.. to be in use as a package...
+..
 .. muddled.profiles.app
 .. ~~~~~~~~~~~~~~~~~~~~
 .. .. automodule:: muddled.profiles.app
@@ -280,8 +283,8 @@ muddled.resources
 -----------------
 Not Python files:
 
-* ``c_env.c``
-* ``initscript.sh``
+* ``c_env.c`` - boilerplate for accessing environments from C.
+* ``initscript.sh`` - a generic ``init`` script
 
 muddled.vcs
 -----------

@@ -1,5 +1,5 @@
 """
-Muddle support for svn
+Muddle support for svn.
 """
 
 from muddled.version_control import *

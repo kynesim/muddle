@@ -1,5 +1,5 @@
 """
-Muddle support for naive file copying
+Muddle support for naive file copying.
 """
 
 from muddled.version_control import *
@@ -8,7 +8,7 @@ import urlparse
 
 class File(VersionControlHandler):
     """
-    Version control handler for file copies
+    Version control handler for file copies.
     
     Simply copies data from a repository directory to a working directory
     It does _not_ copy data back.

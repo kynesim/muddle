@@ -1,5 +1,5 @@
 """
-Some code which sneakily steals binaries from Debian/Ubuntu
+Some code which sneakily steals binaries from Debian/Ubuntu.
 
 Quite a lot of code for embedded systems can be grabbed pretty much
 directly from the relevant Ubuntu binary packages - this won't work
@@ -19,7 +19,7 @@ You still need to provide any relevant instruction files
 if it exists).
 
 We basically ignore the package database (there is one, but
-it's always empty and stored in the object directory)
+it's always empty and stored in the object directory).
 """
 
 import muddled.pkg as pkg
@@ -38,7 +38,7 @@ class DebDevDependable(PackageBuilder):
                  instr_name = None,
                  postInstallMakefile = None):
         """
-        As for a DebDependable, really
+        As for a DebDependable, really.
         """
         PackageBuilder.__init__(self, name, role)
         self.builder = builder
@@ -59,7 +59,7 @@ class DebDevDependable(PackageBuilder):
 
     def build_label(self, label):
         """
-        Actually install the dev package
+        Actually install the dev package.
         """
         self.ensure_dirs(label)
 
@@ -128,13 +128,16 @@ class DebDependable(PackageBuilder):
                  instr_name = None, 
                  postInstallMakefile = None):
         """
-        @param co  Is the checkout name in which the package resides.
-        @param pkg_name is the name of the package (dpkg needs it)
-        @param pkg_file is the name of the file the package is in, relative to
-                          the checkout directory.
-        @param instr_name is the name of the instruction file, if any.
-        @param postInstallMakefile if not None, 'make -f postInstallMakefile <pkg-name>'
-                          will be run at post-install time to make links, etc.
+        * co - is the checkout name in which the package resides.
+        * pkg_name - is the name of the package (dpkg needs it)
+        * pkg_file - is the name of the file the package is in, relative to
+          the checkout directory.
+        * instr_name - is the name of the instruction file, if any.
+        * postInstallMakefile - if not None::
+            
+            make -f postInstallMakefile <pkg-name>
+
+          will be run at post-install time to make links, etc.
         """
         PackageBuilder.__init__(self, name, role)
         self.builder = builder
@@ -156,7 +159,7 @@ class DebDependable(PackageBuilder):
         
     def build_label(self, label):
         """
-        Build the relevant label
+        Build the relevant label.
         """
         
         self.ensure_dirs(label)
@@ -217,14 +220,13 @@ def simple(builder, coName, name, roles,
 
     'name' is the name of the muddle package and of the debian package.
     if you want them different, set deb_name to something other than
-    None
+    None.
     
     Set isDev to True for a dev package, False for an ordinary
     binary package. Dev packages are installed into the object
     directory where MUDDLE_INC_DIRS etc. expects to look for them.
     Actual packages are installed into the installation directory
     where they will be transported to the target system.
-
     """
     if (debName is None):
         debName = name

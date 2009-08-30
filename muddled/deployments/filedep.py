@@ -35,10 +35,10 @@ class FileDeploymentBuilder(pkg.Dependable):
         """
         Attaches an environment containing:
         
-        MUDDLE_TARGET_LOCATION   the location in the target filesystem where 
-                                  this deployment will end up.
+          MUDDLE_TARGET_LOCATION - the location in the target filesystem where
+          this deployment will end up.
 
-        To every package label in this role.
+        to every package label in this role.
         """
         
         for role in self.roles:
@@ -238,9 +238,9 @@ def deploy(builder, target_dir, name, roles):
     Register a file deployment.
 
     The deployment will take the roles specified in the role list, and
-    build them into a deployment at deploy/[name]
+    build them into a deployment at deploy/[name].
 
-    The deployment should eventually be located at target_dir
+    The deployment should eventually be located at target_dir.
     """
 
     the_dependable = FileDeploymentBuilder(roles, builder, 

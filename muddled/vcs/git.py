@@ -1,5 +1,5 @@
 """
-Muddle suppport for Git
+Muddle suppport for Git.
 """
 
 from muddled.version_control import *

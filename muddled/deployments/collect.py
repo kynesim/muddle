@@ -1,5 +1,5 @@
 """
-Collect deployment
+Collect deployment.
 
 Principally depending on other deployments, this 
 deployment is used to collect elements built by
@@ -33,10 +33,9 @@ class AssemblyDescriptor:
 
         If recursive is True, we'll copy recursively.
 
-        @param fileOnAbsentSource   If True, we'll fail if the source doesn't
-                                    exist.
-        @param copyExactly          If True, keeps links. If false, copies the
-                                     file they point to.
+        * fileOnAbsentSource - If True, we'll fail if the source doesn't exist.
+        * copyExactly        - If True, keeps links. If false, copies the file
+          they point to.
         """
         self.from_label = from_label
         self.from_rel = from_rel

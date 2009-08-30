@@ -12,6 +12,8 @@ Contents:
 
    README
    muddle-package
+   docs.readme
+
 
 Indices and tables
 ==================

@@ -1,5 +1,5 @@
 """
-Routines for manipulating packages and checkouts
+Routines for manipulating packages and checkouts.
 """
 
 import utils
@@ -7,17 +7,16 @@ import depend
 
 class Dependable:
     """
-    Represents an object you can call to build a tag
+    Represents an object you can call to build a tag.
     """
 
     def build_label(self, label):
         """
-        Build the given label. Your dependencies have been
-        satisfied
+        Build the given label. Your dependencies have been satisfied.
 
-        @param[in] in_deps  Is the set whose dependencies have been
-          satisified.
-        @return True on success, False or throw otherwise.
+        * in_deps -  Is the set whose dependencies have been satisified.
+
+        Returns True on success, False or throw otherwise.
         """
         pass
 
@@ -25,7 +24,7 @@ class Dependable:
 
 class NoneDependable(Dependable):
     """
-    A dependable which does nothing - used largely for testing
+    A dependable which does nothing - used largely for testing.
     """
     
     def __init__(self):
@@ -39,7 +38,7 @@ class NoneDependable(Dependable):
 class Checkout(Dependable):
     """
     Represents a checkout object. Don't use this class - at the very least use
-    VcsCheckout, which has some idea about whether it's in vcs or not
+    VcsCheckout, which has some idea about whether it's in vcs or not.
     """
 
     def __init__(self, name, vcs):
@@ -62,8 +61,7 @@ class VcsCheckoutBuilder(Checkout):
         
     def must_update_to_commit(self):
         """
-        Must we update in order to commit? Only the VCS handler
-        knows .. 
+        Must we update in order to commit? Only the VCS handler knows .. 
         """
         return self.vcs.must_update_to_commit()
 
@@ -99,12 +97,12 @@ class PackageBuilder(Dependable):
         Construct a package. 
 
         self.name
-         The name of this package
+          The name of this package
          
         self.deps
-         The dependency set for this package. The dependency set contains 
-         mappings from role to ( package, role ). A role of '*' indicates 
-         a wildcard.
+          The dependency set for this package. The dependency set contains 
+          mappings from role to ( package, role ). A role of '*' indicates 
+          a wildcard.
         """
 
         self.name = name
@@ -122,8 +120,7 @@ class Deployment(Dependable):
 
     def build_label(self, tag):
         """
-        Whatever's needed to build the relevant tag for this 
-        deployment
+        Whatever's needed to build the relevant tag for this deployment.
         """
         pass
         
@@ -134,8 +131,8 @@ class Profile:
     A profile ties together a role, a deployment and an installation 
     directory. Profiles aren't dependable - they modify the builder.
 
-    There are two things you can do to a profile: you can assume() it,
-    in which case you build that profile, or you can use() it, in
+    There are two things you can do to a profile: you can ``assume()`` it,
+    in which case you build that profile, or you can ``use()`` it, in
     which case that profile's build results (if any) become available
     to you.
     """
@@ -155,7 +152,7 @@ class Profile:
 def add_checkout_rules(ruleset, co_name, obj):
     """
     Add the standard checkout rules to a ruleset for a checkout
-    with name co_name
+    with name co_name.
     """
 
     # This needs to be slightly clever, since uptodate, changescommitted
@@ -199,14 +196,13 @@ def package_depends_on_checkout(ruleset, pkg_name, role_name, co_name, obj):
     """
     Make the given package depend on the given checkout
 
-    @param ruleset  The ruleset to use - builder.invocation.ruleset, for example.
-    @param pkg_name  The package which depends.
-    @param role_name The role which depends. Can be '*' for a wildcard.
-    @param co_name   The checkout which this package and role depends on.
-    @param obj       If non-None, specifies a Dependable to be invoked to 
-                      get from the checkout to the package preconfig. You'll
-                      normally make this None unless you are doing something
-                      deeply weird.
+    * ruleset   - The ruleset to use - builder.invocation.ruleset, for example.
+    * pkg_name  - The package which depends.
+    * role_name - The role which depends. Can be '*' for a wildcard.
+    * co_name   - The checkout which this package and role depends on.
+    * obj       - If non-None, specifies a Dependable to be invoked to get from
+      the checkout to the package preconfig. You'll normally make this None
+      unless you are doing something deeply weird.
     """
     new_rule = depend.Rule(depend.Label(
             utils.LabelKind.Package, 
@@ -279,15 +275,13 @@ def add_package_rules(ruleset, pkg_name, role_name, obj):
 def do_depend(builder, pkg_name, role_names,
               deps):
     """
-    Make pkg_name in role_names depend on the contents of
-    deps.
+    Make pkg_name in role_names depend on the contents of deps.
 
-    @param deps  deps is a list of 2-tuples (pkg_name, role_name)
-                  If the role name is None, we depend on the pkg 
-                 name in the role we're currently using, so 
-                  do_depend(a, ['b', 'c'], [ ('d', None) ]) leads
-                 to a{b} depending on d{b} and a{c} depending on 
-                 d{c}.
+    deps is a list of 2-tuples (pkg_name, role_name)
+
+    If the role name is None, we depend on the pkg name in the role we're
+    currently using, so ``do_depend(a, ['b', 'c'], [ ('d', None) ])`` leads
+    to ``a{b}`` depending on ``d{b}`` and ``a{c}`` depending on ``d{c}``.
     """
     
     ruleset = builder.invocation.ruleset
@@ -309,7 +303,7 @@ def depend_across_roles(ruleset, pkg_name, role_names,
                         depends_on_pkgs, depends_on_role):
     """
     Register that pkg_name{role_name}'s preconfig depends on 
-    depends_on_pkg{depends_on_role} having been postinstalled
+    depends_on_pkg{depends_on_role} having been postinstalled.
     """
     for pkg in depends_on_pkgs:
         for role_name in role_names:
@@ -329,7 +323,7 @@ def set_env_for_package(builder, pkg_name, pkg_roles,
     Set the environment variable name to value in the given
     package built in the given roles. Useful for customising
     package behaviour in particular roles in the build
-    description
+    description.
     """
     
     for r in pkg_roles:

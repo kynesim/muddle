@@ -4,6 +4,18 @@ the main muddle command and are abstracted out here in
 case your programs want to run them themselves
 """
 
+# The use of Command subclass docstrings as "help" texts relies on the
+# non-PEP8-standard layout of the docstrings, with the opening triple
+# quote on a line by itself, and the text starting on the next line.
+#
+#    (This is "house style" in the muddled package anyway.)
+#
+# XXX It also means that a firm decision needs to be made about those
+# XXX same docstrings. For "help" purposes, as unadorned (by markup)
+# XXX as possible is good, whilst for sphix/reStructuredText purposes,
+# XXX somewhat more markup would make the generated documentation better
+# XXX (and more consistent with other muddled modules).
+
 import mechanics
 from db import Database
 import db
@@ -25,6 +37,9 @@ import sys
 class Command:
     """
     Abstract base class for muddle commands
+
+    Each subclass is a ``muddle`` command, and its docstring is the "help"
+    text for that command.
     """
 
     def __init__(self):
@@ -41,14 +56,14 @@ class Command:
 
     def requires_build_tree(self):
         """
-        @return True iff this command requires an initialised
-         build tree, False otherwise.
+        Returns True iff this command requires an initialised
+        build tree, False otherwise.
         """
         return True
 
     def set_options(self, opt_dict):
         """
-        Set command options - usually from the options passed to mudddle
+        Set command options - usually from the options passed to mudddle.
         """
         self.options = opt_dict
 
@@ -61,13 +76,13 @@ class Command:
 
     def with_build_tree(self, builder, local_pkgs, args):
         """
-        Run this command with a build tree
+        Run this command with a build tree.
         """
         raise utils.Error("Can't run %s with a build tree."%self.name)
 
     def without_build_tree(self, muddle_binary, root_path, args):
         """
-        Run this command without a build tree
+        Run this command without a build tree.
         """
         raise utils.Error("Can't run %s without a build tree."%self.name)
         
@@ -76,7 +91,7 @@ class Root(Command):
     """
     Syntax: root
 
-    Display the root directory we reckon you're in
+    Display the root directory we reckon you're in.
     """
     
     def name(self): 
@@ -113,7 +128,7 @@ class Init(Command):
     
     def without_build_tree(self, muddle_binary, root_path, args):
         """
-        Initialise a build tree
+        Initialise a build tree.
         """
         if len(args) != 2:
             raise utils.Error(self.__doc__)
@@ -144,7 +159,7 @@ class UnitTest(Command):
     """
     Syntax: unit_test
 
-    Run the muddle unit tests
+    Run the muddle unit tests.
     """
     
     def name(self): 
@@ -164,7 +179,7 @@ class ListVCS(Command):
     Syntax: vcs
 
     List the version control systems supported by this version of muddle
-    together with their VCS specifiers
+    together with their VCS specifiers.
     """
 
     def name(self):
@@ -194,9 +209,9 @@ class Depend(Command):
 
     Print the current dependency sets. 
 
-    depend system   Prints only synthetic dependencies produced by the system.
-    depend user     Prints only dependencies entered by the build description
-    depend all      Prints all dependencies
+    * depend system - Prints only synthetic dependencies produced by the system.
+    * depend user   - Prints only dependencies entered by the build description
+    * depend all    - Prints all dependencies
     """
     
     def name(self):
@@ -244,26 +259,28 @@ class Query(Command):
     Query aspects of a label - the environment in which it will execute, or
     what it depends on, or what depends on it.
 
-    env            The environment in which this label will be run.
-    preciseenv     The environment pertaining to exactly this label (no fuzzy matches)
-    rule           The rules covering building this label.
-    deps           What we need to build to build this label
-    results        What this label is required to build
-    instructions   The list of currently registered instruction files,
+    * env          - The environment in which this label will be run.
+    * preciseenv   - The environment pertaining to exactly this label (no fuzzy matches)
+    * rule         - The rules covering building this label.
+    * deps         - What we need to build to build this label
+    * results      - What this label is required to build
+    * instructions - The list of currently registered instruction files,
                      in the order in which they will be applied.
-    inst-details   The list of actual instructions, in the order in which
+    * inst-details - The list of actual instructions, in the order in which
                      they will be applied.
-    checkouts      Print a list of known checkouts.
-    envs           Print a list of the environments that will be merged to 
-                    create the resulting environment for this 
-    objdir         Print the object directory for a label - used to extract
-                    object directories for configure options in builds.
-    dir            Print a directory: for checkout labels, the checkout dir.
-                    For package labels, the install dir. For deployment labels
-                    the deployment dir.
+    * checkouts    - Print a list of known checkouts.
+    * envs         - Print a list of the environments that will be merged to 
+                     create the resulting environment for this 
+    * objdir       - Print the object directory for a label - used to extract
+                     object directories for configure options in builds.
+    * dir          - Print a directory: for checkout labels, the checkout dir.
+                     For package labels, the install dir. For deployment labels
+                     the deployment dir.
 
     Note that both instructions and inst-details are label-sensitive, so you
-    will want to supply a label like 'package:*/myrole'.
+    will want to supply a label like::
+        
+        package:*/myrole
     """
 
     def name(self):
@@ -440,13 +457,13 @@ class RunIn(Command):
 
 class BuildLabel(Command):
     """
-    Syntax: buildlabel [labels .. ]
+    Syntax: buildlabel [labels ... ]
 
     Builds a set of specified labels, without all the defaulting
     and trying to guess what you mean that Build does.
     
     Mainly used internally to build defaults and the privileged
-    half of instruction executions
+    half of instruction executions.
     """
     
     def name(self):
@@ -461,15 +478,15 @@ class BuildLabel(Command):
 
 class Redeploy(Command):
     """
-    Syntax: redeploy [deployment .. ]
+    Syntax: redeploy [deployment ... ]
 
     Remove all tags for the given deployments, erase their built
     directories and redeploy them.
 
-    You can use cleandeploy to just clean the relevant deployments
+    You can use cleandeploy to just clean the relevant deployments.
 
     If no deployments are given, we redeploy the default deployment
-    list. If _all is given, we redeploy all deployments
+    list. If _all is given, we redeploy all deployments.
     """
     
     def name(self):
@@ -489,15 +506,15 @@ class Redeploy(Command):
 
 class Cleandeploy(Command):
     """
-    Syntax: cleandeploy [deployment .. ]
+    Syntax: cleandeploy [deployment ... ]
 
     Remove all tags for the given deployments and erase their built
     directories.
 
-    You can use cleandeploy to just clean the relevant deployments
+    You can use cleandeploy to just clean the relevant deployments.
 
     If no deployments are given, we redeploy the default deployment
-    list. If _all is given, we redeploy all deployments
+    list. If _all is given, we redeploy all deployments.
     """
     
     def name(self):
@@ -516,7 +533,7 @@ class Cleandeploy(Command):
 
 class Deploy(Command):
     """
-    Syntax: deploy [deployment .. ]
+    Syntax: deploy [deployment ... ]
 
     Build appropriate tags for deploying the given deployments.
 
@@ -545,7 +562,7 @@ class Build(Command):
     list of local packages derived from your current directory.
 
     Unqualified or inferred package names are built in every default
-    role (there's a list in the build description)
+    role (there's a list in the build description).
 
     If you're in a checkout directory, we'll build every package
     which uses that checkout.
@@ -571,7 +588,7 @@ class Rebuild(Command):
     Syntax: rebuild [package{role}] [package{role}]
 
     Just like build except that we clear any built tags first 
-    (and their dependencies)
+    (and their dependencies).
     """
     
     def name(self):
@@ -629,11 +646,11 @@ class Distrebuild(Command):
 
 class Clean(Command):
     """
-    Syntax: clean [package{role}] .. 
+    Syntax: clean [package{role}] ...
     
     Just like build except that we clean packages rather than 
     building them. Subsequently, packages are regarded as having
-    been configured but not build
+    been configured but not build.
     """
     
     def name(self):
@@ -655,10 +672,10 @@ class Clean(Command):
 
 class DistClean(Command):
     """
-    Syntax: distclean [package{role}] .. 
+    Syntax: distclean [package{role}] ...
 
     Just like clean except that we reduce packages to non-preconfigured
-    and invoke make distclean
+    and invoke 'make distclean'.
     """
     
     def name(self):
@@ -688,8 +705,9 @@ class Instruct(Command):
     given as it's considered more likely that bugs will be introduced by
     the assumption of default roles than they are likely to prove useful.
     
-    This command is typically issued by 'make install' for a package, as
-    $(MUDDLE_INSTRUCT) [instruction-file]
+    This command is typically issued by 'make install' for a package, as::
+
+       $(MUDDLE_INSTRUCT) [instruction-file]
     
     If you don't specify an instruction file, we will unregister instructions
     for this package and role.
@@ -913,7 +931,7 @@ class PkgPush(Command):
 
 class Removed(Command):
     """
-    Syntax: removed [checkout .. ]
+    Syntax: removed [checkout ... ]
 
     Signal to muddle that the given checkouts have been removed and will
     need to be checked out again before they can be used.
@@ -940,7 +958,7 @@ class Removed(Command):
 
 class Import(Command):
     """
-    Syntax: import [checkout.. ]
+    Syntax: import [checkout ... ]
 
     Assert that the given checkout (which may be the builds checkout) has
     been checked out and is up to date. This is mainly used when you've just
@@ -975,7 +993,7 @@ class Import(Command):
 
 class Assert(Command):
     """
-    Syntax: assert [label .. ]
+    Syntax: assert [label ... ]
 
     Assert the given labels. Mostly for use by experts and scripts.
     """
@@ -1001,9 +1019,9 @@ class Assert(Command):
 
 class Retract(Command):
     """
-    Syntax: retract [label .. ]
+    Syntax: retract [label ... ]
 
-    Retract the given labels nd their consequents. 
+    Retract the given labels and their consequents. 
     Mostly for use by experts and scripts.
     """
     
@@ -1015,7 +1033,7 @@ class Retract(Command):
 
     def with_build_tree(self, builder, local_pkgs, args):
         if len(args) < 1 :
-            print "Syntax: retract [label .. ]"
+            print "Syntax: retract [label ... ]"
             print __doc__
             return 1
 
@@ -1028,7 +1046,7 @@ class Retract(Command):
 
 class Changed(Command):
     """
-    Syntax: changed [pkg .. ]
+    Syntax: changed [pkg ... ]
 
     Mark packages as having been changed so that they will later
     be rebuilt by anything that needs to. The usual package name
@@ -1062,8 +1080,8 @@ class Env(Command):
     Produce a setenv script in the requested language listing all the
     runtime environment variables bound to label.
 
-    language may be 'sh', 'c', or 'py'/'python'
-    mode may be 'build' (build time variables) or 'run' (run-time variables)
+    * language may be 'sh', 'c', or 'py'/'python'
+    * mode may be 'build' (build time variables) or 'run' (run-time variables)
     """
 
     def name(self):
@@ -1074,7 +1092,7 @@ class Env(Command):
 
     def with_build_tree(self,builder, local_pkgs, args):
         if (len(args) < 3):
-            raise utils.Failure("Syntax: env [language] [build|run] [name] [label .. ]")
+            raise utils.Failure("Syntax: env [language] [build|run] [name] [label ... ]")
 
         lang = args[0]
         mode = args[1]
@@ -1166,14 +1184,14 @@ class Checkout(Command):
 
 class CopyWithout(Command):
     """
-    Syntax: copywithout [src] [dst] [without .. ]
+    Syntax: copywithout [src] [dst] [without ... ]
 
     Many VCSs use '.XXX' directories to hold metadata. When installing
     files in a makefile, it's often useful to have an operation which
     copies a heirarchy from one place to another without these dotfiles.
 
     This is that operation. We copy everything from src into dst without
-    copying anything which is in [without .. ].  If you omit without, 
+    copying anything which is in [without ... ].  If you omit without, 
     we just copy - this is a useful, working, version of 'cp -a'
     """
     
@@ -1290,8 +1308,9 @@ def decode_checkout_arguments(builder, args, local_pkgs, tag):
     checkout rather than a package.
 
     If there are arguments, they specify checkouts.
+
     If there aren't, all checkouts with directories below the current
-     directory are returned.
+    directory are returned.
     """
     
     rv = [ ]
@@ -1603,7 +1622,7 @@ def labels_from_pkg_args(list, tag, default_roles):
 def register_commands():
     """
     Returns a dictionary of command name to command object for all 
-    commands
+    commands.
     """
 
     the_dict = { }

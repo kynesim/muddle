@@ -1,5 +1,5 @@
 """
-instr.py: Routines and classes which cope with instructions
+Routines and classes which cope with instructions
 """
 
 import db
@@ -10,8 +10,9 @@ import filespec
 
 class ChangeUserInstruction(db.Instruction):
     """
-    An instruction that takes a username, groupname and filespec - base class for
-    chown and chgrp.
+    An instruction that takes a username, groupname and filespec.
+    
+    This is the base class for chown and chgrp.
     """
 
     def __init__(self, filespec, new_user, new_group, name):
@@ -85,7 +86,7 @@ class ChangeUserInstruction(db.Instruction):
 
 class ChangeModeInstruction(db.Instruction):
     """
-    Change the mode of a filespec
+    Change the mode of a filespec (``chown``).
     """
     
     def __init__(self, filespec, new_mode, name):
@@ -148,17 +149,15 @@ class ChangeModeInstruction(db.Instruction):
 
 class MakeDeviceInstruction(db.Instruction):
     """
-    Create a device file - this is essentially mknod.
+    Create a device file - this is essentially ``mknod``.
     """
 
     def __init__(self):
-        """
-        @param type   Is 'block' for a block device, 'char' for a character device
-        """
         self.file_name = None
         self.uid = None
         self.gid = None
-        self.type = None
+        self.type = None # 'block' for a block device, 'char' for a character device
+
         self.major = None
         self.minor = None
         self.mode = None
@@ -246,10 +245,10 @@ class BuiltinInstructionFactory(db.InstructionFactory):
     """
     An instruction factory that can build all the built-in instructions.
     You can extend or augment this class to generate a factory which 
-    builds your favourite add-on instructions
+    builds your favourite add-on instructions.
 
     (though note that your favourite deployment will need to understand
-     them in order to to obey them)
+    them in order to to obey them)
     """
     
     def __init__(self):

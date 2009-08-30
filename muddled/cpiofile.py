@@ -38,16 +38,16 @@ class File:
         get utter rubbish. No guarantees you get a valid 
         archive either though .. 
 
-        key_name is the name of the key under which this file is stored
-        in the parent heirarchy. It's a complete hack, but essential for
-        finding a file in the key map quickly without which deletion 
-        becomes an O(n^2) operation (and N = number of files in the root
-        fs, so it's quite high).
+        * key_name is the name of the key under which this file is stored
+          in the parent heirarchy. It's a complete hack, but essential for
+          finding a file in the key map quickly without which deletion 
+          becomes an O(n^2) operation (and N = number of files in the root
+          fs, so it's quite high).
 
-        self.name     Is the name of the file in the target archive.
-        self.fs_name  Is the name of the file in the underlying filesystem.
-        self.orig_file  Is the name of the file from which the data in this file
-                         object comes.
+        * self.name      - is the name of the file in the target archive.
+        * self.fs_name   - is the name of the file in the underlying filesystem.
+        * self.orig_file - is the name of the file from which the data in this
+          file object comes.
 
         """
         self.dev = 0
@@ -95,8 +95,8 @@ class Heirarchy:
     
     def __init__(self, map, roots):
         """
-        self.map   - maps names in the target archive to file objects.
-        self.roots - is a subset of self.map that just maps the root objects.
+        * self.map   - maps names in the target archive to file objects.
+        * self.roots - is a subset of self.map that just maps the root objects.
         """
         self.map = map
         self.roots = roots
@@ -208,7 +208,7 @@ class Heirarchy:
     def erase_target(self, file_name):
         """
         Recursively remove file_name and all its descendants from the
-        heirarchy
+        heirarchy.
         """
         
         #print "Erase %s .. "%file_name
@@ -241,8 +241,8 @@ class Heirarchy:
         Put a file into the archive. The directory
         for it must already exist.
         
-        @param[in] name   The name of the file in the target archive.
-        @param[in] obj    The file object to insert.
+        * name - The name of the file in the target archive.
+        * obj  - The file object to insert.
         """
         
         # Make sure we have referential integrity .. 
@@ -335,7 +335,7 @@ class CpioFileDataProvider(filespec.FileSpecDataProvider):
 
 def file_for_dir(name):
     """
-    Create a vague attempt at a directory entry
+    Create a vague attempt at a directory entry.
     """
     outfile = File()
     outfile.mode = File.S_DIR | 0755
@@ -344,7 +344,7 @@ def file_for_dir(name):
 
 def file_from_data(name, data):
     """
-    Creates a File object from some explicit data you give it
+    Creates a File object from some explicit data you give it.
     """
     outfile = File()
     outfile.name = name
@@ -382,7 +382,7 @@ def heirarchy_from_fs(name, base_name):
 
     The files will be named with 'base_name' substituted for 'name'.
 
-    @return a Heirarchy with everything filled in.
+    Returns a Heirarchy with everything filled in.
     """
 
     # A map of filename to file object, so you can find 'em eas
@@ -492,8 +492,8 @@ class Archive:
         DANGER WILL ROBINSON! You need to add files in the right order
         here or cpio will get very confused. 
 
-        @todo Reorder files in render() so that we get them in the right order, 
-         and remember to create intermediate directories.
+        .. todo:: Reorder files in render() so that we get them in the right
+           order, and remember to create intermediate directories.
         """
         self.files.append(a_file)
 

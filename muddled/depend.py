@@ -17,17 +17,19 @@ class Label:
 
     def __init__(self, tag_kind, name, role,tag, transient = False, system = False):
         """
-        Create a new label
+        Create a new label.
 
-        tag_kind    The kind of tag this is (effectively a namespace descriptor)
-        name        Name of this checkout/package/whatever.
-        role        Role for this checkout/package/whatever
-        tag         The tag string itself (built, checkout, or whatever)
-        transient   If true, changes to this tag will not be persistent in the
-                       muddle database. Used to denote something which will go
-                       away when muddle is terminated - e.g. environment variables.
-        system      Marks this label as a system label and not to be reported 
-                       unless asked for.
+        * tag_kind   - The kind of tag this is (effectively a namespace
+                       descriptor)
+        * name       - Name of this checkout/package/whatever.
+        * role       - Role for this checkout/package/whatever
+        * tag        - The tag string itself (built, checkout, or whatever)
+        * transient  - If true, changes to this tag will not be persistent in
+                       the muddle database. Used to denote something which will
+                       go away when muddle is terminated - e.g. environment
+                       variables.
+        * system     - Marks this label as a system label and not to be
+                       reported unless asked for.
 
         '*' is a wildcard for kind, name, role and tag.
 
@@ -45,13 +47,13 @@ class Label:
 
     def make_transient(self, transience = True):
         """
-        Set the transience status of a label
+        Set the transience status of a label.
         """
         self.transient = transience
         
     def re_tag(self, new_tag, system = None, transient = None):
         """
-        Return a copy of self, with the tag changed to new_tag
+        Return a copy of self, with the tag changed to new_tag.
         """
         cp = self.copy()
         cp.tag = new_tag
@@ -67,7 +69,7 @@ class Label:
         Return an integer indicating the match specicifity - which we do
         by counting '*' s and subtracting from 0.
 
-        @return the match specicifity, None if there wasn't one.
+        Returns the match specicifity, None if there wasn't one.
         """
 
         nr_wildcards = 0
@@ -100,7 +102,7 @@ class Label:
 
     def match_without_tag(self, other):
         """
-        @return True if other matches self without the tag, False otherwise
+        Returns True if other matches self without the tag, False otherwise
         """
         return (self.tag_kind == other.tag_kind and
                 self.name == other.name and
@@ -192,7 +194,7 @@ class Rule:
     def set_arg(self, arg):
         """ 
         arg is an optional argument used to pass extra data through to
-        a dependable that is built as the result of a dependency
+        a dependable that is built as the result of a dependency.
         """
         self.arg = arg
 
@@ -201,7 +203,7 @@ class Rule:
 
     def merge(self, deps):
         """
-        Merge another Deps set with this one
+        Merge another Deps set with this one.
         """
         for i in deps.deps:
             self.add(i)
@@ -231,7 +233,7 @@ class Rule:
 
     def to_string(self, showSystem = True, showUser = True):
         """
-        Return a string representing this dependency set
+        Return a string representing this dependency set.
         """
         str_list = [ ]
         str_list.append(self.target.__str__())
@@ -270,12 +272,15 @@ class RuleSet:
 
     def rules_for_target(self, label, useTags = True, useMatch = True):
         """
-        Return the set of rules for any target matching tag. If useTags is
-        true, we match against tag values. Otherwise we ignore tag values.
+        Return the set of rules for any target matching tag.
+    
+        If useTags is true, we match against tag values. Otherwise we ignore
+        tag values.
 
-        @param[in] useTags  True if we should match tags too, False otherwise.
-        @param[in] useMatch True if we should allow wildcards in the label.
-        @return the set of rules found, or the empty set if none were found.
+        * useTags  - True if we should match tags too, False otherwise.
+        * useMatch - True if we should allow wildcards in the label.
+
+        Returns the set of rules found, or the empty set if none were found.
         """
         rules = set()
         if (useMatch):
@@ -299,7 +304,7 @@ class RuleSet:
         Retrieve all the targets matching target, if useMatch is True.
         If useMatch is false, just return target.
 
-        @return A set of suitable targets.
+        Returns a set of suitable targets.
         """
         result_set = set()
 
@@ -381,7 +386,7 @@ def label_from_string(str):
     """
     Parse a label from a string: tag_kind:name-role/tag
 
-    @return a Label or None if the string was ill-formed.
+    Returns a Label or None if the string was ill-formed.
     """
 
     # It's quite a .. long .. regex .. 
@@ -411,7 +416,7 @@ def label_from_string(str):
 
 def depend_chain(obj, label, tags, ruleset):
     """
-    Add a chain of dependencies to the given ruleset
+    Add a chain of dependencies to the given ruleset.
     """
 
     last = label.copy()
@@ -432,13 +437,13 @@ def depend_chain(obj, label, tags, ruleset):
 
 def depend_none(obj, label):
     """
-    Quick rule that makes label depend on nothing
+    Quick rule that makes label depend on nothing.
     """
     return Rule(label, obj)
 
 def depend_one(obj, label, dep_label):
     """
-    Quick rule that makes label depend only on dep_label
+    Quick rule that makes label depend only on dep_label.
     """
     rv = Rule(label, obj)
     rv.add(dep_label)
@@ -449,7 +454,7 @@ def depend_self(obj, label, old_tag):
     """
     Make a quick dependency set that depends just on you. Used by some of the
     standard package and checkout classes to quickly build standard dependency
-    sets
+    sets.
     """
     rv = Rule(label, obj)
     dep_label = label.copy()
@@ -470,7 +475,7 @@ def depend_empty(obj, label):
 
 def label_set_to_string(label_set):
     """
-    Utility function to convert a label set to a string
+    Utility function to convert a label set to a string.
     """
     str_list = [ "{ " ]
     for  i in label_set:
@@ -481,7 +486,7 @@ def label_set_to_string(label_set):
 
 def rule_list_to_string(rule_list):
     """
-    Utility function to convert a rule list to a string
+    Utility function to convert a rule list to a string.
     """
     str_list = [ "[ " ]
     for i in rule_list:
@@ -496,7 +501,7 @@ def label_list_to_string(labels):
 
 def retag_label_list(labels, new_tag):
     """
-    Does what it says on the tin, returning the new label list
+    Does what it says on the tin, returning the new label list.
     """
     result = [ ]
     for l in labels:
@@ -511,8 +516,9 @@ def needed_to_build(ruleset, target, useTags = True, useMatch = False):
     Given a rule set and a target, return a complete list of the rules needed
     to build the target.
 
-    @param[in] useTag   If False, indicates a wildcard search - any tag will match.
-    @return  A list of rules.
+    * useTags - If False, indicates a wildcard search - any tag will match.
+
+    Returns a list of rules.
     """
 
     # rule_list stores the list of rules we're about to return.
@@ -620,10 +626,11 @@ def required_by(ruleset, label, useTags = True, useMatch = True):
     The order in which we give you the labels gives you a hint as to a
     logical order to rebuild in (i.e. one the user will vaguely understand).
 
-    @param[in] useMatch If True, do wildcard matches, else do an exact comparison.
-    @param[in] useTags If False, we discount the value of a tag - this 
-                        effectively results in a wildcard tag search.
-    @return A set of labels to build.
+    * useMatch - If True, do wildcard matches, else do an exact comparison.
+    * useTags  - If False, we discount the value of a tag - this effectively
+                 results in a wildcard tag search.
+
+    Returns a set of labels to build.
     """
     
     depends = set()
@@ -663,6 +670,7 @@ def required_by(ruleset, label, useTags = True, useMatch = True):
 def rule_with_least_dependencies(rules):
     """
     Given a (Python) set of rules, find the 'best' one to use.
+
     This is actually impossible by any rational metric, so you 
     usually only expect to call this function with a set of
     size 1, in which case our metric really doesn't matter.
@@ -682,7 +690,7 @@ def rule_with_least_dependencies(rules):
 def rule_target_str(rule):
     """
     Take a rule and return its target as a string. Mainly used as
-    an argument for map so we can print lists of rules sensibly
+    an argument for map so we can print lists of rules sensibly.
     """
     return str(rule.target)
 

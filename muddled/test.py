@@ -1,5 +1,5 @@
 """
-Tests the rest of muddled
+Tests the rest of muddled.
 """
 
 import muddled.db
@@ -37,7 +37,7 @@ def unit_test():
 
 def cpio_unit_test():
     """
-    A brief test of the cpio module. Uses /tmp/test.cpio
+    A brief test of the cpio module. Uses ``/tmp/test.cpio``.
     """
 
     f1 = cpiofile.file_from_fs("/var/run/motd")
@@ -57,7 +57,7 @@ def cpio_unit_test():
 
 def env_store_unit_test():
     """
-    Test some bits of the environment store mechanism
+    Test some bits of the environment store mechanism.
     """
 
     ee = env_store.EnvExpr(env_store.EnvExpr.StringType, "a")
@@ -91,7 +91,7 @@ def env_store_unit_test():
 
 def subst_unit_test():
     """
-    Substitution unit test
+    Substitution unit test.
     """
     
     test_env = { "FISH" : "soup", "WOMBAT" : "herring" }
@@ -102,7 +102,7 @@ def subst_unit_test():
 
 def filespec_unit_test():
     """
-    Filespec unit tests
+    Filespec unit tests.
     """
     
     lsp = filespec.ListFileSpecDataProvider(["/a/b", "/a/c", "/a/b/c", "/a/b/cee", "/d", "/d/bcee" ])
@@ -144,7 +144,7 @@ def filespec_unit_test():
 
 def commands_unit_test():
     """
-    Check command utility routines
+    Check command utility routines.
     """
     
     sample_list = [ "a", "b{c}", "d" ]
@@ -163,7 +163,7 @@ def commands_unit_test():
 
 def mechanics_unit_test():
     """
-    Check mechanics
+    Check mechanics.
     """
 
     inv = mechanics.Invocation("/tmp")
@@ -188,7 +188,7 @@ def mechanics_unit_test():
 
 def depend_unit_test():
     """
-    Some fairly simple tests for the dependency solver
+    Some fairly simple tests for the dependency solver.
     """
 
     l1 = depend.Label(utils.LabelKind.Checkout, "co_1", "role_1", utils.Tags.CheckedOut)
@@ -292,7 +292,7 @@ def depend_unit_test():
 
 def utils_unit_test():
     """
-    Unit testing on various utility code
+    Unit testing on various utility code.
     """
 
     s = utils.c_escape("Hello World!")
@@ -328,7 +328,7 @@ def utils_unit_test():
 
 def vcs_unit_test():
     """
-    Perform VCS unit tests
+    Perform VCS unit tests.
     """
     repo = "http://www.google.com/"
     (x,y) = version_control.split_vcs_url(repo)

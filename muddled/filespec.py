@@ -13,17 +13,25 @@ import xml.dom.minidom
 
 class FileSpecDataProvider:
     """
-    Provides data to a filespec so it can decide what it matches
+    Provides data to a filespec so it can decide what it matches.
     """
     
     def list_files_under(self, dir, recursively = False):
         """
         Return a list of the files under dir. If dir is not a directory,
-        returns None
+        returns None.
 
-        The files are returned without 'dir', so 
-        list_files_under("/fred/wombat", False) -> [ "a", "b", "c" ]
-        _not_ [ "/fred/wombat/a" .. ]
+        The files are returned without 'dir', so::
+
+            list_files_under("/fred/wombat", False)
+            
+        gives::
+            
+            [ "a", "b", "c" ]
+
+        *not*::
+            
+            [ "/fred/wombat/a" .. ]
         """
         raise utils.Error("Cannot call FileSpecDataProvider.list_files_under() - "
                           "try a subclass")
@@ -40,12 +48,12 @@ class FileSpec:
     indicating which files in that spec should match, and two recursion
     flags:
 
-    all_under   This filespec applies to all files under any directories
-                that match the base filespec.
+    * all_under - This filespec applies to all files under any directories
+      that match the base filespec.
 
-    all_regex   The specifier applies as a regex to all files under the
-                root. This can be very slow if there are many files under
-                the filespec root.
+    * all_regex - The specifier applies as a regex to all files under the
+      root. This can be very slow if there are many files under the filespec
+      root.
     """
 
     def __init__(self, root, spec, allUnder = False, allRegex = False):
@@ -82,7 +90,7 @@ class FileSpec:
         might be, you probably need to stitch together the filenames
         yourself. 
 
-        FSFileSpecDataProvider.abs_match() is probably your friend -
+        ``FSFileSpecDataProvider.abs_match()`` is probably your friend -
         if you're using the filesystem to provide data for a filespec,
         call it, not us.
         """
@@ -118,16 +126,14 @@ class FileSpec:
         
     def clone_from_xml(self, xmlNode):
         """
-        Clone a filespec from some XML like:
+        Clone a filespec from some XML like::
 
-        <filespec>
-         <root>..</root> 
-         <spec> ..</spec>
-         <all-under />
-         <all-regex />
-        </filespec>
-
-
+            <filespec>
+             <root>..</root> 
+             <spec> ..</spec>
+             <all-under />
+             <all-regex />
+            </filespec>
         """
         if (xmlNode.nodeName != "filespec"):
             raise utils.Failure("Filespec xml node is called %s , not filespec."%(xmlNode.nodeName))
@@ -157,7 +163,7 @@ class FileSpec:
 
     def is_filespec_node(self, inXmlNode):
         """
-        Given an xml node, decide if this is likely to be a filespec
+        Given an XML node, decide if this is likely to be a filespec
         (really just checks if it's an element of the right name).
         Useful for parsing documents that may contain filespecs.
         """
@@ -166,7 +172,7 @@ class FileSpec:
     
     def to_xml(self, doc):
         """
-        Create some XML from this filespec
+        Create some XML from this filespec.
         """
         ext_node = doc.createElement("filespec")
 
@@ -220,8 +226,7 @@ class ListFileSpecDataProvider:
 
 class FSFileSpecDataProvider:
     """
-    A FileSpecDataProvider rooted at a particular point in the 
-    filesystem
+    A FileSpecDataProvider rooted at a particular point in the filesystem
     """
 
     def __init__(self, base_dir):

@@ -2,11 +2,11 @@
 Substitutes a file with query parameters. These can come from environment
 variables or from an (optional) XML file.
 
-Queries are a bit like XPath:
+Queries are a bit like XPath::
 
-/elem/elem ..
+    /elem/elem ...
 
-An implicit ::text() is appended so you get all the text in the specified
+An implicit ``::text()`` is appended so you get all the text in the specified
 element.
 """
 
@@ -19,7 +19,7 @@ import re
 
 def get_text_in_xml_node(node):
     """
-    Given an XML node, collect all the text in it
+    Given an XML node, collect all the text in it.
     """
     elems = [ ]
     for n in node.childNodes:
@@ -58,8 +58,7 @@ def query_result(keys, doc_node):
 
 def split_query(query):
     """
-    Split a query into a series of keys suitable to be passed to
-    query_result()
+    Split a query into a series of keys suitable to be passed to query_result().
     """
     
     result = query.split("/")
@@ -71,10 +70,11 @@ def split_query(query):
 
 def subst_str(in_str, xml_doc, env):
     """
-    Substitute ${...} in in_str with the appropriate objects - if XML doesn't
-    match, try an environment variable.
+    Substitute ``${...}`` in in_str with the appropriate objects - if XML
+    doesn't match, try an environment variable.
 
-    Unescape $${...} in case someone actually wanted ${ .. } in the output.
+    Unescape ``$${...}`` in case someone actually wanted `${...}`` in the
+    output.
     """
     
     the_re = re.compile(r"(\$)?\$\{([^\}]+)\}")

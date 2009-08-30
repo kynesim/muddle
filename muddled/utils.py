@@ -23,13 +23,13 @@ class Error(Exception):
 
 class Failure(Exception):
     """
-    Used to signal an error which shouldn't be backtraced
+    Used to signal an error which shouldn't be backtraced.
     """
     pass
 
 class Tags:
     """
-    Tags commonly used by packages and dependencies
+    Tags commonly used by packages and dependencies.
     """
     
     # For checkouts.
@@ -91,7 +91,7 @@ def label_kind_to_string(val):
     """
     Convert a label kind to a string. Remember that the
     return value here is used as a directory name for
-    tag tracking
+    tag tracking.
     """
     return val
 
@@ -100,14 +100,14 @@ class DirType:
     Provides a uniform vocabulary in which we can talk about
     the types of directory we support.
 
-    CheckOut denotes a source checkout.
-    Object   denotes an object directory (one per package)
-    Deployed denotes the deployment directory.
-    Install  denotes an install directory.
-    Builds   denotes the builds directory.
-    Root     directly under the root of the build tree
+    :CheckOut: denotes a source checkout.
+    :Object:   denotes an object directory (one per package)
+    :Deployed: denotes the deployment directory.
+    :Install:  denotes an install directory.
+    :Builds:   denotes the builds directory.
+    :Root:     directly under the root of the build tree
 
-    dict     maps directory names to values.
+    ``dict`` maps directory names to values.
 
     """
     CheckOut = 1
@@ -129,7 +129,7 @@ class DirType:
 
 def string_cmp(a,b):
     """
-    Return -1 if a < b, 0 if a == b,  +1 if a > b 
+    Return -1 if a < b, 0 if a == b,  +1 if a > b.
     """
     if (a is None) and (b is None):
         return 0
@@ -147,7 +147,7 @@ def string_cmp(a,b):
 
 def find_root(dir):
     """
-    Find the build tree root starting at dir
+    Find the build tree root starting at dir.
     """
     
     # Normalise so path.split() doesn't produce confusing
@@ -198,7 +198,7 @@ def find_local_packages(dir, root, inv):
     This is slightly horrible because if you're in a source checkout
     (as you normally will be), there could be several packages. 
 
-    @return A list of the package names (or package/role names) involved.
+    Returns a list of the package names (or package/role names) involved.
     """
 
     tloc = find_location_in_tree(dir, root, inv)
@@ -231,9 +231,10 @@ def find_location_in_tree(dir, root, invocation = None):
     This is mainly used by find_local_packages to work out which
     packages to rebuild
 
-    @param[in] dir  The directory to analyse
-    @param[in] root The root directory.
-    @return a triple (DirType, pkg_name, role_name) or None if no information
+    * dir - The directory to analyse
+    * root - The root directory.
+
+    Returns a tuple (DirType, pkg_name, role_name) or None if no information
     can be gained.
     """
 
@@ -308,7 +309,7 @@ def find_location_in_tree(dir, root, invocation = None):
 
 def ensure_dir(dir):
     """
-    Ensure that dir exists and is a directory, or throw an error
+    Ensure that dir exists and is a directory, or throw an error.
     """
     if os.path.isdir(dir):
         return True
@@ -332,24 +333,23 @@ def pad_to(str, val, pad_with = " "):
 
 def unix_time():
     """
-    Return the current UNIX time since the epoch
+    Return the current UNIX time since the epoch.
     """
     return int(time.time())
 
 def iso_time():
     """
-    Retrieve the current time and date in ISO style YYYY-MM-DD HH:MM:SS
+    Retrieve the current time and date in ISO style ``YYYY-MM-DD HH:MM:SS``.
     """
     return time.strftime("%Y-%m-%d %H:%M:%S")
 
 def run_cmd(cmd, env = os.environ, allowFailure = False, isSystem = False):
     """
-   Run a command via the shell, throwing on failure
+   Run a command via the shell, throwing on failure,
 
-   @param isSystem   If True, this is a command being run by the system and
-                      failure should be reported with an Error. Else, it's
-                      being run on behalf of the user and failure should be
-                      reported with Failure.
+   * isSystem - If True, this is a command being run by the system and
+     failure should be reported with an Error. Else, it's being run on
+     behalf of the user and failure should be reported with Failure.
     """
     print "> %s"%cmd
     rv = subprocess.call(cmd, shell = True, env = env)
@@ -389,7 +389,7 @@ def dynamic_load(filename):
 
 def maybe_shell_quote(str, doQuote):
     """
-    If doQuote is False, do nothing, else shell-quote str
+    If doQuote is False, do nothing, else shell-quote ``str``.
     """
     if doQuote:
         result = [ "\"" ]
@@ -418,7 +418,7 @@ def text_in_node(in_xml_node):
 
 def recursively_remove(a_dir):
     """
-    Recursively demove a directory
+    Recursively demove a directory.
     """
     if (os.path.exists(a_dir)):
         # Again, the most efficient way to do this is to tell UNIX to do it
@@ -443,10 +443,10 @@ def recursively_copy(from_dir, to_dir, object_exactly = False):
     But we need to enumerate the top level to make sure that dotfiles
     get included.
 
-    -p is needed under some special circumstances - specifically,
+    ``-p`` is needed under some special circumstances - specifically,
     when copying as a privileged user.
     
-    @param object_exactly  If True, don't dereference symlinks.x
+    * object_exactly - If True, don't dereference symlinks.
     """
     
     files_in_src = os.listdir(from_dir)
@@ -464,8 +464,8 @@ def recursively_copy(from_dir, to_dir, object_exactly = False):
 
 def split_path_left(in_path):
     """
-    Given a path a/b/c .., return a pair
-    (a, b/c..) - ie. like os.path.split(), but leftward.
+    Given a path ``a/b/c ...``, return a pair
+    ``(a, b/c..)`` - ie. like ``os.path.split()``, but leftward.
 
     What we actually do here is to split the path until we have
     nothing left, then take the head and rest of the resulting list.
@@ -478,7 +478,7 @@ def split_path_left(in_path):
         ('a', 'b')
 
     For a single element, behave in sympathy (but, of course, reversed) to
-    os.path.split:
+    ``os.path.split``:
 
         >>> import os
         >>> os.path.split('a')
@@ -584,22 +584,22 @@ def parse_mode(in_mode):
 
 def parse_uid(builder, text_uid):
     """
-    @todo  One day, we should do something more intelligent than just assuming 
-           your uid is numeric
+    .. todo::  One day, we should do something more intelligent than just assuming 
+               your uid is numeric
     """
     return int(text_uid)
 
 def parse_gid(builder, text_gid):
     """
-    @todo  One day, we should do something more intelligent than just assuming 
-           your gid is numeric
+    .. todo::  One day, we should do something more intelligent than just assuming 
+               your gid is numeric
     """
     return int(text_gid)
         
 
 def xml_elem_with_child(doc, elem_name, child_text):
     """
-    Return an element 'elem_name' containing the text child_text in doc
+    Return an element 'elem_name' containing the text child_text in doc.
     """
     el = doc.createElement(elem_name)
     el.appendChild(doc.createTextNode(child_text))

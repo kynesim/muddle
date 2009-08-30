@@ -1,5 +1,5 @@
 """
-Routines which deal with version control
+Routines which deal with version control.
 """
 
 import utils
@@ -10,19 +10,18 @@ import os
 
 class VersionControlHandler:
     """
-    Subclass this object to handle a particular type of version control system
+    Subclass this class to handle a particular type of version control system.
 
-    self.invocation       is the invocation we're running under.
-    self.checkout_name is the name of the checkout (the directory under /src/) that 
-                       we're responsible for.
-    self.repository    is the repository we're interested in. Its syntax is 
-                        VCS-dependent.
-    self.revision      The revision to check out. The special name HEAD means
-                         head of the main tree - anything else is VCS specific.
+    * self.invocation is the invocation we're running under.
+    * self.checkout_name is the name of the checkout (the directory under
+      ``/src/``) that we're responsible for.
+    * self.repository is the repository we're interested in. Its syntax is
+      VCS-dependent.
+    * self.revision is the revision to check out. The special name HEAD means
+      head of the main tree - anything else is VCS specific.
 
     The repository is stored in its full form - with its VCS tag, though this will
     almost never be used.
-
     """
 
     def __init__(self, inv, co_name, repo, rev, rel, co_dir = None):
@@ -52,9 +51,9 @@ class VersionControlHandler:
     def get_checkout_path(self, co_name):
         """
         When called with None, get the parent directory of this checkout.
-        God knows what happens otherwise - 
+        God knows what happens otherwise.
         
-        @todo Needs documenting and rewriting!
+        .. todo:: Needs documenting and rewriting!
         """
         if (self.checkout_dir is not None):
             p = os.path.join(self.invocation.checkout_path(None), self.checkout_dir)
@@ -105,7 +104,7 @@ class VersionControlHandler:
 
 class VersionControlHandlerFactory:
     """
-    Registered to provide a means of constructing version control handlers
+    Registered to provide a means of constructing version control handlers.
     """
 
     def describe(self):
@@ -114,6 +113,7 @@ class VersionControlHandlerFactory:
     def manufacture(self, inv, co_name, repo, rev, rel, co_dir = None):
         """
         Manufacture a VCS handler.
+
         Recall that repo contains the vcs specifier - it's up to the VCS handler
         to remove it.
         """
@@ -126,13 +126,13 @@ vcs_dict = { }
 
 def register_vcs_handler(scheme, factory):
     """
-    Register a VCS handler factory with a VCS scheme prefix
+    Register a VCS handler factory with a VCS scheme prefix.
     """
     vcs_dict[scheme] = factory
 
 def list_registered():
     """
-    Return a list of registered version control systems
+    Return a list of registered version control systems.
     """
 
     str_list = []
@@ -153,19 +153,18 @@ def list_registered():
 
 def vcs_handler_for(inv, co_name, repo, rev, rest, co_dir = None):
     """
-    Create a VCS handler for the given url, invocation and 
-    checkout name. We do this by interpreting the initial part
-    of the URI's protocol
+    Create a VCS handler for the given url, invocation and checkout name.
     
-    @param[in] inv  The invocation for which we're trying to build a handler.
-    @param[in] co_name Checkout name
-    @param[in] repo Repository URL
-    @param[in] rev  Revision (None for HEAD)
-    @param[in] rest Part after the repository URL - typically the CVS module name or 
-                    whatever.
-    @param[in] co_dir Directory relative to the checkout directory in which the
-                       checkout resides.
-
+    We do this by interpreting the initial part of the URI's protocol
+    
+    * inv - The invocation for which we're trying to build a handler.
+    * co_name - Checkout name
+    * repo - Repository URL
+    * rev - Revision (None for HEAD)
+    * rest - Part after the repository URL - typically the CVS module name or
+      whatever.
+    * co_dir - Directory relative to the checkout directory in which the
+      checkout resides.
     """
     
     (vcs, url_rest) = split_vcs_url(repo)
@@ -195,7 +194,7 @@ def vcs_dependable_for(builder, co_name, repo, rev, rest, co_dir = None):
 def split_vcs_url(url):
     """
     Split a URL into a vcs and a repository URL. If there's no VCS
-    specifier, return (None, None)
+    specifier, return (None, None).
     """
 
     the_re = re.compile("^([A-Za-z]+)\+([A-Za-z]+):(.*)$")
@@ -269,7 +268,7 @@ def conventional_repo_path(rel):
     """
     Returns the path inside a checkout for a given rel, given that the first
     element in rel is the repository name - this basically just chops off the
-    first element of rel
+    first element of rel.
     """
     (rel_first, rel_rest) = rel.split("/", maxsplit = 1)
     return rel_rest

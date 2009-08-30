@@ -1,6 +1,5 @@
 """
-Common rules for deployments - basically just the clean
-rules.
+Common rules for deployments - basically just the clean rules.
 """
 
 import depend
@@ -129,7 +128,7 @@ def deployment_rule_from_name(builder, name):
     
 def set_env(builder, deployment, name, value):
     """
-    Set NAME=VALUE in the environment for this deployment
+    Set NAME=VALUE in the environment for this deployment.
     """
     lbl = depend.Label(utils.LabelKind.Deployment, 
                        deployment, None,

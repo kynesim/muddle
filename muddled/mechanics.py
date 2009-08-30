@@ -1,5 +1,5 @@
 """
-Contains the mechanics of muddle
+Contains the mechanics of muddle.
 """
 
 import os
@@ -17,21 +17,21 @@ class Invocation:
     """
     An invocation is the central muddle object. It holds the
     database the builder uses to perform actions on behalf
-    of the user
+    of the user.
     """
     
     def __init__(self, root_path):
         """
         Construct a fresh invocation with a muddle db at 
-        the given root_path
+        the given root_path.
 
 
-        self.db         The metadata database for this project.
-        self.checkouts  A map of name to checkout object.
-        self.pkgs       Map of (package, role) -> package object.
-        self.env        Map of label to environment
-        self.default_roles The roles to build when you don't specify any.
-        self.default_labels The list of labels to build.
+        * self.db         - The metadata database for this project.
+        * self.checkouts  - A map of name to checkout object.
+        * self.pkgs       - Map of (package, role) -> package object.
+        * self.env        - Map of label to environment
+        * self.default_roles - The roles to build when you don't specify any.
+        * self.default_labels - The list of labels to build.
         """
         self.db = db.Database(root_path)
         self.ruleset = depend.RuleSet()
@@ -43,7 +43,7 @@ class Invocation:
         """
         Return a set of the names of all the checkouts in our rule set. 
         
-        @return A set of strings.
+        Returns a set of strings.
         """
         lbl = depend.Label(utils.LabelKind.Checkout,
                            "*",
@@ -58,7 +58,7 @@ class Invocation:
 
     def has_checkout_called(self, checkout):
         """
-        Return True if this checkout exists, False if it doesn't
+        Return True if this checkout exists, False if it doesn't.
         """
         lbl = depend.Label(utils.LabelKind.Checkout, 
                            checkout,
@@ -87,9 +87,9 @@ class Invocation:
     def add_default_role(self, role):
         """
         Add role to the list of roles built when you don't ask
-        for something different
+        for something different.
 
-        @return False if we didn't actually add the role (it was
+        Returns False if we didn't actually add the role (it was
         already there), True if we did.
         """
 
@@ -113,8 +113,7 @@ class Invocation:
         Return a list of environments that contribute to the environment for
         the given label.
 
-        @return A list of triples (match level, label, environment), in order.
-
+        Returns a list of triples (match level, label, environment), in order.
         """
         to_apply = [ ]
         
@@ -147,7 +146,7 @@ class Invocation:
     def get_environment_for(self, label):
         """
         Return the environment store for the given label, inventing one
-        if necessary
+        if necessary.
         """
         if (label in self.env):
             return self.env[label]
@@ -161,7 +160,7 @@ class Invocation:
         """
         Return an environment which embodies the settings that should be
         used for the given label. It's the in-order merge of the output
-        of list_environments_for()
+        of ``list_environments_for()``.
         """
         to_apply = self.list_environments_for(label)
 
@@ -189,7 +188,7 @@ class Invocation:
 
     def build_co_and_path(self):
         """
-        Return a pair (build_co, build_path) 
+        Return a pair (build_co, build_path).
         """
         build_desc = self.db.build_desc.get()
 
@@ -275,7 +274,7 @@ class Invocation:
 
     def commit(self):
         """
-        Commit persistent invocation state to disc
+        Commit persistent invocation state to disc.
         """
         self.db.commit()
     
@@ -283,7 +282,7 @@ class Invocation:
 
 class Builder:
     """
-    A builder performs actions on an Invocation
+    A builder performs actions on an Invocation.
     """
 
     def __init__(self, inv, muddle_binary):
@@ -296,7 +295,7 @@ class Builder:
 
     def resource_body(self, file_name):
         """
-        Return the body of a resource as a string
+        Return the body of a resource as a string.
         """
         rsrc_file = self.resource_file_name(file_name)
         f = open(rsrc_file, "r")
@@ -307,9 +306,9 @@ class Builder:
     def instruct(self, pkg, role, instruction_file):
         """
         Register the existence or non-existence of an instruction file.
-        If instruction_file is None, we unregister the instruction file
+        If instruction_file is None, we unregister the instruction file.
 
-        @param instruction_file A db.InstructionFile object to save.
+        * instruction_file - A db.InstructionFile object to save.
         """
         self.invocation.db.set_instructions(
             depend.Label(utils.LabelKind.Package, pkg, role, utils.Tags.Temporary), 
@@ -346,7 +345,7 @@ class Builder:
         """
         Load the instructions which apply to the given label (usually a wildcard
         on a role, from a deployment) and return a list of triples
-        (label, filename, instructionfile)
+        (label, filename, instructionfile).
         """
         instr_names = self.invocation.db.scan_instructions(label)
         return db.load_instructions(instr_names, instr.factory)
@@ -358,7 +357,7 @@ class Builder:
         This involves making sure we've checked out the build description and
         then loading it.
 
-        @return True on success, False on failure.
+        Returns True on success, False on failure.
         """
 
         
@@ -405,7 +404,7 @@ class Builder:
         """
         Find all the dependent packages for label and return a set of
         the object directories for each. Mainly used as a helper function
-        by set_default_variables()
+        by ``set_default_variables()``.
         """
         return_set = set()
         rules = depend.needed_to_build(self.invocation.ruleset, label)
@@ -426,31 +425,36 @@ class Builder:
 
     def set_default_variables(self, label, store):
         """
-        Set some global variables used throughout muddle
+        Set some global variables used throughout muddle.
         
-        MUDDLE_ROOT          Absolute path where the build tree starts.
-        MUDDLE_LABEL         The label currently being built.
-        MUDDLE_KIND
-        MUDDLE_NAME
-        MUDDLE_ROLE
-        MUDDLE_TAG           Broken-down bits of the label being built
-        MUDDLE_OBJ           Where we should build object files for this object -
-                                the object directory for packages, the src 
-                                directory for checkouts, and the deploy directory
-                                for deployments.
-        MUDDLE_INSTALL       Where we should install package files to, if we're 
-                                a package.
-        MUDDLE_DEPLOY_FROM   Where we should deploy from (probably just MUDDLE_INSTALL with
-                                the last component removed)
-        MUDDLE_DEPLOY_TO        Where we should deploy to, if we're a deployment.
-        MUDDLE               The muddle executable itself.
-
-        
-        MUDDLE_INSTRUCT      A shortcut to the 'muddle instruct' command for this
-                               package, if this is a package build. Unset otherwise.
-        MUDDLE_OBJ_OBJ       $(MUDDLE_OBJ)/obj
-        MUDDLE_OBJ_INCLUDE   $(MUDDLE_OBJ)/include
-        MUDDLE_OBJ_LIB       $(MUDDLE_OBJ)/lib
+        ``MUDDLE_ROOT``
+            Absolute path where the build tree starts.
+        ``MUDDLE_LABEL``
+            The label currently being built.
+        ``MUDDLE_KIND``, ``MUDDLE_NAME``, ``MUDDLE_ROLE``, ``MUDDLE_TAG``
+            Broken-down bits of the label being built
+        ``MUDDLE_OBJ``
+            Where we should build object files for this object - the object
+            directory for packages, the src directory for checkouts, and the
+            deploy directory for deployments.
+        ``MUDDLE_INSTALL``
+            Where we should install package files to, if we're a package.
+        ``MUDDLE_DEPLOY_FROM``
+            Where we should deploy from (probably just ``MUDDLE_INSTALL`` with
+            the last component removed)
+        ``MUDDLE_DEPLOY_TO``
+            Where we should deploy to, if we're a deployment.
+        ``MUDDLE``
+            The muddle executable itself.
+        ``MUDDLE_INSTRUCT``
+            A shortcut to the 'muddle instruct' command for this package, if
+            this is a package build. Unset otherwise.
+        ``MUDDLE_OBJ_OBJ``
+            ``$(MUDDLE_OBJ)/obj``
+        ``MUDDLE_OBJ_INCLUDE``
+            ``$(MUDDLE_OBJ)/include``
+        ``MUDDLE_OBJ_LIB``
+            ``$(MUDDLE_OBJ)/lib``
         """
         store.set("MUDDLE_ROOT", self.invocation.db.root_path)
         store.set("MUDDLE_LABEL", label.__str__())
@@ -561,9 +565,9 @@ class Builder:
 
     def build_label(self, label, useDepends = True, useTags = True, silent = False):
         """
-        The fundamental operation of a builder - build this label
+        The fundamental operation of a builder - build this label.
         
-        @param[in] useDepends   Use dependencies?
+        * useDepends - Use dependencies?
         """
         
         if useDepends:
@@ -604,7 +608,7 @@ class Builder:
 
 class BuildDescriptionDependable(pkg.Dependable):
     """
-    Load the build description
+    Load the build description.
     """
 
     def __init__(self, builder, file_name, build_co):
@@ -614,7 +618,7 @@ class BuildDescriptionDependable(pkg.Dependable):
 
     def build_label(self, label):
         """
-        Actually load the build description into the invocation
+        Actually load the build description into the invocation.
         """
         desc = self.builder.invocation.db.build_desc_file_name()
 
@@ -639,7 +643,7 @@ class BuildDescriptionDependable(pkg.Dependable):
 
 def load_builder(root_path, muddle_binary):
     """
-    Load a builder from the given root path
+    Load a builder from the given root path.
     """
 
     inv = Invocation(root_path)

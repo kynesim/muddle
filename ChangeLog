@@ -9,6 +9,10 @@
 	of a docstring on a separate line. This actually matters in
 	commands.py (see the comments therein).
 
+	* muddle/docs/...: HTML documentation regenerated, and the
+	documentation *about* the documentation added to the aforesaid
+	HTML documentatin. Anyway, it stops sphinx grumbling at me.
+
 2009-08-28  Richard Watts  <rrw@kynesim.co.uk>
 
 	* commands.py: There's a new 'muddle runin <labelspec> <command>' command

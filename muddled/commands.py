@@ -1337,7 +1337,7 @@ def decode_checkout_arguments(builder, args, local_pkgs, tag):
             for c in cos_below:
                 rv.append(depend.Label(utils.LabelKind.Checkout, 
                                        c, None, tag))
-        return rv
+    return rv
 
 
 def decode_dep_checkout_arguments(builder, args, local_pkgs, tag):

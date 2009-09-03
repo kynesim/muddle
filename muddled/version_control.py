@@ -197,7 +197,7 @@ def split_vcs_url(url):
     specifier, return (None, None).
     """
 
-    the_re = re.compile("^([A-Za-z]+)\+([A-Za-z]+):(.*)$")
+    the_re = re.compile("^([A-Za-z]+)\+([A-Za-z+]+):(.*)$")
 
     m = the_re.match(url)
     if (m is None):

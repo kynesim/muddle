@@ -42,6 +42,23 @@ def register_cleanup(builder, deployment):
     builder.invocation.ruleset.add(rule)
 
 
+def pkg_depends_on_deployment(builder, pkg, roles, deployment):
+    """
+    Make this package depend on the given deployment
+    """
+    for i in roles:
+        tgt = depend.Label(utils.LabelKind.Package, 
+                           pkg, 
+                           i,
+                           utils.Tags.PreConfig)
+        the_rule = depend.Rule(tgt, None)
+        the_rule.add(depend.Label(utils.LabelKind.Deployment,
+                                  deployment,
+                                  None,
+                                  utils.Tags.Deployed))
+        builder.invocation.ruleset.add(the_rule)
+                
+
 def role_depends_on_deployment(builder, role, deployment):
     """
     Make every package in the given role depend on the given deployment

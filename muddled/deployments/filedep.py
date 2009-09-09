@@ -176,6 +176,11 @@ class FIApplyChmod(FileInstructionImplementor):
 
 class FIApplyChown(FileInstructionImplementor):
     def apply(self, builder, instr, role, path):
+
+        # NB: take care to apply a chown command to the file named,
+        # even if it is a symbolic link (the default is --reference,
+        # which would only apply the chown to the file the symbolic
+        # link references)
         
         #print "path = %s"%path
         dp = filespec.FSFileSpecDataProvider(path)
@@ -183,9 +188,9 @@ class FIApplyChown(FileInstructionImplementor):
         if (instr.new_user is None):
             cmd = "chgrp %s"%(instr.new_group)
         elif (instr.new_group is None):
-            cmd = "chown %s"%(instr.new_user)
+            cmd = "chown --no-dereference %s"%(instr.new_user)
         else:
-            cmd = "chown %s:%s"%(instr.new_user, instr.new_group)
+            cmd = "chown --no-dereference %s:%s"%(instr.new_user, instr.new_group)
 
         for f in files:
             utils.run_cmd("%s \"%s\""%(cmd, f))

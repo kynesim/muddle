@@ -24,6 +24,12 @@ class Bazaar(VersionControlHandler):
         self.bzr_repo = sp[0]
         self.checkout_path = self.get_checkout_path(None)
 
+        if self.bzr_repo.startswith("ssh://"):
+            # For some reason, the bzr command wants us to use "bzr+ssh" to
+            # communicate over ssh, not just "ssh". Accomodate it, so the user
+            # does not need to care about this.
+            self.bzr_repo = "bzr+%s"%self.bzr_repo
+
     def path_in_checkout(self, rel):
         return conventional_repo_path(rel)
 

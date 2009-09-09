@@ -7,9 +7,9 @@ The ``muddled`` package
 
 .. note:: *This is a first pass at semi-automated documentation.*
 
-   In particular, there are still syntax errors in some of the
-   docstrings, which cause the documentation to build incorrectly.
-   Also, the organisation/layout of this section leaves something to
+   It is mostly derived from docstrings within the package, and these
+   in could certainly do with expansion and clarification.
+   Also, the organisation/layout of this section itself leaves something to
    be desired. Please be patient.
 
 Top-level classes and functions

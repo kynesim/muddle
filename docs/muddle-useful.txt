@@ -1,0 +1,174 @@
+================================================
+Useful ``muddle`` classes, methods and functions
+================================================
+
+This is the start of a section describing just those parts of the ``muddle``
+API that are generally likely to be useful in build descriptions. For the
+moment, much of it is just duplicates of the docstring descriptions already
+found in the next section, `The muddled package`_.
+
+.. _`The muddled package`: muddle-package.html
+
+An example build description
+----------------------------
+.. include:: 01.py
+   :literal:
+
+muddled.Builder
+---------------
+The ``describe_to()`` function in a build description takes a Builder instance
+as its argument. Thus the methods on the Builder class are all simply
+available. For instance::
+
+    builder.by_default_deploy_list(roles)
+
+.. autoclass:: muddled.Builder
+   :members:
+   :show-inheritance:
+   :undoc-members:
+
+.. note:: The Builder class actually lives in ``muddled.mechanics``, but is
+	  available directly as ``muddled.Builder`` for convenience.
+
+muddled.Invocation
+------------------
+The Builder object always contains an instance of Invocation. For instance::
+
+    builder.invocation.add_default_role('omap')
+
+.. autoclass:: muddled.Invocation
+   :members:
+   :show-inheritance:
+   :undoc-members:
+
+.. note:: The Invocation class actually lives in ``muddled.mechanics``, but is
+	  available directly as ``muddled.Invocation`` for convenience.
+
+muddled.depend
+--------------
+Sometimes it is useful to work directly with dependencies. For instance::
+
+    rule = muddled.depend.depend_one(None,
+             muddled.depend.label_from_string('package:rootfs/installed'),
+             muddled.depend.label_from_string('package:busybox/installed'))
+    builder.invocation.ruleset.add(rule)
+
+.. automodule:: muddled.depend
+   :members:
+   :show-inheritance:
+   :undoc-members:
+
+muddled.utils
+-------------
+.. automodule:: muddled.utils
+   :members:
+   :show-inheritance:
+   :undoc-members:
+
+muddled.checkouts
+-----------------
+muddled.checkouts.simple
+~~~~~~~~~~~~~~~~~~~~~~~~
+.. automodule:: muddled.checkouts.simple
+   :members:
+   :show-inheritance:
+   :undoc-members:
+
+muddled.checkouts.twolevel
+~~~~~~~~~~~~~~~~~~~~~~~~~~
+.. automodule:: muddled.checkouts.twolevel
+   :members:
+   :show-inheritance:
+   :undoc-members:
+
+
+muddled.deployments
+-------------------
+File deployment indicates where the final deployment should end up. For
+instance::
+
+    muddled.deployments.filedep.deploy(builder, '/', 'omap', roles)
+
+muddled.deployments.collect
+~~~~~~~~~~~~~~~~~~~~~~~~~~~
+.. automodule:: muddled.deployments.collect
+   :members:
+   :show-inheritance:
+   :undoc-members:
+
+muddled.deployments.cpio
+~~~~~~~~~~~~~~~~~~~~~~~~
+.. automodule:: muddled.deployments.cpio
+   :members:
+   :show-inheritance:
+   :undoc-members:
+
+muddled.deployments.filedep
+~~~~~~~~~~~~~~~~~~~~~~~~~~~
+.. automodule:: muddled.deployments.filedep
+   :members:
+   :show-inheritance:
+   :undoc-members:
+
+muddled.deployments.tools
+~~~~~~~~~~~~~~~~~~~~~~~~~
+.. automodule:: muddled.deployments.tools
+   :members:
+   :show-inheritance:
+   :undoc-members:
+
+muddled.pkgs
+------------
+muddled.pkgs.aptget
+~~~~~~~~~~~~~~~~~~~
+.. automodule:: muddled.pkgs.aptget
+   :members:
+   :show-inheritance:
+   :undoc-members:
+
+muddled.pkgs.deb
+~~~~~~~~~~~~~~~~
+.. automodule:: muddled.pkgs.deb
+   :members:
+   :show-inheritance:
+   :undoc-members:
+
+muddled.pkgs.initscripts
+~~~~~~~~~~~~~~~~~~~~~~~~
+.. automodule:: muddled.pkgs.initscripts
+   :members:
+   :show-inheritance:
+   :undoc-members:
+
+muddled.pkgs.linux_kernel
+~~~~~~~~~~~~~~~~~~~~~~~~~
+.. automodule:: muddled.pkgs.linux_kernel
+   :members:
+   :show-inheritance:
+   :undoc-members:
+
+muddled.pkgs.make
+~~~~~~~~~~~~~~~~~
+.. automodule:: muddled.pkgs.make
+   :members:
+   :show-inheritance:
+   :undoc-members:
+
+muddled.pkgs.setvars
+~~~~~~~~~~~~~~~~~~~~
+.. automodule:: muddled.pkgs.setvars
+   :members:
+   :show-inheritance:
+   :undoc-members:
+
+.. muddled.profiles
+.. ----------------
+.. This does not currently have an __init__.py file, so appears not
+.. to be in use as a package...
+..
+.. muddled.profiles.app
+.. ~~~~~~~~~~~~~~~~~~~~
+.. .. automodule:: muddled.profiles.app
+..    :members:
+..    :show-inheritance:
+..    :undoc-members:

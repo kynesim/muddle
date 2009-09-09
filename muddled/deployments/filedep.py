@@ -204,7 +204,7 @@ class FIApplyMknod(FileInstructionImplementor):
         else:
             mknod_type = "b"
 
-        abs_file = os.path.join(path, instr.name)
+        abs_file = os.path.join(path, instr.file_name)
         utils.run_cmd("mknod %s %s %s %s"%(
                 abs_file,
                 mknod_type, 

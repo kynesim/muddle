@@ -421,6 +421,8 @@ class RunIn(Command):
         labels = decode_labels(builder, args[0:1] );
         command = " ".join(args[1:])
         dirs_done = set()
+        orig_environ = os.environ
+
         for l in labels:
             matching = builder.invocation.ruleset.rules_for_target(l)
 
@@ -446,14 +448,22 @@ class RunIn(Command):
 
                 dirs_done.add(dir)
                 if (os.path.exists(dir)):
+                    # We want to run the command with our muddle environment
+                    # Start with a copy of the "normal" environment
+                    env = os.environ.copy()
+                    # Add the default environment variables for building this label
+                    local_store = env_store.Store()
+                    builder.set_default_variables(lbl, local_store)
+                    local_store.apply(env)
+                    # Add anything the rest of the system has put in.
+                    builder.invocation.setup_environment(lbl, env)
+
                     os.chdir(dir)
                     print "> %s"%dir
-                    subprocess.call(command, shell = True)
+                    subprocess.call(command, shell=True, env=env)
                 else:
                     print "! %s does not exist."%dir
 
-        
-        
 
 class BuildLabel(Command):
     """

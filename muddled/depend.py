@@ -231,20 +231,47 @@ class Rule:
     def __str__(self):
         return self.to_string()
 
+    def __cmp__(self, other):
+        # XXX Is this a sensible algorithm?
+        # XXX Certainly starting by sorting the target sounds good
+        # XXX (I have some concern over sorting by self.obj, which doesn't
+        # XXX show up in the string representation of a Rule)
+        if self.target < other.target:
+            return -1
+        elif self.target > other.target:
+            return 1
+        elif self.deps > other.deps:
+            return 1
+        elif self.deps < other.deps:
+            return -1
+        elif self.obj > other.obj:
+            return 1
+        elif self.obj < other.obj:
+            return -1
+        else:
+            return 0
+
+    def __hash__(self):
+        # XXX If we have __cmp__, we need __hash__ to be hashable. Does this
+        # XXX implementation make sense? Would it be better to hash on our
+        # XXX string representation (for instance)?
+        return hash(self.target) | hash(self.obj)
+
     def to_string(self, showSystem = True, showUser = True):
         """
         Return a string representing this dependency set.
         """
         str_list = [ ]
         str_list.append(self.target.__str__())
-        str_list.append(" <- \n { \n")
-        for i in self.deps:
-            if ((i.system and showSystem) or ((not i.system) and showUser)):
-                str_list.append("  ")
-                str_list.append(i.__str__())
-                str_list.append("\n")
-        str_list.append("}\n")
-        return "".join(str_list)
+        str_list.append("<- [")
+        if self.deps:
+            dep_list = []
+            for i in self.deps:
+                if ((i.system and showSystem) or ((not i.system) and showUser)):
+                    dep_list.append(i.__str__())
+            str_list.append(', '.join(dep_list))
+        str_list.append("]\n")
+        return " ".join(str_list)
         
 
 
@@ -367,10 +394,15 @@ class RuleSet:
             self.add(i)
 
     def to_string(self, matchLabel = None, 
-                  showUser = True, showSystem = True):
+                  showUser = True, showSystem = True, ignore_empty=False):
         str_list = [ ]
         str_list.append("-----\n")
-        for i in self.map.values():
+        values = self.map.values()
+        values.sort()
+        for i in values:
+            if ignore_empty and not i.deps:
+                # Ignore items that don't depend on anything
+                continue
             if (matchLabel is None) or (matchLabel.match(i.target) is not None):
                 if ((i.target.system and showSystem) or 
                     ((not i.target.system) and showUser)):

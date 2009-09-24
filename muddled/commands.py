@@ -206,12 +206,19 @@ class ListVCS(Command):
 class Depend(Command):
     """
     Syntax: depend <[system|user|all]>
+            depend <[system|user|all]>   [label]
 
-    Print the current dependency sets. 
+    Print the current dependency sets. Not specifying a label is the same as
+    specifying "_all".
 
     * depend system - Prints only synthetic dependencies produced by the system.
     * depend user   - Prints only dependencies entered by the build description
     * depend all    - Prints all dependencies
+
+    By default, all dependency sets are shown, even those where a given label
+    does not actually depend on anything. To show only those dependencies where
+    there *is* a dependency, add '-short' to the "system", "user" or "all" - for
+    instance: 'depend user-short'
     """
     
     def name(self):
@@ -238,11 +245,19 @@ class Depend(Command):
         show_sys = False
         show_user = False
 
-        if (type == "system"):
+        if type.endswith("-short"):
+            # Show only those rules with a dependency
+            ignore_empty = True
+            type = type[:-len("-short")]
+        else:
+            # Show *all* rules, even those which don't depend on anything
+            ignore_empty = False
+
+        if type == "system":
             show_sys = True
-        elif (type == "user"):
+        elif type == "user":
             show_user = True
-        elif (type == "all"):
+        elif type == "all":
             show_sys = True
             show_user = True
         else:
@@ -250,7 +265,8 @@ class Depend(Command):
 
         
         print builder.invocation.ruleset.to_string(matchLabel = label, 
-                                                   showSystem = show_sys, showUser = show_user)
+                                                   showSystem = show_sys, showUser = show_user,
+                                                   ignore_empty = ignore_empty)
 
 class Query(Command):
     """

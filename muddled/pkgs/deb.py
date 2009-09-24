@@ -261,6 +261,9 @@ def dev(builder, coName, name, roles,
         depends_on = [ ],
         pkgFile = None, debName = None, instrFile = None,
         postInstallMakefile = None):
+    """
+    A wrapper for 'deb.simple', with the "idDev" flag set True.
+    """
     simple(builder, coName, name, roles, depends_on,
            pkgFile, debName, instrFile, postInstallMakefile,
            isDev = True)

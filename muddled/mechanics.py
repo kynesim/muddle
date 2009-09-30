@@ -53,6 +53,15 @@ class Invocation:
         True only if (r1,r2) does not appear in the list of banned roles.
         """
 
+        # You're always allowed to depend on yourself unless you're
+        # specifically banned from doing so.
+        if (r1 == r2):
+            for i in self.banned_roles:
+                (a,b) = i
+                if (a==r1 and b==r2):
+                    return False
+            return True
+
         for i in self.banned_roles:
             (a,b) = i
             #print "banned_roles = (%s,%s)"%(a,b)

@@ -233,7 +233,11 @@ sets a number of variables itself:
 
  ``MUDDLE_INCLUDE_DIRS``
      Space-separated list of include directories for this package and all its
-     dependents.
+     dependents. This is a slightly vexed issue, since depending on tools
+     roles, for example, results in your builds for the target machine bringing
+     in libraries for the host. As such, there is an exclude list of roles
+     whose dependencies on each other don't affect MUDDLE_INCLUDE_DIRS or
+     MUDDLE_LIB_DIRS: see builder.roles_do_not_share_libraries()
 
  ``MUDDLE_LIB_DIRS``
      As ``MUDDLE_INCLUDE_DIRS`` but with library directories.

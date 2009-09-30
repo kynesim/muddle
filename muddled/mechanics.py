@@ -32,12 +32,47 @@ class Invocation:
         * self.env        - Map of label to environment
         * self.default_roles - The roles to build when you don't specify any.
         * self.default_labels - The list of labels to build.
+        * self.banned_roles - An array of pairs of roles which aren't allowed
+                             to share libraries.
         """
         self.db = db.Database(root_path)
         self.ruleset = depend.RuleSet()
         self.env = { }
         self.default_roles = [ ]
         self.default_labels = [ ]
+        self.banned_roles = [ ]
+
+    def roles_do_not_share_libraries(self,r1, r2):
+        """
+        Add (r1,r2) to the list of role pairs that do not share their libraries.
+        """
+        self.banned_roles.append((r1,r2));
+
+    def role_combination_acceptable_for_lib(self, r1, r2):
+        """
+        True only if (r1,r2) does not appear in the list of banned roles.
+        """
+
+        for i in self.banned_roles:
+            (a,b) = i
+            #print "banned_roles = (%s,%s)"%(a,b)
+
+            if (a == "*"):
+                a = r1
+            if (b== "*"):
+                b = r2
+
+            (c,d) = i
+            if (c == "*"): 
+                c = r2
+            if (d == "*"):
+                d = r1
+
+            if ((a==r1 and b==r2) or (c==r2 and d==r1)):
+                return False
+
+        #print "role_combination_acceptable: %s, %s -> True"%(r1,r2)
+        return True
 
     def all_checkouts(self):
         """
@@ -290,6 +325,13 @@ class Builder:
         self.muddle_binary = muddle_binary
         self.muddle_dir = os.path.dirname(self.muddle_binary)
 
+    def roles_do_not_share_libraries(self, a, b):
+        """
+        Assert that roles a and b do not share libraries: either a or b may be 
+        * to mean wildcard
+        """
+        self.invocation.roles_do_not_share_libraries(a,b)
+
     def resource_file_name(self, file_name):
         return os.path.join(self.muddle_dir, "muddled", "resources", file_name)
 
@@ -412,7 +454,8 @@ class Builder:
             # Exclude wildcards .. 
             if (r.target.tag_kind == utils.LabelKind.Package and
                 r.target.name is not None and r.target.name != "*" and 
-                ((r.target.role is None) or r.target.role != "*")):
+                ((r.target.role is None) or r.target.role != "*") and
+                (self.invocation.role_combination_acceptable_for_lib(label.role, r.target.role))):
 
                 # And don't depend on yourself.
                 if (not (r.target.name == label.name and r.target.role == label.role)):

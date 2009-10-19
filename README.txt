@@ -564,7 +564,7 @@ Tips and tricks
 
 **A.**  Put something like::
 
-     MYCOMPONENTDIR=$(shell $(MUDDLE) query objpath package:mycomponent{$(MUDDLE_ROLE)}/built)
+     MYCOMPONENTDIR=$(shell $(MUDDLE) query objdir package:mycomponent{$(MUDDLE_ROLE)}/built)
 
 in your Makefile.
 

@@ -115,7 +115,7 @@ def simple(builder, name, role, checkout, simpleCheckout = False, config = True,
                                     name, role, checkout, the_pkg)
     attach_env(builder, name, role, checkout)
 
-def medium(builder, name, roles, checkout, deps, dep_tag = utils.Tags.PreConfig, 
+def medium(builder, name, roles, checkout, deps = None, dep_tag = utils.Tags.PreConfig, 
            simpleCheckout = True, config = True, perRoleMakefiles = False, 
            makefileName = None):
     """
@@ -129,7 +129,10 @@ def medium(builder, name, roles, checkout, deps, dep_tag = utils.Tags.PreConfig,
     """
     if (simpleCheckout):
         simple_checkouts.relative(builder, checkout)
-        
+
+    if deps is None:
+        deps = []
+ 
     for r in roles:
         simple(builder, name, r, checkout, config = config, 
                perRoleMakefiles = perRoleMakefiles,
@@ -141,9 +144,9 @@ def medium(builder, name, roles, checkout, deps, dep_tag = utils.Tags.PreConfig,
 
 def twolevel(builder, name, roles, 
              co_dir, co_name, 
-             deps, dep_tag = utils.Tags.PreConfig, 
+             deps = None, dep_tag = utils.Tags.PreConfig, 
              simpleCheckout = True, config = True, perRoleMakefiles = False, 
-             makefileName = None):
+             makefileName = None, repo_relative=None):
     """
     Build a package controlled by make, in the given roles with the
     given dependencies in each role.
@@ -154,8 +157,12 @@ def twolevel(builder, name, roles,
       of just make.
     """
     if (simpleCheckout):
-        twolevel_checkouts.twolevel(builder, co_dir, co_name)
-        
+        twolevel_checkouts.twolevel(builder, co_dir, co_name,
+                                    repo_relative=repo_relative)
+
+    if deps is None:
+        deps = []
+
     for r in roles:
         simple(builder, name, r, co_name, config = config, 
                perRoleMakefiles = perRoleMakefiles,
@@ -167,7 +174,7 @@ def twolevel(builder, name, roles,
 
                                        
 
-def single(builder, name, role, deps):
+def single(builder, name, role, deps = None):
     """
     A simple make package with a single checkout named after the package and
     a single role.

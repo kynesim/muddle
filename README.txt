@@ -30,11 +30,11 @@ are special:
 
 * ``<type>`` is typically
 
-    ============          ==========================================
+    ==============        ==========================================
     ``checkout``          Describes a unit of source control
     ``package``           Describes a unit of software build
-    ``deploy``            Describes a unit of software installation
-    ============          ==========================================
+    ``deployment``        Describes a unit of software installation
+    ==============        ==========================================
 
   .. or could represent it as:
 
@@ -44,7 +44,7 @@ are special:
       ``package``
           Describes a unit of software build
 
-      ``deploy``
+      ``deployment``
           Describes a unit of software installation
 
 

@@ -431,42 +431,55 @@ def recursively_remove(a_dir):
         # for us.
         run_cmd("rm -rf \"%s\""%(a_dir))
 
-def copy_file(from_name, to_name, object_exactly = False):
+def copy_file(from_path, to_path, object_exactly=False, preserve=False):
     """
+    Copy a file.
+
     Just like recursively_copy, only not recursive :-)
+
+    If object_exactly is true, then symbolic links will be copied as links ('-d'),
+    otherwise the reference file will be copied.
+
+    If preserve is true, then the file's mode, ownership and timestamp will be
+    copied, if possible ('-p'). This is especially useful when copying as a
+    privileged user.
     """
     extra_options = "-f"
     if object_exactly:
-        extra_options = "-fd"
-    run_cmd("cp %s \"%s\" \"%s\""%(extra_options, from_name, to_name))
+        extra_options += "d"
+    if preserve:
+        extra_options += "p"
+    run_cmd("cp %s \"%s\" \"%s\""%(extra_options, from_path, to_path))
 
-def recursively_copy(from_dir, to_dir, object_exactly = False):
+def recursively_copy(from_dir, to_dir, object_exactly=False, preserve=True):
     """
     Take everything in from_dir and copy it to to_dir, overwriting
     anything that might already be there.
 
-    The easiest way to do this is to make the system do it for us.
-    But we need to enumerate the top level to make sure that dotfiles
-    get included.
+    Dot files are included in the copying.
 
-    ``-p`` is needed under some special circumstances - specifically,
-    when copying as a privileged user.
-    
-    * object_exactly - If True, don't dereference symlinks.
+    If object_exactly is true, then symbolic links will be copied as links ('-d'),
+    otherwise the reference file will be copied.
+
+    If preserve is true, then the file's mode, ownership and timestamp will be
+    copied, if possible ('-p'). This is especially useful when copying as a
+    privileged user.
+
+    Ends up calling copy_file for each file.
     """
     
-    files_in_src = os.listdir(from_dir)
+    copy_without(from_dir, to_dir, object_exactly=object_exactly,
+                 preserve=preserve)
+    #files_in_src = os.listdir(from_dir)
 
-    extra_options = ""
-    if (object_exactly):
-        extra_options = "d"
+    #extra_options = ""
+    #if (object_exactly):
+    #    extra_options = "d"
 
-    for i in files_in_src:
-        run_cmd("cp -rp%sf -t \"%s\" \"%s\""%(extra_options, 
-                                              to_dir, os.path.join(from_dir, i)))
+    #for i in files_in_src:
+    #    run_cmd("cp -rp%sf -t \"%s\" \"%s\""%(extra_options, 
+    #                                          to_dir, os.path.join(from_dir, i)))
             
-
-    
 
 def split_path_left(in_path):
     """
@@ -613,14 +626,29 @@ def xml_elem_with_child(doc, elem_name, child_text):
     
 
 
-def copy_without(src, dst, without):
+def copy_without(src, dst, without=None, object_exactly=True, preserve=False):
     """
-    Copy without entries called 'without'.
+    Copy without entries in the sequence 'without'.
+
+    If given, 'without' should be a sequence of filenames - for instance,
+    ['.bzr', '.svn'].
+
+    If object_exactly is true, then symbolic links will be copied as links ('-d'),
+    otherwise the reference file will be copied.
+
+    If preserve is true, then the file's mode, ownership and timestamp will be
+    copied, if possible ('-p'). This is especially useful when copying as a
+    privileged user.
+
+    Creates directories in the destination, if necessary.
+
+    Calls copy_file to do the actual copying of a file.
+    """
     
-    This is horribly involved, since os.walk() doesn't do what
-    we want - it doesn't enumerate symlinks and other special
-    files.
-    """
+    # This is horribly involved, since os.walk() doesn't do what we want - it
+    # doesn't enumerate symlinks and other special files.
+    #
+    #    (this last is perhaps no longer true in 2.6)
     
     # The stack holds paths relative to src.
     stack = [ ]
@@ -638,25 +666,29 @@ def copy_without(src, dst, without):
         # We need to lstat() it to check if it's really a directory
         # or not. os.path.isdir() doesn't do this for us..
         st_rec = os.lstat(src_object)
-        if (stat.S_ISDIR(st_rec.st_mode)):
+        if stat.S_ISDIR(st_rec.st_mode):
             things_here = os.listdir(src_object)
             for thing in things_here:
                 do_without = False
                 if without is not None:
-                    for w in without:
-                        if (thing == w):
-                            do_without = True
-                            break
+                    if thing in without:
+                        do_without = True
+                        break
 
                 if not do_without:
-                    print "Stack up %s"%(os.path.join(current, thing))
-                    stack.append(os.path.join(current, thing))
+                    if current == '.':
+                        subpath = thing
+                    else:
+                        subpath = os.path.join(current, thing)
+                    print "Stack up %s"%(subpath)
+                    stack.append(subpath)
 
-            if (not os.path.exists(dst_object)):
-                os.mkdir(dst_object, 0755)
+            if not os.path.exists(dst_object):
+                os.makedirs(dst_object, 0755)
         else:
             # Not a directory - just copy it.
-            copy_file(src_object, dst_object, object_exactly = True)
+            copy_file(src_object, dst_object, object_exactly=object_exactly,
+                      preserve=preserve)
 
 
 

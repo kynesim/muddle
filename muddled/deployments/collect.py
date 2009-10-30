@@ -33,7 +33,7 @@ class AssemblyDescriptor:
 
         If recursive is True, we'll copy recursively.
 
-        * fileOnAbsentSource - If True, we'll fail if the source doesn't exist.
+        * failOnAbsentSource - If True, we'll fail if the source doesn't exist.
         * copyExactly        - If True, keeps links. If false, copies the file
           they point to.
         """
@@ -62,7 +62,7 @@ class AssemblyDescriptor:
 
 class CollectDeploymentBuilder(pkg.Dependable):
     """
-    Builds the specified collect deployment.        
+    Builds the specified collect deployment.
     """
 
     def __init__(self, builder):
@@ -74,7 +74,7 @@ class CollectDeploymentBuilder(pkg.Dependable):
 
     def build_label(self, label):
         """
-        Actually do the copies .. 
+        Actually do the copies ..
         """
 
         utils.ensure_dir(self.builder.invocation.deploy_path(label.name))
@@ -100,9 +100,13 @@ class CollectDeploymentBuilder(pkg.Dependable):
 
 def deploy(builder, name):
     """
-    Create a collection deployment builder and return it. You can then
-    add assembly descriptors using the other utility functions in this
-    module.
+    Create a collection deployment builder.
+
+    This adds a new rule linking the label "deployment:<name>/deployed"
+    to the collection deployment builder.
+
+    You can then add assembly descriptors using the other utility functions in
+    this module.
 
     Dependencies get registered when you add an assembly descriptor.
     """
@@ -155,6 +159,45 @@ def copy_from_role_install(builder, name, role, rel, dest,
                            recursive = True,
                            failOnAbsentSource = False,
                            copyExactly = True):
+    """
+    Add a rule to copy from the given role's install to the named deployment.
+
+    'name' is the name of the collecting deployment, as created by::
+
+        deploy(builder,name)
+
+    The new rule will be added to label "deployment:<name>/deployed", where
+    <name> is the 'name' given.
+
+    'role' is the role to copy from. Copying will be based from 'rel' within
+    the role's ``install``, to 'dest' within the deployment.
+
+    An AssemblyDescriptor will be created to copy from 'rel' in the install
+    directory of the label "package:*{<role>}/postinstalled", to 'dest' within
+    the deployment directory of 'name'
+
+    So, for instance::
+
+        copy_from_role_install(builder,'fred','data','public','data/public',
+                               True, False, True)
+
+    might copy from (recursively) from::
+
+        install/data/public
+
+    to::
+
+        deploy/fred/data/public
+
+    'rel' may be the empty string ('') to copy all files in the install
+    directory.
+
+    - If 'recursive' is true, then copying is recursive, otherwise it is not.
+    - If 'failOnAbsentSource' is true, then copying will fail if the source
+      does not exist.
+    - If 'copyExactly' is true, then symbolic links will be copied as such,
+      otherwise the linked file will be copied.
+    """
     rule = deployment.deployment_rule_from_name(builder, name)
     dep_label = depend.Label(utils.LabelKind.Package,
                              "*",

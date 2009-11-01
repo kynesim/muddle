@@ -142,7 +142,7 @@ class Database(object):
         the (absolute) filename of an instruction file to use for this 
         package and role, what would it be?
         """
-        if (label.tag_kind != utils.LabelKind.Package):
+        if (label.type != utils.LabelKind.Package):
             raise utils.Error("Attempt to retrieve instruction file "
                               "name for non-package tag %s"%(str(label)))
 
@@ -172,7 +172,7 @@ class Database(object):
         return os.path.join(self.root_path, 
                             ".muddle",
                             "tags",
-                            utils.label_kind_to_string(label.tag_kind),
+                            utils.label_kind_to_string(label.type),
                             label.name, leaf)
         
 

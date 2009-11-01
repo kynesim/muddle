@@ -46,16 +46,16 @@ class AssemblyDescriptor:
 
         
     def get_source_dir(self, builder):
-        if (self.from_label.tag_kind == utils.LabelKind.Checkout):
+        if (self.from_label.type == utils.LabelKind.Checkout):
             return builder.invocation.checkout_path(self.from_label.name)
-        elif (self.from_label.tag_kind == utils.LabelKind.Package):
+        elif (self.from_label.type == utils.LabelKind.Package):
             if ((self.from_label.name is None) or 
                 self.from_label.name == "*"):
                 return builder.invocation.role_install_path(self.from_label.role)
             else:
                 return builder.invocation.package_obj_path(self.from_label.name, 
                                                            self.from_label.role)
-        elif (self.from_label.tag_kind == utils.LabelKind.Deployment):
+        elif (self.from_label.type == utils.LabelKind.Deployment):
             return builder.invocation.deploy_path(self.from_label.name)
         else:
             raise utils.Failure("Label %s for collection dependable has unknown kind."%(self.from_label))

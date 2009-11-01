@@ -247,7 +247,7 @@ def depend_unit_test():
 
     # Let's check that label matching works the way we think it does ..
     la1 = l1.copy()
-    la1.tag_kind = "*"
+    la1.type = "*"
 
     la2 = l1.copy()
     la2.name = "*"

@@ -9,6 +9,317 @@ import utils
 import copy
 import re
 
+class Label2(object):
+    """BEWARE: this is a reimplementation of Label, hoping to replace the original.
+
+    A label denotes an entity in muddle's dependency heirarchy.
+
+    A label is structured as::
+
+            <type>:<name>{<role>}/<tag>[<flags>]
+
+    The <type>, <name>, <role> and <tag> parts are composed of the characters
+    [A-Za-z0-9-_], or the wildcard character '*'. The role and flags are
+    optional.
+
+        (The label strings "type:name/tag" and "type:name{}/tag[]" are
+        identical, although the former is the more usual form.)
+    
+    Names beginning with an underscore are reserved by muddle, so do not use
+    them for other purposes.
+
+    Label instances are treated as immutable by the muddle system, although the
+    implementation does not currently enforce this. Please don't try to abuse
+    this, as Bad Things will happen.
+    """
+
+    # Is this correct? A "word" or an asterisk...
+    label_part = r"[A-Za-z0-9._-]+|\*"
+    label_part_re = re.compile(label_part)
+
+    label_string_re = re.compile(r"""
+                                 (?P<type>%s) :             # <type> and colon
+                                 (?P<name>%s)               # <name>
+                                 (\{
+                                    (?P<role>%s)?           # optional <role>
+                                  \})?                      # in optional {}
+                                 / (?P<tag>%s)              # slash and <tag>
+                                 (\[
+                                    (?P<flags>[A-Za-z0-9]+) # 0 or more flags
+                                  \])?                      # in optional []
+                                 """%(label_part,label_part,label_part,label_part),
+                                 re.VERBOSE)
+
+    def __init__(self, type, name, role=None, tag='*', transient=False, system=False):
+        """
+        :type:      What kind of label this is. The standard muddle values are
+                    "checkout", "package" and "deployment". These values are
+                    defined programmatically via muddled.utils.LabelKind.
+                    Thus the 'type' is conventionally used to indicate what
+                    general "stage" of the build process a label belongs to.
+        :name:      The name of this checkout/package/whatever. This should be
+                    a useful mnemonic for the labels purpose.
+        :role:      The role for this checkout/package/whatever. A role might
+                    delimit the target architecture of the labels it is used
+                    in (roles such as "x86", "arm", "beagleboard"), or the
+                    sort of purpose ("role" in the more traditionale sense,
+                    such as "boot", "firmware", "packages"), or some other
+                    useful delineation of a partition in the general label
+                    namespace (thinking of labels as points in an N-dimensional
+                    space).
+        :tag:       A tag indicating more precisely what stage the label
+                    belongs to within each 'type'. There are different
+                    conventional values according to the 'type' of the label
+                    (for instance, "checked_out", "built", "installed", etc.).
+                    These values are defined programmatically via
+                    muddled.utils.Tags.
+        :transient: If true, changes to this tag will not be persistent in
+                    the muddle database. 'transient' is used to denote
+                    something which will go away when muddle is terminated -
+                    e.g. environment variables.
+        :system:    If true, marks this label as a system label and not to be
+                    reported (by 'muddle depend') unless asked for. System labels
+                    are labels "invented" by muddle itself to satisfy implicit
+                    dependencies, or to allow the build system as a whole to
+                    work.
+
+        The role may be None, indicating (for instance) that roles are not
+        relevant to this particular label.
+
+        The kind, name, role and tag may be wildcarded, by being set to '*'.
+        When evaluating dependencies between labels, for instance, a wildcard
+        indicates "for any value of this part of the label".
+
+        Note that 'transient' and 'system' are not equality-preserving
+        properties of a label - two labels are not made unequal just because
+        they have different transiences! (indeed, no two labels should ever
+        have different values for these, for obvious reasons), and the system
+        flag is intended only to limit over-reporting of information.
+
+        For instance:
+
+            >>> Label2('package', 'busybox')
+            Label('package', 'busybox', role=None, tag='*')
+            >>> str(_)
+            'package:busybox/*'
+            >>> Label2('package', 'busybox', tag='installed')
+            Label('package', 'busybox', role=None, tag='installed')
+            >>> str(_)
+            'package:busybox/installed'
+            >>> Label2('package', 'busybox', role='rootfs', tag='installed')
+            Label('package', 'busybox', role='rootfs', tag='installed')
+            >>> str(_)
+            'package:busybox{rootfs}/installed'
+            >>> Label2('package', 'busybox', 'rootfs', 'installed')
+            Label('package', 'busybox', role='rootfs', tag='installed')
+            >>> str(_)
+            'package:busybox{rootfs}/installed'
+        """
+
+        # Slightly icky, but it's a pain if an illegal label is allowed
+        # to happen, so it's friendliest to check specifics
+        self._check_value('type',type)
+        self._check_value('name',name)
+        if role is not None:
+            self._check_value('role',role)
+        self._check_value('tag',tag)
+
+        self.type = type
+        self.name = name
+        self.role = role
+        self.tag = tag
+        self.transient = transient
+        self.system = system
+
+    def _check_value(self, what, value):
+        """
+        Check that a label component is allowed.
+
+        Raises an exception if it's Bad, does nothing if it's OK.
+        """
+        m = self.label_part_re.match(value)
+        if m is None or m.end() != len(value):
+            raise Failure("Label %s '%s' is not allowed"%(what,value))
+
+    def make_transient(self, transience = True):
+        """
+        Set the transience status of a label.
+        """
+        self.transient = transience
+        
+    def re_tag(self, new_tag, system = None, transient = None):
+        """
+        Return a copy of self, with the tag changed to new_tag.
+        """
+        cp = self.copy()
+        cp.tag = new_tag
+        cp.system = system
+        cp.transient = transient
+        return cp
+
+    def match(self, other):
+        """
+        Return an integer indicating the match specicifity - which we do
+        by counting '*' s and subtracting from 0.
+
+        Returns the match specicifity, None if there wasn't one.
+        """
+
+        nr_wildcards = 0
+        if self.type != other.type:
+            if self.type == "*" or other.type == "*":
+                nr_wildcards += 1
+            else:
+                return None
+
+        if self.name != other.name:
+            if self.name == "*" or other.name == "*":
+                nr_wildcards += 1
+            else:
+                return None
+
+        if self.role != other.role:
+            if self.role == "*" or other.role == "*":
+                nr_wildcards += 1
+            else:
+                return None
+
+        if self.tag != other.tag:
+            if self.tag == "*" or other.tag == "*":
+                nr_wildcards += 1
+            else:
+                return None
+
+        return -nr_wildcards
+
+    def match_without_tag(self, other):
+        """
+        Returns True if other matches self without the tag, False otherwise
+
+        Specifically, tests whether the two Labels have identical type, name
+        and role.
+        """
+        return (self.type == other.type and
+                self.name == other.name and
+                self.role == other.role)
+
+    def copy(self):
+        """
+        Return a copy of this label.
+        """
+        return copy.copy(self)
+
+    def __repr__(self):
+        parts = [repr(self.type),
+                 repr(self.name),
+                 'role=%s'%repr(self.role),
+                 'tag=%s'%repr(self.tag)]
+                 
+        if self.transient:
+            parts.append('transient=True')
+        if self.system:
+            parts.append('system=True')
+        return 'Label(%s)'%', '.join(parts)
+
+    def __str__(self):
+        if self.role:
+            basename = "%s{%s}"%(self.name, self.role)
+        else:
+            basename = self.name
+
+        rv =  "%s:%s/%s"%(self.type, basename, self.tag)
+
+        if self.transient or self.system:
+            extra = "[%s%s]"%( "T" if self.transient else "",
+                               "S" if self.system    else "")
+            rv += extra
+
+        return rv
+
+    def __cmp__(self, other):
+        """
+        Compare two Labels.
+        
+        Ignores the 'transient' and 'system' values (if any).
+        """
+        this_as_tuple = self.as_tuple()
+        that_as_tuple = other.as_tuple()
+
+        if this_as_tuple < that_as_tuple:
+            return -1
+        elif this_as_tuple > that_as_tuple:
+            return 1
+        else:
+            return 0
+
+    def as_tuple(self):
+        """
+        Return the Label values as a tuple, e.g., for comparison or hashing.
+
+        Returns (type, name, role, tag). Does not return the 'transient' or
+        'system' values, if any.
+        """
+        return (self.type, self.name, self.role, self.tag)
+
+    def __hash__(self):
+        # Is it acceptable to ignore 'transient' and 'system' when hashing?
+        # I assume so.
+        return hash( self.as_tuple() )
+
+    @staticmethod
+    def from_string(label_string):
+        """
+        Construct a Label from its string representation.
+
+        The string should be of the correct form:
+
+        * <type>:<name>/<tag>
+        * <type>:<name>{<role>}/<tag>
+        * <type>:<name>/<tag>[<flags>]
+        * <type>:<name>{<role>}/<tag>[<flags>]
+
+        See the docstring for Label2 itself for the meaning of the various
+        parts of a label.
+
+        <flags> is a set of individual characters indicated as flags. There are two
+        pre-defined flags, 'T' for Transience and 'S' for System. Unrecognised flag
+        characters will be ignored.
+
+        If the label string is valid, a corresponding Label will be returned,
+        otherwise a Failure wil be raised.
+
+        >>> Label2.from_string('package:busybox')
+        Traceback (most recent call last):
+        ...
+        muddled.utils.Failure: Label string 'package:busybox' is not a valid Label
+        >>> Label2.from_string('package:busybox/installed')
+        Label('package', 'busybox', role=None, tag='installed') 
+        >>> Label2.from_string('package:busybox{firmware}/installed[ABT]')
+        Label('package', 'busybox', role='firmware', tag='installed', transient=True)
+        >>> Label2.from_string('*:*{*}/*')
+        Label('*', '*', role='*', tag='*')
+        """
+        m = Label2.label_string_re.match(label_string)
+        if m is None or m.end() != len(label_string):
+            raise utils.Failure('Label string %s is not a valid'
+                                ' Label'%repr(label_string))
+
+        type   = m.group('type')
+        name   = m.group('name')
+        role   = m.group('role') # conveniently, None if not present
+        tag    = m.group('tag')
+        flags  = m.group('flags')
+
+        transient = False
+        system = False
+
+        if flags:
+            transient = 'T' in flags
+            system    = 'S' in flags
+
+        return Label2(type, name, role=role, tag=tag, transient=transient,
+                      system=system)
+
 class Label:
     """
     A label denotes an entity in muddle's dependency heirarchy.
@@ -44,6 +355,9 @@ class Label:
         self.tag = tag
         self.transient = transient
         self.system = system
+
+        # For compatibility with Label2:
+        self.type = self.tag_kind
 
     def make_transient(self, transience = True):
         """
@@ -416,7 +730,21 @@ class RuleSet:
 
 def label_from_string(str):
     """
-    Parse a label from a string: tag_kind:name-role/tag
+    Given a string representing a label, return a corresponding Label instance.
+
+    The string should be of the correct form:
+
+    * <type>:<name>/<tag>
+    * <type>:<name>{<role>}/<tag>
+    * <type>:<name>/<tag>[<flags>]
+    * <type>:<name>{<role>}/<tag>[<flags>]
+
+    See the docstring for Label for the meaning of the various parts of a
+    label.
+
+    <flags> is a set of individual characters indicated as flags. There are two
+    pre-defined flags, 'T' for Transience and 'S' for System. Unrecognised flag
+    characters will be ignored.
 
     Returns a Label or None if the string was ill-formed.
     """
@@ -428,7 +756,7 @@ def label_from_string(str):
     if (m is None):
         return None
 
-    tag_kind = m.group(1)
+    type = m.group(1)
     name = m.group(2)
     role = m.group(4)
     tag = m.group(5)
@@ -443,7 +771,7 @@ def label_from_string(str):
         if (flags.find("S") > -1):
             system = True
 
-    return Label(tag_kind, name, role, tag, transient = transient, system = system)
+    return Label(type, name, role, tag, transient = transient, system = system)
     
 
 def depend_chain(obj, label, tags, ruleset):

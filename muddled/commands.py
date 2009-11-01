@@ -388,11 +388,11 @@ class Query(Command):
             else:
                 role = label.role
 
-            if label.tag_kind == utils.LabelKind.Checkout:
+            if label.type == utils.LabelKind.Checkout:
                 dir = builder.invocation.db.get_checkout_path(label.name)
-            elif label.tag_kind == utils.LabelKind.Package:
+            elif label.type == utils.LabelKind.Package:
                 dir = builder.invocation.package_install_path(label.name, role)
-            elif label.tag_kind == utils.LabelKind.Deployment:
+            elif label.type == utils.LabelKind.Deployment:
                 dir = builder.invocation.deploy_path(label.name)
                 
             if dir is not None:
@@ -450,13 +450,13 @@ class RunIn(Command):
                     # If it's a wildcard, don't bother.
                     continue
 
-                if (lbl.tag_kind == utils.LabelKind.Checkout):
+                if (lbl.type == utils.LabelKind.Checkout):
                     dir = builder.invocation.checkout_path(lbl.name)
-                elif (lbl.tag_kind == utils.LabelKind.Package):
+                elif (lbl.type == utils.LabelKind.Package):
                     if (lbl.role == "*"): 
                         continue
                     dir = builder.invocation.package_obj_path(lbl.name, lbl.role)
-                elif (lbl.tag_kind == utils.LabelKind.Deployment):
+                elif (lbl.type == utils.LabelKind.Deployment):
                     dir = builder.invocation.deploy_path(lbl.name)
                     
                 if (dir in dirs_done):
@@ -1386,7 +1386,7 @@ def decode_dep_checkout_arguments(builder, args, local_pkgs, tag):
     for my_label in labels:
         deps = depend.needed_to_build(builder.invocation.ruleset, my_label)
         for d in deps:
-            if (d.target.tag_kind == utils.LabelKind.Checkout):
+            if (d.target.type == utils.LabelKind.Checkout):
                 out_set.add(depend.Label(utils.LabelKind.Checkout, 
                                          d.target.name,
                                          None, 
@@ -1474,7 +1474,7 @@ def default_deployment_labels(builder, tag):
     default_labels = builder.invocation.default_labels
     return_list = [ ]
     for d in default_labels:
-        if (d.tag_kind == utils.LabelKind.Deployment):
+        if (d.type == utils.LabelKind.Deployment):
             return_list.append(depend.Label(utils.LabelKind.Deployment,
                                             d.name, 
                                             d.role,

@@ -120,7 +120,7 @@ class Invocation:
         rv = set()
         for tgt in self.ruleset.map.keys():
             #print "tgt = %s"%str(tgt)
-            if (tgt.tag_kind == kind and
+            if (tgt.type == kind and
                 tgt.role == role and
                 tgt.tag == tag):
                 rv.add(tgt)
@@ -264,7 +264,7 @@ class Invocation:
         pkgs = set()
         
         for rule in direct_deps:
-            if (rule.target.tag_kind == utils.LabelKind.Package):
+            if (rule.target.type == utils.LabelKind.Package):
                 pkgs.add(rule.target)
 
         return pkgs
@@ -461,7 +461,7 @@ class Builder:
         rules = depend.needed_to_build(self.invocation.ruleset, label)
         for r in rules:
             # Exclude wildcards .. 
-            if (r.target.tag_kind == utils.LabelKind.Package and
+            if (r.target.type == utils.LabelKind.Package and
                 r.target.name is not None and r.target.name != "*" and 
                 ((r.target.role is None) or r.target.role != "*") and
                 (self.invocation.role_combination_acceptable_for_lib(label.role, r.target.role))):
@@ -510,7 +510,7 @@ class Builder:
         """
         store.set("MUDDLE_ROOT", self.invocation.db.root_path)
         store.set("MUDDLE_LABEL", label.__str__())
-        store.set("MUDDLE_KIND", label.tag_kind)
+        store.set("MUDDLE_KIND", label.type)
         store.set("MUDDLE_NAME", label.name)
         store.set("MUDDLE", self.muddle_binary)
         if (label.role is None):
@@ -519,9 +519,9 @@ class Builder:
             store.set("MUDDLE_ROLE",label.role)
 
         store.set("MUDDLE_TAG", label.tag)
-        if (label.tag_kind == utils.LabelKind.Checkout):
+        if (label.type == utils.LabelKind.Checkout):
             store.set("MUDDLE_OBJ", self.invocation.checkout_path(label.name))
-        elif (label.tag_kind == utils.LabelKind.Package):
+        elif (label.type == utils.LabelKind.Package):
             obj_dir = self.invocation.package_obj_path(label.name, 
                                                        label.role)
             store.set("MUDDLE_OBJ", obj_dir)
@@ -586,7 +586,7 @@ class Builder:
                     self.muddle_binary, label.name,
                     label.role))
 
-        elif (label.tag_kind == utils.LabelKind.Deployment):
+        elif (label.type == utils.LabelKind.Deployment):
             store.set("MUDDLE_DEPLOY_FROM", self.invocation.role_install_path(label.role))
             store.set("MUDDLE_DEPLOY_TO", self.invocation.deploy_path(label.name))
         

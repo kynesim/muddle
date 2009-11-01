@@ -14,7 +14,7 @@ class CleanDeploymentBuilder(pkg.Dependable):
         self.builder = builder
         
     def build_label(self, label):
-        if (label.tag_kind == utils.LabelKind.Deployment and 
+        if (label.type == utils.LabelKind.Deployment and 
             (label.tag == utils.Tags.Clean or 
             label.tag == utils.Tags.DistClean)):
             deploy_path = self.builder.invocation.deploy_path(label.name)

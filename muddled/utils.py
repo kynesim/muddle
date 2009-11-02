@@ -438,7 +438,7 @@ def copy_file(from_path, to_path, object_exactly=False, preserve=False):
     Just like recursively_copy, only not recursive :-)
 
     If object_exactly is true, then symbolic links will be copied as links ('-d'),
-    otherwise the reference file will be copied.
+    otherwise the referenced file will be copied.
 
     If preserve is true, then the file's mode, ownership and timestamp will be
     copied, if possible ('-p'). This is especially useful when copying as a
@@ -459,7 +459,7 @@ def recursively_copy(from_dir, to_dir, object_exactly=False, preserve=True):
     Dot files are included in the copying.
 
     If object_exactly is true, then symbolic links will be copied as links ('-d'),
-    otherwise the reference file will be copied.
+    otherwise the referenced file will be copied.
 
     If preserve is true, then the file's mode, ownership and timestamp will be
     copied, if possible ('-p'). This is especially useful when copying as a
@@ -634,7 +634,7 @@ def copy_without(src, dst, without=None, object_exactly=True, preserve=False):
     ['.bzr', '.svn'].
 
     If object_exactly is true, then symbolic links will be copied as links ('-d'),
-    otherwise the reference file will be copied.
+    otherwise the referenced file will be copied.
 
     If preserve is true, then the file's mode, ownership and timestamp will be
     copied, if possible ('-p'). This is especially useful when copying as a

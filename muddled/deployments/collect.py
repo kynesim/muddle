@@ -102,7 +102,7 @@ def deploy(builder, name):
     """
     Create a collection deployment builder.
 
-    This adds a new rule linking the label "deployment:<name>/deployed"
+    This adds a new rule linking the label ``deployment:<name>/deployed``
     to the collection deployment builder.
 
     You can then add assembly descriptors using the other utility functions in
@@ -166,15 +166,15 @@ def copy_from_role_install(builder, name, role, rel, dest,
 
         deploy(builder,name)
 
-    The new rule will be added to label "deployment:<name>/deployed", where
+    The new rule will be added to label ``deployment:<name>/deployed``, where
     <name> is the 'name' given.
 
     'role' is the role to copy from. Copying will be based from 'rel' within
     the role's ``install``, to 'dest' within the deployment.
 
     An AssemblyDescriptor will be created to copy from 'rel' in the install
-    directory of the label "package:*{<role>}/postinstalled", to 'dest' within
-    the deployment directory of 'name'
+    directory of the label ``package:*{<role>}/postinstalled``, to 'dest'
+    within the deployment directory of 'name'
 
     So, for instance::
 

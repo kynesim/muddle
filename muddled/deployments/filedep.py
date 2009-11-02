@@ -80,7 +80,7 @@ class FileDeploymentBuilder(pkg.Dependable):
         for role in self.roles:
             print "> %s: Deploying role %s .. "%(label.name, role)
             install_dir = self.builder.invocation.role_install_path(role)
-            utils.recursively_copy(install_dir, deploy_dir)
+            utils.recursively_copy(install_dir, deploy_dir, object_exactly=True)
         
 
         # This is somewhat tricky as it potentially requires privilege elevation.

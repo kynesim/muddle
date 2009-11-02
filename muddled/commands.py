@@ -67,6 +67,16 @@ class Command:
         """
         self.options = opt_dict
 
+    def set_old_env(self, old_env):
+        """
+        Take a copy of the environment before muddle sets its own
+        variables - used by commands like subst to substitute the
+        variables in place when muddle was called rather than those
+        that would apply when the susbt command was executed.
+        """
+        self.old_env = old_env
+        
+     
     def no_op(self):
         """
         Is this is a no-op (just print) operation?
@@ -1308,7 +1318,7 @@ class Subst(Command):
         xml_doc = xml.dom.minidom.parse(f)
         f.close()
 
-        subst.subst_file(src, dst, xml_doc, os.environ)
+        subst.subst_file(src, dst, xml_doc, self.old_env)
         return 0
 
 def get_all_checkouts(builder, tag):

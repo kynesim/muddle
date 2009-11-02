@@ -9,9 +9,8 @@ import utils
 import copy
 import re
 
-class Label2(object):
-    """BEWARE: this is a reimplementation of Label, hoping to replace the original.
-
+class Label(object):
+    """
     A label denotes an entity in muddle's dependency heirarchy.
 
     A label is structured as::
@@ -19,11 +18,13 @@ class Label2(object):
             <type>:<name>{<role>}/<tag>[<flags>]
 
     The <type>, <name>, <role> and <tag> parts are composed of the characters
-    [A-Za-z0-9-_], or the wildcard character '*'. The role and flags are
+    [A-Za-z0-9-+_], or the wildcard character '*'. The role and flags are
     optional.
 
-        (The label strings "type:name/tag" and "type:name{}/tag[]" are
-        identical, although the former is the more usual form.)
+        .. note:: The label strings "type:name/tag" and "type:name{}/tag[]" are
+           identical, although the former is the more usual form.)
+
+           The '+' is allowed in label parts to allow for names like "g++".
     
     Names beginning with an underscore are reserved by muddle, so do not use
     them for other purposes.
@@ -34,7 +35,7 @@ class Label2(object):
     """
 
     # Is this correct? A "word" or an asterisk...
-    label_part = r"[A-Za-z0-9._-]+|\*"
+    label_part = r"[A-Za-z0-9._+-]+|\*"
     label_part_re = re.compile(label_part)
 
     label_string_re = re.compile(r"""
@@ -98,19 +99,19 @@ class Label2(object):
 
         For instance:
 
-            >>> Label2('package', 'busybox')
+            >>> Label('package', 'busybox')
             Label('package', 'busybox', role=None, tag='*')
             >>> str(_)
             'package:busybox/*'
-            >>> Label2('package', 'busybox', tag='installed')
+            >>> Label('package', 'busybox', tag='installed')
             Label('package', 'busybox', role=None, tag='installed')
             >>> str(_)
             'package:busybox/installed'
-            >>> Label2('package', 'busybox', role='rootfs', tag='installed')
+            >>> Label('package', 'busybox', role='rootfs', tag='installed')
             Label('package', 'busybox', role='rootfs', tag='installed')
             >>> str(_)
             'package:busybox{rootfs}/installed'
-            >>> Label2('package', 'busybox', 'rootfs', 'installed')
+            >>> Label('package', 'busybox', 'rootfs', 'installed')
             Label('package', 'busybox', role='rootfs', tag='installed')
             >>> str(_)
             'package:busybox{rootfs}/installed'
@@ -139,7 +140,7 @@ class Label2(object):
         """
         m = self.label_part_re.match(value)
         if m is None or m.end() != len(value):
-            raise Failure("Label %s '%s' is not allowed"%(what,value))
+            raise utils.Failure("Label %s '%s' is not allowed"%(what,value))
 
     def make_transient(self, transience = True):
         """
@@ -278,7 +279,7 @@ class Label2(object):
         * <type>:<name>/<tag>[<flags>]
         * <type>:<name>{<role>}/<tag>[<flags>]
 
-        See the docstring for Label2 itself for the meaning of the various
+        See the docstring for Label itself for the meaning of the various
         parts of a label.
 
         <flags> is a set of individual characters indicated as flags. There are two
@@ -288,18 +289,18 @@ class Label2(object):
         If the label string is valid, a corresponding Label will be returned,
         otherwise a Failure wil be raised.
 
-        >>> Label2.from_string('package:busybox')
+        >>> Label.from_string('package:busybox')
         Traceback (most recent call last):
         ...
         muddled.utils.Failure: Label string 'package:busybox' is not a valid Label
-        >>> Label2.from_string('package:busybox/installed')
+        >>> Label.from_string('package:busybox/installed')
         Label('package', 'busybox', role=None, tag='installed') 
-        >>> Label2.from_string('package:busybox{firmware}/installed[ABT]')
+        >>> Label.from_string('package:busybox{firmware}/installed[ABT]')
         Label('package', 'busybox', role='firmware', tag='installed', transient=True)
-        >>> Label2.from_string('*:*{*}/*')
+        >>> Label.from_string('*:*{*}/*')
         Label('*', '*', role='*', tag='*')
         """
-        m = Label2.label_string_re.match(label_string)
+        m = Label.label_string_re.match(label_string)
         if m is None or m.end() != len(label_string):
             raise utils.Failure('Label string %s is not a valid'
                                 ' Label'%repr(label_string))
@@ -317,10 +318,11 @@ class Label2(object):
             transient = 'T' in flags
             system    = 'S' in flags
 
-        return Label2(type, name, role=role, tag=tag, transient=transient,
+        return Label(type, name, role=role, tag=tag, transient=transient,
                       system=system)
 
-class Label:
+# Keep for a moment, until the new class is proven
+class _old_Label:
     """
     A label denotes an entity in muddle's dependency heirarchy.
 
@@ -356,7 +358,7 @@ class Label:
         self.transient = transient
         self.system = system
 
-        # For compatibility with Label2:
+        # For compatibility with the newer Label implementation
         self.type = self.tag_kind
 
     def make_transient(self, transience = True):

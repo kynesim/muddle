@@ -58,6 +58,10 @@ def main(args):
     command_options = { }
     muddle_binary = __file__
 
+    # Copy the unadulterated environment in case the command
+    # wants to use it.
+    old_env = os.environ.copy()
+
 
     # Command dictionary. Maps command name to a tuple
     # (Boolean, command_fn)
@@ -113,6 +117,7 @@ def main(args):
 
     command = cmd_dict[command_name]
     command.set_options(command_options)
+    command.set_old_env(old_env)
     failed_build_root = False
 
     # Must make sure this is assigned here, else we may end 
@@ -139,7 +144,6 @@ def main(args):
             build_root = None
             failed_build_root = True
         
-        
         if (builder is None):
             # There is no build root here .. 
             if with_default_args and not (failed_build_root):
@@ -148,7 +152,8 @@ def main(args):
                 sys.exit(0)
 
             if (not command.requires_build_tree()):
-                return command.without_build_tree(muddle_binary, specified_root, args)
+                return command.without_build_tree(muddle_binary, 
+                                                  specified_root, args)
             else:
                 if not failed_build_root:
                     raise muddled.utils.Failure("Command %s requires a build tree."%(command_name))

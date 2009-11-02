@@ -1,0 +1,97 @@
+<?xml version="1.0" ?>
+
+<!-- Sample toolchain descriptor file for 
+     freescale-coldfire-4.4-52-m68k-elf
+  -->
+
+<toolchain>
+  <!-- Where we can find the unpacked source code -->
+  <src-dir>/opt/kynesim/projects/054/toolchains/coldfire/freescale-coldfire-4.4-52-m68k-elf</src-dir>
+
+  <!-- Where we put the target toolchain -->
+ <dest-dir>/opt/toolchains/coldfire-52</dest-dir>
+
+ <!-- Where we put our patches -->
+ <patch-dir>/opt/kynesim/projects/054/toolchains/coldfire/freescale-coldfire-patches</patch-dir>
+
+ <!-- We must (legally) change the name of the tools as we build them.
+      What to?
+   -->
+ <version>Kynesim Sourcery G++ lite 4.4-52</version>
+ 
+ <!-- Where should bugs go to? (a URL) -->
+ <bugurl>https://support.codesourcery.com/GNUToolchain</bugurl>
+
+ <!-- What is the name of the binary-only target? (ie. the
+      one without glibc support
+   -->
+ <bare-metal-target>m68k-elf</bare-metal-target>
+
+ <!-- Name of the glibc-supporting target, if we want to build one
+      -->
+ <glibc-target></glibc-target>
+
+ <!-- What C library would you like? Possibly values are none,
+      glibc and newlib, though newlib is not yet supported.
+
+      If you want C++, you need to pick either glibc or newlib.
+   -->
+ <with-lib>none</with-lib>
+
+ <!-- What is the directory your docs will go in? This is usually
+      <cpu>-<bare-metal-target> - eg. arm-arm-none-linux-gnueabi
+      and is a characteristic of the toolchain, so don't arbitrarily
+      edit it. It's configurable here because some toolchains do odd
+      things.
+  -->
+ <doc-target>m68k-m68k-elf</doc-target>
+
+ <arch>cf</arch>
+ <opts></opts>
+
+ <!-- Tediously, CodeSourcery tend to change their filenames with
+      every architecture.
+   -->
+ <sources>
+   <zlib>
+     <archive>zlib-4.4-52.tar.bz2</archive>
+     <dir>zlib-1.2.3</dir>
+   </zlib>
+   
+   <gmp>
+     <archive>gmp-4.4-52.tar.bz2</archive>
+     <dir>gmp-stable</dir>
+   </gmp>
+
+   <mpfr>
+     <archive>mpfr-4.4-52.tar.bz2</archive>
+     <dir>mpfr-stable</dir>
+   </mpfr>
+
+   <ppl>
+     <archive>ppl-4.4-52.tar.bz2</archive>
+     <dir>ppl-0.10.2</dir>
+   </ppl>
+
+   <binutils>
+     <archive>binutils-4.4-52.tar.bz2</archive>
+     <dir>binutils-stable</dir>
+
+     <!-- If you want patches, put in a series of
+	  <patch0> <patch1> .. tags
+	-->
+
+     <!-- <patch0>binutils-cpuname-fix.diff</patch0>-->
+   </binutils>
+
+
+   <gcc>
+     <archive>gcc-4.4-52.tar.bz2</archive>
+
+     <dir>gcc-4.4</dir>
+   </gcc>
+
+ </sources>
+   
+
+</toolchain>

@@ -749,31 +749,15 @@ def label_from_string(str):
     characters will be ignored.
 
     Returns a Label or None if the string was ill-formed.
+
+    (This is a wrapping of Label.from_string(), but with different return
+    conventions.)
     """
 
-    # It's quite a .. long .. regex .. 
-    the_re = re.compile("([A-Za-z0-9.*_-]+):([A-Za-z.0-9*_-]+)(\{([A-Za-z.0-9*_-]+)\})?"
-                        "/([A-Za-z.0-9*_-]+)(\[[A-Za-z.0-9]+\])?")
-    m = the_re.match(str)
-    if (m is None):
+    try:
+        return Label.from_string(str)
+    except utils.Failure:
         return None
-
-    type = m.group(1)
-    name = m.group(2)
-    role = m.group(4)
-    tag = m.group(5)
-    flags = m.group(6)
-
-    transient = False
-    system = False
-
-    if (flags is not None):
-        if (flags.find("T") > -1):
-            transient = True
-        if (flags.find("S") > -1):
-            system = True
-
-    return Label(type, name, role, tag, transient = transient, system = system)
     
 
 def depend_chain(obj, label, tags, ruleset):

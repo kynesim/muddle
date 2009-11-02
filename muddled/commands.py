@@ -1307,7 +1307,7 @@ class Subst(Command):
         f = open(xml_file, "r")
         xml_doc = xml.dom.minidom.parse(f)
         f.close()
-        
+
         subst.subst_file(src, dst, xml_doc, os.environ)
         return 0
 

@@ -449,7 +449,7 @@ def copy_file(from_path, to_path, object_exactly=False, preserve=False):
         extra_options += "d"
     if preserve:
         extra_options += "p"
-    run_cmd("cp %s \"%s\" \"%s\""%(extra_options, from_path, to_path))
+    run_cmd("cp %s \'%s\' \'%s\'"%(extra_options, from_path, to_path))
 
 def recursively_copy(from_dir, to_dir, object_exactly=False, preserve=True):
     """

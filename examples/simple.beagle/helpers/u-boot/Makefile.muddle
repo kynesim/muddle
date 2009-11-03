@@ -1,0 +1,23 @@
+# Muddle makefile for copying across u-boot and the MLO
+#
+# Ask muddle where various things have been checked out
+MLO_BASE=$(shell $(MUDDLE) query dir "checkout:MLO{*}/*")
+UBOOT_BASE=$(shell $(MUDDLE) query dir "checkout:u-boot{*}/*")
+
+all:
+	# Nothing to do
+
+install: 
+	-mkdir -p $(MUDDLE_INSTALL)/fat32/
+	cp $(MLO_BASE)/MLO		$(MUDDLE_INSTALL)/fat32/
+	cp $(UBOOT_BASE)/u-boot.bin   	$(MUDDLE_INSTALL)/fat32/
+
+config:
+	# Nothing to do
+
+clean:
+	# Nothing to do
+
+distclean:
+	# Nothing to do
+

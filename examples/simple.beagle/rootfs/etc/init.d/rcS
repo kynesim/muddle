@@ -1,0 +1,45 @@
+#! /bin/sh
+#
+# System startup script for use with busybox
+#
+# Give some feedback to indicate this is working
+echo "/dev/init.d/rcS: System initialisation"
+
+# Mount /proc (the -n says not to update /etc/mtab, in case our /etc is RO)
+echo "-- Mount /proc"
+mount -n /proc
+
+# 2.6 introduces /sys, which is useful, and we require for hotplugging
+echo "-- Mount /sys"
+mount -n /sys
+
+# Try setting up USB as well
+echo "-- Mount /proc/bus/usb"
+mount -n /proc/bus/usb
+
+# For hotplugging, make /dev dynamic
+echo "-- Mount /dev as a tmpfs"
+mount -n /dev
+
+echo "-- Using mdev for hotplugging"
+echo "/sbin/mdev" > /proc/sys/kernel/hotplug
+
+echo "-- Mount /dev/pts"
+mkdir -p /dev/pts
+mount -n /dev/pts
+
+# If any...
+#echo "-- Installing kernel modules"
+#insmod modulename
+
+echo "-- Finding devices (mdev -s)"
+/sbin/mdev -s
+
+# In order to allow telnetd to work, we seem to need /dev/ptmx set
+# to crw-rw-rw- instead of (the default) crw-rw----
+chmod a+rw /dev/ptmx
+# or, if you prefer, chmod 666 /dev/ptmx
+
+echo "-- Setting up ethernet"
+udhcpc
+

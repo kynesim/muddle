@@ -1,0 +1,35 @@
+# Makefile for the root file system on our Linux
+#
+# We are assuming that some of the filesystem gets assembled for us when
+# busybox is installed (notably, the various binary directories)
+
+all:
+	@echo Nothing to do
+
+config:
+	@echo Nothing to do
+
+OTHER_DIRS_TO_BUILD=dev proc sys nfs var tmp
+
+ROOTFS=$(MUDDLE_INSTALL)/rootfs
+
+install:
+	$(MUDDLE_INSTRUCT) instructions.xml
+	if [ ! -d $(ROOTFS)/etc ]; then mkdir $(ROOTFS)/etc; fi
+	if [ ! -d $(ROOTFS)/etc/init.d ]; then mkdir $(ROOTFS)/etc/init.d; fi
+
+	# Copy our /etc directory.
+	# We want to exclude revision control directories from the copy - did
+	# we miss any?
+	$(MUDDLE) copywithout etc/ $(ROOTFS)/etc .svn .bzr .git
+
+	# Don't forget all the other things it's useful to have
+	for i in $(OTHER_DIRS_TO_BUILD); do \
+	  if [ ! -d $(ROOTFS)/$$i ]; then mkdir -p $(ROOTFS)/$$i; fi;\
+	done
+
+clean:
+	$(MUDDLE_UNINSTRUCT)
+
+distclean:
+	@echo Nothing to do.

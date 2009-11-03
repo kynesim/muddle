@@ -1,0 +1,41 @@
+# Muddle makefile for building Busybox
+#
+# Ask muddle where various things have been checked out
+SRC_BASE=$(shell $(MUDDLE) query dir "checkout:busybox{*}/*")
+HELPERS_BASE=$(shell $(MUDDLE) query dir "checkout:helpers{*}/*")
+
+# Where we're assembling our filesystem
+ROOTFS=$(MUDDLE_INSTALL)/rootfs
+
+MAKE_CMD=$(MAKE) ARCH=$(MUDDLE_ARCH) CROSS_COMPILE=$(MUDDLE_CROSS_COMPILE)
+
+all:
+	# Building 'all' (the default) would also build documentation
+	$(MAKE_CMD) -C $(MUDDLE_OBJ) busybox
+
+config:
+	# Start with the default configuration for this board
+	cp $(HELPERS_BASE)/busybox/default.config $(MUDDLE_OBJ)/.config
+	# And make sure it isn't too out-of-date
+	# Busybox knows we're building out-of-tree because we configured out-of-tree
+	$(MAKE_CMD)  -C $(SRC_BASE)  O=$(MUDDLE_OBJ)  oldconfig
+
+install: 
+	-mkdir -p $(ROOTFS)
+	$(MAKE_CMD) -C $(MUDDLE_OBJ) CONFIG_PREFIX=$(ROOTFS) install
+	# Then do our own extra installation
+	# - we want to use busybox directly as our Linux init
+	ln -sf bin/busybox $(ROOTFS)/init
+	# And if we're going to use busybox's udhcpc deamon, we need to copy
+	# a script to tell it how to work
+	mkdir -p $(ROOTFS)/usr/share/udhcpc
+	cp $(SRC_BASE)/examples/udhcp/simple.script $(ROOTFS)/usr/share/udhcpc/default.script
+	# For some reason, that needs to be executable
+	chmod a+x $(ROOTFS)/usr/share/udhcpc/default.script
+
+clean:
+	$(MAKE_CMD)  -C $(MUDDLE_OBJ) clean
+
+distclean:
+	$(MAKE_CMD)  -C $(MUDDLE_OBJ) distclean
+

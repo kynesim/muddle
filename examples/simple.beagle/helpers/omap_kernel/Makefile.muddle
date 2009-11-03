@@ -1,0 +1,28 @@
+# Muddle makefile for building the OMAP kernel
+#
+# Ask muddle where various things have been checked out
+KERNEL_BASE=$(shell $(MUDDLE) query dir "checkout:omap_kernel{*}/*")
+HELPERS_BASE=$(shell $(MUDDLE) query dir "checkout:helpers{*}/*")
+
+MAKE_CMD=$(MAKE) -C $(KERNEL_BASE) O=$(MUDDLE_OBJ) ARCH=$(MUDDLE_ARCH) \
+	 CROSS_COMPILE=$(MUDDLE_CROSS_COMPILE)
+
+all:
+	# Carefully ignoring modules...
+	$(MAKE_CMD)  uImage
+
+install: 
+	-mkdir -p $(MUDDLE_INSTALL)/fat32/
+	cp $(MUDDLE_OBJ)/arch/arm/boot/uImage $(MUDDLE_INSTALL)/fat32/
+
+config:
+	# Start with the default configuration for this board
+	cp $(HELPERS_BASE)/omap_kernel/default.config $(MUDDLE_OBJ)/.config
+	# And make sure it isn't too out-of-date
+	$(MAKE_CMD)  oldconfig
+
+clean:
+	$(MAKE_CMD)  clean
+
+distclean:
+	$(MAKE_CMD)  distclean

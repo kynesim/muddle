@@ -1,0 +1,16 @@
+# This is essentially the default inittab that busybox
+# would use if we didn't specify anything
+::sysinit:/etc/init.d/rcS
+
+# Except that instead of defaulting to /dev/console for
+# our initial shell:
+#::askfirst:/bin/sh
+# we instead redirect to (the equivalent) /dev/ttyS2
+# (as defined on the kernel's initial command line)
+::askfirst:/bin/sh -i </dev/ttyS2 >/dev/ttyS2 2>/dev/ttyS2
+
+::ctrlaltdel:/sbin/reboot
+::shutdown:/sbin/swapoff -a
+::shutdown:/bin/umount -a -r
+::restart:/sbin/init
+

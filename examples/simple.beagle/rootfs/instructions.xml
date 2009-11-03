@@ -1,0 +1,60 @@
+<?xml version="1.0"?>
+
+<!-- Filesystem for an OMAP Linux with busybox - the fiddly bits -->
+
+<!-- Note that "<filespec><root>..." is relative to $MUDDLE_INSTALL,
+     whereas "<name>..." is absolute.
+-->
+
+<instructions>
+
+  <!-- There's something to be said for making all files be owned by
+       root (it makes the system look tidier), but on the other hand
+       it involves changing *all* files -->
+  <!-- 
+  <chown>
+    <filespec>
+      <root>/rootfs</root>
+      <spec>.*</spec>
+      <all-under />
+    </filespec>
+    <user>0</user>
+    <group>0</group>
+  </chown>
+  -->
+
+  <!-- Certain things *must* be set executable -->
+  <chmod>
+    <filespec>
+    <root>/rootfs/etc/init.d</root>
+      <spec>rcS</spec>
+    </filespec>
+    <mode>0755</mode>
+  </chmod>
+
+  <!-- Everyone needs access to /tmp -->
+  <chmod> 
+    <filespec>
+      <root>/rootfs</root>
+      <spec>tmp</spec>
+    </filespec>
+    <mode>01777</mode>
+  </chmod>
+
+  <!-- Traditionally, this is the only device node we *need* -->
+  <!-- Frustratingly, this doesn't take a <filespec> (which is always relative -->
+  <!-- to $MUDDLE_INSTALL), but an absolute name. So don't start it with '/'   -->
+  <!-- if that isn't what one *really* means                                   -->
+  <mknod> 
+    <name>rootfs/dev/console</name>
+    <uid>0</uid>
+    <gid>0</gid>
+    <type>char</type>
+    <major>5</major>
+    <minor>1</minor>
+    <mode>0600</mode>
+  </mknod>
+
+</instructions>
+
+<!-- vim: set tabstop=8 shiftwidth=2 expandtab: -->

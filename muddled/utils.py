@@ -210,6 +210,9 @@ def find_local_packages(dir, root, inv):
     
     if (what == DirType.CheckOut):
         rv = [  ]
+        if loc is None:
+            return None
+
         for p in inv.packages_for_checkout(loc):
             if (p.role is None):
                 rv.append(p.name)

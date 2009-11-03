@@ -1,0 +1,106 @@
+<?xml version="1.0" ?>
+
+<!-- Sample toolchain descriptor file for 
+     arm-2009q3-67-arm-linux-gnueabi.src.tar.bz2
+     
+     We build for the thumb2 architecture, Cortex-A8 (armv7-a)
+  -->
+
+<toolchain>
+  <!-- Where does the source go? -->
+  <src-dir>/opt/kynesim/projects/054/toolchains/arm/arm-2009q3-67-arm-none-linux-gnueabi</src-dir>
+
+  <!-- How about the target? -->
+  <dest-dir>/opt/toolchains/ti-omap-67</dest-dir>
+  
+  <!-- Patches? -->
+  <patch-dir>/opt/kynesim/projects/054/toolchains/arm/ti-omap-patches</patch-dir>
+
+  <version>Kynesim Sourcery G++ lite 4.4-67-001</version>
+
+  <bugurl>https://support.codesourcery.com/GNUToolchain</bugurl>
+
+  <bare-metal-target>arm-none-linux-gnueabi</bare-metal-target>
+  <glibc-target>arm-none-linux-gnueabi</glibc-target>
+
+  <with-lib>glibc</with-lib>
+
+  <doc-target>arm-arm-none-linux-gnueabi</doc-target>
+
+  <!-- Which instructions set variant do we use? Can be set to
+       armv4t, thumb2 etc. UNTESTED.
+    -->
+<!--
+  <variant0>
+    <arch>armv4t</arch>
+    <opts>-march=armv4t</opts>
+  </variant0>
+  
+  <variant1>
+    <arch>thumb2</arch>
+    <opts>-mthumb -march=armv7-a</opts>
+  </variant1>
+-->
+  <arch>armv7-a</arch>
+  <opts>-march=armv7-a -mthumb</opts>
+
+  <sources>
+    <zlib>
+      <archive>zlib-2009q3-67.tar.bz2</archive>
+      <dir>zlib-1.2.3</dir>
+    </zlib>
+    
+    <gmp>
+      <archive>gmp-2009q3-67.tar.bz2</archive>
+      <dir>gmp-stable</dir>
+    </gmp>
+
+    <mpfr>
+      <archive>mpfr-2009q3-67.tar.bz2</archive>
+      <dir>mpfr-stable</dir>
+    </mpfr>
+    
+    <ppl>
+      <archive>ppl-2009q3-67.tar.bz2</archive>
+      <dir>ppl-0.10.2</dir>
+    </ppl>
+
+    <binutils>
+      <archive>binutils-2009q3-67.tar.bz2</archive>
+      <dir>binutils-stable</dir>
+    </binutils>
+
+   <linux>
+     <archive>linux-2009q3-67.tar.bz2</archive>
+     <dir>linux-stable</dir>
+     <version>2.6.16</version>
+   </linux>
+
+   <glibc>
+     <archive>glibc-2009q3-67.tar.bz2</archive>
+     <dir>glibc-2.10</dir>
+   </glibc>
+
+   <glibc-ports>
+     <archive>glibc_ports-2009q3-67.tar.bz2</archive>
+     <dir>glibc-ports-2.10</dir>
+   </glibc-ports>
+
+    <gcc>
+      <archive>gcc-2009q3-67.tar.bz2</archive>
+      <dir>gcc-4.4</dir>
+    </gcc>
+
+    <glibc-localedef>
+      <archive>glibc_localedef-2009q3-67.tar.bz2</archive>
+      <dir>glibc_localedef-2.10</dir>
+      <options>--little-endian --uint32-align=4</options>
+    </glibc-localedef>
+    
+  </sources>
+  
+</toolchain>
+
+<!-- End File -->
+
+    

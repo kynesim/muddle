@@ -155,7 +155,7 @@ def describe_to(builder):
                                     None)
     # Oh, and this one as well...
     rule = muddled.depend.depend_one(None,
-                              Label.from_string('package:u-boot/installed'),
+                              Label.from_string('package:u-boot{%s}/built'%role),
                               Label.from_string('checkout:MLO/checked_out'))
     builder.invocation.ruleset.add(rule)
 

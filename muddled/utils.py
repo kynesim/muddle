@@ -676,14 +676,12 @@ def copy_without(src, dst, without=None, object_exactly=True, preserve=False):
                 if without is not None:
                     if thing in without:
                         do_without = True
-                        break
 
                 if not do_without:
                     if current == '.':
                         subpath = thing
                     else:
                         subpath = os.path.join(current, thing)
-                    print "Stack up %s"%(subpath)
                     stack.append(subpath)
 
             if not os.path.exists(dst_object):

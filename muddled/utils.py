@@ -594,9 +594,11 @@ def parse_mode(in_mode):
     """
     Parse a UNIX mode specification into a pair (clear_bits, set_bits).
     """
-    if (in_mode[0] == '0'):
+
+    # Annoyingly, people do write modes as '6755' etc..
+    if (in_mode[0] >= '0' and in_mode[0] <= '9'):
         # It's octal.
-        clear_bits = 0777
+        clear_bits = 07777
         set_bits = int(in_mode, 8)
 
         return (clear_bits, set_bits)
@@ -692,6 +694,13 @@ def copy_without(src, dst, without=None, object_exactly=True, preserve=False):
                       preserve=preserve)
 
 
+
+def get_prefix_pair(prefix_one, value_one, prefix_two, value_two):
+    """
+    Returns a pair (prefix_onevalue_one, prefix_twovalue_two) - used
+    by rrw.py as a utility function
+    """
+    return ("%s%s"%(prefix_one, value_one), "%s%s"%(prefix_two, value_two))
 
 
 # End file.

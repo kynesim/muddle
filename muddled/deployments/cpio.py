@@ -175,6 +175,7 @@ class CIApplyMknod(CpioInstructionImplementor):
         cpio_file.name = None
         cpio_file.data = None 
         cpio_file.key_name = instr.file_name
+        print "put_target_file %s"%instr.file_name
         heirarchy.put_target_file(instr.file_name, cpio_file)
         
 

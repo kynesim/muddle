@@ -143,7 +143,7 @@ def medium(builder, name, roles, checkout, deps = None, dep_tag = utils.Tags.Pre
         attach_env(builder, name, r, checkout)
 
 def twolevel(builder, name, roles, 
-             co_dir, co_name, 
+             co_dir, co_name = None, 
              deps = None, dep_tag = utils.Tags.PreConfig, 
              simpleCheckout = True, config = True, perRoleMakefiles = False, 
              makefileName = None, repo_relative=None):
@@ -156,6 +156,10 @@ def twolevel(builder, name, roles,
     * perRoleMakefiles - If True, we run 'make -f Makefile.<rolename>' instead
       of just make.
     """
+
+    if (co_name is None): 
+        co_name = name
+
     if (simpleCheckout):
         twolevel_checkouts.twolevel(builder, co_dir, co_name,
                                     repo_relative=repo_relative)

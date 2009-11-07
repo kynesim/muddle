@@ -290,9 +290,9 @@ class CpioFileDataProvider(filespec.FileSpecDataProvider):
 
         for r in self.heirarchy.roots.keys():
             abs_path = os.path.join(r, dir)
-            
+
             # Trim any trailing '/'s for normalisation reasons.
-            if (abs_path[-1] == '/'):
+            if (len(abs_path) > 1 and abs_path[-1] == '/'):
                 abs_path = abs_path[:-1]
         
             # Find the File representing this directory

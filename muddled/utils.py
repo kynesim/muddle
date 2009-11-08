@@ -702,5 +702,26 @@ def get_prefix_pair(prefix_one, value_one, prefix_two, value_two):
     """
     return ("%s%s"%(prefix_one, value_one), "%s%s"%(prefix_two, value_two))
 
+def rel_join(vroot, path):
+    """
+    Find what path would be called if it existed inside vroot. Differs from
+    os.path.join() in that if path contains a leading '/', it is not
+    assumed to override vroot.
+
+    If vroot is none, we just return path.
+    """
+
+    if (vroot is None): 
+        return path
+
+    if (len(path) == 0): 
+        return vroot
+
+    if path[0] == '/':
+        path = path[1:]
+    
+    return os.path.join(vroot, path)
+    
+
 
 # End file.

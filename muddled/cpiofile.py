@@ -280,7 +280,8 @@ class CpioFileDataProvider(filespec.FileSpecDataProvider):
         self.heirarchy = heirarchy
 
         
-    def list_files_under(self, dir, recursively = False):
+    def list_files_under(self, dir, recursively = False, 
+                         vroot = None):
         """
         Return a list of the files under dir.
         """
@@ -288,40 +289,47 @@ class CpioFileDataProvider(filespec.FileSpecDataProvider):
         if (dir[0] == '/'):
             dir = dir[1:]
 
+        #print "l_f_u = %s (vroot = %s)"%(dir,vroot)
+
         for r in self.heirarchy.roots.keys():
-            abs_path = os.path.join(r, dir)
+            to_find = utils.rel_join(vroot, dir)
+        
+            abs_path = os.path.join(r, to_find)
 
             # Trim any trailing '/'s for normalisation reasons.
             if (len(abs_path) > 1 and abs_path[-1] == '/'):
                 abs_path = abs_path[:-1]
-        
+
             # Find the File representing this directory
             obj = self.heirarchy.map.get(abs_path)
             if (obj is not None):
                 break
 
         if (obj is None):
-            print "> Warning: No files in %s in this cpio archive.. "%dir
+            print "> Warning: No files in %s [vroot = %s] in this cpio archive.. "%(dir,vroot)
             return [ ]
         
         # Read everything in this directory.
         result = [ ]
         for elem in obj.children:
+            last_elem = os.path.basename(elem.name)
             # We want the last element only ..
-            result.append(os.path.basename(elem.name))
+            result.append(last_elem)
             
             if (recursively):
                 # .. and recurse ..
-                result.extend(self.list_files_under(os.path.join(dir, elem.name), True))
+                #print "> l_f_u recurse dir = %s, elem.name = %s last = %s"%(dir, elem.name, last_elem)
+                result.extend(self.list_files_under(os.path.join(dir, last_elem), True, 
+                                                    vroot = vroot))
         
         return result
 
-    def abs_match(self, filespec):
+    def abs_match(self, filespec, vroot = None):
         """
         Return a list of the file object for each file that matches
         filespec.
         """
-        files = filespec.match(self)
+        files = filespec.match(self, vroot = vroot)
 
         rv = [ ]
         for f in files:

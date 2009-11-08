@@ -96,6 +96,7 @@ class CpioDeploymentBuilder(pkg.Dependable):
 
             app_dict = get_instruction_dict()
 
+
             # Apply instructions .. 
             for role in self.roles:
                 lbl = depend.Label(utils.LabelKind.Package, "*", role, "*")
@@ -105,7 +106,9 @@ class CpioDeploymentBuilder(pkg.Dependable):
                     for instr in instrs:
                         iname = instr.outer_elem_name()
                         if (iname in app_dict):
-                            app_dict[iname].apply(self.builder, instr, role, the_heirarchy)
+                            app_dict[iname].apply(self.builder, instr, role,
+                                                  self.target_base[role], 
+                                                  the_heirarchy)
                         else:
                             raise utils.Failure("CPIO deployments don't know about "
                                                 "the instruction %s (lbl %s, file %s"%(iname, lbl, fn))
@@ -126,12 +129,15 @@ class CpioDeploymentBuilder(pkg.Dependable):
             raise utils.Failure("Attempt to build a cpio deployment with unknown label %s"%(lbl))
 
 class CIApplyChmod(CpioInstructionImplementor):
-    def apply(self, builder, instr, role, heirarchy):
+    def apply(self, builder, instr, role, target_base, heirarchy):
         dp = cpiofile.CpioFileDataProvider(heirarchy)
 
         (clrb, bits) = utils.parse_mode(instr.new_mode)
 
-        files = dp.abs_match(instr.filespec)
+        
+
+        files = dp.abs_match(instr.filespec, 
+                             vroot = target_base)
         
 
         for f in files:
@@ -143,9 +149,9 @@ class CIApplyChmod(CpioInstructionImplementor):
             f.mode = f.mode | bits
 
 class CIApplyChown(CpioInstructionImplementor):
-    def apply(self, builder, instr, role, heirarchy):
+    def apply(self, builder, instr, role, target_base, heirarchy):
         dp = cpiofile.CpioFileDataProvider(heirarchy)
-        files = dp.abs_match(instr.filespec)
+        files = dp.abs_match(instr.filespec, vroot = target_base)
 
         uid = utils.parse_uid(builder, instr.new_user)
         gid = utils.parse_gid(builder, instr.new_group)
@@ -157,7 +163,7 @@ class CIApplyChown(CpioInstructionImplementor):
                 f.gid = gid
 
 class CIApplyMknod(CpioInstructionImplementor):
-    def apply(self, builder, instr, role, heirarchy):
+    def apply(self, builder, instr, role, target_base, heirarchy):
         # Find or create the relevant file
         cpio_file = cpiofile.File()
 
@@ -173,10 +179,14 @@ class CIApplyMknod(CpioInstructionImplementor):
         cpio_file.rdev = os.makedev(int(instr.major), int(instr.minor))
         # Zero-length file - it's a device node.
         cpio_file.name = None
-        cpio_file.data = None 
-        cpio_file.key_name = instr.file_name
-        print "put_target_file %s"%instr.file_name
-        heirarchy.put_target_file(instr.file_name, cpio_file)
+        cpio_file.data = None
+
+        print "target_base = %s for role %s"%(target_base, role)
+        real_path = utils.rel_join(target_base, instr.file_name)
+        
+        cpio_file.key_name = real_path
+        print "put_target_file %s"%real_path
+        heirarchy.put_target_file(real_path, cpio_file)
         
 
 def get_instruction_dict():

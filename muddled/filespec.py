@@ -81,7 +81,7 @@ class FileSpec:
         # Hmm .. it appears we have no choice.
         return True
 
-    def match(self, data_provider):
+    def match(self, data_provider, vroot):
         """
         Match this filespec with a data provider, returning a set of
         file- and directory- names upon which to operate.
@@ -93,12 +93,18 @@ class FileSpec:
         ``FSFileSpecDataProvider.abs_match()`` is probably your friend -
         if you're using the filesystem to provide data for a filespec,
         call it, not us.
+
+        vroot is a 'virtual root' - the data provider transparently 
+        returns the subset of files that would be present if 'vroot'
+        in the data provider were the root. It's used by remappings
+        in the cpio deployment, among others.
         """
         # OK. Find everything under root .
         return_set = set()
         
 
-        all_in_root = data_provider.list_files_under(self.root, self.all_regex)
+        all_in_root = data_provider.list_files_under(self.root, self.all_regex, 
+                                                     vroot = vroot)
         for f in all_in_root:
             #print "Match f  = %s against spec = %s"%(f, self.spec)
             if self.spec_re.match(f) is not None:
@@ -110,9 +116,11 @@ class FileSpec:
         if self.all_under:
             extras = set()
             for i in return_set:
-                under = data_provider.list_files_under(i, True)
+                #print "i = %s"%i
+                under = data_provider.list_files_under(i, True, 
+                                                       vroot = vroot)
                 for u in under:
-                    print "u = %s"%u
+                    #print "u = %s"%u
                     to_add = os.path.join(self.root, i, u)
                     if to_add not in return_set:
                         extras.add(to_add)

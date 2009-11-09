@@ -43,7 +43,7 @@ class VersionBuilder(PackageBuilder):
         """
         Erase the version file.
         """
-        os.path.unlink(self.file_name())
+        os.remove(self.file_name())
 
     def write_elem(self, f, elem, val):
         if (val is not None):
@@ -54,7 +54,7 @@ class VersionBuilder(PackageBuilder):
         Write the version file
         """
         f = open(self.file_name(), 'w')
-        f.write("<?xml version=\"1.0\"\n")
+        f.write("<?xml version=\"1.0\" ?>\n")
         f.write("\n")
         f.write("<version>\n")
         self.write_elem(f, "name", self.swname)
@@ -62,6 +62,7 @@ class VersionBuilder(PackageBuilder):
         self.write_elem(f, "build", self.build)
         if (self.withDate):
             self.write_elem(f, "built-at", utils.iso_time())
+            self.write_elem(f, "built-time", utils.unix_time())
         if (self.withUser):
             self.write_elem(f, "built-by", utils.current_user())
         if (self.withMachine):

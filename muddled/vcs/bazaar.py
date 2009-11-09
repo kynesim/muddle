@@ -44,20 +44,25 @@ class Bazaar(VersionControlHandler):
         os.chdir(os.path.join(self.checkout_path,self.checkout_name))
         utils.run_cmd("bzr unbind")
 
+
     def pull(self):
         os.chdir(self.checkout_path)
         utils.run_cmd("bzr pull %s"%self.bzr_repo)
 
     def update(self):
-        os.chdir(self.checkout_path)
+        update_in = os.path.join(self.checkout_path, self.checkout_name)
+        os.chdir(update_in)
         utils.run_cmd("bzr update", allowFailure = True)
 
     def commit(self):
-        os.chdir(self.checkout_path)
-        utils.run_cmd("bzr commit")
+        commit_in = os.path.join(self.checkout_path, self.checkout_name)
+        os.chdir(commit_in)
+        utils.run_cmd("bzr commit", allowFailure = True)
 
     def push(self):
-        os.chdir(self.checkout_path)
+        push_in = os.path.join(self.checkout_path, self.checkout_name)
+        os.chdir(push_in)
+        print "> push to %s "%self.bzr_repo
         utils.run_cmd("bzr push %s"%self.bzr_repo)
 
     def must_update_to_commit(self):

@@ -358,6 +358,9 @@ def run_cmd(cmd, env = None, allowFailure = False, isSystem = False):
       failure should be reported by raising utils.Error. otherwise, it's being
       run on behalf of the user and failure should be reported by raising
       utils.Failure.
+
+    Return the exit code of this command.
+
     """
     if env is None: # so, for instance, an empty dictionary is allowed
         env = os.environ
@@ -445,9 +448,11 @@ def copy_file(from_path, to_path, object_exactly=False, preserve=False):
 
     If preserve is true, then the file's mode, ownership and timestamp will be
     copied, if possible ('-p'). This is especially useful when copying as a
-    privileged user.
+    privileged user.    
     """
-    extra_options = "-f"
+
+    # We never want to follow symlinks.
+    extra_options = "-Pf"
     if object_exactly:
         extra_options += "d"
     if preserve:

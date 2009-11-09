@@ -131,7 +131,7 @@ class Heirarchy:
 
             parent_node = self.map.get(a)
 
-            # print "Merge: k = %s a = %s b = %s parent_node = %s"%(k,a,b,parent_node)
+            #print "Merge: k = %s a = %s b = %s parent_node = %s"%(k,a,b,parent_node)
             if (parent_node is None) or (a=="/" and b==""):
                 #print "root[k] = v (%s -> %s)"%(k, v.key_name)
                 self.roots[k] = v

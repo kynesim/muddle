@@ -8,12 +8,15 @@ import os
 import stat
 import os.path
 import subprocess
+import socket
 import time
 import hashlib
 import imp
 import xml.dom
 import xml.dom.minidom
 import traceback
+import pwd
+
 
 class Error(Exception):
     """
@@ -346,6 +349,27 @@ def iso_time():
     """
     return time.strftime("%Y-%m-%d %H:%M:%S")
 
+def current_user():
+    """
+    Return the identity of the current user, as an email address if possible,
+    but otherwise as a UNIX uid
+    """
+    uid = os.getuid()
+    a_pwd = pwd.getpwuid(uid)
+    if (a_pwd is not None):
+        return a_pwd.pw_name
+    else:
+        return None
+
+def current_machine_name():
+    """
+    Return the identity of the current machine - possibly including the 
+    domain name, possibly not
+    """
+    return socket.gethostname()
+    
+    
+
 def run_cmd(cmd, env = None, allowFailure = False, isSystem = False):
     """
     Run a command via the shell, raising an exception on failure,
@@ -452,7 +476,7 @@ def copy_file(from_path, to_path, object_exactly=False, preserve=False):
     """
 
     # We never want to follow symlinks.
-    extra_options = "-Pf"
+    extra_options = "-f"
     if object_exactly:
         extra_options += "d"
     if preserve:

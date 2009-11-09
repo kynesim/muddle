@@ -41,7 +41,12 @@ class ToolsDeploymentBuilder(pkg.Dependable):
         for role in self.dependent_roles:
             print "> %s: Deploying role %s .."%(label.name, role)
             install_dir = self.builder.invocation.role_install_path(role)
-            utils.recursively_copy(install_dir, deploy_dir)
+            # We do want an exact copy here - this is a copy from the install
+            #  set to the role deployment and therefore may include symlinks
+            #  hardwired to MUDDLE_TARGET_INSTALL. If it were a copy to the install
+            #  directory, we'd want an inexact copy.
+            # - rrw 2009-11-09
+            utils.recursively_copy(install_dir, deploy_dir, object_exactly = True)
 
         # We don't obey instructions. W00t.
 

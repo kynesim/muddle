@@ -11,27 +11,43 @@ import re
 
 class Label(object):
     """
-    A label denotes an entity in muddle's dependency heirarchy.
+    A label denotes an entity in muddle's dependency hierarchy.
 
     A label is structured as::
 
             <type>:<name>{<role>}/<tag>[<flags>]
 
-    The <type>, <name>, <role> and <tag> parts are composed of the characters
-    [A-Za-z0-9-+_], or the wildcard character '*'. The role and flags are
-    optional.
+    or::
+
+            <type>:[<domain>]<name>{<role>}/<tag>[<flags>]
+
+    The <type>, <domain>, <name>, <role> and <tag> parts are composed of the
+    characters [A-Za-z0-9-+_], or the wildcard character '*'. The domain, role
+    and flags are optional.
 
         .. note:: The label strings "type:name/tag" and "type:name{}/tag[]" are
            identical, although the former is the more usual form.)
 
            The '+' is allowed in label parts to allow for names like "g++".
-    
+
+           Domains are used when relating sub-builds to each other, and are
+           not necessary when relating labels within the same build.
+
+    The "core" part of a label is the ``<name>{<role>}`` or
+    ``[<domain>]<name>{<role>}``. The <type> and <tag> can (typically) be
+    thought of as tracking the progress of the "core" entity through its
+    lifecycle (build sequence, etc.).
+
     Names beginning with an underscore are reserved by muddle, so do not use
     them for other purposes.
 
     Label instances are treated as immutable by the muddle system, although the
     implementation does not currently enforce this. Please don't try to abuse
     this, as Bad Things will happen.
+
+        (Why is the 'domain' argument at the end of the argument list? Because
+        it was added after the other arguments were already well-established,
+        and some uses of Label use positional arguments.)
     """
 
     # Is this correct? A "word" or an asterisk...
@@ -40,6 +56,7 @@ class Label(object):
 
     label_string_re = re.compile(r"""
                                  (?P<type>%s) :             # <type> and colon
+                                 (?P<domain>\(%s\))?        # optional domain
                                  (?P<name>%s)               # <name>
                                  (\{
                                     (?P<role>%s)?           # optional <role>
@@ -48,10 +65,12 @@ class Label(object):
                                  (\[
                                     (?P<flags>[A-Za-z0-9]+) # 0 or more flags
                                   \])?                      # in optional []
-                                 """%(label_part,label_part,label_part,label_part),
+                                 """%(label_part,label_part,label_part,
+                                      label_part,label_part),
                                  re.VERBOSE)
 
-    def __init__(self, type, name, role=None, tag='*', transient=False, system=False):
+    def __init__(self, type, name, role=None, tag='*', transient=False,
+                 system=False, domain=None):
         """
         :type:      What kind of label this is. The standard muddle values are
                     "checkout", "package" and "deployment". These values are
@@ -83,13 +102,24 @@ class Label(object):
                     are labels "invented" by muddle itself to satisfy implicit
                     dependencies, or to allow the build system as a whole to
                     work.
+        :domain:    The domain is used to specify which build or sub-build this
+                    label corresponds to. Dots are used to delimit sub-build
+                    components in the domain name. The domain defaults to the
+                    current build.
 
         The role may be None, indicating (for instance) that roles are not
         relevant to this particular label.
 
+        The domain may be None, indicating that the label belongs to the
+        current build. Do not specify domains unless you need to.
+
         The kind, name, role and tag may be wildcarded, by being set to '*'.
         When evaluating dependencies between labels, for instance, a wildcard
         indicates "for any value of this part of the label".
+
+        Domains can be wildcarded, and that probably means the obvious (that
+        the label applies across all domains), but this may not yet be
+        implemented.
 
         Note that 'transient' and 'system' are not equality-preserving
         properties of a label - two labels are not made unequal just because
@@ -115,6 +145,9 @@ class Label(object):
             Label('package', 'busybox', role='rootfs', tag='installed')
             >>> str(_)
             'package:busybox{rootfs}/installed'
+            Label('package', 'busybox', role='rootfs', tag='installed', domain="arm.helloworld")
+            >>> str(_)
+            'package:(arm.helloworld)busybox{rootfs}/installed'
         """
 
         # Slightly icky, but it's a pain if an illegal label is allowed
@@ -124,8 +157,11 @@ class Label(object):
         if role is not None:
             self._check_value('role',role)
         self._check_value('tag',tag)
+        if domain is not None:
+            self._check_value('domain',domain)
 
         self.type = type
+        self.domain = domain
         self.name = name
         self.role = role
         self.tag = tag
@@ -173,6 +209,12 @@ class Label(object):
             else:
                 return None
 
+        if self.domain != other.domain:
+            if self.domain == "*" or other.domain == "*":
+                nr_wildcards += 1
+            else:
+                return None
+
         if self.name != other.name:
             if self.name == "*" or other.name == "*":
                 nr_wildcards += 1
@@ -197,10 +239,11 @@ class Label(object):
         """
         Returns True if other matches self without the tag, False otherwise
 
-        Specifically, tests whether the two Labels have identical type, name
-        and role.
+        Specifically, tests whether the two Labels have identical type, domain,
+        name and role.
         """
-        return (self.type == other.type and
+        return (self.type   == other.type and
+                self.domain == other.domain and
                 self.name == other.name and
                 self.role == other.role)
 
@@ -220,6 +263,8 @@ class Label(object):
             parts.append('transient=True')
         if self.system:
             parts.append('system=True')
+        if self.domain:
+            parts.append('domain=%s'%repr(self.domain))
         return 'Label(%s)'%', '.join(parts)
 
     def __str__(self):
@@ -228,7 +273,12 @@ class Label(object):
         else:
             basename = self.name
 
-        rv =  "%s:%s/%s"%(self.type, basename, self.tag)
+        if self.domain:
+            domain = "[%s]"%self.domain
+        else:
+            domain = ""
+
+        rv =  "%s:%s%s/%s"%(self.type, domain, basename, self.tag)
 
         if self.transient or self.system:
             extra = "[%s%s]"%( "T" if self.transient else "",
@@ -257,10 +307,10 @@ class Label(object):
         """
         Return the Label values as a tuple, e.g., for comparison or hashing.
 
-        Returns (type, name, role, tag). Does not return the 'transient' or
-        'system' values, if any.
+        Returns (type, domain, name, role, tag). Does not return the
+        'transient' or 'system' values, if any.
         """
-        return (self.type, self.name, self.role, self.tag)
+        return (self.type, self.domain, self.name, self.role, self.tag)
 
     def __hash__(self):
         # Is it acceptable to ignore 'transient' and 'system' when hashing?
@@ -278,6 +328,10 @@ class Label(object):
         * <type>:<name>{<role>}/<tag>
         * <type>:<name>/<tag>[<flags>]
         * <type>:<name>{<role>}/<tag>[<flags>]
+        * <type>:(<domain>)<name>/<tag>
+        * <type>:(<domain>)<name>{<role>}/<tag>
+        * <type>:(<domain>)<name>/<tag>[<flags>]
+        * <type>:(<domain>)<name>{<role>}/<tag>[<flags>]
 
         See the docstring for Label itself for the meaning of the various
         parts of a label.
@@ -297,8 +351,20 @@ class Label(object):
         Label('package', 'busybox', role=None, tag='installed') 
         >>> Label.from_string('package:busybox{firmware}/installed[ABT]')
         Label('package', 'busybox', role='firmware', tag='installed', transient=True)
+        >>> Label.from_string('package:(arm.hello)busybox{firmware}/installed[ABT]')
+        Label('package', 'busybox', role='firmware', tag='installed', transient=True, domain='arm.hello')
+        >>> Label.from_string('*:(*)*{*}/*')
+        Label('*', '*', role='*', tag='*', domain='*')
         >>> Label.from_string('*:*{*}/*')
         Label('*', '*', role='*', tag='*')
+        >>> Label.from_string('foo:bar{baz}/wombat[T]')
+        Label('foo', 'bar', role='bzr', tag='wombar', transient=True)
+        >>> Label.from_string('foo:(ick)bar{baz}/wombat[T]')
+        Label('foo', 'bar', role='bzr', tag='wombat', transient=True, domain='ick')
+        >>> Label.from_string('package:()busybox')   # empty domain brackets
+        Traceback (most recent call last):
+        ...
+        muddled.utils.Failure: Label string 'package:busybox' is not a valid Label
         """
         m = Label.label_string_re.match(label_string)
         if m is None or m.end() != len(label_string):
@@ -306,8 +372,9 @@ class Label(object):
                                 ' Label'%repr(label_string))
 
         type   = m.group('type')
+        domain = m.group('domain') # conveniently, None if not present
         name   = m.group('name')
-        role   = m.group('role') # conveniently, None if not present
+        role   = m.group('role')   # conveniently, None if not present
         tag    = m.group('tag')
         flags  = m.group('flags')
 
@@ -319,7 +386,7 @@ class Label(object):
             system    = 'S' in flags
 
         return Label(type, name, role=role, tag=tag, transient=transient,
-                      system=system)
+                      system=system, domain=domain)
 
 
 class Rule:

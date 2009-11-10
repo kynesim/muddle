@@ -16,7 +16,7 @@ class FileSpecDataProvider:
     Provides data to a filespec so it can decide what it matches.
     """
     
-    def list_files_under(self, dir, recursively = False):
+    def list_files_under(self, dir, recursively = False, vroot = None):
         """
         Return a list of the files under dir. If dir is not a directory,
         returns None.
@@ -81,7 +81,7 @@ class FileSpec:
         # Hmm .. it appears we have no choice.
         return True
 
-    def match(self, data_provider, vroot):
+    def match(self, data_provider, vroot=None):
         """
         Match this filespec with a data provider, returning a set of
         file- and directory- names upon which to operate.
@@ -96,7 +96,7 @@ class FileSpec:
 
         vroot is a 'virtual root' - the data provider transparently 
         returns the subset of files that would be present if 'vroot'
-        in the data provider were the root. It's used by remappings
+        in the data provider were the root. It is used by remappings
         in the cpio deployment, among others.
         """
         # OK. Find everything under root .
@@ -212,7 +212,7 @@ class ListFileSpecDataProvider:
     def __init__(self, file_list):
         self.file_list = file_list
 
-    def list_files_under(self, dir, recursively = False):
+    def list_files_under(self, dir, recursively = False, vroot = None):
         # _really_ simple-minded .. 
         result = [ ]
         for f in self.file_list:
@@ -240,7 +240,7 @@ class FSFileSpecDataProvider:
     def __init__(self, base_dir):
         self.base_dir = os.path.abspath(base_dir)
 
-    def list_files_under(self, dir, recursively = False):
+    def list_files_under(self, dir, recursively = False, vroot = None):
         # dir is relative to base_dir, so ..
         
         # Don't absolutise a path needlessly.
@@ -265,8 +265,7 @@ class FSFileSpecDataProvider:
             if (recursively and os.path.isdir(abs_elem) and not os.path.islink(abs_elem)):
                 result.extend(
                     map(lambda v: os.path.join(elem, v), 
-                        self.list_files_under(os.path.join(dir, elem), 
-                            True)))
+                        self.list_files_under(os.path.join(dir, elem), True)))
 
         return result
 

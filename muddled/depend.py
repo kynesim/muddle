@@ -19,7 +19,7 @@ class Label(object):
 
     or::
 
-            <type>:[<domain>]<name>{<role>}/<tag>[<flags>]
+            <type>:(<domain>)<name>{<role>}/<tag>[<flags>]
 
     The <type>, <domain>, <name>, <role> and <tag> parts are composed of the
     characters [A-Za-z0-9-+_], or the wildcard character '*'. The domain, role
@@ -31,10 +31,12 @@ class Label(object):
            The '+' is allowed in label parts to allow for names like "g++".
 
            Domains are used when relating sub-builds to each other, and are
-           not necessary when relating labels within the same build.
+           not necessary when relating labels within the same build. It is
+           not allowed to specify the empty domain as "()" - just omit the
+           parentheses.
 
     The "core" part of a label is the ``<name>{<role>}`` or
-    ``[<domain>]<name>{<role>}``. The <type> and <tag> can (typically) be
+    ``(<domain>)<name>{<role>}``. The <type> and <tag> can (typically) be
     thought of as tracking the progress of the "core" entity through its
     lifecycle (build sequence, etc.).
 
@@ -56,7 +58,9 @@ class Label(object):
 
     label_string_re = re.compile(r"""
                                  (?P<type>%s) :             # <type> and colon
-                                 (?P<domain>\(%s\))?        # optional domain
+                                 (\(
+                                     (?P<domain>%s)         # <domain>
+                                 \))?                       # in optional ()
                                  (?P<name>%s)               # <name>
                                  (\{
                                     (?P<role>%s)?           # optional <role>
@@ -145,7 +149,8 @@ class Label(object):
             Label('package', 'busybox', role='rootfs', tag='installed')
             >>> str(_)
             'package:busybox{rootfs}/installed'
-            Label('package', 'busybox', role='rootfs', tag='installed', domain="arm.helloworld")
+            >>> Label('package', 'busybox', role='rootfs', tag='installed', domain="arm.helloworld")
+            Label('package', 'busybox', role='rootfs', tag='installed', domain='arm.helloworld')
             >>> str(_)
             'package:(arm.helloworld)busybox{rootfs}/installed'
         """
@@ -274,7 +279,7 @@ class Label(object):
             basename = self.name
 
         if self.domain:
-            domain = "[%s]"%self.domain
+            domain = "(%s)"%self.domain
         else:
             domain = ""
 
@@ -343,12 +348,8 @@ class Label(object):
         If the label string is valid, a corresponding Label will be returned,
         otherwise a Failure wil be raised.
 
-        >>> Label.from_string('package:busybox')
-        Traceback (most recent call last):
-        ...
-        muddled.utils.Failure: Label string 'package:busybox' is not a valid Label
         >>> Label.from_string('package:busybox/installed')
-        Label('package', 'busybox', role=None, tag='installed') 
+        Label('package', 'busybox', role=None, tag='installed')
         >>> Label.from_string('package:busybox{firmware}/installed[ABT]')
         Label('package', 'busybox', role='firmware', tag='installed', transient=True)
         >>> Label.from_string('package:(arm.hello)busybox{firmware}/installed[ABT]')
@@ -358,13 +359,23 @@ class Label(object):
         >>> Label.from_string('*:*{*}/*')
         Label('*', '*', role='*', tag='*')
         >>> Label.from_string('foo:bar{baz}/wombat[T]')
-        Label('foo', 'bar', role='bzr', tag='wombar', transient=True)
+        Label('foo', 'bar', role='baz', tag='wombat', transient=True)
         >>> Label.from_string('foo:(ick)bar{baz}/wombat[T]')
-        Label('foo', 'bar', role='bzr', tag='wombat', transient=True, domain='ick')
-        >>> Label.from_string('package:()busybox')   # empty domain brackets
+        Label('foo', 'bar', role='baz', tag='wombat', transient=True, domain='ick')
+
+        A tag must be supplied:
+
+        >>> Label.from_string('package:busybox')
         Traceback (most recent call last):
         ...
-        muddled.utils.Failure: Label string 'package:busybox' is not a valid Label
+        Failure: Label string 'package:busybox' is not a valid Label
+
+        If you specify a domain, it may not be "empty":
+
+        >>> Label.from_string('package:()busybox/*')
+        Traceback (most recent call last):
+        ...
+        Failure: Label string 'package:()busybox/*' is not a valid Label
         """
         m = Label.label_string_re.match(label_string)
         if m is None or m.end() != len(label_string):
@@ -391,14 +402,32 @@ class Label(object):
 
 class Rule:
     """
-    A rule. Every dependency set has a target Label, an 
-    object, and a set of Labels on which the target depends.
+    A rule or "dependency set".
+    
+    Every Rule has:
+    
+    * a target Label (its desired result),
+    * an optional Dependable object (to do the work to produce that result),
+    * and a set of Labels on which the target depends (which must have been
+      satisfied before this Rule can be triggered).
 
-    Once you've satisfied all the depended Labels, you get to call the
-    underlying object to make the target.
+    In other words, once all the dependency Labels are satisfied, the object
+    can be called to make the target Label.
+
+        (And if there is no object, the target is automatically satisfied.)
+
+    Note that the "set of Labels" is indeed a set, so adding the same Label
+    more than once will not have any effect (caveat: adding a label with
+    different flags from a previous label may have an effect, but it's not
+    something that should be relied on).
     """
 
     def __init__(self, target_dep, obj):
+        """
+        * `target_dep` is the Label this Rule intends to "make".
+        * `obj` is None or a Dependable, which will be used to "make" the
+          `target_dep`.
+        """
         self.deps = set()
         if (not isinstance(target_dep, Label)):
             raise utils.Error("Attempt to create a rule without a label"
@@ -411,19 +440,19 @@ class Rule:
                               "which isn't a dependable but a %s."%(obj.__class__.__name__))
 
 
-    def set_arg(self, arg):
-        """ 
-        arg is an optional argument used to pass extra data through to
-        a dependable that is built as the result of a dependency.
-        """
-        self.arg = arg
-
     def add(self,label):
+        """
+        Add a dependency on the given Label.
+        """
         self.deps.add(label)
 
     def merge(self, deps):
         """
-        Merge another Deps set with this one.
+        Merge another Rule with this one.
+
+        Adds all the dependency labels from `deps` to this Rule.
+
+        If `deps.obj` is not None, replaces our `obj` with the one from `deps`.
         """
         for i in deps.deps:
             self.add(i)
@@ -437,16 +466,25 @@ class Rule:
 
 
     def depend_checkout(self, co_name, tag):
+        """
+        Add a dependency on label "checkout:<co_name>/<tag>".
+        """
         dep = Label(utils.LabelKind.Checkout, co_name, None, tag)
-        self.deps += dep
+        self.add(dep)
 
     def depend_pkg(self, pkg, role, tag):
+        """
+        Add a dependency on label "package:<pkg>{<role>}/tag".
+        """
         dep = Label(utils.LabelKind.Package, pkg, role, tag)
-        self.deps += dep
+        self.add(dep)
 
     def depend_deploy(self, dep_name, tag):
+        """
+        Add a dependency on label "deployment:<dep_name>/tag".
+        """
         dep = Label(utils.LabelKind.Deployment, dep_name, None, tag)
-        self.deps += dep
+        self.add(dep)
 
     def __str__(self):
         return self.to_string()
@@ -480,6 +518,31 @@ class Rule:
     def to_string(self, showSystem = True, showUser = True):
         """
         Return a string representing this dependency set.
+
+        If `showSystem` is true, include dependency labels with the System tag
+        (i.e., dependencies inserted by the muddle system itself), otherwise
+        ignore such.
+
+        If `showUser` is true, include dependency labels without the System tag
+        (i.e., "normal" dependencies, explicitly added by the user), otherwise
+        ignore such.
+
+        The default is to show all of the dependencies.
+
+        For instance (not a very realistic example):
+
+            >>> tgt = Label.from_string('package:fred{jim}/*')
+            >>> r = Rule(tgt,None)
+            >>> r.to_string()
+            'package:fred{jim}/* <- [ ]'
+            >>> r.add(Label.from_string('package:bob{bob}/built'))
+            >>> r.depend_checkout('fred','jim')
+            >>> r.depend_pkg('albert','jim','built')
+            >>> r.depend_deploy('hall','deployed')
+            >>> r.to_string()
+            'package:fred{jim}/* <- [ deployment:hall/deployed, package:bob{bob}/built, package:albert{jim}/built, checkout:fred/jim ]'
+
+        Note that the order of the dependencies in the output is undefined.
         """
         str_list = [ ]
         str_list.append(self.target.__str__())
@@ -490,7 +553,7 @@ class Rule:
                 if ((i.system and showSystem) or ((not i.system) and showUser)):
                     dep_list.append(i.__str__())
             str_list.append(', '.join(dep_list))
-        str_list.append("]\n")
+        str_list.append("]")
         return " ".join(str_list)
         
 
@@ -627,6 +690,7 @@ class RuleSet:
                 if ((i.target.system and showSystem) or 
                     ((not i.target.system) and showUser)):
                     str_list.append(i.to_string(showUser = showUser, showSystem = showSystem))
+                    str_list.append('\n')
         str_list.append("-----\n")
         return "".join(str_list)
         

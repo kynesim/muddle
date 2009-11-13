@@ -54,8 +54,15 @@ class MakeBuilder(PackageBuilder):
 
         self.ensure_dirs()
         
+        # XXX We have no way of remembering a checkout in a different domain
+        # XXX (from the label we're building) so for the moment we won't even
+        # XXX try...
         co_path = self.builder.invocation.checkout_path(self.co)
         os.chdir(co_path)
+
+        # XXX Experimentally set MUDDLE_SRC for the "make" here, where we need it
+        os.environ["MUDDLE_SRC"] = co_path
+        # XXX
 
         if self.makefile_name is None:
             makefile_name = "Makefile"
@@ -113,7 +120,7 @@ def simple(builder, name, role, checkout, simpleCheckout = False, config = True,
     # .. and make us depend on the checkout.
     pkg.package_depends_on_checkout(builder.invocation.ruleset,
                                     name, role, checkout, the_pkg)
-    attach_env(builder, name, role, checkout)
+    ###attach_env(builder, name, role, checkout)
 
 def medium(builder, name, roles, checkout, deps = None, dep_tag = utils.Tags.PreConfig, 
            simpleCheckout = True, config = True, perRoleMakefiles = False, 
@@ -140,7 +147,7 @@ def medium(builder, name, roles, checkout, deps = None, dep_tag = utils.Tags.Pre
         pkg.package_depends_on_packages(builder.invocation.ruleset,
                                        name, r, dep_tag, 
                                        deps)
-        attach_env(builder, name, r, checkout)
+        ###attach_env(builder, name, r, checkout)
 
 def twolevel(builder, name, roles, 
              co_dir, co_name = None, 
@@ -174,7 +181,7 @@ def twolevel(builder, name, roles,
         pkg.package_depends_on_packages(builder.invocation.ruleset,
                                        name, r, dep_tag, 
                                        deps)
-        attach_env(builder, name, r, co_name)
+        ###attach_env(builder, name, r, co_name)
 
                                        
 
@@ -185,17 +192,18 @@ def single(builder, name, role, deps = None):
     """
     medium(builder, name, [ role ], name, deps)
     
-def attach_env(builder, name, role, checkout):
+def attach_env(builder, name, role, checkout, domain=None):
     """
     Write the environment which attaches MUDDLE_SRC to makefiles.
+
+    We retrieve the environment for 'package:<name>{<role>}/*', and
+    set MUDDLE_SRC therein to the checkout path for 'checkout:<checkout>'.
     """
     env = builder.invocation.get_environment_for(
         depend.Label(utils.LabelKind.Package, 
                      name, role, "*"))
-    env.set("MUDDLE_SRC", builder.invocation.checkout_path(checkout))
+    env.set("MUDDLE_SRC", builder.invocation.checkout_path(checkout, domain=domain))
 
 
 
 # End file.
-            
-        

@@ -399,11 +399,14 @@ class Query(Command):
                 role = label.role
 
             if label.type == utils.LabelKind.Checkout:
-                dir = builder.invocation.db.get_checkout_path(label.name)
+                dir = builder.invocation.db.get_checkout_path(label.name,
+                        domain=label.domain)
             elif label.type == utils.LabelKind.Package:
-                dir = builder.invocation.package_install_path(label.name, role)
+                dir = builder.invocation.package_install_path(label.name, role,
+                        domain=label.domain)
             elif label.type == utils.LabelKind.Deployment:
-                dir = builder.invocation.deploy_path(label.name)
+                dir = builder.invocation.deploy_path(label.name,
+                        domain=label.domain)
                 
             if dir is not None:
                 print dir
@@ -736,6 +739,8 @@ class Instruct(Command):
     """
     Syntax: instruct [pkg{role}] <[instruction-file]>
 
+        or: instruct [(domain)pkg{role}] <[instruction-file]>
+
     Sets the instruction file for the given package name and role to 
     the file specified in instruction-file. The role must be explicitly
     given as it's considered more likely that bugs will be introduced by
@@ -772,7 +777,7 @@ class Instruct(Command):
         ifile = None
 
         # Validate this first - the file check may take a while.
-        lbls = labels_from_pkg_args([ pkg_role ], utils.Tags.PreConfig,                                     
+        lbls = labels_from_pkg_args([ pkg_role ], utils.Tags.PreConfig,
                                     [ ])
 
 
@@ -800,7 +805,7 @@ class Instruct(Command):
         
         # Last, but not least, do the instruction ..
         if (not self.no_op()):
-            builder.instruct(lbls[0].name, lbls[0].role, ifile)
+            builder.instruct(lbls[0].name, lbls[0].role, ifile, domain=lbls[0].domain)
                                     
 class Update(Command):
     """
@@ -1608,15 +1613,43 @@ def process_labels_all_spec(label_list, default_roles):
     return r_list
     
 
+pkg_args_re = re.compile(r"""
+                         (\(
+                             (?P<domain>%s)         # <domain>
+                         \))?                       # in optional ()
+                         (?P<name>%s)               # <name>
+                         (\{
+                            (?P<role>%s)?           # optional <role>
+                          \})?                      # in optional {}
+                          $                         # and nothing more
+                          """%(depend.Label.domain_part,
+                               depend.Label.label_part,
+                               depend.Label.label_part),
+                         re.VERBOSE)
 
 def labels_from_pkg_args(list, tag, default_roles):
     """
     Convert a list of packages expressed as package([{role}]?) into
     a set of labels with the given tag. This is basically a 
     cartesian product of all the unqualified packages.
-    """
 
-    the_re = re.compile(r'([A-Za-z0-9.*_-]+)(\{([A-Za-z0-9.*_-]+)\})?$')
+    NB: also allows (domain) type specifications before the package name.
+    If you know what a domain is, you should be able to work that out.
+
+    For example:
+
+        >>> x = labels_from_pkg_args( [ 'fred', 'bob{}', 'william{jim}', '(here)fred{jim}' ],
+        ...                           'pobble',
+        ...                           [ 'this', 'that' ] )
+        >>> for l in x:
+        ...    print l
+        package:fred{this}/pobble
+        package:fred{that}/pobble
+        package:bob{this}/pobble
+        package:bob{that}/pobble
+        package:william{jim}/pobble
+        package:(here)fred{jim}/pobble
+    """
 
     result = [ ]
 
@@ -1624,32 +1657,30 @@ def labels_from_pkg_args(list, tag, default_roles):
         raise utils.Failure("No packages specified")
 
     for elem in list:
-        m = the_re.match(elem)
+        m = pkg_args_re.match(elem)
         if (m is None):
             # Hmm ..
             raise utils.Error("Package list element %s isn't a " 
-                    "well-formed package descriptor (pkg({role})?)"%elem)
+                    "well-formed package descriptor (name({role})?)"%elem)
         else:
-            pkg = m.group(1)
-            role = m.group(3)
+            domain = m.group('domain')    # None if not present
+            name   = m.group('name')
+            role   = m.group('role')      # None if not present
             if (role is None):
                 if (len(default_roles) > 0):
                     # Add the default roles
                     for r in default_roles:
                         result.append(depend.Label(utils.LabelKind.Package, 
-                                                   pkg, 
-                                                   r,
-                                                   tag))
+                                                   name, r, tag,
+                                                   domain=domain))
                 else:
                     result.append(depend.Label(utils.LabelKind.Package, 
-                                               pkg,
-                                               "*",
-                                               tag))
+                                               name, "*", tag,
+                                               domain=domain))
             else:
                 result.append(depend.Label(utils.LabelKind.Package,
-                                           pkg, 
-                                           role,
-                                           tag))
+                                           name, role, tag,
+                                           domain=domain))
                 
     return result
     

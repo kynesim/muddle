@@ -42,7 +42,7 @@ def register_cleanup(builder, deployment):
     builder.invocation.ruleset.add(rule)
 
 
-def pkg_depends_on_deployment(builder, pkg, roles, deployment):
+def pkg_depends_on_deployment(builder, pkg, roles, deployment, domain=None):
     """
     Make this package depend on the given deployment
     """
@@ -55,11 +55,12 @@ def pkg_depends_on_deployment(builder, pkg, roles, deployment):
         the_rule.add(depend.Label(utils.LabelKind.Deployment,
                                   deployment,
                                   None,
-                                  utils.Tags.Deployed))
+                                  utils.Tags.Deployed,
+                                  domain=domain))
         builder.invocation.ruleset.add(the_rule)
                 
 
-def role_depends_on_deployment(builder, role, deployment):
+def role_depends_on_deployment(builder, role, deployment, domain=None):
     """
     Make every package in the given role depend on the given deployment
     """
@@ -72,10 +73,11 @@ def role_depends_on_deployment(builder, role, deployment):
     the_rule.add(depend.Label(utils.LabelKind.Deployment,
                        deployment,
                        None,
-                       utils.Tags.Deployed))
+                       utils.Tags.Deployed,
+                       domain=domain))
     builder.invocation.ruleset.add(the_rule)
 
-def deployment_depends_on_roles(builder, deployment, roles):
+def deployment_depends_on_roles(builder, deployment, roles, domain=None):
     """
     Make the deployment of the deployment with the given name
     depend on the installation of every package in the given
@@ -91,10 +93,11 @@ def deployment_depends_on_roles(builder, deployment, roles):
         lbl = depend.Label(utils.LabelKind.Package,
                            "*",
                            r,
-                           utils.Tags.PostInstalled)
+                           utils.Tags.PostInstalled,
+                           domain=domain)
         rule.add(lbl)
 
-def deployment_depends_on_deployment(builder, what, depends_on):
+def deployment_depends_on_deployment(builder, what, depends_on, domain=None):
     """
     Inter-deployment dependencies. Aren't you glad we have a
     general purpose dependency solver?
@@ -108,10 +111,11 @@ def deployment_depends_on_deployment(builder, what, depends_on):
     rule.add(depend.Label(utils.LabelKind.Deployment, 
                           depends_on,
                           None,
-                          utils.Tags.Deployed))
+                          utils.Tags.Deployed,
+                          domain=domain))
     
 
-def inform_deployment_path(builder, name, deployment, roles):
+def inform_deployment_path(builder, name, deployment, roles, domain=None):
     """
     Sets an environment variable to tell the given roles about the
     location of the given deployment.
@@ -124,7 +128,8 @@ def inform_deployment_path(builder, name, deployment, roles):
         lbl = depend.Label(utils.LabelKind.Package,
                            "*",
                            role,
-                           "*")
+                           "*",
+                           domain=domain)
         env = builder.invocation.get_environment_for(lbl)
         env.set_type(name,env_store.EnvType.SimpleValue)
         env.set(name, builder.invocation.deploy_path(deployment))

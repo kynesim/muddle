@@ -3,6 +3,9 @@ Contains the mechanics of muddle.
 """
 
 import os
+import traceback
+import sys
+
 import db
 import depend
 import pkg
@@ -10,8 +13,8 @@ import utils
 import version_control
 import env_store
 import instr
-import traceback
-import sys
+
+from utils import domain_subpath
 
 class Invocation:
     """
@@ -92,7 +95,8 @@ class Invocation:
         lbl = depend.Label(utils.LabelKind.Checkout,
                            "*",
                            "*",
-                           "*")
+                           "*",
+                           domain="*")
         all_labels = self.ruleset.rules_for_target(lbl)
         rv = set()
         for cur in all_labels:
@@ -107,7 +111,8 @@ class Invocation:
         lbl = depend.Label(utils.LabelKind.Checkout, 
                            checkout,
                            "*",
-                           "*")
+                           "*",
+                           domain="*")
         all_labels = self.ruleset.rules_for_target(lbl)
         return (len(all_labels) > 0)
         
@@ -244,12 +249,12 @@ class Invocation:
         (co,path) = utils.split_path_left(build_desc)
         return (co, path)
 
-    def checkout_path(self, co):
+    def checkout_path(self, co, domain=None):
         """
         Return the path in which the given checkout resides. 
         if co is None, returns the root checkout path
         """
-        return self.db.get_checkout_path(co)        
+        return self.db.get_checkout_path(co, domain=domain)        
     
     def packages_for_checkout(self, co):
         """
@@ -259,7 +264,8 @@ class Invocation:
         test_label = depend.Label(utils.LabelKind.Checkout, 
                                   co, 
                                   None,
-                                  "*")
+                                  "*",
+                                  domain="*")   # XXX This is almost certainly wrong
         direct_deps = self.ruleset.rules_which_depend_on(test_label, useTags = False)
         pkgs = set()
         
@@ -270,11 +276,14 @@ class Invocation:
         return pkgs
 
 
-    def package_obj_path(self, pkg, role):
+    def package_obj_path(self, pkg, role, domain=None):
         """
         Where should package pkg in role role build its object files?
         """
-        p = os.path.join(self.db.root_path, "obj")
+        if domain:
+            p = os.path.join(self.db.root_path, domain_subpath(domain), "obj")
+        else:
+            p = os.path.join(self.db.root_path, "obj")
         if (pkg is not None):
             p = os.path.join(p, pkg)
             if (role is not None):
@@ -282,34 +291,43 @@ class Invocation:
         
         return p
     
-    def package_install_path(self, pkg, role):
+    def package_install_path(self, pkg, role, domain=None):
         """
         Where should pkg install itself, by default?
         """
-        p = os.path.join(self.db.root_path, "install")
+        if domain:
+            p = os.path.join(self.db.root_path, domain_subpath(domain), "install")
+        else:
+            p = os.path.join(self.db.root_path, "install")
         if (role is not None):
             p = os.path.join(p, role)
             
         return p
 
-    def role_install_path(self, role):
+    def role_install_path(self, role, domain=None):
         """
         Where should this role find its install to deploy?
         """
-        p = os.path.join(self.db.root_path, "install")
+        if domain:
+            p = os.path.join(self.db.root_path, domain_subpath(domain), "install")
+        else:
+            p = os.path.join(self.db.root_path, "install")
         if (role is not None):
             p = os.path.join(p, role)
 
         return p
 
-    def deploy_path(self, deploy):
+    def deploy_path(self, deploy, domain=None):
         """
         Where should deployment deploy deploy to?
         
         This is slightly tricky, but it turns out that the deployment name is
         what we want.
         """
-        p = os.path.join(self.db.root_path, "deploy")
+        if domain:
+            p = os.path.join(self.db.root_path, domain_subpath(domain), "deploy")
+        else:
+            p = os.path.join(self.db.root_path, "deploy")
         if (deploy is not None):
             p = os.path.join(p, deploy)
             
@@ -354,7 +372,7 @@ class Builder:
         f.close()
         return result
 
-    def instruct(self, pkg, role, instruction_file):
+    def instruct(self, pkg, role, instruction_file, domain=None):
         """
         Register the existence or non-existence of an instruction file.
         If instruction_file is None, we unregister the instruction file.
@@ -362,7 +380,8 @@ class Builder:
         * instruction_file - A db.InstructionFile object to save.
         """
         self.invocation.db.set_instructions(
-            depend.Label(utils.LabelKind.Package, pkg, role, utils.Tags.Temporary), 
+            depend.Label(utils.LabelKind.Package, pkg, role,
+                         utils.Tags.Temporary, domain=domain), 
             instruction_file)
 
     def uninstruct_all(self):
@@ -469,7 +488,8 @@ class Builder:
                 # And don't depend on yourself.
                 if (not (r.target.name == label.name and r.target.role == label.role)):
                     obj_dir = self.invocation.package_obj_path(r.target.name, 
-                                                               r.target.role)                
+                                                               r.target.role,
+                                                               r.target.domain)
                     return_set.add(obj_dir)
 
         return return_set
@@ -483,7 +503,7 @@ class Builder:
             Absolute path where the build tree starts.
         ``MUDDLE_LABEL``
             The label currently being built.
-        ``MUDDLE_KIND``, ``MUDDLE_NAME``, ``MUDDLE_ROLE``, ``MUDDLE_TAG``
+        ``MUDDLE_KIND``, ``MUDDLE_NAME``, ``MUDDLE_ROLE``, ``MUDDLE_TAG``, ``MUDDLE_DOMAIN``
             Broken-down bits of the label being built
         ``MUDDLE_OBJ``
             Where we should build object files for this object - the object
@@ -517,13 +537,19 @@ class Builder:
             store.erase("MUDDLE_ROLE")
         else:
             store.set("MUDDLE_ROLE",label.role)
+        if (label.domain is None):
+            store.erase("MUDDLE_DOMAIN")
+        else:
+            store.set("MUDDLE_DOMAIN",label.domain)
 
         store.set("MUDDLE_TAG", label.tag)
         if (label.type == utils.LabelKind.Checkout):
-            store.set("MUDDLE_OBJ", self.invocation.checkout_path(label.name))
+            store.set("MUDDLE_OBJ", self.invocation.checkout_path(label.name,
+                                                                  label.domain))
         elif (label.type == utils.LabelKind.Package):
             obj_dir = self.invocation.package_obj_path(label.name, 
-                                                       label.role)
+                                                       label.role,
+                                                       label.domain)
             store.set("MUDDLE_OBJ", obj_dir)
             store.set("MUDDLE_OBJ_LIB", os.path.join(obj_dir, "lib"))
             store.set("MUDDLE_OBJ_INCLUDE", os.path.join(obj_dir, "include"))
@@ -576,7 +602,8 @@ class Builder:
                           set_ksource_dir)
 
             store.set("MUDDLE_INSTALL", self.invocation.package_install_path(label.name,
-                                                                             label.role))
+                                                                             label.role,
+                                                                             label.domain))
             # It turns out that muddle instruct and muddle uninstruct are the same thing..
             store.set("MUDDLE_INSTRUCT", "%s instruct %s{%s} "%(
                     self.muddle_binary, label.name,
@@ -710,14 +737,178 @@ def load_builder(root_path, muddle_binary):
 
 
 
+# =============================================================================
+# Following is an initial implementation of sub-build or domain inclusion
+# Treat it with caution...
 
+def _init_without_build_tree(muddle_binary, root_path, repo_location, build_desc):
+    """
+    This a more-or-less copy of the code from muddle.command.Init's
+    without_build_tree() method, for purposes of my own convenience.
+
+    I'm ignoring the "no op" case, which will need dealing with later on.
+
+    Or at least that's how it started...
+
+    * 'muddle_binary' is the full path to the ``muddle`` script (for use in
+      environment variables)
+    * 'root_path' is the directory in which the build tree is being created
+      (thus, where the ``.muddle`` directory, the ``src`` directory, etc.,
+      are being created). For ``muddle init`` (and thus the "main" build),
+      this is the directory in which the command is being run.
+    * 'repo_location' is the string defining the repository for this build.
+    * 'build_desc' is then the path to the build description, within that.
+
+    We return the new Builder instance for this build.
+
+    For example, for a main build, if we do::
+
+        $ which muddle
+        /home/tibs/sw/muddle/muddle
+        $ mkdir /home/tibs/sw/beagle
+        $ cd beagle
+        $ muddle init bzr+file:///home/tibs/repositories/m0.beagle/ builds/01.py
+
+    Then we would have:
+
+      =============    =================================================
+      muddle_binary    ``/home/tibs/sw/muddle/muddle``
+      root_path        ``/home/tibs/sw/beagle``
+      repo_location    ``bzr+file:///home/tibs/repositories/m0.beagle/``
+      build_desc       ``builds/01.py``
+      =============    =================================================
+    """
+
+    database = db.Database(root_path)
+    database.repo.set(repo_location)
+    database.build_desc.set(build_desc)
+    database.commit()
+
+    print "Initialised build tree in %s "%root_path
+    print "Repository: %s"%repo_location
+    print "Build description: %s"%build_desc
+    print "\n"
+
+    print "Checking out build description .. \n"
+    return load_builder(root_path, muddle_binary)
+
+
+def _new_sub_domain(root_path, muddle_binary, domain_name, domain_repo, domain_build_desc):
+    """
+    * 'muddle_binary' is the full path to the ``muddle`` script (for use in
+      environment variables)
+    * 'root_path' is the directory of the main build tree (the directory
+      containing its ``.muddle`` directory, ``src`` directory, etc.).
+    * 'domain_name' is the name of the (sub) domain
+    * 'domain_repo' is the string defining the repository for the domain's
+      sub-build.
+    * 'domain_build_desc' is then the path to the domain's build description,
+      within that.
+
+    Really.
+    """
+
+    # Check our domain name is legitimate
+    try:
+        depend.Label._check_part('dummy',domain_name)
+    except utils.Failure:
+        raise utils.Failure('Domain name "%s" is not valid'%domain_name)
+
+    # So, we're wanting our sub-builds to go into the 'domains/' directory
+    domain_root_path = os.path.join(root_path, 'domains', domain_name)
+
+    # Did we already retrieve it, earlier on?
+    # muddle itself just does::
+    #
+    #    muddled.utils.find_root(specified_root)
+    #
+    # to see if it has a build present (i.e., looking up-tree). That's essentially
+    # just a search for a .muddle directory. So a similarly simple algorithm to
+    # decide if our sub-build is present *should* be enough
+    if os.path.exists(domain_root_path) and \
+       os.path.exists(os.path.join(domain_root_path,'.muddle')):
+        domain_builder = load_builder(domain_root_path,
+                                                        muddle_binary)
+    else:
+        os.makedirs(domain_root_path)
+        domain_builder = _init_without_build_tree(muddle_binary, domain_root_path,
+                                                  domain_repo, domain_build_desc)
+
+    # Then we need to tell all of the labels in that build that they're
+    # actually in the new domain (this is the fun part(!))
+    #
+    # We *should* just need to change (all of) the labels in the builds rule
+    # set...
+    #
+    # It should help that we *know* (!) that all of the labels do not yet have
+    # a domain
+
+    # First, find all our labels.
+    # Beware that we want to get labels that compare identically but are not
+    # the same object, so we are willing to have an instance in our list more
+    # than once.
+    labels = []
+
+    for l in domain_builder.invocation.default_labels:
+        labels.append(l)
+
+    env = domain_builder.invocation.env
+    for l in env.keys():
+        labels.append(l)
+
+    ruleset = domain_builder.invocation.ruleset
+
+    for rule in ruleset.map.values():
+        labels.append(rule.target)
+        for l in rule.deps:
+            labels.append(l)
+
+    # Then, mark them all as "unchanged" (because we can't guarantee we won't
+    # have the same label more than once, and it's easier to do this than to
+    # try to remove repeated instances)
+    for l in labels:
+        l._mark_unswept()
+
+    # Then add the (new) domain name to every one (but the mark allows us to do
+    # this only once if a label *does* repeat). As a side effect of that, all
+    # labels in a sub-build (sub-domain) end up with a flag indicating as much,
+    # which is redundant given we could just check to see if label.domain was
+    # set, but might perhaps be useful somehow later on...
+    for l in labels:
+        l._change_domain(domain_name)
+
+    return domain_builder
+
+def include_domain(builder, domain_name, domain_repo, domain_desc):
+    """
+    Include the named domain as a sub-build of this builder.
+
+    * 'domain_name' is the name of the domain
+    * 'domain_repo' is the string defining the repository for the domain's
+      build.
+    * 'domain_build_desc' is then the path to the domain's build description,
+      within that.
+
+    If the domain has not yet been retrieved from 'domain_repo' (more
+    specifically, if ``domains/<domain_name>/.muddle/`` doesn't yet exist),
+    then it will be retrieved. This will normally happen when ``muddle init``
+    is done.
+    """
+    domain_builder = _new_sub_domain(builder.invocation.db.root_path,
+                                    builder.muddle_binary,
+                                    domain_name,
+                                    domain_repo,
+                                    domain_desc)
+
+    # And make sure we merge its rules into ours...
+    builder.invocation.ruleset.merge(domain_builder.invocation.ruleset)
+
+    # And its environments...
+    for key, value in domain_builder.invocation.env.items():
+        builder.invocation.env[key] = value
+
+
+    return domain_builder
 
 
 # End file.
-        
-        
-        
-
-
-
-

@@ -47,16 +47,20 @@ class AssemblyDescriptor:
         
     def get_source_dir(self, builder):
         if (self.from_label.type == utils.LabelKind.Checkout):
-            return builder.invocation.checkout_path(self.from_label.name)
+            return builder.invocation.checkout_path(self.from_label.name,
+                                                    domain=self.from_label.domain)
         elif (self.from_label.type == utils.LabelKind.Package):
             if ((self.from_label.name is None) or 
                 self.from_label.name == "*"):
-                return builder.invocation.role_install_path(self.from_label.role)
+                return builder.invocation.role_install_path(self.from_label.role,
+                                                            domain=self.from_label.domain)
             else:
                 return builder.invocation.package_obj_path(self.from_label.name, 
-                                                           self.from_label.role)
+                                                           self.from_label.role,
+                                                           domain=self.from_label.domain)
         elif (self.from_label.type == utils.LabelKind.Deployment):
-            return builder.invocation.deploy_path(self.from_label.name)
+            return builder.invocation.deploy_path(self.from_label.name,
+                                                  domain=self.from_label.domain)
         else:
             raise utils.Failure("Label %s for collection dependable has unknown kind."%(self.from_label))
 
@@ -77,12 +81,12 @@ class CollectDeploymentBuilder(pkg.Dependable):
         Actually do the copies ..
         """
 
-        utils.ensure_dir(self.builder.invocation.deploy_path(label.name))
+        utils.ensure_dir(self.builder.invocation.deploy_path(label.name, domain=label.domain))
 
         if (label.tag == utils.Tags.Deployed):
             for asm in self.assemblies:
                 src = os.path.join(asm.get_source_dir(self.builder), asm.from_rel)
-                dst = os.path.join(self.builder.invocation.deploy_path(label.name), 
+                dst = os.path.join(self.builder.invocation.deploy_path(label.name, domain=label.domain), 
                                    asm.to_name)
 
                 if (not os.path.exists(src)):
@@ -126,13 +130,15 @@ def deploy(builder, name):
 def copy_from_checkout(builder, name, checkout, rel, dest, 
                        recursive = True, 
                        failOnAbsentSource = False, 
-                       copyExactly = True):
+                       copyExactly = True,
+                       domain = None):
     rule = deployment.deployment_rule_from_name(builder, name)
     
     dep_label = depend.Label(utils.LabelKind.Checkout, 
                              checkout, 
                              None,
-                             utils.Tags.CheckedOut)
+                             utils.Tags.CheckedOut,
+                             domain=domain)
 
     asm = AssemblyDescriptor(dep_label, rel, dest, recursive = recursive,
                              failOnAbsentSource = failOnAbsentSource, 
@@ -143,12 +149,14 @@ def copy_from_checkout(builder, name, checkout, rel, dest,
 def copy_from_package_obj(builder, name, pkg_name, pkg_role, rel,dest,
                           recursive = True,
                           failOnAbsentSource = False,
-                          copyExactly = True):
+                          copyExactly = True,
+                          domain = None):
     rule = deployment.deployment_rule_from_name(builder, name)
     
     dep_label = depend.Label(utils.LabelKind.Package,
                              pkg_name, pkg_role,
-                             utils.Tags.Built)
+                             utils.Tags.Built,
+                             domain=domain)
     asm = AssemblyDescriptor(dep_label, rel, dest, recursive = recursive,
                              failOnAbsentSource = failOnAbsentSource, 
                              copyExactly = copyExactly)
@@ -158,7 +166,8 @@ def copy_from_package_obj(builder, name, pkg_name, pkg_role, rel,dest,
 def copy_from_role_install(builder, name, role, rel, dest,
                            recursive = True,
                            failOnAbsentSource = False,
-                           copyExactly = True):
+                           copyExactly = True,
+                           domain = None):
     """
     Add a rule to copy from the given role's install to the named deployment.
 
@@ -202,7 +211,8 @@ def copy_from_role_install(builder, name, role, rel, dest,
     dep_label = depend.Label(utils.LabelKind.Package,
                              "*",
                              role,
-                             utils.Tags.PostInstalled)
+                             utils.Tags.PostInstalled,
+                             domain=domain)
     asm = AssemblyDescriptor(dep_label, rel, dest, recursive = recursive,
                              failOnAbsentSource = failOnAbsentSource, 
                              copyExactly = copyExactly)
@@ -212,12 +222,14 @@ def copy_from_role_install(builder, name, role, rel, dest,
 def copy_from_deployment(builder, name, dep_name, rel, dest,
                          recursive = True,
                          failOnAbsentSource = False,
-                         copyExactly = True):
+                         copyExactly = True,
+                         domain = None):
     rule = deployment.deployment_rule_from_name(builder,name)
     dep_label = depend.Label(utils.LabelKind.Deployment,
                              dep_name, 
                              None, 
-                             utils.Tags.Deployed)
+                             utils.Tags.Deployed,
+                             domain=domain)
     asm = AssemblyDescriptor(dep_label, rel, dest, recursive = recursive,
                              failOnAbsentSource = failOnAbsentSource, 
                              copyExactly = copyExactly)
@@ -226,14 +238,3 @@ def copy_from_deployment(builder, name, dep_name, rel, dest,
 
 
 # End file.
-                             
-
-
-
-    
-                        
-
-
-            
-
-

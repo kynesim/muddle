@@ -750,7 +750,72 @@ def rel_join(vroot, path):
         path = path[1:]
     
     return os.path.join(vroot, path)
+
     
+def split_domain(domain_name):
+    """
+    Given a domain name, return a tuple of the hierarchy of sub-domains.
+
+    For instance:
+
+        >>> split_domain('a')
+        ['a']
+        >>> split_domain('a(b)')
+        ['a', 'b']
+        >>> split_domain('a(b(c))')
+        ['a', 'b', 'c']
+        >>> split_domain('a(b(c)')
+        Traceback (most recent call last):
+        ...
+        Failure: Domain name "a(b(c)" has mis-matched parentheses
+
+    We don't actually allow "sibling" sub-domains, so we try to complain
+    helpfully:
+
+        >>> split_domain('a(b(c)(d))')
+        Traceback (most recent call last):
+        ...
+        Failure: Domain name "a(b(c)(d))" has 'sibling' sub-domains
+    """
+
+    if '(' not in domain_name:
+        return [domain_name]
+
+    if ')(' in domain_name:
+        raise Failure('Domain name "%s" has '
+                      "'sibling' sub-domains"%domain_name)
+
+    parts = domain_name.split('(')
+
+    num_closing = len(parts) - 1
+    if not parts[-1].endswith( num_closing * ')' ):
+        raise Failure('Domain name "%s" has mis-matched parentheses'%domain_name)
+
+    parts[-1] = parts[-1][:- num_closing]
+    return parts
+
+def domain_subpath(domain_name):
+    """Calculate the sub-path for a given domain name.
+
+    For instance:
+
+        >>> domain_subpath('a')
+        'domains/a'
+        >>> domain_subpath('a(b)')
+        'domains/a/domains/b'
+        >>> domain_subpath('a(b(c))')
+        'domains/a/domains/b/domains/c'
+        >>> domain_subpath('a(b(c)')
+        Traceback (most recent call last):
+        ...
+        Failure: Domain name "a(b(c)" has mis-matched parentheses
+    """
+    parts = []
+    for thing in split_domain(domain_name):
+        parts.append('domains')
+        parts.append(thing)
+    
+    return os.path.join(*parts)
 
 
 # End file.

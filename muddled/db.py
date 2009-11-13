@@ -10,6 +10,8 @@ import xml.dom.minidom
 import traceback
 import depend
 
+from utils import domain_subpath
+
 class Database(object):
     """
     Represents the muddle database
@@ -43,15 +45,23 @@ class Database(object):
         self.checkout_locations[checkout] = dir
 
 
-    def get_checkout_path(self, checkout, isRelative = False):
+    def get_checkout_path(self, checkout, isRelative = False, domain = None):
+        """
+        'checkout' is the <name> from a "checkout:" label.
+        """
+        if domain:
+            root = os.path.join(self.root_path, domain_subpath(domain))
+        else:
+            root = self.root_path
+
         if (checkout is None):
-            return os.path.join(self.root_path, "src")
+            return os.path.join(root, "src")
 
         rel_dir = self.checkout_locations.get(checkout, checkout)
         if (isRelative):
             return rel_dir
         else:
-            return os.path.join(self.root_path, "src", rel_dir)
+            return os.path.join(root, "src", rel_dir)
 
     def build_desc_file_name(self):
         """
@@ -85,12 +95,12 @@ class Database(object):
         else:
             instr_file.save_as(file_name)
 
-    def clear_all_instructions(self):
+    def clear_all_instructions(self, domain=None):
         """
         Clear all instructions - essentially only ever called from 
         the command line.
         """
-        os.removedirs(self.instruction_file_dir())
+        os.removedirs(self.instruction_file_dir(domain))
 
     def scan_instructions(self, lbl):
         """
@@ -99,7 +109,7 @@ class Database(object):
         load and sort them (but load_instructions() will help
         with that).
         """
-        the_instruction_files = os.walk(self.instruction_file_dir())
+        the_instruction_files = os.walk(self.instruction_file_dir(lbl.domain))
  
         return_list = [ ]
 
@@ -130,11 +140,15 @@ class Database(object):
         return return_list
 
         
-    def instruction_file_dir(self):
+    def instruction_file_dir(self, domain=None):
         """
         Return the name of the directory in which we keep the instruction files
         """
-        return os.path.join(self.root_path, ".muddle", "instructions")
+        if domain:
+            root = os.path.join(self.root_path, domain_subpath(domain))
+        else:
+            root = self.root_path
+        return os.path.join(root, ".muddle", "instructions")
         
     def instruction_file_name(self, label):
         """
@@ -152,7 +166,7 @@ class Database(object):
         else:
             leaf = "%s.xml"%label.role
             
-        dir = os.path.join(self.instruction_file_dir(),
+        dir = os.path.join(self.instruction_file_dir(domain=label.domain),
                            label.name)
         utils.ensure_dir(dir)
         return os.path.join(dir, leaf)
@@ -164,12 +178,18 @@ class Database(object):
         
         To make life a bit easier, we group labels.
         """
+
+        if label.domain:
+            root = os.path.join(self.root_path, domain_subpath(label.domain))
+        else:
+            root = self.root_path
+
         if (label.role is None):
             leaf = label.tag
         else:
             leaf = "%s-%s"%(label.role, label.tag)
 
-        return os.path.join(self.root_path, 
+        return os.path.join(root, 
                             ".muddle",
                             "tags",
                             utils.label_kind_to_string(label.type),

@@ -49,6 +49,14 @@ class Invocation:
         self.default_labels = [ ]
         self.banned_roles = [ ]
         self.domain_params = { }
+    
+    def mark_domain(self, domain_name):
+        """
+        Write a file that marks this directory as a domain so we don't
+        mistake it for the root.
+        """
+        self.db.set_domain(domain_name)
+
 
     def roles_do_not_share_libraries(self,r1, r2):
         """
@@ -399,7 +407,8 @@ class Builder:
     A builder performs actions on an Invocation.
     """
 
-    def __init__(self, inv, muddle_binary, domain_params = None):
+    def __init__(self, inv, muddle_binary, domain_params = None, 
+                 default_domain = None):
         """
         domain_params is the set of domain parameters in effect when
         this builder is loaded. It's used to communicate values down
@@ -411,10 +420,16 @@ class Builder:
          buidler will be lost, and as this is the only way to
          communicate values to a parent domain, this would be
          bad. Ugh.
+
+        default_domain is the default domain value to add to anything
+        in local_pkgs , etc - it's used to make sure that if you're
+        cd'd into a domain subdirectory, we build the right labels.
+
         """
         self.invocation = inv
         self.muddle_binary = muddle_binary
         self.muddle_dir = os.path.dirname(self.muddle_binary)
+        self.default_domain = default_domain
         if (domain_params is None):
             self.domain_params = { }
         else:
@@ -424,6 +439,9 @@ class Builder:
     def get_subdomain_parameters(self, domain):
         return self.invocation.get_domain_parameters(domain)
 
+
+    def get_default_domain(self):
+        return self.default_domain
 
     def get_parameter(self, name):
         """
@@ -821,13 +839,14 @@ class BuildDescriptionDependable(pkg.Dependable):
                 raise utils.Error("Cannot load build description %s"%setup)
 
 
-def load_builder(root_path, muddle_binary, params = None):
+def load_builder(root_path, muddle_binary, params = None, 
+                 default_domain = None):
     """
     Load a builder from the given root path.
     """
 
     inv = Invocation(root_path)
-    build = Builder(inv, muddle_binary, params)
+    build = Builder(inv, muddle_binary, params, default_domain = default_domain)
     can_load = build.load_build_description()
     if (not can_load):
         return None
@@ -984,6 +1003,9 @@ def _new_sub_domain(root_path, muddle_binary, domain_name, domain_repo, domain_b
     # set, but might perhaps be useful somehow later on...
     for l in labels:
         l._change_domain(domain_name)
+
+    # Now mark the builder as a domain.
+    domain_builder.invocation.mark_domain(domain_name)
 
     return domain_builder
 

@@ -41,6 +41,14 @@ class Database(object):
         self.local_tags = set()
 
 
+    def set_domain(self, domain_name):
+        file_name = os.path.join(self.root_path, "domain_name")
+        f = open(file_name, "w")
+        f.write(domain_name)
+        f.write("\n")
+        f.close()
+
+
     def set_checkout_path(self, checkout, dir):
         self.checkout_locations[checkout] = dir
 

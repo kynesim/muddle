@@ -62,6 +62,9 @@ def main(args):
     # wants to use it.
     old_env = os.environ.copy()
 
+    # By default, we are in no domain.
+    build_domain = None
+
 
     # Command dictionary. Maps command name to a tuple
     # (Boolean, command_fn)
@@ -129,9 +132,10 @@ def main(args):
 
     try:
         try:
-            build_root = muddled.utils.find_root(specified_root)
+            (build_root, build_domain) = muddled.utils.find_root(specified_root)
             if (build_root is not None):
-                builder = muddled.mechanics.load_builder(build_root, muddle_binary)
+                builder = muddled.mechanics.load_builder(build_root, muddle_binary, 
+                                                         default_domain = build_domain)
             else:
                 builder = None    
         except muddled.utils.Failure as f:
@@ -166,8 +170,14 @@ def main(args):
 
             if with_default_args:
                 # Where are we?
-                (what, loc, role) = muddled.utils.find_location_in_tree(current_dir, build_root, builder.invocation)
+                r = muddled.utils.find_location_in_tree(current_dir, 
+                                                        build_root, 
+                                                        builder.invocation)
 
+                if (r is None):
+                    raise utils.Error("Can't seem to determine where you are in the build tree")
+
+                (what, loc, role) = r
 
                 if (what == muddled.utils.DirType.Root or loc == None):
                     # We're at the root, or at least not in a checkout/package/deployment

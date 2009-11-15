@@ -925,7 +925,7 @@ class RuleSet:
                 copied_source = k.copy()
                 copied_source.unify_with(target)
                 new_k = copied_source
-                print "Ruleset: rewrite src = %s, k = %s to %s"%(source,k,copied_source)
+                #print "Ruleset: rewrite src = %s, k = %s to %s"%(source,k,copied_source)
             else:
                 new_k = k
 

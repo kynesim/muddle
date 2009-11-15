@@ -302,6 +302,7 @@ class Query(Command):
     * dir          - Print a directory: for checkout labels, the checkout dir.
                      For package labels, the install dir. For deployment labels
                      the deployment dir.
+    * root         - Print the root path and default domain.
 
     Note that both instructions and inst-details are label-sensitive, so you
     will want to supply a label like::
@@ -316,17 +317,30 @@ class Query(Command):
         return True
 
     def with_build_tree(self, builder, local_pkgs, args):
-        if len(args) != 2:
+        if len(args) < 1:
             print "Syntax: query <cmd> <label>"
             print self.__doc__
             return 2
 
         type = args[0]
-        label = depend.label_from_string(args[1])
-        
-        if (label is None):
-            print "Putative label %s is not a valid label"%(args[1])
-            return 3
+
+
+        if (type == "root"):
+            label = None
+        else:
+            if len(args) != 2:
+                print "Syntax: query <cmd> <label>"
+                print self.__doc__
+                return 2
+            label = depend.label_from_string(args[1])
+            
+            if (label is None):
+                print "Putative label %s is not a valid label"%(args[1])
+                return 3
+
+            if (label.domain is None):
+                label.domain = builder.get_default_domain()
+
 
         if (type == "objdir"):
             print builder.invocation.package_obj_path(label.name, label.role)
@@ -390,6 +404,9 @@ class Query(Command):
                 a_list.append(c)
             a_list.sort()
             print "Checkouts: %s"%(" ".join(a_list))
+        elif (type == "root"):
+            print "Root: %s"%builder.invocation.db.root_path
+            print "Default domain: %s"%builder.get_default_domain()
         elif (type == "dir"):
             dir = None
 
@@ -778,7 +795,7 @@ class Instruct(Command):
 
         # Validate this first - the file check may take a while.
         lbls = labels_from_pkg_args([ pkg_role ], utils.Tags.PreConfig,
-                                    [ ])
+                                    [ ], builder.get_default_domain())
 
 
         if (len(lbls) != 1 or (lbls[0].role is None)):
@@ -1367,7 +1384,8 @@ def get_all_checkouts(builder, tag):
     for co in all_cos:
         rv.append(depend.Label(utils.LabelKind.Checkout, 
                                co, None, 
-                               tag))
+                               tag,
+                               domain = builder.get_default_domain()))
         
     rv.sort()
     return rv
@@ -1393,7 +1411,8 @@ def decode_checkout_arguments(builder, args, local_pkgs, tag):
                 return get_all_checkouts(builder, tag)
             else:
                 rv.append(depend.Label(utils.LabelKind.Checkout, 
-                                       co, None, tag))
+                                       co, None, tag, 
+                                       domain = builder.get_default_domain()))
 
     else:
         # We resolutely ignore local_pkgs...
@@ -1407,7 +1426,8 @@ def decode_checkout_arguments(builder, args, local_pkgs, tag):
             cos_below = utils.get_all_checkouts_below(builder, os.getcwd())
             for c in cos_below:
                 rv.append(depend.Label(utils.LabelKind.Checkout, 
-                                       c, None, tag))
+                                       c, None, tag, 
+                                       domain = builder.get_default_domain()))
     return rv
 
 
@@ -1475,7 +1495,7 @@ def decode_deployment_arguments(builder, args, local_pkgs, tag):
             lbl = depend.Label(utils.LabelKind.Deployment, 
                                dep, 
                                "*",
-                               tag)
+                               tag, domain = builder.get_default_domain())
             return_list.append(lbl)
     
     if len(return_list) == 0:
@@ -1494,7 +1514,7 @@ def all_deployment_labels(builder, tag):
     #  which doesn't have the right tag, we want an error, 
     #  not to silently ignore it.
     match_lbl = depend.Label(utils.LabelKind.Deployment,
-                             "*", "*", "*")
+                             "*", "*", "*", domain = builder.get_default_domain())
     matching = builder.invocation.ruleset.rules_for_target(match_lbl)
     
     return_set = set()
@@ -1551,7 +1571,8 @@ def decode_package_arguments(builder, args, local_pkgs, tag):
         effective_args = local_pkgs
 
     to_build = labels_from_pkg_args(effective_args, tag, 
-                                    builder.invocation.default_roles)
+                                    builder.invocation.default_roles,
+                                    builder.get_default_domain())
 
     all_roles = process_labels_all_spec(to_build, 
                                         builder.invocation.default_roles)
@@ -1657,11 +1678,13 @@ pkg_args_re = re.compile(r"""
                                depend.Label.label_part),
                          re.VERBOSE)
 
-def labels_from_pkg_args(list, tag, default_roles):
+def labels_from_pkg_args(list, tag, default_roles, default_domain):
     """
     Convert a list of packages expressed as package([{role}]?) into
     a set of labels with the given tag. This is basically a 
     cartesian product of all the unqualified packages.
+    
+    All tags will inherit the default domain.
 
     NB: also allows (domain) type specifications before the package name.
     If you know what a domain is, you should be able to work that out.
@@ -1694,6 +1717,8 @@ def labels_from_pkg_args(list, tag, default_roles):
                     "well-formed package descriptor (name({role})?)"%elem)
         else:
             domain = m.group('domain')    # None if not present
+            if (domain is None):
+                domain = default_domain
             name   = m.group('name')
             role   = m.group('role')      # None if not present
             if (role is None):

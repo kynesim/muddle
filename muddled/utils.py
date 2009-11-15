@@ -148,20 +148,52 @@ def string_cmp(a,b):
     else:
         return 1
 
+
+def get_domain_name_for(dir, default):
+    """
+    If dir is a muddle source tree or domain, return its domain name,
+    else return default.
+    """
+    potential_name_file = os.path.join(dir, ".muddle", "domain_name")
+    try:
+        #print "get_domain_name_for(): check %s (%s)"%(dir, potential_name_file)
+        f = open(potential_name_file, "r")
+        name = f.readline()
+        if (len(name)> 0 and name[-1] == '\n'):
+            name = name[:-1]
+        f.close()
+        return name
+    except Exception,e:
+        pass
+
+    return default
+  
+
 def find_root(dir):
     """
     Find the build tree root starting at dir.
+
+    Returns a pair (dir, current_domain) - the current domain is
+    the first one encountered on our way up.
+
     """
     
     # Normalise so path.split() doesn't produce confusing
     # junk.
     dir = os.path.normcase(os.path.normpath(dir))
+    current_domain = None
 
     while True:
         # Might this be a tree root?
         if (os.path.exists(os.path.join(dir, ".muddle"))):
             # Yes!
-            return dir
+            new_domain = get_domain_name_for(dir, None)
+
+            if (current_domain is None):
+                current_domain = new_domain
+            
+            if (new_domain is None):
+                return (dir, current_domain)
 
         # Else ..
         (up1, basename) = os.path.split(dir)
@@ -306,6 +338,9 @@ def find_location_in_tree(dir, root, invocation = None):
                     return (DirType.Object, sub_dir, role)
                 elif (rest[0] == "install"):
                     return (DirType.Install, sub_dir, None)
+                elif (rest[0] == "domains"):
+                    # We're inside the current domain - this is actually a root
+                    return (DirType.Root, dir, None)
                 else:
                     return None
         else:

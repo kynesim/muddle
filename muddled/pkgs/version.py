@@ -35,9 +35,15 @@ class VersionBuilder(PackageBuilder):
         self.withUser = withUser
         self.withMachine = withMachine
 
+    def dir_name(self):
+        file = self.file_name()
+        (fst,snd) =  os.path.split(file)
+        return fst
+
     def file_name(self):
         inst_path = self.builder.invocation.package_install_path(self.name, self.role)
-        return utils.rel_join(inst_path, self.filename)
+        ret = utils.rel_join(inst_path, self.filename)
+        return ret
 
     def erase_version_file(self):
         """
@@ -53,6 +59,9 @@ class VersionBuilder(PackageBuilder):
         """
         Write the version file
         """
+
+        utils.ensure_dir(self.dir_name())
+        print "dir %s ensured."%(self.dir_name())
         f = open(self.file_name(), 'w')
         f.write("<?xml version=\"1.0\" ?>\n")
         f.write("\n")

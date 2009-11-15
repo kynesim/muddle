@@ -37,6 +37,10 @@ class Invocation:
         * self.default_labels - The list of labels to build.
         * self.banned_roles - An array of pairs of roles which aren't allowed
                              to share libraries.
+        * self.domain_params - Maps domain names to dictionaries storing 
+                              parameters that other domains can retrieve. This
+                               is used to communicate values from a build to
+                               its subdomains.
         """
         self.db = db.Database(root_path)
         self.ruleset = depend.RuleSet()
@@ -44,6 +48,7 @@ class Invocation:
         self.default_roles = [ ]
         self.default_labels = [ ]
         self.banned_roles = [ ]
+        self.domain_params = { }
 
     def roles_do_not_share_libraries(self,r1, r2):
         """
@@ -85,6 +90,20 @@ class Invocation:
 
         #print "role_combination_acceptable: %s, %s -> True"%(r1,r2)
         return True
+     
+    def get_domain_parameters(self, domain):
+        if (domain not in self.domain_params):
+            self.domain_params[domain] = { }
+
+        return self.domain_params[domain]
+
+    def get_domain_parameter(self, domain, name):
+        parms = self.get_domain_parameters(domain)
+        return parms.get(name)
+
+    def set_domain_parameter(self, domain, name, value):
+        parms = self.get_domain_parameters(domain)
+        parms[name] = value
 
     def all_checkouts(self):
         """
@@ -347,10 +366,51 @@ class Builder:
     A builder performs actions on an Invocation.
     """
 
-    def __init__(self, inv, muddle_binary):
+    def __init__(self, inv, muddle_binary, domain_params = None):
+        """
+        domain_params is the set of domain parameters in effect when
+        this builder is loaded. It's used to communicate values down
+        to sub-domains.
+        
+        Note that you MUST NOT set domain_params null unless you are
+         the top-level domain - it MUST come from the enclosing
+         domain's invocation or modifications made by the subdomain's
+         buidler will be lost, and as this is the only way to
+         communicate values to a parent domain, this would be
+         bad. Ugh.
+        """
         self.invocation = inv
         self.muddle_binary = muddle_binary
         self.muddle_dir = os.path.dirname(self.muddle_binary)
+        if (domain_params is None):
+            self.domain_params = { }
+        else:
+            self.domain_params = domain_params
+
+
+    def get_subdomain_parameters(self, domain):
+        return self.invocation.get_domain_parameters(domain)
+
+
+    def get_parameter(self, name):
+        """
+        Returns the given domain parameter, or None if it 
+        wasn't defined.
+        """
+        return self.domain_params.get(name)
+
+    def set_parameter(self, name, value):
+        """
+        Set a domain parameter: Danger Will Robinson! This is a
+         very odd thing to do - domain parameters are typically
+         set by their enclosing domains. Setting your own is an
+         odd idea and liable to get you into trouble. It is, 
+         however, the only way of communicating values back from
+         a domain to its parent (and you shouldn't really be doing
+         that either!)
+        """
+        self.domain_params.set(name)
+        
 
     def roles_do_not_share_libraries(self, a, b):
         """
@@ -720,13 +780,13 @@ class BuildDescriptionDependable(pkg.Dependable):
                 raise utils.Error("Cannot load build description %s"%setup)
 
 
-def load_builder(root_path, muddle_binary):
+def load_builder(root_path, muddle_binary, params = None):
     """
     Load a builder from the given root path.
     """
 
     inv = Invocation(root_path)
-    build = Builder(inv, muddle_binary)
+    build = Builder(inv, muddle_binary, params)
     can_load = build.load_build_description()
     if (not can_load):
         return None
@@ -741,7 +801,8 @@ def load_builder(root_path, muddle_binary):
 # Following is an initial implementation of sub-build or domain inclusion
 # Treat it with caution...
 
-def _init_without_build_tree(muddle_binary, root_path, repo_location, build_desc):
+def _init_without_build_tree(muddle_binary, root_path, repo_location, build_desc, 
+                             domain_params):
     """
     This a more-or-less copy of the code from muddle.command.Init's
     without_build_tree() method, for purposes of my own convenience.
@@ -790,10 +851,11 @@ def _init_without_build_tree(muddle_binary, root_path, repo_location, build_desc
     print "\n"
 
     print "Checking out build description .. \n"
-    return load_builder(root_path, muddle_binary)
+    return load_builder(root_path, muddle_binary, domain_params)
 
 
-def _new_sub_domain(root_path, muddle_binary, domain_name, domain_repo, domain_build_desc):
+def _new_sub_domain(root_path, muddle_binary, domain_name, domain_repo, domain_build_desc, 
+                    parent_domain):
     """
     * 'muddle_binary' is the full path to the ``muddle`` script (for use in
       environment variables)
@@ -817,6 +879,9 @@ def _new_sub_domain(root_path, muddle_binary, domain_name, domain_repo, domain_b
     # So, we're wanting our sub-builds to go into the 'domains/' directory
     domain_root_path = os.path.join(root_path, 'domains', domain_name)
 
+    # Extract the domain parameters .. 
+    domain_params = parent_domain.invocation.get_domain_parameters(domain_name)
+
     # Did we already retrieve it, earlier on?
     # muddle itself just does::
     #
@@ -828,11 +893,13 @@ def _new_sub_domain(root_path, muddle_binary, domain_name, domain_repo, domain_b
     if os.path.exists(domain_root_path) and \
        os.path.exists(os.path.join(domain_root_path,'.muddle')):
         domain_builder = load_builder(domain_root_path,
-                                                        muddle_binary)
+                                      muddle_binary, 
+                                      domain_params)
     else:
         os.makedirs(domain_root_path)
         domain_builder = _init_without_build_tree(muddle_binary, domain_root_path,
-                                                  domain_repo, domain_build_desc)
+                                                  domain_repo, domain_build_desc, 
+                                                  domain_params)
 
     # Then we need to tell all of the labels in that build that they're
     # actually in the new domain (this is the fun part(!))
@@ -895,11 +962,12 @@ def include_domain(builder, domain_name, domain_repo, domain_desc):
     is done.
     """
     domain_builder = _new_sub_domain(builder.invocation.db.root_path,
-                                    builder.muddle_binary,
-                                    domain_name,
-                                    domain_repo,
-                                    domain_desc)
-
+                                     builder.muddle_binary,
+                                     domain_name,
+                                     domain_repo,
+                                     domain_desc, 
+                                     parent_domain = builder)
+    
     # And make sure we merge its rules into ours...
     builder.invocation.ruleset.merge(domain_builder.invocation.ruleset)
 

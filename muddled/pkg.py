@@ -318,7 +318,8 @@ def depend_across_roles(ruleset, pkg_name, role_names,
 
 
 def set_env_for_package(builder, pkg_name, pkg_roles,
-                        name, value):
+                        name, value, 
+                        domain = None):
     """
     Set the environment variable name to value in the given
     package built in the given roles. Useful for customising
@@ -330,7 +331,8 @@ def set_env_for_package(builder, pkg_name, pkg_roles,
         lbl = depend.Label(utils.LabelKind.Package,
                            pkg_name, 
                            r, 
-                           "*")
+                           "*", 
+                           domain = domain)
         env = builder.invocation.get_environment_for(lbl)
         env.set(name, value)
 

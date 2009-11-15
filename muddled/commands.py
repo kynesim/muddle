@@ -890,6 +890,36 @@ class Push(Command):
 
 
 
+
+class Pull(Command):
+    """
+    Syntax: pull [checkouts]
+
+    Pull the specified packages.
+
+    If no checkouts are given, we'll use those implied by your current
+    location.
+    """
+    
+    def name(self):
+        return "dep-pull"
+
+    def requires_build_tree(self):
+        return True
+
+    def with_build_tree(self, builder, local_pkgs, args):
+        checkouts = decode_checkout_arguments(builder, args, local_pkgs,
+                                              utils.Tags.Pulled)
+        # Forcibly retract all the updated tags.
+        if (self.no_op()):
+            print "Pull checkouts: %s"%(depend.label_list_to_string(checkouts))
+        else:
+            for co in checkouts:
+                builder.invocation.db.clear_tag(co)
+                builder.build_label(co)
+
+
+
 class PkgUpdate(Command):
     """
     Syntax: pkg-update [checkouts]
@@ -1715,6 +1745,7 @@ def register_commands():
     Update().register(the_dict)
     Commit().register(the_dict)
     Push().register(the_dict)
+    Pull().register(the_dict)
 
     Changed().register(the_dict)
     Deploy().register(the_dict)

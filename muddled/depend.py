@@ -209,6 +209,29 @@ class Label(object):
         # Domain reassignment mark-and-sweep flag
         self.unswept = False
 
+    def unify_with(self, target):
+        """
+        Unify this label with the target. All the non-wildcard parts of target
+        are transferred to us
+        """
+        if (target.type != "*"):
+            self.type = target.type
+            
+        if (target.domain != "*"):
+            self.domain = target.domain
+
+        if (target.name != "*"):
+            self.name = target.name
+
+        if (target.role != "*"):
+            self.role = target.role
+            
+        if (target.tag != "*"):
+            self.tag = target.tag
+            
+        self.system = target.system
+        self.transient = target.transient
+
     def make_transient(self, transience = True):
         """
         Set the transience status of a label.
@@ -575,6 +598,36 @@ class Rule:
                               "which isn't a dependable but a %s."%(obj.__class__.__name__))
 
 
+    def unify_dependencies(self, source, target):
+        """
+        Whenever source appears in our dependencies, replace it with source.unify(target)
+        """
+        new_deps = set()
+
+        for d in self.deps:
+            if (source.match(d)):
+                copied_d = d.copy()
+                copied_d.unify_with(target)
+                new_deps.add(copied_d)
+            else:
+                new_deps.add(d)
+
+        self.deps = new_deps
+
+
+    def catenate_and_merge(self, other_rule):
+        """
+        Merge ourselves with the given rule.
+        """
+        if (self.obj is None):
+            self.obj = other_rule.obj
+        elif (other_rule.obj is None):
+            pass
+        else:
+            self.obj = SequentialDependable(self.obj, other_rule.obj)
+
+        self.deps.union(other_rule.deps)
+
     def add(self,label):
         """
         Add a dependency on the given Label.
@@ -840,6 +893,44 @@ class RuleSet:
         """
         for i in other_deps.map.values():
             self.add(i)
+
+    def unify(self, source, target):
+        """
+        Merge source into target. 
+
+        This is a pain, and depends heavily on CatenatedObject
+        """
+        
+        new_map = { }
+        
+
+        # First, collect anything that might be rewritten.
+        for (k,v) in self.map.items():
+            new_k = None
+            new_v = v
+
+            if (source.match(k)):
+                copied_source = k.copy()
+                copied_source.unify_with(target)
+                new_k = copied_source
+                print "Ruleset: rewrite %s to %s"%(k,copied_source)
+            else:
+                new_k = k
+
+            if (new_k in new_map):
+                old_v = new_map[new_k]
+                old_v.catenate_and_merge(new_v)
+            else:
+                new_map[new_k] = new_v
+            
+        # Now, rename everything in the dependencies and copy
+        # back ..
+        for (k,v) in new_map.items():
+            v.unify_dependencies(source, target)
+
+        # .. and new_map is the new map.
+        self.map = new_map
+
 
     def to_string(self, matchLabel = None, 
                   showUser = True, showSystem = True, ignore_empty=False):

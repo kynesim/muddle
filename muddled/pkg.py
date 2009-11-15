@@ -20,7 +20,19 @@ class Dependable:
         """
         pass
 
-        
+
+class SequentialDependable:
+    """
+    Invoke two dependables in turn
+    """
+
+    def __init__(self, a, b) :
+        self.a = a
+        self.b = b
+
+    def build_label(self, label):
+        a.build_label(label)
+        b.build_label(label)
 
 class NoneDependable(Dependable):
     """

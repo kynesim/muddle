@@ -152,6 +152,39 @@ class Invocation:
         return rv
 
 
+    def unify_environments(self, source, target):
+        """
+        Given a source label and a target label, find all the environments
+        which might apply to source and make them also apply to target.
+        
+        This is (slightly) easier than one might imagine .. 
+        """
+
+        new_env = {}
+
+        for (k,v) in self.env.items():
+            m = k.match(source)
+            if (m is not None):
+                # Create an equivalent environment for target, and
+                # add it if it isn't also the one we just matched.
+                copied_label = k.copy()
+                copied_label.unify_with(target)
+                if (k.match(copied_label) is None):
+                    # The altered version didn't match .. 
+                    a_store = env_store.Store()
+
+                    if (copied_label in self.env):
+                        a_store.merge(self.env[copied_label])
+                    if (copied_label in new_env):
+                        a_store.merge(new_env[copied_label])
+
+                    a_store.merge(v);
+                    new_env[copied_label] = a_store;
+        
+        for (k,v) in new_env.items():
+            self.env[k] = v
+        
+
     def add_default_role(self, role):
         """
         Add role to the list of roles built when you don't ask
@@ -529,6 +562,14 @@ class Builder:
         self.build_label(loaded, silent = True)
 
         return True
+
+    def unify_labels(self, source, target):
+        """
+        Given a source and target label, unify them. Free variables (i.e. wildcards in the
+        labels) are untouched - see depend for quite how this works.
+        """
+        self.invocation.ruleset.unify(source, target)
+        self.invocation.unify_environments(source,target)
 
     def get_dependent_package_dirs(self, label):
         """

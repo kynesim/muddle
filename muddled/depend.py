@@ -615,16 +615,28 @@ class Rule:
         self.deps = new_deps
 
 
-    def catenate_and_merge(self, other_rule):
+    def catenate_and_merge(self, other_rule, complainOnDuplicate = False, 
+                           replaceOnDuplicate = True):
         """
         Merge ourselves with the given rule.
+
+        If replaceOnDuplicate is true, other_rule get priority - this is the
+        target for a unify() and makes the source build instructions go away.
         """
         if (self.obj is None):
             self.obj = other_rule.obj
         elif (other_rule.obj is None):
             pass
         else:
-            self.obj = SequentialDependable(self.obj, other_rule.obj)
+            if complainOnDuplicate:
+                raise utils.Error(
+                    ("Duplicate dependable objects for %s and %s - have you "%(self.target, other_rule.target)) + 
+                    "remembered to remove a package from one of your domain builds?")
+            else:
+                if replaceOnDuplicate:
+                    self.obj = other_rule.obj
+                else:
+                    self.obj = pkg.SequentialDependable(self.obj, other_rule.obj)
 
         self.deps.union(other_rule.deps)
 
@@ -909,11 +921,11 @@ class RuleSet:
             new_k = None
             new_v = v
 
-            if (source.match(k)):
+            if (k.match(source)):
                 copied_source = k.copy()
                 copied_source.unify_with(target)
                 new_k = copied_source
-                print "Ruleset: rewrite %s to %s"%(k,copied_source)
+                print "Ruleset: rewrite src = %s, k = %s to %s"%(source,k,copied_source)
             else:
                 new_k = k
 

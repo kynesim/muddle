@@ -204,7 +204,7 @@ def find_root(dir):
         dir = up1
 
     # Didn't find a directory.
-    return None
+    return (None, None)
 
 
 def get_all_checkouts_below(builder, dir):

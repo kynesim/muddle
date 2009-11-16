@@ -209,7 +209,7 @@ class Label(object):
         # Domain reassignment mark-and-sweep flag
         self.unswept = False
 
-    def unify_with(self, target):
+    def _unify_with(self, target):
         """
         Unify this label with the target. All the non-wildcard parts of target
         are transferred to us
@@ -607,7 +607,7 @@ class Rule:
         for d in self.deps:
             if (source.match(d)):
                 copied_d = d.copy()
-                copied_d.unify_with(target)
+                copied_d._unify_with(target)
                 new_deps.add(copied_d)
             else:
                 new_deps.add(d)
@@ -923,7 +923,7 @@ class RuleSet:
 
             if (k.match(source)):
                 copied_source = k.copy()
-                copied_source.unify_with(target)
+                copied_source._unify_with(target)
                 new_k = copied_source
                 #print "Ruleset: rewrite src = %s, k = %s to %s"%(source,k,copied_source)
             else:

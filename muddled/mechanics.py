@@ -176,7 +176,7 @@ class Invocation:
                 # Create an equivalent environment for target, and
                 # add it if it isn't also the one we just matched.
                 copied_label = k.copy()
-                copied_label.unify_with(target)
+                copied_label._unify_with(target)
                 if (k.match(copied_label) is None):
                     # The altered version didn't match .. 
                     a_store = env_store.Store()

@@ -38,7 +38,6 @@ class MakeBuilder(PackageBuilder):
         """
 
         inv = builder.invocation
-        inv.db.dump_checkout_paths()
         if not os.path.exists(inv.checkout_path(self.co, domain = label.domain)):
             raise utils.Error("Path %s for checkout %s does not exist, building %s"%
                               (inv.checkout_path(self.co, domain = label.domain), self.co, 

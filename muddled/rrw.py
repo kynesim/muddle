@@ -107,16 +107,30 @@ def set_gnu_tools(builder, roles, env_prefix, prefix,
         binding_list.append(utils.get_prefix_pair(pfx, "PFX", prefix,""))
 
         if (cflags is not None):
-            binding_list.append(utils.get_prefix_pair(pfx, "CFLAGS", prefix, cflags))
+            binding_list.append(utils.get_prefix_pair(pfx, "CFLAGS", "", cflags))
 
         if (ldflags is not None):
-            binding_list.append(utils.get_prefix_pair(pfx, "LDFLAGS", prefix, ldflags))
+            binding_list.append(utils.get_prefix_pair(pfx, "LDFLAGS", "", ldflags))
 
         if (asflags is not None):
-            binding_list.append(utils.get_prefix_pair(pfx, "ASFLAGS", prefix, asflags))
+            binding_list.append(utils.get_prefix_pair(pfx, "ASFLAGS", "", asflags))
 
         set_env(builder, croles, binding_list, domain = domain)
     
+
+def set_global_package_env(builder, name, value, 
+                                   roles = [ "*" ]):
+    """
+    Set an environment variable 'name = value' globally.
+    """
+    for  r in roles:
+        lbl = depend.Label(utils.LabelKind.Package, 
+                           "*", 
+                           r, 
+                           "*")
+        env = builder.invocation.get_environment_for(lbl)
+        env.set(name, value)
+
 
 def append_to_path(builder, roles, val):
     """

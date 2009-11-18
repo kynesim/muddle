@@ -303,6 +303,8 @@ class Query(Command):
                      For package labels, the install dir. For deployment labels
                      the deployment dir.
     * root         - Print the root path and default domain.
+    * targets      - The targets that would be built by an attempt to build
+                       this label.
 
     Note that both instructions and inst-details are label-sensitive, so you
     will want to supply a label like::
@@ -375,6 +377,11 @@ class Query(Command):
             else:
                 print "Rule set for %s .. "%label
                 print local_rule
+        elif (type == "targets"):
+            local_rules = builder.invocation.ruleset.targets_match(label, useMatch = True)
+            print "Targets that match %s .. "%(label)
+            for i in local_rules:
+                print "%s"%i
         elif (type == "deps"):
             to_build = depend.needed_to_build(builder.invocation.ruleset, label)
             if (to_build is None):

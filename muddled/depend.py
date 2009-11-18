@@ -248,6 +248,19 @@ class Label(object):
         cp.transient = transient
         return cp
 
+    def is_definite(self):
+        """
+        Return True iff this label contains no wildcards
+        """
+        if (self.type == "*" or
+            self.domain == "*" or
+            self.name == "*" or
+            self.role == "*" or
+            self.tag == "*"):
+            return False
+
+        return True
+
     def match(self, other):
         """
         Return an integer indicating the match specicifity - which we do
@@ -597,6 +610,8 @@ class Rule:
             raise utils.Error("Attempt to create a rule with an object rule "
                               "which isn't a dependable but a %s."%(obj.__class__.__name__))
 
+    def replace_target(self, new_t):
+        self.target = new_t
 
     def unify_dependencies(self, source, target):
         """
@@ -638,6 +653,7 @@ class Rule:
                 else:
                     self.obj = pkg.SequentialDependable(self.obj, other_rule.obj)
 
+        print "catenate and merge for target = %s"%(self.target)
         self.deps.union(other_rule.deps)
 
     def add(self,label):
@@ -924,6 +940,7 @@ class RuleSet:
             if (k.match(source)):
                 copied_source = k.copy()
                 copied_source._unify_with(target)
+                new_v.replace_target(copied_source)
                 new_k = copied_source
                 #print "Ruleset: rewrite src = %s, k = %s to %s"%(source,k,copied_source)
             else:
@@ -1274,11 +1291,12 @@ def required_by(ruleset, label, useTags = True, useMatch = True):
     # Grab the initial dependency set.
     rules = ruleset.rules_for_target(label, useMatch = useMatch)
     if (len(rules) == 0):
-        raise utils.Failure("No rules match label %s ."%label)
+        # If this was a wildcarded label, who cares?
+        if (label.is_definite()):
+            raise utils.Failure("No rules match label %s ."%label)
 
     for r in rules:
         depends.add(r.target)
-
 
 
     while True:

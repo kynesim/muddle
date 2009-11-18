@@ -309,6 +309,9 @@ class Invocation:
         (co,path) = utils.split_path_left(build_desc)
         return (co, path)
 
+    def dump_checkout_paths(self):
+        return self.db.dump_checkout_paths()
+
     def checkout_path(self, co, domain=None):
         """
         Return the path in which the given checkout resides. 
@@ -1024,6 +1027,7 @@ def include_domain(builder, domain_name, domain_repo, domain_desc):
     then it will be retrieved. This will normally happen when ``muddle init``
     is done.
     """
+
     domain_builder = _new_sub_domain(builder.invocation.db.root_path,
                                      builder.muddle_binary,
                                      domain_name,
@@ -1040,7 +1044,6 @@ def include_domain(builder, domain_name, domain_repo, domain_desc):
 
     builder.invocation.db.include_domain(domain_builder, domain_name)
     
-
     return domain_builder
 
 

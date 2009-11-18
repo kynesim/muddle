@@ -49,6 +49,7 @@ class Database(object):
         """
         for (k,v) in other_builder.invocation.db.checkout_locations.items():
             (co,dom) = k
+            print "Including (%s,%s) -> %s"%(co,dom,v)
             if (dom is None):
                 dom = other_domain_name
             else:
@@ -68,6 +69,12 @@ class Database(object):
     def set_checkout_path(self, checkout, dir, domain = None):
         self.checkout_locations[(checkout, domain)] = dir
 
+
+    def dump_checkout_paths(self):
+        print "> Checkout paths .. "
+        for (k,v) in self.checkout_locations.items():
+            (co, dom) = k
+            print "(%s,%s) -> %s"%(co,dom,v)
 
     def get_checkout_path(self, checkout, isRelative = False, domain = None):
         """

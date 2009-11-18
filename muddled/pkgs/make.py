@@ -33,17 +33,19 @@ class MakeBuilder(PackageBuilder):
         self.makefile_name = makefileName
 
 
-    def ensure_dirs(self):
+    def ensure_dirs(self, label):
         """
         Make sure all the relevant directories exist.
         """
-        inv = self.builder.invocation
-        if not os.path.exists(inv.checkout_path(self.co)):
-            raise utils.Error("Path %s for checkout %s does not exist"%
-                              (inv.checkout_path(self.co), self.co))
 
-        utils.ensure_dir(inv.package_obj_path(self.name, self.role))
-        utils.ensure_dir(inv.package_install_path(self.name, self.role))
+        inv = self.builder.invocation
+
+        if not os.path.exists(inv.checkout_path(self.co, domain = label.domain)):
+            raise utils.Error("Path %s for checkout %s does not exist"%
+                              (inv.checkout_path(self.co, domain = label.domain), self.co))
+
+        utils.ensure_dir(inv.package_obj_path(self.name, self.role, domain = label.domain))
+        utils.ensure_dir(inv.package_install_path(self.name, self.role, domain = label.domain))
 
     def build_label(self, label):
         """
@@ -52,7 +54,7 @@ class MakeBuilder(PackageBuilder):
         """
         tag = label.tag
 
-        self.ensure_dirs()
+        self.ensure_dirs(label)
         
         # XXX We have no way of remembering a checkout in a different domain
         # XXX (from the label we're building) so for the moment we won't even

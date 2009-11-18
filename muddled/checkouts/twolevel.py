@@ -48,8 +48,8 @@ def relative(builder, co_dir, co_name, repo_relative = None, rev = None):
     else:
         rest = repo_relative
 
-        builder.invocation.db.set_checkout_path(co_name, os.path.join(co_dir, co_name), 
-                                                domain = builder.default_domain)
+    builder.invocation.db.set_checkout_path(co_name, os.path.join(co_dir, co_name), 
+                                            domain = builder.default_domain)
 
     vcs_handler = version_control.vcs_dependable_for(builder,
                                                      co_name, 

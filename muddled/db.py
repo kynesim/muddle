@@ -27,7 +27,7 @@ class Database(object):
         
         * root_path          - The path to the root of the build tree.
         * local_labels       - Transient labels which are asserted.
-        * checkout_locations - Maps a checkout to the directory it's in,
+        * checkout_locations - Maps (checkout, domain) to the directory it's in,
           relative to src/ - if there's no mapping, we believe it's directly
           in src.
         """
@@ -41,6 +41,22 @@ class Database(object):
         self.local_tags = set()
 
 
+    def include_domain(self,other_builder, other_domain_name):
+        """
+        Include data from other_builder, built in other_name
+
+        This is mainly checkout locations.
+        """
+        for (k,v) in other_builder.invocation.db.checkout_locations.items():
+            (co,dom) = k
+            if (dom is None):
+                dom = other_domain_name
+            else:
+                dom = other_domain_name + "." + dom
+
+            self.checkout_locations[(co, dom)] = v
+        
+
     def set_domain(self, domain_name):
         file_name = os.path.join(self.root_path, "domain_name")
         f = open(file_name, "w")
@@ -49,8 +65,8 @@ class Database(object):
         f.close()
 
 
-    def set_checkout_path(self, checkout, dir):
-        self.checkout_locations[checkout] = dir
+    def set_checkout_path(self, checkout, dir, domain = None):
+        self.checkout_locations[(checkout, domain)] = dir
 
 
     def get_checkout_path(self, checkout, isRelative = False, domain = None):
@@ -65,7 +81,7 @@ class Database(object):
         if (checkout is None):
             return os.path.join(root, "src")
 
-        rel_dir = self.checkout_locations.get(checkout, checkout)
+        rel_dir = self.checkout_locations.get((checkout, domain), checkout)
         if (isRelative):
             return rel_dir
         else:

@@ -343,7 +343,8 @@ class Query(Command):
 
 
         if (type == "objdir"):
-            print builder.invocation.package_obj_path(label.name, label.role)
+            print builder.invocation.package_obj_path(label.name, label.role, 
+                                                      domain = builder.default_domain)
         elif (type == "preciseenv"):
             the_env = builder.invocation.get_environment_for(label)
 

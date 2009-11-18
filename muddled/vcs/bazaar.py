@@ -14,8 +14,8 @@ class Bazaar(VersionControlHandler):
     It's assumed that the first path component of 'rel' is the name of the repository.
     """
 
-    def __init__(self, inv, co_name, repo, rev, rel, co_dir):
-        VersionControlHandler.__init__(self, inv, co_name, repo, rev, rel, co_dir)
+    def __init__(self, builder, co_name, repo, rev, rel, co_dir):
+        VersionControlHandler.__init__(self, builder, co_name, repo, rev, rel, co_dir)
         
         sp = conventional_repo_url(repo, rel, co_dir = co_dir)
         if sp is None:
@@ -83,8 +83,8 @@ class BazaarVCSFactory(VersionControlHandlerFactory):
     def describe(self):
         return "The Bazaar VCS"
 
-    def manufacture(self, inv, co_name, repo, rev, rel, co_dir):
-        return Bazaar(inv, co_name, repo, rev, rel, co_dir)
+    def manufacture(self, builder, co_name, repo, rev, rel, co_dir):
+        return Bazaar(builder, co_name, repo, rev, rel, co_dir)
 
         
 # Tell the version control handler about us..

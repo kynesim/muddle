@@ -12,7 +12,7 @@ class VersionControlHandler:
     """
     Subclass this class to handle a particular type of version control system.
 
-    * self.invocation is the invocation we're running under.
+    * self.builder is the builder we're running under.
     * self.checkout_name is the name of the checkout (the directory under
       ``/src/``) that we're responsible for.
     * self.repository is the repository we're interested in. Its syntax is
@@ -24,8 +24,8 @@ class VersionControlHandler:
     almost never be used.
     """
 
-    def __init__(self, inv, co_name, repo, rev, rel, co_dir = None):
-        self.invocation = inv
+    def __init__(self, builder, co_name, repo, rev, rel, co_dir = None):
+        self.builder = builder;
         self.checkout_name = co_name
         self.checkout_dir = co_dir
         self.repository = repo
@@ -45,7 +45,8 @@ class VersionControlHandler:
         """
         Does what it says on the tin.
         """
-        return self.invocation.checkout_path(self.checkout_name)
+        return self.builder.invocation.checkout_path(self.checkout_name,
+                                                     domain = self.builder.default_domain)
         
 
     def get_checkout_path(self, co_name):
@@ -56,12 +57,14 @@ class VersionControlHandler:
         .. todo:: Needs documenting and rewriting!
         """
         if (self.checkout_dir is not None):
-            p = os.path.join(self.invocation.checkout_path(None), self.checkout_dir)
+            p = os.path.join(self.builder.invocation.checkout_path(None, 
+                                                                   domain = self.builder.default_domain), 
+                             self.checkout_dir)
             if (co_name is not None):
                 p = os.path.join(co_name)
             return p
         else:
-            return self.invocation.checkout_path(co_name)
+            return self.builder.invocation.checkout_path(co_name, domain = self.builder.default_domain)
         
     def check_out(self):
         """
@@ -110,7 +113,7 @@ class VersionControlHandlerFactory:
     def describe(self):
         return "Generic version control handler factory"
 
-    def manufacture(self, inv, co_name, repo, rev, rel, co_dir = None):
+    def manufacture(self, builder, co_name, repo, rev, rel, co_dir = None):
         """
         Manufacture a VCS handler.
 
@@ -151,7 +154,7 @@ def list_registered():
 
 
 
-def vcs_handler_for(inv, co_name, repo, rev, rest, co_dir = None):
+def vcs_handler_for(builder, co_name, repo, rev, rest, co_dir = None):
     """
     Create a VCS handler for the given url, invocation and checkout name.
     
@@ -179,13 +182,13 @@ def vcs_handler_for(inv, co_name, repo, rev, rest, co_dir = None):
     if (rev is None):
         rev = "HEAD"
 
-    return factory.manufacture(inv, co_name, repo, rev, rest, co_dir)
+    return factory.manufacture(builder, co_name, repo, rev, rest, co_dir)
 
 def vcs_dependable_for(builder, co_name, repo, rev, rest, co_dir = None):
     """
     Create a VCS dependable for the given co_name, repo, etc.
     """
-    handler = vcs_handler_for(builder.invocation, co_name, repo, rev, rest, co_dir)
+    handler = vcs_handler_for(builder, co_name, repo, rev, rest, co_dir)
     if (handler is None):
         raise utils.Failure("Cannot build a VCS handler for %s rel = %s"%(repo, rev))
 

@@ -7,8 +7,8 @@ import muddled.utils as utils
 import os
 
 class Git(VersionControlHandler):
-    def __init__(self, inv, checkout_name, repo, rev, rel, co_dir):
-        VersionControlHandler.__init__(self, inv, checkout_name, repo, rev, rel, co_dir)
+    def __init__(self, builder, checkout_name, repo, rev, rel, co_dir):
+        VersionControlHandler.__init__(self, builder, checkout_name, repo, rev, rel, co_dir)
         sp = conventional_repo_url(repo, rel)
         if sp is None:
             raise utils.Error("Cannot extract repository URL from %s, checkout %s"%(repo, rel))
@@ -75,8 +75,8 @@ class GitVCSFactory(VersionControlHandlerFactory):
     def describe(self):
         return "GIT"
 
-    def manufacture(self, inv, checkout_name, repo, rev, rel, co_dir):
-        return Git(inv, checkout_name, repo, rev, rel, co_dir)
+    def manufacture(self, builder, checkout_name, repo, rev, rel, co_dir):
+        return Git(builder, checkout_name, repo, rev, rel, co_dir)
 
 # Register us with the VCS handler factory
 register_vcs_handler("git", GitVCSFactory())

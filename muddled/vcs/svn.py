@@ -7,8 +7,8 @@ import muddled.utils as utils
 import os
 
 class Svn(VersionControlHandler):
-    def __init__(self, inv, checkout_name, repo, rev, rel, co_dir):
-        VersionControlHandler.__init__(self, inv, checkout_name, repo ,rev, rel, co_dir)
+    def __init__(self, builder, checkout_name, repo, rev, rel, co_dir):
+        VersionControlHandler.__init__(self, builder, checkout_name, repo ,rev, rel, co_dir)
 
         sp = conventional_repo_url(repo, rel, co_dir = co_dir)
         if sp is None:
@@ -64,8 +64,8 @@ class SvnVCSFactory(VersionControlHandlerFactory):
     def describe(self):
         return "Subversion"
 
-    def manufacture(self, inv, checkout_name, repo, rev, rel, co_dir):
-        return Svn(inv, checkout_name, repo, rev, rel, co_dir)
+    def manufacture(self, builder, checkout_name, repo, rev, rel, co_dir):
+        return Svn(builder, checkout_name, repo, rev, rel, co_dir)
 
 # Register us with the VCS handler factory
 register_vcs_handler("svn", SvnVCSFactory())

@@ -551,7 +551,7 @@ class Builder:
         # Essentially, we register the build as a perfectly normal checkout
         # but add a dependency of loaded on checked_out and then build it .. 
         
-        vcs_handler = version_control.vcs_handler_for(self.invocation,
+        vcs_handler = version_control.vcs_handler_for(self,
                                                       desc_co, 
                                                       self.invocation.db.repo.get(), 
                                                       "HEAD",
@@ -1038,6 +1038,8 @@ def include_domain(builder, domain_name, domain_repo, domain_desc):
     for key, value in domain_builder.invocation.env.items():
         builder.invocation.env[key] = value
 
+    builder.invocation.db.include_domain(domain_builder, domain_name)
+    
 
     return domain_builder
 

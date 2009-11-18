@@ -85,7 +85,6 @@ def set_gnu_tools(builder, roles, env_prefix, prefix,
     prefix.
 
     """
-    binding_list = [ ]
     
     prefix_list = [ ]
     if (env_prefix is not None): 
@@ -95,6 +94,7 @@ def set_gnu_tools(builder, roles, env_prefix, prefix,
         prefix_list.append( ("%s_"%(archname), archroles) )
 
     for (pfx, croles)  in prefix_list:
+        binding_list = [ ]
         binding_list.append(utils.get_prefix_pair(pfx, "CC", prefix, "gcc"))
         binding_list.append(utils.get_prefix_pair(pfx, "CXX", prefix, "g++"))
         binding_list.append(utils.get_prefix_pair(pfx, "CPP", prefix, "cpp"))

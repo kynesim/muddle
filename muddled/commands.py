@@ -1044,6 +1044,32 @@ class Removed(Command):
 
         
 
+class Unimport(Command):
+    """
+    Syntax: unimport [checkout .. ]
+
+    Assert that the given checkouts haven't been checked out and must therefore
+    be checked out.
+    """
+
+    def name(self):
+        return "unimport"
+
+    def requires_build_tree(self):
+        return True
+
+    def with_build_tree(self, builder, local_pkgs, args):
+        checkouts = decode_checkout_arguments(builder, args, 
+                                              local_pkgs,
+                                              utils.Tags.CheckedOut)
+
+        if (self.no_op()):
+            print "Unimporting checkouts: %s"%(depend.label_list_to_string(checkouts))
+        else:
+            for c in checkouts:
+                builder.invocation.db.clear_tag(c)
+
+
 class Import(Command):
     """
     Syntax: import [checkout ... ]
@@ -1761,6 +1787,7 @@ def register_commands():
     Instruct().register(the_dict)
     BuildLabel().register(the_dict)
     Import().register(the_dict)
+    Unimport().register(the_dict)
     Assert().register(the_dict)
     Retract().register(the_dict)
     PkgUpdate().register(the_dict)

@@ -383,7 +383,7 @@ class Query(Command):
             for i in local_rules:
                 print "%s"%i
         elif (type == "deps"):
-            to_build = depend.needed_to_build(builder.invocation.ruleset, label)
+            to_build = depend.needed_to_build(builder.invocation.ruleset, label, useMatch = True)
             if (to_build is None):
                 print "No dependencies for %s"%label
             else:

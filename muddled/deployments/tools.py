@@ -21,26 +21,27 @@ class ToolsDeploymentBuilder(pkg.Dependable):
     Copy the dependent roles into the tools deployment.
     """
     
-    def __init__(self, builder, dependent_roles):
-        self.builder = builder
+    def __init__(self, dependent_roles):
         self.dependent_roles = dependent_roles
 
-    def build_label(self, label):
+    def build_label(self, builder, label):
         if (label.tag == utils.Tags.Deployed):
-            self.deploy(label)
+            self.deploy(builder, label)
         else:
             raise utils.Failure("Attempt to build "
                                 "unrecognised tools deployment label %s"%(label))
 
-    def deploy(self, label):
-        deploy_dir = self.builder.invocation.deploy_path(label.name)
+    def deploy(self, builder, label):
+        deploy_dir = builder.invocation.deploy_path(label.name, 
+                                                    domain = label.domain)
 
         utils.recursively_remove(deploy_dir)
         utils.ensure_dir(deploy_dir)
 
         for role in self.dependent_roles:
             print "> %s: Deploying role %s .."%(label.name, role)
-            install_dir = self.builder.invocation.role_install_path(role)
+            install_dir = builder.invocation.role_install_path(role, 
+                                                               domain = label.domain)
             # We do want an exact copy here - this is a copy from the install
             #  set to the role deployment and therefore may include symlinks
             #  hardwired to MUDDLE_TARGET_INSTALL. If it were a copy to the install
@@ -106,7 +107,7 @@ def deploy(builder, name, rolesThatUseThis = [ ], rolesNeededForThis = [ ]):
 
         deployment.role_depends_on_deployment(builder, role, name)
 
-    the_rule = depend.Rule(tgt, ToolsDeploymentBuilder(builder, rolesNeededForThis))
+    the_rule = depend.Rule(tgt, ToolsDeploymentBuilder(rolesNeededForThis))
     builder.invocation.ruleset.add(the_rule)
 
     deployment.deployment_depends_on_roles(builder, name, rolesNeededForThis)

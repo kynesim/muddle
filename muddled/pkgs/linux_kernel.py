@@ -15,7 +15,7 @@ class LinuxKernel(PackageBuilder):
     Build a Linux kernel.
     """
 
-    def __init__(self, name, role, builder, co, linuxSrc, configFile, 
+    def __init__(self, name, role, co, linuxSrc, configFile, 
                  kernelVersion,
                  makeInstall = False, inPlace = False):
         """
@@ -35,7 +35,6 @@ class LinuxKernel(PackageBuilder):
         """
         
         PackageBuilder.__init__(self, name, role)
-        self.builder = builder
         self.co = co
         self.linux_src = linuxSrc
         self.config_file = configFile
@@ -43,15 +42,17 @@ class LinuxKernel(PackageBuilder):
         self.kernel_version= kernelVersion
         self.in_place = inPlace
 
-    def ensure_dirs(self, label):
+    def ensure_dirs(self, builder, label):
         """
         Make sure the relevant directories exist
         """
-        co_path = self.builder.invocation.checkout_path(self.co)
-        build_path = self.builder.invocation.package_obj_path(label.name,
-                                                              label.role)
-        inst_path = self.builder.invocation.package_install_path(label.name,
-                                                                 label.role)
+        co_path = builder.invocation.checkout_path(self.co, domain = label.domain)
+        build_path = builder.invocation.package_obj_path(label.name,
+                                                         label.role, 
+                                                         domain = label.domain)
+        inst_path = builder.invocation.package_install_path(label.name,
+                                                                 label.role,
+                                                                 domain = label.domain)
         utils.ensure_dir(co_path)
         utils.ensure_dir(os.path.join(build_path, "obj"))
         utils.ensure_dir(inst_path)
@@ -60,16 +61,16 @@ class LinuxKernel(PackageBuilder):
         
 
 
-    def build_label(self, label):
+    def build_label(self, builder, label):
         tag = label.tag
 
-        self.ensure_dirs(label)
+        self.ensure_dirs(builder, label)
         
-        co_path = self.builder.invocation.checkout_path(self.co)
-        build_path = self.builder.invocation.package_obj_path(label.name,
-                                                              label.role)
-        inst_path = self.builder.invocation.package_install_path(label.name,
-                                                                 label.role)
+        co_path = builder.invocation.checkout_path(self.co)
+        build_path = builder.invocation.package_obj_path(label.name,
+                                                         label.role)
+        inst_path = builder.invocation.package_install_path(label.name,
+                                                            label.role)
 
         make_cmd = "make"
         if not self.in_place:
@@ -167,15 +168,15 @@ class LinuxKernel(PackageBuilder):
             os.chdir(os.path.join(co_path, self.linux_src))
             utils.run_cmd("%s clean"%make_cmd)
         elif (tag == utils.Tags.DistClean):
-            self.dist_clean(label)
+            self.dist_clean(builder, label)
         else:
             raise utils.Error("Invalid tag specified for "
                               "linux kernel build - %s"%(label))
 
-    def dist_clean(self, label):
+    def dist_clean(self, builder, label):
         # Just wipe out the object file directory
-        utils.recursively_remove(self.builder.invocation.package_obj_path(label.name, 
-                                                                          label.role))
+        utils.recursively_remove(builder.invocation.package_obj_path(label.name, 
+                                                                     label.role))
 
 
 
@@ -191,7 +192,7 @@ def simple(builder, name, role, checkout, linux_dir, config_file,
     """
     
     simple_checkouts.relative(builder, checkout)
-    the_pkg = LinuxKernel(name, role, builder, checkout, linux_dir, config_file, 
+    the_pkg = LinuxKernel(name, role,  checkout, linux_dir, config_file, 
                           kernel_version,
                           makeInstall = makeInstall, inPlace = inPlace)
     pkg.add_package_rules(builder.invocation.ruleset, 
@@ -211,7 +212,7 @@ def twolevel(builder, name, role, checkout_dir, checkout_name, linux_dir,
     """
     twolevel_checkouts.twolevel(builder, checkout_dir, checkout_name)
 
-    the_pkg = LinuxKernel(name, role, builder, checkout_name, linux_dir, config_file, 
+    the_pkg = LinuxKernel(name, role, checkout_name, linux_dir, config_file, 
                           kernel_version,
                           makeInstall = makeInstall, inPlace = inPlace)
     pkg.add_package_rules(builder.invocation.ruleset, 

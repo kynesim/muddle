@@ -14,7 +14,7 @@ class VersionBuilder(PackageBuilder):
     Write a version number file
     """
 
-    def __init__(self, name, role, builder,
+    def __init__(self, name, role, 
                  filename,
                  swname = None,
                  version = None,
@@ -28,7 +28,6 @@ class VersionBuilder(PackageBuilder):
         PackageBuilder.__init__(self, name, role)
         self.filename = filename
         self.swname = swname
-        self.builder = builder
         self.version = version
         self.build = build
         self.withDate = withDate
@@ -88,7 +87,7 @@ class VersionBuilder(PackageBuilder):
         utils.ensure_dir(inv.package_install_path(self.name, self.role))
 
         
-    def build_label(self, label):
+    def build_label(self, builder, label):
         """
         Build the version.xml file.
         """
@@ -115,7 +114,7 @@ def simple(builder, name, roles,
            withMachine = True):
 
     for r in roles:
-        the_pkg = VersionBuilder(name, r, builder, filename,
+        the_pkg = VersionBuilder(name, r, filename,
                                  swname, version, build, withDate, withUser, withMachine)
         pkg.add_package_rules(builder.invocation.ruleset,
                               name, r, the_pkg)

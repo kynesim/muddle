@@ -31,21 +31,20 @@ class CpioDeploymentBuilder(pkg.Dependable):
     Builds the specified CPIO deployment.
     """
     
-    def __init__(self, roles, builder, target_file, target_base, 
+    def __init__(self, roles, target_file, target_base, 
                  compressionMethod = None, 
                  pruneFunc = None):
         """
         target_base is a dictionary mapping roles to their root addresses
         in the heirarchy.
         """
-        self.builder = builder
         self.target_file = target_file
         self.target_base = target_base
         self.roles = roles
         self.compression_method = compressionMethod
         self.prune_function = pruneFunc
 
-    def attach_env(self):
+    def attach_env(self, builder):
         """
         Attaches an environment containing:
         
@@ -60,21 +59,22 @@ class CpioDeploymentBuilder(pkg.Dependable):
                                "*",
                                role,
                                "*")
-            env = self.builder.invocation.get_environment_for(lbl)
+            env = builder.invocation.get_environment_for(lbl)
         
             env.set_type("MUDDLE_TARGET_LOCATION", muddled.env_store.EnvType.SimpleValue)
             env.set("MUDDLE_TARGET_LOCATION", self.target_base[role])
     
 
 
-    def build_label(self,label):
+    def build_label(self,builder, label):
         """
         Actually cpio everything up, following instructions appropriately.
         """
         
         if (label.tag == utils.Tags.Deployed):
             # Collect all the relevant files ..
-            deploy_dir = self.builder.invocation.deploy_path(label.name)
+            deploy_dir = builder.invocation.deploy_path(label.name, 
+                                                        domain = label.domain)
             deploy_file = os.path.join(deploy_dir,
                                        self.target_file)
 
@@ -83,7 +83,8 @@ class CpioDeploymentBuilder(pkg.Dependable):
             
             the_heirarchy = cpiofile.Heirarchy({ }, { })
             for r in self.roles:
-                m = cpiofile.heirarchy_from_fs(self.builder.invocation.role_install_path(r), 
+                m = cpiofile.heirarchy_from_fs(builder.invocation.role_install_path(r, 
+                                                                                    domain = label.domain), 
                                                self.target_base[r])
                 the_heirarchy.merge(m)
 
@@ -100,13 +101,13 @@ class CpioDeploymentBuilder(pkg.Dependable):
             # Apply instructions .. 
             for role in self.roles:
                 lbl = depend.Label(utils.LabelKind.Package, "*", role, "*")
-                instr_list = self.builder.load_instructions(lbl)
+                instr_list = builder.load_instructions(lbl)
                 for (lbl, fn, instrs) in instr_list:
                     print "Applying instructions for role %s, label %s .. "%(role, lbl)
                     for instr in instrs:
                         iname = instr.outer_elem_name()
                         if (iname in app_dict):
-                            app_dict[iname].apply(self.builder, instr, role,
+                            app_dict[iname].apply(builder, instr, role,
                                                   self.target_base[role], 
                                                   the_heirarchy)
                         else:
@@ -223,7 +224,7 @@ def deploy(builder, target_file, target_base, name, roles,
       roles will override those in earlier roles.
     """
     
-    the_dependable = CpioDeploymentBuilder(roles, builder, target_file, 
+    the_dependable = CpioDeploymentBuilder(roles, target_file, 
                                            target_base, compressionMethod, 
                                            pruneFunc = pruneFunc)
     
@@ -241,7 +242,7 @@ def deploy(builder, target_file, target_base, name, roles,
 
     builder.invocation.ruleset.add(deployment_rule)
 
-    the_dependable.attach_env()
+    the_dependable.attach_env(builder)
     
     # Cleanup is generic
     deployment.register_cleanup(builder, name)

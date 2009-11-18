@@ -26,12 +26,11 @@ class FileDeploymentBuilder(pkg.Dependable):
     Builds the specified file deployment
     """
     
-    def __init__(self, roles, builder, target_dir):
-        self.builder = builder
+    def __init__(self, roles, target_dir):
         self.target_dir = target_dir
         self.roles = roles
 
-    def attach_env(self):
+    def attach_env(self, builder):
         """
         Attaches an environment containing:
         
@@ -46,12 +45,12 @@ class FileDeploymentBuilder(pkg.Dependable):
                                "*",
                                role,
                                "*")
-            env = self.builder.invocation.get_environment_for(lbl)
+            env = builder.invocation.get_environment_for(lbl)
         
             env.set_type("MUDDLE_TARGET_LOCATION", muddled.env_store.EnvType.SimpleValue)
             env.set("MUDDLE_TARGET_LOCATION", self.target_dir)
 
-    def build_label(self, label):
+    def build_label(self, builder, label):
         """
         Performs the actual build.
 
@@ -66,12 +65,12 @@ class FileDeploymentBuilder(pkg.Dependable):
             # We want to deploy 
             self.deploy(label)
         elif (label.tag == utils.Tags.InstructionsApplied):
-            self.apply_instructions(label)
+            self.apply_instructions(builder, label)
         else:
             raise utils.Failure("Attempt to build a deployment with an unknown in label %s"%(label))
 
-    def deploy(self, label):
-        deploy_dir = self.builder.invocation.deploy_path(label.name)
+    def deploy(self, builder, label):
+        deploy_dir = builder.invocation.deploy_path(label.name, domain = label.domain)
         # First off, delete the target directory
         
         utils.recursively_remove(deploy_dir)
@@ -79,7 +78,7 @@ class FileDeploymentBuilder(pkg.Dependable):
 
         for role in self.roles:
             print "> %s: Deploying role %s .. "%(label.name, role)
-            install_dir = self.builder.invocation.role_install_path(role)
+            install_dir = builder.invocation.role_install_path(role, domain = label.domain)
             utils.recursively_copy(install_dir, deploy_dir, object_exactly=True)
         
 
@@ -100,7 +99,7 @@ class FileDeploymentBuilder(pkg.Dependable):
                                role,
                                "*")
 
-            install_dir = self.builder.invocation.role_install_path(role)
+            install_dir = builder.invocation.role_install_path(role, domain = label.domain)
         
             instr_list = self.builder.load_instructions(lbl)
 
@@ -111,7 +110,7 @@ class FileDeploymentBuilder(pkg.Dependable):
                 for instr in instr_file:
                     iname = instr.outer_elem_name()
                     if (iname in app_dict):
-                        if (app_dict[iname].needs_privilege(self.builder, instr, role, install_dir)):
+                        if (app_dict[iname].needs_privilege(builder, instr, role, install_dir)):
                             need_root = True
                     # Deliberately do not break - we want to check everything for
                     # validity before acquiring privilege.
@@ -135,7 +134,7 @@ class FileDeploymentBuilder(pkg.Dependable):
             utils.run_cmd("%s buildlabel %s"%(self.builder.muddle_binary, 
                                          permissions_label))
 
-    def apply_instructions(self, label):
+    def apply_instructions(self, builder, label):
         app_dict = get_instruction_dict()
 
         for role in self.roles:
@@ -144,16 +143,16 @@ class FileDeploymentBuilder(pkg.Dependable):
                                role,
                                "*")
 
-            deploy_dir = self.builder.invocation.deploy_path(label.name)
+            deploy_dir = builder.invocation.deploy_path(label.name, domain = label.domain)
         
-            instr_list = self.builder.load_instructions(lbl)
+            instr_list = builder.load_instructions(lbl)
             for (lbl, fn, instrs) in instr_list:
                 print "Applying instructions for role %s, label %s .. "%(role, lbl)
                 for instr in instrs:
                     # Obey this instruction.
                     iname = instr.outer_elem_name()
                     if (iname in app_dict):
-                        app_dict[iname].apply(self.builder, instr, role, deploy_dir)
+                        app_dict[iname].apply(builder, instr, role, deploy_dir)
                     else:
                         raise utils.Failure("File deployments don't know about instruction %s"%iname + 
                                             " found in label %s (filename %s)"%(lbl, fn))
@@ -248,7 +247,7 @@ def deploy(builder, target_dir, name, roles):
     The deployment should eventually be located at target_dir.
     """
 
-    the_dependable = FileDeploymentBuilder(roles, builder, 
+    the_dependable = FileDeploymentBuilder(roles,
                                            target_dir)
 
     dep_label = depend.Label(utils.LabelKind.Deployment,
@@ -284,7 +283,7 @@ def deploy(builder, target_dir, name, roles):
     deployment.register_cleanup(builder, name)
 
     # .. and set the environment
-    the_dependable.attach_env()
+    the_dependable.attach_env(builder)
 
     # .. and that's all.
 

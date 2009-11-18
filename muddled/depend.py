@@ -214,6 +214,8 @@ class Label(object):
         Unify this label with the target. All the non-wildcard parts of target
         are transferred to us
         """
+
+        #print "unify src = %s"%self
         if (target.type != "*"):
             self.type = target.type
             
@@ -231,6 +233,7 @@ class Label(object):
             
         self.system = target.system
         self.transient = target.transient
+        #print "unify tgt = %s"%self
 
     def make_transient(self, transience = True):
         """
@@ -260,6 +263,33 @@ class Label(object):
             return False
 
         return True
+
+    def unifies(self, other):
+        """
+        Returns True if and only if every field in self is either equal to a 
+        field in other , or if other is a wildcard. Wildcards in self do not match
+        anything but a wildcard in other.
+        """
+        
+        if (self.type != other.type and other.type != "*"): 
+            return False
+
+        if (self.domain != other.domain and other.domain != "*"):
+            return False
+
+        if (self.name != other.name and other.name != "*"):
+            return False
+
+        if (self.role != other.role and other.role != "*"):
+            return False
+
+        if (self.tag != other.tag and other.tag != "*"):
+            return False
+
+        # We match all the way down.
+        #print "Unifies(%s,%s)"%(self,other)
+        return True
+
 
     def match(self, other):
         """
@@ -620,7 +650,7 @@ class Rule:
         new_deps = set()
 
         for d in self.deps:
-            if (source.match(d)):
+            if (d.unifies(source)):
                 copied_d = d.copy()
                 copied_d._unify_with(target)
                 new_deps.add(copied_d)
@@ -937,7 +967,7 @@ class RuleSet:
             new_k = None
             new_v = v
 
-            if (k.match(source)):
+            if (k.unifies(source)):
                 copied_source = k.copy()
                 copied_source._unify_with(target)
                 new_v.replace_target(copied_source)

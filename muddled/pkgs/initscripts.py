@@ -25,27 +25,26 @@ class InitScriptBuilder(pkg.PackageBuilder):
     Build an init script.
     """
 
-    def __init__(self, name, role, script_name,  builder, 
+    def __init__(self, name, role, script_name,  
                  deployments,
                  writeSetvarsSh = True, writeSetvarsPy = False):
         pkg.PackageBuilder.__init__(self, name, role)
-        self.builder = builder
         self.script_name = script_name
         self.deployments = deployments
         self.write_setvars_sh = writeSetvarsSh
         self.write_setvars_py = writeSetvarsPy
 
-    def build_label(self, label):
+    def build_label(self, builder, label):
         """
         Install is the only one we care about ..
         """
         
         if (label.tag == utils.Tags.Installed):
-            inst_dir = self.builder.invocation.package_install_path(self.name, 
+            inst_dir = builder.invocation.package_install_path(self.name, 
                                                                    self.role)
             
             tgt_dir = os.path.join(inst_dir, "bin")
-            src_file = self.builder.resource_file_name("initscript.sh")
+            src_file = builder.resource_file_name("initscript.sh")
 
             utils.ensure_dir(tgt_dir)
             tgt_file = os.path.join(tgt_dir, self.script_name)
@@ -54,7 +53,7 @@ class InitScriptBuilder(pkg.PackageBuilder):
             os.chmod(tgt_file, 0755)
         
             # Write the setvars script
-            env = get_effective_env(self.builder, self.name, self.role)
+            env = get_effective_env(builder, self.name, self.role)
             effective_env = env.copy()
             env_store.add_install_dir_env(effective_env, "MUDDLE_TARGET_LOCATION")
 
@@ -65,12 +64,12 @@ class InitScriptBuilder(pkg.PackageBuilder):
                                    d, 
                                    None,
                                    utils.Tags.Deployed)
-                effective_env.merge(self.builder.invocation.get_environment_for(
+                effective_env.merge(builder.invocation.get_environment_for(
                         lbl))
 
             if (self.write_setvars_sh):
                 setenv_file_name = os.path.join(tgt_dir, "setvars")
-                sv_script  = effective_env.get_setvars_script(self.builder,
+                sv_script  = effective_env.get_setvars_script(builder,
                                                               self.script_name, 
                                                               env_store.EnvLanguage.Sh)
                 
@@ -81,7 +80,7 @@ class InitScriptBuilder(pkg.PackageBuilder):
             if (self.write_setvars_py):
                 # Now the python version .. 
                 setenv_file_name = os.path.join(tgt_dir, "setvars.py")
-                sv_script = effective_env.get_setvars_script(self.builder,
+                sv_script = effective_env.get_setvars_script(builder,
                                                              self.script_name,
                                                    env_store.EnvLanguage.Python)
                 out_f = open(setenv_file_name, "w")
@@ -99,7 +98,7 @@ def simple(builder, name, role, script_name, deployments = [ ],
     Build an init script for the given role.
     """
 
-    the_pkg = InitScriptBuilder(name, role, script_name, builder, 
+    the_pkg = InitScriptBuilder(name, role, script_name, 
                                 deployments,
                                 writeSetvarsSh = writeSetvarsSh, 
                                 writeSetvarsPy = writeSetvarsPy)
@@ -116,7 +115,7 @@ def medium(builder, name, roles, script_name, deployments = [ ],
     """
 
     for role in roles:
-        the_pkg = InitScriptBuilder(name, role, script_name, builder, 
+        the_pkg = InitScriptBuilder(name, role, script_name,  
                                     deployments,
                                     writeSetvarsSh = writeSetvarsSh, 
                                     writeSetvarsPy = writeSetvarsPy)

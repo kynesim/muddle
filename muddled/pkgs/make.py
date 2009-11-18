@@ -19,47 +19,47 @@ class MakeBuilder(PackageBuilder):
     involving cp) will lead to dependency-based disaster.
     """
     
-    def __init__(self, name, role, builder, co, config = True, 
+    def __init__(self, name, role, co, config = True, 
                  perRoleMakefiles = False, 
                  makefileName = None):
         """
         Constructor for the make package.
         """
         PackageBuilder.__init__(self, name, role)
-        self.builder = builder
         self.co = co
         self.has_make_config = config
         self.per_role_makefiles = perRoleMakefiles
         self.makefile_name = makefileName
 
 
-    def ensure_dirs(self, label):
+    def ensure_dirs(self, builder, label):
         """
         Make sure all the relevant directories exist.
         """
 
-        inv = self.builder.invocation
-
+        inv = builder.invocation
+        inv.db.dump_checkout_paths()
         if not os.path.exists(inv.checkout_path(self.co, domain = label.domain)):
-            raise utils.Error("Path %s for checkout %s does not exist"%
-                              (inv.checkout_path(self.co, domain = label.domain), self.co))
+            raise utils.Error("Path %s for checkout %s does not exist, building %s"%
+                              (inv.checkout_path(self.co, domain = label.domain), self.co, 
+                               label))
 
         utils.ensure_dir(inv.package_obj_path(self.name, self.role, domain = label.domain))
         utils.ensure_dir(inv.package_install_path(self.name, self.role, domain = label.domain))
 
-    def build_label(self, label):
+    def build_label(self, builder, label):
         """
         Build the relevant label. We'll assume that the
         checkout actually exists.
         """
         tag = label.tag
 
-        self.ensure_dirs(label)
+        self.ensure_dirs(builder, label)
         
         # XXX We have no way of remembering a checkout in a different domain
         # XXX (from the label we're building) so for the moment we won't even
         # XXX try...
-        co_path = self.builder.invocation.checkout_path(self.co)
+        co_path =  builder.invocation.checkout_path(self.co, domain = label.domain)
         os.chdir(co_path)
 
         # XXX Experimentally set MUDDLE_SRC for the "make" here, where we need it
@@ -113,7 +113,7 @@ def simple(builder, name, role, checkout, simpleCheckout = False, config = True,
     if (simpleCheckout):
         simple_checkouts.relative(builder, checkout)
 
-    the_pkg = MakeBuilder(name, role, builder, checkout, config = config, 
+    the_pkg = MakeBuilder(name, role, checkout, config = config, 
                           perRoleMakefiles = perRoleMakefiles,
                           makefileName = makefileName)
     # Add the standard dependencies ..

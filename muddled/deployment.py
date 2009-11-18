@@ -10,14 +10,14 @@ import pkg
 import env_store
 
 class CleanDeploymentBuilder(pkg.Dependable):
-    def __init__(self, builder):
-        self.builder = builder
+    def __init__(self):
+        pass
         
-    def build_label(self, label):
+    def build_label(self, builder, label):
         if (label.type == utils.LabelKind.Deployment and 
             (label.tag == utils.Tags.Clean or 
             label.tag == utils.Tags.DistClean)):
-            deploy_path = self.builder.invocation.deploy_path(label.name)
+            deploy_path = builder.invocation.deploy_path(label.name, domain= label.domain)
             print "> Remove %s"%deploy_path
             utils.recursively_remove(deploy_path)
         else:
@@ -38,7 +38,7 @@ def register_cleanup(builder, deployment):
                               deployment, 
                               None,
                               utils.Tags.Clean)
-    rule = depend.Rule(target_lbl, CleanDeploymentBuilder(builder))
+    rule = depend.Rule(target_lbl, CleanDeploymentBuilder())
     builder.invocation.ruleset.add(rule)
 
 

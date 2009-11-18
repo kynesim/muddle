@@ -17,9 +17,8 @@ class AptGetBuilder(pkg.PackageBuilder):
     Build an apt-get package.
     """
 
-    def __init__(self, name, role, builder, pkgs_to_install):
+    def __init__(self, name, role,  pkgs_to_install):
         pkg.PackageBuilder.__init__(self, name, role)
-        self.builder = builder
         self.pkgs_to_install = pkgs_to_install
 
     def already_installed(self, pkg):
@@ -44,7 +43,7 @@ class AptGetBuilder(pkg.PackageBuilder):
 
 
 
-    def build_label(self, label):
+    def build_label(self, builder, label):
         """
         This time, build is the only one we care about.
         """
@@ -72,7 +71,7 @@ def simple(builder, name, role, apt_pkgs):
     Construct an apt-get package in the given role with the given apt_pkgs.
     """
     
-    the_pkg = AptGetBuilder(name, role, builder, apt_pkgs)
+    the_pkg = AptGetBuilder(name, role, apt_pkgs)
     pkg.add_package_rules(builder.invocation.ruleset, 
                           name, role, the_pkg)
 

@@ -34,14 +34,13 @@ class DebDevDependable(PackageBuilder):
     Use dpkg to extract debian archives into obj/include and obj/lib
     directories so we can use them to build other packages.
     """
-    def __init__(self, name, role, builder, co, pkg_name, pkg_file, 
+    def __init__(self, name, role, co, pkg_name, pkg_file, 
                  instr_name = None,
                  postInstallMakefile = None):
         """
         As for a DebDependable, really.
         """
         PackageBuilder.__init__(self, name, role)
-        self.builder = builder
         self.co_name = co
         self.pkg_name = pkg_name
         self.pkg_file = pkg_file
@@ -49,19 +48,20 @@ class DebDevDependable(PackageBuilder):
         self.post_install_makefile = postInstallMakefile
         
 
-    def ensure_dirs(self, label):
-        inv = self.builder.invocation
+    def ensure_dirs(self, builder, label):
+        inv = builder.invocation
 
-        if not os.path.exists(inv.checkout_path(self.co_name)):
+        if not os.path.exists(inv.checkout_path(self.co_name, domain = label.domain)):
             raise utils.Failure("Path for checkout %s does not exist."%self.co_name)
 
-        utils.ensure_dir(os.path.join(inv.package_obj_path(label.name, label.role), "obj"))
+        utils.ensure_dir(os.path.join(inv.package_obj_path(label.name, label.role, 
+                                                           domain = label.domain), "obj"))
 
-    def build_label(self, label):
+    def build_label(self, builder, label):
         """
         Actually install the dev package.
         """
-        self.ensure_dirs(label)
+        self.ensure_dirs(builder, label)
 
         tag = label.tag
         
@@ -74,9 +74,9 @@ class DebDevDependable(PackageBuilder):
             pass
         elif (tag == utils.Tags.Installed):
             # Extract into /obj
-            inv = self.builder.invocation
-            co_dir = inv.checkout_path(self.co_name)
-            obj_dir = inv.package_obj_path(label.name, label.role)
+            inv = builder.invocation
+            co_dir = inv.checkout_path(self.co_name, domain = label.domain)
+            obj_dir = inv.package_obj_path(label.name, label.role, domain = label.domain)
             dpkg_cmd = "dpkg-deb -X %s %s"%(os.path.join(co_dir, self.pkg_file), 
                                             os.path.join(obj_dir, "obj"))
 
@@ -104,15 +104,16 @@ class DebDevDependable(PackageBuilder):
 
         elif (tag == utils.Tags.PostInstalled):
             if self.post_install_makefile is not None:
-                inv = self.builder.invocation
-                co_path =inv.checkout_path(self.co_name) 
+                inv = builder.invocation
+                co_path =inv.checkout_path(self.co_name, domain = label.domain) 
                 os.chdir(co_path)
                 utils.run_cmd("make -f %s %s-postinstall"%(self.post_install_makefile, 
                                                        label.name))
         elif (tag == utils.Tags.Clean or tag == utils.Tags.DistClean):
             # Just remove the object directory.
-            inv = self.builder.invocation
-            utils.recursively_remove(inv.package_obj_path(label.name, label.role))
+            inv = builder.invocation
+            utils.recursively_remove(inv.package_obj_path(label.name, label.role, 
+                                                          domain = label.domain))
         else:
             raise utils.Error("Invalid tag specified for deb pkg %s"%(label))
 
@@ -124,7 +125,7 @@ class DebDependable(PackageBuilder):
     checkout into the install directory.
     """
 
-    def __init__(self, name, role, builder, co, pkg_name, pkg_file,
+    def __init__(self, name, role, co, pkg_name, pkg_file,
                  instr_name = None, 
                  postInstallMakefile = None):
         """
@@ -140,7 +141,6 @@ class DebDependable(PackageBuilder):
           will be run at post-install time to make links, etc.
         """
         PackageBuilder.__init__(self, name, role)
-        self.builder = builder
         self.co_name = co
         self.pkg_name = pkg_name
         self.pkg_file = pkg_file
@@ -148,21 +148,23 @@ class DebDependable(PackageBuilder):
         self.post_install_makefile = postInstallMakefile
 
 
-    def ensure_dirs(self, label):
-        inv = self.builder.invocation
+    def ensure_dirs(self, builder, label):
+        inv = builder.invocation
 
-        if not os.path.exists(inv.checkout_path(self.co_name)):
+        if not os.path.exists(inv.checkout_path(self.co_name, domain = label.domain)):
             raise utils.Failure("Path for checkout %s does not exist."%self.co_name)
 
-        utils.ensure_dir(inv.package_install_path(label.name, label.role))
-        utils.ensure_dir(inv.package_obj_path(label.name, label.role))
+        utils.ensure_dir(inv.package_install_path(label.name, label.role, 
+                                                  domain = label.domain))
+        utils.ensure_dir(inv.package_obj_path(label.name, label.role,
+                                              domain = label.domain))
         
-    def build_label(self, label):
+    def build_label(self, builder, label):
         """
         Build the relevant label.
         """
         
-        self.ensure_dirs(label)
+        self.ensure_dirs(builder, label)
         
         tag = label.tag
         
@@ -175,9 +177,10 @@ class DebDependable(PackageBuilder):
             pass
         elif (tag == utils.Tags.Installed):
             # Concoct a suitable dpkg command.
-            inv = self.builder.invocation
-            inst_dir = inv.package_install_path(label.name, label.role)
-            co_dir = inv.checkout_path(self.co_name)
+            inv = builder.invocation
+            inst_dir = inv.package_install_path(label.name, label.role, 
+                                                domain = label.domain)
+            co_dir = inv.checkout_path(self.co_name, domain = label.domain)
 
             # Using dpkg doesn't work here for many reasons.
             dpkg_cmd = "dpkg-deb -X %s %s"%(os.path.join(co_dir, self.pkg_file), 
@@ -198,14 +201,15 @@ class DebDependable(PackageBuilder):
                 self.builder.instruct(label.name, label.role, ifile)
         elif (tag == utils.Tags.PostInstalled):
             if self.post_install_makefile is not None:
-                inv = self.builder.invocation
-                co_path =inv.checkout_path(self.co_name) 
+                inv = builder.invocation
+                co_path =inv.checkout_path(self.co_name, domain =  label.domain) 
                 os.chdir(co_path)
                 utils.run_cmd("make -f %s %s-postinstall"%(self.post_install_makefile, 
                                                            label.name))
         elif (tag == utils.Tags.Clean or tag == utils.Tags.DistClean):#
-            inv = self.builder.invocation
-            admin_dir = os.path.join(inv.package_obj_path(label.name, label.role))
+            inv = builder.invocation
+            admin_dir = os.path.join(inv.package_obj_path(label.name, label.role), 
+                                     domain = label.domain)
             utils.recursively_remove(admin_dir)
         else:
             raise utils.Error("Invalid tag specified for deb pkg %s"%(label))
@@ -237,11 +241,11 @@ def simple(builder, coName, name, roles,
 
     for r in roles:
         if isDev:
-            dep = DebDevDependable(name, r, builder, coName, debName, 
+            dep = DebDevDependable(name, r, coName, debName, 
                                    pkgFile, instrFile, 
                                    postInstallMakefile)
         else:
-            dep = DebDependable(name, r, builder, coName, debName, 
+            dep = DebDependable(name, r, coName, debName, 
                                 pkgFile, instrFile, 
                                 postInstallMakefile)
             

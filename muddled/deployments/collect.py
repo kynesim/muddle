@@ -69,24 +69,23 @@ class CollectDeploymentBuilder(pkg.Dependable):
     Builds the specified collect deployment.
     """
 
-    def __init__(self, builder):
-        self.builder = builder
+    def __init__(self):
         self.assemblies = [ ]
 
     def add_assembly(self, assembly_descriptor):
         self.assemblies.append(assembly_descriptor)
 
-    def build_label(self, label):
+    def build_label(self, builder, label):
         """
         Actually do the copies ..
         """
 
-        utils.ensure_dir(self.builder.invocation.deploy_path(label.name, domain=label.domain))
+        utils.ensure_dir(builder.invocation.deploy_path(label.name, domain=label.domain))
 
         if (label.tag == utils.Tags.Deployed):
             for asm in self.assemblies:
                 src = os.path.join(asm.get_source_dir(self.builder), asm.from_rel)
-                dst = os.path.join(self.builder.invocation.deploy_path(label.name, domain=label.domain), 
+                dst = os.path.join(builder.invocation.deploy_path(label.name, domain=label.domain), 
                                    asm.to_name)
 
                 if (not os.path.exists(src)):
@@ -114,7 +113,7 @@ def deploy(builder, name):
 
     Dependencies get registered when you add an assembly descriptor.
     """
-    the_dependable = CollectDeploymentBuilder(builder)
+    the_dependable = CollectDeploymentBuilder()
 
     dep_label = depend.Label(utils.LabelKind.Deployment, 
                              name, None,

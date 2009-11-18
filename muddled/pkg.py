@@ -10,7 +10,7 @@ class Dependable:
     Represents an object you can call to build a tag.
     """
 
-    def build_label(self, label):
+    def build_label(self, builder, label):
         """
         Build the given label. Your dependencies have been satisfied.
 
@@ -30,9 +30,9 @@ class SequentialDependable:
         self.a = a
         self.b = b
 
-    def build_label(self, label):
-        a.build_label(label)
-        b.build_label(label)
+    def build_label(self, builder, label):
+        a.build_label(builder, label)
+        b.build_label(builder, label)
 
 class NoneDependable(Dependable):
     """
@@ -42,7 +42,7 @@ class NoneDependable(Dependable):
     def __init__(self):
         pass
 
-    def build_label(self, label):
+    def build_label(self, builder, label):
         pass
 
 
@@ -58,7 +58,7 @@ class Checkout(Dependable):
         self.vcs = vcs
 
 
-    def build_label(self, tag):
+    def build_label(self, builder, tag):
         """
         Do whatever's needed to ensure that you can assert the given tag. Your
         dependencies have been met.
@@ -77,7 +77,7 @@ class VcsCheckoutBuilder(Checkout):
         """
         return self.vcs.must_update_to_commit()
 
-    def build_label(self, label):
+    def build_label(self, builder, label):
         target_tag = label.tag
 
         if (target_tag == utils.Tags.CheckedOut):
@@ -121,7 +121,7 @@ class PackageBuilder(Dependable):
         self.role = role
         self.deps = None
 
-    def build_label(self, label):
+    def build_label(self, builder, label):
         raise utils.Error("Attempt to build unknown label %s"%label)
 
 class Deployment(Dependable):
@@ -130,7 +130,7 @@ class Deployment(Dependable):
     release packages
     """
 
-    def build_label(self, tag):
+    def build_label(self, builder, tag):
         """
         Whatever's needed to build the relevant tag for this deployment.
         """

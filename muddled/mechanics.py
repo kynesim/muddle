@@ -171,8 +171,7 @@ class Invocation:
         new_env = {}
 
         for (k,v) in self.env.items():
-            m = k.match(source)
-            if (m is not None):
+            if (k.unifies(source)):
                 # Create an equivalent environment for target, and
                 # add it if it isn't also the one we just matched.
                 copied_label = k.copy()
@@ -573,8 +572,7 @@ class Builder:
 
         loaded = checked_out.re_tag(utils.Tags.Loaded, system = True, transient = True)
 
-        loader = BuildDescriptionDependable(self, 
-                                            self.invocation.db.build_desc_file_name(), 
+        loader = BuildDescriptionDependable(self.invocation.db.build_desc_file_name(), 
                                             desc_co)
         self.invocation.ruleset.add(depend.depend_one(loader, 
                                                       loaded, checked_out))
@@ -798,7 +796,7 @@ class Builder:
                 self.invocation.setup_environment(r.target, os.environ)
                     
                 if (r.obj is not None):
-                    r.obj.build_label(r.target)
+                    r.obj.build_label(self, r.target)
 
                 # .. and restore
                 os.environ = old_env
@@ -812,23 +810,22 @@ class BuildDescriptionDependable(pkg.Dependable):
     Load the build description.
     """
 
-    def __init__(self, builder, file_name, build_co):
-        self.builder = builder
+    def __init__(self, file_name, build_co):
         self.file_name = file_name
         self.build_co = build_co
 
-    def build_label(self, label):
+    def build_label(self, builder, label):
         """
         Actually load the build description into the invocation.
         """
-        desc = self.builder.invocation.db.build_desc_file_name()
+        desc = builder.invocation.db.build_desc_file_name()
 
         setup = None # To make sure it's defined.
         try:
             old_path = sys.path
-            sys.path.insert(0, self.builder.invocation.checkout_path(self.build_co))
+            sys.path.insert(0, builder.invocation.checkout_path(self.build_co))
             setup = utils.dynamic_load(desc)
-            setup.describe_to(self.builder)
+            setup.describe_to(builder)
             sys.path = old_path
         except AttributeError, a:
             if setup is None:

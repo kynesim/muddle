@@ -49,7 +49,7 @@ class Database(object):
         """
         for (k,v) in other_builder.invocation.db.checkout_locations.items():
             (co,dom) = k
-            print "Including (%s,%s) -> %s"%(co,dom,v)
+            #print "Including (%s,%s) -> %s"%(co,dom,v)
             if (dom is None):
                 dom = other_domain_name
             else:

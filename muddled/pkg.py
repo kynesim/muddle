@@ -179,6 +179,15 @@ def add_checkout_rules(ruleset, co_name, obj):
     rule = ruleset.rule_for_target(uptodate_label, createIfNotPresent = True)
     rule.add(co_label)
 
+    # Pulled is also transient, and uptodate depends on it.
+    pulled_label = co_label.re_tag(utils.Tags.Pulled, transient = False)
+    rule = ruleset.rule_for_target(pulled_label, createIfNotPresent = True)
+    rule.add(co_label)
+
+    depend.depend_chain(obj, 
+                        uptodate_label, 
+                        [ utils.Tags.Pulled ], ruleset)
+
     # We actually need to ask the object whether this is a centralised 
     # or a decentralised VCS .. 
     if (obj.must_update_to_commit()):

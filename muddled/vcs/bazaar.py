@@ -46,7 +46,8 @@ class Bazaar(VersionControlHandler):
 
 
     def pull(self):
-        os.chdir(self.checkout_path)
+        update_in = os.path.join(self.checkout_path, self.checkout_name)
+        os.chdir(update_in)
         utils.run_cmd("bzr pull %s"%self.bzr_repo)
 
     def update(self):

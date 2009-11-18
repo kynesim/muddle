@@ -653,7 +653,7 @@ class Rule:
                 else:
                     self.obj = pkg.SequentialDependable(self.obj, other_rule.obj)
 
-        print "catenate and merge for target = %s"%(self.target)
+        #print "catenate and merge for target = %s"%(self.target)
         self.deps.union(other_rule.deps)
 
     def add(self,label):

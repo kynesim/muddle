@@ -44,7 +44,8 @@ class FileDeploymentBuilder(pkg.Dependable):
             lbl = depend.Label(utils.LabelKind.Package,
                                "*",
                                role,
-                               "*")
+                               "*", 
+                               domain = builder.default_domain)
             env = builder.invocation.get_environment_for(lbl)
         
             env.set_type("MUDDLE_TARGET_LOCATION", muddled.env_store.EnvType.SimpleValue)

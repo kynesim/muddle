@@ -41,7 +41,8 @@ class InitScriptBuilder(pkg.PackageBuilder):
         
         if (label.tag == utils.Tags.Installed):
             inst_dir = builder.invocation.package_install_path(self.name, 
-                                                                   self.role)
+                                                               self.role, 
+                                                               domain = label.domain)
             
             tgt_dir = os.path.join(inst_dir, "bin")
             src_file = builder.resource_file_name("initscript.sh")
@@ -53,7 +54,8 @@ class InitScriptBuilder(pkg.PackageBuilder):
             os.chmod(tgt_file, 0755)
         
             # Write the setvars script
-            env = get_effective_env(builder, self.name, self.role)
+            env = get_effective_env(builder, self.name, self.role, 
+                                    domain = label.domain)
             effective_env = env.copy()
             env_store.add_install_dir_env(effective_env, "MUDDLE_TARGET_LOCATION")
 
@@ -63,7 +65,8 @@ class InitScriptBuilder(pkg.PackageBuilder):
                 lbl = depend.Label(utils.LabelKind.Deployment, 
                                    d, 
                                    None,
-                                   utils.Tags.Deployed)
+                                   utils.Tags.Deployed, 
+                                   domain = label.domain)
                 effective_env.merge(builder.invocation.get_environment_for(
                         lbl))
 
@@ -131,7 +134,7 @@ def setup_default_env(builder, env_store):
     # Nothing to do so far ..
     pass
 
-def get_effective_env(builder, name, role):
+def get_effective_env(builder, name, role, domain = None):
     """
     Retrieve the effective runtime environment for this initscripts
     package. Note that setting variables here will have no effect.
@@ -140,11 +143,12 @@ def get_effective_env(builder, name, role):
                 depend.Label(
                     utils.LabelKind.Package,
                     name, role,
-                    utils.Tags.RuntimeEnv))
+                    utils.Tags.RuntimeEnv, 
+                    domain = domain))
 
     
 
-def get_env(builder, name, role):
+def get_env(builder, name, role, domain = None):
     """
     Retrieve an environment to which you can make changes which will
     be reflected in the generated init scripts. The actual environment
@@ -155,7 +159,8 @@ def get_env(builder, name, role):
         depend.Label(
             utils.LabelKind.Package,
             name, role, 
-            utils.Tags.RuntimeEnv))
+            utils.Tags.RuntimeEnv, 
+            domain = domain))
                                 
 
 # End file.

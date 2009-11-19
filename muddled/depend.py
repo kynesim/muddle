@@ -332,6 +332,59 @@ class Label(object):
 
         return -nr_wildcards
 
+    def just_match(self, other):
+        """
+        Return True if the labels match, False if they do not
+        """
+
+        # There are a relatively predictable number of dependencies
+        # between labels of the same name, which we assume will normally
+        # be due to going from checkout -> package -> deployment,
+        # changing tag as we go.
+        # On the other hand, there are lots of dependencies between
+        # labels with *different* names
+        if self.name != other.name:
+            if self.name == "*" or other.name == "*":
+                pass
+            else:
+                return False
+
+        # Within a type, dependencies between tags are common.
+        # So maybe this goes here.
+        if self.tag != other.tag:
+            if self.tag == "*" or other.tag == "*":
+                pass
+            else:
+                return False
+
+        # We don't have many different sorts of type, and I think
+        # *most* dependencies are going to be between the same type
+        # (actually, mostly between packages)
+        if self.type != other.type:
+            if self.type == "*" or other.type == "*":
+                pass
+            else:
+                return False
+
+        # Traditionally, one has a single role, or not many more, and
+        # there aren't many dependencies between them. So do this near
+        # the end.
+        if self.role != other.role:
+            if self.role == "*" or other.role == "*":
+                pass
+            else:
+                return False
+
+        # Check domains last - we relatively rarely expect to have
+        # dependencies across domain boundaries. So try this last.
+        if self.domain != other.domain:
+            if self.domain == "*" or other.domain == "*":
+                pass
+            else:
+                return False
+
+        return True
+
     def match_without_tag(self, other):
         """
         Returns True if other matches self without the tag, False otherwise
@@ -854,7 +907,8 @@ class RuleSet:
         rules = set()
         if (useMatch):
             for (k,v) in self.map.items():
-                if (label.match(k) is not None):
+                #if (label.match(k) is not None):
+                if label.just_match(k):
                     rules.add(v)
         elif (useTags):
             rule = self.map.get(label, None)

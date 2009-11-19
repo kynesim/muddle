@@ -208,8 +208,8 @@ class DebDependable(PackageBuilder):
                                                            label.name))
         elif (tag == utils.Tags.Clean or tag == utils.Tags.DistClean):#
             inv = builder.invocation
-            admin_dir = os.path.join(inv.package_obj_path(label.name, label.role), 
-                                     domain = label.domain)
+            admin_dir = os.path.join(inv.package_obj_path(label.name, label.role, 
+                                     domain = label.domain))
             utils.recursively_remove(admin_dir)
         else:
             raise utils.Error("Invalid tag specified for deb pkg %s"%(label))

@@ -59,6 +59,7 @@ def setup_tools(builder, roles_that_use_tools = [ "*" ],
 def set_gnu_tools(builder, roles, env_prefix, prefix, 
                   cflags = None, ldflags = None, 
                   asflags = None,
+                  arch = None,
                   archname = None, 
                   archroles = [ "*" ], 
                   domain = None):
@@ -105,6 +106,10 @@ def set_gnu_tools(builder, roles, env_prefix, prefix,
         binding_list.append(utils.get_prefix_pair(pfx, "OBJDUMP", prefix, "objdump"))
         binding_list.append(utils.get_prefix_pair(pfx, "OBJCOPY", prefix, "objcopy"))
         binding_list.append(utils.get_prefix_pair(pfx, "PFX", prefix,""))
+
+        if (arch is not None):
+            binding_list.append(utils.get_prefix_pair(pfx, "ARCH", "", arch))
+        
 
         if (cflags is not None):
             binding_list.append(utils.get_prefix_pair(pfx, "CFLAGS", "", cflags))

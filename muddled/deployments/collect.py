@@ -84,7 +84,7 @@ class CollectDeploymentBuilder(pkg.Dependable):
 
         if (label.tag == utils.Tags.Deployed):
             for asm in self.assemblies:
-                src = os.path.join(asm.get_source_dir(self.builder), asm.from_rel)
+                src = os.path.join(asm.get_source_dir(builder), asm.from_rel)
                 dst = os.path.join(builder.invocation.deploy_path(label.name, domain=label.domain), 
                                    asm.to_name)
 

@@ -34,6 +34,31 @@ class SequentialDependable:
         a.build_label(builder, label)
         b.build_label(builder, label)
 
+class ArchSpecificDependable:
+    """
+    Allow a dependable to be invoked if and only if you're on the
+    right architecture
+    """
+
+    def __init__(self, underlying, arch):
+        self.underlying = underlying
+        self.arch = arch
+
+    def build_label(self, builder, label):
+        if (utils.arch_name() == self.arch):
+            return self.underlying.build_label(builder, label)
+        else:
+            raise utils.Error("Label %s cannot be built on this architecture (%s) - requires %s"%(label, utils.arch_name(), self.arch))
+
+
+class ArchSpecificDependableGenerator:
+    
+    def __init__(self, arch):
+        self.arch = arch
+
+    def generate(self, underlying):
+        return ArchSpecificDependable(underlying, self.arch)
+
 class NoneDependable(Dependable):
     """
     A dependable which does nothing - used largely for testing.

@@ -853,4 +853,21 @@ def domain_subpath(domain_name):
     return os.path.join(*parts)
 
 
+gArchName = None
+
+def arch_name():
+    """
+    Retrieve the name of the architecture on which we're running.
+    Some builds require packages to be built on a particular (odd) architecture.
+    """
+    global gArchName
+
+    if (gArchName is None):
+        # This is what the docs say you should do. Ugh.
+        x = subprocess.Popen(["uname", "-m"], stdout=subprocess.PIPE).communicate()[0]
+        gArchName = x.strip()
+
+    return gArchName
+    
+
 # End file.

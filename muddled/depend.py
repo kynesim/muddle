@@ -921,6 +921,11 @@ class RuleSet:
 
 
         return rules
+
+    def wrap_dependables(self, generator, label):
+        for r in self.map.values():
+            if (r.target.match(label)):
+                r.obj = generator.generate(r.obj)
             
     def targets_match(self, target, useMatch = True):
         """

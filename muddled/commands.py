@@ -343,10 +343,11 @@ class Query(Command):
             if (label.domain is None):
                 label.domain = builder.get_default_domain()
 
+        label = builder.invocation.apply_unifications(label)
 
         if (type == "objdir"):
             print builder.invocation.package_obj_path(label.name, label.role, 
-                                                      domain = builder.default_domain)
+                                                      domain = label.domain)
         elif (type == "preciseenv"):
             the_env = builder.invocation.get_environment_for(label)
 

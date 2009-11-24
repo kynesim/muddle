@@ -49,7 +49,22 @@ class Invocation:
         self.default_labels = [ ]
         self.banned_roles = [ ]
         self.domain_params = { }
+        self.unifications = [ ]
     
+    def note_unification(self, source, target):
+        self.unifications.append( (source, target) )
+
+    def apply_unifications(self, source):
+        for i in self.unifications:
+            (s,t) = i
+            #print "(s,t) = (%s,%s)"%(s,t)
+            if (source.unifies(s)):
+                copied = source.copy()
+                copied._unify_with(t)
+                return copied
+
+        return source
+
     def mark_domain(self, domain_name):
         """
         Write a file that marks this directory as a domain so we don't
@@ -633,6 +648,8 @@ class Builder:
         """
         self.invocation.ruleset.unify(source, target)
         self.invocation.unify_environments(source,target)
+        self.invocation.note_unification(source, target)
+
 
     def get_dependent_package_dirs(self, label):
         """

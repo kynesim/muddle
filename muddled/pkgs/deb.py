@@ -182,7 +182,9 @@ class DebDependable(PackageBuilder):
             inv = builder.invocation
             
             # Extract into the object directory .. so I can depend on them later.
-            extract_into_obj(inv, self.co_name, label, self.pkg_file)            
+            # - actually, Debian packaging doesn't work like that. Rats.
+            #  - rrw 2009-11-24
+            #extract_into_obj(inv, self.co_name, label, self.pkg_file)            
 
             inst_dir = inv.package_install_path(label.name, label.role, 
                                                 domain = label.domain)

@@ -35,7 +35,7 @@ class Invocation:
         * self.env        - Map of label to environment
         * self.default_roles - The roles to build when you don't specify any.
         * self.default_labels - The list of labels to build.
-        * self.banned_roles - An array of pairs of roles which aren't allowed
+        * self.banned_roles - An array of pairs of role1,d1,role2,d2 which aren't allowed
                              to share libraries.
         * self.domain_params - Maps domain names to dictionaries storing 
                               parameters that other domains can retrieve. This
@@ -58,28 +58,60 @@ class Invocation:
         self.db.set_domain(domain_name)
 
 
-    def roles_do_not_share_libraries(self,r1, r2):
+    def include_domain(self,domain_builder, domain_name):
+        """
+        Import the builder domain_builder into the current invocation, giving it
+        domain_name.
+
+        We first import the db, then we rename None to domain_name in banned_roles.
+        """
+        self.db.include_domain(domain_builder, domain_name)
+        for r in domain_builder.invocation.banned_roles:
+            (a,d1,b,d2) = r
+            if (d1 == None):
+                d1 = domain_name
+
+            # This is a bit of a hack - it ensures that just because r1 in d1 
+            # doesn't share with r2 in d1, it also doesn't share with r2 in d2 -
+            # preventing accidental sharing leakage. Ugh.
+            #
+            # - rrw 2009-11-24
+            if (d2 == None):
+                d2 = "*"
+
+            self.banned_roles.append((a,d1,b,d2))
+        
+
+    def roles_do_not_share_libraries(self,r1, r2, domain1 = None, domain2 = None):
         """
         Add (r1,r2) to the list of role pairs that do not share their libraries.
         """
-        self.banned_roles.append((r1,r2));
+        self.banned_roles.append((r1,domain1, r2,domain2));
 
-    def role_combination_acceptable_for_lib(self, r1, r2):
+    def print_banned_roles(self):
+        print "[ "
+        for j in self.banned_roles:
+            (a,b,c,d) = j
+            print " - ( %s, %s, %s, %s ) "%(a,b,c,d)
+        print "]"
+
+    def role_combination_acceptable_for_lib(self, r1, r2, domain1 = None, domain2 = None):
         """
         True only if (r1,r2) does not appear in the list of banned roles.
         """
 
+        #self.print_banned_roles()
         # You're always allowed to depend on yourself unless you're
         # specifically banned from doing so.
         if (r1 == r2):
             for i in self.banned_roles:
-                (a,b) = i
-                if (a==r1 and b==r2):
+                (a,d1,b,d2) = i
+                if (a==r1 and b==r2 and d1 == domain1 and d2 == domain2):
                     return False
             return True
 
         for i in self.banned_roles:
-            (a,b) = i
+            (a,d1,b,d2) = i
             #print "banned_roles = (%s,%s)"%(a,b)
 
             if (a == "*"):
@@ -87,13 +119,25 @@ class Invocation:
             if (b== "*"):
                 b = r2
 
-            (c,d) = i
+            if (d1 == "*"):
+                d1 = domain1
+            if (d2 == "*"):
+                d2 = domain2
+
+            (c,d3,d,d4) = i
             if (c == "*"): 
                 c = r2
             if (d == "*"):
                 d = r1
 
-            if ((a==r1 and b==r2) or (c==r2 and d==r1)):
+            if (d3 == "*"):
+                d3 = domain1
+
+            if (d4 == "*"):
+                d4 = domain2
+
+            if ((a==r1 and b==r2 and d1 == domain1 and d2 == domain2) or 
+                (c==r2 and d==r1 and d3 == domain1 and d4 == domain2)):
                 return False
 
         #print "role_combination_acceptable: %s, %s -> True"%(r1,r2)
@@ -603,7 +647,8 @@ class Builder:
             if (r.target.type == utils.LabelKind.Package and
                 r.target.name is not None and r.target.name != "*" and 
                 ((r.target.role is None) or r.target.role != "*") and
-                (self.invocation.role_combination_acceptable_for_lib(label.role, r.target.role))):
+                (self.invocation.role_combination_acceptable_for_lib(label.role, r.target.role, 
+                                                                     label.domain, r.target.domain))):
 
                 # And don't depend on yourself.
                 if (not (r.target.name == label.name and r.target.role == label.role)):
@@ -1039,7 +1084,7 @@ def include_domain(builder, domain_name, domain_repo, domain_desc):
     for key, value in domain_builder.invocation.env.items():
         builder.invocation.env[key] = value
 
-    builder.invocation.db.include_domain(domain_builder, domain_name)
+    builder.invocation.include_domain(domain_builder, domain_name)
     
     return domain_builder
 

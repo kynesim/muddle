@@ -806,6 +806,7 @@ class Instruct(Command):
         lbls = labels_from_pkg_args([ pkg_role ], utils.Tags.PreConfig,
                                     [ ], builder.get_default_domain())
 
+        lbls = builder.invocation.map_unifications(lbls)
 
         if (len(lbls) != 1 or (lbls[0].role is None)):
             raise utils.Failure("instruct takes precisely one package{role} pair "
@@ -1608,6 +1609,8 @@ def decode_package_arguments(builder, args, local_pkgs, tag):
     to_build = labels_from_pkg_args(effective_args, tag, 
                                     builder.invocation.default_roles,
                                     builder.get_default_domain())
+    
+    to_build = builder.invocation.map_unifications(to_build)
 
     all_roles = process_labels_all_spec(to_build, 
                                         builder.invocation.default_roles)
@@ -1771,7 +1774,6 @@ def labels_from_pkg_args(list, tag, default_roles, default_domain):
                 result.append(depend.Label(utils.LabelKind.Package,
                                            name, role, tag,
                                            domain=domain))
-                
     return result
     
     

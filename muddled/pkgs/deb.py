@@ -29,6 +29,34 @@ import muddled.utils as utils
 import muddled.checkouts.simple as simple_checkouts
 import os
 
+def extract_into_obj(inv, co_name, label, pkg_file):
+    co_dir = inv.checkout_path(co_name, domain = label.domain)
+    obj_dir = inv.package_obj_path(label.name, label.role, domain = label.domain)
+    dpkg_cmd = "dpkg-deb -X %s %s"%(os.path.join(co_dir, pkg_file), 
+                                    os.path.join(obj_dir, "obj"))
+    utils.run_cmd(dpkg_cmd)
+
+    # Now install any include or lib files ..
+    installed_into = os.path.join(obj_dir, "obj")
+    inc_dir = os.path.join(obj_dir, "include")
+    lib_dir = os.path.join(obj_dir, "lib")
+    
+    utils.ensure_dir(inc_dir)
+    utils.ensure_dir(lib_dir)
+    
+    # Copy everything in usr/include ..
+    src_include = os.path.join(installed_into, "usr", "include")
+    src_lib = os.path.join(installed_into, "usr", "lib")
+    
+    if (os.path.exists(src_include) and os.path.isdir(src_include)):
+        utils.copy_without(src_include,
+                           inc_dir, without = None)
+        
+    if (os.path.exists(src_lib) and os.path.isdir(src_lib)):
+        utils.copy_without(src_lib,
+                           lib_dir, without = None)
+    
+
 class DebDevDependable(PackageBuilder):
     """
     Use dpkg to extract debian archives into obj/include and obj/lib
@@ -75,33 +103,7 @@ class DebDevDependable(PackageBuilder):
         elif (tag == utils.Tags.Installed):
             # Extract into /obj
             inv = builder.invocation
-            co_dir = inv.checkout_path(self.co_name, domain = label.domain)
-            obj_dir = inv.package_obj_path(label.name, label.role, domain = label.domain)
-            dpkg_cmd = "dpkg-deb -X %s %s"%(os.path.join(co_dir, self.pkg_file), 
-                                            os.path.join(obj_dir, "obj"))
-
-            utils.run_cmd(dpkg_cmd)
-            
-            # Now install any include or lib files ..
-            installed_into = os.path.join(obj_dir, "obj")
-            inc_dir = os.path.join(obj_dir, "include")
-            lib_dir = os.path.join(obj_dir, "lib")
-            
-            utils.ensure_dir(inc_dir)
-            utils.ensure_dir(lib_dir)
-
-            # Copy everything in usr/include ..
-            src_include = os.path.join(installed_into, "usr", "include")
-            src_lib = os.path.join(installed_into, "usr", "lib")
-
-            if (os.path.exists(src_include) and os.path.isdir(src_include)):
-                utils.copy_without(src_include,
-                                   inc_dir, without = None)
-                
-            if (os.path.exists(src_lib) and os.path.isdir(src_lib)):
-                utils.copy_without(src_lib,
-                                   lib_dir, without = None)
-
+            extract_into_obj(inv, self.co_name, label, self.pkg_file)
         elif (tag == utils.Tags.PostInstalled):
             if self.post_install_makefile is not None:
                 inv = builder.invocation
@@ -178,6 +180,10 @@ class DebDependable(PackageBuilder):
         elif (tag == utils.Tags.Installed):
             # Concoct a suitable dpkg command.
             inv = builder.invocation
+            
+            # Extract into the object directory .. so I can depend on them later.
+            extract_into_obj(inv, self.co_name, label, self.pkg_file)            
+
             inst_dir = inv.package_install_path(label.name, label.role, 
                                                 domain = label.domain)
             co_dir = inv.checkout_path(self.co_name, domain = label.domain)

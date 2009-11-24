@@ -54,6 +54,13 @@ class Invocation:
     def note_unification(self, source, target):
         self.unifications.append( (source, target) )
 
+    def map_unifications(self, source_list):
+        result = [ ]
+        for s in source_list:
+            result.append(self.apply_unifications(s))
+
+        return result
+
     def apply_unifications(self, source):
         for i in self.unifications:
             (s,t) = i

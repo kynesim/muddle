@@ -27,6 +27,9 @@ class FileDeploymentBuilder(pkg.Dependable):
     """
     
     def __init__(self, roles, target_dir):
+        """
+        role is actually a list of (role, domain) pairs.
+        """
         self.target_dir = target_dir
         self.roles = roles
 
@@ -40,12 +43,13 @@ class FileDeploymentBuilder(pkg.Dependable):
         to every package label in this role.
         """
         
-        for role in self.roles:
+        for r in self.roles:
+            (role,domain) = r
             lbl = depend.Label(utils.LabelKind.Package,
                                "*",
                                role,
                                "*", 
-                               domain = builder.default_domain)
+                               domain = domain)
             env = builder.invocation.get_environment_for(lbl)
         
             env.set_type("MUDDLE_TARGET_LOCATION", muddled.env_store.EnvType.SimpleValue)
@@ -64,7 +68,7 @@ class FileDeploymentBuilder(pkg.Dependable):
 
         if (label.tag == utils.Tags.Deployed):
             # We want to deploy 
-            self.deploy(label)
+            self.deploy(builder, label)
         elif (label.tag == utils.Tags.InstructionsApplied):
             self.apply_instructions(builder, label)
         else:
@@ -77,9 +81,10 @@ class FileDeploymentBuilder(pkg.Dependable):
         utils.recursively_remove(deploy_dir)
         utils.ensure_dir(deploy_dir)
 
-        for role in self.roles:
-            print "> %s: Deploying role %s .. "%(label.name, role)
-            install_dir = builder.invocation.role_install_path(role, domain = label.domain)
+        for r in self.roles:
+            (role,domain) = r
+            print "> %s: Deploying role (%s)%s .. "%(label.name, domain,role)
+            install_dir = builder.invocation.role_install_path(role, domain = domain)
             utils.recursively_copy(install_dir, deploy_dir, object_exactly=True)
         
 
@@ -94,15 +99,17 @@ class FileDeploymentBuilder(pkg.Dependable):
 
         # First off, do we need to at all?
         need_root = False
-        for role in self.roles:
+        for r in self.roles:
+            (role,domain) = r
             lbl = depend.Label(utils.LabelKind.Package, 
                                "*",
                                role,
-                               "*")
+                               "*",
+                               domain = domain)
 
             install_dir = builder.invocation.role_install_path(role, domain = label.domain)
         
-            instr_list = self.builder.load_instructions(lbl)
+            instr_list = builder.load_instructions(lbl)
 
             app_dict = get_instruction_dict()
 
@@ -125,24 +132,27 @@ class FileDeploymentBuilder(pkg.Dependable):
         
         permissions_label = depend.Label(utils.LabelKind.Deployment,
                                          label.name, label.role,
-                                         utils.Tags.InstructionsApplied)
+                                         utils.Tags.InstructionsApplied,
+                                         domain = label.domain)
 
         if need_root:
             print "I need root to do this - sorry! - running sudo .."
-            utils.run_cmd("sudo %s buildlabel %s"%(self.builder.muddle_binary, 
+            utils.run_cmd("sudo %s buildlabel %s"%(builder.muddle_binary, 
                                               permissions_label))
         else:
-            utils.run_cmd("%s buildlabel %s"%(self.builder.muddle_binary, 
+            utils.run_cmd("%s buildlabel %s"%(builder.muddle_binary, 
                                          permissions_label))
 
     def apply_instructions(self, builder, label):
         app_dict = get_instruction_dict()
 
-        for role in self.roles:
+        for r in self.roles:
+            (role, domain) = r
             lbl = depend.Label(utils.LabelKind.Package, 
                                "*",
                                role,
-                               "*")
+                               "*", 
+                               domain = domain)
 
             deploy_dir = builder.invocation.deploy_path(label.name, domain = label.domain)
         
@@ -237,8 +247,17 @@ def get_instruction_dict():
     return app_dict
 
 
-# A function which registers the standard dependencies for a file deployment.
+# Legacy function to register a deployment without domains.
 def deploy(builder, target_dir, name, roles):
+    new_roles = [ ]
+    for r in roles:
+        new_roles.append( (r, builder.default_domain) )
+
+    return deploy_with_domains(builder, target_dir, name, new_roles)
+
+
+# A function which registers the standard dependencies for a file deployment.
+def deploy_with_domains(builder, target_dir, name, roles):
     """
     Register a file deployment.
 
@@ -266,11 +285,13 @@ def deploy(builder, target_dir, name, roles):
 
     deployment_rule = depend.Rule(dep_label, the_dependable)
 
-    for role in roles:
+    for r in roles:
+        (role, domain) = r
         role_label = depend.Label(utils.LabelKind.Package, 
                                   "*",
                                   role, 
-                                  utils.Tags.PostInstalled)
+                                  utils.Tags.PostInstalled,
+                                  domain = domain)
         deployment_rule.add(role_label)
 
     # The instructionsapplied label is standalone .. 

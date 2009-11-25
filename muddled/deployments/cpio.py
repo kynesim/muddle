@@ -31,7 +31,7 @@ class CpioDeploymentBuilder(pkg.Dependable):
     Builds the specified CPIO deployment.
     """
     
-    def __init__(self, roles, target_file, target_base, 
+    def __init__(self, target_file, target_base, 
                  compressionMethod = None, 
                  pruneFunc = None):
         """
@@ -40,7 +40,6 @@ class CpioDeploymentBuilder(pkg.Dependable):
         """
         self.target_file = target_file
         self.target_base = target_base
-        self.roles = roles
         self.compression_method = compressionMethod
         self.prune_function = pruneFunc
 
@@ -54,15 +53,16 @@ class CpioDeploymentBuilder(pkg.Dependable):
         to every package label in this role.
         """
         
-        for role in self.roles:
+        for (l,b) in self.target_base.items():
             lbl = depend.Label(utils.LabelKind.Package,
                                "*",
-                               role,
-                               "*")
+                               l.role,
+                               "*", 
+                               domain = l.domain)
             env = builder.invocation.get_environment_for(lbl)
         
             env.set_type("MUDDLE_TARGET_LOCATION", muddled.env_store.EnvType.SimpleValue)
-            env.set("MUDDLE_TARGET_LOCATION", self.target_base[role])
+            env.set("MUDDLE_TARGET_LOCATION", b)
     
 
 
@@ -82,10 +82,11 @@ class CpioDeploymentBuilder(pkg.Dependable):
 
             
             the_heirarchy = cpiofile.Heirarchy({ }, { })
-            for r in self.roles:
-                m = cpiofile.heirarchy_from_fs(builder.invocation.role_install_path(r, 
-                                                                                    domain = label.domain), 
-                                               self.target_base[r])
+            for (l,base) in self.target_base.items():
+                m = cpiofile.heirarchy_from_fs(builder.invocation.role_install_path
+                                               (l.role, 
+                                                domain = l.domain), 
+                                               base)
                 the_heirarchy.merge(m)
 
             # Normalise the heirarchy .. 
@@ -99,8 +100,9 @@ class CpioDeploymentBuilder(pkg.Dependable):
 
 
             # Apply instructions .. 
-            for role in self.roles:
-                lbl = depend.Label(utils.LabelKind.Package, "*", role, "*")
+            for (src,base) in self.target_base.items():
+                lbl = depend.Label(utils.LabelKind.Package, "*", src.role, "*", 
+                                   domain = src.domain)
                 instr_list = builder.load_instructions(lbl)
                 for (lbl, fn, instrs) in instr_list:
                     print "Applying instructions for role %s, label %s .. "%(role, lbl)
@@ -108,7 +110,7 @@ class CpioDeploymentBuilder(pkg.Dependable):
                         iname = instr.outer_elem_name()
                         if (iname in app_dict):
                             app_dict[iname].apply(builder, instr, role,
-                                                  self.target_base[role], 
+                                                  base,
                                                   the_heirarchy)
                         else:
                             raise utils.Failure("CPIO deployments don't know about "
@@ -202,7 +204,7 @@ def get_instruction_dict():
     return app_dict
 
 
-def deploy(builder, target_file, target_base, name, roles, 
+def deploy_labels(builder, target_file, target_base, name,  
            compressionMethod = None, 
            pruneFunc = None):
     """
@@ -212,7 +214,7 @@ def deploy(builder, target_file, target_base, name, roles,
       build cpio file end up? Note that compression will add a suitable '.gz'
       or '.bz2' suffix.
     * target_bases - Where should we expect to unpack the CPIO file to - this
-      is a dictionary mapping roles to target locations.
+      is a dictionary mapping labels to target locations.
     * compressionMethod - The compression method to use, if any - gzip -> gzip,
       bzip2 -> bzip2.
     * pruneFunc - If not None, this a function to be called like
@@ -223,21 +225,23 @@ def deploy(builder, target_file, target_base, name, roles,
       merged into the archive in the order specified here, so files in later
       roles will override those in earlier roles.
     """
-    
-    the_dependable = CpioDeploymentBuilder(roles, target_file, 
+
+    the_dependable = CpioDeploymentBuilder(target_file, 
                                            target_base, compressionMethod, 
                                            pruneFunc = pruneFunc)
     
     dep_label = depend.Label(utils.LabelKind.Deployment,
                              name, None,
-                             utils.Tags.Deployed)
+                             utils.Tags.Deployed, 
+                             domain = builder.default_domain)
 
     deployment_rule = depend.Rule(dep_label, the_dependable)
-    for role in roles:
+    for lbl in target_base.keys():
         role_label = depend.Label(utils.LabelKind.Package,
                                   "*",
-                                  role,
-                                  utils.Tags.PostInstalled)
+                                  lbl.role,
+                                  utils.Tags.PostInstalled,
+                                  domain = lbl.domain)
         deployment_rule.add(role_label)
 
     builder.invocation.ruleset.add(deployment_rule)
@@ -246,6 +250,30 @@ def deploy(builder, target_file, target_base, name, roles,
     
     # Cleanup is generic
     deployment.register_cleanup(builder, name)
+
+
+
+
+def deploy(builder, target_file, target_base, name, roles,
+           compressionMethod = None,
+           pruneFunc = None):
+    """
+    Legacy entry point for cpio: roles is a list of roles, target_base
+    the list of role -> path mappings
+    """
+
+    proper_target_base = { }
+    for (r,base) in target_base.items():
+        lbl = depend.Label(utils.LabelKind.Package,
+                           "*",
+                           r, 
+                           "*",
+                           domain = builder.default_domain)
+        proper_target_base[lbl] = base
+
+    return deploy_labels(builder, target_file, proper_target_base, name,
+                         compressionMethod, pruneFunc)
+           
 
 # End file.
 

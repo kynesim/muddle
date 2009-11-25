@@ -753,7 +753,11 @@ def copy_without(src, dst, without=None, object_exactly=True, preserve=False):
             if not os.path.exists(dst_object):
                 os.makedirs(dst_object, 0755)
         else:
-            # Not a directory - just copy it.
+            # Not a directory - just copy it. Ensure that we unlink the
+            # destination in case the destination is a directory and cp
+            # gets confused.
+            if (os.path.exists(dst_object)):
+                os.unlink(dst_object)
             copy_file(src_object, dst_object, object_exactly=object_exactly,
                       preserve=preserve)
 

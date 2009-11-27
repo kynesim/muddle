@@ -34,34 +34,34 @@ class VersionBuilder(PackageBuilder):
         self.withUser = withUser
         self.withMachine = withMachine
 
-    def dir_name(self):
-        file = self.file_name()
+    def dir_name(self, builder):
+        file = self.file_name(builder)
         (fst,snd) =  os.path.split(file)
         return fst
 
-    def file_name(self):
-        inst_path = self.builder.invocation.package_install_path(self.name, self.role)
+    def file_name(self, builder):
+        inst_path = builder.invocation.package_install_path(self.name, self.role)
         ret = utils.rel_join(inst_path, self.filename)
         return ret
 
-    def erase_version_file(self):
+    def erase_version_file(self, builder):
         """
         Erase the version file.
         """
-        os.remove(self.file_name())
+        os.remove(self.file_name(builder))
 
     def write_elem(self, f, elem, val):
         if (val is not None):
             f.write(" <%s>%s</%s>\n"%(elem,val,elem))
 
-    def write_version_file(self):
+    def write_version_file(self, builder):
         """
         Write the version file
         """
 
-        utils.ensure_dir(self.dir_name())
-        print "dir %s ensured."%(self.dir_name())
-        f = open(self.file_name(), 'w')
+        utils.ensure_dir(self.dir_name(builder))
+        print "dir %s ensured."%(self.dir_name(builder))
+        f = open(self.file_name(builder), 'w')
         f.write("<?xml version=\"1.0\" ?>\n")
         f.write("\n")
         f.write("<version>\n")
@@ -87,11 +87,11 @@ class VersionBuilder(PackageBuilder):
 
         if (tag == utils.Tags.Installed):
             # Write our version file.
-            self.write_version_file()
+            self.write_version_file(builder)
         elif (tag == utils.Tags.Clean):
-            self.erase_version_file()
+            self.erase_version_file(builder)
         elif (tag == utils.Tags.DistClean):
-            self.erase_version_file()
+            self.erase_version_file(builder)
 
 
 def simple(builder, name, roles, 

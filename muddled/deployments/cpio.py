@@ -105,11 +105,11 @@ class CpioDeploymentBuilder(pkg.Dependable):
                                    domain = src.domain)
                 instr_list = builder.load_instructions(lbl)
                 for (lbl, fn, instrs) in instr_list:
-                    print "Applying instructions for role %s, label %s .. "%(role, lbl)
+                    print "Applying instructions for label %s .. "%(lbl)
                     for instr in instrs:
                         iname = instr.outer_elem_name()
                         if (iname in app_dict):
-                            app_dict[iname].apply(builder, instr, role,
+                            app_dict[iname].apply(builder, instr, lbl.role,
                                                   base,
                                                   the_heirarchy)
                         else:

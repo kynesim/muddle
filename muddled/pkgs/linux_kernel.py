@@ -87,8 +87,8 @@ class LinuxKernel(PackageBuilder):
             pass
         elif (tag == utils.Tags.Configured):
             # Copy the .config file across and run a distclean
-            self.dist_clean(label)
-            self.ensure_dirs(label)
+            self.dist_clean(builder, label)
+            self.ensure_dirs(builder,label)
 
 
             if self.in_place:

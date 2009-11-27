@@ -77,14 +77,6 @@ class VersionBuilder(PackageBuilder):
             self.write_elem(f, "built-on", utils.current_machine_name())
         f.write("</version>\n")
         f.close()
-        
-
-    def ensure_dirs(self):
-        """
-        Make sure all the relevant directories exist
-        """
-        inv = self.builder.invocation
-        utils.ensure_dir(inv.package_install_path(self.name, self.role))
 
         
     def build_label(self, builder, label):
@@ -92,8 +84,6 @@ class VersionBuilder(PackageBuilder):
         Build the version.xml file.
         """
         tag = label.tag
-
-        self.ensure_dirs()
 
         if (tag == utils.Tags.Installed):
             # Write our version file.

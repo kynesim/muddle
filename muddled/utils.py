@@ -461,14 +461,18 @@ def dynamic_load(filename):
 def maybe_shell_quote(str, doQuote):
     """
     If doQuote is False, do nothing, else shell-quote ``str``.
+
+    Annoyingly, shell quoting things correctly must use backslashes, since
+    quotes can (and will) be misinterpreted. Bah.
+
     """
     if doQuote:
-        result = [ "\"" ]
+        result = [ "" ]
         for i in str:
-            if i=="\"" or i=="\\":
+            if i=="\"" or i=="\\" or i=='\'':
                 result.append("\\")
             result.append(i)
-        result.append("\"")
+        result.append("")
 
         return "".join(result)
     else:

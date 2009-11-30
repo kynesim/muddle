@@ -30,6 +30,7 @@ import muddled.checkouts.simple as simple_checkouts
 import os
 import re
 import stat
+import muddled.rewrite as rewrite
 
 def rewrite_links(inv, label):
     obj_dir = inv.package_obj_path(label.name, label.role, domain = label.domain)
@@ -38,7 +39,7 @@ def rewrite_links(inv, label):
     # rewrite it to be to 'obj_dir/' something.
     stack = [ ]
 
-    the_re = re.compile(r"(.*)\.la")
+    the_re = re.compile(r"(.*)\.la$")
     
     stack.append(".")
 
@@ -72,14 +73,8 @@ def rewrite_links(inv, label):
                                                base, link_target)
 
             os.symlink(new_link_target, object_name)
-        elif stat.S_ISREG(st_rec.st_mode):
-            # Is this a .la file? These are libtool evil and will direct
-            # other libtool builds to look in the host fs, not the target
-            # for their libraries. They must die.
-            m = the_re.match(current)
-            if (m is not None):
-                print "Deleting probably spurious libtool file %s"%object_name
-                os.unlink(object_name)
+            # We used to delete .la files here, but now rewrite()
+            # rewrites them. Which is much more friendly :-)
         else:
             # Boring. ignore it.
             pass
@@ -98,13 +93,15 @@ def extract_into_obj(inv, co_name, label, pkg_file):
     installed_into = os.path.join(obj_dir, "obj")
     inc_dir = os.path.join(obj_dir, "include")
     lib_dir = os.path.join(obj_dir, "lib")
+    lib_dir = os.path.join(obj_dir, "share")
     
     utils.ensure_dir(inc_dir)
     utils.ensure_dir(lib_dir)
     
     # Copy everything in usr/include ..
     for i in (("include", "include"), ("lib", "lib"), 
-              ("usr/include", "include"), ("usr/lib", "lib")):
+              ("usr/include", "include"), ("usr/lib", "lib"), 
+              ("usr/share", "share")):
         (src,dst) = i
         src_path = os.path.join(installed_into, src)    
         dst_path= os.path.join(obj_dir, dst)
@@ -181,6 +178,15 @@ class DebDevDependable(PackageBuilder):
                 os.chdir(co_path)
                 utils.run_cmd("make -f %s %s-postinstall"%(self.post_install_makefile, 
                                                            label.name))
+
+            # .. and now we rewrite any pkgconfig etc. files left lying
+            # about.
+            obj_path = builder.invocation.package_obj_path(label.name, 
+                                                           label.role, 
+                                                           domain = label.domain)
+            print "> Rewrite .pc and .la files in %s"%(obj_path)
+            rewrite.fix_up_pkgconfig_and_la(builder, obj_path)
+
         elif (tag == utils.Tags.Clean or tag == utils.Tags.DistClean):
             # Just remove the object directory.
             inv = builder.invocation

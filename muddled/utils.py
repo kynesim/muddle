@@ -458,6 +458,9 @@ def dynamic_load(filename):
     return mod
 
 
+def do_shell_quote(str):
+    return maybe_shell_quote(str, True)
+
 def maybe_shell_quote(str, doQuote):
     """
     If doQuote is False, do nothing, else shell-quote ``str``.
@@ -876,6 +879,73 @@ def arch_name():
         gArchName = x.strip()
 
     return gArchName
+
+
+def unescape_backslashes(str):
+    """
+    Replace every string '\\X' with X, as if you were a shell
+    """
+    
+    wasBackslash = False
+    result = [ ]
+    for i in str:
+        if (wasBackslash):
+            result.append(i)
+            wasBackslash = False
+        else:
+            if (i == '\\'):
+                wasBlackslash = True
+            else:
+                result.append(i)
+
+    return "".join(result)
+
+
+
+def quote_list(lst):
+    """
+    Given a list, quote each element of it and return them, space separated
+    """
+    return " ".join(map(do_shell_quote, lst))
+
+
+def unquote_list(lst):
+    """
+    Given a list of objects, potentially enclosed in quotation marks or other
+    shell weirdness, return a list of the actual objects.
+    """
+    
+    # OK. First, dispose of any enclosing quotes.
+    result = [ ]
+    lst = lst.strip()
+    if (lst[0] == '\'' or lst[0] == "\""):
+        lst = lst[1:-1]
+
+    initial = lst.split(' ')
+    last = None
+    
+    for i in initial:
+        if (last is not None):
+            last = last + i
+        else:
+            last = i
+
+        # If last ended in a backslash, round again
+        if (len(last) > 0 and last[-1] == '\\'):
+            last = last[:-1]
+            continue
+
+        # Otherwise, dump it, unescaping everything else
+        # as we do so
+        result.append(unescape_backslashes(last))
+        last = None
+
+    if (last is not None):
+        result.append(unescape_backslashes(last))
+
+    return result
+        
+    
     
 
 # End file.

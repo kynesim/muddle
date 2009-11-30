@@ -764,6 +764,11 @@ class Builder:
                 if (os.path.exists(pkg_dir) and os.path.isdir(pkg_dir)):
                     pkg_dirs.append(pkg_dir)
 
+                # Yes, I know, but some debian packages do .. 
+                pkg_dir = os.path.join(d, "share/pkgconfig")
+                if (os.path.exists(pkg_dir) and os.path.isdir(pkg_dir)):
+                    pkg_dirs.append(pkg_dir)
+
                 kernel_dir = os.path.join(d, "kerneldir")
                 if (os.path.exists(kernel_dir) and os.path.isdir(kernel_dir)):
                     set_kernel_dir = kernel_dir
@@ -781,6 +786,11 @@ class Builder:
             store.set("MUDDLE_PKGCONFIG_DIRS", 
                       " ".join(map(lambda x:utils.maybe_shell_quote(x, True), 
                                    pkg_dirs)))
+            store.set("MUDDLE_PKGCONFIG_DIRS_AS_PATH", 
+                      ":".join(map(lambda x:utils.maybe_shell_quote(x, True), 
+                                   pkg_dirs)))
+
+            #print "> pkg_dirs = %s"%(" ".join(pkg_dirs))
 
             if set_kernel_dir is not None:
                 store.set("MUDDLE_KERNEL_DIR", 

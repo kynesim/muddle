@@ -62,7 +62,8 @@ def set_gnu_tools(builder, roles, env_prefix, prefix,
                   archspec = None,
                   archname = None, 
                   archroles = [ "*" ], 
-                  domain = None):
+                  domain = None, 
+                  dirname = None):
     """
     This is a utility function which sets up the given
     roles to use the given compiler prefix (empty for host tools,
@@ -119,6 +120,9 @@ def set_gnu_tools(builder, roles, env_prefix, prefix,
 
         if (asflags is not None):
             binding_list.append(utils.get_prefix_pair(pfx, "ASFLAGS", "", asflags))
+
+        if (dirname is not None):
+            binding_list.append(utils.get_prefix_pair(pfx, "COMPILER_TOOLS_DIR", "", dirname))
 
         set_env(builder, croles, binding_list, domain = domain)
     

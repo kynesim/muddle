@@ -139,7 +139,7 @@ class Heirarchy:
                 # Got a parent.
                 parent_node.children.append(v)
             else:
-                raise utils.Failure("Attempt to merge file %s when '%s' is a directory"%(k,a))
+                raise utils.Failure("Attempt to merge file %s when parent '%s' ('%s') is not a directory: dir mode flag = 0x%x"%(k,parent_node,a, File.S_DIR))
 
         # .. and that's all, folks.
 

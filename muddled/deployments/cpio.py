@@ -103,9 +103,10 @@ class CpioDeploymentBuilder(pkg.Dependable):
             for (src,base) in self.target_base.items():
                 lbl = depend.Label(utils.LabelKind.Package, "*", src.role, "*", 
                                    domain = src.domain)
+                print "Scanning instructions for role %s, domain %s .. "%(src.role, src.domain)
                 instr_list = builder.load_instructions(lbl)
                 for (lbl, fn, instrs) in instr_list:
-                    print "Applying instructions for label %s .. "%(lbl)
+                    print "Applying instructions for role %s, label %s .. "%(src.role, lbl)
                     for instr in instrs:
                         iname = instr.outer_elem_name()
                         if (iname in app_dict):

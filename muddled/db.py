@@ -162,7 +162,8 @@ class Database(object):
                         role = None
                         
                     test_lbl = depend.Label(utils.LabelKind.Package, pkg_name, role, 
-                                            utils.Tags.Temporary)
+                                            utils.Tags.Temporary,
+                                            domain = lbl.domain)
                     #print "Match %s -> %s = %s"%(lbl, test_lbl, lbl.match(test_lbl))
                     if (lbl.match(test_lbl) is not None):
                         # We match!

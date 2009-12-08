@@ -678,6 +678,35 @@ class Rebuild(Command):
         return rv
 
 
+class Reinstall(Command):
+    """
+    Syntax: reinstall [package{role}] [package{role}]
+
+    Reinstall the given packages (but don't rebuild them).
+    """
+    
+    def name(self):
+        return "reinstall"
+
+    def requires_build_tree(self):
+        return True
+
+    def with_build_tree(self, builder, local_pkgs, args):
+        labels = decode_package_arguments(builder, args, local_pkgs,
+                                          utils.Tags.PostInstalled)
+
+        # OK. Now we have our labels, retag them, and kill them and their
+        # consequents
+        to_kill = depend.retag_label_list(labels, 
+                                          utils.Tags.Installed)
+        rv = kill_labels(builder, to_kill)
+        if rv != 0:
+            return rv
+
+        rv = build_labels(builder, labels)
+        return rv
+
+
 
 class Distrebuild(Command):
     """
@@ -1793,6 +1822,7 @@ def register_commands():
     Query().register(the_dict)
     Build().register(the_dict)
     Rebuild().register(the_dict)
+    Reinstall().register(the_dict)
     Clean().register(the_dict)
     DistClean().register(the_dict)
     Instruct().register(the_dict)

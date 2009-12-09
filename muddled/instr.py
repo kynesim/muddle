@@ -145,7 +145,21 @@ class ChangeModeInstruction(db.Instruction):
         if self.new_mode != other.new_mode:
             return False
 
-        
+def sanitise_filename(name):
+    """Sanitise a <name>filename</name>.
+
+    We want to make sure that the name is relative to the muddle
+    directories. Specifically, we want to make sure that if the
+    filename is <name>/etc/passwd</name> then we do not try to
+    access the host system's ``/etc/passwd`` file, but rather
+    a local ``.../etc/passwd``.
+
+    It turns out the simplest thing to do is to remove any initial
+    "/", rendering the name relative...
+    """
+    while name.startswith('/'):
+        name = name[1:]
+    return name
 
 class MakeDeviceInstruction(db.Instruction):
     """
@@ -185,7 +199,7 @@ class MakeDeviceInstruction(db.Instruction):
         for c in node.childNodes:
             if (c.nodeType == c.ELEMENT_NODE):
                 if (c.nodeName == "name"):
-                    result.file_name = utils.text_in_node(c)
+                    result.file_name = sanitise_filename(utils.text_in_node(c))
                 elif (c.nodeName == "uid"):
                     result.uid = utils.text_in_node(c)
                 elif (c.nodeName == "gid"):

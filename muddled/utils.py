@@ -6,7 +6,6 @@ import string
 import re
 import os
 import stat
-import os.path
 import subprocess
 import socket
 import time
@@ -16,6 +15,7 @@ import xml.dom
 import xml.dom.minidom
 import traceback
 import pwd
+import shutil
 
 
 class Error(Exception):
@@ -348,7 +348,7 @@ def find_location_in_tree(dir, root, invocation = None):
 
     return None
 
-def ensure_dir(dir):
+def ensure_dir(dir, verbose=True):
     """
     Ensure that dir exists and is a directory, or throw an error.
     """
@@ -357,7 +357,8 @@ def ensure_dir(dir):
     elif os.path.exists(dir):
         raise Error("%s exists but is not a directory"%dir)
     else:
-        print "> Make directory %s"%dir
+        if verbose:
+            print "> Make directory %s"%dir
         os.makedirs(dir)
 
 def pad_to(str, val, pad_with = " "):
@@ -505,25 +506,30 @@ def recursively_remove(a_dir):
 
 def copy_file(from_path, to_path, object_exactly=False, preserve=False):
     """
-    Copy a file.
+    Copy a file (either a "proper" file, not a directory, or a symbolic link).
 
     Just like recursively_copy, only not recursive :-)
 
-    If object_exactly is true, then symbolic links will be copied as links ('-d'),
-    otherwise the referenced file will be copied.
+    If 'object_exactly' is true, then if 'from_path' is a symbolic link, it
+    will be copied as a link, otherwise the referenced file will be copied.
 
-    If preserve is true, then the file's mode, ownership and timestamp will be
-    copied, if possible ('-p'). This is especially useful when copying as a
-    privileged user.    
+    If 'preserve' is true, then the file's mode, ownership and timestamp will
+    be copied, if possible. Note that on Un*x file ownership can only be copied
+    if the process is running as 'root' (or within 'sudo').
     """
 
-    # We never want to follow symlinks.
-    extra_options = "-f"
-    if object_exactly:
-        extra_options += "d"
+    if object_exactly and os.path.islink(from_path):
+        linkto = os.readlink(from_path)
+        os.symlink(linkto, to_path)
+    else:
+        shutil.copyfile(from_path, to_path)
+
     if preserve:
-        extra_options += "p"
-    run_cmd("cp %s \'%s\' \'%s\'"%(extra_options, from_path, to_path))
+        shutil.copymode(from_path, to_path)
+        shutil.copystat(from_path, to_path)
+        if os.geteuid() == 0:
+            s = os.lstat(from_path)
+            os.lchown(to_path, s.st_uid, s.st_gid)
 
 def recursively_copy(from_dir, to_dir, object_exactly=False, preserve=True):
     """
@@ -532,28 +538,17 @@ def recursively_copy(from_dir, to_dir, object_exactly=False, preserve=True):
 
     Dot files are included in the copying.
 
-    If object_exactly is true, then symbolic links will be copied as links ('-d'),
+    If object_exactly is true, then symbolic links will be copied as links,
     otherwise the referenced file will be copied.
 
     If preserve is true, then the file's mode, ownership and timestamp will be
-    copied, if possible ('-p'). This is especially useful when copying as a
+    copied, if possible. This is only really useful when copying as a
     privileged user.
-
-    Ends up calling copy_file for each file.
     """
     
     copy_without(from_dir, to_dir, object_exactly=object_exactly,
                  preserve=preserve)
-    #files_in_src = os.listdir(from_dir)
 
-    #extra_options = ""
-    #if (object_exactly):
-    #    extra_options = "d"
-
-    #for i in files_in_src:
-    #    run_cmd("cp -rp%sf -t \"%s\" \"%s\""%(extra_options, 
-    #                                          to_dir, os.path.join(from_dir, i)))
-            
 
 def split_path_left(in_path):
     """
@@ -699,8 +694,62 @@ def xml_elem_with_child(doc, elem_name, child_text):
     el = doc.createElement(elem_name)
     el.appendChild(doc.createTextNode(child_text))
     return el
-    
 
+
+def _copy_without(src, dst, ignored_names, object_exactly, preserve, am_root):
+    """
+    The insides of copy_without. See that for more documentation.
+
+    'ignored_names' must be a sequence of filenames to ignore (but may be empty).
+
+    If 'am_root' is true, we are effectively root, and can change the ownership,
+    otherwise we aren't and can't.
+    """
+
+    # Inspired by the example for shutil.copytree in the Python 2.6 documentation
+
+    names = os.listdir(src)
+
+    if True:
+        ensure_dir(dst, verbose=False)
+    else:
+        if not os.path.exists(dst):
+            os.makedirs(dst)
+
+    errors = []
+    for name in names:
+        if name in ignored_names:
+            continue
+
+        srcname = os.path.join(src, name)
+        dstname = os.path.join(dst, name)
+        try:
+            if object_exactly and os.path.islink(srcname):
+                copy_file(srcname, dstname)
+            elif os.path.isdir(srcname):
+                _copy_without(srcname, dstname, ignored_names, object_exactly,
+                              preserve, am_root)
+            else:
+                copy_file(srcname, dstname)
+        except (IOError, os.error), why:
+            errors.append('Unable to copy %s to %s: %s'%(srcname, dstname, why))
+        
+        except Error, err:             # catch an Error from call of _copytree XXX ???
+            errors.extend(err.args[0]) # so we can continue with other files   XXX ???
+
+    try:
+        shutil.copymode(src, dst)
+        shutil.copystat(src, dst)
+        if am_root:
+            s = os.lstat(src)
+            os.lchown(dst, s.st_uid, s.st_gid)
+    except WindowsError:        # can't copy file access times on Windows
+        pass                    # (do we work on Windows?)
+    except OSError, why:
+        errors.extend('Unable to copy properties of %s to %s: %s'%(src, dst, why))
+
+    if errors:
+        raise Error(errors) 
 
 def copy_without(src, dst, without=None, object_exactly=True, preserve=False):
     """
@@ -709,65 +758,31 @@ def copy_without(src, dst, without=None, object_exactly=True, preserve=False):
     If given, 'without' should be a sequence of filenames - for instance,
     ['.bzr', '.svn'].
 
-    If object_exactly is true, then symbolic links will be copied as links ('-d'),
+    If 'object_exactly' is true, then symbolic links will be copied as links,
     otherwise the referenced file will be copied.
 
-    If preserve is true, then the file's mode, ownership and timestamp will be
-    copied, if possible ('-p'). This is especially useful when copying as a
-    privileged user.
+    If 'preserve' is true, then the file's mode, ownership and timestamp will be
+    be copied, if possible. Note that on Un*x file ownership can only be copied
+    if the process is running as 'root' (or within 'sudo').
 
     Creates directories in the destination, if necessary.
 
-    Calls copy_file to do the actual copying of a file.
+    Uses copy_file() to copy each file.
     """
-    
-    # This is horribly involved, since os.walk() doesn't do what we want - it
-    # doesn't enumerate symlinks and other special files.
-    #
-    #    (this last is perhaps no longer true in 2.6)
-    
-    # The stack holds paths relative to src.
-    stack = [ ]
 
-    stack.append(".")
-    while len(stack) > 0:
-        current = stack.pop()
-        
-        src_object = os.path.join(src, current)
-        dst_object = os.path.join(dst, current)
+    if without is not None:
+        ignored_names = without
+    else:
+        ignored_names = set()
 
-        # current is, by definition, not something we want to ignore.
-        # We had probably better copy it.
+    am_root = (os.geteuid() == 0)
 
-        # We need to lstat() it to check if it's really a directory
-        # or not. os.path.isdir() doesn't do this for us..
-        st_rec = os.lstat(src_object)
-        if stat.S_ISDIR(st_rec.st_mode):
-            things_here = os.listdir(src_object)
-            for thing in things_here:
-                do_without = False
-                if without is not None:
-                    if thing in without:
-                        do_without = True
+    print 'Copying %s to %s'%(src, dst),
+    if without:
+        print 'ignoring %s'%without
+    print
 
-                if not do_without:
-                    if current == '.':
-                        subpath = thing
-                    else:
-                        subpath = os.path.join(current, thing)
-                    stack.append(subpath)
-
-            if not os.path.exists(dst_object):
-                os.makedirs(dst_object, 0755)
-        else:
-            # Not a directory - just copy it. Ensure that we unlink the
-            # destination in case the destination is a directory and cp
-            # gets confused.
-            if (os.path.exists(dst_object)):
-                os.unlink(dst_object)
-            copy_file(src_object, dst_object, object_exactly=object_exactly,
-                      preserve=preserve)
-
+    _copy_without(src, dst, ignored_names, object_exactly, preserve, am_root)
 
 
 def get_prefix_pair(prefix_one, value_one, prefix_two, value_two):

@@ -1458,13 +1458,24 @@ def get_all_checkouts(builder, tag):
 
 def decode_checkout_arguments(builder, args, local_pkgs, tag):
     """
-    Decode checkout arguments when you're expecting to refer to a
+    Decode checkout label arguments.
+    
+    Use this to decode arguments when you're expecting to refer to a
     checkout rather than a package.
 
-    If there are arguments, they specify checkouts.
+    If 'args' is given, it is a list of command line arguments:
 
-    If there aren't, all checkouts with directories below the current
-    directory are returned.
+      * "_all" means all checkouts with the given 'tag'
+      * "<name>" means the label "checkout:<name>{}/<tag>" in the current
+        default domain
+
+    otherwise all checkouts with directories below the current directory are
+    returned.
+
+    The 'local_pkgs' argument is ignored (it is present for compatibility with
+    other similar functions).
+
+    Returns a list of checkout labels.
     """
     
     rv = [ ]

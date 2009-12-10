@@ -109,7 +109,8 @@ def extract_into_obj(inv, co_name, label, pkg_file):
         if (os.path.exists(src_path) and os.path.isdir(src_path)):
             utils.copy_without(src_path,
                                dst_path,
-                               without = None)
+                               without = None, 
+                               object_exactly = True)
     
 
 class DebDevDependable(PackageBuilder):

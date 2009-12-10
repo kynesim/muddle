@@ -725,12 +725,12 @@ def _copy_without(src, dst, ignored_names, object_exactly, preserve, am_root):
         dstname = os.path.join(dst, name)
         try:
             if object_exactly and os.path.islink(srcname):
-                copy_file(srcname, dstname)
+                copy_file(srcname, dstname, object_exactly = True, preserve = True)
             elif os.path.isdir(srcname):
                 _copy_without(srcname, dstname, ignored_names, object_exactly,
                               preserve, am_root)
             else:
-                copy_file(srcname, dstname)
+                copy_file(srcname, dstname, object_exactly = object_exactly, preserve = True)
         except (IOError, os.error), why:
             errors.append('Unable to copy %s to %s: %s'%(srcname, dstname, why))
         

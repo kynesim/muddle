@@ -528,7 +528,7 @@ class Builder:
          a domain to its parent (and you shouldn't really be doing
          that either!)
         """
-        self.domain_params.set(name)
+        self.domain_params[name] = value
         
 
     def roles_do_not_share_libraries(self, a, b):

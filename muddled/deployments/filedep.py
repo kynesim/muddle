@@ -33,6 +33,30 @@ class FileDeploymentBuilder(pkg.Dependable):
         self.target_dir = target_dir
         self.roles = roles
 
+        # Just in case we ever need it...
+        self._unswept = True
+
+    def _change_domain(self, new_domain):
+        """
+        Change the domain names in our "roles" list.
+
+        This used when we become part of a sub-domain, to process all
+        of the (role, domain) tuples in our "roles" list.
+        """
+        if self._unswept:
+            roles = []
+            for role, domain in self.roles:
+                if domain:
+                    domain = '%s(%s)'%(new_domain, domain)
+                else:
+                    domain = new_domain
+                roles.append( (role, domain) )
+            self.roles = roles
+            self._unswept = False
+
+    def _mark_unswept(self):
+        self._unswept = True
+
     def attach_env(self, builder):
         """
         Attaches an environment containing:
@@ -43,8 +67,7 @@ class FileDeploymentBuilder(pkg.Dependable):
         to every package label in this role.
         """
         
-        for r in self.roles:
-            (role,domain) = r
+        for role, domain in self.roles:
             lbl = depend.Label(utils.LabelKind.Package,
                                "*",
                                role,
@@ -72,7 +95,7 @@ class FileDeploymentBuilder(pkg.Dependable):
         elif (label.tag == utils.Tags.InstructionsApplied):
             self.apply_instructions(builder, label)
         else:
-            raise utils.Failure("Attempt to build a deployment with an unknown in label %s"%(label))
+            raise utils.Failure("Attempt to build a deployment with an unexpected tag in label %s"%(label))
 
     def deploy(self, builder, label):
         deploy_dir = builder.invocation.deploy_path(label.name, domain = label.domain)
@@ -81,9 +104,11 @@ class FileDeploymentBuilder(pkg.Dependable):
         utils.recursively_remove(deploy_dir)
         utils.ensure_dir(deploy_dir)
 
-        for r in self.roles:
-            (role,domain) = r
-            print "> %s: Deploying role (%s)%s .. "%(label.name, domain,role)
+        for role, domain in self.roles:
+            if domain:
+                print "> %s: Deploying role %s in domain %s .. "%(label.name, role, domain)
+            else:
+                print "> %s: Deploying role %s .. "%(label.name, role)
             install_dir = builder.invocation.role_install_path(role, domain = domain)
             utils.recursively_copy(install_dir, deploy_dir, object_exactly=True)
         
@@ -99,8 +124,7 @@ class FileDeploymentBuilder(pkg.Dependable):
 
         # First off, do we need to at all?
         need_root = False
-        for r in self.roles:
-            (role,domain) = r
+        for role, domain in self.roles:
             lbl = depend.Label(utils.LabelKind.Package, 
                                "*",
                                role,
@@ -137,17 +161,16 @@ class FileDeploymentBuilder(pkg.Dependable):
 
         if need_root:
             print "I need root to do this - sorry! - running sudo .."
-            utils.run_cmd("sudo %s buildlabel %s"%(builder.muddle_binary, 
-                                              permissions_label))
+            utils.run_cmd("sudo %s buildlabel '%s'"%(builder.muddle_binary, 
+                                                     permissions_label))
         else:
-            utils.run_cmd("%s buildlabel %s"%(builder.muddle_binary, 
-                                         permissions_label))
+            utils.run_cmd("%s buildlabel '%s'"%(builder.muddle_binary, 
+                                                permissions_label))
 
     def apply_instructions(self, builder, label):
         app_dict = get_instruction_dict()
 
-        for r in self.roles:
-            (role, domain) = r
+        for role, domain in self.roles:
             lbl = depend.Label(utils.LabelKind.Package, 
                                "*",
                                role,
@@ -249,6 +272,29 @@ def get_instruction_dict():
 
 # Legacy function to register a deployment without domains.
 def deploy(builder, target_dir, name, roles):
+    """
+    Register a file deployment.
+
+    This is a convenience wrapper around deploy_with_domains().
+
+    'roles' is a sequence of role names. The deployment will take the roles
+    specified, and build them into a deployment at deploy/[name].  
+
+    More specifically, a rule will be created for label:
+
+      "deployment:<name>/deployed"
+      
+    which depends on "package:*{<role}/postinstalled" (in the builder's default
+    domain) for each <role> in 'roles'.
+
+    In other words, the deployment called 'name' will depend on the given roles
+    (in the default domain) having been "finished" (postinstalled).
+
+    An "instructions applied" label "deployment:<name>/instructionsapplied"
+    will also be created.
+
+    The deployment should eventually be located at 'target_dir'.
+    """
     new_roles = [ ]
     for r in roles:
         new_roles.append( (r, builder.default_domain) )
@@ -257,17 +303,31 @@ def deploy(builder, target_dir, name, roles):
 
 
 # A function which registers the standard dependencies for a file deployment.
-def deploy_with_domains(builder, target_dir, name, roles):
+def deploy_with_domains(builder, target_dir, name, role_domains):
     """
     Register a file deployment.
 
-    The deployment will take the roles specified in the role list, and
-    build them into a deployment at deploy/[name].
+    'role_domains' is a sequence of (role, domain) pairs. The deployment will
+    take the roles and domains specified, and build them into a deployment at
+    deploy/[name].  
 
-    The deployment should eventually be located at target_dir.
+    More specifically, a rule will be created for label:
+
+      "deployment:<name>/deployed"
+      
+    which depends on "package:(<domain>)*{<role}/postinstalled" for each
+    (<role>, <domain>) pair in 'role_domains'.
+
+    In other words, the deployment called 'name' will depend on the given roles
+    in the appropriate domains having been "finished" (postinstalled).
+
+    An "instructions applied" label "deployment:<name>/instructionsapplied"
+    will also be created.
+
+    The deployment should eventually be located at 'target_dir'.
     """
 
-    the_dependable = FileDeploymentBuilder(roles,
+    the_dependable = FileDeploymentBuilder(role_domains,
                                            target_dir)
 
     dep_label = depend.Label(utils.LabelKind.Deployment,
@@ -285,8 +345,7 @@ def deploy_with_domains(builder, target_dir, name, roles):
 
     deployment_rule = depend.Rule(dep_label, the_dependable)
 
-    for r in roles:
-        (role, domain) = r
+    for role, domain in role_domains:
         role_label = depend.Label(utils.LabelKind.Package, 
                                   "*",
                                   role, 

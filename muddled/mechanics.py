@@ -423,14 +423,8 @@ class Invocation:
         """
         Where should pkg install itself, by default?
         """
-        if domain:
-            p = os.path.join(self.db.root_path, domain_subpath(domain), "install")
-        else:
-            p = os.path.join(self.db.root_path, "install")
-        if (role is not None):
-            p = os.path.join(p, role)
-            
-        return p
+        # Actually, which package it is doesn't matter
+        return self.role_install_path(role, domain)
 
     def role_install_path(self, role, domain=None):
         """
@@ -1064,7 +1058,9 @@ def _new_sub_domain(root_path, muddle_binary, domain_name, domain_repo, domain_b
 
     ruleset = domain_builder.invocation.ruleset
 
-    for rule in ruleset.map.values():
+    rules = ruleset.map.values()
+
+    for rule in rules:
         labels.append(rule.target)
         for l in rule.deps:
             labels.append(l)
@@ -1082,6 +1078,16 @@ def _new_sub_domain(root_path, muddle_binary, domain_name, domain_repo, domain_b
     # set, but might perhaps be useful somehow later on...
     for l in labels:
         l._change_domain(domain_name)
+
+    # Also, check if any of our Rules need their "action" changing
+    # (we'll assume that they do if they appear to have the appropriate magic
+    # method names)
+    for rule in rules:
+        if rule.obj is not None and hasattr(rule.obj, '_mark_unswept'):
+            rule.obj._mark_unswept()
+    for rule in rules:
+        if rule.obj is not None and hasattr(rule.obj, '_change_domain'):
+            rule.obj._change_domain(domain_name)
 
     # Now mark the builder as a domain.
     domain_builder.invocation.mark_domain(domain_name)

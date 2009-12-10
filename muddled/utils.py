@@ -754,7 +754,6 @@ def _copy_without(src, dst, ignored_names, object_exactly, preserve):
         if not os.path.exists(dst):
             os.makedirs(dst)
 
-    errors = []
     for name in names:
         if name in ignored_names:
             continue
@@ -770,18 +769,12 @@ def _copy_without(src, dst, ignored_names, object_exactly, preserve):
             else:
                 copy_file(srcname, dstname, object_exactly=object_exactly, preserve=preserve)
         except (IOError, os.error), why:
-            errors.append('Unable to copy %s to %s: %s'%(srcname, dstname, why))
-        
-        except Error, err:             # catch an Error from call of _copytree XXX ???
-            errors.extend(err.args[0]) # so we can continue with other files   XXX ???
+            raise Failure('Unable to copy %s to %s: %s'%(srcname, dstname, why))
 
     try:
         copy_file_metadata(src, dst)
     except OSError, why:
-        errors.extend('Unable to copy properties of %s to %s: %s'%(src, dst, why))
-
-    if errors:
-        raise Error(errors) 
+        raise Failure('Unable to copy properties of %s to %s: %s'%(src, dst, why))
 
 def copy_without(src, dst, without=None, object_exactly=True, preserve=False):
     """

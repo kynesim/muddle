@@ -504,11 +504,54 @@ def recursively_remove(a_dir):
         # for us.
         run_cmd("rm -rf \"%s\""%(a_dir))
 
+
+def copy_file_metadata(from_path, to_path):
+    """
+    Copy file metadata.
+    
+    If 'to_path' is a link, then it tries to copy whatever it can from
+    'from_path', treated as a link.
+
+    If 'to_path' is not a link, then it copies from 'from_path', or, if
+    'from_path' is a link, whatever 'from_path' references.
+
+    Metadata is: mode bits, atime, mtime, flags and (if the process has an
+    effective UID of 0) the ownership (uid and gid).
+    """
+
+    if os.path.islink(to_path):
+        st = os.lstat(from_path)
+
+        if hasattr(os, 'lchmod'):
+            mode = stat.S_IMODE(st.st_mode)
+            os.lchmod(to_path, mode)
+
+        if hasattr(os, 'lchflags'):
+            os.lchflags(to_path, st.st_flags)
+
+        if os.geteuid() == 0 and hasattr(os, 'lchown'):
+            os.lchown(to_path, s.st_uid, s.st_gid)
+    else:
+        st = os.stat(from_path)
+        mode = stat.S_IMODE(st.st_mode)
+        os.chmod(to_path, mode)
+        os.utime(to_path, (st.st_atime, st.st_mtime))
+        if hasattr(os, 'chflags'):
+            os.chflags(to_path, st.st_flags)
+        if os.geteuid() == 0:
+            os.chown(to_path, s.st_uid, s.st_gid)
+
 def copy_file(from_path, to_path, object_exactly=False, preserve=False):
     """
     Copy a file (either a "proper" file, not a directory, or a symbolic link).
 
     Just like recursively_copy, only not recursive :-)
+
+    If the target file already exists, it is overwritten.
+
+       Caveat: if the target file is a directory, it will not be overwritten.
+       If the source file is a link, being copied as a link, and the target
+       file is not a link, it will not be overwritten.
 
     If 'object_exactly' is true, then if 'from_path' is a symbolic link, it
     will be copied as a link, otherwise the referenced file will be copied.
@@ -520,16 +563,14 @@ def copy_file(from_path, to_path, object_exactly=False, preserve=False):
 
     if object_exactly and os.path.islink(from_path):
         linkto = os.readlink(from_path)
+        if os.path.islink(to_path):
+            os.remove(to_path)
         os.symlink(linkto, to_path)
     else:
         shutil.copyfile(from_path, to_path)
 
     if preserve:
-        shutil.copymode(from_path, to_path)
-        shutil.copystat(from_path, to_path)
-        if os.geteuid() == 0:
-            s = os.lstat(from_path)
-            os.lchown(to_path, s.st_uid, s.st_gid)
+        copy_file_metadata(from_path, to_path)
 
 def recursively_copy(from_dir, to_dir, object_exactly=False, preserve=True):
     """
@@ -696,14 +737,11 @@ def xml_elem_with_child(doc, elem_name, child_text):
     return el
 
 
-def _copy_without(src, dst, ignored_names, object_exactly, preserve, am_root):
+def _copy_without(src, dst, ignored_names, object_exactly, preserve):
     """
     The insides of copy_without. See that for more documentation.
 
     'ignored_names' must be a sequence of filenames to ignore (but may be empty).
-
-    If 'am_root' is true, we are effectively root, and can change the ownership,
-    otherwise we aren't and can't.
     """
 
     # Inspired by the example for shutil.copytree in the Python 2.6 documentation
@@ -725,12 +763,12 @@ def _copy_without(src, dst, ignored_names, object_exactly, preserve, am_root):
         dstname = os.path.join(dst, name)
         try:
             if object_exactly and os.path.islink(srcname):
-                copy_file(srcname, dstname, object_exactly = True, preserve = True)
+                copy_file(srcname, dstname, object_exactly=True, preserve=preserve)
             elif os.path.isdir(srcname):
-                _copy_without(srcname, dstname, ignored_names, object_exactly,
-                              preserve, am_root)
+                _copy_without(srcname, dstname, ignored_names=ignored_names,
+                              object_exactly=object_exactly, preserve=preserve)
             else:
-                copy_file(srcname, dstname, object_exactly = object_exactly, preserve = True)
+                copy_file(srcname, dstname, object_exactly=object_exactly, preserve=preserve)
         except (IOError, os.error), why:
             errors.append('Unable to copy %s to %s: %s'%(srcname, dstname, why))
         
@@ -738,13 +776,7 @@ def _copy_without(src, dst, ignored_names, object_exactly, preserve, am_root):
             errors.extend(err.args[0]) # so we can continue with other files   XXX ???
 
     try:
-        shutil.copymode(src, dst)
-        shutil.copystat(src, dst)
-        if am_root:
-            s = os.lstat(src)
-            os.lchown(dst, s.st_uid, s.st_gid)
-    except WindowsError:        # can't copy file access times on Windows
-        pass                    # (do we work on Windows?)
+        copy_file_metadata(src, dst)
     except OSError, why:
         errors.extend('Unable to copy properties of %s to %s: %s'%(src, dst, why))
 
@@ -775,14 +807,12 @@ def copy_without(src, dst, without=None, object_exactly=True, preserve=False):
     else:
         ignored_names = set()
 
-    am_root = (os.geteuid() == 0)
-
     print 'Copying %s to %s'%(src, dst),
     if without:
         print 'ignoring %s'%without
     print
 
-    _copy_without(src, dst, ignored_names, object_exactly, preserve, am_root)
+    _copy_without(src, dst, ignored_names, object_exactly, preserve)
 
 
 def get_prefix_pair(prefix_one, value_one, prefix_two, value_two):

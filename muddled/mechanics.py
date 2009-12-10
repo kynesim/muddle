@@ -77,7 +77,7 @@ class Invocation:
         Write a file that marks this directory as a domain so we don't
         mistake it for the root.
         """
-        self.db.set_domain(domain_name)
+        self.db.set_domain_marker(domain_name)
 
 
     def include_domain(self,domain_builder, domain_name):
@@ -1102,6 +1102,10 @@ def include_domain(builder, domain_name, domain_repo, domain_desc):
     specifically, if ``domains/<domain_name>/.muddle/`` doesn't yet exist),
     then it will be retrieved. This will normally happen when ``muddle init``
     is done.
+
+    Note that, as a short-hand convenience, sub-domains are marked as such by
+    having a ``.muddle/am_subdomain`` file. This will be created by
+    ``include_domain()`` if necessary.
     """
 
     domain_builder = _new_sub_domain(builder.invocation.db.root_path,

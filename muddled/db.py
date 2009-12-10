@@ -58,12 +58,14 @@ class Database(object):
             self.checkout_locations[(co, dom)] = v
         
 
-    def set_domain(self, domain_name):
-        file_name = os.path.join(self.root_path, "domain_name")
-        f = open(file_name, "w")
-        f.write(domain_name)
-        f.write("\n")
-        f.close()
+    def set_domain_marker(self, domain_name):
+        """
+        Mark this as a (sub)domain
+
+        In a (sub)domain, we have a file called ``.muddle/am_subdomain``,
+        which acts as a useful flag that we *are* a (sub)domain.
+        """
+        utils.mark_as_domain(self.root_path, domain_name)
 
 
     def set_checkout_path(self, checkout, dir, domain = None):

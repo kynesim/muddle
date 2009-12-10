@@ -148,57 +148,85 @@ def string_cmp(a,b):
     else:
         return 1
 
-
-def get_domain_name_for(dir, default):
+def mark_as_domain(dir, domain_name):
     """
-    If dir is a muddle source tree or domain, return its domain name,
-    else return default.
-    """
-    potential_name_file = os.path.join(dir, ".muddle", "domain_name")
-    try:
-        #print "get_domain_name_for(): check %s (%s)"%(dir, potential_name_file)
-        f = open(potential_name_file, "r")
-        name = f.readline()
-        if (len(name)> 0 and name[-1] == '\n'):
-            name = name[:-1]
-        f.close()
-        return name
-    except Exception,e:
-        pass
+    Mark the build in 'dir' as a (sub)domain
 
-    return default
-  
+    This is done by creating a file ``.muddle/am_subdomain``
+
+    'dir' should be the path to the directory contining the sub-build's
+    ``.muddle`` directory (the "top" of the sub-build).
+
+    'dir' should thus be of the form "<somewhere>/domains/<domain_name>",
+    but we do not check this.
+
+    The given 'domain_name' is written to the file, but this should
+    not be particularly trusted - refer to the containing directory
+    structure for the canonical domain name.
+    """
+    file_name = os.path.join(dir, '.muddle', "am_subdomain")
+    with open(file_name, "w") as f:
+        f.write(domain_name)
+        f.write("\n")
+
+def is_subdomain(dir):
+    """
+    Check if the given 'dir' is a (sub)domain.
+
+    'dir' should be the path to the directory contining the build's
+    ``.muddle`` directory (the "top" of the build).
+
+    The build is assumed to be a (sub)domain if there is a file called
+    ``.muddle/am_subdomain``.
+    """
+    file_name = os.path.join(dir, '.muddle', "am_subdomain")
+    return os.path.exists(file_name)
+
+def get_domain_name_from(dir):
+    """
+    Given a directory 'dir', extract the domain name.
+
+    'dir' should not end with a trailing slash.
+
+    It is assumed that 'dir' is of the form "<something>/domains/<domain_name>",
+    and we want to return <domain_name>.
+    """
+    head, domain_name = os.path.split(dir)
+    head, should_be_domains = os.path.split(head)
+    if should_be_domains == 'domains':
+        return domain_name
+    else:
+        raise Error("Cannot find domain name for '%s' because it is not"
+                    " '<something>/domains/<domain_name>' (unexpected '%s')"%(dir,should_be_domains))
+
 
 def find_root(dir):
     """
-    Find the build tree root starting at dir.
+    Find the build tree root starting at 'dir'.
 
     Returns a pair (dir, current_domain) - the current domain is
     the first one encountered on our way up.
-
     """
     
-    # Normalise so path.split() doesn't produce confusing
-    # junk.
+    # Normalise so path.split() doesn't produce confusing junk.
     dir = os.path.normcase(os.path.normpath(dir))
     current_domain = None
 
     while True:
         # Might this be a tree root?
-        if (os.path.exists(os.path.join(dir, ".muddle"))):
-            # Yes!
-            new_domain = get_domain_name_for(dir, None)
+        if os.path.exists(os.path.join(dir, ".muddle")):
+            if is_subdomain(dir):
+                new_domain = get_domain_name_from(dir)
 
-            if (current_domain is None):
-                current_domain = new_domain
-            
-            if (new_domain is None):
+                if (current_domain is None):
+                    current_domain = new_domain
+                else:
+                    current_domain = "%s(%s)"%(new_domain,current_domain)
+            else:
                 return (dir, current_domain)
 
-        # Else ..
-        (up1, basename) = os.path.split(dir)
-        if (up1 == dir or dir == '/'):
-            # We're done
+        up1, basename = os.path.split(dir)
+        if up1 == dir or dir == '/':    # We're done
             break
 
         dir = up1

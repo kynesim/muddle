@@ -343,7 +343,7 @@ class Query(Command):
             if (label.domain is None):
                 label.domain = builder.get_default_domain()
 
-        label = builder.invocation.apply_unifications(label)
+            label = builder.invocation.apply_unifications(label)
 
         if (type == "objdir"):
             print builder.invocation.package_obj_path(label.name, label.role, 

@@ -1373,7 +1373,7 @@ class CopyWithout(Command):
             print "Copy to  : %s"%(dst_dir)
             print "Excluding: %s"%(" ".join(without))
         else:
-            utils.copy_without(src_dir, dst_dir, without, object_exactly = True)
+            utils.copy_without(src_dir, dst_dir, without, object_exactly=True, preserve=True)
 
 class Retry(Command):
     """

@@ -60,9 +60,6 @@ class Command:
         """
         return []
 
-    def register(self, dict):
-        dict[self.name()] = self
-
     def requires_build_tree(self):
         """
         Returns True iff this command requires an initialised

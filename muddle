@@ -29,14 +29,14 @@ import os
 import traceback
 
 
-def help_list():
+def help_list(cmd_dict):
     """
     Return a list of all commands
     """
     result_array = [ __doc__, "\n" ]
-    cmd_dict = muddled.register_commands()
     result_array.append("Commands are: ")
 
+    # Use the entire set of command names, including any aliases
     keys = cmd_dict.keys()
     keys.sort()
 
@@ -47,21 +47,23 @@ def help_list():
     result_array.append("\n  muddle help <cmd1> <cmd2>  for help on two commands (and so on)")
     result_array.append("\n  muddle help all            for help on all commands")
     result_array.append("\n  muddle help _all           is the same as 'help all'")
+    result_array.append("\n  muddle help aliases        says which commands have more than one name")
     result_array.append("\n")
         
     return "".join(result_array)
 
 
-def help_all():
+def help_all(cmd_dict):
     """
     Return help for all commands
     """
     result_array = [ __doc__, "\n" ]
-    cmd_dict = muddled.register_commands()
     result_array.append("Commands: \n")
     result_array.append("\n")
-    keys = cmd_dict.keys()
-    keys.sort()
+
+    # However, we only want to give help by the "main" name for each command,
+    # ignoring any aliases
+    keys = muddled.commands.g_command_names
 
     for k in keys:
         v = cmd_dict[k]
@@ -73,6 +75,25 @@ def help_all():
     return "".join(result_array)
 
 
+def help_aliases():
+    """
+    Return a list of all commands with aliases
+    """
+    result_array = []
+    result_array.append("Commands aliases are:\n")
+
+    aliases = muddled.commands.g_command_aliases
+
+    keys = aliases.keys()
+    keys.sort()
+
+    for alias in keys:
+        result_array.append("  %-10s  %s"%(alias, aliases[alias]))
+    result_array.append("\n")
+        
+    return "\n".join(result_array)
+
+
 def help(about=None):
     """
     Return the help message for things in 'about'.
@@ -80,14 +101,18 @@ def help(about=None):
     If 'about' is None or empty, return help for all commands.
     """
 
+    cmd_dict = muddled.register_commands()
+
     if not about:
-        return help_list()
+        return help_list(cmd_dict)
 
     if about[0] in ("all", "_all"):
-        return help_all()       # and ignore the rest of the command line
+        return help_all(cmd_dict)   # and ignore the rest of the command line
+
+    if about[0] == "aliases":
+        return help_aliases()
 
     result_array = []
-    cmd_dict = muddled.register_commands()
     for cmd in about:
         try:
             v = cmd_dict[cmd]

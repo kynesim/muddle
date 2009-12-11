@@ -49,7 +49,16 @@ class Command:
         return self.__doc__
 
     def name(self):
+        """
+        The name of this command - ``muddle <name>`` is used to run it.
+        """
         return None
+
+    def aliases(self):
+        """
+        A list of any aliases for this command. Be sparing in its use.
+        """
+        return []
 
     def register(self, dict):
         dict[self.name()] = self
@@ -175,6 +184,9 @@ class UnitTest(Command):
     def name(self): 
         return "unit_test"
 
+    def aliases(self):
+        return ["unittest"]             # because other commands don't have "_"
+
     def requires_build_tree(self):
         return False
 
@@ -233,6 +245,9 @@ class Depend(Command):
     
     def name(self):
         return "depend"
+
+    def aliases(self):
+        return ["depends"]      # because I can never remember which it is
 
     def requires_build_tree(self):
         return True
@@ -901,6 +916,9 @@ class Commit(Command):
     def name(self):
         return "dep-commit"
 
+    def aliases(self):
+        return ["commit"]
+
     def requires_build_tree(self):
         return True
 
@@ -929,6 +947,9 @@ class Push(Command):
     
     def name(self):
         return "dep-push"
+
+    def aliases(self):
+        return ["push"]
 
     def requires_build_tree(self):
         return True
@@ -959,6 +980,9 @@ class Pull(Command):
     
     def name(self):
         return "dep-pull"
+
+    def aliases(self):
+        return ["pull"]
 
     def requires_build_tree(self):
         return True
@@ -1818,54 +1842,68 @@ def labels_from_pkg_args(list, tag, default_roles, default_domain):
     
     
 
+import inspect
+import types
+
+# Following Richard's naming conventions...
+# A dictionary of <command name> : <command instance>
+# Note that more than one name may give the same instance
+g_command_dict = {}
+# A list of all of the known commands, by their "main" name
+# (so one name per command, only)
+g_command_names = []
+# A dictionary of <command alias> : <command name>
+# (of course, the keys are then the list of things that *are* aliases)
+g_command_aliases = {}
+
+def _register_commands():
+    """
+    Find all of the Command classes and register them.
+
+    Looks for any subclass of Command in this module (not including Command
+    itself) and registers it as a command.
+    """
+    def predicate(obj):
+        """
+        Return True if obj is a subclass of Command (but not Command itself)
+        """
+        #print 'Checking',type(obj),obj,
+        if type(obj) not in (types.ClassType, types.TypeType):
+            #print 'NOT CLASS'
+            return False
+        ok = issubclass(obj,Command) and obj is not Command
+        #print 'OK' if ok else 'IGNORE'
+        return ok
+
+    # There are various ways of getting the current module
+    # - this is but one
+    this_module = inspect.getmodule(Command)
+
+    commands = inspect.getmembers(this_module, predicate)
+    for klass_name, klass in commands:
+        cmd = klass()
+        name = cmd.name()
+        g_command_dict[name] = cmd
+        g_command_names.append(name)
+        aliases = cmd.aliases()
+        if aliases:
+            for alias in aliases:
+                g_command_aliases[alias] = name
+                g_command_dict[alias] = cmd
+
+    g_command_names.sort()
+
+
 def register_commands():
     """
     Returns a dictionary of command name to command object for all 
     commands.
     """
 
-    the_dict = { }
-    Init().register(the_dict)
-    Root().register(the_dict)
-    UnitTest().register(the_dict)
-    ListVCS().register(the_dict)
-    Depend().register(the_dict)
-    Query().register(the_dict)
-    Build().register(the_dict)
-    Rebuild().register(the_dict)
-    Reinstall().register(the_dict)
-    Clean().register(the_dict)
-    DistClean().register(the_dict)
-    Instruct().register(the_dict)
-    BuildLabel().register(the_dict)
-    Import().register(the_dict)
-    Unimport().register(the_dict)
-    Assert().register(the_dict)
-    Retract().register(the_dict)
-    PkgUpdate().register(the_dict)
-    PkgCommit().register(the_dict)
-    PkgPush().register(the_dict)
+    # Maybe we should cache this...
+    _register_commands()
 
-    Update().register(the_dict)
-    Commit().register(the_dict)
-    Push().register(the_dict)
-    Pull().register(the_dict)
-
-    Changed().register(the_dict)
-    Deploy().register(the_dict)
-    Redeploy().register(the_dict)
-    Cleandeploy().register(the_dict)
-    Removed().register(the_dict)
-    Env().register(the_dict)
-    UnCheckout().register(the_dict)
-    Checkout().register(the_dict)
-    CopyWithout().register(the_dict)
-    Retry().register(the_dict)
-    Subst().register(the_dict)
-    Distrebuild().register(the_dict)
-    RunIn().register(the_dict)
-
-    return the_dict
+    return g_command_dict
 
 # End file.
 

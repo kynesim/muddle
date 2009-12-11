@@ -75,6 +75,15 @@ class CollectDeploymentBuilder(pkg.Dependable):
     def add_assembly(self, assembly_descriptor):
         self.assemblies.append(assembly_descriptor)
 
+    def _inner_labels(self):
+        """
+        Return any "inner" labels, so their domains may be altered.
+        """
+        labels = []
+        for assembly in self.assemblies:
+            labels.append(assembly.from_label)
+        return labels
+
     def build_label(self, builder, label):
         """
         Actually do the copies ..
@@ -168,28 +177,31 @@ def copy_from_role_install(builder, name, role, rel, dest,
                            copyExactly = True,
                            domain = None):
     """
-    Add a rule to copy from the given role's install to the named deployment.
+    Add a requirement to copy from the given role's install to the named deployment.
 
     'name' is the name of the collecting deployment, as created by::
 
-        deploy(builder,name)
+        deploy(builder, name)
 
-    The new rule will be added to label ``deployment:<name>/deployed``, where
-    <name> is the 'name' given.
+    which is remembered as a rule whose target is ``deployment:<name>/deployed``,
+    where <name> is the 'name' given.
 
     'role' is the role to copy from. Copying will be based from 'rel' within
     the role's ``install``, to 'dest' within the deployment.
 
+    The label ``package:(<domain>)*{<role>}/postinstalled`` will be added as a
+    dependency of the collecting deployment rule.
+
     An AssemblyDescriptor will be created to copy from 'rel' in the install
     directory of the label ``package:*{<role>}/postinstalled``, to 'dest'
-    within the deployment directory of 'name'
+    within the deployment directory of 'name', and added to the rule's actions.
 
     So, for instance::
 
         copy_from_role_install(builder,'fred','data','public','data/public',
                                True, False, True)
 
-    might copy from (recursively) from::
+    might copy (recursively) from::
 
         install/data/public
 

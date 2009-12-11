@@ -35,13 +35,34 @@ class CpioDeploymentBuilder(pkg.Dependable):
                  compressionMethod = None, 
                  pruneFunc = None):
         """
-        target_base is a dictionary mapping roles to their root addresses
-        in the heirarchy.
+        * 'target_file' is the CPIO file to construct.
+        * 'target_base' is a dictionary mapping labels to target locations.
+        * 'compressionMethod' is the compression method to use, if any - gzip -> gzip,
+          bzip2 -> bzip2.
+        * if 'pruneFunc' is not None, it is a function to be called like
+          pruneFunc(Heirarchy) to prune the heirarchy prior to packing. Usually
+          something like deb.deb_prune, it's intended to remove spurious stuff like
+          manpages from initrds and the like.
         """
         self.target_file = target_file
         self.target_base = target_base
         self.compression_method = compressionMethod
         self.prune_function = pruneFunc
+
+    def _inner_labels(self):
+        """
+        Return a list of all of the Labels we "hide" inside ourselves.
+
+        This is intended for use in moving the Rule containing us into a new
+        domain, so that it can add our "inner" labels to its list of labels
+        to change the domain of.
+
+        We do it this way in case the labels are used for other purposes - it
+        is important that the labels get "moved" in one sweep, so that they
+        don't accidentally get moved more than once.
+        """
+        labels = self.target_base.keys()
+        return labels
 
     def attach_env(self, builder):
         """

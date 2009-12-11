@@ -136,6 +136,11 @@ def inform_deployment_path(builder, name, deployment, roles, domain=None):
     
 
 def deployment_rule_from_name(builder, name):
+    """
+    Return the rule for target label "deployment:<name>{}/deployed".
+
+    Raises an exception if there is more than one such rule.
+    """
     rules =  builder.invocation.ruleset.rules_for_target(
         depend.Label(utils.LabelKind.Deployment, name, None, 
                      utils.Tags.Deployed), 

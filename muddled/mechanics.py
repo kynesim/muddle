@@ -1064,6 +1064,8 @@ def _new_sub_domain(root_path, muddle_binary, domain_name, domain_repo, domain_b
         labels.append(rule.target)
         for l in rule.deps:
             labels.append(l)
+        if rule.obj is not None and hasattr(rule.obj, '_inner_labels'):
+            labels.extend(rule.obj._inner_labels())
 
     # Then, mark them all as "unchanged" (because we can't guarantee we won't
     # have the same label more than once, and it's easier to do this than to
@@ -1085,6 +1087,7 @@ def _new_sub_domain(root_path, muddle_binary, domain_name, domain_repo, domain_b
     for rule in rules:
         if rule.obj is not None and hasattr(rule.obj, '_mark_unswept'):
             rule.obj._mark_unswept()
+
     for rule in rules:
         if rule.obj is not None and hasattr(rule.obj, '_change_domain'):
             rule.obj._change_domain(domain_name)

@@ -20,6 +20,20 @@ class Dependable:
         """
         pass
 
+    # It may be necessary to declare the following methods, to enable
+    # sub-domains to work properly:
+    #
+    # _mark_unswept()
+    # _change_domain(new_domain)
+    #
+    #    which are used together to change domains within the Dependable,
+    #    that are not contained within Labels.
+    #
+    # _inner_labels()
+    #
+    #    which returns a list of those Labels contained "inside" the Dependable,
+    #    which might not otherwise be moved to the new domain.
+
 
 class SequentialDependable:
     """

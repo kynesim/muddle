@@ -228,7 +228,7 @@ def get_instruction_dict():
 
 def deploy_labels(builder, target_file, target_base, name,  
            compressionMethod = None, 
-           pruneFunc = None):
+           pruneFunc = None, target_roles_order = None):
     """
     Set up a cpio deployment
 
@@ -243,9 +243,9 @@ def deploy_labels(builder, target_file, target_base, name,
       pruneFunc(Heirarchy) to prune the heirarchy prior to packing. Usually
       something like deb.deb_prune, it's intended to remove spurious stuff like
       manpages from initrds and the like.
-    * roles - The roles to place in the deployed archive; note that roles are
+    * target_roles_order - The roles to place in the deployed archive; note that roles are
       merged into the archive in the order specified here, so files in later
-      roles will override those in earlier roles.
+      roles will override those in earlier roles.  MUST be an array!
     """
 
     the_dependable = CpioDeploymentBuilder(target_file, 
@@ -258,14 +258,48 @@ def deploy_labels(builder, target_file, target_base, name,
                              domain = builder.default_domain)
 
     deployment_rule = depend.Rule(dep_label, the_dependable)
-    for lbl in target_base.keys():
-        role_label = depend.Label(utils.LabelKind.Package,
+
+    if target_roles_order is None:
+        print "No deployment rule order of execution supplied"
+
+        for lbl in target_base.keys():
+            role_label = depend.Label(utils.LabelKind.Package,
                                   "*",
                                   lbl.role,
                                   utils.Tags.PostInstalled,
                                   domain = lbl.domain)
-        deployment_rule.add(role_label)
+            print "Next to deploy will be %s .. "%(role_label) + " then"
+            deployment_rule.add(role_label)
+    else:
+        # enough roles for targets?
+        if len(target_roles_order) != len(target_base.keys()):
+                raise utils.Failure("Not enough strings in target_roles_order to order target_base_keys,"+
+                                    "did you order all the roles? Current list is %s"%target_roles_order)
+ 
+        # Dictionary for lbl to role name cross reference
+        name_to_target_lbl = { }
+        for lbl in target_base.keys():
+           name_to_target_lbl[lbl.role] = lbl
 
+	
+        # Look for the lbl that matches the role
+        for role in target_roles_order:
+           try:
+                lbl = name_to_target_lbl[role]
+
+                role_label = depend.Label(utils.LabelKind.Package,
+                                  "*",
+                                  lbl.role,
+                                  utils.Tags.PostInstalled,
+                                  domain = lbl.domain)
+                print "Next to deploy will be %s .. "%(role_label) + " then"
+                deployment_rule.add(role_label)
+
+           except KeyError:
+                raise utils.Failure("No target to folder mapping for role %s"%role)
+
+
+    print "Add to deployment %s .. "%(deployment_rule)
     builder.invocation.ruleset.add(deployment_rule)
 
     the_dependable.attach_env(builder)
@@ -275,15 +309,13 @@ def deploy_labels(builder, target_file, target_base, name,
 
 
 
-
-def deploy(builder, target_file, target_base, name, roles,
+def deploy(builder, target_file, target_base, name, target_roles_order,
            compressionMethod = None,
            pruneFunc = None):
     """
-    Legacy entry point for cpio: roles is a list of roles, target_base
-    the list of role -> path mappings
+    Legacy entry point for cpio: target_order is a list of roles in order they are to be copied,
+    target_base the list of role -> path mappings
     """
-
     proper_target_base = { }
     for (r,base) in target_base.items():
         lbl = depend.Label(utils.LabelKind.Package,
@@ -294,7 +326,7 @@ def deploy(builder, target_file, target_base, name, roles,
         proper_target_base[lbl] = base
 
     return deploy_labels(builder, target_file, proper_target_base, name,
-                         compressionMethod, pruneFunc)
+                         compressionMethod, pruneFunc, target_roles_order)
            
 
 # End file.

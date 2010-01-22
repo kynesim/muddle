@@ -292,14 +292,14 @@ def deploy_labels(builder, target_file, target_base, name,
                                   lbl.role,
                                   utils.Tags.PostInstalled,
                                   domain = lbl.domain)
-                print "Next to deploy will be %s .. "%(role_label) + " then"
+                #print "Next to deploy will be %s .. "%(role_label) + " then"
                 deployment_rule.add(role_label)
 
            except KeyError:
                 raise utils.Failure("No target to folder mapping for role %s"%role)
 
 
-    print "Add to deployment %s .. "%(deployment_rule)
+    #print "Add to deployment %s .. "%(deployment_rule)
     builder.invocation.ruleset.add(deployment_rule)
 
     the_dependable.attach_env(builder)

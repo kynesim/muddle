@@ -36,7 +36,7 @@ class CpioDeploymentBuilder(pkg.Dependable):
                  pruneFunc = None):
         """
         * 'target_file' is the CPIO file to construct.
-        * 'target_base' is a dictionary mapping labels to target locations.
+        * 'target_base' is an array of pairs mapping labels to target locations
         * 'compressionMethod' is the compression method to use, if any - gzip -> gzip,
           bzip2 -> bzip2.
         * if 'pruneFunc' is not None, it is a function to be called like
@@ -48,6 +48,17 @@ class CpioDeploymentBuilder(pkg.Dependable):
         self.target_base = target_base
         self.compression_method = compressionMethod
         self.prune_function = pruneFunc
+
+    def __str__(self):
+        result = "cpioDeploymentBuilder{"
+        result = result + "target_file=%s"%self.target_file
+        result = result + ",target_base="
+        for (l,tgt) in self.target_base:
+            result = result + "(%s,%s) "%(l,tgt)
+        result = result + ",compression=%s"%self.compression_method
+        result = result + ",prune=%s}"%self.prune_function
+        return result
+        
 
     def _inner_labels(self):
         """
@@ -61,7 +72,10 @@ class CpioDeploymentBuilder(pkg.Dependable):
         is important that the labels get "moved" in one sweep, so that they
         don't accidentally get moved more than once.
         """
-        labels = self.target_base.keys()
+        labels = [] 
+        for i in self.target_base:
+            labels.append(i[0])
+
         return labels
 
     def attach_env(self, builder):
@@ -74,7 +88,7 @@ class CpioDeploymentBuilder(pkg.Dependable):
         to every package label in this role.
         """
         
-        for (l,b) in self.target_base.items():
+        for (l,b) in self.target_base:
             lbl = depend.Label(utils.LabelKind.Package,
                                "*",
                                l.role,
@@ -103,7 +117,11 @@ class CpioDeploymentBuilder(pkg.Dependable):
 
             
             the_heirarchy = cpiofile.Heirarchy({ }, { })
-            for (l,base) in self.target_base.items():
+            
+
+
+            for (l,base) in self.target_base:
+                print "Collecting %s  for deployment to %s .. "%(l,base)
                 m = cpiofile.heirarchy_from_fs(builder.invocation.role_install_path
                                                (l.role, 
                                                 domain = l.domain), 
@@ -121,7 +139,7 @@ class CpioDeploymentBuilder(pkg.Dependable):
 
 
             # Apply instructions .. 
-            for (src,base) in self.target_base.items():
+            for (src,base) in self.target_base:
                 lbl = depend.Label(utils.LabelKind.Package, "*", src.role, "*", 
                                    domain = src.domain)
                 print "Scanning instructions for role %s, domain %s .. "%(src.role, src.domain)
@@ -225,12 +243,16 @@ def get_instruction_dict():
     app_dict["mknod"] = CIApplyMknod()
     return app_dict
 
-
 def deploy_labels(builder, target_file, target_base, name,  
            compressionMethod = None, 
-           pruneFunc = None, target_roles_order = None):
+           pruneFunc = None, target_labels_order = None):
     """
     Set up a cpio deployment
+
+    @todo  This is (probably) fatally broken - we won't deploy packages
+             correctly at all, but I have no time to fix it properly - 
+             rrw 2010-01-27
+
 
     * target_file - Where, relative to the deployment directory, should the
       build cpio file end up? Note that compression will add a suitable '.gz'
@@ -243,13 +265,31 @@ def deploy_labels(builder, target_file, target_base, name,
       pruneFunc(Heirarchy) to prune the heirarchy prior to packing. Usually
       something like deb.deb_prune, it's intended to remove spurious stuff like
       manpages from initrds and the like.
-    * target_roles_order - The roles to place in the deployed archive; note that roles are
-      merged into the archive in the order specified here, so files in later
-      roles will override those in earlier roles.  MUST be an array!
+    * target_labels_order - Order in which labels should be merged. Labels not
+       mentioned get merged in any old order.
     """
 
+    out_target_base = [ ]
+    strike_out = { }
+    if (target_labels_order is not None):
+        for t in target_labels_order:
+            if (t in strike_out):
+                raise utils.Error("Duplicate label %s in attempt to order cpio deployment"%t)
+                                  
+            if (t in target_base):
+                out_target_base.append( (t, target_base[t]) )
+                strike_out[t] = target_base[t]
+    
+    # Now add everything not specified in the target_order
+    for (k,v) in target_base.items():
+        if (k not in strike_out):
+            # Wasn't in the order - append it.
+            out_target_base.append( (k,v) )
+            
+
+
     the_dependable = CpioDeploymentBuilder(target_file, 
-                                           target_base, compressionMethod, 
+                                           out_target_base, compressionMethod, 
                                            pruneFunc = pruneFunc)
     
     dep_label = depend.Label(utils.LabelKind.Deployment,
@@ -259,45 +299,15 @@ def deploy_labels(builder, target_file, target_base, name,
 
     deployment_rule = depend.Rule(dep_label, the_dependable)
 
-    if target_roles_order is None:
-        print "No deployment rule order of execution supplied"
-
-        for lbl in target_base.keys():
-            role_label = depend.Label(utils.LabelKind.Package,
+    # Now do the dependency thing .. 
+    for ( lbl, base )  in out_target_base:
+        role_label = depend.Label(utils.LabelKind.Package,
                                   "*",
                                   lbl.role,
                                   utils.Tags.PostInstalled,
                                   domain = lbl.domain)
-            print "Next to deploy will be %s .. "%(role_label) + " then"
-            deployment_rule.add(role_label)
-    else:
-        # enough roles for targets?
-        if len(target_roles_order) != len(target_base.keys()):
-                raise utils.Failure("Not enough strings in target_roles_order to order target_base_keys,"+
-                                    "did you order all the roles? Current list is %s"%target_roles_order)
- 
-        # Dictionary for lbl to role name cross reference
-        name_to_target_lbl = { }
-        for lbl in target_base.keys():
-           name_to_target_lbl[lbl.role] = lbl
-
-	
-        # Look for the lbl that matches the role
-        for role in target_roles_order:
-           try:
-                lbl = name_to_target_lbl[role]
-
-                role_label = depend.Label(utils.LabelKind.Package,
-                                  "*",
-                                  lbl.role,
-                                  utils.Tags.PostInstalled,
-                                  domain = lbl.domain)
-                #print "Next to deploy will be %s .. "%(role_label) + " then"
-                deployment_rule.add(role_label)
-
-           except KeyError:
-                raise utils.Failure("No target to folder mapping for role %s"%role)
-
+        deployment_rule.add(role_label)
+                
 
     #print "Add to deployment %s .. "%(deployment_rule)
     builder.invocation.ruleset.add(deployment_rule)
@@ -306,6 +316,8 @@ def deploy_labels(builder, target_file, target_base, name,
     
     # Cleanup is generic
     deployment.register_cleanup(builder, name)
+
+    return the_dependable
 
 
 
@@ -325,8 +337,17 @@ def deploy(builder, target_file, target_base, name, target_roles_order,
                            domain = builder.default_domain)
         proper_target_base[lbl] = base
 
+    label_order = [ ]
+    for r in target_roles_order:
+        lbl = depend.Label(utils.LabelKind.Package,
+                           "*",
+                           r, 
+                           "*",
+                           domain = builder.default_domain)
+        label_order.append(lbl)
+
     return deploy_labels(builder, target_file, proper_target_base, name,
-                         compressionMethod, pruneFunc, target_roles_order)
+                         compressionMethod, pruneFunc, label_order)
            
 
 # End file.

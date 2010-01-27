@@ -1010,8 +1010,7 @@ def unquote_list(lst):
         result.append(unescape_backslashes(last))
 
     return result
-        
-    
+
     
 
 # End file.

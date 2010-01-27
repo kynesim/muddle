@@ -835,6 +835,23 @@ def copy_without(src, dst, without=None, object_exactly=True, preserve=False):
 
     _copy_without(src, dst, ignored_names, object_exactly, preserve)
 
+def copy_name_list_with_dirs(file_list, old_root, new_root,
+                             object_exactly = True, preserve = False): 
+    """
+
+    Given file_list, create file_list[new_root/old_root], creating
+    any directories you need on the way.
+    
+    file_list is a list of full path names.
+    old_root is the old root directory
+    new_root is where we want them copied
+    """
+    for f in file_list:
+        tgt_name = replace_root_name(old_root, new_root, f)
+        target_dir = os.path.dirname(tgt_name)
+        ensure_dir(target_dir)
+        copy_file(f, tgt_name, object_exactly, preserve)
+
 
 def get_prefix_pair(prefix_one, value_one, prefix_two, value_two):
     """
@@ -1010,6 +1027,42 @@ def unquote_list(lst):
         result.append(unescape_backslashes(last))
 
     return result
+
+def find_by_predicate(source_dir, accept_fn, links_are_symbolic = True):
+    """
+    Given a source directory and an acceptance function
+     fn(source_base, file_name) -> result
+    
+    Obtain a list of [result] if result is not None.
+    """
+
+    result = [ ]
+
+    r = accept_fn(source_dir)
+    if (r is not None):
+        result.append(r)
+
+    
+    if (links_are_symbolic and os.path.islink(source_dir)):
+        # Bah
+        return result
+
+    if (os.path.isdir(source_dir)):
+        # We may need to recurse...
+        names = os.listdir(source_dir)
+        
+        for name in names:
+            full_name = os.path.join(source_dir, name)
+            r = accept_fn(full_name)
+            if (r is not None):
+                result.append(r)
+
+            # os.listdir() doesn't return . and .. 
+            if (os.path.isdir(full_name)):
+                result.extend(find_by_predicate(full_name, accept_fn, links_are_symbolic))
+
+    return result
+
 
     
 

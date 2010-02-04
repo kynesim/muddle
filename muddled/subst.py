@@ -68,6 +68,24 @@ def split_query(query):
 
     return result
 
+def query_string_value(xml_doc, k):
+    """
+    Given a string-valued query, work out what the result was
+    """
+    v = None
+    result_node = None
+
+    if (k[0] == '/'):
+        # An XML query
+        if xml_doc is not None:
+            result_node = query_result(split_query(k), xml_doc)
+        if (result_node is not None):
+            v = get_text_in_xml_node(result_node)
+    else:
+        # An environment variable
+        v = env[k]
+    return v
+
 def subst_str(in_str, xml_doc, env):
     """
     Substitute ``${...}`` in in_str with the appropriate objects - if XML
@@ -75,10 +93,18 @@ def subst_str(in_str, xml_doc, env):
 
     Unescape ``$${...}`` in case someone actually wanted `${...}`` in the
     output.
+    
+    Functions can be called with:
+    ${fn:NAME(ARGS) REST}
+
+    name can be: eq(query,value) - in which case REST is substituted.
+                 val(query)  - just looks up query.
+
     """
     
     the_re = re.compile(r"(\$)?\$\{([^\}]+)\}")
-    
+    fn_re = re.compile(r'fn:([^()]+)\(([^\)]+)\)(.*)$')
+
     out_str = in_str
     interm = the_re.split(in_str)
 
@@ -87,19 +113,38 @@ def subst_str(in_str, xml_doc, env):
         
         k = interm[base_idx+2]
         
+
         if (interm[base_idx+1] == '$'):
             interm[base_idx + 2] = "${%s}"%k
         else:
-            if (k[0] == '/'):
-                # A query .. 
-                v = None
-                if xml_doc is not None:
-                    result_node = query_result(split_query(k), xml_doc)
-                    if (result_node is not None):
-                        v = get_text_in_xml_node(result_node)
+            # Let's see if this is a function?
+            m = fn_re.match(k)
+            if (m is not None):
+                # It's a function
+                g = m.groups()
+                fn_name = g[0]
+                param_str = g[1]
+                rest = g[2]
+
+                params = param_str.split(",")
+                proc_params = []
+                for p in params:
+                    trimmed = p.strip()
+                    if (trimmed[0] == "\""):
+                        trimmed = trimmed[1:-1]
+                    proc_params.append(trimmed)
+
+                if (fn_name == "eq" and len(proc_params) == 2):
+                    result = query_string_value(xml_doc, proc_params[0])
+                    if (result.strip() == proc_params[1]):
+                        v = rest
+                    else:
+                        v = ""
+                elif (fn_name == "val" and len(proc_params) == 1):
+                    v = query_string_value(xml_doc, proc_params[0])
+
             else:
-                # An environment variable .. 
-                v = env[k]
+                v = query_string_value(xml_doc, k)
     
             if (v is None):
                 interm[base_idx+2] = ""

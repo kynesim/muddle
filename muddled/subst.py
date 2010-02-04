@@ -68,7 +68,7 @@ def split_query(query):
 
     return result
 
-def query_string_value(xml_doc, k):
+def query_string_value(xml_doc, env, k):
     """
     Given a string-valued query, work out what the result was
     """
@@ -135,16 +135,16 @@ def subst_str(in_str, xml_doc, env):
                     proc_params.append(trimmed)
 
                 if (fn_name == "ifeq" and len(proc_params) == 2):
-                    result = query_string_value(xml_doc, proc_params[0])
+                    result = query_string_value(xml_doc, env, proc_params[0])
                     if (result.strip() == proc_params[1]):
                         v = rest
                     else:
                         v = ""
                 elif (fn_name == "val" and len(proc_params) == 1):
-                    v = query_string_value(xml_doc, proc_params[0])
+                    v = query_string_value(xml_doc, env, proc_params[0])
 
             else:
-                v = query_string_value(xml_doc, k)
+                v = query_string_value(xml_doc, env,k)
     
             if (v is None):
                 interm[base_idx+2] = ""

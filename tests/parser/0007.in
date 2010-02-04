@@ -1,0 +1,12 @@
+How about ifeq?
+
+Fish ${fn:ifeq("/top/fish", "soup")
+
+Fish = Soup
+And Fish = ${/top/fish}
+}
+
+Soup ${fn:ifeq("/top/fish", "fish")
+
+Fish = Fish
+}

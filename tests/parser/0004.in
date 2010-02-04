@@ -1,0 +1,3 @@
+Multiple parameters?
+
+Hello, I am ${fn:echo("a","b",c,d,"e,f")}.

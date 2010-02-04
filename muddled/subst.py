@@ -97,7 +97,7 @@ def subst_str(in_str, xml_doc, env):
     Functions can be called with:
     ${fn:NAME(ARGS) REST}
 
-    name can be: eq(query,value) - in which case REST is substituted.
+    name can be: ifeq(query,value) - in which case REST is substituted.
                  val(query)  - just looks up query.
 
     """
@@ -134,7 +134,7 @@ def subst_str(in_str, xml_doc, env):
                         trimmed = trimmed[1:-1]
                     proc_params.append(trimmed)
 
-                if (fn_name == "eq" and len(proc_params) == 2):
+                if (fn_name == "ifeq" and len(proc_params) == 2):
                     result = query_string_value(xml_doc, proc_params[0])
                     if (result.strip() == proc_params[1]):
                         v = rest

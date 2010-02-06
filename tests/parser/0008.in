@@ -1,0 +1,10 @@
+ifneq?
+
+Fish ${fn:ifneq("/top/fish","soup")
+
+Fish is not soup!
+}
+
+Soup: ${fn:ifneq("/tmp/fish","fish")
+Fish is not fish!
+}

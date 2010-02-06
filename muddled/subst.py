@@ -249,7 +249,9 @@ class TreeNode:
                 if (self.function == "val"):
                     self.fnval(xml_doc, env, output_list)
                 elif (self.function == "ifeq"):
-                    self.ifeq(xml_doc, env, output_list)
+                    self.ifeq(xml_doc, env, output_list, True)
+                elif (self.function == "ifneq"):
+                    self.ifeq(xml_doc,env,output_list, False)
                 elif (self.function == "echo"):
                     self.echo(xml_doc, env, output_list)
             else:
@@ -298,7 +300,7 @@ class TreeNode:
 
         output_list.append(res)
 
-    def ifeq(self, xml_doc, env, output_list):
+    def ifeq(self, xml_doc, env, output_list, polarity):
         # Must have two parameters ..
         if (len(self.params) != 2):
             raise utils.Failure("ifeq() must have two parameters")
@@ -311,8 +313,12 @@ class TreeNode:
         if (key_value is not None):
             key_value = key_value.strip()
 
-        if (key_value == value):
-            self.append_children(xml_doc, env, output_list)
+        if (polarity):
+            if (key_value == value):
+                self.append_children(xml_doc, env, output_list)
+        else:
+            if (key_value != value):
+                self.append_children(xml_doc, env, output_list)                
 
     def echo(self, xml_doc, env, output_list):
         # Just echo your parameters.

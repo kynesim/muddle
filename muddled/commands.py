@@ -292,36 +292,38 @@ class Depend(Command):
 
 class Query(Command):
     """
-    Syntax: query [env|rule|deps|results] [label]
+    Syntax: query root
+            query <cmd> <label>
 
-    Query aspects of a label - the environment in which it will execute, or
-    what it depends on, or what depends on it.
+    'query root' prints the root path and default domain
 
-    * env          - The environment in which this label will be run.
-    * preciseenv   - The environment pertaining to exactly this label (no fuzzy matches)
-    * rule         - The rules covering building this label.
-    * deps         - What we need to build to build this label
-    * results      - What this label is required to build
-    * instructions - The list of currently registered instruction files,
-                     in the order in which they will be applied.
-    * inst-details - The list of actual instructions, in the order in which
-                     they will be applied.
+    'query <cmd> <label>' prints information about the label - the environment
+    in which it will execute, or what it depends on, or what depends on it.
+    <cmd> may be any of:
+
     * checkouts    - Print a list of known checkouts.
-    * envs         - Print a list of the environments that will be merged to 
-                     create the resulting environment for this 
-    * objdir       - Print the object directory for a label - used to extract
-                     object directories for configure options in builds.
+    * deps         - Print what we need to build to build this label
     * dir          - Print a directory: for checkout labels, the checkout dir.
                      For package labels, the install dir. For deployment labels
                      the deployment dir.
-    * root         - Print the root path and default domain.
-    * targets      - The targets that would be built by an attempt to build
-                       this label.
+    * env          - Print the environment in which this label will be run.
+    * envs         - Print a list of the environments that will be merged to
+                     create the resulting environment for this 
+    * inst-details - Print the list of actual instructions, in the order in which
+                     they will be applied.
+    * instructions - Print the list of currently registered instruction files,
+                     in the order in which they will be applied.
+    * objdir       - Print the object directory for a label - used to extract
+                     object directories for configure options in builds.
+    * preciseenv   - Print the environment pertaining to exactly this label
+                     (no fuzzy matches)
+    * results      - Print what this label is required to build
+    * rule         - Print the rules covering building this label.
+    * targets      - Print the targets that would be built by an attempt to build
+                     this label.
 
-    Note that both instructions and inst-details are label-sensitive, so you
-    will want to supply a label like::
-        
-        package:*/myrole
+    The label needs to specify at least <type>:<name>/<tag> (although the
+    <name> and <tag> are often most useful when wildcarded).
     """
 
     def name(self):
@@ -330,111 +332,98 @@ class Query(Command):
     def requires_build_tree(self):
         return True
 
-    def with_build_tree(self, builder, local_pkgs, args):
-        if len(args) < 1:
-            print "Syntax: query <cmd> <label>"
-            print self.__doc__
-            return 2
+    def _query_objdir(self, builder, label):
+        print builder.invocation.package_obj_path(label.name, label.role, 
+                                                  domain = label.domain)
 
-        type = args[0]
+    def _query_preciseenv(self, builder, label):
+        the_env = builder.invocation.get_environment_for(label)
 
+        local_store = env_store.Store()
+        builder.set_default_variables(label, local_store)
+        local_store.merge(the_env)
 
-        if (type == "root"):
-            label = None
+        print "Environment for %s .. "%label
+        print local_store.get_setvars_script(builder, label, env_store.EnvLanguage.Sh)
+
+    def _query_envs(self, builder, label):
+        a_list = builder.invocation.list_environments_for(label)
+        
+        for (lvl, label, env) in a_list:
+            print "-- %s [ %d ] --\n%s\n"%(label, lvl, 
+                                            env.get_setvars_script
+                                            (builder, 
+                                             label,
+                                             env_store.EnvLanguage.Sh))
+        print "---"
+
+    def _query_env(self, builder, label):
+        the_env = builder.invocation.effective_environment_for(label)
+        print "Effective environment for %s .. "%label
+        print the_env.get_setvars_script(builder, label, env_store.EnvLanguage.Sh)
+
+    def _query_rule(self, builder, label):
+        local_rule = builder.invocation.ruleset.rule_for_target(label)
+        if (local_rule is None):
+            print "No ruleset for %s"%label
         else:
-            if len(args) != 2:
-                print "Syntax: query <cmd> <label>"
-                print self.__doc__
-                return 2
-            label = depend.label_from_string(args[1])
-            
-            if (label is None):
-                print "Putative label %s is not a valid label"%(args[1])
-                return 3
+            print "Rule set for %s .. "%label
+            print local_rule
 
-            if (label.domain is None):
-                label.domain = builder.get_default_domain()
+    def _query_targets(self, builder, label):
+        local_rules = builder.invocation.ruleset.targets_match(label, useMatch = True)
+        print "Targets that match %s .. "%(label)
+        for i in local_rules:
+            print "%s"%i
 
-            label = builder.invocation.apply_unifications(label)
+    def _query_deps(self, builder, label):
+        to_build = depend.needed_to_build(builder.invocation.ruleset, label, useMatch = True)
+        if (to_build is None):
+            print "No dependencies for %s"%label
+        else:
+            print "Build order for %s .. "%label
+            for rule in to_build:
+                print rule.target
 
-        if (type == "objdir"):
-            print builder.invocation.package_obj_path(label.name, label.role, 
-                                                      domain = label.domain)
-        elif (type == "preciseenv"):
-            the_env = builder.invocation.get_environment_for(label)
+    def _query_results(self, builder, label):
+        result = depend.required_by(builder.invocation.ruleset, label)
+        print "Labels which require %s to build .. "%label
+        for lbl in result:
+            print lbl
 
-            local_store = env_store.Store()
-            builder.set_default_variables(label, local_store)
-            local_store.merge(the_env)
+    def _query_instructions(self, builder, label):
+        result = builder.invocation.db.scan_instructions(label)
+        for (l, f) in result:
+            print "Label: %s  Filename: %s"%(l,f)
 
-            print "Environment for %s .. "%label
-            print local_store.get_setvars_script(builder, label, env_store.EnvLanguage.Sh)
-        elif (type == "envs"):
-            a_list = builder.invocation.list_environments_for(label)
-            
-            for (lvl, label, env) in a_list:
-                print "-- %s [ %d ] --\n%s\n"%(label, lvl, 
-                                                env.get_setvars_script
-                                                (builder, 
-                                                 label,
-                                                 env_store.EnvLanguage.Sh))
-            print "---"
-        elif (type == "env"):
-            the_env = builder.invocation.effective_environment_for(label)
-            print "Effective environment for %s .. "%label
-            print the_env.get_setvars_script(builder, label, env_store.EnvLanguage.Sh)
-        elif (type == "rule"):
-            local_rule = builder.invocation.ruleset.rule_for_target(label)
-            if (local_rule is None):
-                print "No ruleset for %s"%label
-            else:
-                print "Rule set for %s .. "%label
-                print local_rule
-        elif (type == "targets"):
-            local_rules = builder.invocation.ruleset.targets_match(label, useMatch = True)
-            print "Targets that match %s .. "%(label)
-            for i in local_rules:
-                print "%s"%i
-        elif (type == "deps"):
-            to_build = depend.needed_to_build(builder.invocation.ruleset, label, useMatch = True)
-            if (to_build is None):
-                print "No dependencies for %s"%label
-            else:
-                print "Build order for %s .. "%label
-                for rule in to_build:
-                    print rule.target
-        elif (type == "results"):
-            result = depend.required_by(builder.invocation.ruleset, label)
-            print "Labels which require %s to build .. "%label
-            for lbl in result:
-                print lbl
-        elif (type == "instructions"):
-            result = builder.invocation.db.scan_instructions(label)
-            for (l, f) in result:
-                print "Label: %s  Filename: %s"%(l,f)
-        elif (type == "inst-details"):
-            loaded = builder.load_instructions(label)
-            for (l, f, i) in loaded:
-                print " --- Label %s , filename %s --- "%(l, f)
-                print i.get_xml()
-            print "-- Done --"
-        elif (type == "checkouts"):
-            cos = builder.invocation.all_checkouts()
-            a_list = [ ]
-            for c in cos:
-                a_list.append(c)
-            a_list.sort()
-            print "Checkouts: %s"%(" ".join(a_list))
-        elif (type == "root"):
-            print "Root: %s"%builder.invocation.db.root_path
-            print "Default domain: %s"%builder.get_default_domain()
-        elif (type == "dir"):
+    def _query_inst_details(self, builder, label):
+        loaded = builder.load_instructions(label)
+        for (l, f, i) in loaded:
+            print " --- Label %s , filename %s --- "%(l, f)
+            print i.get_xml()
+        print "-- Done --"
+
+    def _query_checkouts(self, builder, label):
+        cos = builder.invocation.all_checkouts()
+        a_list = [ ]
+        for c in cos:
+            a_list.append(c)
+        a_list.sort()
+        print "Checkouts: %s"%(" ".join(a_list))
+
+    def _query_root(self, builder, label):
+        print "Root: %s"%builder.invocation.db.root_path
+        print "Default domain: %s"%builder.get_default_domain()
+
+
+    def _query_dir(self, builder, label):
             dir = None
 
             if (label.role == "*"):
                 role = None
             else:
                 role = label.role
+
 
             if label.type == utils.LabelKind.Checkout:
                 dir = builder.invocation.db.get_checkout_path(label.name,
@@ -451,10 +440,55 @@ class Query(Command):
             else:
                 print None
 
-        else:
-            print "Unrecognised command '%s'"%type
+    queries = {
+            'objdir' : _query_objdir,
+            'preciseenv' : _query_preciseenv,
+            'envs' : _query_envs,
+            'env' : _query_env,
+            'rule' : _query_rule,
+            'targets' : _query_targets,
+            'deps' : _query_deps,
+            'results' : _query_results,
+            'instructions' : _query_instructions,
+            'inst-details' : _query_inst_details,
+            'checkouts' : _query_checkouts,
+            'root' : _query_root,
+            'dir' : _query_dir,
+            }
+
+    def with_build_tree(self, builder, local_pkgs, args):
+        if len(args) < 1:
+            print "Syntax: query <cmd> <label>"
             print self.__doc__
             return 2
+
+        type = args[0]
+
+        if type not in Query.queries.keys():
+            print "Unrecognised query type '%s'"%type
+            print self.__doc__
+            return 2
+
+        if (type == "root"):
+            label = None
+        else:
+            if len(args) != 2:
+                print "Syntax: query %s <label>"%type
+                print self.__doc__
+                return 2
+
+            label = depend.label_from_string(args[1])
+            if (label is None):
+                print "'%s' is not a valid label"%(args[1])
+                print "It should contain at least <type>:<name>/<tag>"
+                return 3
+
+            if (label.domain is None):
+                label.domain = builder.get_default_domain()
+
+            label = builder.invocation.apply_unifications(label)
+
+        Query.queries[type](self, builder, label)
 
         return 0
 

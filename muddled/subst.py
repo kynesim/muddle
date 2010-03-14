@@ -276,6 +276,9 @@ class TreeNode:
         else:
             res = query_string_value(xml_doc, env, key_name)
 
+        if (res is None):
+            raise utils.Error("Attempt to substitute key '%s' which does not exist."%key_name)
+
         if (g_trace_parser):
             print "node.val(%s -> %s) = %s"%(self.expr, key_name, res)
 
@@ -294,6 +297,9 @@ class TreeNode:
             res =  ""
         else:
             res = query_string_value(xml_doc, env, key_name)
+
+        if (res is None):
+            raise utils.Error("Attempt to substitute key '%s' which does not exist."%key_name)
 
         if (g_trace_parser):
             print "node.fnval(%s -> %s) = %s"%(self.params[0], key_name, res)

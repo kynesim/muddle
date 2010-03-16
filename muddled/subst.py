@@ -333,7 +333,7 @@ class TreeNode:
 
 
 
-def parse_document(input_stream, node, end_chars):
+def parse_document(input_stream, node, end_chars, has_escapes):
     """
     Parse a document into a tree node.
     Ends with end_char (which may be -1)
@@ -378,7 +378,7 @@ def parse_document(input_stream, node, end_chars):
         if (state == 0):
             if (c == '$'):
                 state = 1
-            elif (c== '\\'):
+            elif (c== '\\' and has_escapes):
                 # Literal.
                 state = 3
             else:
@@ -414,7 +414,7 @@ def parse_document(input_stream, node, end_chars):
                 cur_str.append(c)
             state = 0
         elif (state == 3):
-            # Unescape
+            # Unescape.
             cur_str.append(c)
             state = 0
 
@@ -457,7 +457,7 @@ def parse_literal(input_stream, echars):
     Given a set of end chars, parse a literal.
     """
     dummy = TreeNode(TreeNode.ContainerType)
-    parse_document(input_stream, dummy, echars)
+    parse_document(input_stream, dummy, echars, True)
     return flatten_literal_node(dummy)
     
             
@@ -470,7 +470,7 @@ def parse_param(input_stream, node, echars):
     if (input_stream.peek() == '\"'):
         input_stream.next(); # Skip the quote.
         e2chars = set([ '"' ])
-        parse_document(input_stream, node, e2chars)
+        parse_document(input_stream, node, e2chars, True)
         # Skip the '"'
         input_stream.next()
         skip_whitespace(input_stream)
@@ -482,7 +482,7 @@ def parse_param(input_stream, node, echars):
             raise utils.Failure("Quoted parameter ends with invalid character %c - %s"%(c,
                                                                                         input_stream.report()))
     else:
-        parse_document(input_stream, node, echars)
+        parse_document(input_stream, node, echars, True)
 
 def parse_instruction(input_stream, node):
                      
@@ -514,7 +514,7 @@ def parse_instruction(input_stream, node):
         container = TreeNode(TreeNode.ContainerType)
         echars = set([ '"' ])
         old_report = input_stream.report() # In case we need it later..
-        parse_document(input_stream, container, echars)
+        parse_document(input_stream, container, echars, True)
         if (input_stream.next() != '"'):
             raise utils.Failure("Literal instruction @ %s never ends"%(old_report))
 
@@ -537,7 +537,7 @@ def parse_instruction(input_stream, node):
     result = TreeNode(TreeNode.InstructionType)
 
     echars = set([ ':', '}' ])
-    parse_document(input_stream, dummy, echars)
+    parse_document(input_stream, dummy, echars, True)
     c = input_stream.next()
     if (c == ':'):
         # Must have been a literal.
@@ -563,7 +563,7 @@ def parse_instruction(input_stream, node):
                         break
             # End of params.
             echars = set(['}'])
-            parse_document(input_stream, rest, echars)
+            parse_document(input_stream, rest, echars, True)
             result.set_fn(fn_name, params, rest)
         else:
             raise utils.Failure("Invalid designator in value: %s at %s"%(str, input_stream.report()))
@@ -600,7 +600,7 @@ def subst_str(in_str, xml_doc, env):
 
     top_node = TreeNode(TreeNode.ContainerType)
     stream = PushbackInputStream(in_str)
-    parse_document(stream, top_node, None)
+    parse_document(stream, top_node, None, False)
 
     output_list = []
     top_node.eval(xml_doc, env, output_list)

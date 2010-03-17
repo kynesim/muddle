@@ -217,14 +217,17 @@ def main(args):
             else:
                 builder = None    
         except muddled.utils.Failure as f:
+            print "Error trying to load build tree"
             print "%s"%f
             build_root = None
             failed_build_root = True
+            os.chdir(specified_root)        # 'cos it tends to have changed
         except muddled.utils.Error as e:
             print "Cannot find build tree - %s"%e
             traceback.print_exc()
             build_root = None
             failed_build_root = True
+            os.chdir(specified_root)        # 'cos it tends to have changed
         
         if (builder is None):
             # There is no build root here .. 

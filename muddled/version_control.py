@@ -30,6 +30,7 @@ class VersionControlHandler:
         self.checkout_dir = co_dir
         self.repository = repo
         self.revision = rev
+        self.relative = rel
 
     def path_in_checkout(self, rel):
         """
@@ -47,7 +48,11 @@ class VersionControlHandler:
         """
         return self.builder.invocation.checkout_path(self.checkout_name,
                                                      domain = self.builder.default_domain)
-        
+
+    def get_original_revision(self):
+        """Return the revision id the user originally asked for.
+        """
+        return self.revision
 
     def get_checkout_path(self, co_name):
         """
@@ -75,6 +80,11 @@ class VersionControlHandler:
     def pull(self):
         """
         Pull changes from the remote site into our repository
+
+        In a distributed VCS, make the local repository (and working copy)
+        a mirror of the remote repository.
+
+        In a centralised VCS like subversion, this does nothing.
         """
         pass
 
@@ -87,13 +97,21 @@ class VersionControlHandler:
 
     def commit(self):
         """
-        Commit any local changes
+        Commit any local changes.
+
+        In a distributed VCS, this commits the local changes to the local
+        repository.
+
+        In a centralised VCS, like subverson, this does not do anything.
         """
         pass
 
     def push(self):
         """
-        Push local changes to a remote repository
+        Push local changes to a remote repository.
+
+        (For a centralised VCS, like subversion, the underlying VCS will probably
+        call this operation "commit".)
         """
         pass
 
@@ -104,6 +122,41 @@ class VersionControlHandler:
         ones (git, bzr, hg).
         """
         raise utils.Failure("Attempt to call a base version of must_update_to_commit()")
+
+    def revision_to_checkout(self, force=False, verbose=False):
+        """
+        Determine a revision id for this checkout, usable to check it out again.
+
+        The revision id we want is that we could use to check out an identical
+        checkout.
+
+        If the local working set/repository/whatever appears to have been
+        altered from the remove repository, or otherwise does not yield a
+        satisfactory revision id (this is something only the subclass can
+        tell), then the method should raise utils.Failure, with as clear an
+        explanation of the problem as possible.
+
+        If 'force' is true, then if the revision cannot be determined, return
+        the orginal revision that was specified when the checkout was checked
+        out.
+
+            (Individual version control classes may opt to ignore the 'force'
+            argument, either because it is not useful in their context, or
+            because they can tell that the checkout is seriously
+            astray/broken.)
+
+        NB: If the VCS class does not override this method, then the default
+        implementation will raise a Failure unless 'force' is true, in which
+        case it will return the string '0'.
+        """
+        if force:
+            if verbose:
+                print "No way to determine a revision for" \
+                      " %s checkout %s"%(self.__class__.__name__,self.checkout_name)
+            return '0'
+        else:
+            raise utils.Failure("No way to determine a revision for"
+                    " %s checkout %s"%(self.__class__.__name__,self.checkout_name))
 
 class VersionControlHandlerFactory:
     """
@@ -277,6 +330,36 @@ def conventional_repo_path(rel):
     return rel_rest
 
 
+# This is a dictionary of VCS name to function-to-retrieve-a-file
+vcs_file_getter = {}
+
+def register_vcs_file_getter(scheme, getter):
+    """
+    Register a function for retrieving an indivual file.
+
+    'scheme' is the VCS (short) name. This should match the mnemonic used
+    at the start of URLs - so, e.g., "bzr" for "bzr+ssh://whatever".
+    
+    'getter' is the function. It should take one argument, the URL of the
+    file to retrieve, and return the file's content as a string.
+    """
+    vcs_file_getter[scheme] = getter
+
+def vcs_get_file_data(url):
+    """
+    Return the content of the file identified by the URL, via its VCS.
+
+    Looks at the first few characters of the URL to determine the VCS
+    to use - so, e.g., "bzr" for "bzr+ssh://whatever".
+
+    Returns a string (the content of the file).
+
+    Raises KeyError if the scheme is not one we have a registered file getter
+    for.
+    """
+    scheme, url = split_vcs_url(url)
+    getter = vcs_file_getter[scheme]
+    return getter(url)
 
 # End file.
 

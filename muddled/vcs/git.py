@@ -33,6 +33,9 @@ class Git(VersionControlHandler):
             self.revision = m.group(2)
             # No need to adjust HEAD - git uses it too.
 
+    def get_original_revision(self):
+        # Is it acceptable to return the inferred branch "master"?
+        return "%s:%s"%(self.branch, self.revision)
 
     def path_in_checkout(self, rel):
         return conventional_repo_path(rel)
@@ -70,6 +73,48 @@ class Git(VersionControlHandler):
     def must_update_to_commit(self):
         return False
 
+    def revision_to_checkout(self, force=False, verbose=False):
+        """
+        Determine a revision id for this checkout, usable to check it out again.
+
+        ...
+        """
+        # Later versions of git allow one to give a '--short' switch to
+        # 'git status', which would probably do what I want - but the
+        # version of git in Ubuntu 9.10 doesn't have that switch. So
+        # we're reduced to looking for particular strings - and the git
+        # documentation says that the "long" texts are allowed to change
+
+        # NB: this is actually a broken solution to a broken problem, as
+        # our git support is probably not terribly well designed.
+
+        os.chdir(self.co_path)
+        retcode, text, ignore = utils.get_cmd_data('git status -q', fail_nonzero=False)
+        text = text.strip()
+        if text != '# On branch master\nnothing to commit (working directory clean)':
+            raise utils.Failure("%s\n%s"%(utils.wrap("'git status' suggests"
+                " checkout '%s' does not match master:"%self.checkout_name),
+                utils.indent(text,'    ')))
+
+        retcode, revision, ignore = utils.get_cmd_data('git describe --long',
+                                                       fail_nonzero=False)
+        if retcode:
+            if text:
+                text = utils.indent(revision.strip(),'    ')
+                if force:
+                    if verbose:
+                        print "'git describe --long' had problems with checkout" \
+                              " '%s'"%self.checkout_name
+                        print "    %s"%text
+                        print "using original revision %s"%self.get_original_revision()
+                    return self.get_original_revision()
+            else:
+                text = '    (it failed with return code %d)'%retcode
+            raise utils.Failure("%s\n%s"%(utils.wrap("'git describe --long'"
+                " could not determine a revision id for checkout '%s':"%self.checkout_name),
+                text))
+        revision = revision.strip()
+        return revision
 
 class GitVCSFactory(VersionControlHandlerFactory):
     def describe(self):
@@ -82,10 +127,3 @@ class GitVCSFactory(VersionControlHandlerFactory):
 register_vcs_handler("git", GitVCSFactory())
 
 # End file.
-
-    
-                         
-
-        
-        
-        

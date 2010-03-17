@@ -18,7 +18,6 @@ class Svn(VersionControlHandler):
 
         self.co_path = self.get_checkout_path(self.checkout_name)
         self.my_path = self.get_my_absolute_checkout_path()
-        self.rev = rev
 
     def path_in_checkout(self, rel):
         return conventional_repo_path(rel)
@@ -27,7 +26,8 @@ class Svn(VersionControlHandler):
         co_path = self.get_checkout_path(None)
         utils.ensure_dir(co_path)
         os.chdir(co_path)
-        utils.run_cmd("svn co %s %s %s"%(self.r_option(), self.svn_repo, self.checkout_name))
+        utils.run_cmd("svn checkout %s %s %s"%(self.r_option(),
+                      self.svn_repo, self.checkout_name))
         
     def pull(self):
         # This is a centralised VCS - there is no pull.
@@ -58,6 +58,23 @@ class Svn(VersionControlHandler):
         else:
             return "-r %s"%(self.revision)
 
+    def revision_to_checkout(self, force=False, verbose=False):
+        """
+        Determine a revision id for this checkout, usable to check it out again.
+
+        Uses 'svnversion', which I believe is installed as standard with 'svn'
+
+        For the moment, at lease, the 'force' argument is ignored (so the
+        working copy must be be equivalent to the repository).
+        """
+        os.chdir(self.my_path)
+        retcode, revision, ignore = utils.get_cmd_data('svnversion')
+        revision = revision.strip()
+        if all([x.isdigit() for x in revision]):
+            return revision
+        else:
+            raise utils.Failure("'svnversion' reports checkout '%s' has revision"
+                    " '%s'"%(self.checkout_name,revision))
 
 
 class SvnVCSFactory(VersionControlHandlerFactory):
@@ -69,6 +86,17 @@ class SvnVCSFactory(VersionControlHandlerFactory):
 
 # Register us with the VCS handler factory
 register_vcs_handler("svn", SvnVCSFactory())
+
+def svn_file_getter(url):
+    """Retrieve a file's content via Subversion.
+    """
+    retcode, text, ignore = utils.get_cmd_data('svn cat %s'%url,
+                                                fold_stderr=False)
+    return text
+
+register_vcs_file_getter('svn', svn_file_getter)
+
+
 
 # End file.
 

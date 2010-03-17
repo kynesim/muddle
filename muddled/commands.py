@@ -16,23 +16,28 @@ case your programs want to run them themselves
 # XXX somewhat more markup would make the generated documentation better
 # XXX (and more consistent with other muddled modules).
 
-import mechanics
 from db import Database
 import db
-import instr
-import utils
-import test
 import depend
-import version_control
 import env_store
+import instr
+import mechanics
+import pkg
+import test
+import utils
+import version_control
+
 import re
 import traceback
 import os
-import os.path
 import xml.dom.minidom
 import subst
 import subprocess
 import sys
+import urllib
+from urlparse import urlparse
+from ConfigParser import RawConfigParser
+
 
 class Command:
     """
@@ -94,18 +99,18 @@ class Command:
         """
         Run this command with a build tree.
         """
-        raise utils.Error("Can't run %s with a build tree."%self.name)
+        raise utils.Error("Can't run %s with a build tree."%self.name())
 
     def without_build_tree(self, muddle_binary, root_path, args):
         """
         Run this command without a build tree.
         """
-        raise utils.Error("Can't run %s without a build tree."%self.name)
+        raise utils.Error("Can't run %s without a build tree."%self.name())
         
 
 class Root(Command):
     """
-    Syntax: root
+    :Syntax: root
 
     Display the root directory we reckon you're in.
     """
@@ -125,11 +130,10 @@ class Root(Command):
 
 class Init(Command):
     """
-    Syntax: init [repo] [build_desc]
+    :Syntax: init <repository> <build_description>
 
-    Initialise a new build tree with a given repository and
-    build description. We check out the build description but
-    don't actually build.
+    Initialise a new build tree with a given repository and build description.
+    We check out the build description but don't actually build.
     """
 
     def name(self): 
@@ -173,7 +177,7 @@ class Init(Command):
 
 class UnitTest(Command):
     """
-    Syntax: unit_test
+    :Syntax: unit_test
 
     Run the muddle unit tests.
     """
@@ -195,9 +199,9 @@ class UnitTest(Command):
 
 class ListVCS(Command):
     """
-    Syntax: vcs
+    :Syntax: vcs
 
-    List the version control systems supported by this version of muddle
+    List the version control systems supported by this version of muddle,
     together with their VCS specifiers.
     """
 
@@ -224,20 +228,25 @@ class ListVCS(Command):
 
 class Depend(Command):
     """
-    Syntax: depend <[system|user|all]>
-            depend <[system|user|all]>   [label]
+    :Syntax: depend <what>
+    :or:     depend <what> <label>
 
     Print the current dependency sets. Not specifying a label is the same as
     specifying "_all".
 
-    * depend system - Prints only synthetic dependencies produced by the system.
-    * depend user   - Prints only dependencies entered by the build description
-    * depend all    - Prints all dependencies
+    In order to show all dependency sets, even those where a given label does
+    not actually depend on anything, <what> can be:
 
-    By default, all dependency sets are shown, even those where a given label
-    does not actually depend on anything. To show only those dependencies where
-    there *is* a dependency, add '-short' to the "system", "user" or "all" - for
-    instance: 'depend user-short'
+    * system       - Print synthetic dependencies produced by the system
+    * user         - Print dependencies entered by the build description
+    * all          - Print all dependencies
+
+    To show only those dependencies where there *is* a dependency, add '-short'
+    to <what>, i.e.:
+
+    * system-short - Print synthetic dependencies produced by the system
+    * user-short   - Print dependencies entered by the build description
+    * all-short    - Print all dependencies
     """
     
     def name(self):
@@ -254,7 +263,7 @@ class Depend(Command):
 
     def with_build_tree(self, builder, local_pkgs, args):
         if len(args) != 1 and len(args) != 2:
-            print "Syntax: depend <[system|user|all]> <[label to match]>"
+            print "Syntax: depend [system|user|all][-short] <label to match>"
             print self.__doc__
             return 2
         
@@ -292,8 +301,8 @@ class Depend(Command):
 
 class Query(Command):
     """
-    Syntax: query root
-            query <cmd> <label>
+    :Syntax: query root
+    :or:     query <cmd> <label>
 
     'query root' prints the root path and default domain
 
@@ -495,14 +504,14 @@ class Query(Command):
 
 class RunIn(Command):
     """
-    Syntax: runin [label] [command .. ]
+    :Syntax: runin <label> <command> [ ... ]
 
-    Run [command..] in the directory corresponding to every label matching
-    [label].
+    Run the command "<command> [ ...]" in the directory corresponding to every
+    label matching <label>.
 
-    Checkout labels are run in the directory corresponding to their checkout.
-    Package labels are run in the directory corresponding to their object files.
-    Deployment labels are run in the directory corresponding to their deployments.
+    * Checkout labels are run in the directory corresponding to their checkout.
+    * Package labels are run in the directory corresponding to their object files.
+    * Deployment labels are run in the directory corresponding to their deployments.
 
     We only ever run the command in any directory once.
     """
@@ -515,7 +524,7 @@ class RunIn(Command):
 
     def with_build_tree(self, builder, local_pkgs, args):
         if (len(args) < 2):
-            print "Syntax: runin [label] [command .. ]"
+            print "Syntax: runin <label> <command> [ ... ]"
             print self.__doc__
             return 2
 
@@ -568,13 +577,13 @@ class RunIn(Command):
 
 class BuildLabel(Command):
     """
-    Syntax: buildlabel [labels ... ]
+    :Syntax: buildlabel <label> [ <label> ... ]
 
-    Builds a set of specified labels, without all the defaulting
-    and trying to guess what you mean that Build does.
+    Builds a set of specified labels, without all the defaulting and trying to
+    guess what you mean that Build does.
     
-    Mainly used internally to build defaults and the privileged
-    half of instruction executions.
+    Mainly used internally to build defaults and the privileged half of
+    instruction executions.
     """
     
     def name(self):
@@ -589,15 +598,15 @@ class BuildLabel(Command):
 
 class Redeploy(Command):
     """
-    Syntax: redeploy [deployment ... ]
+    :Syntax: redeploy <deployment> [<deployment> ... ]
 
-    Remove all tags for the given deployments, erase their built
-    directories and redeploy them.
+    Remove all tags for the given deployments, erase their built directories
+    and redeploy them.
 
     You can use cleandeploy to just clean the relevant deployments.
 
-    If no deployments are given, we redeploy the default deployment
-    list. If _all is given, we redeploy all deployments.
+    If no deployments are given, we redeploy the default deployment list.
+    If _all is given, we redeploy all deployments.
     """
     
     def name(self):
@@ -617,15 +626,15 @@ class Redeploy(Command):
 
 class Cleandeploy(Command):
     """
-    Syntax: cleandeploy [deployment ... ]
+    :Syntax: cleandeploy <deployment> [<deployment> ... ]
 
     Remove all tags for the given deployments and erase their built
     directories.
 
     You can use cleandeploy to just clean the relevant deployments.
 
-    If no deployments are given, we redeploy the default deployment
-    list. If _all is given, we redeploy all deployments.
+    If no deployments are given, we redeploy the default deployment list.
+    If _all is given, we redeploy all deployments.
     """
     
     def name(self):
@@ -644,7 +653,7 @@ class Cleandeploy(Command):
 
 class Deploy(Command):
     """
-    Syntax: deploy [deployment ... ]
+    :Syntax: deploy <deployment> [<deployment> ... ]
 
     Build appropriate tags for deploying the given deployments.
 
@@ -667,7 +676,7 @@ class Deploy(Command):
 
 class Build(Command):
     """
-    Syntax: build [package{role}] [package{role}]
+    :Syntax: build [ <package>{<role>} ... ]
     
     Build a package. If the package name isn't given, we'll use the
     list of local packages derived from your current directory.
@@ -696,7 +705,7 @@ class Build(Command):
 
 class Rebuild(Command):
     """
-    Syntax: rebuild [package{role}] [package{role}]
+    :Syntax: rebuild [ <package>{<role>} ... ]
 
     Just like build except that we clear any built tags first 
     (and their dependencies).
@@ -726,7 +735,7 @@ class Rebuild(Command):
 
 class Reinstall(Command):
     """
-    Syntax: reinstall [package{role}] [package{role}]
+    :Syntax: reinstall [ <package>{<role>} ... ]
 
     Reinstall the given packages (but don't rebuild them).
     """
@@ -756,7 +765,7 @@ class Reinstall(Command):
 
 class Distrebuild(Command):
     """
-    Syntax: distrebuild [package{role}] [package{role}]
+    :Syntax: distrebuild [ <package>{<role>} ... ]
 
     A rebuild that does a distclean before attempting the rebuild.
     """
@@ -786,7 +795,7 @@ class Distrebuild(Command):
 
 class Clean(Command):
     """
-    Syntax: clean [package{role}] ...
+    :Syntax: clean [ <package>{<role>} ... ]
     
     Just like build except that we clean packages rather than 
     building them. Subsequently, packages are regarded as having
@@ -812,7 +821,7 @@ class Clean(Command):
 
 class DistClean(Command):
     """
-    Syntax: distclean [package{role}] ...
+    :Syntax: distclean [ <package>{<role>} ... ]
 
     Just like clean except that we reduce packages to non-preconfigured
     and invoke 'make distclean'.
@@ -838,9 +847,8 @@ class DistClean(Command):
 
 class Instruct(Command):
     """
-    Syntax: instruct [pkg{role}] <[instruction-file]>
-
-        or: instruct [(domain)pkg{role}] <[instruction-file]>
+    :Syntax: instruct <package>{<role>} <instruction-file>
+    :or:     instruct (<domain>)<package>{<role>} <instruction-file>
 
     Sets the instruction file for the given package name and role to 
     the file specified in instruction-file. The role must be explicitly
@@ -849,7 +857,7 @@ class Instruct(Command):
     
     This command is typically issued by 'make install' for a package, as::
 
-       $(MUDDLE_INSTRUCT) [instruction-file]
+       $(MUDDLE_INSTRUCT) <instruction-file>
     
     If you don't specify an instruction file, we will unregister instructions
     for this package and role.
@@ -911,7 +919,7 @@ class Instruct(Command):
                                     
 class Update(Command):
     """
-    Syntax: update [checkouts]
+    :Syntax: update <checkout> [ <checkout> ... ]
 
     Update the specified checkouts.
     """
@@ -936,7 +944,7 @@ class Update(Command):
 
 class Commit(Command):
     """
-    Syntax: commit [checkouts]
+    :Syntax: commit <checkout> [ <checkout> ... ]
 
     Commit the specified checkouts.
 
@@ -968,7 +976,7 @@ class Commit(Command):
 
 class Push(Command):
     """
-    Syntax: push [checkouts]
+    :Syntax: push <checkout> [ <checkout> ... ]
 
     Push the specified packages.
 
@@ -1001,7 +1009,7 @@ class Push(Command):
 
 class Pull(Command):
     """
-    Syntax: pull [checkouts]
+    :Syntax: pull <checkout> [ <checkout> ... ]
 
     Pull the specified packages.
 
@@ -1033,7 +1041,7 @@ class Pull(Command):
 
 class PkgUpdate(Command):
     """
-    Syntax: pkg-update [checkouts]
+    :Syntax: pkg-update <checkout> [ <checkout> ... ]
 
     Update the specified packages.
     """
@@ -1058,7 +1066,7 @@ class PkgUpdate(Command):
 
 class PkgCommit(Command):
     """
-    Syntax: dep-commit [checkouts]
+    :Syntax: dep-commit <checkout> [ <checkout> ... ]
 
     Commit the specified checkouts.
 
@@ -1086,7 +1094,7 @@ class PkgCommit(Command):
 
 class PkgPush(Command):
     """
-    Syntax: pkg-push [checkouts]
+    :Syntax: pkg-push <checkout> [ <checkout> ... ]
 
     Push the specified packages.
 
@@ -1113,7 +1121,7 @@ class PkgPush(Command):
 
 class Removed(Command):
     """
-    Syntax: removed [checkout ... ]
+    :Syntax: removed <checkout> [ <checkout> ... ]
 
     Signal to muddle that the given checkouts have been removed and will
     need to be checked out again before they can be used.
@@ -1140,7 +1148,7 @@ class Removed(Command):
 
 class Unimport(Command):
     """
-    Syntax: unimport [checkout .. ]
+    :Syntax: unimport <checkout> [ <checkout> ... ]
 
     Assert that the given checkouts haven't been checked out and must therefore
     be checked out.
@@ -1166,7 +1174,7 @@ class Unimport(Command):
 
 class Import(Command):
     """
-    Syntax: import [checkout ... ]
+    :Syntax: import <checkout> [ <checkout> ... ]
 
     Assert that the given checkout (which may be the builds checkout) has
     been checked out and is up to date. This is mainly used when you've just
@@ -1201,7 +1209,7 @@ class Import(Command):
 
 class Assert(Command):
     """
-    Syntax: assert [label ... ]
+    :Syntax: assert <label> [ <label> ... ]
 
     Assert the given labels. Mostly for use by experts and scripts.
     """
@@ -1227,7 +1235,7 @@ class Assert(Command):
 
 class Retract(Command):
     """
-    Syntax: retract [label ... ]
+    :Syntax: retract <label> [ <label> ... ]
 
     Retract the given labels and their consequents. 
     Mostly for use by experts and scripts.
@@ -1254,7 +1262,7 @@ class Retract(Command):
 
 class Changed(Command):
     """
-    Syntax: changed [pkg ... ]
+    :Syntax: changed <package> [ <package> ... ]
 
     Mark packages as having been changed so that they will later
     be rebuilt by anything that needs to. The usual package name
@@ -1283,7 +1291,7 @@ class Changed(Command):
 
 class Env(Command):
     """
-    Syntax: env [language] [mode] [name] [label.. ]
+    :Syntax: env <language> <mode> <name> <label> [ <label> ... ]
     
     Produce a setenv script in the requested language listing all the
     runtime environment variables bound to label.
@@ -1346,7 +1354,7 @@ class Env(Command):
     
 class UnCheckout(Command):
     """
-    Syntax: uncheckout [checkouts]
+    :Syntax: uncheckout <checkout> [ <checkout> ... ]
 
     Tells muddle that the given checkouts no longer exist in the src directory
     and should be pulled from version control again.
@@ -1370,9 +1378,11 @@ class UnCheckout(Command):
 
 class Checkout(Command):
     """
-    Syntax: checkout [checkouts]
+    :Syntax: checkout <checkout> [ <checkout> ... ]
 
     Checks out the given series of checkouts.
+
+    'checkout _all' means checkout all checkouts.
     """
     
     def name(self):
@@ -1392,14 +1402,14 @@ class Checkout(Command):
 
 class CopyWithout(Command):
     """
-    Syntax: copywithout [src] [dst] [without ... ]
+    :Syntax: copywithout <src> <dst> [ <without> ... ]
 
     Many VCSs use '.XXX' directories to hold metadata. When installing
     files in a makefile, it's often useful to have an operation which
     copies a heirarchy from one place to another without these dotfiles.
 
     This is that operation. We copy everything from src into dst without
-    copying anything which is in [without ... ].  If you omit without, 
+    copying anything which is in [ <without> ... ].  If you omit without, 
     we just copy - this is a useful, working, version of 'cp -a'
     """
     
@@ -1432,7 +1442,7 @@ class CopyWithout(Command):
 
 class Retry(Command):
     """
-    Syntax: retry [labels ..]
+    :Syntax: retry <label> [ <label> ... ]
 
     Removes just the labels in question and then tries to build them.
     Useful when you're messing about with package rebuild rules.
@@ -1460,7 +1470,7 @@ class Retry(Command):
 
 class Subst(Command):
     """
-    Syntax: subst [src file] [xml file] [dst file]
+    :Syntax: subst <src_file> <xml_file> <dst_file>
 
     Substitute (with ${.. }) src file into dst file using data from
     the environment or from the given xml file. 
@@ -1492,6 +1502,456 @@ class Subst(Command):
 
         subst.subst_file(src, dst, xml_doc, self.old_env)
         return 0
+
+class Stamp(Command):
+    """
+    :Syntax: stamp [<file>]
+    :or:     stamp force [<file>]
+    :or:     stamp force head [<file>]
+
+    Go through each checkout, and save its remote repository and current
+    revision id/number to a file.
+
+    If <file> is not given, then a name of the form <sha1-hash>.stamp will be
+    used, where <sha1-hash> is a hexstring representation of the hash of the
+    content of the file.
+
+    This is intended to be enough information to allow reconstruction of all of
+    the checkouts.
+
+    If a checkout has local changes that have not been committed, or needs to
+    be synchronised with the remote repository (in other words, if the currrent
+    state of the checkout is not retrievable from the information we're
+    gathering) then complain, and ??? store what information we can or give up?
+
+    However, if the 'force' option is given, then:
+    
+    1. If it is just 'force', then if the checkout revision cannot be
+       determined, then that used for the original checkout will be used.
+    2. If it is 'force head', then for all of the revisions, just assume that
+       "HEAD" is wanted (i.e., ignore the actual revision)
+    """
+    
+    def name(self):
+        return "stamp"
+
+    def requires_build_tree(self):
+        return True
+
+    def with_build_tree(self, builder, local_pkgs, args):
+        force = False
+        force_head = False
+        filename = None
+
+        if args:
+            if len(args) == 1:
+                if args[0] == 'force':
+                    print 'Forcing revision ids when necessary/possible'
+                    force = True
+                else:
+                    filename = args[0]
+            elif len(args) == 2:
+                if args[0] == 'force':
+                    force = True
+                    if args[1] == 'head':
+                        print 'Using HEAD for all checkouts'
+                        force_head = True
+                    else:
+                        print 'Forcing revision ids when necessary/possible'
+                        filename = args[1]
+                else:
+                    print "Unexpected '%s'"%(" ".join(args))
+                    print self.__doc__
+                    return 2
+            elif len(args) == 3 and args[0] == 'force' and args[1] == 'head':
+                print 'Using HEAD for all checkouts'
+                force = True
+                force_head = True
+                filename = args[2]
+            else:
+                print "Unexpected '%s'"%(" ".join(args))
+                print self.__doc__
+                return 2
+
+        # Some of the following operations may change directory, so
+        start_dir = os.getcwd()
+
+        print 'Finding all checkouts...',
+        checkout_rules = list(builder.invocation.all_checkout_rules())
+        print 'found %d'%len(checkout_rules)
+
+        revisions = {}
+        problems = []
+        domains = set()
+        checkout_rules.sort()
+        for rule in checkout_rules:
+            try:
+                label = rule.target
+                try:
+                    vcs = rule.obj.vcs
+                except AttributeError:
+                    problems.append("Rule for label '%s' has no VCS"%(label))
+                    print problems[-1]
+                    continue
+                print "%s checkout '%s'"%(vcs.__class__.__name__,
+                                          '(%s)%s'%(label.domain,label.name) if label.domain
+                                          else label.name)
+                if label.domain:
+                    domain_name = label.domain
+                    domain_repo, domain_desc = builder.invocation.db.get_subdomain_info(domain_name)
+                    domains.add((domain_name, domain_repo, domain_desc))
+
+                if force_head:
+                    print 'Forcing head'
+                    rev = "HEAD"
+                else:
+                    rev = vcs.revision_to_checkout(force=force, verbose=True)
+                revisions[label] = (vcs.repository, vcs.checkout_dir, rev, vcs.relative)
+            except utils.Failure as exc:
+                print exc
+                problems.append(exc)
+
+        if domains:
+            print 'Found domains:',domains
+
+        if len(revisions) != len(checkout_rules):
+            print
+            print 'Unable to work out revision ids for all the checkouts'
+            if revisions:
+                print '- although we did work out %d of %s'%(len(revisions),
+                        len(checkout_rules))
+            if problems:
+                print 'Problems were:'
+                for item in problems:
+                    text = str(item)
+                    text = text.split('\n')[0]
+                    if len(text) > 78:
+                        text = text[:75]+'...'
+                    print '* %s'%text
+
+        # Make sure we're where the user thinks we are, since some of the
+        # muddle mechanisms change directory under our feet
+        os.chdir(start_dir)
+        if not self.no_op():
+            if filename:
+                given_filename = True
+            else:
+                given_filename = False
+                filename = 'working.stamp'
+
+            print 'Writing to',filename
+            with utils.HashFile(filename,'w') as fd:
+                self.write_rev_data(revisions, fd,
+                                    root_repo=builder.invocation.db.repo.get(),
+                                    root_desc=builder.invocation.db.build_desc.get(),
+                                    domains=domains)
+            print 'Wrote revision data to %s'%filename
+            print 'File has SHA1 hash %s'%fd.hash()
+
+            if not given_filename:
+                final_name = '%s.stamp'%fd.hash()
+                print 'Renaming %s to %s'%(filename, final_name)
+                os.rename(filename, final_name)
+
+    def write_rev_data(self, revisions, fd, root_repo=None, root_desc=None, domains=None):
+        from ConfigParser import RawConfigParser
+
+        # The following makes sure we write the [ROOT] out first, otherwise
+        # things will come out in some random order (because that's how a
+        # dictionary works, and that's what its using)
+        config = RawConfigParser()
+        config.add_section("ROOT")
+        config.set("ROOT", "repository", root_repo)
+        config.set("ROOT", "description", root_desc)
+        config.write(fd)
+
+        if domains:
+            config = RawConfigParser()
+            for domain_name, domain_repo, domain_desc in domains:
+                section = "DOMAIN %s"%domain_name
+                config.add_section(section)
+                config.set(section, "name", domain_name)
+                config.set(section, "repository", domain_repo)
+                config.set(section, "description", domain_desc)
+            config.write(fd)
+
+        config = RawConfigParser()
+        for label, (repo, dir, rev, rel) in revisions.items():
+            if label.domain:
+                section = 'CHECKOUT (%s)%s'%(label.domain,label.name)
+            else:
+                section = 'CHECKOUT %s'%label.name
+            config.add_section(section)
+            if label.domain:
+                config.set(section, "domain", label.domain)
+            config.set(section, "name", label.name)
+            config.set(section, "repository", repo)
+            config.set(section, "revision", rev)
+            if rel:
+                config.set(section, "relative", rel)
+            if dir:
+                config.set(section, "directory", dir)
+        config.write(fd)
+
+
+class UnStamp(Command):
+    """
+    :Syntax: unstamp <file>
+    :or:     unstamp <url>
+    :or:     unstamp <vcs>+<url>
+
+    The "unstamp" command reads the contents of a "stamp" file, as produced by
+    the "muddle stamp" command, and:
+
+    1. Retrieves each checkout mentioned
+    2. Reconstructs the corresponding muddle directory structure
+    3. Confirms that the muddle build description is compatible with
+       the checkouts.
+
+
+    The file may be specified as:
+
+    * The local path to a stamp file.
+
+      For instance::
+
+          muddle stamp thing.stamp
+          mkdir /tmp/thing
+          cp thing.stamp /tmp/thing
+          cd /tmp/thing
+          muddle unstamp thing.stamp
+
+    * The URL for a stamp file. In this case, the file will first be copied to
+      the current directory.
+
+      For instance::
+
+          muddle unstamp http://some.url/some/path/thing.stamp
+
+      which would first copy "thing.stamp" to the current directory, and then
+      use it. If the file already exists, it will be overwritten.
+
+    * The "revision control specific" URL for a stamp file. This names the
+      VCS to use as part of the URL - for instance::
+
+          muddle unstamp bzr+ssh://kynesim.co.uk/repo/thing.stamp
+
+      This also copies the stamp file to the current directory before using it.
+      Note that not all VCS mechanisms support this (at time of writing, muddle's
+      git support does not). If the file already exists, it will be overwritten.
+    """
+    
+    def name(self):
+        return "unstamp"
+
+    def requires_build_tree(self):
+        return False
+
+    def without_build_tree(self, muddle_binary, root_path, args):
+        if len(args) != 1:
+            print 'Syntax: unstamp <file>|<url>'
+            return 2
+
+        # Strongly assume the user wants us to work in the current directory
+        current_dir = os.getcwd()
+
+        # In an ideal world, we'd only be called if there really was no muddle
+        # build tree. However, in practice, the top-level script may call us
+        # because it can't find an *intact* build tree. So it's up to us to
+        # know that we want to be a bit more careful...
+        dir, domain = utils.find_root(current_dir)
+        if dir:
+            print
+            print 'Found a .muddle directory in %s'%dir
+            if dir == current_dir:
+                print '(which is the current directory)'
+            else:
+                print 'The current directory is     %s'%current_dir
+            print
+            got_src = os.path.exists(os.path.join(dir,'src'))
+            got_dom = os.path.exists(os.path.join(dir,'domains'))
+            if got_src or got_dom:
+                extra = ', and also the '
+                if got_src: extra += '"src/"'
+                if got_src and got_dom: extra += ' and '
+                if got_dom: extra += '"domains/"'
+                if got_src and got_dom:
+                    extra += ' directories '
+                else:
+                    extra += ' directory '
+                extra += 'alongside it'
+            else:
+                extra = ''
+            print utils.wrap('This presumably means that the current directory is'
+                             ' inside a broken or partial build. Please fix this'
+                             ' (e.g., by deleting the ".muddle/" directory%s)'
+                             ' before retrying the "unstamp" command.'%extra)
+            return 4
+
+        thing = args[0]
+        data = None
+
+        # So what is our "thing"?
+        vcs_name, just_url = version_control.split_vcs_url(thing)
+        if vcs_name:
+            print 'Retrieving %s'%thing
+            data = version_control.vcs_get_file_data(thing)
+            # We could do various things here, but it actually seems like
+            # quite a good idea to store the data *as a file*, so the user
+            # can do stuff with it, if necessary (and as an audit trail of
+            # sorts)
+            parts = urlparse(thing)
+            path, filename = os.path.split(parts.path)
+            print 'Saving data as %s'%filename
+            with open(filename,'w') as fd:
+                fd.write(data)
+        elif os.path.exists(thing):
+            filename = thing
+        else:
+            # Hmm - maybe a plain old URL
+            parts = urlparse(thing)
+            path, filename = os.path.split(parts.path)
+            print 'Saving data as %s'%filename
+            data = urllib.urlretrieve(thing, filename)
+
+        repo_location, build_desc, domains, checkouts = self.read_file(filename)
+
+        if self.no_op():
+            return
+
+        builder = mechanics.minimal_build_tree(muddle_binary, current_dir,
+                                               repo_location, build_desc)
+
+        self.restore_stamp(builder, root_path, domains, checkouts)
+
+        # Once we've checked everything out, we should ideally check
+        # if the build description matches what we've checked out...
+        return self.check_build(current_dir, checkouts, builder, muddle_binary)
+
+    def read_file(self, filename):
+        """
+        Read the stamp file, and return its data
+
+        Returns (repo_location, build_desc, domains, checkouts)
+        """
+        print 'Reading stamp file %s'%filename
+        fd = utils.HashFile(filename)
+
+        config = RawConfigParser()
+        config.readfp(fd)
+
+        repo_location = config.get("ROOT", "repository")
+        build_desc = config.get("ROOT", "description")
+
+        domains = []
+        checkouts = []
+        sections = config.sections()
+        sections.remove("ROOT")
+        for section in sections:
+            if section.startswith("DOMAIN"):
+                domain_name = config.get(section, 'name')
+                domain_repo = config.get(section, 'repository')
+                domain_desc = config.get(section, 'description')
+                domains.append((domain_name, domain_repo, domain_desc))
+            elif section.startswith("CHECKOUT"):
+                name = config.get(section, 'name')
+                repo = config.get(section, 'repository')
+                rev = config.get(section, 'revision')
+                if config.has_option(section, "relative"):
+                    rel = config.get(section, 'relative')
+                else:
+                    rel = None
+                if config.has_option(section, "directory"):
+                    dir = config.get(section, 'directory')
+                else:
+                    dir = None
+                if config.has_option(section, "domain"):
+                    domain = config.get(section, 'domain')
+                else:
+                    domain = None
+                checkouts.append((name, repo, rev, rel, dir, domain))
+            else:
+                print 'Ignoring configuration section [%s]'%section
+
+        print 'File has SHA1 hash %s'%fd.hash()
+        return repo_location, build_desc, domains, checkouts
+
+    def restore_stamp(self, builder, root_path, domains, checkouts):
+        """
+        Given the information from our stamp file, restore things.
+        """
+        for domain_name, domain_repo, domain_desc in domains:
+            print "Adding domain %s"%domain_name
+
+            domain_root_path = os.path.join(root_path, 'domains', domain_name)
+            os.makedirs(domain_root_path)
+
+            domain_builder = mechanics.minimal_build_tree(muddle_binary,
+                                                          domain_root_path,
+                                                          domain_repo, domain_desc)
+
+            # Tell the domain's builder that it *is* a domain
+            domain_builder.invocation.mark_domain(domain_name)
+
+        checkouts.sort()
+        for name, repo, rev, rel, dir, domain in checkouts:
+            if domain:
+                print "Unstamping checkout (%s)%s"%(domain,name)
+            else:
+                print "Unstamping checkout %s"%name
+            # So try registering this as a normal build, in our nascent
+            # build system
+            vcs_handler = version_control.vcs_handler_for(builder, name,  repo,
+                                                          rev, rel, dir)
+            vcs = pkg.VcsCheckoutBuilder(name, vcs_handler)
+            pkg.add_checkout_rules(builder.invocation.ruleset, name, vcs)
+
+            # Then need to mimic "muddle checkout" for it
+            label = depend.Label(utils.LabelKind.Checkout,
+                                 name, None, utils.Tags.CheckedOut,
+                                 domain=domain)
+            builder.build_label(label, silent=False)
+
+    def check_build(self, current_dir, checkouts, builder, muddle_binary):
+        """
+        Check that the build tree we now have on disk looks a bit like what we want...
+        """
+        # So reload as a "new" builder
+        print
+        print 'Checking that the build is restored correctly...'
+        print
+        (build_root, build_domain) = utils.find_root(current_dir)
+
+        b = mechanics.load_builder(build_root, muddle_binary, default_domain=build_domain)
+
+        local_pkgs = utils.find_local_packages(current_dir, build_root, 
+                                               builder.invocation)
+
+        q = Query()
+        q.with_build_tree(b, local_pkgs, ["root"]) 
+        q.with_build_tree(b, local_pkgs, ["checkouts", "checkout:*/*"]) 
+
+        # Check our checkout names match
+        s_checkouts = set([name for name, repo, rev, rel, dir, domain in checkouts])
+        b_checkouts = b.invocation.all_checkouts()
+        s_difference = s_checkouts.difference(b_checkouts)
+        b_difference = b_checkouts.difference(s_checkouts)
+        if s_difference or b_difference:
+            print 'There is a mismatch between the checkouts in the stamp' \
+                  ' file and those in the build'
+            if s_difference:
+                print 'Checkouts only in the stamp file:'
+                for name in s_difference:
+                    print '    %s'%name
+            if b_difference:
+                print 'Checkouts only in the build:'
+                for name in b_difference:
+                    print '    %s'%name
+            return 4
+        else:
+            print
+            print '...the checkouts present match those in the stamp file.'
+            print 'The build looks as if it restored correctly.'
 
 def get_all_checkouts(builder, tag):
     """

@@ -194,7 +194,28 @@ class Invocation:
         rv = set()
         for cur in all_labels:
             rv.add(cur.target.name)
+        return rv
 
+    def all_checkout_rules(self):
+        """
+        Returns a set of the labels of all the checkouts in our rule set.
+
+        Specifically, all the rules for labels of the form::
+
+            checkout:*{*}/checked_out
+            checkout:(*)*{*}/checked_out
+
+        Returns a set of labels, thus allowing one to know the domain of
+        each checkout as well as its name.
+        """
+        lbl = depend.Label(utils.LabelKind.Checkout,
+                           "*",
+                           "*",
+                           utils.Tags.CheckedOut,
+                           domain="*")
+        all_rules = self.ruleset.rules_for_target(lbl)
+        rv = set()
+        rv.update(all_rules)
         return rv
 
     def has_checkout_called(self, checkout):
@@ -928,6 +949,29 @@ def load_builder(root_path, muddle_binary, params = None,
     return build
 
 
+def minimal_build_tree(muddle_binary, root_path, repo_location, build_desc):
+    """
+    Setup the very minimum of a build tree.
+
+    This should give a .muddle directory with its main files, but will not
+    actually try to retrieve any checkouts.
+    """
+    # The following sets up a .muddle directory, with its Description
+    # and RootRepository files
+    database = db.Database(root_path)
+    database.repo.set(repo_location)
+    database.build_desc.set(build_desc)
+    database.commit()
+
+    # We need a minimalistic builder
+    inv = Invocation(root_path)
+    builder = Builder(inv, muddle_binary, None, None)
+    # ... remember *not* to retrieve the build description from its
+    # repository, since we want to do that with the specific revision
+    # given in the [CHECKOUT builds] configuration
+    inv.commit()
+    return builder
+
 
 
 # =============================================================================
@@ -939,6 +983,9 @@ def _init_without_build_tree(muddle_binary, root_path, repo_location, build_desc
     """
     This a more-or-less copy of the code from muddle.command.Init's
     without_build_tree() method, for purposes of my own convenience.
+
+    It also looks suspiciously like 'minimal_build_tree', but it *does*
+    actually set up the content of the tree...
 
     I'm ignoring the "no op" case, which will need dealing with later on.
 

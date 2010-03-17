@@ -16,6 +16,7 @@ import xml.dom.minidom
 import traceback
 import pwd
 import shutil
+import textwrap
 
 
 class Error(Exception):
@@ -434,7 +435,8 @@ def current_machine_name():
     
     
 
-def run_cmd(cmd, env = None, allowFailure = False, isSystem = False):
+def run_cmd(cmd, env = None, allowFailure = False, isSystem = False,
+            verbose = True):
     """
     Run a command via the shell, raising an exception on failure,
 
@@ -446,21 +448,75 @@ def run_cmd(cmd, env = None, allowFailure = False, isSystem = False):
       failure should be reported by raising utils.Error. otherwise, it's being
       run on behalf of the user and failure should be reported by raising
       utils.Failure.
+    * if verbose is true, then print out the command before executing it
 
     Return the exit code of this command.
-
     """
     if env is None: # so, for instance, an empty dictionary is allowed
         env = os.environ
-    print "> %s"%cmd
+    if verbose:
+        print "> %s"%cmd
     rv = subprocess.call(cmd, shell = True, env = env)
     if allowFailure or rv == 0:
         return rv
     else:
         if isSystem:
-            raise Error("Command execution failed - %d"%rv)
+            raise Error("Command '%s' execution failed - %d"%(cmd,rv))
         else:
-            raise Failure("Command execution failed - %d"%rv)
+            raise Failure("Command '%s' execution failed - %d"%(cmd,rv))
+
+
+def get_cmd_data(cmd, env=None, isSystem=False, fold_stderr=True,
+                 verbose=False, fail_nonzero=True):
+    """
+    Run the given command, and return its (returncode, stdout, stderr).
+
+    If 'fold_stderr', then "fold" stderr into stdout, and return
+    (returncode, stdout_data, NONE).
+
+    If 'fail_nonzero' then if the return code is non-0, raise an explanatory
+    exception (Error is 'isSystem', otherwise Failure).
+
+    And yes, that means the default use-case returns a tuple of the form
+    (0, <string>, None), but otherwise it gets rather awkward handling all
+    the options.
+    """
+    if env is None:
+        env = os.environ
+    if verbose:
+        print "> %s"%cmd
+    p = subprocess.Popen(cmd, shell=True, env=env,
+                         stdout=subprocess.PIPE,
+                         stderr=subprocess.STDOUT if fold_stderr
+                                                  else subprocess.PIPE)
+    stdoutdata, stderrdata = p.communicate()
+    returncode = p.returncode
+    if fail_nonzero and returncode:
+        if isSystem:
+            raise Error("Command '%s' execution failed - %d"%(cmd,rv))
+        else:
+            raise Failure("Command '%s' execution failed - %d"%(cmd,rv))
+    return returncode, stdoutdata, stderrdata
+
+
+def indent(text, indent):
+    """Return the text indented with the 'indent' string.
+
+    (i.e., place 'indent' in front of each line of text).
+    """
+    lines = text.split('\n')
+    stuff = []
+    for line in lines:
+        stuff.append('%s%s'%(indent,line))
+    return '\n'.join(stuff)
+
+def wrap(text):
+    """A convenience wrapper around textwrap.wrap()
+
+    (basically because muddled users will have imported utils already).
+    """
+    return "\n".join(textwrap.wrap(text))
+
 
 def dynamic_load(filename):
     mod = None
@@ -1063,7 +1119,99 @@ def find_by_predicate(source_dir, accept_fn, links_are_symbolic = True):
 
     return result
 
+def calc_file_hash(filename):
+    """Calculate and return the SHA1 hash for the named file.
+    """
+    with HashFile(filename) as fd:
+        for line in fd:
+            pass
+    return fd.hash()
 
+class HashFile(object):
+    """
+    A very simple class for handling files and calculating their SHA1 hash.
+
+    We support a subset of the normal file class, but as lines are read
+    or written, we calculate a SHA1 hash for the file.
+    """
+
+    def __init__(self, name, mode='r'):
+        """
+        Open the file, for read or write.
+        """
+        if mode not in ('r', 'w'):
+            raise ValueError("HashFile 'mode' must be one of 'r' or 'w', not '%s'"%mode)
+        self.name = name
+        self.mode = mode
+        self.fd = open(name, mode)
+        self.sha = hashlib.sha1()
+
+    def write(self, text):
+        r"""
+        Write the give text to the file, and add it to the SHA1 hash as well.
+
+        As is normal for file writes, the '\n' at the end of a line must be
+        specified.
+        """
+        if self.mode != 'w':
+            raise Error("Cannot write to HashFile '%s', opened for read"%self.name)
+        self.fd.write(text)
+        self.sha.update(text)
+
+    def readline(self):
+        """
+        Read the next line from the file, and add it to the SHA1 hash as well.
+
+        Returns '' if there is no next line (i.e., EOF is reached).
+        """
+        if self.mode != 'r':
+            raise Error("Cannot read from HashFile '%s', opened for write"%self.name)
+        text = self.fd.readline()
+
+        if text == '':
+            return ''
+        else:
+            self.sha.update(text)
+            return text
+
+    def hash(self):
+        """
+        Return the SHA1 hash, calculated from the lines so far, as a hex string.
+        """
+        return self.sha.hexdigest()
+
+    def close(self):
+        """
+        Close the file.
+        """
+        self.fd.close()
+
+    # Support for "with"
+    def __enter__(self):
+        return self
+
+    def __exit__(self, etype, value, tb):
+        if tb is None:
+            # No exception, so just finish normally
+            self.close()
+        else:
+            # An exception occurred, so do any tidying up necessary
+            # - well, there isn't anything special to do, really
+            self.close()
+            # And allow the exception to be re-raised
+            return False
+
+    # Support for iteration (over lines)
+    def __iter__(self):
+        if self.mode != 'r':
+            raise Error("Cannot iterate over HashFile '%s', opened for write"%self.name)
+        return self
+
+    def next(self):
+        text = self.readline()
+        if text == '':
+            raise StopIteration
+        else:
+            return text
     
-
 # End file.

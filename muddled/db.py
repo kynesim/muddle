@@ -41,6 +41,21 @@ class Database(object):
         self.local_tags = set()
 
 
+    def get_subdomain_info(self, domain_name):
+        """Return the root repository and build description for a subdomain.
+
+        Reads the RootRepository and Description files in the (sub)domain's
+        ".muddle" directory.
+        """
+        domain_dir = os.path.join(self.root_path,
+                                  utils.domain_subpath(domain_name),
+                                  ".muddle")
+        repo_file = PathFile(os.path.join(domain_dir, "RootRepository"))
+        desc_file = PathFile(os.path.join(domain_dir, "Description"))
+
+        return (repo_file.get(), desc_file.get())
+
+
     def include_domain(self,other_builder, other_domain_name):
         """
         Include data from other_builder, built in other_name

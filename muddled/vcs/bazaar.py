@@ -46,28 +46,33 @@ class Bazaar(VersionControlHandler):
         utils.ensure_dir(self.checkout_path)
         os.chdir(self.checkout_path)
         utils.run_cmd("bzr branch %s %s %s"%(self.r_option(),
-                      self.bzr_repo, self.checkout_name))
+                      self.bzr_repo, self.checkout_name),
+                      env=self._derive_env())
 
     def pull(self):
         update_in = os.path.join(self.checkout_path, self.checkout_name)
         os.chdir(update_in)
-        utils.run_cmd("bzr pull %s"%self.bzr_repo)
+        utils.run_cmd("bzr pull %s"%self.bzr_repo,
+                      env=self._derive_env())
 
     def update(self):
         update_in = os.path.join(self.checkout_path, self.checkout_name)
         os.chdir(update_in)
-        utils.run_cmd("bzr update", allowFailure = True)
+        utils.run_cmd("bzr update", allowFailure=True,
+                      env=self._derive_env())
 
     def commit(self):
         commit_in = os.path.join(self.checkout_path, self.checkout_name)
         os.chdir(commit_in)
-        utils.run_cmd("bzr commit", allowFailure = True)
+        utils.run_cmd("bzr commit", allowFailure=True,
+                      env=self._derive_env())
 
     def push(self):
         push_in = os.path.join(self.checkout_path, self.checkout_name)
         os.chdir(push_in)
         print "> push to %s "%self.bzr_repo
-        utils.run_cmd("bzr push %s"%self.bzr_repo)
+        utils.run_cmd("bzr push %s"%self.bzr_repo,
+                      env=self._derive_env())
 
     def must_update_to_commit(self):
         return False
@@ -80,6 +85,28 @@ class Bazaar(VersionControlHandler):
             return ""
         else:
             return "-r %s"%(self.revision)
+
+    def _derive_env(self):
+        """
+        Return a "safe" environment dictionary.
+
+        It turns out that if the PYTHONPATH includes the "current directory",
+        then various bzr commands ('bzr missing' in particular) do not play
+        well with some of the typical Python file names we sometimes have in
+        'src/builds' directories.
+        
+        (Specifically, this is observed with bzr version 2.0.2 on my Ubuntu
+        system with my packages installed, so it may or may not happen for
+        anyone else, but it still seems safest to avoid it!)
+        
+        The "solution" (ick, ick) is thus to make sure this doesn't happen...
+        - and the simplest way to do that is probably to ignore any PYTHONPATH
+        in our local environment when running the command(s)
+        """
+        env = os.environ.copy()
+        if 'PYTHONPATH' in env:
+            del env['PYTHONPATH']
+        return env
 
     def revision_to_checkout(self, force=False, verbose=False):
         """
@@ -115,22 +142,7 @@ class Bazaar(VersionControlHandler):
         in Bazaar network protocols)
         """
 
-        # It turns out that if the PYTHONPATH includes the "current directory",
-        # then 'bzr missing' in particular does not play well with some of the
-        # typical Python file names we sometimes have in 'src/builds'
-        # directories.
-        #
-        # (Specifically, this is observed with bzr version 2.0.2 on my Ubuntu
-        # system with my packages installed, so it may or may not happen for
-        # anyone else, but it still seems safest to avoid it!)
-        #
-        # The "solution" (ick, ick) is thus to make sure this doesn't happen...
-        # - and the simplest way to do that is probably to ignore any PYTHONPATH
-        # in our local environment when running the command(s)
-
-        env = os.environ.copy()
-        if 'PYTHONPATH' in env:
-            del env['PYTHONPATH']
+        env = self._derive_env()
 
         work_in = os.path.join(self.checkout_path, self.checkout_name)
         os.chdir(work_in)

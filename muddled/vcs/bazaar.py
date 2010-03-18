@@ -147,9 +147,9 @@ class Bazaar(VersionControlHandler):
                 raise utils.Failure("'bzr version-info --check-clean' reports"
                         " checkout '%s' has uncommitted data"%self.checkout_name)
 
-        # So, are we current with our original repository (or our current
-        # push location)
-        retcode, missing, ignore = utils.get_cmd_data('bzr missing -q',
+        # So, is our current revision (on this local branch) also present
+        # in the remote branch (our push/pull location)?
+        retcode, missing, ignore = utils.get_cmd_data('bzr missing -q --mine-only',
                                                       env=env,
                                                       fold_stderr=True,
                                                       fail_nonzero=False)

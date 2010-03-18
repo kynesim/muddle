@@ -120,67 +120,61 @@ class Bazaar(VersionControlHandler):
         # typical Python file names we sometimes have in 'src/builds'
         # directories.
         #
-        # The "solution" (ick, ick) is thus to make sure this doesn't happen...
-        #
         # (Specifically, this is observed with bzr version 2.0.2 on my Ubuntu
         # system with my packages installed, so it may or may not happen for
         # anyone else, but it still seems safest to avoid it!)
+        #
+        # The "solution" (ick, ick) is thus to make sure this doesn't happen...
+        # - and the simplest way to do that is probably to ignore any PYTHONPATH
+        # in our local environment when running the command(s)
+
+        env = os.environ.copy()
+        if 'PYTHONPATH' in env:
+            del env['PYTHONPATH']
+
         work_in = os.path.join(self.checkout_path, self.checkout_name)
         os.chdir(work_in)
 
-        if work_in in sys.path:
-            saved_sys_path = sys.path[:]
-            while work_in in sys.path:
-                sys.path.remove(work_in)
-            sys_path_altered = True
-            #print
-            #print 'PYTHONPATH now','\n'.join(sys.path)
-            #print
-        else:
-            sys_path_altered = False
-
-        try:
-            # So, have we checked everything in?
-            retcode, text, ignore = utils.get_cmd_data('bzr version-info --check-clean',
-                                                       fold_stderr=False)
-            if 'clean: False' in text:
-                if force:
-                    print "'bzr version-info --check-clean' reports" \
-                          " checkout '%s' has uncommitted data (ignoring it)"%self.checkout_name
-                else:
-                    raise utils.Failure("'bzr version-info --check-clean' reports"
-                            " checkout '%s' has uncommitted data"%self.checkout_name)
-
-            # So, are we current with our original repository (or our current
-            # push location)
-            retcode, missing, ignore = utils.get_cmd_data('bzr missing -q',
-                                                          fold_stderr=True,
-                                                          fail_nonzero=False)
-            if missing:
-                missing = missing.strip()
-                if missing == 'bzr: ERROR: No peer location known or specified.':
-                    # This presumably means that they have never pushed since
-                    # the original checkout - in which case we *should* be OK
-                    if verbose:
-                        print missing
-                    return self.get_original_revision()
-                else:
-                    raise utils.Failure("'bzr missing' suggests checkout '%s' does"
-                            " not match the remote repository:\n%s"%(self.checkout_name,
-                                utils.indent(missing,'    ')))
-
-            # So, let's get our revision number - where we are in the history
-            # of the current branch
-            retcode, revno, ignore = utils.get_cmd_data('bzr revno')
-            revno = revno.strip()
-            if all([x.isdigit() for x in revno]):
-                return revno
+        # So, have we checked everything in?
+        retcode, text, ignore = utils.get_cmd_data('bzr version-info --check-clean',
+                                                   env=env,
+                                                   fold_stderr=False)
+        if 'clean: False' in text:
+            if force:
+                print "'bzr version-info --check-clean' reports" \
+                      " checkout '%s' has uncommitted data (ignoring it)"%self.checkout_name
             else:
-                raise utils.Failure("'bzr revno' reports checkout '%s' has revision"
-                        " '%s', which is not an integer"%(self.checkout_name,revision))
-        finally:
-            if sys_path_altered:
-                sys.path = saved_sys_path
+                raise utils.Failure("'bzr version-info --check-clean' reports"
+                        " checkout '%s' has uncommitted data"%self.checkout_name)
+
+        # So, are we current with our original repository (or our current
+        # push location)
+        retcode, missing, ignore = utils.get_cmd_data('bzr missing -q',
+                                                      env=env,
+                                                      fold_stderr=True,
+                                                      fail_nonzero=False)
+        if missing:
+            missing = missing.strip()
+            if missing == 'bzr: ERROR: No peer location known or specified.':
+                # This presumably means that they have never pushed since
+                # the original checkout - in which case we *should* be OK
+                if verbose:
+                    print missing
+                return self.get_original_revision()
+            else:
+                raise utils.Failure("'bzr missing' suggests checkout '%s' does"
+                        " not match the remote repository:\n%s"%(self.checkout_name,
+                            utils.indent(missing,'    ')))
+
+        # So, let's get our revision number - where we are in the history
+        # of the current branch
+        retcode, revno, ignore = utils.get_cmd_data('bzr revno', env=env)
+        revno = revno.strip()
+        if all([x.isdigit() for x in revno]):
+            return revno
+        else:
+            raise utils.Failure("'bzr revno' reports checkout '%s' has revision"
+                    " '%s', which is not an integer"%(self.checkout_name,revision))
 
 
 class BazaarVCSFactory(VersionControlHandlerFactory):

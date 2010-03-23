@@ -18,6 +18,7 @@ import pwd
 import shutil
 import curses
 import textwrap
+from collections import MutableMapping
 
 
 class Error(Exception):
@@ -1158,6 +1159,66 @@ def find_by_predicate(source_dir, accept_fn, links_are_symbolic = True):
                 result.extend(find_by_predicate(full_name, accept_fn, links_are_symbolic))
 
     return result
+
+class MuddleSortedDict(MutableMapping):
+    """
+    A simple dictionary-like class that returns keys in sorted order.
+    """
+    def __init__(self):
+        self._keys = set()
+        self._dict = {}
+
+    def __setitem__(self, key, value):
+        self._dict[key] = value
+        self._keys.add(key)
+
+    def __getitem__(self, key):
+        return self._dict[key]
+
+    def __delitem__(self, key):
+        del self._dict[key]
+        self._keys.discard(key)
+
+    def __len__(self):
+        return len(self._keys)
+
+    def __contains__(self, key):
+        return key in self._dict
+
+    def __iter__(self):
+        keys = list(self._keys)
+        keys.sort()
+        return iter(keys)
+
+class MuddleOrderedDict(MutableMapping):
+    """
+    A simple dictionary-like class that returns keys in order of (first)
+    insertion.
+    """
+    def __init__(self):
+        self._keys = []
+        self._dict = {}
+
+    def __setitem__(self, key, value):
+        if key not in self._dict:
+            self._keys.append(key)
+        self._dict[key] = value
+
+    def __getitem__(self, key):
+        return self._dict[key]
+
+    def __delitem__(self, key):
+        del self._dict[key]
+        self._keys.remove(key)
+
+    def __len__(self):
+        return len(self._keys)
+
+    def __contains__(self, key):
+        return key in self._dict
+
+    def __iter__(self):
+        return iter(self._keys)
 
 def calc_file_hash(filename):
     """Calculate and return the SHA1 hash for the named file.

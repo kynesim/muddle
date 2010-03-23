@@ -1587,7 +1587,7 @@ class Stamp(Command):
         checkout_rules = list(builder.invocation.all_checkout_rules())
         print 'found %d'%len(checkout_rules)
 
-        revisions = {}
+        revisions = utils.MuddleSortedDict()
         problems = []
         domains = set()
         checkout_rules.sort()
@@ -1692,7 +1692,7 @@ class Stamp(Command):
         config.write(fd)
 
         if domains:
-            config = RawConfigParser()
+            config = RawConfigParser(None, dict_type=utils.MuddleSortedDict)
             for domain_name, domain_repo, domain_desc in domains:
                 section = "DOMAIN %s"%domain_name
                 config.add_section(section)
@@ -1701,7 +1701,7 @@ class Stamp(Command):
                 config.set(section, "description", domain_desc)
             config.write(fd)
 
-        config = RawConfigParser()
+        config = RawConfigParser(None, dict_type=utils.MuddleSortedDict)
         for label, (repo, dir, rev, rel) in revisions.items():
             if label.domain:
                 section = 'CHECKOUT (%s)%s'%(label.domain,label.name)
@@ -1720,7 +1720,7 @@ class Stamp(Command):
         config.write(fd)
 
         if problems:
-            config = RawConfigParser()
+            config = RawConfigParser(None, dict_type=utils.MuddleSortedDict)
             section = 'PROBLEMS'
             config.add_section(section)
             for index, item in enumerate(problems):

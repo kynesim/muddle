@@ -1512,9 +1512,16 @@ class Stamp(Command):
     Go through each checkout, and save its remote repository and current
     revision id/number to a file.
 
+    if <file> is given, and does not end in '.stamp', then '.stamp' will be
+    appended to it.
+
     If <file> is not given, then a name of the form <sha1-hash>.stamp will be
     used, where <sha1-hash> is a hexstring representation of the hash of the
     content of the file.
+
+    If it is not possible to write a full stamp file (revisions could not be
+    determined for all checkouts) then the extension ".partial" will be used
+    instead of ".stamp".
 
     This is intended to be enough information to allow reconstruction of all of
     the checkouts.
@@ -1623,37 +1630,56 @@ class Stamp(Command):
             if problems:
                 print 'Problems were:'
                 for item in problems:
-                    text = str(item)
-                    text = text.split('\n')[0]
-                    if len(text) > 78:
-                        text = text[:75]+'...'
-                    print '* %s'%text
+                    print '* %s'%utils.truncate(str(item),less=2)
 
         # Make sure we're where the user thinks we are, since some of the
         # muddle mechanisms change directory under our feet
         os.chdir(start_dir)
         if not self.no_op():
-            if filename:
-                given_filename = True
-            else:
-                given_filename = False
-                filename = 'working.stamp'
-
-            print 'Writing to',filename
-            with utils.HashFile(filename,'w') as fd:
+            working_filename = 'working.stamp'
+            print 'Writing to',working_filename
+            with utils.HashFile(working_filename,'w') as fd:
                 self.write_rev_data(revisions, fd,
                                     root_repo=builder.invocation.db.repo.get(),
                                     root_desc=builder.invocation.db.build_desc.get(),
-                                    domains=domains)
-            print 'Wrote revision data to %s'%filename
+                                    domains=domains,
+                                    problems=problems)
+            print 'Wrote revision data to %s'%working_filename
             print 'File has SHA1 hash %s'%fd.hash()
 
-            if not given_filename:
-                final_name = '%s.stamp'%fd.hash()
-                print 'Renaming %s to %s'%(filename, final_name)
-                os.rename(filename, final_name)
+            final_name = self.decide_filename(filename, fd.hash(), problems)
+            print 'Renaming %s to %s'%(working_filename, final_name)
+            os.rename(working_filename, final_name)
 
-    def write_rev_data(self, revisions, fd, root_repo=None, root_desc=None, domains=None):
+    def decide_filename(self, hash, basename=None, partial=False):
+        """
+        Return filename, given a SHA1 hash hexstring, and maybe a basename.
+
+        If 'partial', then the returned filename will have extension '.partial',
+        otherwise '.stamp'.
+
+        If the basename is not given, then the main part of the filename will
+        be <hash>.
+
+        If the basename is given, then if it ends with '.stamp' or '.partial'
+        then that will be removed before it is used.
+        """
+        if partial:
+            extension = '.partial'
+        else:
+            extension = '.stamp'
+        if not basename:
+            return '%s%s'%(hash, extension)
+        else:
+            head, ext = os.path.splitext(basename)
+            if ext in ('.stamp', '.partial'):
+                return '%s%s'%(head, extension)
+            else:
+                return '%s%s'%(basename, extension)
+            
+
+    def write_rev_data(self, revisions, fd, root_repo=None, root_desc=None,
+                       domains=None, problems=None):
         from ConfigParser import RawConfigParser
 
         # The following makes sure we write the [ROOT] out first, otherwise
@@ -1692,6 +1718,15 @@ class Stamp(Command):
             if dir:
                 config.set(section, "directory", dir)
         config.write(fd)
+
+        if problems:
+            config = RawConfigParser()
+            section = 'PROBLEMS'
+            config.add_section(section)
+            for index, item in enumerate(problems):
+                config.set(section, 'problem%d'%(index+1),
+                           utils.truncate(str(item), columns=100))
+            config.write(fd)
 
 
 class UnStamp(Command):

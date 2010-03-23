@@ -16,6 +16,7 @@ import xml.dom.minidom
 import traceback
 import pwd
 import shutil
+import curses
 import textwrap
 
 
@@ -516,6 +517,45 @@ def wrap(text):
     (basically because muddled users will have imported utils already).
     """
     return "\n".join(textwrap.wrap(text))
+
+def num_cols():
+    """How many columns on our terminal?
+
+    Returns a negative number on error.
+    """
+    curses.setupterm()
+    return curses.tigetnum('cols')
+
+def truncate(text, columns=None, less=0):
+    """Truncate the given text to fit the terminal.
+
+    More specifically:
+
+    1. Split on newlines
+    2. If the first line is too long, cut it and add '...' to the end.
+    3. Return the first line
+
+    If 'columns' is 0, then don't do the truncation of the first line.
+
+    If 'columns' is None, then try to work out the current terminal width
+    (using "curses"), and otherwise use 80.
+
+    If 'less' is specified, then the actual width used will be the calculated
+    or given width, minus 'less' (so if columns=80 and less=2, then the maximum
+    line length would be 78). Clearly this is ignored if 'columns' is 0.
+    """
+    text = text.split('\n')[0]
+    if columns == 0:
+        return text
+
+    if columns is None:
+        columns = num_cols()
+        if columns <= 0:
+            columns = 80
+    max_width = columns - less
+    if len(text) > max_width:
+        text = text[:max_width-3]+'...'
+    return text
 
 
 def dynamic_load(filename):

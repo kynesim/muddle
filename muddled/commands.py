@@ -2484,7 +2484,7 @@ def labels_from_pkg_args(list, tag, default_roles, default_domain):
 
         >>> x = labels_from_pkg_args( [ 'fred', 'bob{}', 'william{jim}', '(here)fred{jim}' ],
         ...                           'pobble',
-        ...                           [ 'this', 'that' ] )
+        ...                           [ 'this', 'that' ], None )
         >>> for l in x:
         ...    print l
         package:fred{this}/pobble

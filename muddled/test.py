@@ -64,10 +64,11 @@ def env_store_unit_test():
     ee.append("b")
     ee.append("c")
 
-    assert ee.to_sh(True) == "\"a\"\"b\"\"c\""
+    assert ee.to_sh(True) == '"a""b""c"'
+    assert ee.to_sh(False) == 'abc'
 
     ee = env_store.EnvExpr(env_store.EnvExpr.RefType, "a")
-    assert ee.to_sh(True) == "\"$a\""
+    assert ee.to_sh(True) == '"$a"'
 
     # Now try something a bit more complex ..
     ee = env_store.EnvExpr(env_store.EnvExpr.CatType)
@@ -75,7 +76,7 @@ def env_store_unit_test():
     ee.append_ref("Soup")
     ee.append_str("Wombat")
 
-    assert ee.to_sh(True) == "\"Fish\"\"$Soup\"\"Wombat\""
+    assert ee.to_sh(True) == '"Fish""$Soup""Wombat"'
 
     assert ee.to_value(env = { "Soup" : "X"}) == "FishXWombat"
     
@@ -83,9 +84,9 @@ def env_store_unit_test():
     
     assert len(lst) == 3
     
-    assert lst[0] == "\"Fish\""
-    assert lst[1] == "env[\"Soup\"]"
-    assert lst[2] == "\"Wombat\""
+    assert lst[0] == '"Fish"'
+    assert lst[1] == 'env["Soup"]'
+    assert lst[2] == '"Wombat"'
 
 
 
@@ -147,18 +148,22 @@ def commands_unit_test():
     Check command utility routines.
     """
     
-    sample_list = [ "a", "b{c}", "d" ]
+    sample_list = [ "a", "b{c}", "d", "(x)e" ]
     default_roles = [ "d1", "d2" ]
     
-    lbls = commands.labels_from_pkg_args(sample_list, "t", default_roles)
+    lbls = commands.labels_from_pkg_args(sample_list, "t", default_roles, 'y')
     strs = map(str, lbls)
 
-    assert len(lbls) == 5
-    assert lbls[0] == depend.Label(utils.LabelKind.Package, "a", "d1", "t")
-    assert lbls[1] == depend.Label(utils.LabelKind.Package, "a", "d2", "t")
-    assert lbls[2] == depend.Label(utils.LabelKind.Package, "b", "c", "t")
-    assert lbls[3] == depend.Label(utils.LabelKind.Package, "d", "d1", "t")
-    assert lbls[4] == depend.Label(utils.LabelKind.Package, "d", "d2", "t")
+    print strs
+
+    assert len(lbls) == 7
+    assert lbls[0] == depend.Label(utils.LabelKind.Package, "a", "d1", "t", domain='y')
+    assert lbls[1] == depend.Label(utils.LabelKind.Package, "a", "d2", "t", domain='y')
+    assert lbls[2] == depend.Label(utils.LabelKind.Package, "b", "c", "t", domain='y')
+    assert lbls[3] == depend.Label(utils.LabelKind.Package, "d", "d1", "t", domain='y')
+    assert lbls[4] == depend.Label(utils.LabelKind.Package, "d", "d2", "t", domain='y')
+    assert lbls[5] == depend.Label(utils.LabelKind.Package, "e", "d1", "t", domain='x')
+    assert lbls[6] == depend.Label(utils.LabelKind.Package, "e", "d2", "t", domain='x')
 
 
 def mechanics_unit_test():

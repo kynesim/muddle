@@ -1,4 +1,6 @@
 """
+elif word == 'restore':
+    unstamp = Unstamp(
 Muddle commands - these get run more or less directly by 
 the main muddle command and are abstracted out here in
 case your programs want to run them themselves
@@ -24,9 +26,11 @@ import instr
 import mechanics
 import pkg
 import test
+import time
 import utils
 import version_control
 
+import difflib
 import re
 import traceback
 import os
@@ -1505,80 +1509,197 @@ class Subst(Command):
 
 class Stamp(Command):
     """
-    :Syntax: stamp [<file>]
-    :or:     stamp force [<file>]
-    :or:     stamp force head [<file>]
+    :Syntax: stamp save [-f[orce]|-h[ead]] [<file>]
+    :or:     stamp restore <url_or_file>
+    :or:     stamp diff [-u[nified]|-c[ontext]|-n|-h[tml]] <file1> <file2> [<output_file>]
 
+    Saving: stamp save [<switches>] [<file>]
+    ----------------------------------------
     Go through each checkout, and save its remote repository and current
     revision id/number to a file.
 
-    if <file> is given, and does not end in '.stamp', then '.stamp' will be
-    appended to it.
+    This is intended to be enough information to allow reconstruction of the
+    entire build tree, as-is.
 
-    If <file> is not given, then a name of the form <sha1-hash>.stamp will be
-    used, where <sha1-hash> is a hexstring representation of the hash of the
-    content of the file.
+    If a <file> is specified, then output will be written to that file.
+    If its name does not end in '.stamp', then '.stamp' will be appended to it.
+
+    If a <file> is not specified, then a name of the form <sha1-hash>.stamp
+    will be used, where <sha1-hash> is a hexstring representation of the hash
+    of the content of the file.
 
     If it is not possible to write a full stamp file (revisions could not be
-    determined for all checkouts) then the extension ".partial" will be used
-    instead of ".stamp".
+    determined for all checkouts, and neither '-force' nor '-head' was
+    specified) then the extension ".partial" will be used instead of ".stamp".
+    An attempt will be made to give useful information about what the problems
+    are.
 
-    This is intended to be enough information to allow reconstruction of all of
-    the checkouts.
+    If a file already exists with the name ultimately chosen, that file will
+    be overwritten.
 
-    If a checkout has local changes that have not been committed, or needs to
-    be synchronised with the remote repository (in other words, if the currrent
-    state of the checkout is not retrievable from the information we're
-    gathering) then complain, and ??? store what information we can or give up?
+    If '-f' or '-force' is specified, then if the checkout revision cannot
+    be determined, the revision specified by the build description (which
+    defaults to HEAD) will be used.
 
-    However, if the 'force' option is given, then:
-    
-    1. If it is just 'force', then if the checkout revision cannot be
-       determined, then that used for the original checkout will be used.
-    2. If it is 'force head', then for all of the revisions, just assume that
-       "HEAD" is wanted (i.e., ignore the actual revision)
+    If '-h' or '-head' is specified, then HEAD will be used for all checkouts.
+
+    Restoring: stamp restore <url_or_file>
+    --------------------------------------
+    This is an experimental synonym for "unstamp". For the moment, see that
+    for documentation.
+
+    Comparing: stamp diff [<switches>] <file1> <file2> [<output_file>]
+    ------------------------------------------------------------------
+    Compare two stamp files.
+
+    The two (existing) stamp files named are compared. If <output_file> is
+    given, then the output is written to it (overwriting any previous file of
+    that name), otherwise output is to standard output.
+
+    If '-u' is specified, then the output is a unified difference. This is the
+    default.
+
+    If '-c' is specified, then the output is a context difference. This uses a
+    "before/after" style of presentation.
+
+    If '-n' is specified, then the output is from "ndiff" - this is normally
+    a more human-friendly set of differences, but outputs the parts of the files
+    that match as well as those that do not.
+
+    If '-h' is specified, then the output is an HTML page, displaying
+    differences in two columns (with colours).
     """
     
     def name(self):
         return "stamp"
 
+    def print_syntax(self):
+        print """\
+:Syntax: stamp save [-f[orce]|-h[ead]] [<file>]
+:or:     stamp restore <url_or_file>
+:or:     stamp diff [-u[nified]|-n|-h[tml]] <file1> <file2> [<output_file>]
+
+("stamp restore" is an experimental synonym for "unstamp", which see)
+
+Try 'muddle help stamp' for more information."""
+
     def requires_build_tree(self):
-        return True
+        """
+        Sort of.
+
+        Although ``muddle stamp save`` *does* require a build tree, other
+        "sub commands" such as ``muddle stamp diff`` do not.
+        """
+        return False
+
+    def without_build_tree(self, muddle_binary, root_path, args):
+        """
+        Run this command without a build tree.
+        """
+
+        if not args:
+            self.print_syntax()
+            return 2
+
+        word = args[0]
+        rest = args[1:]
+        if word == 'save':
+            print "Can't do 'muddle stamp save' without a build tree"
+            return 2
+        elif word == 'restore':
+            unstamp = UnStamp()
+            unstamp.without_build_tree(muddle_binary, root_path, rest)
+        elif word == 'diff':
+            self.compare_stamp_files(rest)
+        else:
+            print "Unexpected 'stamp %s'"%word
+            self.print_syntax()
+            return 2
 
     def with_build_tree(self, builder, local_pkgs, args):
         force = False
-        force_head = False
+        just_use_head = False
         filename = None
 
-        if args:
-            if len(args) == 1:
-                if args[0] == 'force':
-                    print 'Forcing revision ids when necessary/possible'
-                    force = True
-                else:
-                    filename = args[0]
-            elif len(args) == 2:
-                if args[0] == 'force':
-                    force = True
-                    if args[1] == 'head':
-                        print 'Using HEAD for all checkouts'
-                        force_head = True
-                    else:
-                        print 'Forcing revision ids when necessary/possible'
-                        filename = args[1]
-                else:
-                    print "Unexpected '%s'"%(" ".join(args))
-                    print self.__doc__
-                    return 2
-            elif len(args) == 3 and args[0] == 'force' and args[1] == 'head':
-                print 'Using HEAD for all checkouts'
-                force = True
-                force_head = True
-                filename = args[2]
-            else:
-                print "Unexpected '%s'"%(" ".join(args))
-                print self.__doc__
+        if not args:
+            self.print_syntax()
+            return 2
+
+        word = args[0]
+        rest = args[1:]
+        if word == 'save':
+            self.write_stamp_file(builder, local_pkgs, rest)
+        elif word == 'diff':
+            self.compare_stamp_files(rest)
+        elif word == 'restore':
+            print "Can't do 'muddle stamp restore' with a build tree"
+            return 2
+        else:
+            print "Unexpected 'stamp %s'"%word
+            self.print_syntax()
+            return 2
+
+    def compare_stamp_files(self, args):
+        diff_style = 'unified'
+        file1 = file2 = output_file = None
+
+        while args:
+            word = args[0]
+            args = args[1:]
+            if word in ('-u', '-unified'):
+                diff_style = 'unified'
+            elif word == '-n':
+                diff_style = 'ndiff'
+            elif word in ('-c', '-context'):
+                diff_style = 'context'
+            elif word in ('-h', '-html'):
+                diff_style = 'html'
+            elif word.startswith('-'):
+                print "Unexpected switch '%s'"%word
+                self.print_syntax()
                 return 2
+            else:
+                if file1 is None:
+                    file1 = word
+                elif file2 is None:
+                    file2 = word
+                elif output_file is None:
+                    output_file = word
+                else:
+                    print "Unexpected '%s'"%word
+                    self.print_syntax()
+                    return 2
+        self.diff(file1, file2, diff_style, output_file)
+
+    def write_stamp_file(self, builder, local_pkgs, args):
+        force = False
+        just_use_head = False
+        filename = None
+
+        while args:
+            word = args[0]
+            args = args[1:]
+            if word in ('-f', '-force'):
+                force = True
+                just_use_head = False
+            elif word in ('-h', '-head'):
+                just_use_head = True
+                force = False
+            elif word.startswith('-'):
+                print "Unexpected switch '%s'"%word
+                self.print_syntax()
+                return 2
+            elif filename is None:
+                filename = word
+            else:
+                print "Unexpected '%s'"%word
+                self.print_syntax()
+                return 2
+
+        if just_use_head:
+            print 'Using HEAD for all checkouts'
+        elif force:
+            print 'Forcing original revision ids when necessary'
 
         # Some of the following operations may change directory, so
         start_dir = os.getcwd()
@@ -1608,7 +1729,7 @@ class Stamp(Command):
                     domain_repo, domain_desc = builder.invocation.db.get_subdomain_info(domain_name)
                     domains.add((domain_name, domain_repo, domain_desc))
 
-                if force_head:
+                if just_use_head:
                     print 'Forcing head'
                     rev = "HEAD"
                 else:
@@ -1728,6 +1849,48 @@ class Stamp(Command):
                            utils.truncate(str(item), columns=100))
             config.write(fd)
 
+    def diff(self, file1, file2, diff_style='unified', output_file=None):
+        """
+        Output a comparison of file1 and file2 to html_file.
+        """
+        with open(file1) as fd1:
+            file1_lines = fd1.readlines()
+        with open(file2) as fd2:
+            file2_lines = fd2.readlines()
+
+        if diff_style == 'html':
+            diff = difflib.HtmlDiff().make_file(file1_lines, file2_lines,
+                                                file1, file2)
+        elif diff_style == 'ndiff':
+            diff = difflib.ndiff(file1_lines, file2_lines)
+            file1_date = time.ctime(os.stat(file1).st_mtime)
+            file2_date = time.ctime(os.stat(file2).st_mtime)
+            help = ["#First character indicates provenance:\n"
+                    "# '-' only in %s of %s\n"%(file1, file1_date),
+                    "# '+' only in %s of %s\n"%(file2, file2_date),
+                    "# ' ' in both\n",
+                    "# '?' pointers to intra-line differences\n"
+                    "#---------------------------------------\n"]
+            diff = help + list(diff)
+        elif diff_style == 'context':
+            file1_date = time.ctime(os.stat(file1).st_mtime)
+            file2_date = time.ctime(os.stat(file2).st_mtime)
+            diff = difflib.context_diff(file1_lines, file2_lines,
+                                        file1, file2,
+                                        file1_date, file2_date)
+        else:
+            file1_date = time.ctime(os.stat(file1).st_mtime)
+            file2_date = time.ctime(os.stat(file2).st_mtime)
+            diff = difflib.unified_diff(file1_lines, file2_lines,
+                                        file1, file2,
+                                        file1_date, file2_date)
+
+        if output_file:
+            with open(output_file,'w') as fd:
+                fd.writelines(diff)
+        else:
+            sys.stdout.writelines(diff)
+
 
 class UnStamp(Command):
     """
@@ -1846,7 +2009,7 @@ class UnStamp(Command):
             # Hmm - maybe a plain old URL
             parts = urlparse(thing)
             path, filename = os.path.split(parts.path)
-            print 'Saving data as %s'%filename
+            print 'Retrieving %s'%filename
             data = urllib.urlretrieve(thing, filename)
 
         repo_location, build_desc, domains, checkouts = self.read_file(filename)

@@ -243,15 +243,7 @@ class Database(object):
                             "tags",
                             utils.label_kind_to_string(label.type),
                             label.name, leaf)
-        
 
-    def init(self, repo, build_desc):
-        """
-        Write the repository and build description files.
-        """
-        self.repo.set(repo)
-        self.build_desc.set(build_desc)
-        
     def is_tag(self, label):
         """
         Is this label asserted?

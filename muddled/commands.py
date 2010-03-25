@@ -138,6 +138,24 @@ class Init(Command):
 
     Initialise a new build tree with a given repository and build description.
     We check out the build description but don't actually build.
+
+    For instance::
+
+      $ cd /somewhere/convenient
+      $ muddle init  file+file:///somewhere/else/examples/d  builds/01.py
+
+    This initialises a muddle build tree with::
+
+      file+file:///somewhere/else/examples/d
+
+    as its repository and a build description of "builds/01.py".
+
+    The astute will notice that you haven't told muddle which actual repository
+    the build description is in - you've only told it where the repository root
+    is and where the build description file is.
+
+    Muddle assumes that builds/01.py means repository
+    "file+file:///somewhere/else/examples/d/builds" and file "01.py" therein.
     """
 
     def name(self): 
@@ -326,6 +344,7 @@ class Query(Command):
                      they will be applied.
     * instructions - Print the list of currently registered instruction files,
                      in the order in which they will be applied.
+    * name         - Print the build name, as specified in the build description.
     * objdir       - Print the object directory for a label - used to extract
                      object directories for configure options in builds.
     * preciseenv   - Print the environment pertaining to exactly this label
@@ -428,6 +447,9 @@ class Query(Command):
         print "Root: %s"%builder.invocation.db.root_path
         print "Default domain: %s"%builder.get_default_domain()
 
+    def _query_name(self, builder, label):
+        print builder.build_name
+
 
     def _query_dir(self, builder, label):
             dir = None
@@ -454,19 +476,20 @@ class Query(Command):
                 print None
 
     queries = {
+            'checkouts' : _query_checkouts,
+            'deps' : _query_deps,
+            'dir' : _query_dir,
+            'env' : _query_env,
+            'envs' : _query_envs,
+            'inst-details' : _query_inst_details,
+            'instructions' : _query_instructions,
+            'name' : _query_name,
             'objdir' : _query_objdir,
             'preciseenv' : _query_preciseenv,
-            'envs' : _query_envs,
-            'env' : _query_env,
+            'results' : _query_results,
+            'root' : _query_root,
             'rule' : _query_rule,
             'targets' : _query_targets,
-            'deps' : _query_deps,
-            'results' : _query_results,
-            'instructions' : _query_instructions,
-            'inst-details' : _query_inst_details,
-            'checkouts' : _query_checkouts,
-            'root' : _query_root,
-            'dir' : _query_dir,
             }
 
     def with_build_tree(self, builder, local_pkgs, args):
@@ -482,7 +505,7 @@ class Query(Command):
             print self.__doc__
             return 2
 
-        if (type == "root"):
+        if type in ("root", "name"):
             label = None
         else:
             if len(args) != 2:
@@ -1510,6 +1533,7 @@ class Subst(Command):
 class Stamp(Command):
     """
     :Syntax: stamp save [-f[orce]|-h[ead]] [<file>]
+    :or:     stamp version [-f[orce]]
     :or:     stamp restore <url_or_file>
     :or:     stamp diff [-u[nified]|-c[ontext]|-n|-h[tml]] <file1> <file2> [<output_file>]
 
@@ -1543,6 +1567,30 @@ class Stamp(Command):
 
     If '-h' or '-head' is specified, then HEAD will be used for all checkouts.
 
+    Saving: stamp version [<switches>]
+    ----------------------------------
+    This is similar to "stamp save", but using a pre-determined stamp filename.
+
+    Specifically, the stamp file written will be called:
+
+        versions/<build_name>.stamp
+
+    The "versions/" directory is at the build root (i.e., it is a sibling of
+    the ".muddle/" and "src/" directories). If it does not exist, it will be
+    created.
+
+    <build_name> is the name of this build, as specified by the build
+    description (by setting ``builder.build_name``). If the build description
+    does not set the build name, then the name will be taken from the build
+    description file name. You can use "muddle query name" to find the build
+    name for a particular build.
+
+    If a full stamp file cannot be written (i.e., if the result would have
+    extension ".partial"), then the version stamp file will not be written.
+
+    Note that '-f' is supported (although perhaps not recommended), but '-h' is
+    not.
+
     Restoring: stamp restore <url_or_file>
     --------------------------------------
     This is an experimental synonym for "unstamp". For the moment, see that
@@ -1574,10 +1622,11 @@ class Stamp(Command):
         return "stamp"
 
     def print_syntax(self):
-        print """\
-:Syntax: stamp save [-f[orce]|-h[ead]] [<file>]
-:or:     stamp restore <url_or_file>
-:or:     stamp diff [-u[nified]|-n|-h[tml]] <file1> <file2> [<output_file>]
+        print """
+    :Syntax: stamp save [-f[orce]|-h[ead]] [<file>]
+    :or:     stamp version [-f[orce]]
+    :or:     stamp restore <url_or_file>
+    :or:     stamp diff [-u[nified]|-n|-h[tml]] <file1> <file2> [<output_file>]
 
 ("stamp restore" is an experimental synonym for "unstamp", which see)
 
@@ -1603,7 +1652,7 @@ Try 'muddle help stamp' for more information."""
 
         word = args[0]
         rest = args[1:]
-        if word == 'save':
+        if word in ('save', 'version'):
             print "Can't do 'muddle stamp save' without a build tree"
             return 2
         elif word == 'restore':
@@ -1628,7 +1677,9 @@ Try 'muddle help stamp' for more information."""
         word = args[0]
         rest = args[1:]
         if word == 'save':
-            self.write_stamp_file(builder, local_pkgs, rest)
+            self.write_stamp_file(builder, rest)
+        elif word == 'version':
+            self.write_version_file(builder, rest)
         elif word == 'diff':
             self.compare_stamp_files(rest)
         elif word == 'restore':
@@ -1671,7 +1722,7 @@ Try 'muddle help stamp' for more information."""
                     return 2
         self.diff(file1, file2, diff_style, output_file)
 
-    def write_stamp_file(self, builder, local_pkgs, args):
+    def write_stamp_file(self, builder, args):
         force = False
         just_use_head = False
         filename = None
@@ -1703,6 +1754,97 @@ Try 'muddle help stamp' for more information."""
 
         # Some of the following operations may change directory, so
         start_dir = os.getcwd()
+
+        revisions, domains, problems = self.calculate_stamp(builder,
+                                                            force,
+                                                            just_use_head)
+
+        # Make sure we're where the user thinks we are, since some of the
+        # muddle mechanisms change directory under our feet
+        os.chdir(start_dir)
+        if not self.no_op():
+            working_filename = 'working.stamp'
+            print 'Writing to',working_filename
+            with utils.HashFile(working_filename,'w') as fd:
+                self.write_rev_data(revisions, fd,
+                                    root_repo=builder.invocation.db.repo.get(),
+                                    root_desc=builder.invocation.db.build_desc.get(),
+                                    domains=domains,
+                                    problems=problems)
+            print 'Wrote revision data to %s'%working_filename
+            print 'File has SHA1 hash %s'%fd.hash()
+
+            final_name = self.decide_hash_filename(filename, fd.hash(), problems)
+            print 'Renaming %s to %s'%(working_filename, final_name)
+            os.rename(working_filename, final_name)
+
+    def write_version_file(self, builder, args):
+        force = False
+        while args:
+            word = args[0]
+            args = args[1:]
+            if word in ('-f', '-force'):
+                force = True
+            elif word.startswith('-'):
+                print "Unexpected switch '%s'"%word
+                self.print_syntax()
+                return 2
+            else:
+                print "Unexpected '%s'"%word
+                self.print_syntax()
+                return 2
+
+        if force:
+            print 'Forcing original revision ids when necessary'
+
+        # Some of the following operations may change directory, so
+        start_dir = os.getcwd()
+
+        revisions, domains, problems = self.calculate_stamp(builder,
+                                                            force,
+                                                            just_use_head=False)
+
+        if problems:
+            raise utils.Failure('Problems prevent writing version stamp file')
+
+        if not self.no_op():
+            version_dir = os.path.join(builder.invocation.db.root_path, 'versions')
+            if not os.path.exists(version_dir):
+                print 'Creating directory %s'%version_dir
+                os.mkdir(version_dir)
+
+
+            working_filename = os.path.join(version_dir, '_temporary.stamp')
+            print 'Writing to',working_filename
+            with utils.HashFile(working_filename,'w') as fd:
+                self.write_rev_data(revisions, fd,
+                                    root_repo=builder.invocation.db.repo.get(),
+                                    root_desc=builder.invocation.db.build_desc.get(),
+                                    domains=domains,
+                                    problems=problems)
+            print 'Wrote revision data to %s'%working_filename
+            print 'File has SHA1 hash %s'%fd.hash()
+
+            version_filename = "%s.stamp"%builder.build_name
+            final_name = os.path.join(version_dir, version_filename)
+            print 'Renaming %s to %s'%(working_filename, final_name)
+            os.rename(working_filename, final_name)
+
+    def calculate_stamp(self, builder, force, just_use_head):
+        """
+        Work out the content of our stamp file.
+
+        Returns <revisions>, <domains>, <problems>
+
+        <revisions> is a sorted dictionary with key the checkout label and
+        value a tuple of (repository, checkout_dir, rev, rel)
+
+        <domains> is a (possibly empty) set of tuples of (domain_name,
+        domain_repo, domain_desc)
+
+        <problems> is a (possibly empty) list of problem summaries. If
+        <problems> is empty then the stamp was calculated fully.
+        """
 
         print 'Finding all checkouts...',
         checkout_rules = list(builder.invocation.all_checkout_rules())
@@ -1753,26 +1895,9 @@ Try 'muddle help stamp' for more information."""
                 for item in problems:
                     print '* %s'%utils.truncate(str(item),less=2)
 
-        # Make sure we're where the user thinks we are, since some of the
-        # muddle mechanisms change directory under our feet
-        os.chdir(start_dir)
-        if not self.no_op():
-            working_filename = 'working.stamp'
-            print 'Writing to',working_filename
-            with utils.HashFile(working_filename,'w') as fd:
-                self.write_rev_data(revisions, fd,
-                                    root_repo=builder.invocation.db.repo.get(),
-                                    root_desc=builder.invocation.db.build_desc.get(),
-                                    domains=domains,
-                                    problems=problems)
-            print 'Wrote revision data to %s'%working_filename
-            print 'File has SHA1 hash %s'%fd.hash()
+        return revisions, domains, problems
 
-            final_name = self.decide_filename(filename, fd.hash(), problems)
-            print 'Renaming %s to %s'%(working_filename, final_name)
-            os.rename(working_filename, final_name)
-
-    def decide_filename(self, hash, basename=None, partial=False):
+    def decide_hash_filename(self, hash, basename=None, partial=False):
         """
         Return filename, given a SHA1 hash hexstring, and maybe a basename.
 
@@ -1797,7 +1922,6 @@ Try 'muddle help stamp' for more information."""
                 return '%s%s'%(head, extension)
             else:
                 return '%s%s'%(basename, extension)
-            
 
     def write_rev_data(self, revisions, fd, root_repo=None, root_desc=None,
                        domains=None, problems=None):
@@ -1897,6 +2021,7 @@ class UnStamp(Command):
     :Syntax: unstamp <file>
     :or:     unstamp <url>
     :or:     unstamp <vcs>+<url>
+    :or:     unstamp <vcs>+<repo_url> <version_desc>
 
     The "unstamp" command reads the contents of a "stamp" file, as produced by
     the "muddle stamp" command, and:
@@ -1913,18 +2038,18 @@ class UnStamp(Command):
 
       For instance::
 
-          muddle stamp thing.stamp
+          muddle stamp  thing.stamp
           mkdir /tmp/thing
           cp thing.stamp /tmp/thing
           cd /tmp/thing
-          muddle unstamp thing.stamp
+          muddle unstamp  thing.stamp
 
     * The URL for a stamp file. In this case, the file will first be copied to
       the current directory.
 
       For instance::
 
-          muddle unstamp http://some.url/some/path/thing.stamp
+          muddle unstamp  http://some.url/some/path/thing.stamp
 
       which would first copy "thing.stamp" to the current directory, and then
       use it. If the file already exists, it will be overwritten.
@@ -1932,24 +2057,44 @@ class UnStamp(Command):
     * The "revision control specific" URL for a stamp file. This names the
       VCS to use as part of the URL - for instance::
 
-          muddle unstamp bzr+ssh://kynesim.co.uk/repo/thing.stamp
+          muddle unstamp  bzr+ssh://kynesim.co.uk/repo/thing.stamp
 
       This also copies the stamp file to the current directory before using it.
       Note that not all VCS mechanisms support this (at time of writing, muddle's
       git support does not). If the file already exists, it will be overwritten.
+
+    * The "revision control specific" URL for a repository, and the path to
+      the version stamp file therein.
+
+      For instance::
+
+          muddle unstamp  bzr+ssh://kynesim.co.uk/repo  versions/ProjectThing.stamp
+
+      This is intended to act somewhat similarly to "muddle init", in that
+      it will checkout::
+
+          bzr+ssh://kynesim.co.uk/repo/versions
+
+      and then unstamp the ProjectThing.stamp file therein.
+
     """
     
     def name(self):
         return "unstamp"
 
+    def print_syntax(self):
+        print """
+    :Syntax: unstamp <file>
+    :or:     unstamp <url>
+    :or:     unstamp <vcs>+<url>
+    :or:     unstamp <vcs>+<repo_url> <version_desc>
+
+Try 'muddle help unstamp' for more information."""
+
     def requires_build_tree(self):
         return False
 
     def without_build_tree(self, muddle_binary, root_path, args):
-        if len(args) != 1:
-            print 'Syntax: unstamp <file>|<url>'
-            return 2
-
         # Strongly assume the user wants us to work in the current directory
         current_dir = os.getcwd()
 
@@ -1986,7 +2131,20 @@ class UnStamp(Command):
                              ' before retrying the "unstamp" command.'%extra)
             return 4
 
-        thing = args[0]
+        if len(args) == 1:
+            self.unstamp_from_file(muddle_binary, root_path, current_dir, args[0])
+        elif len(args) == 2:
+            self.unstamp_from_repo(muddle_binary, root_path, current_dir, args[0], args[1])
+        else:
+            self.print_syntax()
+            return 2
+
+
+    def unstamp_from_file(self, muddle_binary, root_path, current_dir, thing):
+        """
+        Unstamp from a file (local, over the network, or from a repository)
+        """
+
         data = None
 
         # So what is our "thing"?
@@ -2016,6 +2174,44 @@ class UnStamp(Command):
 
         if self.no_op():
             return
+
+        builder = mechanics.minimal_build_tree(muddle_binary, current_dir,
+                                               repo_location, build_desc)
+
+        self.restore_stamp(builder, root_path, domains, checkouts)
+
+        # Once we've checked everything out, we should ideally check
+        # if the build description matches what we've checked out...
+        return self.check_build(current_dir, checkouts, builder, muddle_binary)
+
+    def unstamp_from_repo(self, muddle_binary, root_path, current_dir, repo,
+                          version_path):
+        """
+        Unstamp from a repository and version path.
+        """
+
+        version_dir, version_file = os.path.split(version_path)
+
+        if not version_file:
+            raise utils.Failure("'unstamp <vcs+url> %s' does not end with"
+                    " a filename"%version_path)
+
+        # XXX I'm not entirely sure about this check - is it overkill?
+        if os.path.splitext(version_file)[1] != '.stamp':
+            raise utils.Failure("Stamp file specified (%s) does not end"
+                    " .stamp"%version_file)
+
+        actual_url = '%s/%s'%(repo, version_dir)
+        print 'Retrieving %s'%actual_url
+
+        if self.no_op():
+            return
+
+        # Restore to the current directory
+        os.chdir(current_dir)
+        version_control.vcs_get_directory(actual_url)
+
+        repo_location, build_desc, domains, checkouts = self.read_file(version_path)
 
         builder = mechanics.minimal_build_tree(muddle_binary, current_dir,
                                                repo_location, build_desc)

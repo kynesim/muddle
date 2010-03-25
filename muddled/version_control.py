@@ -361,11 +361,37 @@ def vcs_get_file_data(url):
     getter = vcs_file_getter[scheme]
     return getter(url)
 
+
+# This is a dictionary of VCS name to function-to-retrieve-a-directory
+vcs_dir_getter = {}
+
+def register_vcs_dir_getter(scheme, getter):
+    """
+    Register a function for retrieving an indivual directory.
+
+    'scheme' is the VCS (short) name. This should match the mnemonic used
+    at the start of URLs - so, e.g., "bzr" for "bzr+ssh://whatever".
+    
+    'getter' is the function. It should take one argument, the URL of the
+    directory to retrieve. It assumes it will restore the directory to the
+    current directory.
+    """
+    vcs_dir_getter[scheme] = getter
+
+def vcs_get_directory(url):
+    """
+    Retrieve (clone) the directory identified by the URL, via its VCS.
+
+    Retrieves (clones) to the current directory.
+
+    Looks at the first few characters of the URL to determine the VCS
+    to use - so, e.g., "bzr" for "bzr+ssh://whatever".
+
+    Raises KeyError if the scheme is not one we have a registered file getter
+    for.
+    """
+    scheme, url = split_vcs_url(url)
+    getter = vcs_dir_getter[scheme]
+    return getter(url)
+
 # End file.
-
-    
-
-    
-    
-
-    

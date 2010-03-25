@@ -13,6 +13,7 @@ import utils
 import version_control
 import env_store
 import instr
+import re
 
 from utils import domain_subpath
 
@@ -485,7 +486,7 @@ class Invocation:
     
 
 
-class Builder:
+class Builder(object):
     """
     A builder performs actions on an Invocation.
     """
@@ -517,6 +518,16 @@ class Builder:
             self.domain_params = { }
         else:
             self.domain_params = domain_params
+
+        # Guess a default build name
+        # Whilst the build description filename should be a legal Python
+        # module name (and thus only include alphanumerics and underscores),
+        # and thus also be a legal build name, we shall be cautious and
+        # assign it directly to self._build_name (thus not checking), rather
+        # than assigning to the property self.build_name (which would check).
+        build_desc = inv.db.build_desc.get()
+        build_fname = os.path.split(build_desc)[1]
+        self._build_name = os.path.splitext(build_fname)[0]
 
 
     def get_subdomain_parameters(self, domain):
@@ -896,7 +907,30 @@ class Builder:
                 os.environ = old_env
 
                 self.invocation.db.set_tag(r.target)
-            
+    
+    build_name_re = re.compile(r"[A-Za-z0-9_-]+")
+
+    @property
+    def build_name(self):
+        """
+        The build name is meant to be a short description of the purpose of a
+        build. It might thus be something like "ProjectBlue_intel_STB" or
+        "XWing-minimal".
+
+        The name may only contain alphanumerics, underlines and hyphens - this
+        is to facilitate its use in version stamp filenames. Also, it is a
+        superset of the allowed characters in a Python module name, which means
+        that the build description filename (excluding its ".py") will be a
+        legal build name (so we can use that as a default).
+        """
+        return self._build_name
+
+    @build_name.setter
+    def build_name(self, name):
+        m = self.build_name_re.match(name)
+        if m is None or m.end() != len(name):
+            raise utils.Failure("Build name '%s' is not allowed"%name)
+        self._build_name = name
 
 
 class BuildDescriptionDependable(pkg.Dependable):

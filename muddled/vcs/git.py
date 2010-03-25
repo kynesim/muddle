@@ -126,4 +126,11 @@ class GitVCSFactory(VersionControlHandlerFactory):
 # Register us with the VCS handler factory
 register_vcs_handler("git", GitVCSFactory())
 
+def git_dir_getter(url):
+    """Retrieve a directory via git.
+    """
+    utils.run_cmd("git clone %s"%url)
+
+register_vcs_dir_getter('git', git_dir_getter)
+
 # End file.

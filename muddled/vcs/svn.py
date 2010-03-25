@@ -96,6 +96,12 @@ def svn_file_getter(url):
 
 register_vcs_file_getter('svn', svn_file_getter)
 
+def svn_dir_getter(url):
+    """Retrieve a directory via Subversion.
+    """
+    utils.run_cmd("svn checkout %s"%url)
+
+register_vcs_dir_getter('svn', svn_dir_getter)
 
 
 # End file.

@@ -214,4 +214,19 @@ def bzr_file_getter(url):
 
 register_vcs_file_getter('bzr', bzr_file_getter)
 
+def bzr_dir_getter(url):
+    """Retrieve a directory via BZR.
+    """
+    if url.startswith("ssh://"):
+        # For some reason, the bzr command wants us to use "bzr+ssh" to
+        # communicate over ssh, not just "ssh". Accomodate it, so the user
+        # does not need to care about this.
+        url = "bzr+%s"%url
+    env = os.environ.copy()
+    if 'PYTHONPATH' in env:
+        del env['PYTHONPATH']
+    utils.run_cmd("bzr branch %s"%url, env=env)
+
+register_vcs_dir_getter('bzr', bzr_dir_getter)
+
 # End file.

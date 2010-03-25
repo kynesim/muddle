@@ -65,5 +65,38 @@ class FileVCSFactory(VersionControlHandlerFactory):
 # Tell the VCS handler about us.
 register_vcs_handler("file", FileVCSFactory())
 
+from urlparse import urlparse
+def _decode_file_url(url):
+    result = urlparse(url)
+    if result.scheme not in ('', 'file'):
+        raise utils.Error("'%s' is not a valid 'file:' URL"%url)
+    if result.netloc:
+        raise utils.Error("'%s' is not a valid 'file:' URL - wrong number"
+                " of '/' characters?"%url)
+    if result.params or result.query or result.fragment:
+        raise utils.Error("'%s' is not a valid 'file:' URL - don't understand"
+                " params, query or fragment"%url)
+    return result.path
+
+def file_file_getter(url):
+    """Retrieve a file's content.
+    """
+    source_path = _decode_file_url(url)
+    with open(source_path) as fd:
+        return fd.read()
+
+register_vcs_file_getter('file', file_file_getter)
+
+def file_dir_getter(url):
+    """Retrieve a directory.
+    """
+    source_path = _decode_file_url(url)
+    target_path = os.path.split(source_path)[1]
+    if os.path.exists(target_path):
+        raise utils.Error("Cannot copy '%s', as target '%s' already"
+                " exists"%(source_path, target_path))
+    utils.recursively_copy(source_path, target_path)
+
+register_vcs_dir_getter('file', file_dir_getter)
 
 # End File

@@ -1,6 +1,4 @@
 """
-elif word == 'restore':
-    unstamp = Unstamp(
 Muddle commands - these get run more or less directly by 
 the main muddle command and are abstracted out here in
 case your programs want to run them themselves
@@ -1537,85 +1535,85 @@ class Stamp(Command):
     :or:     stamp restore <url_or_file>
     :or:     stamp diff [-u[nified]|-c[ontext]|-n|-h[tml]] <file1> <file2> [<output_file>]
 
-    Saving: stamp save [<switches>] [<file>]
-    ----------------------------------------
-    Go through each checkout, and save its remote repository and current
-    revision id/number to a file.
+    * Saving: ``stamp save [<switches>] [<file>]``
 
-    This is intended to be enough information to allow reconstruction of the
-    entire build tree, as-is.
+      Go through each checkout, and save its remote repository and current
+      revision id/number to a file.
 
-    If a <file> is specified, then output will be written to that file.
-    If its name does not end in '.stamp', then '.stamp' will be appended to it.
+      This is intended to be enough information to allow reconstruction of the
+      entire build tree, as-is.
 
-    If a <file> is not specified, then a name of the form <sha1-hash>.stamp
-    will be used, where <sha1-hash> is a hexstring representation of the hash
-    of the content of the file.
+      If a <file> is specified, then output will be written to that file.
+      If its name does not end in '.stamp', then '.stamp' will be appended to it.
 
-    If it is not possible to write a full stamp file (revisions could not be
-    determined for all checkouts, and neither '-force' nor '-head' was
-    specified) then the extension ".partial" will be used instead of ".stamp".
-    An attempt will be made to give useful information about what the problems
-    are.
+      If a <file> is not specified, then a name of the form <sha1-hash>.stamp
+      will be used, where <sha1-hash> is a hexstring representation of the hash
+      of the content of the file.
 
-    If a file already exists with the name ultimately chosen, that file will
-    be overwritten.
+      If it is not possible to write a full stamp file (revisions could not be
+      determined for all checkouts, and neither '-force' nor '-head' was
+      specified) then the extension ".partial" will be used instead of ".stamp".
+      An attempt will be made to give useful information about what the problems
+      are.
 
-    If '-f' or '-force' is specified, then if the checkout revision cannot
-    be determined, the revision specified by the build description (which
-    defaults to HEAD) will be used.
+      If a file already exists with the name ultimately chosen, that file will
+      be overwritten.
 
-    If '-h' or '-head' is specified, then HEAD will be used for all checkouts.
+      If '-f' or '-force' is specified, then if the checkout revision cannot
+      be determined, the revision specified by the build description (which
+      defaults to HEAD) will be used.
 
-    Saving: stamp version [<switches>]
-    ----------------------------------
-    This is similar to "stamp save", but using a pre-determined stamp filename.
+      If '-h' or '-head' is specified, then HEAD will be used for all checkouts.
 
-    Specifically, the stamp file written will be called:
+    * Saving: ``stamp version [<switches>]``
 
-        versions/<build_name>.stamp
+      This is similar to "stamp save", but using a pre-determined stamp filename.
 
-    The "versions/" directory is at the build root (i.e., it is a sibling of
-    the ".muddle/" and "src/" directories). If it does not exist, it will be
-    created.
+      Specifically, the stamp file written will be called:
 
-    <build_name> is the name of this build, as specified by the build
-    description (by setting ``builder.build_name``). If the build description
-    does not set the build name, then the name will be taken from the build
-    description file name. You can use "muddle query name" to find the build
-    name for a particular build.
+          versions/<build_name>.stamp
 
-    If a full stamp file cannot be written (i.e., if the result would have
-    extension ".partial"), then the version stamp file will not be written.
+      The "versions/" directory is at the build root (i.e., it is a sibling of
+      the ".muddle/" and "src/" directories). If it does not exist, it will be
+      created.
 
-    Note that '-f' is supported (although perhaps not recommended), but '-h' is
-    not.
+      <build_name> is the name of this build, as specified by the build
+      description (by setting ``builder.build_name``). If the build description
+      does not set the build name, then the name will be taken from the build
+      description file name. You can use "muddle query name" to find the build
+      name for a particular build.
 
-    Restoring: stamp restore <url_or_file>
-    --------------------------------------
-    This is an experimental synonym for "unstamp". For the moment, see that
-    for documentation.
+      If a full stamp file cannot be written (i.e., if the result would have
+      extension ".partial"), then the version stamp file will not be written.
 
-    Comparing: stamp diff [<switches>] <file1> <file2> [<output_file>]
-    ------------------------------------------------------------------
-    Compare two stamp files.
+      Note that '-f' is supported (although perhaps not recommended), but '-h' is
+      not.
 
-    The two (existing) stamp files named are compared. If <output_file> is
-    given, then the output is written to it (overwriting any previous file of
-    that name), otherwise output is to standard output.
+    * Restoring: ``stamp restore <url_or_file>``
 
-    If '-u' is specified, then the output is a unified difference. This is the
-    default.
+      This is an experimental synonym for "unstamp". For the moment, see that
+      for documentation.
 
-    If '-c' is specified, then the output is a context difference. This uses a
-    "before/after" style of presentation.
+    * Comparing: ``stamp diff [<switches>] <file1> <file2> [<output_file>]``
 
-    If '-n' is specified, then the output is from "ndiff" - this is normally
-    a more human-friendly set of differences, but outputs the parts of the files
-    that match as well as those that do not.
+      Compare two stamp files.
 
-    If '-h' is specified, then the output is an HTML page, displaying
-    differences in two columns (with colours).
+      The two (existing) stamp files named are compared. If <output_file> is
+      given, then the output is written to it (overwriting any previous file of
+      that name), otherwise output is to standard output.
+
+      If '-u' is specified, then the output is a unified difference. This is the
+      default.
+
+      If '-c' is specified, then the output is a context difference. This uses a
+      "before/after" style of presentation.
+
+      If '-n' is specified, then the output is from "ndiff" - this is normally
+      a more human-friendly set of differences, but outputs the parts of the files
+      that match as well as those that do not.
+
+      If '-h' is specified, then the output is an HTML page, displaying
+      differences in two columns (with colours).
     """
     
     def name(self):

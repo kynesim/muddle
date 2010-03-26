@@ -322,9 +322,16 @@ class Depend(Command):
 class Query(Command):
     """
     :Syntax: query root
+    :or:     query name
     :or:     query <cmd> <label>
 
     'query root' prints the root path and default domain
+
+    'query name' prints the build name, as specified in the build description.
+    This prints just the name, so that one can use it in the shell - for
+    instance in bash::
+
+        export PROJECT_NAME=$(muddle query name)
 
     'query <cmd> <label>' prints information about the label - the environment
     in which it will execute, or what it depends on, or what depends on it.
@@ -342,7 +349,6 @@ class Query(Command):
                      they will be applied.
     * instructions - Print the list of currently registered instruction files,
                      in the order in which they will be applied.
-    * name         - Print the build name, as specified in the build description.
     * objdir       - Print the object directory for a label - used to extract
                      object directories for configure options in builds.
     * preciseenv   - Print the environment pertaining to exactly this label
@@ -947,6 +953,20 @@ class Update(Command):
     :Syntax: update <checkout> [ <checkout> ... ]
 
     Update the specified checkouts.
+
+    That is, bring each checkout up-to-date with respect to its remote
+    repository.
+
+    Each <checkout> should be the name of a checkout, and muddle will obey
+    the rule associated with "checkout:<checkout>{}/up_to_date" for each.
+
+    The special <checkout> name _all means all checkouts.
+
+    If no <checkouts> are given, we'll use those implied by your current
+    location.
+
+    Without a <checkout>, we use the checkout you're in, or the checkouts
+    below the current directory.
     """
     
     def name(self):
@@ -971,17 +991,28 @@ class Commit(Command):
     """
     :Syntax: commit <checkout> [ <checkout> ... ]
 
-    Commit the specified checkouts.
+    Commit the specified checkouts to their local repositories.
+
+    For a centralised VCS (e.g., Subversion) where the repository is remote,
+    this will not do anything. See the update command.
 
     If no checkouts are given, we'll use those implied by your current
     location.
+
+    Each <checkout> should be the name of a checkout, and muddle will obey
+    the rule associated with "checkout:<checkout>{}/changes_committed" for each.
+
+    The special <checkout> name _all means all checkouts.
+
+    Without a <checkout>, we use the checkout you're in, or the checkouts
+    below the current directory.
     """
     
     def name(self):
-        return "dep-commit"
+        return "commit"
 
     def aliases(self):
-        return ["commit"]
+        return ["dep-commit"]
 
     def requires_build_tree(self):
         return True
@@ -1003,17 +1034,28 @@ class Push(Command):
     """
     :Syntax: push <checkout> [ <checkout> ... ]
 
-    Push the specified packages.
+    Push the specified checkouts to their remote repositories.
+
+    This updates the content of the remote repositories to match the local
+    checkout.
 
     If no checkouts are given, we'll use those implied by your current
     location.
+
+    Each <checkout> should be the name of a checkout, and muddle will obey
+    the rule associated with "checkout:<checkout>{}/changes_pushed" for each.
+
+    The special <checkout> name _all means all checkouts.
+
+    Without a <checkout>, we use the checkout you're in, or the checkouts
+    below the current directory.
     """
     
     def name(self):
-        return "dep-push"
+        return "push"
 
     def aliases(self):
-        return ["push"]
+        return ["dep-push"]
 
     def requires_build_tree(self):
         return True
@@ -1030,23 +1072,32 @@ class Push(Command):
                 builder.build_label(co)
 
 
-
-
 class Pull(Command):
     """
     :Syntax: pull <checkout> [ <checkout> ... ]
 
-    Pull the specified packages.
+    Pull the specified checkouts from their remote repositories.
+
+    This updates the content of the local checkouts to match their remote
+    repositories.
 
     If no checkouts are given, we'll use those implied by your current
     location.
+
+    Each <checkout> should be the name of a checkout, and muddle will obey
+    the rule associated with "checkout:<checkout>{}/pulled" for each.
+
+    The special <checkout> name _all means all checkouts.
+
+    Without a <checkout>, we use the checkout you're in, or the checkouts
+    below the current directory.
     """
     
     def name(self):
-        return "dep-pull"
+        return "pull"
 
     def aliases(self):
-        return ["pull"]
+        return ["dep-pull"]
 
     def requires_build_tree(self):
         return True
@@ -1066,9 +1117,23 @@ class Pull(Command):
 
 class PkgUpdate(Command):
     """
-    :Syntax: pkg-update <checkout> [ <checkout> ... ]
+    :Syntax: pkg-update <package> [ <package> ... ]
 
-    Update the specified packages.
+    Update the checkouts on which the specified packages depend.
+
+    That is, bring each such checkout up-to-date with respect to its remote
+    repository.
+
+    This is effectively equivalent to:
+
+    1. Using ``muddle query deps 'package:<package>{}/postinstalled`` to find
+       all of the checkouts that each <package> depends on.
+    2. Using ``muddle update`` to update all of those checkouts.
+
+    The special <package> name _all means all packages.
+
+    If no <packages> are given, we'll use those implied by your current
+    location.
     """
     
     def name(self):
@@ -1091,11 +1156,24 @@ class PkgUpdate(Command):
 
 class PkgCommit(Command):
     """
-    :Syntax: dep-commit <checkout> [ <checkout> ... ]
+    :Syntax: pkg-commit <package> [ <package> ... ]
 
-    Commit the specified checkouts.
+    Commit the checkouts on which the specified packages depend.
 
-    If no checkouts are given, we'll use those implied by your current
+    That is, commit the each such checkout to its local repository.
+
+    For a centralised VCS (e.g., Subversion) where the repository is remote,
+    this will not do anything. See the pkg-update command.
+
+    This is effectively equivalent to:
+
+    1. Using ``muddle query deps 'package:<package>{}/postinstalled`` to
+       find all of the checkouts that each <package> depends on.
+    2. Using ``muddle commit`` to commit all of those checkouts.
+
+    The special <package> name _all means all packages.
+
+    If no <packages> are given, we'll use those implied by your current
     location.
     """
     
@@ -1121,9 +1199,20 @@ class PkgPush(Command):
     """
     :Syntax: pkg-push <checkout> [ <checkout> ... ]
 
-    Push the specified packages.
+    Push the checkouts on which the specified packages depend.
 
-    If no checkouts are given, we'll use those implied by your current
+    That is, update the content of the remote repositories to match each such
+    local checkout.
+
+    This is effectively equivalent to:
+
+    1. Using ``muddle query deps 'package:<package>{}/postinstalled`` to
+       find all of the checkouts that each <package> depends on.
+    2. Using ``muddle push`` to push all of those checkouts.
+
+    The special <package> name _all means all packages.
+
+    If no <packages> are given, we'll use those implied by your current
     location.
     """
     
@@ -1150,6 +1239,11 @@ class Removed(Command):
 
     Signal to muddle that the given checkouts have been removed and will
     need to be checked out again before they can be used.
+
+    The special <checkout> name _all means all checkouts.
+
+    Without a <checkout>, we use the checkout you're in, or the checkouts
+    below the current directory.
     """
     
     def name(self):
@@ -1177,6 +1271,11 @@ class Unimport(Command):
 
     Assert that the given checkouts haven't been checked out and must therefore
     be checked out.
+
+    The special <checkout> name _all means all checkouts.
+
+    Without a <checkout>, we use the checkout you're in, or the checkouts
+    below the current directory.
     """
 
     def name(self):
@@ -1211,8 +1310,10 @@ class Import(Command):
     This is really just an implicit version of muddle assert with the right
     magic label names
 
-    Without a checkout, we import the checkout you're in, or the checkouts
-    depended on by the package directory you're in.
+    The special <checkout> name _all means all checkouts.
+
+    Without a <checkout>, we use the checkout you're in, or the checkouts
+    below the current directory.
     """
     
     def name(self):
@@ -1383,6 +1484,20 @@ class UnCheckout(Command):
 
     Tells muddle that the given checkouts no longer exist in the src directory
     and should be pulled from version control again.
+
+    The special <checkout> name _all means all checkouts.
+
+    If no <checkouts> are given, we'll use those implied by your current
+    location.
+
+    This does not actually delete the checkout directory. If you try to do::
+
+        muddle unckeckout fred
+        muddle checkout   fred
+
+    then you will probably get an error, as the checkout still exists, and the
+    VCS will detect this. As it says, this is to tell muddle that the checkout
+    has already been removed.
     """
     
     def name(self):
@@ -1406,6 +1521,9 @@ class Checkout(Command):
     :Syntax: checkout <checkout> [ <checkout> ... ]
 
     Checks out the given series of checkouts.
+
+    That is, copies (clones/branches) the content of each checkout from its
+    remote repository.
 
     'checkout _all' means checkout all checkouts.
     """

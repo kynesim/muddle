@@ -1677,11 +1677,23 @@ class Stamp(Command):
       If a file already exists with the name ultimately chosen, that file will
       be overwritten.
 
-      If '-f' or '-force' is specified, then if the checkout revision cannot
-      be determined, the revision specified by the build description (which
-      defaults to HEAD) will be used.
+      If '-f' or '-force' is specified, then attempt to "force" a revision id,
+      even if it is not necessarily correct. For instance, if a local working
+      directory contains uncommitted changes, then ignore this and use the
+      revision id of the committed data. If it is actually impossible to
+      determine a sensible revision id, then use the revision specified by the
+      build description (which defaults to HEAD). For really serious problems,
+      this may refuse to guess a revision id, in which case the 'stamp save'
+      process should stop with the relevant checkout.
+
+          (Typical use of '-f' is expected to be when a 'stamp save' reports
+          problems in particular checkouts, but inspection shows that these
+          are artefacts that may be ignored, such as an executable built in
+          the source directory.)
 
       If '-h' or '-head' is specified, then HEAD will be used for all checkouts.
+      In this case, the repository specified in the build description is used,
+      and the revision id and status of each checkout is not checked.
 
     * Saving: ``stamp version [<switches>]``
 

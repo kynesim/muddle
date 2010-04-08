@@ -321,42 +321,49 @@ class Depend(Command):
 
 class Query(Command):
     """
-    :Syntax: query root
-    :or:     query name
-    :or:     query <cmd> <label>
+    :Syntax: query <cmd1>
+    :or:     query <cmd2> <label>
 
-    'query root' prints the root path and default domain
-
-    'query name' prints the build name, as specified in the build description.
-    This prints just the name, so that one can use it in the shell - for
-    instance in bash::
-
-        export PROJECT_NAME=$(muddle query name)
-
-    'query <cmd> <label>' prints information about the label - the environment
-    in which it will execute, or what it depends on, or what depends on it.
-    <cmd> may be any of:
+    'query <cmd1>' prints out information that doesn't need a label. <cmd1> may
+    be any of:
 
     * checkouts    - Print a list of known checkouts.
+    * packages     - Print a list of known packages.
+                     If there is a rule for "package:*{}/*" (for instance),
+                     then '*' will be included in the names returned.
+    * root         - Print the root path and default domain
+    * name         - Print the build name, as specified in the build description.
+                     This prints just the name, so that one can use it in the
+                     shell - for instance in bash::
+
+                          export PROJECT_NAME=$(muddle query name)
+
+                     'query <cmd2> <label>' prints information about the label
+                     - the environment in which it will execute, or what it
+                     depends on, or what depends on it.
+
+    <cmd2> may be any of:
+
     * deps         - Print what we need to build to build this label
     * dir          - Print a directory: for checkout labels, the checkout dir.
                      For package labels, the install dir. For deployment labels
                      the deployment dir.
     * env          - Print the environment in which this label will be run.
-    * envs         - Print a list of the environments that will be merged to
-                     create the resulting environment for this 
-    * inst-details - Print the list of actual instructions, in the order in which
-                     they will be applied.
+    * envs         - Print a list of the environments that will be merged
+                     to create the resulting environment for this 
+    * inst-details - Print the list of actual instructions,
+                     in the order in which they will be applied.
     * instructions - Print the list of currently registered instruction files,
                      in the order in which they will be applied.
-    * objdir       - Print the object directory for a label - used to extract
-                     object directories for configure options in builds.
+    * objdir       - Print the object directory for a label,
+                     used to extract object directories for configure options
+                     in builds.
     * preciseenv   - Print the environment pertaining to exactly this label
                      (no fuzzy matches)
     * results      - Print what this label is required to build
     * rule         - Print the rules covering building this label.
-    * targets      - Print the targets that would be built by an attempt to build
-                     this label.
+    * targets      - Print the targets that would be built
+                     by an attempt to build this label.
 
     The label needs to specify at least <type>:<name>/<tag> (although the
     <name> and <tag> are often most useful when wildcarded).
@@ -447,6 +454,14 @@ class Query(Command):
         a_list.sort()
         print "Checkouts: %s"%(" ".join(a_list))
 
+    def _query_packages(self, builder, label):
+        cos = builder.invocation.all_packages()
+        a_list = [ ]
+        for c in cos:
+            a_list.append(c)
+        a_list.sort()
+        print "Packages: %s"%(" ".join(a_list))
+
     def _query_root(self, builder, label):
         print "Root: %s"%builder.invocation.db.root_path
         print "Default domain: %s"%builder.get_default_domain()
@@ -479,26 +494,28 @@ class Query(Command):
             else:
                 print None
 
+    # Key is <cmd> name, value is (<does it need a label?>, <method>)
     queries = {
-            'checkouts' : _query_checkouts,
-            'deps' : _query_deps,
-            'dir' : _query_dir,
-            'env' : _query_env,
-            'envs' : _query_envs,
-            'inst-details' : _query_inst_details,
-            'instructions' : _query_instructions,
-            'name' : _query_name,
-            'objdir' : _query_objdir,
-            'preciseenv' : _query_preciseenv,
-            'results' : _query_results,
-            'root' : _query_root,
-            'rule' : _query_rule,
-            'targets' : _query_targets,
+            'checkouts' : (False, _query_checkouts),
+            'packages' : (False, _query_packages),
+            'deps' : (True, _query_deps),
+            'dir' : (True, _query_dir),
+            'env' : (True, _query_env),
+            'envs' : (True, _query_envs),
+            'inst-details' : (True, _query_inst_details),
+            'instructions' : (True, _query_instructions),
+            'name' : (False, _query_name),
+            'objdir' : (True, _query_objdir),
+            'preciseenv' : (True, _query_preciseenv),
+            'results' : (True, _query_results),
+            'root' : (False, _query_root),
+            'rule' : (True, _query_rule),
+            'targets' : (True, _query_targets),
             }
 
     def with_build_tree(self, builder, local_pkgs, args):
         if len(args) < 1:
-            print "Syntax: query <cmd> <label>"
+            print "Syntax: query <cmd> [<label>]"
             print self.__doc__
             return 2
 
@@ -509,9 +526,9 @@ class Query(Command):
             print self.__doc__
             return 2
 
-        if type in ("root", "name"):
-            label = None
-        else:
+        needs_label, fn = Query.queries[type]
+
+        if needs_label:
             if len(args) != 2:
                 print "Syntax: query %s <label>"%type
                 print self.__doc__
@@ -527,8 +544,10 @@ class Query(Command):
                 label.domain = builder.get_default_domain()
 
             label = builder.invocation.apply_unifications(label)
+        else:
+            label = None
 
-        Query.queries[type](self, builder, label)
+        fn(self, builder, label)
 
         return 0
 

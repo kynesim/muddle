@@ -331,6 +331,7 @@ class Query(Command):
     * packages     - Print a list of known packages.
                      If there is a rule for "package:*{}/*" (for instance),
                      then '*' will be included in the names returned.
+    * roles        - Print a list of known roles.
     * root         - Print the root path and default domain
     * name         - Print the build name, as specified in the build description.
                      This prints just the name, so that one can use it in the
@@ -462,6 +463,14 @@ class Query(Command):
         a_list.sort()
         print "Packages: %s"%(" ".join(a_list))
 
+    def _query_roles(self, builder, label):
+        cos = builder.invocation.all_roles()
+        a_list = [ ]
+        for c in cos:
+            a_list.append(c)
+        a_list.sort()
+        print "Roles: %s"%(" ".join(a_list))
+
     def _query_root(self, builder, label):
         print "Root: %s"%builder.invocation.db.root_path
         print "Default domain: %s"%builder.get_default_domain()
@@ -498,6 +507,7 @@ class Query(Command):
     queries = {
             'checkouts' : (False, _query_checkouts),
             'packages' : (False, _query_packages),
+            'roles' : (False, _query_roles),
             'deps' : (True, _query_deps),
             'dir' : (True, _query_dir),
             'env' : (True, _query_env),

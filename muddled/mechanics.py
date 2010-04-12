@@ -217,6 +217,23 @@ class Invocation:
             rv.add(cur.target.name)
         return rv
 
+    def all_roles(self):
+        """
+        Return a set of the names of all the roles in our rule set. 
+        
+        Returns a set of strings.
+        """
+        lbl = depend.Label(utils.LabelKind.Package,
+                           "*",
+                           "*",
+                           "*",
+                           domain="*")
+        all_labels = self.ruleset.rules_for_target(lbl)
+        rv = set()
+        for cur in all_labels:
+            rv.add(cur.target.role)
+        return rv
+
     def all_checkout_rules(self):
         """
         Returns a set of the labels of all the checkouts in our rule set.

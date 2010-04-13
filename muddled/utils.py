@@ -594,11 +594,8 @@ def maybe_shell_quote(str, doQuote):
     Annoyingly, shell quoting things correctly must use backslashes, since
     quotes can (and will) be misinterpreted. Bah.
 
-    FIXME!
-    ...and this is where an example would be useful, because I (Tibs) have
-    no particular idea what Richard means by "shell-quote" (it doesn't appear
-    to mean putting single-quotes around things, which is what I'd expect...)
-
+    The intent is to wrap double quotes around our string, and also backslash
+    escape backslashes and quote characters. This may help.
     """
     if doQuote:
         result = [ '"' ]

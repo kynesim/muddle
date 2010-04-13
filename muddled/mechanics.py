@@ -846,12 +846,16 @@ class Builder(object):
             store.set("MUDDLE_LIB_DIRS", 
                       " ".join(map(lambda x:utils.maybe_shell_quote(x, True), 
                                    lib_dirs)))
+            # pkg-config takes ':' separated paths and wraps single quotes around
+            # each element thereof. Therefore we must not quote the individual path
+            # elements (or the quoted string will be wrapped in single quotes, and
+            # all will go wrong when pkg-config tries to open something like
+            # '"/somewhere/lib"'). Of course, this will cause difficulty if any of
+            # the directories contain a colon in their name...
             store.set("MUDDLE_PKGCONFIG_DIRS", 
-                      " ".join(map(lambda x:utils.maybe_shell_quote(x, True), 
-                                   pkg_dirs)))
+                      ":".join(pkg_dirs))
             store.set("MUDDLE_PKGCONFIG_DIRS_AS_PATH", 
-                      ":".join(map(lambda x:utils.maybe_shell_quote(x, True), 
-                                   pkg_dirs)))
+                      ":".join(pkg_dirs))
 
             #print "> pkg_dirs = %s"%(" ".join(pkg_dirs))
 

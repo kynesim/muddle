@@ -2857,8 +2857,8 @@ def labels_from_pkg_args(list, tag, default_roles, default_domain):
         m = pkg_args_re.match(elem)
         if (m is None):
             # Hmm ..
-            raise utils.Error("Package list element %s isn't a " 
-                    "well-formed package descriptor (name({role})?)"%elem)
+            raise utils.Error("Package spec '%s' is wrong,\n    expecting " 
+                    "'name', 'name{}', 'name{role}' or '(domain}name{role}'"%elem)
         else:
             domain = m.group('domain')    # None if not present
             if (domain is None):

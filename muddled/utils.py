@@ -594,17 +594,17 @@ def maybe_shell_quote(str, doQuote):
     Annoyingly, shell quoting things correctly must use backslashes, since
     quotes can (and will) be misinterpreted. Bah.
 
-    The intent is to wrap double quotes around our string, and also backslash
-    escape backslashes and quote characters. This may help.
+    NB: Despite the name, this is actually "escaping", rather then "quoting".
+    Specifically, any single quote, double quote or backslash characters in
+    the original string will be converted to a backslash followed by the
+    original character, in the final string.
     """
     if doQuote:
-        result = [ '"' ]
+        result = []
         for i in str:
             if i=='"' or i=="\\" or i=="'":
                 result.append("\\")
             result.append(i)
-        result.append('"')
-
         return "".join(result)
     else:
         return str

@@ -112,6 +112,10 @@ class Bazaar(VersionControlHandler):
         """
         Determine a revision id for this checkout, usable to check it out again.
 
+        If 'force' is true, then if we can't get one from bzr, and it seems
+        "reasonable" to do so, use the original revision from the muddle
+        depend file (if it is not HEAD).
+
         'bzr revno' always returns a simple integer (or so I believe)
 
         'bzr version-info' returns several lines, including::
@@ -169,10 +173,21 @@ class Bazaar(VersionControlHandler):
             missing = missing.strip()
             if missing == 'bzr: ERROR: No peer location known or specified.':
                 # This presumably means that they have never pushed since
-                # the original checkout - in which case we *should* be OK
-                if verbose:
-                    print missing
-                return self.get_original_revision()
+                # the original checkout
+                if force:
+                    orig_revision = self.get_original_revision()
+                    if all([x.isdigit() for x in orig_revision]):
+                        if verbose:
+                            print missing
+                            print 'Using original revision: %s'%orig_revision
+                        return orig_revision
+                    else:
+                        raise utils.Failure("'bzr missing' says '%s',\n"%missing[5:] +
+                                            "    and original revision is '%s', so"
+                                            " cannot use that"%orig_revision)
+                else:
+                    raise utils.Failure("'bzr missing' says '%s',\n"%missing[5:] +
+                            "    so cannot determine revision")
             else:
                 raise utils.Failure("'bzr missing' suggests checkout '%s' does"
                         " not match the remote repository:\n%s"%(self.checkout_name,

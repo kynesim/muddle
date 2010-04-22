@@ -1143,6 +1143,63 @@ class Pull(Command):
                 builder.build_label(co)
 
 
+class Reparent(Command):
+    """
+    :Syntax: reparent [-f[orce]] <checkout> [ <checkout> ... ]
+
+    Re-associate the specified checkouts with their remote repositories.
+
+    Some distributed VCSs (notably, Bazaar) can "forget" the remote repository
+    for a checkout. In Bazaar, this typically means not remembering the
+    "parent" repository, and thus not being able to pull. It appears to be
+    possible to end up in this situation if network disconnection happens in an
+    inopportune manner.
+
+    This command attempts to reassociate each checkout to the remote repository
+    as named in the muddle build description. If '-force' is given, then this
+    will be done even if the remote repository is already known, otherwise it
+    will only be done if it is necessary.
+
+    If no checkouts are given, we'll use those implied by your current
+    location.
+
+    Each <checkout> should be the name of a checkout.
+
+    The special <checkout> name _all means all checkouts.
+
+    Without a <checkout>, we use the checkout you're in, or the checkouts
+    below the current directory.
+    """
+    
+    def name(self):
+        return "reparent"
+
+    def requires_build_tree(self):
+        return True
+
+    def with_build_tree(self, builder, local_pkgs, args):
+
+        if args and args[0] in ('-f', '-force'):
+            args = args[1:]
+            force = True
+        else:
+            force = False
+
+        checkouts = decode_checkout_arguments(builder, args, local_pkgs,
+                                              utils.Tags.Pulled)
+        if (self.no_op()):
+            print "Reparent checkouts: %s"%(depend.label_list_to_string(checkouts))
+        else:
+            for co in checkouts:
+                rule = builder.invocation.ruleset.rule_for_target(co)
+                try:
+                    vcs = rule.obj.vcs
+                except AttributeError:
+                    print "Rule for label '%s' has no VCS - cannot reparent, ignored"%co
+                    continue
+                vcs.reparent(force=force, verbose=True)
+
+
 
 class PkgUpdate(Command):
     """

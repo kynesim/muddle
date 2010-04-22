@@ -74,6 +74,102 @@ class Bazaar(VersionControlHandler):
         utils.run_cmd("bzr push %s"%self.bzr_repo,
                       env=self._derive_env())
 
+    def reparent(self, force=False, verbose=True):
+        """
+        Re-associate the local repository with its original remote repository,
+
+        ``bzr info`` is your friend for finding out if the checkout is
+        already associated with a remote repository. The "parent branch"
+        is used for pulling and merging (and is what we set). If present,
+        the "push branch" is used for pushing.
+
+        If force is true, we set "parent branch", and delete "push branch" (so
+        it will default to the "parent branch").
+
+        If force is false, we only set "parent branch", and then only if it is
+        not set.
+
+        The actual information is held in <checkout-dir>/.bzr/branch/branch.conf,
+        which is a .INI file.
+        """
+        if verbose:
+            print "Re-associating checkout '%s' with remote repository"%(
+                  self.checkout_name),
+        this_dir = os.path.join(self.checkout_path, self.checkout_name)
+        this_file = os.path.join(this_dir, '.bzr', 'branch', 'branch.conf')
+
+        # It would be nice if Bazaar used the ConfigParser for the branch.conf
+        # files, but it doesn't - they lack a [section] name. Thus we will have
+        # to do this by hand...
+        #
+        # Note that I'm going to try to preserve, as much as possible, any lines
+        # that I do not actually change...
+        with open(this_file) as f:
+            lines = f.readlines()
+        items = {}
+        posns = []
+        count = 0
+        for orig_line in lines:
+            count += 1                  # normal people like first line is line 1
+            line = orig_line.strip()
+            if len(line) == 0 or line.startswith('#'):
+                posns.append(('#', orig_line))
+                continue
+            elif '=' not in line:
+                raise utils.Failure("Cannot parse '%s' - no '=' in line %d:"
+                                    "\n    %s"%(this_file, count, line))
+            words = line.split('=')
+            key = words[0].strip()
+            val = ''.join(words[1:]).strip()
+            items[key] = val
+            posns.append((key, orig_line))
+
+        changed = False
+        if force:
+            changed = True
+            if 'push_location' in items:        # Forget it
+                if verbose:
+                    print
+                    print '.. Forgetting "push" location'
+                items['push_location'] = None
+            if 'parent_location' not in items:  # Place it at the end
+                posns.append(('parent_location', self.bzr_repo))
+                if verbose:
+                    print
+                    print '.. Setting "parent" location %s'%self.bzr_repo
+            else:
+                if verbose:
+                    print '.. Overwriting "parent" location'
+                    print '   it was     %s'%items['parent_location']
+                    print '   it becomes %s'%self.bzr_repo
+            items['parent_location'] = self.bzr_repo
+        else:
+            if 'parent_location' not in items:  # Place it at the end
+                if verbose:
+                    print
+                    print '.. Setting "parent" location %s'%self.bzr_repo
+                posns.append(('parent_location', self.bzr_repo))
+                items['parent_location'] = self.bzr_repo
+                changed = True
+            elif verbose:
+                print ' - already associated'
+                if items['parent_location'] != self.bzr_repo:
+                    print '.. NB with %s'%items['parent_location']
+                    print '       not %s'%self.bzr_repo
+
+        if changed:
+            print '.. Writing branch configuration file'
+            with open(this_file, 'w') as fd:
+                for key, orig_line in posns:
+                    if key == '#':
+                        fd.write(orig_line)
+                    elif key in items:
+                        if items[key] is not None:
+                            fd.write('%s = %s\n'%(key, items[key]))
+                    else:
+                        fd.write(orig_line)
+
+
     def must_update_to_commit(self):
         return False
 

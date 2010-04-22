@@ -115,6 +115,24 @@ class VersionControlHandler:
         """
         pass
 
+    def reparent(self, force=False, verbose=True):
+        """
+        Re-associate the local repository with its original remote repository,
+
+        (This is not relevant for all VCS systems, and will only be overridden
+        for those where it does make sense - notably Bazaar)
+
+        This re-associates the local repository with the remote repository named
+        in the muddle build description.
+
+        If 'force' is true, it does this regardless. If 'force' is false, then
+        it only does it if the checkout is actually not so associated.
+        """
+        if verbose:
+            print "Re-associating checkout '%s' with remote repository:" \
+                    " %s does not support 'reparent'"%(self.checkout_name,
+                            self.__class__.__name__)
+
     def must_update_to_commit(self):
         """
         Must we update to commit? The answer is usually True for

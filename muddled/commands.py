@@ -1160,6 +1160,12 @@ class Reparent(Command):
     will be done even if the remote repository is already known, otherwise it
     will only be done if it is necessary.
 
+        For Bazaar: Reads and (maybe) edits .bzr/branch/branch.conf.
+
+        * If "parent_branch" is unset, sets it.
+        * With '-force', sets "parent_branch" regardless, and also unsets
+          "push_branch".
+
     If no checkouts are given, we'll use those implied by your current
     location.
 

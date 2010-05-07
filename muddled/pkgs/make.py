@@ -74,7 +74,12 @@ class MakeBuilder(PackageBuilder):
         # We really do want PKG_CONFIG_LIBDIR here - it prevents pkg-config
         # from finding system-installed packages.
         if (self.usesAutoconf):
+            print "> setting PKG_CONFIG_LIBDIR to %s"%(os.environ['MUDDLE_PKGCONFIG_DIRS_AS_PATH'])
             os.environ['PKG_CONFIG_LIBDIR'] = os.environ['MUDDLE_PKGCONFIG_DIRS_AS_PATH']
+        elif(os.environ.has_key('PKG_CONFIG_LIBDIR')):
+            # Make sure that pkg-config uses default if we're not setting it.
+            print "> setting removing PKG_CONFIG_LIBDIR from environment"
+            del os.environ['PKG_CONFIG_LIBDIR']
 
         if self.makefile_name is None:
             makefile_name = "Makefile"

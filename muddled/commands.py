@@ -374,7 +374,9 @@ class Query(Command):
 
     * unused       - Report on labels that are defined in the build description,
                      but are not "used" by the targets. With no arguments, the
-                     targets are the default deployables.
+                     targets are the default deployables. The argument "_all"
+                     means all available deployables (not just the defaults).
+                     Otherwise, arguments are labels.
     """
 
     def name(self):
@@ -511,26 +513,36 @@ class Query(Command):
                 print None
 
     def _query_unused(self, builder, args):
-        targets = []
+
+        def all_deployables(builder):
+            search_label = depend.Label(utils.LabelKind.Deployment,
+                                        "*", "*", utils.Tags.Deployed,
+                                        domain="*")
+            all_rules = builder.invocation.ruleset.rules_for_target(search_label)
+            deployables = set()
+            for r in all_rules:
+                deployables.add(r.target)
+            return deployables
+
+        targets = set()
         if args:
             for thing in args:
                 if thing == '_all':
-                    raise utils.Failure("It does not make sense to ask for"
-                                        " 'muddle query unused _all'")
-                targets.append(depend.Label.from_string(thing))
+                    targets = targets.union(all_deployables(builder))
+                else:
+                    targets.add(depend.Label.from_string(thing))
             print 'Finding labels unused by:'
         else:
             print 'Finding labels unused by the default deployables:'
-            targets = builder.invocation.default_labels[:]
+            targets = set(builder.invocation.default_labels[:])
+
+        targets = list(targets)
+        targets.sort()
         for label in targets:
             print '    %s'%label
 
         all_needed_labels = set()
         for label in targets:
-            #print '>>> %s'%label
-            #needed = depend.required_by(builder.invocation.ruleset, label)
-            #for l in needed:
-            #    print '    %s'%l
             print '>>> Processing %s'%label
             needed = depend.needed_to_build(builder.invocation.ruleset, label)
             for r in needed:

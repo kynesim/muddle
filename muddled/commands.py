@@ -593,14 +593,17 @@ class Query(Command):
         deployments = {}
         other = {}
 
-        def add_label(d, l):
+        def label_key(l):
             key_parts = ['%s:'%l.type]
             if l.domain:
                 key_parts.append = '(%s)'%l.domain
             key_parts.append(l.name)
             if l.role:
                 key_parts.append('{%s}'%l.role)
-            key = ''.join(key_parts)
+            return ''.join(key_parts)
+
+        def add_label(d, l):
+            key = label_key(l)
             if key in d:
                 d[key].append(l.tag)
             else:

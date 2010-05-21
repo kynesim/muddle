@@ -512,17 +512,16 @@ class Query(Command):
 
     def _query_unused(self, builder, args):
         targets = []
-        print 'query unused %s'%args
         if args:
             for thing in args:
                 if thing == '_all':
                     raise utils.Failure("It does not make sense to ask for"
                                         " 'muddle query unused _all'")
                 targets.append(depend.Label.from_string(thing))
+            print 'Finding labels unused by:'
         else:
-            print 'Using default deployables:'
+            print 'Finding labels unused by the default deployables:'
             targets = builder.invocation.default_labels[:]
-        print 'Finding labels unused by:'
         for label in targets:
             print '    %s'%label
 

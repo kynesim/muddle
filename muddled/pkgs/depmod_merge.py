@@ -208,7 +208,8 @@ def add_deps(builder, merger, deps, subdir = "/lib/modules"):
                 
 def create(builder, name, role, 
            pkgs_and_roles,
-           custom_depmod = None):
+           custom_depmod = None, 
+           subdir = "/lib/modules"):
     """
     Create a depmod_merge . It will depend on each of the mentioned packages.
 
@@ -229,7 +230,7 @@ def create(builder, name, role,
                            pname,
                            role,
                            utils.Tags.PostInstalled)
-        dependable.add_label(lbl)
+        dependable.add_label(lbl, subdir)
 
     return dependable
 

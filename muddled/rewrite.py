@@ -147,7 +147,7 @@ def fix_up_pkgconfig_and_la(builder, dir,
                             libPath = None,
                             includePath = None, 
                             execPrefix = None):
-    """e
+    """
     Given a directory, dir, in which there may be 
     .pc and .la files lurking, identify the .pc and
     .la files and rewrite them.

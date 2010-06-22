@@ -340,9 +340,8 @@ class Query(Command):
 
                           export PROJECT_NAME=$(muddle query name)
 
-                     'query <cmd2> <label>' prints information about the label
-                     - the environment in which it will execute, or what it
-                     depends on, or what depends on it.
+    'query <cmd2> <label>' prints information about the label - the environment
+    in which it will execute, or what it depends on, or what depends on it.
 
     <cmd2> may be any of:
 
@@ -357,6 +356,9 @@ class Query(Command):
                      in the order in which they will be applied.
     * instructions - Print the list of currently registered instruction files,
                      in the order in which they will be applied.
+    * match        - Print out any labels that match the label given. If the
+                     label is not wildcarded, this just reports if the label
+                     is known.
     * objdir       - Print the object directory for a label,
                      used to extract object directories for configure options
                      in builds.
@@ -486,6 +488,27 @@ class Query(Command):
 
     def _query_name(self, builder, label):
         print builder.build_name
+
+    def _query_matching_label(self, builder, label):
+        wildcard_label = depend.Label("*", "*", "*", "*", domain="*")
+        all_rules = builder.invocation.ruleset.rules_for_target(wildcard_label)
+        all_labels = set()
+        for r in all_rules:
+            all_labels.add(r.target)
+        if label.is_definite():
+            print list(all_labels)[0], '..', list(all_labels)[-1]
+            if label in all_labels:
+                print 'Label %s exists'%label
+            else:
+                print 'Label %s does not exist'%label
+        else:
+            found = False
+            for item in all_labels:
+                if label.match(item):
+                    print 'Label %s matches %s'%(label, item)
+                    found = True
+            if not found:
+                print 'Label %s does not match any labels'%label
 
 
     def _query_dir(self, builder, label):
@@ -658,6 +681,7 @@ class Query(Command):
             'envs' : (True, _query_envs),
             'inst-details' : (True, _query_inst_details),
             'instructions' : (True, _query_instructions),
+            'match' : (True, _query_matching_label),
             'name' : (False, _query_name),
             'objdir' : (True, _query_objdir),
             'preciseenv' : (True, _query_preciseenv),

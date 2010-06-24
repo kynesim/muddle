@@ -911,21 +911,42 @@ class Builder(object):
                 self.invocation.db.clear_tag(r)
 
 
+    def _build_label_env(self, label, env_store):
+        """
+        Amend the environment, ready for building a label.
+
+        'r' is the rule for how to build the label.
+
+        'env_store' is the environment store holding (most of) the environment
+        we want to use.
+
+        It is the caller's responsibility to put the environment BACK when
+        finished with it...
+        """
+        local_store = env_store.Store()
+
+        # Add the default environment variables for building this label
+        self.set_default_variables(label, local_store)
+        local_store.apply(os.environ)
+
+        # Add anything the rest of the system has put in.
+        self.invocation.setup_environment(label, os.environ)
+
 
     def build_label(self, label, useDepends = True, useTags = True, silent = False):
         """
         The fundamental operation of a builder - build this label.
-        
+
         * useDepends - Use dependencies?
         """
-        
+
         if useDepends:
             rule_list = depend.needed_to_build(self.invocation.ruleset, label, useTags = useTags, 
                                                useMatch = True)
         else:
             rule_list = self.invocation.ruleset.rules_for_target(label, useTags = useTags, 
                                                                  useMatch = True)
-    
+
         for r in rule_list:
             # Build it.
             if (not self.invocation.db.is_tag(r.target)):
@@ -935,16 +956,8 @@ class Builder(object):
 
                 # Set up the environment for building this label
                 old_env = os.environ
+                self._build_label_env(r.target, env_store)
 
-                local_store = env_store.Store()
-
-                # Add the default environment variables for building this label
-                self.set_default_variables(r.target, local_store)
-                local_store.apply(os.environ)
-                
-                # Add anything the rest of the system has put in.
-                self.invocation.setup_environment(r.target, os.environ)
-                    
                 if (r.obj is not None):
                     r.obj.build_label(self, r.target)
 
@@ -952,7 +965,7 @@ class Builder(object):
                 os.environ = old_env
 
                 self.invocation.db.set_tag(r.target)
-    
+
     build_name_re = re.compile(r"[A-Za-z0-9_-]+")
 
     @property

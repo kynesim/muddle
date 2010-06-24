@@ -351,7 +351,7 @@ class Query(Command):
                      the deployment dir.
     * env          - Print the environment in which this label will be run.
     * envs         - Print a list of the environments that will be merged
-                     to create the resulting environment for this 
+                     to create the resulting environment for this
     * inst-details - Print the list of actual instructions,
                      in the order in which they will be applied.
     * instructions - Print the list of currently registered instruction files,
@@ -359,6 +359,22 @@ class Query(Command):
     * match        - Print out any labels that match the label given. If the
                      label is not wildcarded, this just reports if the label
                      is known.
+    * makeenv      - Print the environment in which "make" will be called for
+                     this label. Specifically, print what muddle adds to the
+                     environment (so it leaves out anything that was already in
+                     the environment when muddle was called). Note that various
+                     things (lists of directories) only get set up when the
+                     directories actually exists - so, for instance,
+                     MUDDLE_INCLUDE_DIRS will only include directories for the
+                     packages depended on *that have already been built*. This
+                     means that this command shows the environment actually as
+                     would be used if one did ``muddle buildlabel``, but not
+                     necessarily as it would be for ``muddle build``, when the
+                     dependencies themselves would be built first. (It would be
+                     difficult to do otherwise, as the environment built is
+                     always as small as possible, and it is not until a package
+                     has been built that muddle can tell which directories will
+                     be present.
     * objdir       - Print the object directory for a label,
                      used to extract object directories for configure options
                      in builds.
@@ -416,6 +432,33 @@ class Query(Command):
         the_env = builder.invocation.effective_environment_for(label)
         print "Effective environment for %s .. "%label
         print the_env.get_setvars_script(builder, label, env_store.EnvLanguage.Sh)
+
+    def _query_make_env(self, builder, label):
+        rule_set = builder.invocation.ruleset.rules_for_target(label,
+                                                               useTags=True,
+                                                               useMatch=True)
+        if len(rule_set) == 0:
+            print 'No idea how to build %s'%label
+            return
+        elif len(rule_set) > 1:
+            print 'Multiple rules for building %s'%label
+            return
+
+        # Amend the environment as if we were about to build
+        old_env = os.environ
+        os.environ = {}
+        rule = list(rule_set)[0]
+        builder._build_label_env(label, env_store)
+        build_obj = rule.obj
+        co_path = builder.invocation.checkout_path(build_obj.co, domain=label.domain)
+        build_obj._amend_env(co_path)
+
+        keys = os.environ.keys()
+        keys.sort()
+        for key in keys:
+            print '%s=%s'%(key,os.environ[key])
+
+        os.environ = old_env
 
     def _query_rule(self, builder, label):
         local_rule = builder.invocation.ruleset.rule_for_target(label)
@@ -681,6 +724,7 @@ class Query(Command):
             'envs' : (True, _query_envs),
             'inst-details' : (True, _query_inst_details),
             'instructions' : (True, _query_instructions),
+            'makeenv' : (True, _query_make_env),
             'match' : (True, _query_matching_label),
             'name' : (False, _query_name),
             'objdir' : (True, _query_objdir),

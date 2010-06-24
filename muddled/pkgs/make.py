@@ -52,21 +52,9 @@ class MakeBuilder(PackageBuilder):
         utils.ensure_dir(inv.package_obj_path(self.name, self.role, domain = label.domain))
         utils.ensure_dir(inv.package_install_path(self.name, self.role, domain = label.domain))
 
-    def build_label(self, builder, label):
+    def _amend_env(self, co_path):
+        """Amend the environment before building a label
         """
-        Build the relevant label. We'll assume that the
-        checkout actually exists.
-        """
-        tag = label.tag
-
-        self.ensure_dirs(builder, label)
-        
-        # XXX We have no way of remembering a checkout in a different domain
-        # XXX (from the label we're building) so for the moment we won't even
-        # XXX try...
-        co_path =  builder.invocation.checkout_path(self.co, domain = label.domain)
-        os.chdir(co_path)
-
         # XXX Experimentally set MUDDLE_SRC for the "make" here, where we need it
         os.environ["MUDDLE_SRC"] = co_path
         # XXX
@@ -80,6 +68,23 @@ class MakeBuilder(PackageBuilder):
             # Make sure that pkg-config uses default if we're not setting it.
             print "> setting removing PKG_CONFIG_LIBDIR from environment"
             del os.environ['PKG_CONFIG_LIBDIR']
+
+    def build_label(self, builder, label):
+        """
+        Build the relevant label. We'll assume that the
+        checkout actually exists.
+        """
+        tag = label.tag
+
+        self.ensure_dirs(builder, label)
+
+        # XXX We have no way of remembering a checkout in a different domain
+        # XXX (from the label we're building) so for the moment we won't even
+        # XXX try...
+        co_path =  builder.invocation.checkout_path(self.co, domain = label.domain)
+        os.chdir(co_path)
+
+        self._amend_env(co_path)
 
         if self.makefile_name is None:
             makefile_name = "Makefile"

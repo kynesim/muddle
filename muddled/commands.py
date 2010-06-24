@@ -328,73 +328,100 @@ class Query(Command):
     'query <cmd1>' prints out information that doesn't need a label. <cmd1> may
     be any of:
 
-    * checkouts    - Print a list of known checkouts.
-    * packages     - Print a list of known packages.
-                     If there is a rule for "package:*{}/*" (for instance),
-                     then '*' will be included in the names returned.
-    * roles        - Print a list of known roles.
-    * root         - Print the root path and default domain
-    * name         - Print the build name, as specified in the build description.
-                     This prints just the name, so that one can use it in the
-                     shell - for instance in bash::
+      checkouts
+        Print a list of known checkouts.
 
-                          export PROJECT_NAME=$(muddle query name)
+      packages
+        Print a list of known packages.  If there is a rule for "package:*{}/*"
+        (for instance), then '*' will be included in the names returned.
+
+      roles
+        Print a list of known roles.
+
+      root
+        Print the root path and default domain
+
+      name
+        Print the build name, as specified in the build description.  This
+        prints just the name, so that one can use it in the shell - for
+        instance in bash::
+
+            export PROJECT_NAME=$(muddle query name)
 
     'query <cmd2> <label>' prints information about the label - the environment
     in which it will execute, or what it depends on, or what depends on it.
 
     <cmd2> may be any of:
 
-    * deps         - Print what we need to build to build this label
-    * dir          - Print a directory: for checkout labels, the checkout dir.
-                     For package labels, the install dir. For deployment labels
-                     the deployment dir.
-    * env          - Print the environment in which this label will be run.
-    * envs         - Print a list of the environments that will be merged
-                     to create the resulting environment for this
-    * inst-details - Print the list of actual instructions,
-                     in the order in which they will be applied.
-    * instructions - Print the list of currently registered instruction files,
-                     in the order in which they will be applied.
-    * match        - Print out any labels that match the label given. If the
-                     label is not wildcarded, this just reports if the label
-                     is known.
-    * makeenv      - Print the environment in which "make" will be called for
-                     this label. Specifically, print what muddle adds to the
-                     environment (so it leaves out anything that was already in
-                     the environment when muddle was called). Note that various
-                     things (lists of directories) only get set up when the
-                     directories actually exists - so, for instance,
-                     MUDDLE_INCLUDE_DIRS will only include directories for the
-                     packages depended on *that have already been built*. This
-                     means that this command shows the environment actually as
-                     would be used if one did ``muddle buildlabel``, but not
-                     necessarily as it would be for ``muddle build``, when the
-                     dependencies themselves would be built first. (It would be
-                     difficult to do otherwise, as the environment built is
-                     always as small as possible, and it is not until a package
-                     has been built that muddle can tell which directories will
-                     be present.
-    * objdir       - Print the object directory for a label,
-                     used to extract object directories for configure options
-                     in builds.
-    * preciseenv   - Print the environment pertaining to exactly this label
-                     (no fuzzy matches)
-    * results      - Print what this label is required to build
-    * rule         - Print the rules covering building this label.
-    * targets      - Print the targets that would be built
-                     by an attempt to build this label.
+      deps
+        Print what we need to build to build this label
+
+      dir
+        Print a directory: for checkout labels, the checkout dir.  For package
+        labels, the install dir. For deployment labels the deployment dir.
+
+      env
+        Print the environment in which this label will be run.
+
+      envs
+        Print a list of the environments that will be merged to create the
+        resulting environment for this
+
+      inst-details
+        Print the list of actual instructions, in the order in which they will
+        be applied.
+
+      instructions
+        Print the list of currently registered instruction files, in the order
+        in which they will be applied.
+
+      match
+        Print out any labels that match the label given. If the label is not
+        wildcarded, this just reports if the label is known.
+
+      makeenv
+        Print the environment in which "make" will be called for this label.
+        Specifically, print what muddle adds to the environment (so it leaves
+        out anything that was already in the environment when muddle was
+        called).  Note that various things (lists of directories) only get set
+        up when the directories actually exists - so, for instance,
+        MUDDLE_INCLUDE_DIRS will only include directories for the packages
+        depended on *that have already been built*. This means that this
+        command shows the environment actually as would be used if one did
+        ``muddle buildlabel``, but not necessarily as it would be for ``muddle
+        build``, when the dependencies themselves would be built first. (It
+        would be difficult to do otherwise, as the environment built is always
+        as small as possible, and it is not until a package has been built that
+        muddle can tell which directories will be present.
+
+      objdir
+        Print the object directory for a label, used to extract object
+        directories for configure options in builds.
+
+      preciseenv
+        Print the environment pertaining to exactly this label (no fuzzy
+        matches)
+
+      results
+        Print what this label is required to build
+
+      rule
+        Print the rules covering building this label.
+
+      targets
+        Print the targets that would be built by an attempt to build this
+        label.
 
     The label needs to specify at least <type>:<name>/<tag> (although the
     <name> and <tag> are often most useful when wildcarded).
 
     <cmd3> may be:
 
-    * unused       - Report on labels that are defined in the build description,
-                     but are not "used" by the targets. With no arguments, the
-                     targets are the default deployables. The argument "_all"
-                     means all available deployables (not just the defaults).
-                     Otherwise, arguments are labels.
+      unused
+        Report on labels that are defined in the build description, but are not
+        "used" by the targets. With no arguments, the targets are the default
+        deployables. The argument "_all" means all available deployables (not
+        just the defaults).  Otherwise, arguments are labels.
     """
 
     def name(self):

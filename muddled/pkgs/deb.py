@@ -360,10 +360,10 @@ def dev(builder, coName, name, roles,
     """
     A wrapper for 'deb.simple', with the "idDev" flag set True.
 
-    nonDevCoName  is the checkout in which the non-dev version of the package resides.
-    nonDevDebName is the non-dev version of the package; this is sometimes needed
-                  because of the odd way in which debian packages the '.so' link
-                  in the dev package and the sofiles themselves into the non-dev.
+    * nonDevCoName  is the checkout in which the non-dev version of the package resides.
+    * nonDevDebName is the non-dev version of the package; this is sometimes needed
+      because of the odd way in which debian packages the '.so' link
+      in the dev package and the sofiles themselves into the non-dev.
 
     """
     simple(builder, coName, name, roles, depends_on,

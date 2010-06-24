@@ -284,7 +284,7 @@ def deploy(builder, target_dir, name, roles):
 
       "deployment:<name>/deployed"
       
-    which depends on "package:*{<role}/postinstalled" (in the builder's default
+    which depends on "package:\*{<role}/postinstalled" (in the builder's default
     domain) for each <role> in 'roles'.
 
     In other words, the deployment called 'name' will depend on the given roles

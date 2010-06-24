@@ -780,9 +780,11 @@ class Builder(object):
         ``MUDDLE_OBJ_LIB``
             ``$(MUDDLE_OBJ)/lib``
         ``MUDDLE_PKGCONFIG_DIRS``
-        ``MUDDLE_PKGCONFIG_DIRS_AS_PATH``
             Sets pkg-config to look only at packages we are declared to be 
             dependent on, or none if there are not declared dependencies.
+        ``MUDDLE_PKGCONFIG_DIRS_AS_PATH``
+            The same values as in ``MODULE_PKGCONFIG_DIRS``, but with items
+            separated by colons.
         """
         store.set("MUDDLE_ROOT", self.invocation.db.root_path)
         store.set("MUDDLE_LABEL", label.__str__())

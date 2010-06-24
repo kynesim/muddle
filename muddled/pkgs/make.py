@@ -245,7 +245,7 @@ def attach_env(builder, name, role, checkout, domain=None):
     """
     Write the environment which attaches MUDDLE_SRC to makefiles.
 
-    We retrieve the environment for 'package:<name>{<role>}/*', and
+    We retrieve the environment for ``package:<name>{<role>}/*``, and
     set MUDDLE_SRC therein to the checkout path for 'checkout:<checkout>'.
     """
     env = builder.invocation.get_environment_for(

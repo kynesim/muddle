@@ -24,6 +24,6 @@ clean:
 
 
 distclean:
-	rm -r f$(MUDDLE_OBJ_OBJ)
+	rm -rf $(MUDDLE_OBJ_OBJ)
 
 # End file.

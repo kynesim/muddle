@@ -137,6 +137,8 @@ def simple(builder, name, role, checkout, simpleCheckout = False, config = True,
     * config         - If True, we have make config. If false, we don't.
     * perRoleMakefiles - If True, we run 'make -f Makefile.<rolename>' instead
       of just make.
+    * usesAutoconf    - If True, this package is given access to .la and .pc
+                          files from things it depends on.
     * rewriteAutoconf  - If True, we will rewrite .la and .pc files in the
       output directory so that packages which use autoconf continue to 
       depend correctly. Intended for use with the MUDDLE_PKGCONFIG_DIRS 

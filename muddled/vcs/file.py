@@ -24,7 +24,7 @@ class File(VersionControlHandler):
         (real_repo, r) = sp
 
 
-        parsed = urlparse.urlparse(real_repo)
+        parsed = urlparse(real_repo)
         self.source_path = parsed.path
         self.co_path = self.get_checkout_path(self.checkout_name)
 

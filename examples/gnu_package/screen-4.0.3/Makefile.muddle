@@ -1,0 +1,29 @@
+# Muddle makefile for GNU screen.
+
+CFLAGS += -O2 $(MUDDLE_INCLUDE_DIRS:%=-I%)
+LDFLAGS=$(MUDDLE_LIB_DIRS:%=-L%)
+
+export CFLAGS
+export LDFLAGS
+
+all:
+	$(MAKE) -C $(MUDDLE_OBJ_OBJ) all
+
+
+# You may also need to fix up include directories and library names,
+# depending on quite where this package installs its libraries.
+install:
+	$(MAKE) -C $(MUDDLE_OBJ_OBJ) DESTDIR=$(MUDDLE_OBJ) install
+
+config:
+	-mkdir -p $(MUDDLE_OBJ_OBJ)
+	(cd $(MUDDLE_OBJ_OBJ); $(MUDDLE_SRC)/configure --prefix=/)
+
+clean:
+	$(MAKE) -C $(MUDDLE_OBJ_OBJ) clean
+
+
+distclean:
+	rm -r f$(MUDDLE_OBJ_OBJ)
+
+# End file.

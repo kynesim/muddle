@@ -5,20 +5,18 @@ import os
 
 from muddled.commands import UnStamp
 from muddled.vcs.bazaar import Bazaar
+from muddled.utils import VersionStamp
 import subprocess
 
-def compare(co1, co2):
-    name1, repo1, rev1, rel1, dir1, domain1 = co1
-    name2, repo2, rev2, rel2, dir2, domain2 = co2
-
+def bzr_send(name, relative_dir, rev1, rev2):
     if not os.path.isdir(os.path.join(os.getcwd(), '.muddle')):
         print '** Oops - not at the top level of a muddle build tree'
         return
 
-    output_filename = os.path.join(os.getcwd(), '%s.bzr_send'%name1)
+    output_filename = os.path.join(os.getcwd(), '%s.bzr_send'%name)
 
     # Is this always the correct directory?
-    working_set_dir = os.path.join(os.getcwd(), 'src', rel1)
+    working_set_dir = os.path.join(os.getcwd(), 'src', relative_dir)
 
     print '.. dir:', working_set_dir
 
@@ -35,62 +33,36 @@ def compare(co1, co2):
 
 def main(stamp_file1, stamp_file2):
 
-    # Needing to do this is probably a sign that the UnStamp class is
-    # doing things that should be done by a StampFile class...
-    unstamp = UnStamp()
+    stamp1 = VersionStamp.from_file(stamp_file1)
+    stamp2 = VersionStamp.from_file(stamp_file2)
 
-    repo_location1, build_desc1, domains1, checkouts1 = unstamp.read_file(stamp_file1)
-    repo_location2, build_desc2, domains2, checkouts2 = unstamp.read_file(stamp_file2)
+    deleted, new, changed, problems = stamp1.compare(stamp2) # is this the right way round?
 
-    # domainsX is a list of tuples, each (name, repo, desc)
-    # checkoutsX is a list of tuples, each (name, repo, rev, rel, dir, domain)
+    print 'Deleted:  %d'%len(deleted)
+    print 'New:      %d'%len(new)
+    print 'Changed:  %d'%len(changed)
+    print 'Problems: %d'%len(problems)
 
-    co1 = dict([ (x[0], x) for x in checkouts1 ])
-    co2 = dict([ (x[0], x) for x in checkouts2 ])
+    for name, rev1, rev2 in changed:
+        print "'Send'ing checkout %s, %s..%s"%(name, rev1, rev2)
+        relative_dir = stamp1[name].name
+        bzr_send(name, relative_dir, rev1, rev2)
 
-    names = set(co1.keys() + co2.keys())
+    if deleted:
+        print 'Deleted'
+        for tup in deleted:
+            print ' ',tup
 
-    # Drat - can't sort sets
-    names = list(names)
-    names.sort()
+    if new:
+        print 'New'
+        for tup in new:
+            print ' ',tup
 
-    # There should not be any names that are not in both checkouts...
-    for name in names:
-        try:
-            if co1[name] == co2[name]:
-                pass
-            else:
-                print 'Differing',name
-                name1, repo1, rev1, rel1, dir1, domain1 = co1[name]
-                name2, repo2, rev2, rel2, dir2, domain2 = co2[name]
-                # For the moment, be *very* conservative on what we allow
-                # to have changed - basically, just the revision
-                # (arguably we shouldn't care about domain...)
-                error = False
-                if repo2 != repo1:
-                    print '  Repository mismatch:',repo1,repo2
-                    error = True
-                if rev1 != rev2:
-                    print '  Revision mismatch:',rev1,rev2
-                if rel1 != rel2:
-                    print '  Relative directory mismatch:',rel1,rel2
-                    error = True
-                if dir1 != dir2:
-                    print '  Directory mismatch:',dir1,dir2
-                    error = True
-                if domain1 != domain2:
-                    print '  Domain mismatch:',domain1,domain2
-                    error = True
-                if error:
-                    print '  ...only revision mismatch is allowed'
-                    continue
-                compare(co1[name], co2[name])
-        except KeyError as what:
-            # We probably consider this a bug?
-            if name in co1:
-                print 'Missing',name,'in',stamp_file2
-            else:
-                print 'Missing',name,'in',stamp_file1
+    if problems:
+        print 'Problems'
+        for tup in problems:
+            print ' ',tup
+
 
 if __name__ == '__main__':
     args = sys.argv[1:]

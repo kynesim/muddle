@@ -19,7 +19,7 @@ import time
 import traceback
 import xml.dom
 import xml.dom.minidom
-from collections import MutableMapping
+from collections import MutableMapping, Mapping, namedtuple
 from ConfigParser import RawConfigParser
 from StringIO import StringIO
 
@@ -1320,8 +1320,10 @@ class HashFile(object):
         else:
             return text
 
+DomainTuple = namedtuple('DomainTuple', 'name repository description')
+CheckoutTuple = namedtuple('CheckoutTuple', 'name repo rev rel dir domain')
 
-class VersionStamp(object):
+class VersionStamp(Mapping):
     """A representation of the revision state of a build tree's checkouts.
 
     Our internal data is:
@@ -1332,14 +1334,15 @@ class VersionStamp(object):
         * ``description`` is a string naming the build descrioption (as stored
           in ``.muddle/Description``)
 
-        * 'domains' is a (possibly empty) set of:
+        * 'domains' is a (possibly empty) set of tuples (specifically,
+          DomainTuple), each containing:
 
             * name - the name of the domain
             * repository - the default repository for the domain
             * descripton - the build description for the domain
 
-        * 'checkouts' is a list of tuples describing the checkouts, each tuple
-          containing:
+        * 'checkouts' is a list of named tuples (specifically, CheckoutTuple)
+          describing the checkouts, each tuple containing:
 
             * name - the name of the checkout
             * repo - the actual repository of the checkout
@@ -1361,6 +1364,9 @@ class VersionStamp(object):
 
           Note that when problems descriptions are written to a stamp file,
           they are truncated.
+
+    A VersionStamp instance also acts as if it were a dictionary from checkout
+    name to the checkout tuple.
 
     So, for instance:
 
@@ -1387,6 +1393,15 @@ class VersionStamp(object):
         <BLANKLINE>
         [PROBLEMS]
         problem1 = Oops, a problem
+        >>> v['jim']
+        CheckoutTuple(name='jim', repo='Elsewhere', rev=7, rel=None, dir='jim', domain=None)
+
+    Note that this is *not* intended to be a mutable class, so please do not
+    change any of its internals directly. In particular, if you *did* change
+    the checkouts sequence, you would definitely need to remember to update
+    the checkouts dictionary, and vice versa. And you would need to remember
+    that the checkouts list is composed of CheckoutTuples, and the domains
+    list of DomainTuples, or otherwise stuff would go wrong.
     """
 
     MAX_PROBLEM_LEN = 100               # At what length to truncate problems
@@ -1397,22 +1412,36 @@ class VersionStamp(object):
             self.repository = ''
         else:
             self.repository = repository
+
         if description is None:
             self.description = ''
         else:
             self.description = description
-        if domains is None:
-            self.domains = []
-        else:
-            self.domains = domains
-        if checkouts is None:
-            self.checkouts = []
-        else:
-            self.checkouts = checkouts
+
+        self.domains = []
+        if domains:
+            for x in domains:
+                self.domains.append(DomainTuple(*x))
+
+        self.checkouts = []
+        if checkouts:
+            for x in checkouts:
+                self.checkouts.append(CheckoutTuple(*x))
+
         if problems is None:
             self.problems = []
         else:
             self.problems = problems
+
+        self._update_checkout_dict()
+
+    def _update_checkout_dict(self):
+        """Always call this after updating self.checkouts. Sorry.
+        """
+        if self.checkouts:
+            self._checkout_dict = dict([ (x.name, x) for x in self.checkouts ])
+        else:
+            self._checkout_dict = {}
 
     def __str__(self):
         """Make 'print' do something useful.
@@ -1422,6 +1451,21 @@ class VersionStamp(object):
         rv = s.getvalue()
         s.close()
         return rv.rstrip()
+
+    # ==========================================================
+    # Mapping infrastructure
+    def __getitem__(self, key):
+        return self._checkout_dict[key]
+
+    def __len__(self):
+        return len(self._checkout_dict)
+
+    def __contains__(self, key):
+        return key in self._checkout_dict
+
+    def __iter__(self):
+        return iter(self._checkout_dict)
+    # ==========================================================
 
     def write_to_file(self, filename):
         """Write our data out to a file.
@@ -1577,7 +1621,7 @@ class VersionStamp(object):
                 if label.domain:
                     domain_name = label.domain
                     domain_repo, domain_desc = builder.invocation.db.get_subdomain_info(domain_name)
-                    domains.add((domain_name, domain_repo, domain_desc))
+                    domains.add(DomainTuple(domain_name, domain_repo, domain_desc))
 
                 if just_use_head:
                     if not quiet:
@@ -1594,7 +1638,8 @@ class VersionStamp(object):
             print 'Found domains:',stamp.domains
 
         for label, (repo, dir, rev, rel) in revisions.items():
-            stamp.checkouts.append((label.name, repo, rev, rel, dir, label.domain))
+            stamp.checkouts.append(CheckoutTuple(label.name, repo, rev, rel, dir,
+                                                 label.domain))
 
         if len(revisions) != len(checkout_rules):
             if not quiet:
@@ -1615,6 +1660,7 @@ class VersionStamp(object):
         # Make sure we're where the user thinks we are, just in case
         os.chdir(start_dir)
 
+        stamp._update_checkout_dict()
         return stamp, stamp.problems
 
     @staticmethod
@@ -1645,7 +1691,7 @@ class VersionStamp(object):
                 domain_name = config.get(section, 'name')
                 domain_repo = config.get(section, 'repository')
                 domain_desc = config.get(section, 'description')
-                stamp.domains.add((domain_name, domain_repo, domain_desc))
+                stamp.domains.add(DomainTuple(domain_name, domain_repo, domain_desc))
             elif section.startswith("CHECKOUT"):
                 # Because we are using a list, we will not grumble if we
                 # find the exact same checkout definition more than once
@@ -1666,14 +1712,106 @@ class VersionStamp(object):
                     domain = config.get(section, 'domain')
                 else:
                     domain = None
-                stamp.checkouts.append((name, repo, rev, rel, dir, domain))
+                stamp.checkouts.append(CheckoutTuple(name, repo, rev, rel, dir, domain))
             elif section == "PROBLEMS":
                 for name, value in config.items("PROBLEMS"):
                     stamp.problems.append(value)
             else:
                 print 'Ignoring configuration section [%s]'%section
 
+        stamp._update_checkout_dict()
         print 'File has SHA1 hash %s'%fd.hash()
         return stamp
+
+    def compare(self, other, quiet=False):
+        """Compare the checkouts in this VersionStamp with those in another.
+
+        'other' is another VersionStamp.
+
+        If 'quiet', then don't output messages about the comparison.
+
+        Note that this only compares the checkouts - it does not compare any
+        of the other fields in a VersionStamp.
+
+        Returns a tuple of (deleted, new, changed, problems) sequences, where
+        these are:
+
+            * a sequence of checkout tuples for checkouts that are in this
+              VersionStamp but not in the 'other' - i.e., "deleted" checkouts
+
+            * a sequence of checkout tuples for checkouts that are in the
+              'other' VersionStamp but not in this - i.e., "new" checkouts
+
+            * a sequence of tuples for any checkouts with differing revisions,
+              of the form:
+
+                  (checkout_name, this_revision, other_revision)
+
+              where 'this_revision' and 'other_revision' are the 'rev' entries
+              from the relevant checkout tuples.
+
+            * a sequence of (checkout_name, problem_string) for checkouts that
+              are present in both VersionStamps, but differ in something other
+              than revision.
+        """
+        checkouts1 = self.checkouts
+        checkouts2 = other.checkouts
+
+        deleted = set()
+        new = set()
+        changed = set()
+        problems = []
+
+        names = set(self.keys() + other.keys())
+
+        # Drat - can't sort sets
+        names = list(names)
+        names.sort()
+
+        for name in names:
+            try:
+                if self[name] != other[name]:
+                    if not quiet:
+                        print 'Checkout %s has changed'%name
+                    name1, repo1, rev1, rel1, dir1, domain1 = self[name]
+                    name2, repo2, rev2, rel2, dir2, domain2 = other[name]
+                    # For the moment, be *very* conservative on what we allow
+                    # to have changed - basically, just the revision
+                    # (arguably we shouldn't care about domain...)
+                    errors = []
+                    if repo2 != repo1:
+                        errors.append('repository')
+                        if not quiet:
+                            print '  Repository mismatch:',repo1,repo2
+                    if rel1 != rel2:
+                        errors.append('relative')
+                        if not quiet:
+                            print '  Relative directory mismatch:',rel1,rel2
+                    if dir1 != dir2:
+                        errors.append('directory')
+                        if not quiet:
+                            print '  Directory mismatch:',dir1,dir2
+                    if domain1 != domain2:
+                        errors.append('domain')
+                        if not quiet:
+                            print '  Domain mismatch:',domain1,domain2
+                    if errors:
+                        if not quiet:
+                            print '  ...only revision mismatch is allowed'
+                        problems.append((name1, 'Checkout %s does not match: %s'%(name,
+                                                        ', '.join(errors))))
+                        continue
+                    changed.add((name1, rev1, rev2))
+            except KeyError as what:
+                if name in self._checkout_dict:
+                    if not quiet:
+                        print 'Checkout %s was deleted'%name
+                    deleted.add(self[name])
+                else:
+                    if not quiet:
+                        print 'Checkout %s is new'%name
+                    new.add(other[name])
+
+        return deleted, new, changed, problems
 
 # End file.

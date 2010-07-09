@@ -256,8 +256,8 @@ class Bazaar(VersionControlHandler):
                 print "'bzr version-info --check-clean' reports" \
                       " checkout '%s' has uncommitted data (ignoring it)"%self.checkout_name
             else:
-                raise utils.Failure("'bzr version-info --check-clean' reports"
-                        " checkout '%s' has uncommitted data"%self.checkout_name)
+                raise utils.Failure("%s: 'bzr version-info --check-clean' reports"
+                        " checkout has uncommitted data"%self.checkout_name)
 
         # So, is our current revision (on this local branch) also present
         # in the remote branch (our push/pull location)?
@@ -278,14 +278,17 @@ class Bazaar(VersionControlHandler):
                             print 'Using original revision: %s'%orig_revision
                         return orig_revision
                     else:
-                        raise utils.Failure("'bzr missing' says '%s',\n"%missing[5:] +
+                        raise utils.Failure("%s: 'bzr missing' says '%s',\n"
                                             "    and original revision is '%s', so"
-                                            " cannot use that"%orig_revision)
+                                            " cannot use that"%(self.checkout_name,
+                                                                missing[5:],
+                                                                orig_revision))
                 else:
-                    raise utils.Failure("'bzr missing' says '%s',\n"%missing[5:] +
-                            "    so cannot determine revision")
+                    raise utils.Failure("%s: 'bzr missing' says '%s',\n"
+                                        "    so cannot determine revision"%(self.checkout_name,
+                                                                            missing[5:]))
             else:
-                raise utils.Failure("'bzr missing' suggests checkout '%s' does"
+                raise utils.Failure("%s: 'bzr missing' suggests checkout does"
                         " not match the remote repository:\n%s"%(self.checkout_name,
                             utils.indent(missing,'    ')))
 
@@ -296,7 +299,7 @@ class Bazaar(VersionControlHandler):
         if all([x.isdigit() for x in revno]):
             return revno
         else:
-            raise utils.Failure("'bzr revno' reports checkout '%s' has revision"
+            raise utils.Failure("%s: 'bzr revno' reports checkout has revision"
                     " '%s', which is not an integer"%(self.checkout_name,revision))
 
 

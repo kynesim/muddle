@@ -39,6 +39,7 @@ import sys
 import urllib
 from urlparse import urlparse
 from ConfigParser import RawConfigParser
+from utils import VersionStamp
 
 
 class Command:
@@ -2214,29 +2215,16 @@ Try 'muddle help stamp' for more information."""
         elif force:
             print 'Forcing original revision ids when necessary'
 
-        # Some of the following operations may change directory, so
-        start_dir = os.getcwd()
+        stamp, problems = VersionStamp.from_builder(builder, force, just_use_head)
 
-        revisions, domains, problems = self.calculate_stamp(builder,
-                                                            force,
-                                                            just_use_head)
-
-        # Make sure we're where the user thinks we are, since some of the
-        # muddle mechanisms change directory under our feet
-        os.chdir(start_dir)
         if not self.no_op():
             working_filename = 'working.stamp'
             print 'Writing to',working_filename
-            with utils.HashFile(working_filename,'w') as fd:
-                self.write_rev_data(revisions, fd,
-                                    root_repo=builder.invocation.db.repo.get(),
-                                    root_desc=builder.invocation.db.build_desc.get(),
-                                    domains=domains,
-                                    problems=problems)
+            hash = stamp.write_to_file(working_filename)
             print 'Wrote revision data to %s'%working_filename
-            print 'File has SHA1 hash %s'%fd.hash()
+            print 'File has SHA1 hash %s'%hash
 
-            final_name = self.decide_hash_filename(filename, fd.hash(), problems)
+            final_name = self.decide_hash_filename(filename, hash, problems)
             print 'Renaming %s to %s'%(working_filename, final_name)
             os.rename(working_filename, final_name)
 
@@ -2259,12 +2247,8 @@ Try 'muddle help stamp' for more information."""
         if force:
             print 'Forcing original revision ids when necessary'
 
-        # Some of the following operations may change directory, so
-        start_dir = os.getcwd()
-
-        revisions, domains, problems = self.calculate_stamp(builder,
-                                                            force,
-                                                            just_use_head=False)
+        stamp, problems = VersionStamp.from_builder(builder, force,
+                                                    just_use_head=False)
 
         if problems:
             raise utils.Failure('Problems prevent writing version stamp file')
@@ -2275,89 +2259,16 @@ Try 'muddle help stamp' for more information."""
                 print 'Creating directory %s'%version_dir
                 os.mkdir(version_dir)
 
-
             working_filename = os.path.join(version_dir, '_temporary.stamp')
             print 'Writing to',working_filename
-            with utils.HashFile(working_filename,'w') as fd:
-                self.write_rev_data(revisions, fd,
-                                    root_repo=builder.invocation.db.repo.get(),
-                                    root_desc=builder.invocation.db.build_desc.get(),
-                                    domains=domains,
-                                    problems=problems)
+            hash = stamp.write_to_file(working_filename)
             print 'Wrote revision data to %s'%working_filename
-            print 'File has SHA1 hash %s'%fd.hash()
+            print 'File has SHA1 hash %s'%hash()
 
             version_filename = "%s.stamp"%builder.build_name
             final_name = os.path.join(version_dir, version_filename)
             print 'Renaming %s to %s'%(working_filename, final_name)
             os.rename(working_filename, final_name)
-
-    def calculate_stamp(self, builder, force, just_use_head):
-        """
-        Work out the content of our stamp file.
-
-        Returns <revisions>, <domains>, <problems>
-
-        <revisions> is a sorted dictionary with key the checkout label and
-        value a tuple of (repository, checkout_dir, rev, rel)
-
-        <domains> is a (possibly empty) set of tuples of (domain_name,
-        domain_repo, domain_desc)
-
-        <problems> is a (possibly empty) list of problem summaries. If
-        <problems> is empty then the stamp was calculated fully.
-        """
-
-        print 'Finding all checkouts...',
-        checkout_rules = list(builder.invocation.all_checkout_rules())
-        print 'found %d'%len(checkout_rules)
-
-        revisions = utils.MuddleSortedDict()
-        problems = []
-        domains = set()
-        checkout_rules.sort()
-        for rule in checkout_rules:
-            try:
-                label = rule.target
-                try:
-                    vcs = rule.obj.vcs
-                except AttributeError:
-                    problems.append("Rule for label '%s' has no VCS"%(label))
-                    print problems[-1]
-                    continue
-                print "%s checkout '%s'"%(vcs.__class__.__name__,
-                                          '(%s)%s'%(label.domain,label.name) if label.domain
-                                          else label.name)
-                if label.domain:
-                    domain_name = label.domain
-                    domain_repo, domain_desc = builder.invocation.db.get_subdomain_info(domain_name)
-                    domains.add((domain_name, domain_repo, domain_desc))
-
-                if just_use_head:
-                    print 'Forcing head'
-                    rev = "HEAD"
-                else:
-                    rev = vcs.revision_to_checkout(force=force, verbose=True)
-                revisions[label] = (vcs.repository, vcs.checkout_dir, rev, vcs.relative)
-            except utils.Failure as exc:
-                print exc
-                problems.append(exc)
-
-        if domains:
-            print 'Found domains:',domains
-
-        if len(revisions) != len(checkout_rules):
-            print
-            print 'Unable to work out revision ids for all the checkouts'
-            if revisions:
-                print '- although we did work out %d of %s'%(len(revisions),
-                        len(checkout_rules))
-            if problems:
-                print 'Problems were:'
-                for item in problems:
-                    print '* %s'%utils.truncate(str(item),less=2)
-
-        return revisions, domains, problems
 
     def decide_hash_filename(self, hash, basename=None, partial=False):
         """
@@ -2384,56 +2295,6 @@ Try 'muddle help stamp' for more information."""
                 return '%s%s'%(head, extension)
             else:
                 return '%s%s'%(basename, extension)
-
-    def write_rev_data(self, revisions, fd, root_repo=None, root_desc=None,
-                       domains=None, problems=None):
-        from ConfigParser import RawConfigParser
-
-        # The following makes sure we write the [ROOT] out first, otherwise
-        # things will come out in some random order (because that's how a
-        # dictionary works, and that's what its using)
-        config = RawConfigParser()
-        config.add_section("ROOT")
-        config.set("ROOT", "repository", root_repo)
-        config.set("ROOT", "description", root_desc)
-        config.write(fd)
-
-        if domains:
-            config = RawConfigParser(None, dict_type=utils.MuddleSortedDict)
-            for domain_name, domain_repo, domain_desc in domains:
-                section = "DOMAIN %s"%domain_name
-                config.add_section(section)
-                config.set(section, "name", domain_name)
-                config.set(section, "repository", domain_repo)
-                config.set(section, "description", domain_desc)
-            config.write(fd)
-
-        config = RawConfigParser(None, dict_type=utils.MuddleSortedDict)
-        for label, (repo, dir, rev, rel) in revisions.items():
-            if label.domain:
-                section = 'CHECKOUT (%s)%s'%(label.domain,label.name)
-            else:
-                section = 'CHECKOUT %s'%label.name
-            config.add_section(section)
-            if label.domain:
-                config.set(section, "domain", label.domain)
-            config.set(section, "name", label.name)
-            config.set(section, "repository", repo)
-            config.set(section, "revision", rev)
-            if rel:
-                config.set(section, "relative", rel)
-            if dir:
-                config.set(section, "directory", dir)
-        config.write(fd)
-
-        if problems:
-            config = RawConfigParser(None, dict_type=utils.MuddleSortedDict)
-            section = 'PROBLEMS'
-            config.add_section(section)
-            for index, item in enumerate(problems):
-                config.set(section, 'problem%d'%(index+1),
-                           utils.truncate(str(item), columns=100))
-            config.write(fd)
 
     def diff(self, file1, file2, diff_style='unified', output_file=None):
         """
@@ -2540,7 +2401,7 @@ class UnStamp(Command):
       and then unstamp the ProjectThing.stamp file therein.
 
     """
-    
+
     def name(self):
         return "unstamp"
 
@@ -2632,19 +2493,21 @@ Try 'muddle help unstamp' for more information."""
             print 'Retrieving %s'%filename
             data = urllib.urlretrieve(thing, filename)
 
-        repo_location, build_desc, domains, checkouts = self.read_file(filename)
+        stamp = VersionStamp.from_file(filename)
 
         if self.no_op():
             return
 
         builder = mechanics.minimal_build_tree(muddle_binary, current_dir,
-                                               repo_location, build_desc)
+                                               stamp.repository,
+                                               stamp.description)
 
-        self.restore_stamp(builder, root_path, domains, checkouts)
+        self.restore_stamp(builder, root_path, stamp.domains, stamp.checkouts)
 
         # Once we've checked everything out, we should ideally check
         # if the build description matches what we've checked out...
-        return self.check_build(current_dir, checkouts, builder, muddle_binary)
+        return self.check_build(current_dir, stamp.checkouts, builder,
+                                muddle_binary)
 
     def unstamp_from_repo(self, muddle_binary, root_path, current_dir, repo,
                           version_path):
@@ -2673,64 +2536,18 @@ Try 'muddle help unstamp' for more information."""
         os.chdir(current_dir)
         version_control.vcs_get_directory(actual_url)
 
-        repo_location, build_desc, domains, checkouts = self.read_file(version_path)
+        stamp = VersionStamp.from_file(version_path)
 
         builder = mechanics.minimal_build_tree(muddle_binary, current_dir,
-                                               repo_location, build_desc)
+                                               stamp.repository,
+                                               stamp.description)
 
-        self.restore_stamp(builder, root_path, domains, checkouts)
+        self.restore_stamp(builder, root_path, stamp.domains, stamp.checkouts)
 
         # Once we've checked everything out, we should ideally check
         # if the build description matches what we've checked out...
-        return self.check_build(current_dir, checkouts, builder, muddle_binary)
-
-    def read_file(self, filename):
-        """
-        Read the stamp file, and return its data
-
-        Returns (repo_location, build_desc, domains, checkouts)
-        """
-        print 'Reading stamp file %s'%filename
-        fd = utils.HashFile(filename)
-
-        config = RawConfigParser()
-        config.readfp(fd)
-
-        repo_location = config.get("ROOT", "repository")
-        build_desc = config.get("ROOT", "description")
-
-        domains = []
-        checkouts = []
-        sections = config.sections()
-        sections.remove("ROOT")
-        for section in sections:
-            if section.startswith("DOMAIN"):
-                domain_name = config.get(section, 'name')
-                domain_repo = config.get(section, 'repository')
-                domain_desc = config.get(section, 'description')
-                domains.append((domain_name, domain_repo, domain_desc))
-            elif section.startswith("CHECKOUT"):
-                name = config.get(section, 'name')
-                repo = config.get(section, 'repository')
-                rev = config.get(section, 'revision')
-                if config.has_option(section, "relative"):
-                    rel = config.get(section, 'relative')
-                else:
-                    rel = None
-                if config.has_option(section, "directory"):
-                    dir = config.get(section, 'directory')
-                else:
-                    dir = None
-                if config.has_option(section, "domain"):
-                    domain = config.get(section, 'domain')
-                else:
-                    domain = None
-                checkouts.append((name, repo, rev, rel, dir, domain))
-            else:
-                print 'Ignoring configuration section [%s]'%section
-
-        print 'File has SHA1 hash %s'%fd.hash()
-        return repo_location, build_desc, domains, checkouts
+        return self.check_build(current_dir, stamp.checkouts, builder,
+                                muddle_binary)
 
     def restore_stamp(self, builder, root_path, domains, checkouts):
         """
@@ -2780,7 +2597,7 @@ Try 'muddle help unstamp' for more information."""
 
         b = mechanics.load_builder(build_root, muddle_binary, default_domain=build_domain)
 
-        local_pkgs = utils.find_local_packages(current_dir, build_root, 
+        local_pkgs = utils.find_local_packages(current_dir, build_root,
                                                builder.invocation)
 
         q = Query()

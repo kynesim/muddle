@@ -2,23 +2,26 @@
 Muddle utilities.
 """
 
-import string
-import re
-import os
-import stat
-import subprocess
-import socket
-import time
+import curses
 import hashlib
 import imp
+import os
+import pwd
+import re
+import shutil
+import socket
+import stat
+import string
+import subprocess
+import sys
+import textwrap
+import time
+import traceback
 import xml.dom
 import xml.dom.minidom
-import traceback
-import pwd
-import shutil
-import curses
-import textwrap
 from collections import MutableMapping
+from ConfigParser import RawConfigParser
+from StringIO import StringIO
 
 
 class Error(Exception):
@@ -1316,5 +1319,361 @@ class HashFile(object):
             raise StopIteration
         else:
             return text
-    
+
+
+class VersionStamp(object):
+    """A representation of the revision state of a build tree's checkouts.
+
+    Our internal data is:
+
+        * 'repository' is a string giving the default repository (as stored
+          in ``.muddle/RootRepository``)
+
+        * ``description`` is a string naming the build descrioption (as stored
+          in ``.muddle/Description``)
+
+        * 'domains' is a (possibly empty) set of:
+
+            * name - the name of the domain
+            * repository - the default repository for the domain
+            * descripton - the build description for the domain
+
+        * 'checkouts' is a list of tuples describing the checkouts, each tuple
+          containing:
+
+            * name - the name of the checkout
+            * repo - the actual repository of the checkout
+            * rev - the revision of the checkout
+            * rel - the relative directory of the checkout
+              (this needs explaning more!)
+            * dir - the directory in ``src`` where the checkout goes
+            * domain - which domain the checkout is in, or None. This
+              is the domain as given within '(' and ')' in a label, so
+              it may contain commas - for instance "fred" or "fred,jim,bob".
+
+          These are essentially the exact arguments that would have been given
+          to the VCS initialisation, or to ``muddled.version_control.vcs_handler_for()``
+
+        * 'problems' is a list of problems in determining the stamp
+          information. This will be of zero length if the stamp if accurate,
+          but will otherwise contain a string for each checkout whose revision
+          could not be accurately determined.
+
+          Note that when problems descriptions are written to a stamp file,
+          they are truncated.
+
+    So, for instance:
+
+        >>> v = VersionStamp('Somewhere', 'src/builds/01.py', [],
+        ...                  [('fred', 'Somewhere', 3, None, 'fred', None),
+        ...                   ('jim',  'Elsewhere', 7, None, 'jim', None)],
+        ...                  ['Oops, a problem'])
+        >>> print v
+        [ROOT]
+        description = src/builds/01.py
+        repository = Somewhere
+        <BLANKLINE>
+        [CHECKOUT fred]
+        directory = fred
+        name = fred
+        repository = Somewhere
+        revision = 3
+        <BLANKLINE>
+        [CHECKOUT jim]
+        directory = jim
+        name = jim
+        repository = Elsewhere
+        revision = 7
+        <BLANKLINE>
+        [PROBLEMS]
+        problem1 = Oops, a problem
+    """
+
+    MAX_PROBLEM_LEN = 100               # At what length to truncate problems
+
+    def __init__(self, repository=None, description=None,
+                 domains=None, checkouts=None, problems=None):
+        if repository is None:
+            self.repository = ''
+        else:
+            self.repository = repository
+        if description is None:
+            self.description = ''
+        else:
+            self.description = description
+        if domains is None:
+            self.domains = []
+        else:
+            self.domains = domains
+        if checkouts is None:
+            self.checkouts = []
+        else:
+            self.checkouts = checkouts
+        if problems is None:
+            self.problems = []
+        else:
+            self.problems = problems
+
+    def __str__(self):
+        """Make 'print' do something useful.
+        """
+        s = StringIO()
+        self.write_to_file_object(s)
+        rv = s.getvalue()
+        s.close()
+        return rv.rstrip()
+
+    def write_to_file(self, filename):
+        """Write our data out to a file.
+
+        Returns the SHA1 hash for the file.
+        """
+        with HashFile(filename, 'w') as fd:
+            self.write_to_file_object(fd)
+            return fd.hash()
+
+    def write_to_file_object(self, fd):
+        """Write our data out to a file-like object (one with a 'write' method).
+
+        Returns the SHA1 hash for the file.
+        """
+        # The following makes sure we write the [ROOT] out first, otherwise
+        # things will come out in some random order (because that's how a
+        # dictionary works, and that's what its using)
+        config = RawConfigParser()
+        config.add_section("ROOT")
+        config.set("ROOT", "repository", self.repository)
+        config.set("ROOT", "description", self.description)
+        config.write(fd)
+
+        if self.domains:
+            config = RawConfigParser(None, dict_type=MuddleSortedDict)
+            for domain_name, domain_repo, domain_desc in self.domains:
+                section = "DOMAIN %s"%domain_name
+                config.add_section(section)
+                config.set(section, "name", domain_name)
+                config.set(section, "repository", domain_repo)
+                config.set(section, "description", domain_desc)
+            config.write(fd)
+
+        config = RawConfigParser(None, dict_type=MuddleSortedDict)
+        for name, repo, rev, rel, dir, domain in self.checkouts:
+            if domain:
+                section = 'CHECKOUT (%s)%s'%(domain,name)
+            else:
+                section = 'CHECKOUT %s'%name
+            config.add_section(section)
+            if domain:
+                config.set(section, "domain", domain)
+            config.set(section, "name", name)
+            config.set(section, "repository", repo)
+            config.set(section, "revision", rev)
+            if rel:
+                config.set(section, "relative", rel)
+            if dir:
+                config.set(section, "directory", dir)
+        config.write(fd)
+
+        if self.problems:
+            config = RawConfigParser(None, dict_type=MuddleSortedDict)
+            section = 'PROBLEMS'
+            config.add_section(section)
+            for index, item in enumerate(self.problems):
+                # Let's remove any newlines
+                item = ' '.join(item.split())
+                config.set(section, 'problem%d'%(index+1), item)
+            config.write(fd)
+
+    def print_problems(self, output=None, truncate=None, indent=''):
+        """Print out any problems.
+
+        If 'output' is not specified, then it will be STDOUT, otherwise it
+        should be a file-like object (supporting 'write').
+
+        If 'truncate' is None (or zero, non-true, etc.) then the problems
+        will be truncated to the same length as when writing them to a
+        stamp file.
+
+        'indent' should be a string to print in front of every line.
+
+        If there are no problems, this method does not print anything out.
+        """
+        if not output:
+            output = sys.stdout
+        if not truncate:
+            columns = self.MAX_PROBLEM_LEN
+
+        for index, item in enumerate(self.problems):
+            item = item.rstrip()
+            output.write('%sProblem %2d: %s\n'%(indent, index+1,
+                                truncate(str(item),columns=truncate)))
+
+    @staticmethod
+    def from_builder(builder, force=False, just_use_head=False, quiet=False):
+        """Construct a VersionStamp from a muddle build description.
+
+        'builder' is the muddle Builder for our build description.
+
+        If '-force' is true, then attempt to "force" a revision id, even if it
+        is not necessarily correct. For instance, if a local working directory
+        contains uncommitted changes, then ignore this and use the revision id
+        of the committed data. If it is actually impossible to determine a
+        sensible revision id, then use the revision specified by the build
+        description (which defaults to HEAD). For really serious problems, this
+        may refuse to guess a revision id.
+
+            (Typical use of this is expected to be when a trying to calculate a
+            stamp reports problems in particular checkouts, but inspection
+            shows that these are artefacts that may be ignored, such as an
+            executable built in the source directory.)
+
+        If '-head' is true, then HEAD will be used for all checkouts.  In this
+        case, the repository specified in the build description is used, and
+        the revision id and status of each checkout is not checked.
+
+        If 'quiet' is True, then we will not print information about what
+        we are doing, and we will not print out problems as they are found.
+
+        Returns a tuple of:
+
+            * the new VersionStamp instance
+            * a (possibly empty) list of problem summaries. If this is
+              empty, then the stamp was calculated fully. Note that this
+              is the same list as held withing the VersionStamp instance.
+        """
+        # There is some worry that some of the underlying operations may
+        # cause us to change directory
+
+        start_dir = os.getcwd()
+
+        stamp = VersionStamp()
+
+        stamp.repository = builder.invocation.db.repo.get()
+        stamp.description = builder.invocation.db.build_desc.get()
+
+        if not quiet:
+            print 'Finding all checkouts...',
+        checkout_rules = list(builder.invocation.all_checkout_rules())
+        if not quiet:
+            print 'found %d'%len(checkout_rules)
+
+        revisions = MuddleSortedDict()
+        checkout_rules.sort()
+        for rule in checkout_rules:
+            try:
+                label = rule.target
+                try:
+                    vcs = rule.obj.vcs
+                except AttributeError:
+                    stamp.problems.append("Rule for label '%s' has no VCS"%(label))
+                    if not quiet:
+                        print stamp.problems[-1]
+                    continue
+                if not quiet:
+                    print "%s checkout '%s'"%(vcs.__class__.__name__,
+                                              '(%s)%s'%(label.domain,label.name)
+                                              if label.domain
+                                              else label.name)
+                if label.domain:
+                    domain_name = label.domain
+                    domain_repo, domain_desc = builder.invocation.db.get_subdomain_info(domain_name)
+                    domains.add((domain_name, domain_repo, domain_desc))
+
+                if just_use_head:
+                    if not quiet:
+                        print 'Forcing head'
+                    rev = "HEAD"
+                else:
+                    rev = vcs.revision_to_checkout(force=force, verbose=True)
+                revisions[label] = (vcs.repository, vcs.checkout_dir, rev, vcs.relative)
+            except Failure as exc:
+                print exc
+                stamp.problems.append(str(exc))
+
+        if stamp.domains and not quiet:
+            print 'Found domains:',stamp.domains
+
+        for label, (repo, dir, rev, rel) in revisions.items():
+            stamp.checkouts.append((label.name, repo, rev, rel, dir, label.domain))
+
+        if len(revisions) != len(checkout_rules):
+            if not quiet:
+                print
+                print 'Unable to work out revision ids for all the checkouts'
+                if revisions:
+                    print '- although we did work out %d of %s'%(len(revisions),
+                            len(checkout_rules))
+                if stamp.problems:
+                    print 'Problems were:'
+                    for item in stamp.problems:
+                        item.rstrip()
+                        print '* %s'%truncate(str(item),less=2)
+            if not stamp.problems:
+                # This should not, I think, happen, but just in case...
+                stamp.problems.append('Unable to work out revision ids for all the checkouts')
+
+        # Make sure we're where the user thinks we are, just in case
+        os.chdir(start_dir)
+
+        return stamp, stamp.problems
+
+    @staticmethod
+    def from_file(filename):
+        """Construct a VersionStamp by reading in a stamp file.
+
+        Returns a new VersionStamp instance.
+        """
+
+        stamp = VersionStamp()
+
+        print 'Reading stamp file %s'%filename
+        fd = HashFile(filename)
+
+        config = RawConfigParser()
+        config.readfp(fd)
+
+        stamp.repository = config.get("ROOT", "repository")
+        stamp.description = config.get("ROOT", "description")
+
+        sections = config.sections()
+        sections.remove("ROOT")
+        for section in sections:
+            if section.startswith("DOMAIN"):
+                # Because we are using a set, we will not grumble if we
+                # find the exact same domain definition more than once
+                # - we'll just remember it once, so we don't really care.
+                domain_name = config.get(section, 'name')
+                domain_repo = config.get(section, 'repository')
+                domain_desc = config.get(section, 'description')
+                stamp.domains.add((domain_name, domain_repo, domain_desc))
+            elif section.startswith("CHECKOUT"):
+                # Because we are using a list, we will not grumble if we
+                # find the exact same checkout definition more than once
+                # - we'll just keep it twice. So let's hope that doesn't
+                # happen.
+                name = config.get(section, 'name')
+                repo = config.get(section, 'repository')
+                rev = config.get(section, 'revision')
+                if config.has_option(section, "relative"):
+                    rel = config.get(section, 'relative')
+                else:
+                    rel = None
+                if config.has_option(section, "directory"):
+                    dir = config.get(section, 'directory')
+                else:
+                    dir = None
+                if config.has_option(section, "domain"):
+                    domain = config.get(section, 'domain')
+                else:
+                    domain = None
+                stamp.checkouts.append((name, repo, rev, rel, dir, domain))
+            elif section == "PROBLEMS":
+                for name, value in config.items("PROBLEMS"):
+                    stamp.problems.append(value)
+            else:
+                print 'Ignoring configuration section [%s]'%section
+
+        print 'File has SHA1 hash %s'%fd.hash()
+        return stamp
+
 # End file.

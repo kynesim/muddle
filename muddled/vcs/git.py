@@ -92,8 +92,8 @@ class Git(VersionControlHandler):
         retcode, text, ignore = utils.get_cmd_data('git status -q', fail_nonzero=False)
         text = text.strip()
         if text != '# On branch master\nnothing to commit (working directory clean)':
-            raise utils.Failure("%s\n%s"%(utils.wrap("'git status' suggests"
-                " checkout '%s' does not match master:"%self.checkout_name),
+            raise utils.Failure("%s\n%s"%(utils.wrap("%s: 'git status' suggests"
+                " checkout does not match master:"%self.checkout_name),
                 utils.indent(text,'    ')))
 
         retcode, revision, ignore = utils.get_cmd_data('git describe --long',
@@ -110,8 +110,8 @@ class Git(VersionControlHandler):
                     return self.get_original_revision()
             else:
                 text = '    (it failed with return code %d)'%retcode
-            raise utils.Failure("%s\n%s"%(utils.wrap("'git describe --long'"
-                " could not determine a revision id for checkout '%s':"%self.checkout_name),
+            raise utils.Failure("%s\n%s"%(utils.wrap("%s: 'git describe --long'"
+                " could not determine a revision id for checkout:"%self.checkout_name),
                 text))
         revision = revision.strip()
         return revision

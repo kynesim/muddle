@@ -73,7 +73,7 @@ class Svn(VersionControlHandler):
         if all([x.isdigit() for x in revision]):
             return revision
         else:
-            raise utils.Failure("'svnversion' reports checkout '%s' has revision"
+            raise utils.Failure("%s: 'svnversion' reports checkout has revision"
                     " '%s'"%(self.checkout_name,revision))
 
 

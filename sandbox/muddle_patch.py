@@ -5,27 +5,39 @@
 This command must be run within a muddle build tree (i.e., at the top level,
 where the .muddle/ and src/ directories live).
 
-Use it in one of three ways:
+Help
+----
 
     muddle_patch.py help
 
-to give this information (-h, -help or --help will also work), or, more usefully:
+will give this information (-h, -help or --help will also work)
 
-    muddle_patch.py write [-f[orce]]  <stamp_file_1> <stamp_file_2> <patch_dir>
+Writing a patch directory
+-------------------------
 
-which works out the patches to turn the build described in <stamp_file_1> into
-that described in <stamp_file_2>, and writes them to <patch_dir>. If -f or
--force is specified as the first argument, then if <patch_dir> already exists,
-it will first be deleted.
+    muddle_patch.py write [-f[orce]] <our_stamp_file> <their_stamp_file> <patch_dir>
 
-<stamp_file_2> must be an accurate (although not necessarily complete)
-description of the build tree in which this command is being run.
+creates a directory containing the patches needed to update the remote build tree.
 
-Or, finally:
+  * <our_stamp_file> must be an accurate (although not necessarily complete)
+    description of "our" build tree (i.e., the build tree within which
+    this command is being run)
+
+  * <their_stamp_file> describes the "far" build tree, which we want to patch
+    to be like "our" build tree
+
+  * <patch_dir> is the name of the directory in which to write the patches.
+
+If '-f' or '-force' is specified, then if <patch_dir> already exists, it will
+first be deleted. Otherwise, if <patch_dir> already exists, the command will
+refuse to run.
+
+Reading a patch directory
+-------------------------
 
     muddle_patch.py read <patch_dir>
 
-which applies the patches in <patch_dir> to the current build tree.
+applies the patches in <patch_dir> to the current build tree.
 """
 
 import os
@@ -261,17 +273,19 @@ def tar_pack(name, directory, output_dir, manifest_filename):
                  'patch=%s\n'%(name, name, directory, tar_filename))
 
 # =============================================================================
-def write(stamp_file1, stamp_file2, output_dir_name):
+def write(our_stamp_file, far_stamp_file, output_dir_name):
 
     output_dir = os.path.join(os.getcwd(), output_dir_name)
     output_dir = canonical_path(output_dir)
     if os.path.exists(output_dir):
         raise LocalError('Output directory %s already exists'%output_dir)
 
-    stamp1 = VersionStamp.from_file(stamp_file1)
-    stamp2 = VersionStamp.from_file(stamp_file2)
+    far_stamp = VersionStamp.from_file(far_stamp_file)
+    our_stamp = VersionStamp.from_file(our_stamp_file)
 
-    deleted, new, changed, problems = stamp1.compare(stamp2) # is this the right way round?
+    # Determine what has changed with respect to the "far" stamp
+    # - those changes are what we need to apply to make it the same as us...
+    deleted, new, changed, problems = far_stamp.compare(our_stamp)
 
     print 'Deleted:  %d'%len(deleted)
     print 'New:      %d'%len(new)
@@ -283,8 +297,8 @@ def write(stamp_file1, stamp_file2, output_dir_name):
 
     for name, rev1, rev2 in changed:
         print "-- Determining changes for checkout %s, %s..%s"%(name, rev1, rev2)
-        directory = stamp1[name].dir
-        repository = stamp1[name].repo
+        directory = our_stamp[name].dir
+        repository = our_stamp[name].repo
         vcs, ignore = split_vcs_url(repository)
         if vcs == 'bzr':
             bzr_send(name, directory, rev1, rev2, output_dir, manifest_filename)
@@ -396,11 +410,11 @@ def main(args):
         if len(args) > 4:
             raise LocalError('Too many arguments')
 
-        stamp1    = args[-3]
-        stamp2    = args[-2]
+        our_stamp = args[-3]
+        far_stamp = args[-2]
         patch_dir = args[-1]
 
-        if len(args) == 3 and stamp1 in ('-f', '-force'):
+        if len(args) == 3 and far_stamp in ('-f', '-force'):
             raise LocalError('Must specify two stamp files and a "patch" directory')
 
         if len(args) == 4:
@@ -410,7 +424,7 @@ def main(args):
             else:
                 raise LocalError('Unexpected switch "%s" (not -f)'%args[0])
 
-        write(stamp1, stamp2, patch_dir)
+        write(our_stamp, far_stamp, patch_dir)
 
     elif args[0] == 'read':
 

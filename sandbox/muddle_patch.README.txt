@@ -1,0 +1,211 @@
+============
+Muddle patch
+============
+
+For the moment, ``muddle_patch.py`` is an independent program in the muddle
+"sandbox" (i.e., the ``sandbox/`` directory in the muddle distribution).
+
+To use it, you will need to add that directory to your PATH, or else just
+alias the command to run it directly (or, I suppose, type it out longform).
+
+At some point, it will probably be integrated into the main ``muddle``
+command.
+
+Summary
+-------
+
+This code was written to address issue 111: *Implement "diff build tree against
+version stamp" and corresponding patch command*.
+
+Specifically, given an up-to-date muddle build tree, and the stamp file for a
+less up-to-date build tree, it attempts to work out the patches to make the
+latter into a copy of the former. When it can, it tries to do this in such a
+way that the underlying VCSs will really believe it.
+
+* In this document, the local (most up-to-date) build tree is "our" build
+  tree, and the other (to be updated) build tree is the "far" build tree.
+
+* If a checkout is present in our build tree, but absent in the far build
+  tree, then it is NEW, and a copy of the current state of the checkout
+  directory will be transferred. Note that this script will not mark a NEW
+  checkout as checked out (see below).
+
+* If a checkout is absent in our build tree, but present in the far build
+  tree, then it is DELETED. ``muddle_patch.py`` does nothing about this - it
+  is up to the user to delete the checkout at the far end if necessary.
+
+* If a checkout has changed (just) its revision, then it is CHANGED, and an
+  attempt will be made to determine the differences in the best way possible
+  for the VCS concerned. Again, see below.
+
+* If a checkout has changed anything else (its location in the build tree, its
+  domain, or the VCS it is using), then it will be reported as a problem, and
+  will not have a patch generated for it. It may be that this is overkill, and
+  some of these should be coped with - if you have a good use-case, please
+  raise it as an issue.
+
+Any checkouts with problems in either stamp file will not be dealt with - in
+other words, both build trees should really be in a state suitable for
+``muddle stamp version`` before using ``muddle_patch.py``.
+
+Writing a patch directory
+-------------------------
+The command line is::
+
+    muddle_patch.py write [-f[orce]] <our_stamp> <far_stamp> <patch_dir>
+
+<patch_dir> is the directory to which the patch data will be written. If
+``-force`` is given, then an existing <patch_dir> will be deleted, otherwise
+<patch_dir> may not already exist.
+
+<our_stamp> is either a stamp file describing the current build tree, or
+``-``. In the latter case, a "virtual" stamp file will be built in memory and
+used as "our" stamp file. This virtual stamp file is equivalent to that
+which would be produced by ``muddle stamp save -f``.
+
+<far_stamp> is the stamp file for the far build tree.
+
+``muddle_stamp.py write`` must be run in the top-level directory of "our"
+build tree - i.e,, the directory containing the ``.muddle/`` and ``src/``
+directories. It is not supported to run the program in a sub-domain.
+
+For instance::
+
+    muddle_patch.py  write  -f  -  ../far.v8_missing.stamp  ../v8-patches/
+
+Using a patch directory
+-----------------------
+The command line is::
+
+    muddle_patch.py read <patch_dir>
+
+<patch_dir> is the directory containing the patch data.
+
+``muddle_stamp.py read`` must be run in the top-level directory of the "far"
+build tree - i.e,, the directory containing the ``.muddle/`` and ``src/``
+directories. It is not supported to run the program in a sub-domain.
+
+.. note:: If some part of ``muddle_patch.py read`` fails (for instance, if
+   an attempt is made to write a NEW checkout but the target directory already
+   exists) then ``muddle_patch.py`` will give up immediately.
+  
+   The current version of the code does not know how to continue from a
+   partial "read", so will typically fail if run again (since the first
+   amendment it tries to make will presumably now fail because the relevant
+   patch has already been applied).
+  
+   The simplest thing to do in this case is probably to edit the MANIFEST.txt
+   file in the <patch_dir> and comment out (using '#') the lines for those
+   checkouts that have already been patched successfully.
+
+   Some future version of the program may be more robust.
+
+How it works (or doesn't)
+-------------------------
+
+The MANIFEST.txt file
+~~~~~~~~~~~~~~~~~~~~~
+In the <patch_dir>, ``muddle_patch.py`` creates a file called MANIFEST.txt.
+This is in the traditional INI format, and contains an entry for each checkout
+described in the <patch_dir>, indicating its VCS and other useful information.
+
+Typical entries look like::
+
+    [BZR helpers]
+    checkout=helpers
+    directory=None
+    patch=helpers.bzr_send
+    old=1
+    new=3
+    [TAR v8]
+    checkout=v8
+    directory=platform
+    patch=v8.tgz
+
+There is nothing very magical about this file, and it may sometimes be useful
+to edit it. Lines starting with '#' or ';' are commented out, and will be
+ignored. Lines may not start with whitespace.
+
+Entries are of the form:
+
+* ``[<vcs> <name>]`` -- where <vcs> is one of BZR, SVN, GIT or NEW, and <name>
+  is the checkout name.
+* ``checkout=<name>`` -- again, <name> is the checkout name.
+* ``directory=<subdirectory>`` -- <subdirectory> is either None, or the name
+  of the subdirectory of ``src/`` where the checkout directory may be found
+  (so if the checkout is ``src/platforms/v8``, then <subdirectory> would be
+  ``platforms``).
+* ``patch=<filename>`` names the patch file (or, for GIT, the patch directory)
+  in <patch_dir>
+* ``old=<revision>`` and ``new=<revision>`` give the old and new revision ids
+  (or equivalent) for the two checkouts. "new" corresponds to "our" checkout,
+  and "old" to the "far" checkout. These are not specified for NEW patches.
+
+Changed bzr checkouts
+~~~~~~~~~~~~~~~~~~~~~
+When writing a changed Bazaar checkout, ``muddle_patch.py`` uses::
+
+    bzr send
+
+to create a file (in <patch_dir> containing the differences between the two
+revisions of the checkout.
+
+When reading the <patch_dir>, ``muddle_patch.py`` uses::
+
+    bzr merge --pull
+
+to update the checkout. This should produce a result identical to having done
+an appropriate merge/pull. The use of ``merge --pull`` means that Bazaar
+should attempt to do a pseudo-pull of the changes, and only revert to "merge"
+behaviour if it has to.
+
+Changed svn checkouts
+~~~~~~~~~~~~~~~~~~~~~
+When writing a changed Subversion checkout, ``muddle_patch.py`` uses::
+
+    svn diff
+
+to create a file (in <patch_dir> containing the differences between the two
+revisions of the checkout.
+
+When reading the <patch_dir>, ``muddle_patch.py`` uses::
+
+    patch
+
+to update the checkout. This should result in a checkout with the same source
+file content as wished, but of course the Subversion metadata will not have
+been changed, so Subversion will think it has a different revision number.
+
+Changed git checkouts
+~~~~~~~~~~~~~~~~~~~~~
+Support for GIT is untested. Muddle support for version stamps and GIT is, in
+general, untested. Any feedback would be welcomed.
+
+However, in theory:
+
+  When writing a changed git checkout, ``muddle_patch.py`` uses::
+
+      git format-patch
+
+  to create a diretory (in <patch_dir> containing the differences between the
+  two revisions of the checkout.
+
+  When reading the <patch_dir>, ``muddle_patch.py`` uses::
+
+      git am
+
+  to update the checkout.
+
+New checkouts
+~~~~~~~~~~~~~
+When writing a NEW checkout, ``muddle_patch.py`` uses ``tar`` to create a
+gzipped tarfile for the checkout source directory, in <patch_dir>. This
+contains all of the content of that directory, whether under version control
+or not (and it also includes any "magic" VCS directories, such as ``.bzr/``).
+
+When reading the <patch_dir>, ``muddle_patch.py`` simply uses ``tar`` to unzip
+and unpack the checkout in the appropriate place. It will refuse to do this if
+a directory of the right name already exists (i.e., it does not overwrite an
+existing directory).
+
+.. vim: set filetype=rst tabstop=8 softtabstop=2 shiftwidth=2 expandtab:

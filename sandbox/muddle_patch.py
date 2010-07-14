@@ -23,6 +23,13 @@ creates a directory containing the patches needed to update the remote build tre
     description of "our" build tree (i.e., the build tree within which
     this command is being run)
 
+    If <our_stamp_file> is '-' then a virtual stamp file will be calculated for
+    this build tree, using the equivalent of::
+
+        muddle stamp save -f
+
+    (but without writing the stamp file to disk).
+
   * <their_stamp_file> describes the "far" build tree, which we want to patch
     to be like "our" build tree
 
@@ -51,6 +58,9 @@ from muddled.commands import UnStamp
 from muddled.vcs.bazaar import Bazaar
 from muddled.utils import VersionStamp
 from muddled.version_control import split_vcs_url
+
+import muddled.utils
+import muddled.mechanics
 
 class LocalError(Exception):
     pass
@@ -273,15 +283,45 @@ def tar_pack(name, directory, output_dir, manifest_filename):
                  'patch=%s\n'%(name, name, directory, tar_filename))
 
 # =============================================================================
+def find_builder(current_dir):
+    try:
+        build_root, build_domain = muddled.utils.find_root(current_dir)
+        if not build_root:
+            raise LocalError('Cannot locate muddle build tree')
+
+        # We should be able to get away with ``muddle_binary=__file__``
+        # (even though that is clearly wrong!) since we do not intend to do any
+        # building/environment setting - but it is still a bit naughty.
+        return muddled.mechanics.load_builder(build_root,
+                                              muddle_binary=__file__,
+                                              default_domain=build_domain)
+    except muddled.utils.Failure as f:
+        raise LocalError("Error trying to load build tree: %s"%f)
+    except muddled.utils.Error as e:
+        raise LocalError("Cannot find build tree - %s"%e)
+
+def determine_our_stamp(current_dir, quiet=False):
+    if not quiet:
+        print '-- Determining stamp for this build tree'
+    builder = find_builder(current_dir)
+    # I *think* we're best off with force=True (equivalent of -f)
+    return VersionStamp.from_builder(builder, force=True, quiet=quiet)
+
 def write(our_stamp_file, far_stamp_file, output_dir_name):
 
-    output_dir = os.path.join(os.getcwd(), output_dir_name)
+    current_dir = os.getcwd()
+
+    output_dir = os.path.join(current_dir, output_dir_name)
     output_dir = canonical_path(output_dir)
     if os.path.exists(output_dir):
         raise LocalError('Output directory %s already exists'%output_dir)
 
+    if our_stamp_file == '-':
+        our_stamp, problems = determine_our_stamp(current_dir)
+    else:
+        our_stamp = VersionStamp.from_file(our_stamp_file)
+
     far_stamp = VersionStamp.from_file(far_stamp_file)
-    our_stamp = VersionStamp.from_file(our_stamp_file)
 
     # Determine what has changed with respect to the "far" stamp
     # - those changes are what we need to apply to make it the same as us...

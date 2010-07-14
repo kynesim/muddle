@@ -1723,7 +1723,7 @@ class VersionStamp(Mapping):
         print 'File has SHA1 hash %s'%fd.hash()
         return stamp
 
-    def compare(self, other, quiet=False):
+    def compare_checkouts(self, other, quiet=False):
         """Compare the checkouts in this VersionStamp with those in another.
 
         'other' is another VersionStamp.

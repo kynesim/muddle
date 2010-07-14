@@ -285,7 +285,7 @@ def write(our_stamp_file, far_stamp_file, output_dir_name):
 
     # Determine what has changed with respect to the "far" stamp
     # - those changes are what we need to apply to make it the same as us...
-    deleted, new, changed, problems = far_stamp.compare(our_stamp)
+    deleted, new, changed, problems = far_stamp.compare_checkouts(our_stamp)
 
     print 'Deleted:  %d'%len(deleted)
     print 'New:      %d'%len(new)

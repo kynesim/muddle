@@ -94,7 +94,6 @@ def deduce_checkout_dir(directory, name):
 def svn_patch(name, directory, patch_filename):
 
     checkout_dir = deduce_checkout_dir(directory, name)
-    print '.. dir:', checkout_dir
 
     # Should we be checking the current revision of our checkout,
     # to make sure it matches?
@@ -111,7 +110,6 @@ def svn_diff(name, directory, rev1, rev2, output_dir, manifest_filename):
     output_path = os.path.join(output_dir, output_filename)
 
     checkout_dir = deduce_checkout_dir(directory, name)
-    print '.. dir:', checkout_dir
 
     # *Should* check that neither of the requested revision numbers
     # are above the revno of the checkout we have to hand? Anyway,
@@ -140,7 +138,6 @@ def svn_diff(name, directory, rev1, rev2, output_dir, manifest_filename):
 def bzr_merge_from_send(name, directory, patch_filename):
 
     checkout_dir = deduce_checkout_dir(directory, name)
-    print '.. dir:', checkout_dir
 
     # Should we be checking the current revision of our checkout,
     # to make sure it matches?
@@ -165,7 +162,6 @@ def bzr_send(name, directory, rev1, rev2, output_dir, manifest_filename):
     output_path = os.path.join(output_dir, output_filename)
 
     checkout_dir = deduce_checkout_dir(directory, name)
-    print '.. dir:', checkout_dir
 
     # *Should* check that neither of the requested revision numbers
     # are above the revno of the checkout we have to hand? Anyway,
@@ -176,7 +172,6 @@ def bzr_send(name, directory, rev1, rev2, output_dir, manifest_filename):
             output_path, rev1, rev2)
     print '..',cmd
     rv = subprocess.call(cmd, shell=True)
-    print '.. Return code',rv
     if rv:
         raise LocalError('bzr send for %s returned %d'%(name,rv))
 
@@ -196,7 +191,6 @@ def git_am(name, directory, patch_directory):
     # TODO: I have no particular reason to believe that this will work...
 
     checkout_dir = deduce_checkout_dir(directory, name)
-    print '.. dir:', checkout_dir
 
     # Should we be checking the current revision of our checkout,
     # to make sure it matches?
@@ -215,7 +209,6 @@ def git_format_patch(name, directory, rev1, rev2, output_dir, manifest_filename)
     output_path = os.path.join(output_dir, output_directory)
 
     checkout_dir = deduce_checkout_dir(directory, name)
-    print '.. dir:', checkout_dir
 
     # *Should* check that neither of the requested revision ids
     # are above the id of the checkout we have to hand?
@@ -241,7 +234,6 @@ def git_format_patch(name, directory, rev1, rev2, output_dir, manifest_filename)
 def tar_unpack(name, directory, tar_filename):
 
     parent_dir = deduce_checkout_parent_dir(directory)
-    print '.. parent dir:', parent_dir
 
     checkout_dir = deduce_checkout_dir(directory, name)
     if os.path.exists(checkout_dir):
@@ -264,7 +256,6 @@ def tar_pack(name, directory, output_dir, manifest_filename):
     tar_path = os.path.join(output_dir, tar_filename)
 
     parent_dir = deduce_checkout_parent_dir(directory)
-    print '.. parent dir:', parent_dir
 
     # *Should* check that neither of the requested revision ids
     # are above the id of the checkout we have to hand?
@@ -327,10 +318,10 @@ def write(our_stamp_file, far_stamp_file, output_dir_name):
     # - those changes are what we need to apply to make it the same as us...
     deleted, new, changed, problems = far_stamp.compare_checkouts(our_stamp)
 
-    print 'Deleted:  %d'%len(deleted)
-    print 'New:      %d'%len(new)
-    print 'Changed:  %d'%len(changed)
-    print 'Problems: %d'%len(problems)
+    print
+    print 'Summary: deleted %d, new %d, changed %d, problems %d'%(len(deleted),
+            len(new), len(changed), len(problems))
+    print
 
     os.mkdir(output_dir)
     manifest_filename = os.path.join(output_dir, 'MANIFEST.txt')
@@ -354,7 +345,8 @@ def write(our_stamp_file, far_stamp_file, output_dir_name):
     # - if they're not being used anymore, leaving them around will not
     # hurt, and it is the simplest and safest option.
     if deleted:
-        print 'Deleted'
+        print
+        print 'The following checkouts were deleted'
         for tup in deleted:
             print ' ',tup
 
@@ -367,13 +359,13 @@ def write(our_stamp_file, far_stamp_file, output_dir_name):
     # (if, at the other end, we're untarring a new checkout, we must check
     # if the directory already exists, and perhaps refuse to do it if so?)
     if new:
-        print 'New'
         for name, repo, rev, rel, dir, domain in new:
             print "-- Saving tarfile for new checkout %s"%name
             tar_pack(name, dir, output_dir, manifest_filename)
 
     if problems:
-        print 'Problems'
+        print
+        print 'There were the following problems'
         for tup in problems:
             print ' ',tup
 

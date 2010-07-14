@@ -1614,10 +1614,10 @@ class VersionStamp(Mapping):
                         print stamp.problems[-1]
                     continue
                 if not quiet:
-                    print "%s checkout '%s'"%(vcs.__class__.__name__,
-                                              '(%s)%s'%(label.domain,label.name)
-                                              if label.domain
-                                              else label.name)
+                    print "Processing %s checkout '%s'"%(vcs.__class__.__name__,
+                                                 '(%s)%s'%(label.domain,label.name)
+                                                           if label.domain
+                                                           else label.name)
                 if label.domain:
                     domain_name = label.domain
                     domain_repo, domain_desc = builder.invocation.db.get_subdomain_info(domain_name)

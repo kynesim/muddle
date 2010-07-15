@@ -949,6 +949,10 @@ class Builder(object):
             rule_list = self.invocation.ruleset.rules_for_target(label, useTags = useTags, 
                                                                  useMatch = True)
 
+        if not rule_list:
+            print "There is no rule to build label %s"%label
+            return
+
         for r in rule_list:
             # Build it.
             if (not self.invocation.db.is_tag(r.target)):

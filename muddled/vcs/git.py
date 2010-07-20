@@ -9,7 +9,7 @@ import os
 class Git(VersionControlHandler):
     def __init__(self, builder, checkout_name, repo, rev, rel, co_dir):
         VersionControlHandler.__init__(self, builder, checkout_name, repo, rev, rel, co_dir)
-        sp = conventional_repo_url(repo, rel)
+        sp = conventional_repo_url(repo, rel, co_dir = co_dir)
         if sp is None:
             raise utils.Error("Cannot extract repository URL from %s, checkout %s"%(repo, rel))
 

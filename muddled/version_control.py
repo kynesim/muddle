@@ -61,12 +61,15 @@ class VersionControlHandler:
         
         .. todo:: Needs documenting and rewriting!
         """
+
+        print"get_checkout_path co_dir = %s"%self.checkout_dir
         if (self.checkout_dir is not None):
             p = os.path.join(self.builder.invocation.checkout_path(None, 
                                                                    domain = self.builder.default_domain), 
                              self.checkout_dir)
             if (co_name is not None):
-                p = os.path.join(co_name)
+                p = os.path.join(p,co_name)
+
             return p
         else:
             return self.builder.invocation.checkout_path(co_name, domain = self.builder.default_domain)

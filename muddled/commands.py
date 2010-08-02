@@ -2263,7 +2263,7 @@ Try 'muddle help stamp' for more information."""
             print 'Writing to',working_filename
             hash = stamp.write_to_file(working_filename)
             print 'Wrote revision data to %s'%working_filename
-            print 'File has SHA1 hash %s'%hash()
+            print 'File has SHA1 hash %s'%hash
 
             version_filename = "%s.stamp"%builder.build_name
             final_name = os.path.join(version_dir, version_filename)

@@ -192,7 +192,7 @@ def medium(builder, name, roles, checkout, deps = None, dep_tag = utils.Tags.Pre
         ###attach_env(builder, name, r, checkout)
 
 def twolevel(builder, name, roles, 
-             co_dir, co_name = None, 
+             co_dir = None, co_name = None, 
              deps = None, dep_tag = utils.Tags.PreConfig, 
              simpleCheckout = True, config = True, perRoleMakefiles = False, 
              makefileName = None, repo_relative=None, 

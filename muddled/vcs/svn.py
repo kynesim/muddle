@@ -81,8 +81,8 @@ class SvnVCSFactory(VersionControlHandlerFactory):
     def describe(self):
         return "Subversion"
 
-    def manufacture(self, builder, checkout_name, repo, rev, rel, co_dir):
-        return Svn(builder, checkout_name, repo, rev, rel, co_dir)
+    def manufacture(self, builder, checkout_name, repo, rev, rel, co_dir, branch):
+        return Svn(builder, checkout_name, repo, rev, rel, co_dir, branch)
 
 # Register us with the VCS handler factory
 register_vcs_handler("svn", SvnVCSFactory())

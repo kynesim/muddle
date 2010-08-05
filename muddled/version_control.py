@@ -186,7 +186,7 @@ class VersionControlHandlerFactory:
     def describe(self):
         return "Generic version control handler factory"
 
-    def manufacture(self, builder, co_name, repo, rev, rel, co_dir = None):
+    def manufacture(self, builder, co_name, repo, rev, rel, co_dir = None, branch = None):
         """
         Manufacture a VCS handler.
 
@@ -227,7 +227,7 @@ def list_registered():
 
 
 
-def vcs_handler_for(builder, co_name, repo, rev, rest, co_dir = None):
+def vcs_handler_for(builder, co_name, repo, rev, rest, co_dir = None, branch = None):
     """
     Create a VCS handler for the given url, invocation and checkout name.
     
@@ -255,13 +255,17 @@ def vcs_handler_for(builder, co_name, repo, rev, rest, co_dir = None):
     if (rev is None):
         rev = "HEAD"
 
-    return factory.manufacture(builder, co_name, repo, rev, rest, co_dir)
+    return factory.manufacture(builder, co_name, repo, rev, rest, co_dir, branch)
 
-def vcs_dependable_for(builder, co_name, repo, rev, rest, co_dir = None):
+def vcs_dependable_for(builder, co_name, repo, rev, rest, co_dir = None, co_in = None,
+                       branch = None):
     """
     Create a VCS dependable for the given co_name, repo, etc.
     """
-    handler = vcs_handler_for(builder, co_name, repo, rev, rest, co_dir)
+    if (co_in is None):
+        co_in = co_name
+    
+    handler = vcs_handler_for(builder, co_in, repo, rev, rest, co_dir, branch)
     if (handler is None):
         raise utils.Failure("Cannot build a VCS handler for %s rel = %s"%(repo, rev))
 

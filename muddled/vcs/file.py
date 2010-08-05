@@ -58,7 +58,7 @@ class FileVCSFactory(VersionControlHandlerFactory):
     def describe(self):
         return "Copy data between directories"
 
-    def manufacture(self, builder, co_name, repo, rev, rel, co_dir):
+    def manufacture(self, builder, co_name, repo, rev, rel, co_dir, branch):
         return File(builder, co_name, repo, rev, rel, co_dir)
 
 

@@ -7,7 +7,7 @@ import muddled.utils as utils
 import os
 
 class Git(VersionControlHandler):
-    def __init__(self, builder, checkout_name, repo, rev, rel, co_dir):
+    def __init__(self, builder, checkout_name, repo, rev, rel, co_dir, branch = None):
         VersionControlHandler.__init__(self, builder, checkout_name, repo, rev, rel, co_dir)
         sp = conventional_repo_url(repo, rel, co_dir = co_dir)
         if sp is None:
@@ -15,6 +15,7 @@ class Git(VersionControlHandler):
 
         self.git_repo = sp[0]
         self.co_path = self.get_checkout_path(self.checkout_name)
+        self.branch = branch
         self.parse_revision(rev)
 
     def parse_revision(self, rev):
@@ -22,8 +23,7 @@ class Git(VersionControlHandler):
         the_re = re.compile("([^:]*):(.*)$")
         m = the_re.match(rev)
         if (m is None):
-            # No branch
-            self.branch = "master"
+            # No branch. If there wasn't one, we meant master.
             if (rev == "HEAD"):
                 self.revision = "HEAD" # Turns out git uses this too
             else:
@@ -46,10 +46,20 @@ class Git(VersionControlHandler):
 
         utils.ensure_dir(parent_path)
         os.chdir(parent_path)
-        utils.run_cmd("git clone %s %s"%(self.git_repo,self.checkout_name))
+        args = ""
+        #if not (self.revision is None) or (not self.revision):
+            #args = "-n -o %s"%(self.revision)
+
+        utils.run_cmd("git clone %s %s %s"%(args, self.git_repo, self.checkout_name))
+
+        co_path = os.path.join(parent_path, self.checkout_name)
+        if (self.branch is not None):
+            os.chdir(co_path)
+            utils.run_cmd("git pull origin %s"%self.branch)
         
         if not ((self.revision is None) or (not self.revision)):
-            os.chdir(self.checkout_name)
+            print ("checkout to %s"%(self.checkout_name))
+            os.chdir(co_path)
             utils.run_cmd("git checkout %s"%self.revision)
 
     def pull(self):
@@ -68,7 +78,11 @@ class Git(VersionControlHandler):
 
     def push(self):
         os.chdir(self.co_path)
-        utils.run_cmd("git push %s"%self.git_repo)
+        if (self.branch is not None):
+            effective_branch = self.branch
+        else:
+            effective_branch = ""
+        utils.run_cmd("git push %s %s"%(self.git_repo, effective_branch))
 
     def must_update_to_commit(self):
         return False
@@ -120,8 +134,8 @@ class GitVCSFactory(VersionControlHandlerFactory):
     def describe(self):
         return "GIT"
 
-    def manufacture(self, builder, checkout_name, repo, rev, rel, co_dir):
-        return Git(builder, checkout_name, repo, rev, rel, co_dir)
+    def manufacture(self, builder, checkout_name, repo, rev, rel, co_dir, branch):
+        return Git(builder, checkout_name, repo, rev, rel, co_dir, branch)
 
 # Register us with the VCS handler factory
 register_vcs_handler("git", GitVCSFactory())

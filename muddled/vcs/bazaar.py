@@ -307,7 +307,7 @@ class BazaarVCSFactory(VersionControlHandlerFactory):
     def describe(self):
         return "The Bazaar VCS"
 
-    def manufacture(self, builder, co_name, repo, rev, rel, co_dir):
+    def manufacture(self, builder, co_name, repo, rev, rel, co_dir, branch):
         return Bazaar(builder, co_name, repo, rev, rel, co_dir)
 
         

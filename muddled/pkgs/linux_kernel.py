@@ -17,7 +17,8 @@ class LinuxKernel(PackageBuilder):
 
     def __init__(self, name, role, co, linuxSrc, configFile, 
                  kernelVersion,
-                 makeInstall = False, inPlace = False):
+                 makeInstall = False, inPlace = False, 
+                 arch = None, crossCompile = None):
         """
         
         * builder - The builder we're going to use to build this kernel.
@@ -32,6 +33,16 @@ class LinuxKernel(PackageBuilder):
           graphics drivers - require an in-place build. This is best done by
           building them in a separate step and checking in the binaries since
           otherwise committing back to source control gets hard.
+        * arch - what we should tell the kernel the target architecture is,
+                 if any.
+        * crossCompile - the prefix to apply to tools to get a cross-compiler
+                 for the target - e.g. 'ia64-linux-'
+       
+        If arch and crossCompile are not specified, we will try to get them
+        from the environment: arch will come from ARCHSPEC and crossCompile from
+        PFX, so that if you've set up your tools right in rrw.py, cross-compiling
+        a kernel will 'just work'.
+
         """
         
         PackageBuilder.__init__(self, name, role)
@@ -41,6 +52,8 @@ class LinuxKernel(PackageBuilder):
         self.make_install = makeInstall
         self.kernel_version= kernelVersion
         self.in_place = inPlace
+        self.arch = arch
+        self.crossCompile = crossCompile
 
     def ensure_dirs(self, builder, label):
         """
@@ -75,6 +88,19 @@ class LinuxKernel(PackageBuilder):
         make_cmd = "make"
         if not self.in_place:
             make_cmd = make_cmd + " O=%s"%(os.path.join(build_path, "obj"))
+
+        # Annoyingly, giving 'ARCH=' doesn't work so we need to do this
+        # 'properly'.
+        
+        if self.arch is not None:
+            make_cmd = make_cmd + " ARCH=%s"%(self.arch)
+        elif os.environ['ARCHSPEC'] is not None:
+            make_cmd = make_cmd + " ARCH=%s"%(os.environ['ARCHSPEC'])
+            
+        if self.crossCompile is not None:
+            make_cmd = make_cmd + " CROSS_COMPILE=%s"%(self.crossCompile)
+        elif os.environ['PFX'] is not None:
+            make_cmd = make_cmd + " CROSS_COMPILE=%s"%(os.environ['PFX'])
 
         # The kernel will append the necessary 'include' directory.
         hdr_path = os.path.join(build_path) 
@@ -182,7 +208,8 @@ class LinuxKernel(PackageBuilder):
 
 def simple(builder, name, role, checkout, linux_dir, config_file, 
            kernel_version,
-           makeInstall = False, inPlace = False):
+           makeInstall = False, inPlace = False, 
+           arch = None, crossCompile = None):
     """
     Build a linux kernel in the given checkout where the kernel sources
     themselves are in checkout/linux_dir and the config file in 
@@ -194,7 +221,8 @@ def simple(builder, name, role, checkout, linux_dir, config_file,
     simple_checkouts.relative(builder, checkout)
     the_pkg = LinuxKernel(name, role,  checkout, linux_dir, config_file, 
                           kernel_version,
-                          makeInstall = makeInstall, inPlace = inPlace)
+                          makeInstall = makeInstall, inPlace = inPlace,
+                          arch = arch, crossCompile = crossCompile)
     pkg.add_package_rules(builder.invocation.ruleset, 
                           name, role, the_pkg)
     pkg.package_depends_on_checkout(builder.invocation.ruleset, 
@@ -204,7 +232,8 @@ def simple(builder, name, role, checkout, linux_dir, config_file,
 def twolevel(builder, name, role, checkout_dir, checkout_name, linux_dir,
              config_file, 
              kernel_version ,
-             makeInstall = False, inPlace = False):
+             makeInstall = False, inPlace = False,
+             arch = None, crossCompile = None):
     """
     Build a linux kernel with a two-level checkout name.
 
@@ -214,7 +243,8 @@ def twolevel(builder, name, role, checkout_dir, checkout_name, linux_dir,
 
     the_pkg = LinuxKernel(name, role, checkout_name, linux_dir, config_file, 
                           kernel_version,
-                          makeInstall = makeInstall, inPlace = inPlace)
+                          makeInstall = makeInstall, inPlace = inPlace, 
+                          arch = arch, crossCompile = crossCompile)
     pkg.add_package_rules(builder.invocation.ruleset, 
                           name, role, the_pkg)
     pkg.package_depends_on_checkout(builder.invocation.ruleset, 

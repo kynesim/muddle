@@ -7,7 +7,7 @@ import muddled.utils as utils
 import os
 
 class Svn(VersionControlHandler):
-    def __init__(self, builder, checkout_name, repo, rev, rel, co_dir):
+    def __init__(self, builder, checkout_name, repo, rev, rel, co_dir,branch):
         VersionControlHandler.__init__(self, builder, checkout_name, repo ,rev, rel, co_dir)
 
         sp = conventional_repo_url(repo, rel, co_dir = co_dir)

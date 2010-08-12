@@ -58,6 +58,9 @@ def unpack_bz2(srcdir,filename,tmpdir):
     if rv:
         raise GiveUp("Can't unpack %s - %d"%(filename, rv))
 
+def archive_exists(config,pkg):
+    return config.exists("/toolchain/sources/%s/archive"%pkg)
+
 def query_archive(config, pkg):
     return config.query_string("/toolchain/sources/%s/archive"%pkg)
 
@@ -246,7 +249,7 @@ def do_glibc_build(config, src_dir,install_baremetal,host_tools, \
                              "--prefix=/usr " + \
                              ("--with-headers=%s "%\
                                   (os.path.join(install_baremetal, "libc", "usr", "include"))) +\
-                             "--build=i686-pc-linux-gnu " +\
+                             ("--build=%s "%(host_arch)) + \
                              ("--host=%s "%target) +\
                              "--disable-profile " +\
                              "--without-gd " + \
@@ -331,6 +334,7 @@ def do_glibc_headers(config, src_dir, install_baremetal, host_tools, \
 
     glibc_first_dir = first_build
     glibc_header_dir = header_dir
+    host_arch = config.query_string("/toolchain/host-arch");
 
     old_env = os.environ
 
@@ -342,9 +346,10 @@ def do_glibc_headers(config, src_dir, install_baremetal, host_tools, \
         make_dir(glibc_first_dir)
         unpack_bz2(src_dir, query_archive(config, "glibc"), glibc_first_dir)
         rename(glibc_first_dir, query_dir(config, "glibc"), variant_dir)
-        unpack_bz2(src_dir, query_archive(config, "glibc-ports"), glibc_first_dir)
-        rename(glibc_first_dir, query_dir(config, "glibc-ports"), \
-                   os.path.join(variant_dir, "ports"), force = True)
+        if (archive_exists(config,"glibc-ports")):
+            unpack_bz2(src_dir, query_archive(config, "glibc-ports"), glibc_first_dir)
+            rename(glibc_first_dir, query_dir(config, "glibc-ports"), \
+                       os.path.join(variant_dir, "ports"), force = True)
         make_writable(glibc_first_dir)
 
     default_dir = os.path.join(glibc_first_dir, variant_dir)
@@ -374,8 +379,8 @@ def do_glibc_headers(config, src_dir, install_baremetal, host_tools, \
                          "--prefix=/usr " + \
                          "--with-headers=%s "%\
                              (os.path.join(install_baremetal, "libc", "usr","include")) +\
-                         "--build=i686-pc-linux-gnu "+ \
-                         "--host=%s "%bare_metal_target + \
+                          ("--build=%s"%(host_arch)) + \
+                         " --host=%s "%bare_metal_target + \
                          "--disable-profile " + \
                          "--without-gd " + \
                          "--without-cvs " + \
@@ -481,6 +486,7 @@ def build_glibc(config, build_stage, stage):
     bare_metal_target = config.query_string("/toolchain/bare-metal-target")
     pkgversion =  config.query_string("/toolchain/version")
     bugurl = config.query_string("/toolchain/bugurl")
+    host_arch = config.query_string("/toolchain/host-arch");
 
     dest_dir = config.query_string("/toolchain/dest-dir")
     dest_dir_none = os.path.join(dest_dir, 
@@ -576,8 +582,7 @@ def build_glibc(config, build_stage, stage):
         # reasons (we'll try to link against our unwind lib, which uses
         #  glibc, before we're ready)
         do_ext_configure(gcc_first_dir, unpacked_gcc, \
-                             ("--build=i686-pc-linux-gnu "+ \
-                                  "--host=i686-pc-linux-gnu " +\
+                             ( ("--build=%s --host=%s "%(host_arch,host_arch)) +\
                                   ("--target=%s "%(bare_metal_target)) +\
                                   "--enable-threads "+\
                                   "--disable-libmudflap "+\
@@ -683,8 +688,7 @@ def build_glibc(config, build_stage, stage):
         append_env("LD_LIBRARY_PATH", os.path.join(tmp_host_dir, "lib"))
 
         do_ext_configure(gcc_second_dir, unpacked_gcc, \
-                             "--build=i686-pc-linux-gnu " +\
-                             "--host=i686-pc-linux-gnu " + \
+                             ("--build=%s --host=%s "%(host_arch,host_arch)) + \
                              ("--target=%s "%bare_metal_target) +\
                              "--enable-threads "+\
                              "--disable-libmudflap "+\
@@ -946,8 +950,7 @@ def build_glibc(config, build_stage, stage):
         make_dir(gcc_final_dir)
         #gcc has already been unpacked, so skip straight to the configuration
         do_ext_configure(gcc_final_dir, unpacked_gcc, \
-                             "--build=i686-pc-linux-gnu " +\
-                             "--host=i686-pc-linux-gnu " + \
+                             ("--build=%s --host=%s "%(host_arch,host_arch)) + \
                              ("--target=%s "%bare_metal_target) +\
                              "--enable-threads "+\
                              "--disable-libmudflap "+\
@@ -1007,7 +1010,11 @@ def build_none(config, build_stage, stage):
     gcc_final_dir = os.path.join( tmp_host_dir, "gcc-final")
     src_dir = config.query_string("/toolchain/src-dir")
     unpacked_gcc = os.path.join(tmp_host_dir, query_dir(config, "gcc"))    
-    bare_metal_target = config.query_string("/toolchain/bare-metal-target")
+    if (config.exists("/toolchain/bare-metal-target")):
+        bare_metal_target = config.query_string("/toolchain/bare-metal-target")
+    else:
+        bare_metal_target = None
+
     pkgversion =  config.query_string("/toolchain/version")
     bugurl = config.query_string("/toolchain/bugurl")
 
@@ -1016,8 +1023,10 @@ def build_none(config, build_stage, stage):
     patch_dir = config.query_string("/toolchain/patch-dir")
     host_tools = os.path.join(dest_dir, "host-tools")
     host_obj = os.path.join(tmp_dir, "host-obj")
-    install_baremetal = os.path.join(host_tools, \
-                                       bare_metal_target)
+    if (bare_metal_target is not None):
+        install_baremetal = os.path.join(host_tools, \
+                                             bare_metal_target)
+
 
 
     default_arch = config.query_string("/toolchain/arch")
@@ -1042,12 +1051,11 @@ def build_none(config, build_stage, stage):
     
 
     # Just build a compiler. Any compiler.
-    if (run_stage(build_stage,stage)):
+    if ((bare_metal_target is not None) and run_stage(build_stage,stage)):
         clean_dir(gcc_final_dir)
         make_dir(gcc_final_dir)
         do_ext_configure(gcc_final_dir, unpacked_gcc, \
-                             "--build=i686-pc-linux-gnu " +\
-                             "--host=i686-pc-linux-gnu " +\
+                             ("--build=%s --host=%s "%(host_arch,host_arch)) +  \
                              "--target=%s "%(bare_metal_target) + \
                              "--disable-threads " + \
                              "--disable-libmudflap " + \
@@ -1137,8 +1145,7 @@ def build_newlib(config, build_stage, stage):
         clean_dir(gcc_first_dir)
         make_dir(gcc_first_dir)
         do_ext_configure(gcc_first_dir, unpacked_gcc, \
-                             "--build=i686-pc-linux-gnu " +\
-                             "--host=i686-pc-linux-gnu " + \
+                             ("--build=%s --host=%s "%(host_arch,host_arch)) + \
                              ("--target=%s "%bare_metal_target) +\
                              "--enable-threads "+\
                              "--disable-libmudflap "+\
@@ -1186,10 +1193,9 @@ def build_newlib(config, build_stage, stage):
         newlib_src_dir = os.path.join(tmp_host_dir, query_dir(config, "newlib"))
 
         do_ext_configure(newlib_build_dir, newlib_src_dir, \
-                             ( "--build=i686-pc-linux-gnu " +\
+                             ( ("--build=%s --host=%s "%(host_arch,host_arch)) + \
                                    ("--target=%s "%bare_metal_target) + \
                                    ("--prefix=%s "%(dest_dir)) + \
-                                   "--host=i686-pc-linux-gnu " + \
                                    "--enable-newlib-io-long-long " + \
                                    "--disable-newlib-supplied-syscalls " + \
                                    "--disable-libgloss " + \
@@ -1258,9 +1264,8 @@ def build_newlib(config, build_stage, stage):
         make_dir(gcc_final_dir)
 
         do_ext_configure(gcc_final_dir, unpacked_gcc,
-                         ("--build=i686-pc-linux-gnu " + \
-                              "--host=i686-pc-linux-gnu " + \
-                              "--target=%s "%(bare_metal_target) + \
+                         (("--build=%s --host=%s "%(host_arch,host_arch)) + \
+                             "--target=%s "%(bare_metal_target) + \
                               "--enable-threads " + \
                               "--disable-libmudflap " + \
                               "--disable-libssp " + \
@@ -1330,6 +1335,7 @@ def main(args):
     host_tools = os.path.join(dest_dir, "host-tools")
     support_tools = os.path.join(dest_dir, "support-tools")
     host_obj = os.path.join(tmp_dir, "host-obj")
+    host_arch = config.query_string("/toolchain/host-arch");
 
     tmp_host_dir = os.path.join(tmp_dir, "host")
     
@@ -1404,11 +1410,13 @@ def main(args):
         clean_build_dir(tmp_host_dir, query_dir(config, "gmp"))
         unpack_bz2(src_dir, query_archive(config, "gmp"), tmp_host_dir)
         patch(config, tmp_host_dir,query_dir(config, "gmp"), patch_dir, "gmp")
+
+#                           "--target=i686-pc-linux-gnu " +\
+
         build_gnu(tmp_host_dir, query_dir(config, "gmp"), \
-                      ("--build=i686-pc-linux-gnu "+\
-                           "--target=i686-pc-linux-gnu " +\
+                      (("--build=%s --host=%s "%(host_arch,host_arch)) + 
                            "--prefix=%s " +\
-                           "--disable-shared --enable-cxx --host=i686-pc-linux-gnu " +\
+                           "--disable-shared --enable-cxx " +\
                            "--disable-nls")%support_tools, "-j 4")
         do_make(os.path.join(tmp_host_dir, query_dir(config, "gmp")), "", "check")
 
@@ -1421,10 +1429,9 @@ def main(args):
         unpack_bz2(src_dir, query_archive(config, "mpfr"), tmp_host_dir)
         patch(config, tmp_host_dir,query_dir(config, "mpfr"), patch_dir, "mpfr")
         build_gnu(tmp_host_dir,  query_dir(config, "mpfr"), \
-                      ("--build=i686-pc-linux-gnu "+\
+                      (("--build=%s --host=%s "%(host_arch,host_arch)) + 
                            ("--target=%s "%(bare_metal_target)) + \
                            "--prefix=%s --disable-shared " +\
-                           "--host=i686-pc-linux-gnu " +\
                            "--disable-nls --with-gmp=%s")%\
                       (support_tools, support_tools), "")
         
@@ -1436,16 +1443,15 @@ def main(args):
         unpack_bz2(src_dir, query_archive(config, "ppl"), tmp_host_dir)
         patch(config, tmp_host_dir,query_dir(config, "ppl"), patch_dir, "ppl")
         build_gnu(tmp_host_dir,  query_dir(config, "ppl"), \
-                      ("--build=i686-pc-linux-gnu "+\
+                      (("--build=%s --host=%s "%(host_arch,host_arch)) + 
                            ("--target=%s "%(bare_metal_target)) +\
                            "--prefix=%s --disable-shared " +\
-                           "--host=i686-pc-linux-gnu " +\
                            "--disable-nls --with-gmp=%s")%\
                       (support_tools, support_tools), "")
         
         
     #bootstrap_binutils =  "binutils-arm-none-linux-gnueabi-i686-pc-linux-gnu"
-    bootstrap_binutils = "binutils-%s-i686-pc-linux-gnu"%(config.query_string("/toolchain/bare-metal-target"))
+    bootstrap_binutils = "binutils-%s-%s"%(config.query_string("/toolchain/bare-metal-target"),host_arch)
     sysroot = os.path.join(host_tools, "libc")
 
     set_env("CC_FOR_BUILD", "gcc")
@@ -1487,10 +1493,9 @@ def main(args):
                   patch_dir, "binutils")
 
         do_configure(binutils_dir, 
-                     ("--build=i686-pc-linux-gnu "+\
+                     (("--build=%s --host=%s "%(host_arch,host_arch)) + \
                            "--target=%s "%(config.query_string("/toolchain/bare-metal-target")) +\
                            "--prefix=%s "%(dest_dir) +\
-                           "--host=i686-pc-linux-gnu "+\
                            "--with-pkgversion=\"%s\" "%(pkgversion) +\
                            "--with-bugurl=\"%s\" "%(bugurl) +\
                            "--disable-nls "+\

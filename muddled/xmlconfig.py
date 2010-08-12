@@ -48,7 +48,7 @@ class Config:
 
         # Strip any trailing CRs
         result = "".join(elems)
-        if (result[-1] == '\n'):
+        if (len(result) > 0 and result[-1] == '\n'):
             result = result[:-1]
         
         return result

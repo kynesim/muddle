@@ -116,7 +116,9 @@ def set_gnu_tools(builder, roles, env_prefix, prefix,
                   archname = None, 
                   archroles = [ "*" ], 
                   domain = None, 
-                  dirname = None):
+                  dirname = None,
+                  cppflags = None,
+                  cxxflags = None):
     """
     This is a utility function which sets up the given roles to use the given
     compiler prefix (typically the empty string "" for host tools, or something
@@ -145,6 +147,8 @@ def set_gnu_tools(builder, roles, env_prefix, prefix,
        * <env_prefix>PFX is the <prefix> itself
        * if 'archspec' is not None, <env_prefix>ARCHSPEC is set to it
        * if 'cflags' is not None, <env_prefix>CFLAGS is set to it
+       * if 'cppflags' is not None, <env_prefix>CPPFLAGS is set to it
+       * if 'cxxflags' is not None, <env_prefix>CXXFLAGS is set to it
        * if 'ldflags' is not None, <env_prefix>LDFLAGS is set to it
        * if 'asflags' is not None, <env_prefix>ASFLAGS is set to it
        * if 'dirname' is not None, <env_prefix>COMPILER_TOOLS_DIR is set to it
@@ -202,6 +206,12 @@ def set_gnu_tools(builder, roles, env_prefix, prefix,
 
         if (cflags is not None):
             binding_list.append(utils.get_prefix_pair(pfx, "CFLAGS", "", cflags))
+
+        if (cppflags is not None):
+            binding_list.append(utils.get_prefix_pair(pfx, "CPPFLAGS", "", cppflags))
+
+        if (cxxflags is not None):
+            binding_list.append(utils.get_prefix_pair(pfx, "CXXFLAGS", "", cxxflags))
 
         if (ldflags is not None):
             binding_list.append(utils.get_prefix_pair(pfx, "LDFLAGS", "", ldflags))

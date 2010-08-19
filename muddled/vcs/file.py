@@ -4,7 +4,7 @@ Muddle support for naive file copying.
 
 from muddled.version_control import *
 import muddled.utils as utils
-import urlparse
+import urlparse 
 
 class File(VersionControlHandler):
     """
@@ -24,7 +24,7 @@ class File(VersionControlHandler):
         (real_repo, r) = sp
 
 
-        parsed = urlparse(real_repo)
+        parsed = urlparse.urlparse(real_repo)
         self.source_path = parsed.path
         self.co_path = self.get_checkout_path(self.checkout_name)
 
@@ -65,9 +65,8 @@ class FileVCSFactory(VersionControlHandlerFactory):
 # Tell the VCS handler about us.
 register_vcs_handler("file", FileVCSFactory())
 
-from urlparse import urlparse
 def _decode_file_url(url):
-    result = urlparse(url)
+    result = urlparse.urlparse(url)
     if result.scheme not in ('', 'file'):
         raise utils.Error("'%s' is not a valid 'file:' URL"%url)
     if result.netloc:

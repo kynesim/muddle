@@ -64,6 +64,10 @@ class Git(VersionControlHandler):
 
     def pull(self):
         os.chdir(self.co_path)
+        #
+        # Todo: we should probably look at what branch you're on and 
+        # pull that rather than mindlessly pulling master, but hey ho ..
+        #
         if (self.branch):
             utils.run_cmd("git pull %s %s"%(self.git_repo, self.branch))
         else:

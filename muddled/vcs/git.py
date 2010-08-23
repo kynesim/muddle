@@ -64,7 +64,10 @@ class Git(VersionControlHandler):
 
     def pull(self):
         os.chdir(self.co_path)
-        utils.run_cmd("git pull %s %s"%(self.git_repo, self.branch))
+        if (self.branch):
+            utils.run_cmd("git pull %s %s"%(self.git_repo, self.branch))
+        else:
+            utils.run_cmd("git pull %s master"%(self.git_repo))
         
     def update(self):
         os.chdir(self.co_path)

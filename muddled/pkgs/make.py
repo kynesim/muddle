@@ -7,6 +7,7 @@ from muddled.pkg import PackageBuilder
 import muddled.utils as utils
 import muddled.checkouts.simple as simple_checkouts
 import muddled.checkouts.twolevel as twolevel_checkouts
+import muddled.checkouts.multilevel as multilevel_checkouts
 import muddled.depend as depend
 import muddled.rewrite as rewrite
 import os
@@ -229,6 +230,47 @@ def twolevel(builder, name, roles,
                                        name, r, dep_tag, 
                                        deps)
         ###attach_env(builder, name, r, co_name)
+
+def multilevel(builder, name, roles, 
+             co_dir = None, co_name = None, 
+             deps = None, dep_tag = utils.Tags.PreConfig, 
+             simpleCheckout = True, config = True, perRoleMakefiles = False, 
+             makefileName = None, repo_relative=None, 
+             usesAutoconf = False,
+             rewriteAutoconf = False):
+    """
+    Build a package controlled by make, in the given roles with the
+    given dependencies in each role.
+    
+    * simpleCheckout - If True, register the checkout as simple checkout too.
+    * dep_tag        - The tag to depend on being installed before you'll build.
+    * perRoleMakefiles - If True, we run 'make -f Makefile.<rolename>' instead
+      of just make.
+    """
+
+    if (co_name is None): 
+        co_name = name
+
+    if (simpleCheckout):
+        multilevel_checkouts.relative(builder, co_dir, co_name,
+                                    repo_relative=repo_relative)
+
+    if deps is None:
+        deps = []
+
+
+    for r in roles:
+        simple(builder, name, r, co_name, config = config, 
+               perRoleMakefiles = perRoleMakefiles,
+               makefileName = makefileName,
+               usesAutoconf = usesAutoconf,
+               rewriteAutoconf = rewriteAutoconf)
+        pkg.package_depends_on_packages(builder.invocation.ruleset,
+                                       name, r, dep_tag, 
+                                       deps)
+        ###attach_env(builder, name, r, co_name)
+
+
 
                                        
 

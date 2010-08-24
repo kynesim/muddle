@@ -280,6 +280,23 @@ def set_env(builder, roles, bindings, domain = None):
         pkg.set_env_for_package(builder, "*", roles, 
                                 x,y, domain = domain)
 
+def append_env(builder, roles, bindings, domain = None, 
+               setType = None):
+    """
+    Set environment variable <var> = <value> for every package in the given roles
+    
+    Bindings is a series of (<var>, <value>) pairs.
+
+    If setType is specified, we set the type of the environment variable to one 
+     of the types in env_store.py: the most popular of these is EnvType.SimpleValue
+     which marks the variable as not a path-type variable.
+    """
+    for (x,y) in bindings:
+        pkg.append_env_for_package(builder, "*", roles, 
+                                   x,y, domain = domain, 
+                                   type = setType)
+
+
 def package_requires(builder, 
                      in_pkg, pkg_roles,
                      reqs):

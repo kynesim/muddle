@@ -246,7 +246,7 @@ class EnvBuilder:
         self.prepend_list = [ ]
         self.retain_old_value = True
         self.append_list = [ ]
-        self.env_type = EnvType.SimpleValue
+        self.env_type = EnvType.Path
         self.erased = False
         self.external = external
 
@@ -407,7 +407,10 @@ class EnvBuilder:
             val_array.append(inOldValue)
         val_array.extend(map(lambda x: x.to_value(env), self.append_list))
 
-        return ":".join(val_array)
+        if (self.env_type == EnvType.SimpleValue):
+            return "".join(val_array)
+        else:
+            return ":".join(val_array)
     
 
     def get_c(self, var, prefix, variable_name):

@@ -498,9 +498,9 @@ def get_cmd_data(cmd, env=None, isSystem=False, fold_stderr=True,
     returncode = p.returncode
     if fail_nonzero and returncode:
         if isSystem:
-            raise Error("Command '%s' execution failed - %d"%(cmd,rv))
+            raise Error("Command '%s' execution failed - %d"%(cmd,returncode))
         else:
-            raise Failure("Command '%s' execution failed - %d"%(cmd,rv))
+            raise Failure("Command '%s' execution failed - %d"%(cmd,returncode))
     return returncode, stdoutdata, stderrdata
 
 

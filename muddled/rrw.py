@@ -144,6 +144,7 @@ def set_gnu_tools(builder, roles, env_prefix, prefix,
        * <env_prefix>NM  is <prefix>nm
        * <env_prefix>OBJDUMP is <prefix>objdump
        * <env_prefix>OBJCOPY is <prefix>objcopy
+       * <env_prefix>RANLIB  is <prefix>ranlib
        * <env_prefix>PFX is the <prefix> itself
        * if 'archspec' is not None, <env_prefix>ARCHSPEC is set to it
        * if 'cflags' is not None, <env_prefix>CFLAGS is set to it
@@ -198,6 +199,7 @@ def set_gnu_tools(builder, roles, env_prefix, prefix,
         binding_list.append(utils.get_prefix_pair(pfx, "NM", prefix, "nm"))
         binding_list.append(utils.get_prefix_pair(pfx, "OBJDUMP", prefix, "objdump"))
         binding_list.append(utils.get_prefix_pair(pfx, "OBJCOPY", prefix, "objcopy"))
+        binding_list.append(utils.get_prefix_pair(pfx, "RANLIB",  prefix, "ranlib"))
         binding_list.append(utils.get_prefix_pair(pfx, "PFX", prefix,""))
 
         if (archspec is not None):

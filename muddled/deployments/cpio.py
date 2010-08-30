@@ -20,6 +20,7 @@ import muddled.utils as utils
 import muddled.filespec as filespec
 import muddled.deployment as deployment
 import muddled.cpiofile as cpiofile
+import types
 import os
 
 class CpioInstructionImplementor:
@@ -36,7 +37,8 @@ class CpioDeploymentBuilder(pkg.Dependable):
                  pruneFunc = None):
         """
         * 'target_file' is the CPIO file to construct.
-        * 'target_base' is an array of pairs mapping labels to target locations
+        * 'target_base' is an array of pairs mapping labels to target locations, or
+            (label, src) -> location
         * 'compressionMethod' is the compression method to use, if any - gzip -> gzip,
           bzip2 -> bzip2.
         * if 'pruneFunc' is not None, it is a function to be called like
@@ -88,7 +90,12 @@ class CpioDeploymentBuilder(pkg.Dependable):
         to every package label in this role.
         """
         
-        for (l,b) in self.target_base:
+        for (l,bl) in self.target_base:
+            if (type ( bl ) == types.TupleType ):
+                target_loc = bl[1]
+            else:
+                target_loc = bl
+
             lbl = depend.Label(utils.LabelKind.Package,
                                "*",
                                l.role,
@@ -97,7 +104,7 @@ class CpioDeploymentBuilder(pkg.Dependable):
             env = builder.invocation.get_environment_for(lbl)
         
             env.set_type("MUDDLE_TARGET_LOCATION", muddled.env_store.EnvType.SimpleValue)
-            env.set("MUDDLE_TARGET_LOCATION", b)
+            env.set("MUDDLE_TARGET_LOCATION", target_loc)
     
 
 
@@ -120,17 +127,29 @@ class CpioDeploymentBuilder(pkg.Dependable):
             
 
 
-            for (l,base) in self.target_base:
+            for (l,bt) in self.target_base:
+                if (type ( bt ) == types.TupleType ):
+                    real_source_path = os.path.join(builder.invocation.role_install_path(l.role,
+                                                                                         l.domain),
+                                                    bt[0])
+                    base = bt[1]
+                else:
+                    base = bt
+                    real_source_path = os.path.join(builder.invocation.role_install_path(l.role,
+                                                                                         l.domain))
+
+
                 print "Collecting %s  for deployment to %s .. "%(l,base)
-                m = cpiofile.heirarchy_from_fs(builder.invocation.role_install_path
-                                               (l.role, 
-                                                domain = l.domain), 
+                if (len(base) > 0 and base[0] != '/'):
+                    base = "/%s"%(base)
+
+                m = cpiofile.heirarchy_from_fs(real_source_path,
                                                base)
                 the_heirarchy.merge(m)
 
             # Normalise the heirarchy .. 
             the_heirarchy.normalise()
-            #print "h = %s"%the_heirarchy
+            print "h = %s"%the_heirarchy
 
             if (self.prune_function is not None):
                 self.prune_function(the_heirarchy)
@@ -139,7 +158,13 @@ class CpioDeploymentBuilder(pkg.Dependable):
 
 
             # Apply instructions .. 
-            for (src,base) in self.target_base:
+            for (src,bt) in self.target_base:
+                if (type (bt) == types.TupleType ):
+                    base = bt[1]
+                else:
+                    base = bt
+
+                print "base = %s"%(base)
                 lbl = depend.Label(utils.LabelKind.Package, "*", src.role, "*", 
                                    domain = src.domain)
                 print "Scanning instructions for role %s, domain %s .. "%(src.role, src.domain)
@@ -257,8 +282,9 @@ def deploy_labels(builder, target_file, target_base, name,
     * target_file - Where, relative to the deployment directory, should the
       build cpio file end up? Note that compression will add a suitable '.gz'
       or '.bz2' suffix.
-    * target_bases - Where should we expect to unpack the CPIO file to - this
-      is a dictionary mapping labels to target locations.
+    * target_base - Where should we expect to unpack the CPIO file to - this
+      is a dictionary mapping labels to target locations. If the target location
+      is a tuple (s,d), it maps a source to a destination.
     * compressionMethod - The compression method to use, if any - gzip -> gzip,
       bzip2 -> bzip2.
     * pruneFunc - If not None, this a function to be called like
@@ -287,10 +313,10 @@ def deploy_labels(builder, target_file, target_base, name,
             out_target_base.append( (k,v) )
             
 
-
     the_dependable = CpioDeploymentBuilder(target_file, 
                                            out_target_base, compressionMethod, 
                                            pruneFunc = pruneFunc)
+    
     
     dep_label = depend.Label(utils.LabelKind.Deployment,
                              name, None,
@@ -300,12 +326,17 @@ def deploy_labels(builder, target_file, target_base, name,
     deployment_rule = depend.Rule(dep_label, the_dependable)
 
     # Now do the dependency thing .. 
-    for ( lbl, base )  in out_target_base:
+    for ( ltuple, base )  in out_target_base:
+        if (type ( ltuple ) == types.TupleType ):
+            real_lbl = ltuple[0]
+        else:
+            real_lbl = ltuple
+
         role_label = depend.Label(utils.LabelKind.Package,
                                   "*",
-                                  lbl.role,
+                                  real_lbl.role,
                                   utils.Tags.PostInstalled,
-                                  domain = lbl.domain)
+                                  domain = real_lbl.domain)
         deployment_rule.add(role_label)
                 
 
@@ -327,6 +358,14 @@ def deploy(builder, target_file, target_base, name, target_roles_order,
     """
     Legacy entry point for cpio: target_order is a list of roles in order they are to be copied,
     target_base the list of role -> path mappings
+    
+    If target_order's target is a pair (src, dst) only that (src,dst) will be copied, so
+    ( "foo", ("/a/b", "/c/d") )
+
+    Copies install/foo/a/b to deploy/XXX/c/d .
+    
+    copies /bar/baz from foo to /nibble.
+
     """
     proper_target_base = { }
     for (r,base) in target_base.items():
@@ -336,6 +375,7 @@ def deploy(builder, target_file, target_base, name, target_roles_order,
                            "*",
                            domain = builder.default_domain)
         proper_target_base[lbl] = base
+        
 
     label_order = [ ]
     for r in target_roles_order:

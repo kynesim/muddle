@@ -290,6 +290,7 @@ class CpioFileDataProvider(filespec.FileSpecDataProvider):
             dir = dir[1:]
 
         #print "l_f_u = %s (vroot = %s)"%(dir,vroot)
+        obj = None
 
         for r in self.heirarchy.roots.keys():
             to_find = utils.rel_join(vroot, dir)

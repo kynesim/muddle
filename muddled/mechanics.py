@@ -961,7 +961,7 @@ class Builder(object):
                     print "> Building %s"%(r.target)
 
                 # Set up the environment for building this label
-                old_env = os.environ
+                old_env = os.environ.copy()
                 self._build_label_env(r.target, env_store)
 
                 if (r.obj is not None):

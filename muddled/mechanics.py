@@ -780,11 +780,16 @@ class Builder(object):
         ``MUDDLE_OBJ_LIB``
             ``$(MUDDLE_OBJ)/lib``
         ``MUDDLE_PKGCONFIG_DIRS``
-            Sets pkg-config to look only at packages we are declared to be 
+            Sets pkg-config to look only at packages we are declared to be
             dependent on, or none if there are not declared dependencies.
         ``MUDDLE_PKGCONFIG_DIRS_AS_PATH``
-            The same values as in ``MODULE_PKGCONFIG_DIRS``, but with items
+            The same values as in ``MUDDLE_PKGCONFIG_DIRS``, but with items
             separated by colons.
+        ``MUDDLE_LD_LIBRARY_PATH``
+            The same values as in ``MUDDLE_LIB_DIRS``, but with items separated
+            by colons. This is useful for passing (as LD_LIBRARY_PATH) to
+            configure scripts that try to look for libraries when linking test
+            programs.
         """
         store.set("MUDDLE_ROOT", self.invocation.db.root_path)
         store.set("MUDDLE_LABEL", label.__str__())
@@ -852,6 +857,8 @@ class Builder(object):
             store.set("MUDDLE_LIB_DIRS", 
                       " ".join(map(lambda x:utils.maybe_shell_quote(x, True), 
                                    lib_dirs)))
+            store.set("MUDDLE_LD_LIBRARY_PATH", 
+                      ":".join(lib_dirs))
             # pkg-config takes ':' separated paths and wraps single quotes around
             # each element thereof. Therefore we must not quote the individual path
             # elements (or the quoted string will be wrapped in single quotes, and

@@ -264,17 +264,24 @@ def package_depends_on_checkout(ruleset, pkg_name, role_name, co_name, obj):
       the checkout to the package preconfig. You'll normally make this None
       unless you are doing something deeply weird.
     """
-    new_rule = depend.Rule(depend.Label(
-            utils.LabelKind.Package, 
-            pkg_name, role_name, 
-            utils.Tags.PreConfig), 
-                           obj)
+    checkout = depend.Label(utils.LabelKind.Checkout, 
+                            co_name, None,
+                            utils.Tags.CheckedOut)
 
-    new_rule.add(depend.Label(utils.LabelKind.Checkout, 
-                              co_name, None,
-                              utils.Tags.CheckedOut))
+    preconfig = depend.Label(utils.LabelKind.Package, 
+		             pkg_name, role_name, 
+			     utils.Tags.PreConfig)
+
+    new_rule = depend.Rule(preconfig, obj)
+    new_rule.add(checkout)
     ruleset.add(new_rule)
-                    
+
+    # We can't distclean a package until we've checked out its checkout
+    distclean = depend.Label(utils.LabelKind.Package,
+		             pkg_name, role_name, 
+			     utils.Tags.DistClean, 
+			     transient = True)
+    ruleset.add(depend.depend_one(obj, distclean, checkout))
 
 def package_depends_on_packages(ruleset, pkg_name, role, tag_name, deps):
     """
@@ -312,24 +319,23 @@ def add_package_rules(ruleset, pkg_name, role_name, obj):
                           utils.Tags.Installed,
                           utils.Tags.PostInstalled ], 
                         ruleset)
-                             
-    # Now the clean and distclean rules. These are transient,
-    #  since you don't want to remember you've done it .. 
+
+    # "clean" dependes on "preconfig", but is transient,
+    # since you don't want to remember you've done it .. 
     # 
     # (and it avoids inverse rules which would be a bit
     #  urgh)
-    ruleset.add(depend.depend_none
-                (obj, 
-                 depend.Label(utils.LabelKind.Package,
-                              pkg_name, role_name, 
-                              utils.Tags.Clean, 
-                              transient = True)))
-    ruleset.add(depend.depend_none
-                (obj, 
-                 depend.Label(utils.LabelKind.Package,
-                              pkg_name, role_name, 
-                              utils.Tags.DistClean, 
-                              transient = True)))
+    ruleset.add(depend.depend_one(obj, 
+				   depend.Label(utils.LabelKind.Package,
+				                pkg_name, role_name, 
+						utils.Tags.Clean, 
+						transient = True),
+				   depend.Label(utils.LabelKind.Package,
+					        pkg_name, role_name,
+						utils.Tags.PreConfig,
+						transient = True)))
+    # "distclean" depedsn on the package's checkout(s) having
+    # been checked out, so is handled in ``package_depends_on_checkout()``
 
 
 def do_depend(builder, pkg_name, role_names,

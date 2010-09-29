@@ -297,6 +297,137 @@ def attach_env(builder, name, role, checkout, domain=None):
                      name, role, "*"))
     env.set("MUDDLE_SRC", builder.invocation.checkout_path(checkout, domain=domain))
 
+# Useful extensions
 
+class ExpandingMakeBuilder(MakeBuilder):
+    """
+    A MakeBuilder that first expands an archive file.
+    """
+
+    def __init__(self, name, role, co_name, archive_file, archive_dir, makefile = None):
+        """
+        A MakeBuilder that first expands an archive file.
+
+        For package 'name' in role 'role', look in checkout 'co_name' for archive
+        'archive_file'. Unpack that into $MUDDLE_OBJ, as 'archive_dir', with 'obj/'
+        linked to it, and use 'makefile' to build it.
+        """
+        if makefile is None:
+            makefile = "Makefile.muddle"
+        MakeBuilder.__init__(self, name, role, co_name, config=True,
+                             perRoleMakefiles=False,
+                             makefileName=makefile,
+                             # Always "correct" any pkg-config files
+                             rewriteAutoconf=True, usesAutoconf=True)
+        self.co_name = co_name # equivalent to self.co, but simpler to remmeber
+        self.archive_file = archive_file
+        self.archive_dir  = archive_dir
+
+    def unpack_archive(self, builder, label):
+        # Since we're going to unpack into the obj/ directory, make sure we
+        # have one
+        self.ensure_dirs(builder, label)
+
+        inv = builder.invocation
+
+        try:
+            # muddle 2
+            checkout_dir = inv.checkout_path(self.co, domain=label.domain)
+            obj_dir = inv.package_obj_path(self.name, self.role, domain=label.domain)
+        except TypeError:
+            # muddle 3
+            checkout_label = Label(utils.LabelType.Checkout, self.co,
+                                   domain=label.domain)
+            checkout_dir = inv.checkout_path(checkout_label)
+            package_label = Label(utils.LabelType.Package, self.name, self.role,
+                                  domain=label.domain)
+            obj_dir = inv.package_obj_path(package_label)
+
+        archive_path = os.path.join(checkout_dir, self.archive_file)
+
+        # Make sure to remove any previous unpacking of the archive
+        dest_dir = os.path.join(obj_dir, self.archive_dir)
+        if os.path.exists(dest_dir):
+            utils.run_cmd('rm -rf %s'%dest_dir)
+
+        utils.run_cmd('tar -C %s -xf %s'%(obj_dir, archive_path))
+
+        # Ideally, we'd have unpacked the directory as obj/, so that we can
+        # refer to it as $(MUDDLE_OBJ_OBJ). However, with a little cunning...
+
+        utils.run_cmd('cd %s; ln -sf %s obj'%(obj_dir, self.archive_dir))
+
+    def build_label(self, builder, label):
+        """Build our label.
+
+        Cleverly, Richard didn't define anything for MakeBuilder to do at
+        the PreConfigure step, which means we can safely do whatever we
+        need to do in this subclass...
+        """
+        if (label.tag == label_tag.PreConfig):
+            # unpack stuff ready to build
+            self.unpack_archive(builder, label)
+        else:
+            # let the normal Make stuff do its thing
+            # - it does too much clever stuff for us to want to copy it
+            # (but nothing for preconfig)
+            MakeBuilder.build_label(self, builder, label)
+
+def expanding_package(builder, name, archive_dir,
+                      role, co_name, co_dir,
+                      makefile="Makefile.muddle", deps=None,
+                      archive_file=None, archive_ext='.tar.bz2',):
+    """Specify how to expand and build an archive file.
+
+    As normal, 'name' is the package name, 'role' is the role to build it in,
+    'co_name' is the name of the checkout, and 'co_dir' is the directory in
+    which that lives.
+
+    We expect to unpack an archive
+
+        <co_dir>/<co_name>/<archive_dir><archive_ext>
+
+    into $(MUDDLE_OBJ)/<archive_dir>. (NB: if the archive file does not expand into
+    a directory of the obvious name, you can specify the archive file name separately,
+    using 'archive_file').
+
+    So, for instance, all of our X11 "stuff" lives in checkout "X11R7.5" which is
+    put into directory "x11" -- i.e., "src/X11/X11R7.5".
+
+    That lets us keep stuff together in the repository, without leading to
+    a great many packages that are of no direct interest to anyone else.
+
+    Within that we then have various muddle makefiles, and a set of .tar.bz
+    archive files.
+
+    1. The archive file expands into a directory called 'archive_dir'
+    2. It is assumed that the archive file is named 'archive_dir' + 'archive_ext'.
+       If this is not so, then specify 'archive_file' (and/or 'archive_ext')
+       appropriately.
+
+    This function is used to say: take the named archive file, use package name
+    'name', unpack the archive file into $(MUDDLE_OBJ_OBJ), and build it using
+    the named muddle makefile.
+
+    This allows various things to be build with the same makefile, which is useful
+    for (for instance) X11 proto[type] archives.
+
+    Note that in $(MUDDLE_OBJ), 'obj' (i.e., $(MUDDLE_OBJ_OBJ)) will be a soft link
+    to the expanded archive directory.
+    """
+    if archive_file is None:
+        archive_file = archive_dir + archive_ext
+
+    # Define how to build our package
+    dep = ExpandingMakeBuilder(name, role, co_name, archive_file, archive_dir, makefile)
+    pkg.add_package_rules(builder.invocation.ruleset, name, role, dep)
+
+    # It depends on the checkout
+    pkg.package_depends_on_checkout(builder.invocation.ruleset, name, role,
+                                    co_name, None) ###dep)
+
+    # And maybe on other packages
+    if deps:
+        pkg.do_depend(builder, name, [role], deps)
 
 # End file.

@@ -11,6 +11,7 @@ Contents:
    :maxdepth: 2
 
    README
+   muddle-dirs
    muddle-useful
    muddle-package
    docs.readme

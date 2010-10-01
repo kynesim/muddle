@@ -125,7 +125,8 @@ class MakeBuilder(PackageBuilder):
                               "MakePackage building %s"%(label))
         
 
-def simple(builder, name, role, checkout, simpleCheckout = False, config = True, 
+def simple(builder, name, role, checkout, rev=None,
+	   simpleCheckout = False, config = True, 
            perRoleMakefiles = False, 
            makefileName = None,
            usesAutoconf = False,
@@ -146,7 +147,7 @@ def simple(builder, name, role, checkout, simpleCheckout = False, config = True,
       environment variable.
     """
     if (simpleCheckout):
-        simple_checkouts.relative(builder, checkout)
+        simple_checkouts.relative(builder, checkout, rev=rev)
 
     the_pkg = MakeBuilder(name, role, checkout, config = config, 
                           perRoleMakefiles = perRoleMakefiles,
@@ -161,7 +162,8 @@ def simple(builder, name, role, checkout, simpleCheckout = False, config = True,
                                     name, role, checkout, the_pkg)
     ###attach_env(builder, name, role, checkout)
 
-def medium(builder, name, roles, checkout, deps = None, dep_tag = utils.Tags.PreConfig, 
+def medium(builder, name, roles, checkout, rev=None,
+	   deps = None, dep_tag = utils.Tags.PreConfig, 
            simpleCheckout = True, config = True, perRoleMakefiles = False, 
            makefileName = None,
            usesAutoconf = False,
@@ -176,7 +178,7 @@ def medium(builder, name, roles, checkout, deps = None, dep_tag = utils.Tags.Pre
       of just make.
     """
     if (simpleCheckout):
-        simple_checkouts.relative(builder, checkout)
+        simple_checkouts.relative(builder, checkout, rev=rev)
 
     if deps is None:
         deps = []
@@ -193,7 +195,7 @@ def medium(builder, name, roles, checkout, deps = None, dep_tag = utils.Tags.Pre
         ###attach_env(builder, name, r, checkout)
 
 def twolevel(builder, name, roles, 
-             co_dir = None, co_name = None, 
+             co_dir = None, co_name = None, rev=None,
              deps = None, dep_tag = utils.Tags.PreConfig, 
              simpleCheckout = True, config = True, perRoleMakefiles = False, 
              makefileName = None, repo_relative=None, 
@@ -214,7 +216,8 @@ def twolevel(builder, name, roles,
 
     if (simpleCheckout):
         twolevel_checkouts.twolevel(builder, co_dir, co_name,
-                                    repo_relative=repo_relative)
+                                    repo_relative=repo_relative,
+				    rev=rev)
 
     if deps is None:
         deps = []
@@ -232,7 +235,7 @@ def twolevel(builder, name, roles,
         ###attach_env(builder, name, r, co_name)
 
 def multilevel(builder, name, roles, 
-             co_dir = None, co_name = None, 
+             co_dir = None, co_name = None, rev=None,
              deps = None, dep_tag = utils.Tags.PreConfig, 
              simpleCheckout = True, config = True, perRoleMakefiles = False, 
              makefileName = None, repo_relative=None, 
@@ -253,7 +256,8 @@ def multilevel(builder, name, roles,
 
     if (simpleCheckout):
         multilevel_checkouts.relative(builder, co_dir, co_name,
-                                    repo_relative=repo_relative)
+                                    repo_relative=repo_relative,
+				    rev=rev)
 
     if deps is None:
         deps = []

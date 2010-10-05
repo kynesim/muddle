@@ -94,6 +94,15 @@ class Git(VersionControlHandler):
     def must_update_to_commit(self):
         return False
 
+    def _git_status_text_ok(self, text):
+        """
+        Is the text returned by 'git status -q' probably OK?
+        """
+        # The bit in the middle is the branch name
+        # - typically "master" or "astb/master" (for branch "astb")
+        return text.startswith('# On branch') and \
+               text.endswith('\nnothing to commit (working directory clean)')
+
     def revision_to_checkout(self, force=False, verbose=False):
         """
         Determine a revision id for this checkout, usable to check it out again.
@@ -112,7 +121,7 @@ class Git(VersionControlHandler):
         os.chdir(self.co_path)
         retcode, text, ignore = utils.get_cmd_data('git status -q', fail_nonzero=False)
         text = text.strip()
-        if text != '# On branch master\nnothing to commit (working directory clean)':
+        if not self._git_status_text_ok(text):
             raise utils.Failure("%s\n%s"%(utils.wrap("%s: 'git status' suggests"
                 " checkout does not match master:"%self.checkout_name),
                 utils.indent(text,'    ')))

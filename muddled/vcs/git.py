@@ -103,29 +103,11 @@ class Git(VersionControlHandler):
         return text.startswith('# On branch') and \
                text.endswith('\nnothing to commit (working directory clean)')
 
-    def revision_to_checkout(self, force=False, verbose=False):
+    def _git_describe_long(self):
         """
-        Determine a revision id for this checkout, usable to check it out again.
-
-        ...
+        This returns a "pretty" name for the revision, but only if there
+        are annotated tags in its history.
         """
-        # Later versions of git allow one to give a '--short' switch to
-        # 'git status', which would probably do what I want - but the
-        # version of git in Ubuntu 9.10 doesn't have that switch. So
-        # we're reduced to looking for particular strings - and the git
-        # documentation says that the "long" texts are allowed to change
-
-        # NB: this is actually a broken solution to a broken problem, as
-        # our git support is probably not terribly well designed.
-
-        os.chdir(self.co_path)
-        retcode, text, ignore = utils.get_cmd_data('git status -q', fail_nonzero=False)
-        text = text.strip()
-        if not self._git_status_text_ok(text):
-            raise utils.Failure("%s\n%s"%(utils.wrap("%s: 'git status' suggests"
-                " checkout does not match master:"%self.checkout_name),
-                utils.indent(text,'    ')))
-
         retcode, revision, ignore = utils.get_cmd_data('git describe --long',
                                                        fail_nonzero=False)
         if retcode:
@@ -143,7 +125,63 @@ class Git(VersionControlHandler):
             raise utils.Failure("%s\n%s"%(utils.wrap("%s: 'git describe --long'"
                 " could not determine a revision id for checkout:"%self.checkout_name),
                 text))
-        revision = revision.strip()
+        return revision.strip()
+
+    def _git_rev_parse_HEAD(self):
+        """
+        This returns a bare SHA1 object name for the current revision
+        """
+        retcode, revision, ignore = utils.get_cmd_data('git rev-parse HEAD',
+                                                       fail_nonzero=False)
+        if retcode:
+            if text:
+                text = utils.indent(revision.strip(),'    ')
+                if force:
+                    if verbose:
+                        print "'git rev-parse HEAD' had problems with checkout" \
+                              " '%s'"%self.checkout_name
+                        print "    %s"%text
+                        print "using original revision %s"%self.get_original_revision()
+                    return self.get_original_revision()
+            else:
+                text = '    (it failed with return code %d)'%retcode
+            raise utils.Failure("%s\n%s"%(utils.wrap("%s: 'git rev-parse HEAD'"
+                " could not determine a revision id for checkout:"%self.checkout_name),
+                text))
+        return revision.strip()
+
+    def revision_to_checkout(self, force=False, verbose=False):
+        """
+        Determine a revision id for this checkout, usable to check it out again.
+
+        ...
+        """
+        # Later versions of git allow one to give a '--short' switch to
+        # 'git status', which would probably do what I want - but the
+        # version of git in Ubuntu 9.10 doesn't have that switch. So
+        # we're reduced to looking for particular strings - and the git
+        # documentation says that the "long" texts are allowed to change
+
+        # Earlier version of this command line used 'git status -q', but
+        # the '-q' switch is not present in git 1.7.0.4
+
+        # NB: this is actually a broken solution to a broken problem, as
+        # our git support is probably not terribly well designed.
+
+        os.chdir(self.co_path)
+        retcode, text, ignore = utils.get_cmd_data('git status', fail_nonzero=False)
+        text = text.strip()
+        if not self._git_status_text_ok(text):
+            raise utils.Failure("%s\n%s"%(utils.wrap("%s: 'git status' suggests"
+                " checkout does not match master:"%self.checkout_name),
+                utils.indent(text,'    ')))
+        if False:
+            # Should we try this first, and only "fall back" to the pure
+            # SHA1 object name if it fails, or is the pure SHA1 object name
+            # better?
+            revision = self._git_describe_long()
+        else:
+            revision = self._git_rev_parse_HEAD()
         return revision
 
 class GitVCSFactory(VersionControlHandlerFactory):

@@ -1985,7 +1985,6 @@ class Stamp(Command):
     """
     :Syntax: stamp save [-f[orce]|-h[ead]] [<file>]
     :or:     stamp version [-f[orce]]
-    :or:     stamp restore <url_or_file>
     :or:     stamp diff [-u[nified]|-c[ontext]|-n|-h[tml]] <file1> <file2> [<output_file>]
 
     * Saving: ``stamp save [<switches>] [<file>]``
@@ -2054,11 +2053,6 @@ class Stamp(Command):
       Note that '-f' is supported (although perhaps not recommended), but '-h' is
       not.
 
-    * Restoring: ``stamp restore <url_or_file>``
-
-      This is an experimental synonym for "unstamp". For the moment, see that
-      for documentation.
-
     * Comparing: ``stamp diff [<switches>] <file1> <file2> [<output_file>]``
 
       Compare two stamp files.
@@ -2079,8 +2073,10 @@ class Stamp(Command):
 
       If '-h' is specified, then the output is an HTML page, displaying
       differences in two columns (with colours).
+
+    See 'unstamp' for restoring from stamp files.
     """
-    
+
     def name(self):
         return "stamp"
 
@@ -2088,10 +2084,7 @@ class Stamp(Command):
         print """
     :Syntax: stamp save [-f[orce]|-h[ead]] [<file>]
     :or:     stamp version [-f[orce]]
-    :or:     stamp restore <url_or_file>
     :or:     stamp diff [-u[nified]|-n|-h[tml]] <file1> <file2> [<output_file>]
-
-("stamp restore" is an experimental synonym for "unstamp", which see)
 
 Try 'muddle help stamp' for more information."""
 
@@ -2118,9 +2111,6 @@ Try 'muddle help stamp' for more information."""
         if word in ('save', 'version'):
             print "Can't do 'muddle stamp save' without a build tree"
             return 2
-        elif word == 'restore':
-            unstamp = UnStamp()
-            unstamp.without_build_tree(muddle_binary, root_path, rest)
         elif word == 'diff':
             self.compare_stamp_files(rest)
         else:
@@ -2145,9 +2135,6 @@ Try 'muddle help stamp' for more information."""
             self.write_version_file(builder, rest)
         elif word == 'diff':
             self.compare_stamp_files(rest)
-        elif word == 'restore':
-            print "Can't do 'muddle stamp restore' with a build tree"
-            return 2
         else:
             print "Unexpected 'stamp %s'"%word
             self.print_syntax()

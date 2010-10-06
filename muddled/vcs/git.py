@@ -194,11 +194,32 @@ class GitVCSFactory(VersionControlHandlerFactory):
 # Register us with the VCS handler factory
 register_vcs_handler("git", GitVCSFactory())
 
-def git_dir_getter(url):
-    """Retrieve a directory via git.
+def git_dir_handler(action, url=None, directory=None, files=None):
+    """Clone/push/pull/commit a directory via GIT
     """
-    utils.run_cmd("git clone %s"%url)
+    if action == 'clone':
+        if directory:
+            utils.run_cmd("git clone %s %s"%(url, directory))
+        else:
+            utils.run_cmd("git clone %s"%url)
+    elif action == 'commit':
+        # It would probably be better to first run 'git status --porcelain'
+        # here to work out if we actually have anything to commit, rather
+        # than trying to cope with errors...
+        utils.run_cmd("git commit -a", allowFailure = True)
+    elif action == 'push':
+        utils.run_cmd("git push %s HEAD"%url)
+    elif action == 'pull':
+        utils.run_cmd("git pull %s HEAD"%url)
+    elif action == 'init':
+        # This is *really* hacky...
+        if not os.path.exists('.git'):
+            utils.run_cmd("git init")
+    elif action == 'add':
+        utils.run_cmd("git add %s"%' '.join(files))
+    else:
+        raise utils.Failure("Unrecognised action '%s' for git directory handler"%action)
 
-register_vcs_dir_getter('git', git_dir_getter)
+register_vcs_dir_handler('git', git_dir_handler)
 
 # End file.

@@ -10,6 +10,7 @@ import xml.dom.minidom
 import traceback
 import depend
 
+import version_control
 from utils import domain_subpath
 
 class Database(object):
@@ -35,11 +36,40 @@ class Database(object):
         utils.ensure_dir(os.path.join(self.root_path, ".muddle"))
         self.repo = PathFile(self.db_file_name("RootRepository"))
         self.build_desc = PathFile(self.db_file_name("Description"))
+        self.versions_repo = PathFile(self.db_file_name("VersionsRepository"))
         self.role_env = { }
         self.checkout_locations = { }
 
         self.local_tags = set()
 
+    def setup(self, repo_location, build_desc, versions_repo=None):
+        """
+        Set the 'repo' and 'build_desc' on the current database.
+
+        If 'versions_repo' is not None, it will set the versions_repo
+        to this value. Note that "not None" means that a value of ''
+        *will* set the value to the empty string.
+
+        If 'versions_repo' is None, and 'repo_location' is not a
+        centralised VCS (i.e., subversion), then it will set the
+        versions_repo to repo_location.
+        """
+        self.repo.set(repo_location)
+        self.build_desc.set(build_desc)
+        if versions_repo is None:
+            vcs, repo = version_control.split_vcs_url(repo_location)
+            print 'vcs',vcs
+            print 'repo',repo
+            # Rather hackily, assume that it is only the given VCS names
+            # that will stop us storing our 'versions' repository in the
+            # same "place" as the src/ checkouts (because they store
+            # everything in one monolithic entity)
+            if vcs not in ('svn', ):
+                print 'setting versions repository'
+                self.versions_repo.set(os.path.join(repo_location,"versions"))
+        else:
+            self.versions_repo.set(versions_repo)
+        self.commit()
 
     def get_subdomain_info(self, domain_name):
         """Return the root repository and build description for a subdomain.
@@ -290,6 +320,7 @@ class Database(object):
         """
         self.repo.commit()
         self.build_desc.commit()
+        self.versions_repo.commit()
             
         
 
@@ -310,11 +341,13 @@ class PathFile(object):
         """
         Retrieve the current value of the PathFile, or None if
         there isn't one.
+
+        Uses the cached value if that is believed valid.
         """
-        if not self.value_valid:
-            self.from_disc()
-            
-        return self.value
+        if self.value_valid:
+            return self.value
+        else:
+            return self.from_disc()
 
     def set(self, val):
         """
@@ -324,6 +357,13 @@ class PathFile(object):
         self.value = val
         
     def from_disc(self):
+        """
+        Retrieve the current value of the PathFile, directly from disc.
+
+        Returns None if there is a problem reading the PathFile.
+
+        Caches the value if there was one.
+        """
         try:
             f = open(self.file_name, "r")
             val = f.readline()
@@ -338,6 +378,7 @@ class PathFile(object):
         
         self.value = val
         self.value_valid = True
+        return val
 
     def commit(self):
         """

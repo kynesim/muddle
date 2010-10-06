@@ -179,9 +179,7 @@ class Init(Command):
 
         if (not self.no_op()):
             db = Database(root_path)
-            db.repo.set(repo)
-            db.build_desc.set(build)
-            db.commit()
+            db.setup(repo, build)
 
         print "Initialised build tree in %s "%root_path
         print "Repository: %s"%repo
@@ -1986,6 +1984,8 @@ class Stamp(Command):
     :Syntax: stamp save [-f[orce]|-h[ead]] [<file>]
     :or:     stamp version [-f[orce]]
     :or:     stamp diff [-u[nified]|-c[ontext]|-n|-h[tml]] <file1> <file2> [<output_file>]
+    :or:     stamp push [<repository_url>]
+    :or:     stamp pull [<repository_url>]
 
     * Saving: ``stamp save [<switches>] [<file>]``
 
@@ -2041,6 +2041,13 @@ class Stamp(Command):
       the ".muddle/" and "src/" directories). If it does not exist, it will be
       created.
 
+        If the VersionsRepository is set (in the .muddle/ directory), and it is
+        a distributed VCS (e.g., git or bzr) then ``git init`` (or ``bzr init``,
+        or the equivalent) will be done in the directory if necessary, and then
+        the file will be added to the local working set in that directory.
+        For subversion, the file adding will be done, but no attempt will be
+        made to initialise the directory.
+
       <build_name> is the name of this build, as specified by the build
       description (by setting ``builder.build_name``). If the build description
       does not set the build name, then the name will be taken from the build
@@ -2074,6 +2081,30 @@ class Stamp(Command):
       If '-h' is specified, then the output is an HTML page, displaying
       differences in two columns (with colours).
 
+    * Push or pull: 'stamp push' and 'stamp pull'
+
+      These perform a VCS "push" or "pull" operation for the "versions/"
+      directory. This assumes that the versions repository is defined in
+      ``.muddle/VersionsRepository``.
+
+      NB: 'push' actually does a commit and then a push, but analogy
+      with the muddle 'push' command for checkouts.
+
+      If a <repository_url> is given, then that is used as the remote
+      repository for the push/pull, and also saved as the "current"
+      remote repository in ``.muddle/VersionsRepository``.
+
+      (If the VCS being used is Subversion, then <repository> is ignored
+      by the actual "push" or "pull", but will still be used to update the
+      VersionsRepository file. So be careful.)
+
+      If a <repository_url> is not given, then the repository URL named
+      in ``.muddle/VersionsRepository`` is used. If there is no repository
+      specified there, then the operation will fail.
+
+      'stamp push' does not (re)create a stamp file in the "versions/`"
+      directory - use 'stamp version' to do that separately.
+
     See 'unstamp' for restoring from stamp files.
     """
 
@@ -2085,6 +2116,8 @@ class Stamp(Command):
     :Syntax: stamp save [-f[orce]|-h[ead]] [<file>]
     :or:     stamp version [-f[orce]]
     :or:     stamp diff [-u[nified]|-n|-h[tml]] <file1> <file2> [<output_file>]
+    :or:     stamp push [<repository_url>]
+    :or:     stamp pull [<repository_url>]
 
 Try 'muddle help stamp' for more information."""
 
@@ -2135,10 +2168,84 @@ Try 'muddle help stamp' for more information."""
             self.write_version_file(builder, rest)
         elif word == 'diff':
             self.compare_stamp_files(rest)
+        elif word == 'push':
+            self.push_versions_directory(builder, rest)
+        elif word == 'pull':
+            self.pull_versions_directory(builder, rest)
         else:
             print "Unexpected 'stamp %s'"%word
             self.print_syntax()
             return 2
+
+    def push_versions_directory(self, builder, args):
+        if len(args) > 1:
+            print "Unexpected '%s'"%' '.join(args)
+            self.print_syntax()
+            return 2
+
+        db = builder.invocation.db
+
+        if args:
+            versions_url = args[0]
+        else:
+            # Make sure we always look at the *actual* value in the
+            # '.muddle/VersionsRepository file, in case someone has edited it
+            versions_url = db.versions_repo.from_disc()
+
+        if not versions_url:
+            raise utils.Failure("Cannot push 'versions/' directory, as there is no repository specified\n"
+                                "Check the contents of '.muddle/VersionsRepository',\n"
+                                "or give a repository on the command line")
+
+        versions_dir = os.path.join(db.root_path, "versions")
+        if not os.path.exists(versions_dir):
+            raise utils.Failure("Cannot push 'versions/' directory, as it does not exist.\n"
+                                "Have you done 'muddle stamp version'?")
+
+        os.chdir(versions_dir)
+        version_control.vcs_push_directory(versions_url)
+
+        if args:
+            print 'Remembering versions repository %s'%versions_url
+            db.versions_repo.set(versions_url)
+            db.versions_repo.commit()
+
+    def pull_versions_directory(self, builder, args):
+        if len(args) > 1:
+            print "Unexpected '%s'"%' '.join(args)
+            self.print_syntax()
+            return 2
+
+        db = builder.invocation.db
+
+        if args:
+            versions_url = args[0]
+        else:
+            # Make sure we always look at the *actual* value in the
+            # '.muddle/VersionsRepository file, in case someone has edited it
+            versions_url = db.versions_repo.from_disc()
+
+        if not versions_url:
+            raise utils.Failure("Cannot pull 'versions/' directory, as there is no repository specified\n"
+                                "Check the contents of '.muddle/VersionsRepository',\n"
+                                "or give a repository on the command line")
+
+        versions_dir = os.path.join(db.root_path, "versions")
+
+        if os.path.exists(versions_dir):
+            os.chdir(versions_dir)
+            version_control.vcs_pull_directory(versions_url)
+        else:
+            print "'versions/' directory does not exist - cloning instead"
+            os.chdir(db.root_dir)
+            # Make sure we always clone to a directory of the right name...
+            version_control.vcs_get_directory(versions_url, "versions")
+
+        if args:
+            print 'Remembering versions repository %s'%versions_url
+            db.versions_repo.set(versions_url)
+            db.versions_repo.commit()
+
 
     def compare_stamp_files(self, args):
         diff_style = 'unified'
@@ -2256,6 +2363,13 @@ Try 'muddle help stamp' for more information."""
             final_name = os.path.join(version_dir, version_filename)
             print 'Renaming %s to %s'%(working_filename, final_name)
             os.rename(working_filename, final_name)
+
+            db = builder.invocation.db
+            versions_url = db.versions_repo.from_disc()
+            if versions_url:
+                print 'Adding version stamp file to VCS'
+                os.chdir(version_dir)
+                version_control.vcs_init_directory(versions_url, version_filename)
 
     def decide_hash_filename(self, hash, basename=None, partial=False):
         """
@@ -2519,15 +2633,18 @@ Try 'muddle help unstamp' for more information."""
         if self.no_op():
             return
 
-        # Restore to the current directory
-        os.chdir(current_dir)
-        version_control.vcs_get_directory(actual_url)
+        print '  (and remembering that in .muddle/VersionsRepository)'
 
-        stamp = VersionStamp.from_file(version_path)
+        # Restore to the "versions" directory, regardless of the URL
+        os.chdir(current_dir)
+        version_control.vcs_get_directory(actual_url, "versions")
+
+        stamp = VersionStamp.from_file(os.path.join("versions", version_file))
 
         builder = mechanics.minimal_build_tree(muddle_binary, current_dir,
                                                stamp.repository,
-                                               stamp.description)
+                                               stamp.description,
+                                               versions_repo=actual_url)
 
         self.restore_stamp(builder, root_path, stamp.domains, stamp.checkouts)
 

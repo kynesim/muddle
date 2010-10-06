@@ -96,13 +96,31 @@ def svn_file_getter(url):
 
 register_vcs_file_getter('svn', svn_file_getter)
 
-def svn_dir_getter(url):
-    """Retrieve a directory via Subversion.
+def svn_dir_handler(action, url=None, directory=None, files=None):
+    """Clone/push/pull/commit a directory via svn
+
+    For svn, "push" and "pull" ignore the 'url', and "init" does not
+    know how to initialise a director
     """
-    utils.run_cmd("svn checkout %s"%url)
+    if action == 'clone':
+        if directory:
+            utils.run_cmd("svn checkout %s %s"%(url, directory))
+        else:
+            utils.run_cmd("svn checkout %s"%url)
+    elif action == 'commit':
+        pass
+    elif action == 'push':
+        utils.run_cmd("svn commit")
+    elif action == 'pull':
+        utils.run_cmd("svn update")
+    elif action == 'init':
+        print 'The svn directory handler does not know how to "init" a directory'
+    elif action == 'add':
+        utils.run_cmd("svn add %s"%' '.join(files))
+    else:
+        raise utils.Failure("Unrecognised action '%s' for svn directory handler"%action)
 
-register_vcs_dir_getter('svn', svn_dir_getter)
-
+register_vcs_dir_handler('svn', svn_dir_handler)
 
 # End file.
 

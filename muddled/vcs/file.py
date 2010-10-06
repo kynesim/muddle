@@ -86,16 +86,34 @@ def file_file_getter(url):
 
 register_vcs_file_getter('file', file_file_getter)
 
-def file_dir_getter(url):
-    """Retrieve a directory.
+def file_dir_handler(action, url=None, directory=None, files=None):
+    """Clone/push/pull/commit a directory via file operations
     """
-    source_path = _decode_file_url(url)
-    target_path = os.path.split(source_path)[1]
-    if os.path.exists(target_path):
-        raise utils.Error("Cannot copy '%s', as target '%s' already"
-                " exists"%(source_path, target_path))
-    utils.recursively_copy(source_path, target_path)
+    if action == 'clone':
+        remote_path = _decode_file_url(url)
+        if directory:
+            local_path = directory
+        else:
+            local_path = os.path.split(remote_path)[1]
+        if os.path.exists(local_path):
+            raise utils.Error("Cannot copy '%s', as target '%s' already"
+                    " exists"%(remote_path, local_path))
+        utils.recursively_copy(remote_path, local_path)
+    elif action == 'commit':
+        pass
+    elif action == 'push':
+        raise utils.Failure("'push' is not yet supported for file directory handler")
+    elif action == 'pull':
+        # Just copy the whole thing again
+        remote_path = _decode_file_url(url)
+        utils.recursively_copy(remote_path, os.getcwd())
+    elif action == 'init':
+        pass
+    elif action == 'add':
+        pass
+    else:
+        raise utils.Failure("Unrecognised action '%s' for file directory handler"%action)
 
-register_vcs_dir_getter('file', file_dir_getter)
+register_vcs_dir_handler('file', file_dir_handler)
 
 # End File

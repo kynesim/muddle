@@ -327,8 +327,8 @@ def bzr_file_getter(url):
 
 register_vcs_file_getter('bzr', bzr_file_getter)
 
-def bzr_dir_getter(url):
-    """Retrieve a directory via BZR.
+def bzr_dir_handler(action, url=None, directory=None, files=None):
+    """Clone/push/pull/commit a directory via BZR
     """
     if url.startswith("ssh://"):
         # For some reason, the bzr command wants us to use "bzr+ssh" to
@@ -338,8 +338,27 @@ def bzr_dir_getter(url):
     env = os.environ.copy()
     if 'PYTHONPATH' in env:
         del env['PYTHONPATH']
-    utils.run_cmd("bzr branch %s"%url, env=env)
 
-register_vcs_dir_getter('bzr', bzr_dir_getter)
+    if action == 'clone':
+        if directory:
+            utils.run_cmd("bzr branch %s %s"%(url, directory), env=env)
+        else:
+            utils.run_cmd("bzr branch %s"%url, env=env)
+    elif action == 'commit':
+        utils.run_cmd("bzr commit", env=env)
+    elif action == 'push':
+        utils.run_cmd("bzr push %s"%url, env=env)
+    elif action == 'pull':
+        utils.run_cmd("bzr pull %s"%url, env=env)
+    elif action == 'init':
+        # This is *really* hacky...
+        if not os.path.exists('.bzr'):
+            utils.run_cmd("bzr init")
+    elif action == 'add':
+        utils.run_cmd("bzr add %s"%' '.join(files))
+    else:
+        raise utils.Failure("Unrecognised action '%s' for bzr directory handler"%action)
+
+register_vcs_dir_handler('bzr', bzr_dir_handler)
 
 # End file.

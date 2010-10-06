@@ -386,36 +386,90 @@ def vcs_get_file_data(url):
     return getter(url)
 
 
-# This is a dictionary of VCS name to function-to-retrieve-a-directory
-vcs_dir_getter = {}
+# This is a dictionary of VCS name to function-to-clone/push/pull-a-directory
+vcs_dir_handler = {}
 
-def register_vcs_dir_getter(scheme, getter):
+def register_vcs_dir_handler(scheme, handler):
     """
-    Register a function for retrieving an indivual directory.
+    Register a function for cloning/pushing/pulling an indivual directory.
 
     'scheme' is the VCS (short) name. This should match the mnemonic used
     at the start of URLs - so, e.g., "bzr" for "bzr+ssh://whatever".
-    
-    'getter' is the function. It should take one argument, the URL of the
-    directory to retrieve. It assumes it will restore the directory to the
-    current directory.
-    """
-    vcs_dir_getter[scheme] = getter
 
-def vcs_get_directory(url):
+    'handler' is the function. It should take (at least) two arguments:
+
+    1. the action to perform. One of "clone", "push", "pull", "commit".
+    2. the URL of the repository to use. This is not needed for "commit".
+    3. for "clone", optionally the name of the directory to clone into
+
+    For "clone" it assumes it will produce the clone in the current directory.
+    For "push" and "pull" it assumes that the current directory is the cloned
+    directory.
+    """
+    vcs_dir_handler[scheme] = handler
+
+def vcs_get_directory(url, directory=None):
     """
     Retrieve (clone) the directory identified by the URL, via its VCS.
 
-    Retrieves (clones) to the current directory.
+    If 'directory' is given, then clones to the named directory.
 
     Looks at the first few characters of the URL to determine the VCS
     to use - so, e.g., "bzr" for "bzr+ssh://whatever".
 
-    Raises KeyError if the scheme is not one we have a registered file getter
-    for.
+    Raises KeyError if the scheme is not one for which we have a registered
+    handler.
     """
     scheme, url = split_vcs_url(url)
-    getter = vcs_dir_getter[scheme]
-    return getter(url)
+    handler = vcs_dir_handler[scheme]
+    return handler("clone", url, directory)
+
+def vcs_push_directory(url):
+    """
+    Push the current directory to the repository indicated by the URL
+
+    Actually does a *commit* and push (by analogy with "muddle push")
+
+    Looks at the first few characters of the URL to determine the VCS
+    to use - so, e.g., "bzr" for "bzr+ssh://whatever".
+
+    Raises KeyError if the scheme is not one for which we have a registered
+    handler.
+    """
+    scheme, url = split_vcs_url(url)
+    handler = vcs_dir_handler[scheme]
+    handler("commit")
+    return handler("push", url)
+
+def vcs_pull_directory(url):
+    """
+    Pull the current directory from the repository indicated by the URL
+
+    Looks at the first few characters of the URL to determine the VCS
+    to use - so, e.g., "bzr" for "bzr+ssh://whatever".
+
+    Raises KeyError if the scheme is not one for which we have a registered
+    handler.
+    """
+    scheme, url = split_vcs_url(url)
+    handler = vcs_dir_handler[scheme]
+    return handler("pull", url)
+
+def vcs_init_directory(url, files=None):
+    """
+    Initialised the current directory for this VCS, and add the given list of files.
+
+    Looks at the first few characters of the URL to determine the VCS
+    to use - so, e.g., "bzr" for "bzr+ssh://whatever".
+
+        (This is the only purpose of URL in this call)
+
+    Raises KeyError if the scheme is not one for which we have a registered
+    handler.
+    """
+    scheme, url = split_vcs_url(url)
+    handler = vcs_dir_handler[scheme]
+    handler("init")
+    return handler("add", files)
 
 # End file.

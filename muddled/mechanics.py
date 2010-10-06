@@ -1054,19 +1054,17 @@ def load_builder(root_path, muddle_binary, params = None,
     return build
 
 
-def minimal_build_tree(muddle_binary, root_path, repo_location, build_desc):
+def minimal_build_tree(muddle_binary, root_path, repo_location, build_desc, versions_repo=None):
     """
     Setup the very minimum of a build tree.
 
     This should give a .muddle directory with its main files, but will not
     actually try to retrieve any checkouts.
     """
-    # The following sets up a .muddle directory, with its Description
-    # and RootRepository files
+    # The following sets up a .muddle directory, with its Description and
+    # RootRepository files, and optionally a VersionsRepository file
     database = db.Database(root_path)
-    database.repo.set(repo_location)
-    database.build_desc.set(build_desc)
-    database.commit()
+    database.setup(repo_location, build_desc, versions_repo)
 
     # We need a minimalistic builder
     inv = Invocation(root_path)
@@ -1126,9 +1124,7 @@ def _init_without_build_tree(muddle_binary, root_path, repo_location, build_desc
     """
 
     database = db.Database(root_path)
-    database.repo.set(repo_location)
-    database.build_desc.set(build_desc)
-    database.commit()
+    database.setup(repo_location, build_desc)
 
     print "Initialised build tree in %s "%root_path
     print "Repository: %s"%repo_location

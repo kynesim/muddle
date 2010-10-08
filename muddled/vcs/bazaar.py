@@ -330,7 +330,7 @@ register_vcs_file_getter('bzr', bzr_file_getter)
 def bzr_dir_handler(action, url=None, directory=None, files=None):
     """Clone/push/pull/commit a directory via BZR
     """
-    if url.startswith("ssh://"):
+    if (url is not None) and (url.startswith("ssh://")):
         # For some reason, the bzr command wants us to use "bzr+ssh" to
         # communicate over ssh, not just "ssh". Accomodate it, so the user
         # does not need to care about this.

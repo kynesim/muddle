@@ -2671,14 +2671,15 @@ Try 'muddle help unstamp' for more information."""
             domain_builder.invocation.mark_domain(domain_name)
 
         checkouts.sort()
-        for name, repo, rev, rel, dir, domain in checkouts:
+        for name, repo, rev, rel, dir, domain, co_leaf in checkouts:
             if domain:
                 print "Unstamping checkout (%s)%s"%(domain,name)
             else:
                 print "Unstamping checkout %s"%name
             # So try registering this as a normal build, in our nascent
             # build system
-            vcs_handler = version_control.vcs_handler_for(builder, name,  repo,
+            vcs_handler = version_control.vcs_handler_for(builder, co_leaf,
+                                                          repo,
                                                           rev, rel, dir)
             vcs = pkg.VcsCheckoutBuilder(name, vcs_handler)
             pkg.add_checkout_rules(builder.invocation.ruleset, name, vcs)
@@ -2709,7 +2710,7 @@ Try 'muddle help unstamp' for more information."""
         q.with_build_tree(b, local_pkgs, ["checkouts", "checkout:*/*"]) 
 
         # Check our checkout names match
-        s_checkouts = set([name for name, repo, rev, rel, dir, domain in checkouts])
+        s_checkouts = set([name for name, repo, rev, rel, dir, domain, co_leaf in checkouts])
         b_checkouts = b.invocation.all_checkouts()
         s_difference = s_checkouts.difference(b_checkouts)
         b_difference = b_checkouts.difference(s_checkouts)

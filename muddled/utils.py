@@ -1321,7 +1321,7 @@ class HashFile(object):
             return text
 
 DomainTuple = namedtuple('DomainTuple', 'name repository description')
-CheckoutTuple = namedtuple('CheckoutTuple', 'name repo rev rel dir domain')
+CheckoutTuple = namedtuple('CheckoutTuple', 'name repo rev rel dir domain co_leaf')
 
 class VersionStamp(Mapping):
     """A representation of the revision state of a build tree's checkouts.
@@ -1353,6 +1353,9 @@ class VersionStamp(Mapping):
             * domain - which domain the checkout is in, or None. This
               is the domain as given within '(' and ')' in a label, so
               it may contain commas - for instance "fred" or "fred,jim,bob".
+            * co_leaf - The leaf directory in which this checkout resides -
+               this is just name for one and two-level checkouts, but will be
+               different for multilevel checkouts.
 
           These are essentially the exact arguments that would have been given
           to the VCS initialisation, or to ``muddled.version_control.vcs_handler_for()``
@@ -1371,8 +1374,8 @@ class VersionStamp(Mapping):
     So, for instance:
 
         >>> v = VersionStamp('Somewhere', 'src/builds/01.py', [],
-        ...                  [('fred', 'Somewhere', 3, None, 'fred', None),
-        ...                   ('jim',  'Elsewhere', 7, None, 'jim', None)],
+        ...                  [('fred', 'Somewhere', 3, None, 'fred', None, None),
+        ...                   ('jim',  'Elsewhere', 7, None, 'jim', None, 'sheila')],
         ...                  ['Oops, a problem'])
         >>> print v
         [ROOT]
@@ -1394,7 +1397,7 @@ class VersionStamp(Mapping):
         [PROBLEMS]
         problem1 = Oops, a problem
         >>> v['jim']
-        CheckoutTuple(name='jim', repo='Elsewhere', rev=7, rel=None, dir='jim', domain=None)
+        CheckoutTuple(name='jim', repo='Elsewhere', rev=7, rel=None, dir='jim', domain=None, co_leaf='sheila')
 
     Note that this is *not* intended to be a mutable class, so please do not
     change any of its internals directly. In particular, if you *did* change
@@ -1501,7 +1504,7 @@ class VersionStamp(Mapping):
             config.write(fd)
 
         config = RawConfigParser(None, dict_type=MuddleSortedDict)
-        for name, repo, rev, rel, dir, domain in self.checkouts:
+        for name, repo, rev, rel, dir, domain, co_leaf in self.checkouts:
             if domain:
                 section = 'CHECKOUT (%s)%s'%(domain,name)
             else:
@@ -1512,6 +1515,7 @@ class VersionStamp(Mapping):
             config.set(section, "name", name)
             config.set(section, "repository", repo)
             config.set(section, "revision", rev)
+            config.set(section, 'co_leaf', co_leaf)
             if rel:
                 config.set(section, "relative", rel)
             if dir:
@@ -1629,7 +1633,7 @@ class VersionStamp(Mapping):
                     rev = "HEAD"
                 else:
                     rev = vcs.revision_to_checkout(force=force, verbose=True)
-                revisions[label] = (vcs.repository, vcs.checkout_dir, rev, vcs.relative)
+                revisions[label] = (vcs.repository, vcs.checkout_dir, rev, vcs.relative, vcs.checkout_name)
             except Failure as exc:
                 print exc
                 stamp.problems.append(str(exc))
@@ -1637,9 +1641,9 @@ class VersionStamp(Mapping):
         if stamp.domains and not quiet:
             print 'Found domains:',stamp.domains
 
-        for label, (repo, dir, rev, rel) in revisions.items():
+        for label, (repo, dir, rev, rel, co_in) in revisions.items():
             stamp.checkouts.append(CheckoutTuple(label.name, repo, rev, rel, dir,
-                                                 label.domain))
+                                                 label.domain, co_in))
 
         if len(revisions) != len(checkout_rules):
             if not quiet:
@@ -1712,7 +1716,13 @@ class VersionStamp(Mapping):
                     domain = config.get(section, 'domain')
                 else:
                     domain = None
-                stamp.checkouts.append(CheckoutTuple(name, repo, rev, rel, dir, domain))
+
+                if config.has_option(section, "co_leaf"):
+                    co_leaf = config.get(section, "co_leaf")
+                else:
+                    co_leaf = name
+
+                stamp.checkouts.append(CheckoutTuple(name, repo, rev, rel, dir, domain, co_leaf))
             elif section == "PROBLEMS":
                 for name, value in config.items("PROBLEMS"):
                     stamp.problems.append(value)
@@ -1773,8 +1783,8 @@ class VersionStamp(Mapping):
                 if self[name] != other[name]:
                     if not quiet:
                         print 'Checkout %s has changed'%name
-                    name1, repo1, rev1, rel1, dir1, domain1 = self[name]
-                    name2, repo2, rev2, rel2, dir2, domain2 = other[name]
+                    name1, repo1, rev1, rel1, dir1, domain1, co_leaf1 = self[name]
+                    name2, repo2, rev2, rel2, dir2, domain2, co_leaf2 = other[name]
                     # For the moment, be *very* conservative on what we allow
                     # to have changed - basically, just the revision
                     # (arguably we shouldn't care about domain...)
@@ -1795,6 +1805,11 @@ class VersionStamp(Mapping):
                         errors.append('domain')
                         if not quiet:
                             print '  Domain mismatch:',domain1,domain2
+                    if co_leaf1 != co_leaf2:
+                        errors.append("co_leaf")
+                        if not quiet:
+                            print '  co_leaf mismatch:',co_leaf1, co_leaf2
+
                     if errors:
                         if not quiet:
                             print '  ...only revision mismatch is allowed'

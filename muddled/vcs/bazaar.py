@@ -345,7 +345,7 @@ def bzr_dir_handler(action, url=None, directory=None, files=None):
         else:
             utils.run_cmd("bzr branch %s"%url, env=env)
     elif action == 'commit':
-        utils.run_cmd("bzr commit", env=env)
+        utils.run_cmd("bzr commit", allowFailure = True, env=env)
     elif action == 'push':
         utils.run_cmd("bzr push %s"%url, env=env)
     elif action == 'pull':

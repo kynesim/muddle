@@ -39,9 +39,17 @@ this_dir = os.path.split(os.path.abspath(__file__))[0]
 parent_dir = os.path.split(this_dir)[0]
 sys.path.insert(0,parent_dir)
 
-import muddled.cmdline
-from muddled.utils import Error, Failure
-
+try:
+    import muddled.cmdline
+    from muddled.utils import Error, Failure
+except ImportError:
+    # Hah - maybe we're being run throught the 'muddle' soft link
+    # from the same directory that contains the muddled/ package,
+    # with PYTHONPATH unset (this is different to PYTHONPATH set
+    # to nothing - ho hum). So try:
+    sys.path = [this_dir] + sys.path[1:]
+    import muddled.cmdline
+    from muddled.utils import Error, Failure
 
 if __name__ == "__main__":
     try:

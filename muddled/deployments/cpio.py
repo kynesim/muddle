@@ -284,7 +284,7 @@ def deploy_labels(builder, target_file, target_base, name,
       or '.bz2' suffix.
     * target_base - Where should we expect to unpack the CPIO file to - this
       is a dictionary mapping labels to target locations. If the target location
-      is a tuple (s,d), it maps a source to a destination.
+      is a tuple (s,d), it maps a source to a destination. 
     * compressionMethod - The compression method to use, if any - gzip -> gzip,
       bzip2 -> bzip2.
     * pruneFunc - If not None, this a function to be called like
@@ -364,8 +364,6 @@ def deploy(builder, target_file, target_base, name, target_roles_order,
 
     Copies install/foo/a/b to deploy/XXX/c/d .
     
-    copies /bar/baz from foo to /nibble.
-
     """
     proper_target_base = { }
     for (r,base) in target_base.items():
@@ -388,6 +386,67 @@ def deploy(builder, target_file, target_base, name, target_roles_order,
 
     return deploy_labels(builder, target_file, proper_target_base, name,
                          compressionMethod, pruneFunc, label_order)
+
+
+class CpioWrapper:
+    def __init__(self, builder, dependable, label):
+        self.dependable = dependable
+        self.label = label
+        self.builder = builder
+
+
+    def copy_from_role(self, from_role, from_fragment, to_fragment):
+        """
+        Copy the relative path from_fragment in from_role to to_fragment in the CPIO
+        deployment given by 'dependable'
+        """
+        
+        role_label = depend.Label(utils.LabelType.Package,
+                                  "*",
+                                  from_role,
+                                  utils.LabelTag.PostInstalled,
+                                  domain = self.builder.default_domain)
+        r = self.builder.invocation.ruleset.rule_for_target(self.label, createIfNotPresent = False)
+        if (r is None):
+            raise utils.Failure("Cannot copy from a deployment (%s) "%wrapper.label + 
+                                " which has not yet been created.")
+        
+        r.add(role_label)
+        self.dependable.target_base.append( ( role_label, ( from_fragment, to_fragment ) ) )
+        
+    def done(self):
+        """
+        Call this once you've added all the roles you want; it attaches
+        the deployment environment to them and generally finishes up
+        """
+        self.dependable.attach_env(self.builder)
+
+
+
+def create(builder, target_file, name, compressionMethod = None, 
+           pruneFunc = None):
+    """
+    Create a CPIO deployment with the given name and return it.
+    """
+    
+    the_dependable = CpioDeploymentBuilder(target_file,
+                                           [ ],
+                                           compressionMethod,
+                                           pruneFunc)
+    
+    dep_label = depend.Label(utils.LabelType.Deployment, name, None,
+                             utils.LabelTag.Deployed,
+                             domain = builder.default_domain)
+
+    deployment_rule = depend.Rule(dep_label, the_dependable)
+
+    builder.invocation.ruleset.add(deployment_rule)
+    deployment.register_cleanup(builder, name)
+
+    return CpioWrapper(builder, the_dependable, dep_label)
+
+
+
            
 
 # End file.

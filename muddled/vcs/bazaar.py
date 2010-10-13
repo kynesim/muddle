@@ -3,6 +3,7 @@ Muddle support for Bazaar.
 """
 
 from muddled.version_control import *
+from muddled.depend import Label
 import muddled.utils as utils
 
 import sys
@@ -16,23 +17,22 @@ class Bazaar(VersionControlHandler):
     It's assumed that the first path component of 'rel' is the name of the repository.
     """
 
-    def __init__(self, builder, co_name, repo, rev, rel, co_dir):
-        VersionControlHandler.__init__(self, builder, co_name, repo, rev, rel, co_dir)
+    def __init__(self, builder, co_label, co_name, repo, rev, rel, co_dir):
+        VersionControlHandler.__init__(self, builder, co_label, co_name, repo, rev, rel, co_dir)
+        
         sp = conventional_repo_url(repo, rel, co_dir = co_dir)
         if sp is None:
             raise utils.Error("Cannot extract repository URL from %s, co %s"%(repo, rel))
 
         self.bzr_repo = sp[0]
-        self.checkout_path = self.get_checkout_path(None)
+
+        self.checkout_path = self.get_checkout_path(self.checkout_label)
 
         if self.bzr_repo.startswith("ssh://"):
             # For some reason, the bzr command wants us to use "bzr+ssh" to
             # communicate over ssh, not just "ssh". Accomodate it, so the user
             # does not need to care about this.
             self.bzr_repo = "bzr+%s"%self.bzr_repo
-
-    def path_in_checkout(self, rel):
-        return conventional_repo_path(rel)
 
     def check_out(self):
         # If we do "checkout" and then "unbind", then (a) we've made a non-standard
@@ -42,33 +42,30 @@ class Bazaar(VersionControlHandler):
         # that pull or push what reposiroty we want to use.
         #
         # Solution: just make a local branch...
-        utils.ensure_dir(self.checkout_path)
-        os.chdir(self.checkout_path)
+        parent_dir = os.path.split(self.checkout_path)[0]
+        utils.ensure_dir(parent_dir)
+        os.chdir(parent_dir)
         utils.run_cmd("bzr branch %s %s %s"%(self.r_option(),
                       self.bzr_repo, self.checkout_name),
                       env=self._derive_env())
 
     def pull(self):
-        update_in = os.path.join(self.checkout_path, self.checkout_name)
-        os.chdir(update_in)
+        os.chdir(self.checkout_path)
         utils.run_cmd("bzr pull %s"%self.bzr_repo,
                       env=self._derive_env())
 
     def update(self):
-        update_in = os.path.join(self.checkout_path, self.checkout_name)
-        os.chdir(update_in)
+        os.chdir(self.checkout_path)
         utils.run_cmd("bzr update", allowFailure=True,
                       env=self._derive_env())
 
     def commit(self):
-        commit_in = os.path.join(self.checkout_path, self.checkout_name)
-        os.chdir(commit_in)
+        os.chdir(self.checkout_path)
         utils.run_cmd("bzr commit", allowFailure=True,
                       env=self._derive_env())
 
     def push(self):
-        push_in = os.path.join(self.checkout_path, self.checkout_name)
-        os.chdir(push_in)
+        os.chdir(self.checkout_path)
         print "> push to %s "%self.bzr_repo
         utils.run_cmd("bzr push %s"%self.bzr_repo,
                       env=self._derive_env())
@@ -94,7 +91,7 @@ class Bazaar(VersionControlHandler):
         if verbose:
             print "Re-associating checkout '%s' with remote repository"%(
                   self.checkout_name),
-        this_dir = os.path.join(self.checkout_path, self.checkout_name)
+        this_dir = self.checkout_path
         this_file = os.path.join(this_dir, '.bzr', 'branch', 'branch.conf')
 
         # It would be nice if Bazaar used the ConfigParser for the branch.conf
@@ -243,8 +240,7 @@ class Bazaar(VersionControlHandler):
 
         env = self._derive_env()
 
-        work_in = os.path.join(self.checkout_path, self.checkout_name)
-        os.chdir(work_in)
+        os.chdir(self.checkout_path)
 
         # So, have we checked everything in?
         retcode, text, ignore = utils.get_cmd_data('bzr version-info --check-clean',
@@ -306,8 +302,8 @@ class BazaarVCSFactory(VersionControlHandlerFactory):
     def describe(self):
         return "The Bazaar VCS"
 
-    def manufacture(self, builder, co_name, repo, rev, rel, co_dir, branch):
-        return Bazaar(builder, co_name, repo, rev, rel, co_dir)
+    def manufacture(self, builder, co_label, co_name, repo, rev, rel, co_dir, branch):
+        return Bazaar(builder, co_label, co_name, repo, rev, rel, co_dir)
 
         
 # Tell the version control handler about us..
@@ -330,7 +326,7 @@ register_vcs_file_getter('bzr', bzr_file_getter)
 def bzr_dir_handler(action, url=None, directory=None, files=None):
     """Clone/push/pull/commit a directory via BZR
     """
-    if (url is not None) and (url.startswith("ssh://")):
+    if url and url.startswith("ssh://"):
         # For some reason, the bzr command wants us to use "bzr+ssh" to
         # communicate over ssh, not just "ssh". Accomodate it, so the user
         # does not need to care about this.
@@ -345,7 +341,7 @@ def bzr_dir_handler(action, url=None, directory=None, files=None):
         else:
             utils.run_cmd("bzr branch %s"%url, env=env)
     elif action == 'commit':
-        utils.run_cmd("bzr commit", allowFailure = True, env=env)
+        utils.run_cmd("bzr commit", allowFailure=True, env=env)
     elif action == 'push':
         utils.run_cmd("bzr push %s"%url, env=env)
     elif action == 'pull':
@@ -355,7 +351,8 @@ def bzr_dir_handler(action, url=None, directory=None, files=None):
         if not os.path.exists('.bzr'):
             utils.run_cmd("bzr init")
     elif action == 'add':
-        utils.run_cmd("bzr add %s"%' '.join(files))
+        if files:
+            utils.run_cmd("bzr add %s"%' '.join(files))
     else:
         raise utils.Failure("Unrecognised action '%s' for bzr directory handler"%action)
 

@@ -10,7 +10,6 @@ An implicit ``::text()`` is appended so you get all the text in the specified
 element.
 """
 
-import muddled
 import muddled.utils as utils
 import xml.dom
 import xml.dom.minidom

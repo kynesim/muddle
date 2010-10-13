@@ -42,7 +42,7 @@ class CpioDeploymentBuilder(pkg.Dependable):
         * 'compressionMethod' is the compression method to use, if any - gzip -> gzip,
           bzip2 -> bzip2.
         * if 'pruneFunc' is not None, it is a function to be called like
-          pruneFunc(Heirarchy) to prune the heirarchy prior to packing. Usually
+          pruneFunc(Hierarchy) to prune the hierarchy prior to packing. Usually
           something like deb.deb_prune, it's intended to remove spurious stuff like
           manpages from initrds and the like.
         """
@@ -96,7 +96,7 @@ class CpioDeploymentBuilder(pkg.Dependable):
             else:
                 target_loc = bl
 
-            lbl = depend.Label(utils.LabelKind.Package,
+            lbl = depend.Label(utils.LabelType.Package,
                                "*",
                                l.role,
                                "*", 
@@ -113,7 +113,7 @@ class CpioDeploymentBuilder(pkg.Dependable):
         Actually cpio everything up, following instructions appropriately.
         """
         
-        if (label.tag == utils.Tags.Deployed):
+        if (label.tag == utils.LabelTag.Deployed):
             # Collect all the relevant files ..
             deploy_dir = builder.invocation.deploy_path(label.name, 
                                                         domain = label.domain)
@@ -123,7 +123,7 @@ class CpioDeploymentBuilder(pkg.Dependable):
             utils.ensure_dir(os.path.dirname(deploy_file))
 
             
-            the_heirarchy = cpiofile.Heirarchy({ }, { })
+            the_hierarchy = cpiofile.Hierarchy({ }, { })
             
 
 
@@ -143,16 +143,16 @@ class CpioDeploymentBuilder(pkg.Dependable):
                 if (len(base) > 0 and base[0] != '/'):
                     base = "/%s"%(base)
 
-                m = cpiofile.heirarchy_from_fs(real_source_path,
+                m = cpiofile.hierarchy_from_fs(real_source_path,
                                                base)
-                the_heirarchy.merge(m)
+                the_hierarchy.merge(m)
 
-            # Normalise the heirarchy .. 
-            the_heirarchy.normalise()
-            print "h = %s"%the_heirarchy
+            # Normalise the hierarchy .. 
+            the_hierarchy.normalise()
+            print "h = %s"%the_hierarchy
 
             if (self.prune_function is not None):
-                self.prune_function(the_heirarchy)
+                self.prune_function(the_hierarchy)
 
             app_dict = get_instruction_dict()
 
@@ -165,7 +165,7 @@ class CpioDeploymentBuilder(pkg.Dependable):
                     base = bt
 
                 print "base = %s"%(base)
-                lbl = depend.Label(utils.LabelKind.Package, "*", src.role, "*", 
+                lbl = depend.Label(utils.LabelType.Package, "*", src.role, "*",
                                    domain = src.domain)
                 print "Scanning instructions for role %s, domain %s .. "%(src.role, src.domain)
                 instr_list = builder.load_instructions(lbl)
@@ -176,13 +176,13 @@ class CpioDeploymentBuilder(pkg.Dependable):
                         if (iname in app_dict):
                             app_dict[iname].apply(builder, instr, lbl.role,
                                                   base,
-                                                  the_heirarchy)
+                                                  the_hierarchy)
                         else:
                             raise utils.Failure("CPIO deployments don't know about "
                                                 "the instruction %s (lbl %s, file %s"%(iname, lbl, fn))
             # .. and write the file.
             print "> Writing %s .. "%deploy_file
-            the_heirarchy.render(deploy_file, True)
+            the_hierarchy.render(deploy_file, True)
             
             if (self.compression_method is not None):
                 if (self.compression_method == "gzip"):
@@ -197,8 +197,8 @@ class CpioDeploymentBuilder(pkg.Dependable):
             raise utils.Failure("Attempt to build a cpio deployment with unknown label %s"%(lbl))
 
 class CIApplyChmod(CpioInstructionImplementor):
-    def apply(self, builder, instr, role, target_base, heirarchy):
-        dp = cpiofile.CpioFileDataProvider(heirarchy)
+    def apply(self, builder, instr, role, target_base, hierarchy):
+        dp = cpiofile.CpioFileDataProvider(hierarchy)
 
         (clrb, bits) = utils.parse_mode(instr.new_mode)
 
@@ -217,8 +217,8 @@ class CIApplyChmod(CpioInstructionImplementor):
             f.mode = f.mode | bits
 
 class CIApplyChown(CpioInstructionImplementor):
-    def apply(self, builder, instr, role, target_base, heirarchy):
-        dp = cpiofile.CpioFileDataProvider(heirarchy)
+    def apply(self, builder, instr, role, target_base, hierarchy):
+        dp = cpiofile.CpioFileDataProvider(hierarchy)
         files = dp.abs_match(instr.filespec, vroot = target_base)
 
         uid = utils.parse_uid(builder, instr.new_user)
@@ -231,7 +231,7 @@ class CIApplyChown(CpioInstructionImplementor):
                 f.gid = gid
 
 class CIApplyMknod(CpioInstructionImplementor):
-    def apply(self, builder, instr, role, target_base, heirarchy):
+    def apply(self, builder, instr, role, target_base, hierarchy):
         # Find or create the relevant file
         cpio_file = cpiofile.File()
 
@@ -254,7 +254,7 @@ class CIApplyMknod(CpioInstructionImplementor):
         
         cpio_file.key_name = real_path
         print "put_target_file %s"%real_path
-        heirarchy.put_target_file(real_path, cpio_file)
+        hierarchy.put_target_file(real_path, cpio_file)
         
 
 def get_instruction_dict():
@@ -288,7 +288,7 @@ def deploy_labels(builder, target_file, target_base, name,
     * compressionMethod - The compression method to use, if any - gzip -> gzip,
       bzip2 -> bzip2.
     * pruneFunc - If not None, this a function to be called like
-      pruneFunc(Heirarchy) to prune the heirarchy prior to packing. Usually
+      pruneFunc(Hierarchy) to prune the hierarchy prior to packing. Usually
       something like deb.deb_prune, it's intended to remove spurious stuff like
       manpages from initrds and the like.
     * target_labels_order - Order in which labels should be merged. Labels not
@@ -313,14 +313,14 @@ def deploy_labels(builder, target_file, target_base, name,
             out_target_base.append( (k,v) )
             
 
+
     the_dependable = CpioDeploymentBuilder(target_file, 
                                            out_target_base, compressionMethod, 
                                            pruneFunc = pruneFunc)
     
-    
-    dep_label = depend.Label(utils.LabelKind.Deployment,
+    dep_label = depend.Label(utils.LabelType.Deployment,
                              name, None,
-                             utils.Tags.Deployed, 
+                             utils.LabelTag.Deployed,
                              domain = builder.default_domain)
 
     deployment_rule = depend.Rule(dep_label, the_dependable)
@@ -332,10 +332,10 @@ def deploy_labels(builder, target_file, target_base, name,
         else:
             real_lbl = ltuple
 
-        role_label = depend.Label(utils.LabelKind.Package,
+        role_label = depend.Label(utils.LabelType.Package,
                                   "*",
                                   real_lbl.role,
-                                  utils.Tags.PostInstalled,
+                                  utils.LabelTag.PostInstalled,
                                   domain = real_lbl.domain)
         deployment_rule.add(role_label)
                 
@@ -369,7 +369,7 @@ def deploy(builder, target_file, target_base, name, target_roles_order,
     """
     proper_target_base = { }
     for (r,base) in target_base.items():
-        lbl = depend.Label(utils.LabelKind.Package,
+        lbl = depend.Label(utils.LabelType.Package,
                            "*",
                            r, 
                            "*",
@@ -379,7 +379,7 @@ def deploy(builder, target_file, target_base, name, target_roles_order,
 
     label_order = [ ]
     for r in target_roles_order:
-        lbl = depend.Label(utils.LabelKind.Package,
+        lbl = depend.Label(utils.LabelType.Package,
                            "*",
                            r, 
                            "*",

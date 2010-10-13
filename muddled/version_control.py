@@ -3,6 +3,8 @@ Routines which deal with version control.
 """
 
 import utils
+from depend import Label
+
 import string
 import re
 import pkg
@@ -13,8 +15,13 @@ class VersionControlHandler:
     Subclass this class to handle a particular type of version control system.
 
     * self.builder is the builder we're running under.
-    * self.checkout_name is the name of the checkout (the directory under
-      ``/src/``) that we're responsible for.
+    * self.checkout_label is the label for this checkout
+    * self.checkout_name is the name of the checkout (normally the directory under
+      ``/src/``) that we're responsible for. This may not be the same as the label
+      name for multilevel checkouts
+
+      TODO: Explain this rather better
+
     * self.repository is the repository we're interested in. Its syntax is
       VCS-dependent.
     * self.revision is the revision to check out. The special name HEAD means
@@ -24,37 +31,27 @@ class VersionControlHandler:
     almost never be used.
     """
 
-    def __init__(self, builder, co_name, repo, rev, rel, co_dir = None):
+    def __init__(self, builder, co_label, co_name, repo, rev, rel, co_dir = None):
         self.builder = builder;
+        self.checkout_label = co_label
         self.checkout_name = co_name
         self.checkout_dir = co_dir
         self.repository = repo
         self.revision = rev
         self.relative = rel
 
-    def path_in_checkout(self, rel):
-        """
-        Given a path relative to the repository, give us its name in the checkout.
-        
-        This entry point is mainly used when trying to work out where
-        the build description specified in a muddle init command has ended up.
-        """
-        raise utils.Error("Attempt to call path_in_checkout() of the VersionControlHandler"
-                          " abstract base class.")
-
     def get_my_absolute_checkout_path(self):
         """
         Does what it says on the tin.
         """
-        return self.builder.invocation.checkout_path(self.checkout_name,
-                                                     domain = self.builder.default_domain)
+        return self.builder.invocation.checkout_path(self.checkout_label)
 
     def get_original_revision(self):
         """Return the revision id the user originally asked for.
         """
         return self.revision
 
-    def get_checkout_path(self, co_name):
+    def get_checkout_path(self, co_label):
         """
         When called with None, get the parent directory of this checkout.
         God knows what happens otherwise.
@@ -62,17 +59,11 @@ class VersionControlHandler:
         .. todo:: Needs documenting and rewriting!
         """
 
-        if (self.checkout_dir is not None):
-            p = os.path.join(self.builder.invocation.checkout_path(None, 
-                                                                   domain = self.builder.default_domain), 
-                             self.checkout_dir)
-            if (co_name is not None):
-                p = os.path.join(p,co_name)
-
-            return p
+        if co_label:
+            return self.builder.invocation.checkout_path(co_label)
         else:
-            return self.builder.invocation.checkout_path(co_name, domain = self.builder.default_domain)
-        
+            return self.builder.invocation.checkout_path(None)
+
     def check_out(self):
         """
         Check this checkout out of revision control.
@@ -186,7 +177,7 @@ class VersionControlHandlerFactory:
     def describe(self):
         return "Generic version control handler factory"
 
-    def manufacture(self, builder, co_name, repo, rev, rel, co_dir = None, branch = None):
+    def manufacture(self, builder, co_label, co_name, repo, rev, rel, co_dir = None, branch = None):
         """
         Manufacture a VCS handler.
 
@@ -227,14 +218,16 @@ def list_registered():
 
 
 
-def vcs_handler_for(builder, co_name, repo, rev, rest, co_dir = None, branch = None):
+def vcs_handler_for(builder, co_label, co_name, repo, rev, rest, co_dir = None, branch = None):
     """
     Create a VCS handler for the given url, invocation and checkout name.
     
     We do this by interpreting the initial part of the URI's protocol
     
     * inv - The invocation for which we're trying to build a handler.
-    * co_name - Checkout name
+    * co_label - The label for this checkout
+    * co_name - Checkout name in the repository - for multilevel checkouts this
+      may be different from the label name
     * repo - Repository URL
     * rev - Revision (None for HEAD)
     * rest - Part after the repository URL - typically the CVS module name or
@@ -251,25 +244,24 @@ def vcs_handler_for(builder, co_name, repo, rev, rest, co_dir = None, branch = N
     if (factory is None):
         raise utils.Error("No VCS handler registered for VCS type %s"%vcs)
 
-
     if (rev is None):
         rev = "HEAD"
 
-    return factory.manufacture(builder, co_name, repo, rev, rest, co_dir, branch)
+    return factory.manufacture(builder, co_label, co_name, repo, rev, rest, co_dir, branch)
 
-def vcs_dependable_for(builder, co_name, repo, rev, rest, co_dir = None, co_in = None,
+def vcs_dependable_for(builder, co_label, repo, rev, rest, co_dir = None, co_in = None,
                        branch = None):
     """
     Create a VCS dependable for the given co_name, repo, etc.
     """
     if (co_in is None):
-        co_in = co_name
+        co_in = co_label.name
     
-    handler = vcs_handler_for(builder, co_in, repo, rev, rest, co_dir, branch)
+    handler = vcs_handler_for(builder, co_label, co_in, repo, rev, rest, co_dir, branch)
     if (handler is None):
         raise utils.Failure("Cannot build a VCS handler for %s rel = %s"%(repo, rev))
 
-    return pkg.VcsCheckoutBuilder(co_name, handler)
+    return pkg.VcsCheckoutBuilder(co_label.name, handler)
 
 def split_vcs_url(url):
     """
@@ -344,16 +336,6 @@ def conventional_repo_url(repo, rel, co_dir = None):
 
     return (out_repo, out_rel)
 
-def conventional_repo_path(rel):
-    """
-    Returns the path inside a checkout for a given rel, given that the first
-    element in rel is the repository name - this basically just chops off the
-    first element of rel.
-    """
-    (rel_first, rel_rest) = rel.split("/", maxsplit = 1)
-    return rel_rest
-
-
 # This is a dictionary of VCS name to function-to-retrieve-a-file
 vcs_file_getter = {}
 
@@ -384,7 +366,6 @@ def vcs_get_file_data(url):
     scheme, url = split_vcs_url(url)
     getter = vcs_file_getter[scheme]
     return getter(url)
-
 
 # This is a dictionary of VCS name to function-to-clone/push/pull-a-directory
 vcs_dir_handler = {}
@@ -455,21 +436,18 @@ def vcs_pull_directory(url):
     handler = vcs_dir_handler[scheme]
     return handler("pull", url)
 
-def vcs_init_directory(url, files=None):
+def vcs_init_directory(scheme, files=None):
     """
     Initialised the current directory for this VCS, and add the given list of files.
 
-    Looks at the first few characters of the URL to determine the VCS
-    to use - so, e.g., "bzr" for "bzr+ssh://whatever".
-
-        (This is the only purpose of URL in this call)
+    'scheme' is "git", "bzr", etc. - as taken from the first few characters of
+    the muddle repository URL - so, e.g., "bzr" for "bzr+ssh://whatever".
 
     Raises KeyError if the scheme is not one for which we have a registered
     handler.
     """
-    scheme, url = split_vcs_url(url)
     handler = vcs_dir_handler[scheme]
     handler("init")
-    return handler("add", files)
+    return handler("add", files=files)
 
 # End file.

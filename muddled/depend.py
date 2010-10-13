@@ -3,11 +3,11 @@ Dependency sets and dependency management
 """
 
 import os
-import muddled.db
+import re
+import copy
+
 import pkg
 import utils
-import copy
-import re
 
 class Label(object):
     """
@@ -45,11 +45,10 @@ class Label(object):
                 (outer(inner))
                 (outer(inner(even.innerer)))
 
-           This is intended to be unambiguous rather than pretty. Beware that
-           the label validation mechanisms do *not* check that parentheses are
-           correctly nested. Also, wildcarding of a domain name currently only
-           supports one level (i.e., the top "(*)"), and not wildcarding of
-           nested domains.
+           This is intended to be unambiguous rather than pretty.
+
+           Note that wildcarding of a domain name currently only supports one
+           level (i.e., the top "(*)"), and not wildcarding of nested domains.
 
            If you do find yourself using multi-level domains, we would strongly
            suggest reconsidering your overall build design.
@@ -62,13 +61,26 @@ class Label(object):
     Names beginning with an underscore are reserved by muddle, so do not use
     them for other purposes.
 
+        (Why is the 'domain' argument at the end of the argument list? Because
+        it was added after the other arguments were already well-established,
+        and some uses of Label use positional arguments.)
+
     Label instances are treated as immutable by the muddle system, although the
     implementation does not currently enforce this. Please don't try to abuse
     this, as Bad Things will happen.
 
-        (Why is the 'domain' argument at the end of the argument list? Because
-        it was added after the other arguments were already well-established,
-        and some uses of Label use positional arguments.)
+    .. note:: The *flags* on a label are not immutable, and are regarded as
+              transient annotations.
+
+    .. note:: When a domain is included as a subdomain, all of its labels are
+              "adjusted" to have the new, appropriate domain name. This is
+              clearly a special meaning of the word "immutable". However, it
+              should only be the muddle system itself doing this.
+
+              Because of this (potential change in content of a label), the
+              domain name does not contribute to a label's hash value. Thus
+              a label that whose domain name is changed will continue to
+              work as the same key in a dictionary (for instance).
     """
 
     # Let's make a record of what conventional flag characters are
@@ -105,7 +117,7 @@ class Label(object):
         """
         :type:      What kind of label this is. The standard muddle values are
                     "checkout", "package" and "deployment". These values are
-                    defined programmatically via muddled.utils.LabelKind.
+                    defined programmatically via muddled.utils.LabelType.
                     Thus the 'type' is conventionally used to indicate what
                     general "stage" of the build process a label belongs to.
         :name:      The name of this checkout/package/whatever. This should be
@@ -123,7 +135,7 @@ class Label(object):
                     conventional values according to the 'type' of the label
                     (for instance, "checked_out", "built", "installed", etc.).
                     These values are defined programmatically via
-                    muddled.utils.Tags.
+                    muddled.utils.LabelTag.
         :transient: If true, changes to this tag will not be persistent in
                     the muddle database. 'transient' is used to denote
                     something which will go away when muddle is terminated -
@@ -199,91 +211,120 @@ class Label(object):
         if domain is not None:
             Label._check_domain(domain)
 
-        self.type = type
-        self.domain = domain
-        self.name = name
-        self.role = role
-        self.tag = tag
+        self._type = type
+        self._domain = domain
+        self._name = name
+        self._role = role
+        self._tag = tag
+
+        # Flags are *not* immutable
         self.transient = transient
         self.system = system
-        # Domain reassignment mark-and-sweep flag
-        self.unswept = False
+        # The "unswept" flag is regarded as internal
+        self._unswept = False
 
-    def _unify_with(self, target):
+    @property
+    def type(self):
+        return self._type
+
+    @property
+    def domain(self):
+        return self._domain
+
+    @property
+    def name(self):
+        return self._name
+
+    @property
+    def role(self):
+        return self._role
+
+    @property
+    def tag(self):
+        return self._tag
+
+    def copy_and_unify_with(self, target):
         """
-        Unify this label with the target. All the non-wildcard parts of target
-        are transferred to us
+        Return a copy of ourserlves, unified with the target.
+    
+        All the non-wildcard parts of 'target' are copied, to overwrite
+        the equivalent parts of the new label.
         """
+        new = self.copy()
 
         #print "unify src = %s"%self
-        if (target.type != "*"):
-            self.type = target.type
-            
-        if (target.domain != "*"):
-            self.domain = target.domain
+        if (target._type != "*"):
+            new._type = target._type
 
-        if (target.name != "*"):
-            self.name = target.name
+        if (target._domain != "*"):
+            new._domain = target._domain
 
-        if (target.role != "*"):
-            self.role = target.role
-            
-        if (target.tag != "*"):
-            self.tag = target.tag
-            
-        self.system = target.system
-        self.transient = target.transient
-        #print "unify tgt = %s"%self
+        if (target._name != "*"):
+            new._name = target._name
 
-    def make_transient(self, transience = True):
-        """
-        Set the transience status of a label.
-        """
-        self.transient = transience
-        
-    def re_tag(self, new_tag, system = None, transient = None):
+        if (target._role != "*"):
+            new._role = target._role
+
+        if (target._tag != "*"):
+            new._tag = target._tag
+
+        new.system = target.system
+        new.transient = target.transient
+        return new
+
+    def copy_with_tag(self, new_tag, system = None, transient = None):
         """
         Return a copy of self, with the tag changed to new_tag.
         """
+        Label._check_part('tag', new_tag)
         cp = self.copy()
-        cp.tag = new_tag
+        cp._tag = new_tag
         cp.system = system
         cp.transient = transient
+        return cp
+
+    def copy_with_domain(self, new_domain):
+        """
+        Return a copy of self, with the domain changed to new_domain.
+        """
+        Label._check_domain(new_domain)
+        cp = self.copy()
+        cp._domain = new_domain
         return cp
 
     def is_definite(self):
         """
         Return True iff this label contains no wildcards
         """
-        if (self.type == "*" or
-            self.domain == "*" or
-            self.name == "*" or
-            self.role == "*" or
-            self.tag == "*"):
+        if (self._type == "*" or
+            self._domain == "*" or
+            self._name == "*" or
+            self._role == "*" or
+            self._tag == "*"):
             return False
 
         return True
 
     def unifies(self, other):
         """
-        Returns True if and only if every field in self is either equal to a 
+        Returns True if and only if every field in self is either equal to a
         field in other , or if other is a wildcard. Wildcards in self do not match
         anything but a wildcard in other.
         """
-        
-        if (self.type != other.type and other.type != "*"): 
+
+        if (self._type != other._type and other._type != "*"):
             return False
 
-        if (self.domain != other.domain and other.domain != "*"):
+        if (self._domain != other._domain and other._domain != "*"):
             return False
 
-        if (self.name != other.name and other.name != "*"):
+        if (self._name != other._name and other._name != "*"):
             return False
 
-        if (self.role != other.role and other.role != "*"):
+        if (self._role != other._role and other._role != "*"):
             return False
 
-        if (self.tag != other.tag and other.tag != "*"):
+        if (self._tag != other._tag and other._tag != "*"):
             return False
 
         # We match all the way down.
@@ -300,32 +341,32 @@ class Label(object):
         """
 
         nr_wildcards = 0
-        if self.type != other.type:
-            if self.type == "*" or other.type == "*":
+        if self._type != other._type:
+            if self._type == "*" or other._type == "*":
                 nr_wildcards += 1
             else:
                 return None
 
-        if self.domain != other.domain:
-            if self.domain == "*" or other.domain == "*":
+        if self._domain != other._domain:
+            if self._domain == "*" or other._domain == "*":
                 nr_wildcards += 1
             else:
                 return None
 
-        if self.name != other.name:
-            if self.name == "*" or other.name == "*":
+        if self._name != other._name:
+            if self._name == "*" or other._name == "*":
                 nr_wildcards += 1
             else:
                 return None
 
-        if self.role != other.role:
-            if self.role == "*" or other.role == "*":
+        if self._role != other._role:
+            if self._role == "*" or other._role == "*":
                 nr_wildcards += 1
             else:
                 return None
 
-        if self.tag != other.tag:
-            if self.tag == "*" or other.tag == "*":
+        if self._tag != other._tag:
+            if self._tag == "*" or other._tag == "*":
                 nr_wildcards += 1
             else:
                 return None
@@ -343,16 +384,16 @@ class Label(object):
         # changing tag as we go.
         # On the other hand, there are lots of dependencies between
         # labels with *different* names
-        if self.name != other.name:
-            if self.name == "*" or other.name == "*":
+        if self._name != other._name:
+            if self._name == "*" or other._name == "*":
                 pass
             else:
                 return False
 
         # Within a type, dependencies between tags are common.
         # So maybe this goes here.
-        if self.tag != other.tag:
-            if self.tag == "*" or other.tag == "*":
+        if self._tag != other._tag:
+            if self._tag == "*" or other._tag == "*":
                 pass
             else:
                 return False
@@ -360,8 +401,8 @@ class Label(object):
         # We don't have many different sorts of type, and I think
         # *most* dependencies are going to be between the same type
         # (actually, mostly between packages)
-        if self.type != other.type:
-            if self.type == "*" or other.type == "*":
+        if self._type != other._type:
+            if self._type == "*" or other._type == "*":
                 pass
             else:
                 return False
@@ -369,16 +410,16 @@ class Label(object):
         # Traditionally, one has a single role, or not many more, and
         # there aren't many dependencies between them. So do this near
         # the end.
-        if self.role != other.role:
-            if self.role == "*" or other.role == "*":
+        if self._role != other._role:
+            if self._role == "*" or other._role == "*":
                 pass
             else:
                 return False
 
         # Check domains last - we relatively rarely expect to have
         # dependencies across domain boundaries. So try this last.
-        if self.domain != other.domain:
-            if self.domain == "*" or other.domain == "*":
+        if self._domain != other._domain:
+            if self._domain == "*" or other._domain == "*":
                 pass
             else:
                 return False
@@ -392,10 +433,10 @@ class Label(object):
         Specifically, tests whether the two Labels have identical type, domain,
         name and role.
         """
-        return (self.type   == other.type and
-                self.domain == other.domain and
-                self.name == other.name and
-                self.role == other.role)
+        return (self._type   == other._type and
+                self._domain == other._domain and
+                self._name == other._name and
+                self._role == other._role)
 
     def copy(self):
         """
@@ -404,38 +445,38 @@ class Label(object):
         return copy.copy(self)
 
     def __repr__(self):
-        parts = [repr(self.type),
-                 repr(self.name),
-                 'role=%s'%repr(self.role),
-                 'tag=%s'%repr(self.tag)]
-                 
+        parts = [repr(self._type),
+                 repr(self._name),
+                 'role=%s'%repr(self._role),
+                 'tag=%s'%repr(self._tag)]
+
         if self.transient:
             parts.append('transient=True')
         if self.system:
             parts.append('system=True')
         if self.domain:
-            parts.append('domain=%s'%repr(self.domain))
+            parts.append('domain=%s'%repr(self._domain))
         return 'Label(%s)'%', '.join(parts)
 
     def __str__(self):
-        if self.role:
-            basename = "%s{%s}"%(self.name, self.role)
+        if self._role:
+            basename = "%s{%s}"%(self._name, self._role)
         else:
-            basename = self.name
+            basename = self._name
 
-        if self.domain:
-            domain = "(%s)"%self.domain
+        if self._domain:
+            domain = "(%s)"%self._domain
         else:
             domain = ""
 
-        rv =  "%s:%s%s/%s"%(self.type, domain, basename, self.tag)
+        rv =  "%s:%s%s/%s"%(self._type, domain, basename, self._tag)
 
         extra = []
         if self.transient:
             extra.append(self.FLAG_TRANSIENT)
         if self.system:
             extra.append(self.FLAG_SYSTEM)
-        if self.unswept:
+        if self._unswept:
             extra.append(self.FLAG_DOMAIN_SWEEP)
         if extra:
             rv += '[%s]'%''.join(extra)
@@ -445,11 +486,13 @@ class Label(object):
     def __cmp__(self, other):
         """
         Compare two Labels.
-        
+
         Ignores the 'transient' and 'system' values (if any).
+
+        *Does* take the domains (if any) into account.
         """
-        this_as_tuple = self.as_tuple()
-        that_as_tuple = other.as_tuple()
+        this_as_tuple = (self._type, self._domain, self._name, self._role, self._tag)
+        that_as_tuple = (other._type, other._domain, other._name, other._role, other._tag)
 
         if this_as_tuple < that_as_tuple:
             return -1
@@ -458,19 +501,15 @@ class Label(object):
         else:
             return 0
 
-    def as_tuple(self):
-        """
-        Return the Label values as a tuple, e.g., for comparison or hashing.
-
-        Returns (type, domain, name, role, tag). Does not return the
-        'transient' or 'system' values, or any other flags.
-        """
-        return (self.type, self.domain, self.name, self.role, self.tag)
-
     def __hash__(self):
-        # Is it acceptable to ignore 'transient' and 'system' when hashing?
-        # I assume so.
-        return hash( self.as_tuple() )
+        """
+        Calculate the hash for a label.
+
+        Ignores the domain name (since that may be changed) and the
+        transient and system flags (since they are defined to be, well,
+        transient).
+        """
+        return hash( (self._type, self._name, self._role, self._tag) )
 
     def _mark_unswept(self):
         """
@@ -489,7 +528,7 @@ class Label(object):
             >>> print l
             a:b{c}/d[D]
         """
-        self.unswept = True
+        self._unswept = True
 
     def _change_domain(self, domain, verbose=False):
         """Change our domain name (by adding the new 'domain' to it).
@@ -534,13 +573,13 @@ class Label(object):
             >>> print l
             a:(f(e))b{c}/d
         """
-        if self.unswept:
+        if self._unswept:
             if verbose: print 'sweep: %s -> '%str(self),
-            if self.domain:
-                self.domain = '%s(%s)'%(domain, self.domain)
+            if self._domain:
+                self._domain = '%s(%s)'%(domain, self._domain)
             else:
-                self.domain = domain
-            self.unswept = False
+                self._domain = domain
+            self._unswept = False
             if verbose: print str(self)
 
         elif verbose:
@@ -562,13 +601,58 @@ class Label(object):
         """
         Check that a label domain component is valid.
 
-        Doesn't currently check correct use of '(..)' in sub-domains.
-
         Raises a utils.Failure exception if it's Bad, does nothing if it's OK.
+
+        For instance:
+
+            >>> Label._check_domain('fred')
+            >>> Label._check_domain('fred(jim)')
+            >>> Label._check_domain('fred(jim(bob))')
+            >>> Label._check_domain('')
+            Traceback (most recent call last):
+            ...
+            Failure: Label domain '()' is not allowed
+            >>> Label._check_domain('()')
+            Traceback (most recent call last):
+            ...
+            Failure: Label domain '(())' starts with zero length domain, '(()', i.e. '(('
+            >>> Label._check_domain('(')
+            Traceback (most recent call last):
+            ...
+            Failure: Label domain part '(()' has unbalanced parentheses, '('
+            >>> Label._check_domain(')')
+            Traceback (most recent call last):
+            ...
+            Failure: Label domain '())' has unbalanced parentheses, ')'
+            >>> Label._check_domain('fred(jim')
+            Traceback (most recent call last):
+            ...
+            Failure: Label domain part '(fred(jim)' has unbalanced parentheses, 'fred(jim'
+            >>> Label._check_domain('fred((jim(bob)))')
+            Traceback (most recent call last):
+            ...
+            Failure: Label domain '(fred((jim(bob))))' starts with zero length domain, '((jim(bob))', i.e. '(('
         """
         m = Label.domain_part_re.match(value)
         if m is None or m.end() != len(value):
-            raise utils.Failure("Label domain '%s' is not allowed"%(value))
+            raise utils.Failure("Label domain '(%s)' is not allowed"%(value))
+        dom = value
+        while dom:
+            pos = dom.find('(')
+            if pos == -1:
+                if dom[-1] == ')':
+                    raise utils.Failure("Label domain '(%s)' has unbalanced"
+                                        " parentheses, '%s'"%(value, dom))
+                break
+            else:
+                if dom[-1] != ')':
+                    raise utils.Failure("Label domain part '(%s)' has unbalanced"
+                                        " parentheses, '%s'"%(value, dom))
+                part = dom[:pos]
+                if len(part) == 0:
+                    raise utils.Failure("Label domain '(%s)' starts with zero"
+                                        " length domain, '(%s', i.e. '(('"%(value, dom))
+                dom = dom[pos+1:-1]
 
     @staticmethod
     def from_string(label_string):
@@ -649,6 +733,50 @@ class Label(object):
         return Label(type, name, role=role, tag=tag, transient=transient,
                      system=system, domain=domain)
 
+    def split_domains(self):
+        """
+        Returns a list of the domains for this Label, in order.
+
+        If there are no subdomains, then a zero length list is returned.
+
+        Raises a utils.Failure exception if the parentheses do not match up
+        (the check is only fairly crude), or if there are two adjacent opening
+        parentheses.
+        """
+        dom = self._domain
+        rv = []
+        while dom:
+            pos = dom.find('(')
+            if pos == -1:
+                if dom[-1] == ')':
+                    raise utils.Failure("Label %s domain part '%s' has unbalanced"
+                                        " parentheses"%(self, dom))
+                rv.append(dom)
+                break
+            else:
+                if dom[-1] != ')':
+                    raise utils.Failure("Label %s domain part '%s' has unbalanced"
+                                        " parentheses"%(self, dom))
+                part = dom[:pos]
+                if len(part) == 0:
+                    raise utils.Failure("Label %s domain part '%s' starts with zero"
+                                        " length domain - i.e., '(('"%(self, dom))
+                rv.append(part)
+                dom = dom[pos+1:-1]
+        return rv
+
+def label_from_string(str):
+    """Do not use this!!! Can you say "deprecated"?
+
+    This function was originally removed, since it is replaced by
+    Label.from_string. However, too many old builds still attempt to
+    import it, which can cause problems at the "muddle init" stage, and
+    also with "muddle unstamp".
+
+    Please do not use this function in new builds.
+    """
+    return Label.from_string(str)
+
 
 class Rule:
     """
@@ -704,8 +832,7 @@ class Rule:
 
         for d in self.deps:
             if (d.unifies(source)):
-                copied_d = d.copy()
-                copied_d._unify_with(target)
+                copied_d = d.copy_and_unify_with(target)
                 new_deps.add(copied_d)
             else:
                 new_deps.add(d)
@@ -768,21 +895,21 @@ class Rule:
         """
         Add a dependency on label "checkout:<co_name>/<tag>".
         """
-        dep = Label(utils.LabelKind.Checkout, co_name, None, tag)
+        dep = Label(utils.LabelType.Checkout, co_name, None, tag)
         self.add(dep)
 
     def depend_pkg(self, pkg, role, tag):
         """
         Add a dependency on label "package:<pkg>{<role>}/tag".
         """
-        dep = Label(utils.LabelKind.Package, pkg, role, tag)
+        dep = Label(utils.LabelType.Package, pkg, role, tag)
         self.add(dep)
 
     def depend_deploy(self, dep_name, tag):
         """
         Add a dependency on label "deployment:<dep_name>/tag".
         """
-        dep = Label(utils.LabelKind.Deployment, dep_name, None, tag)
+        dep = Label(utils.LabelType.Deployment, dep_name, None, tag)
         self.add(dep)
 
     def __str__(self):
@@ -839,24 +966,32 @@ class Rule:
             >>> r.depend_pkg('albert','jim','built')
             >>> r.depend_deploy('hall','deployed')
             >>> r.to_string()
-            'package:fred{jim}/* <- [ deployment:hall/deployed, package:bob{bob}/built, package:albert{jim}/built, checkout:fred/jim ]'
+            'package:fred{jim}/* <- [ checkout:fred/jim, deployment:hall/deployed, package:albert{jim}/built, package:bob{bob}/built ]'
 
         The "<-" is to be read "depends on".
 
-        Note that the order of the dependencies in the output is undefined.
+        Note that the order of the dependencies in the output is sorted by label.
         """
-        str_list = [ ]
-        str_list.append(self.target.__str__())
-        str_list.append("<- [")
+        output = [ str(self.target) ]
+
+        if self.obj:
+            output.append('<-%s--'%self.obj.__class__.__name__)
+        else:
+            output.append('<-')
+
+        output.append('[')
         if self.deps:
-            dep_list = []
-            for i in self.deps:
-                if ((i.system and showSystem) or ((not i.system) and showUser)):
-                    dep_list.append(i.__str__())
-            str_list.append(', '.join(dep_list))
-        str_list.append("]")
-        return " ".join(str_list)
-        
+            deps = []
+            for label in self.deps:
+                if (label.system and showSystem) or ((not label.system) and showUser):
+                    deps.append(label)
+            deps.sort()
+            deps_output = []
+            for label in deps:
+                deps_output.append(str(label))
+            output.append(", ".join(deps_output))
+        output.append(']')
+        return " ".join(output)
 
 
 class RuleSet:
@@ -1027,8 +1162,7 @@ class RuleSet:
             new_v = v
 
             if (k.unifies(source)):
-                copied_source = k.copy()
-                copied_source._unify_with(target)
+                copied_source = k.copy_and_unify_with(target)
                 new_v.replace_target(copied_source)
                 new_k = copied_source
                 #print "Ruleset: rewrite src = %s, k = %s to %s"%(source,k,copied_source)
@@ -1103,37 +1237,6 @@ class RuleSet:
     def __str__(self):
         return self.to_string()
 
-def label_from_string(str):
-    """
-    Given a string representing a label, return a corresponding Label instance.
-
-    The string should be of the correct form:
-
-    * <type>:<name>/<tag>
-    * <type>:<name>{<role>}/<tag>
-    * <type>:<name>/<tag>[<flags>]
-    * <type>:<name>{<role>}/<tag>[<flags>]
-    * etc.
-
-    See the docstring for Label for the meaning of the various parts of a
-    label.
-
-    <flags> is a set of individual characters indicated as flags. There are two
-    pre-defined flags, 'T' for Transience and 'S' for System. Unrecognised flag
-    characters will be ignored.
-
-    Returns a Label or None if the string was ill-formed.
-
-    (This is a wrapping of Label.from_string(), but with different return
-    conventions.)
-    """
-
-    try:
-        return Label.from_string(str)
-    except utils.Failure:
-        return None
-    
-
 def depend_chain(obj, label, tags, ruleset):
     """
     Add a chain of dependencies to the given ruleset.
@@ -1159,8 +1262,7 @@ def depend_chain(obj, label, tags, ruleset):
     ruleset.add(r)
 
     for tag in tags:
-        next = last.copy()
-        next.tag = tag
+        next = last.copy_with_tag(tag)
         r = Rule(next, obj)
         r.add(last)
         ruleset.add(r)
@@ -1190,8 +1292,7 @@ def depend_self(obj, label, old_tag):
     sets.
     """
     rv = Rule(label, obj)
-    dep_label = label.copy()
-    dep_label.tag = old_tag
+    dep_label = label.copy_with_tag(old_tag)
 
     rv.add(dep_label)
     return rv
@@ -1206,16 +1307,14 @@ def depend_empty(obj, label):
     return rv
 
 
-def label_set_to_string(label_set):
+def label_set_to_string(label_set, start_with="[", end_with="]", join_with=", " ):
     """
     Utility function to convert a label set to a string.
     """
-    str_list = [ "{ " ]
+    str_list = []
     for  i in label_set:
         str_list.append(i.__str__())
-        str_list.append(", ")
-    str_list.append("} ")
-    return "".join(str_list)
+    return "%s%s%s"%(start_with, join_with.join(str_list), end_with)
 
 def rule_list_to_string(rule_list):
     """
@@ -1241,8 +1340,7 @@ def retag_label_list(labels, new_tag):
     """
     result = [ ]
     for l in labels:
-        next_l = l.copy()
-        next_l.tag = new_tag
+        next_l = l.copy_with_tag(new_tag)
         result.append(next_l)
 
     return result
@@ -1317,6 +1415,7 @@ def needed_to_build(ruleset, target, useTags = True, useMatch = False):
             if (trace):
                 print "Rules for %s = %s"%(tgt, " ".join(map(str, rules)))
 
+            rule = None
             for rule in rules:            
                 for dep in rule.deps:
                     if not (dep in rule_target_set):
@@ -1350,11 +1449,14 @@ def needed_to_build(ruleset, target, useTags = True, useMatch = False):
         
     # If we get here, we can never satisfy the remaining set of
     # targets because the graph is circular or incomplete.
+    targets = list(targets)
+    targets.sort()
     raise utils.Error("Dependency graph is circular or incomplete. \n" +
                       "building = %s\n"%target +
-                      "targets = %s \n"%label_set_to_string(targets) + 
-                      "rule_list = %s \n"%rule_list_to_string(rule_list) + 
-                      "ruleset = %s\n"%ruleset)
+                      "targets = %s \n"%label_set_to_string(targets,
+                                                            start_with='[\n    ',
+                                                            end_with='\n]',
+                                                            join_with='\n    '))
 
 
 def required_by(ruleset, label, useTags = True, useMatch = True):

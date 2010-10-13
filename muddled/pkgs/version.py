@@ -40,7 +40,8 @@ class VersionBuilder(PackageBuilder):
         return fst
 
     def file_name(self, builder):
-        inst_path = builder.invocation.package_install_path(self.name, self.role)
+        tmp = depend.Label(utils.LabelType.Package, self.name, self.role)
+        inst_path = builder.invocation.package_install_path(tmp)
         ret = utils.rel_join(inst_path, self.filename)
         return ret
 
@@ -85,12 +86,12 @@ class VersionBuilder(PackageBuilder):
         """
         tag = label.tag
 
-        if (tag == utils.Tags.Installed):
+        if (tag == utils.LabelTag.Installed):
             # Write our version file.
             self.write_version_file(builder)
-        elif (tag == utils.Tags.Clean):
+        elif (tag == utils.LabelTag.Clean):
             self.erase_version_file(builder)
-        elif (tag == utils.Tags.DistClean):
+        elif (tag == utils.LabelTag.DistClean):
             self.erase_version_file(builder)
 
 

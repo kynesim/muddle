@@ -25,7 +25,7 @@ class ToolsDeploymentBuilder(pkg.Dependable):
         self.dependent_roles = dependent_roles
 
     def build_label(self, builder, label):
-        if (label.tag == utils.Tags.Deployed):
+        if (label.tag == utils.LabelTag.Deployed):
             self.deploy(builder, label)
         else:
             raise utils.Failure("Attempt to build "
@@ -86,19 +86,33 @@ def deploy(builder, name, rolesThatUseThis = [ ], rolesNeededForThis = [ ]):
     """
     Register a tools deployment.
 
-    This actually does nothing but register the appropriate
-    environment
+    This is used to:
+
+    1. Set the environment for each role in 'rolesThatUseThis' so that
+       PATH, LD_LIBRARY_PATH and PKG_CONFIG_PATH include the 'name'
+       deployment
+
+    2. Make deployment:<name>/deployed depend upon the 'rolesNeededForThis'
+
+    3. Register cleanup for this deployment
+
+    The intent is that we have a "tools" deployment, which provides useful
+    host tools (for instance, something to mangle a file in a particular
+    manner). Those roles which need to use such tools in their builds
+    (normally in a Makefile.muddle) then need to have the environment set
+    appropriately to allow them to find the tools (and ideally, not system
+    provided tools which mighth have the same name).
     """
 
-    tgt = depend.Label(utils.LabelKind.Deployment,
+    tgt = depend.Label(utils.LabelType.Deployment,
                        name, 
                        None,
-                       utils.Tags.Deployed)
+                       utils.LabelTag.Deployed)
 
     for role in rolesThatUseThis:
-        for tag in ( utils.Tags.PreConfig, utils.Tags.Configured, utils.Tags.Built, 
-                     utils.Tags.Installed, utils.Tags.PostInstalled) :
-            lbl = depend.Label(utils.LabelKind.Package,
+        for tag in ( utils.LabelTag.PreConfig, utils.LabelTag.Configured, utils.LabelTag.Built,
+                     utils.LabelTag.Installed, utils.LabelTag.PostInstalled) :
+            lbl = depend.Label(utils.LabelType.Package,
                                "*",
                                role,
                                tag)

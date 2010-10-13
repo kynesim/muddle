@@ -2,7 +2,6 @@
 Muddle utilities.
 """
 
-import curses
 import hashlib
 import imp
 import os
@@ -23,6 +22,10 @@ from collections import MutableMapping, Mapping, namedtuple
 from ConfigParser import RawConfigParser
 from StringIO import StringIO
 
+try:
+    import curses
+except:
+    curses = None
 
 class Error(Exception):
     """
@@ -36,73 +39,76 @@ class Failure(Exception):
     """
     pass
 
-class Tags:
-    """
-    Tags commonly used by packages and dependencies.
-    """
-    
-    # For checkouts.
-    
-    CheckedOut = "checked_out"
-    Pulled = "pulled"
-    UpToDate = "up_to_date"
-    ChangesCommitted = "changes_committed"
-    ChangesPushed = "changes_pushed"
-    
-    # For packages
+# Start with the known label tags. Keys are the "in program" representation,
+# values are the tag as used in labels themselves.
+__label_tags = {# For checkouts.
+                'CheckedOut' : "checked_out",
+                'Pulled' : "pulled",
+                'UpToDate' : "up_to_date",
+                'ChangesCommitted' : "changes_committed",
+                'ChangesPushed' : "changes_pushed",
 
-    PreConfig = "preconfig"
-    Configured = "configured"
-    Built = "built"
-    Installed = "installed"
-    PostInstalled = "postinstalled"
+                # For packages
+                'PreConfig' : "preconfig",
+                'Configured' : "configured",
+                'Built' : "built",
+                'Installed' : "installed",
+                'PostInstalled' : "postinstalled",
 
-    Clean = "clean"
-    DistClean = "distclean"
-    
-    # For deployments. These must be independent of each other
-    # and transient or deployment will get awfully confused.
-    # instructionsapplied is used to separate deployment and
-    # instruction application - they need to run in different
-    # address spaces so that application can be privileged.
-    
-    Deployed = "deployed"
-    InstructionsApplied = "instructionsapplied"
+                'Clean' : "clean",
+                'DistClean' : "distclean",
 
-    # Special tag used to dynamically load extensions
-    # (e.g. the build description)
+                # For deployments. These must be independent of each other and
+                # transient or deployment will get awfully confused.
+                # instructionsapplied is used to separate deployment and
+                # instruction application - they need to run in different
+                # address spaces so that application can be privileged.
+                'Deployed' : "deployed",
+                'InstructionsApplied' : "instructionsapplied",
 
-    Loaded = "loaded"
+                # Special tag used to dynamically load extensions
+                # (e.g. the build description)
+                'Loaded' : "loaded",
 
-    # Used to denote a temporary label that should never
-    # be stored beyond the scope of the current function call
-    Temporary = "temporary"
+                # Used to denote a temporary label that should never
+                # be stored beyond the scope of the current function call
+                'Temporary' : "temporary",
 
-    # Used by the initscripts package to store runtime environments.
-    RuntimeEnv = "runtime_env"
+                # Used by the initscripts package to store runtime environments.
+                'RuntimeEnv' : "runtime_env",
+                }
 
+# We shall produce a named tuple type using the "in program" names
+__label_tag_type = namedtuple('LabelTag',
+                              ' '.join(__label_tags.keys()))
 
-class LabelKind:
-    """
-    What sorts of objects support labels?
-    """
-    
-    Checkout = "checkout"
-    Package = "package"
-    Deployment = "deployment"
-    
-    # Synthetic labels used purely to trick the dependency
-    # mechanism into doing what I want.
-    Synthetic = "synth"
-    
+# And populate it from the dictionary. This means that we can do things
+# like::
+#
+#    a = LabelTag.CheckedOut
+#
+# (which we could do if we defined a LabelTag class, with appropriate values),
+# but we can also do things like::
+#
+#    if a in LabelTag:
+#       print True
+#
+LabelTag = __label_tag_type(**__label_tags)
 
-def label_kind_to_string(val):
-    """
-    Convert a label kind to a string. Remember that the
-    return value here is used as a directory name for
-    tag tracking.
-    """
-    return val
+# And, on the same principle, the standard label types
+__label_types = {'Checkout' : "checkout",
+                 'Package' : "package",
+                 'Deployment' : "deployment",
+
+                 # Synthetic labels used purely to trick the dependency
+                 # mechanism into doing what I want.
+                 'Synthetic' : "synth",
+                 }
+
+__label_type_type = namedtuple('LabelType',
+                               ' '.join(__label_types.keys()))
+
+LabelType = __label_type_type(**__label_types)
 
 class DirType:
     """
@@ -125,16 +131,6 @@ class DirType:
     Install = 4
     Builds = 5
     Root = 6
-
-    
-    dict = { "builds" : Builds, 
-             "install" : Install, 
-             "deployed" : Deployed, 
-             "src"  : CheckOut, 
-             "obj"  : Object }
-
-
-
 
 def string_cmp(a,b):
     """
@@ -240,147 +236,6 @@ def find_root(dir):
     # Didn't find a directory.
     return (None, None)
 
-
-def get_all_checkouts_below(builder, dir):
-    """
-    Check all checkouts to see if their directories are
-    at or below dir.
-    """
-    rv = [ ]
-    all_cos = builder.invocation.all_checkouts()
-    
-    for co in all_cos:
-        co_dir = builder.invocation.checkout_path(co)
-        # Is it below dir? If it isn't, os.path.relpath() will
-        # start with .. ..
-        rp = os.path.relpath(co_dir, dir)
-        if (rp[0:2] != ".."):
-            # It's relative
-            rv.append(co)
-
-    return rv
-
-
-
-def find_local_packages(dir, root, inv):
-    """
-    This is slightly horrible because if you're in a source checkout
-    (as you normally will be), there could be several packages. 
-
-    Returns a list of the package names (or package/role names) involved.
-    """
-
-    tloc = find_location_in_tree(dir, root, inv)
-    if (tloc is None):
-        return None
-
-    (what, loc, role) = tloc
-
-    
-    if (what == DirType.CheckOut):
-        rv = [  ]
-        if loc is None:
-            return None
-
-        for p in inv.packages_for_checkout(loc):
-            if (p.role is None):
-                rv.append(p.name)
-            else:
-                rv.append("%s{%s}"%(p.name, p.role))
-        return rv
-    elif (what == DirType.Object):
-        if (role is not None):
-            return [ "%s{%s}"%(loc, role) ]
-        else:
-            return [ loc ]
-    else:
-        return None
-
-
-def find_location_in_tree(dir, root, invocation = None):
-    """
-    Find the directory type and name of subdirectory in a repository.
-    This is mainly used by find_local_packages to work out which
-    packages to rebuild
-
-    * dir - The directory to analyse
-    * root - The root directory.
-
-    Returns a tuple (DirType, pkg_name, role_name) or None if no information
-    can be gained.
-    """
-
-    dir = os.path.normcase(os.path.normpath(dir))
-    root = os.path.normcase(os.path.normpath(root))
-    
-    if (dir == root):
-        return (DirType.Root, root, None)
-
-    # Dir is (hopefully) a bit like 
-    # root / X , so we walk up it  ...
-    rest = [ ]
-    while dir != '/':
-        (base, cur) = os.path.split(dir)
-        # Prepend .. 
-        rest.insert(0, cur)
-        
-        if (base == root):
-            # Rest is now the rest of the path.
-            if (len(rest) == 0):
-                # We were at the root
-                return (DirType.Root, dir, None)
-            else:
-                # We weren't
-                sub_dir = None
-
-                if (len(rest) > 1):
-                    sub_dir = rest[1]
-                else:
-                    sub_dir = None
-                    
-                #print "Infer: rest = %s sub_dir = %s "%(" ".join(rest), sub_dir)
-
-                if (rest[0] == "src"):
-                    if (len(rest) > 1) and (invocation is not None):
-                        # Now, this could be a two-level checkout. There's little way to 
-                        # know, beyond that if rest[1:n] is the rest of the checkout path
-                        # it must be our checkout.
-                        for i in range(2, len(rest)+1):
-                            rel_path = rest[1:i]
-                            putative_name = rest[i-1]
-                            if (invocation.has_checkout_called(putative_name)):
-                                #print "rel_path = %s n = %s"%(rel_path,putative_name)
-                                db_path = invocation.db.get_checkout_path(putative_name, isRelative = True)
-                                check_path = ""
-                                for x in rel_path:
-                                    check_path = os.path.join(check_path, x)
-
-                                    #print "check_path %s db_path %s"%(check_path, db_path)
-                                    if (check_path == db_path):
-                                        return (DirType.CheckOut, putative_name, None)
-
-                    
-                    # If, for whatever reason, we haven't already found this package .. 
-                    return (DirType.CheckOut, sub_dir, None)
-
-                elif (rest[0] == "obj"):
-                    if (len(rest) > 2):
-                        role = rest[2]
-                    else:
-                        role = None
-                    
-                    return (DirType.Object, sub_dir, role)
-                elif (rest[0] == "install"):
-                    return (DirType.Install, sub_dir, None)
-                elif (rest[0] == "domains"):
-                    # We're inside the current domain - this is actually a root
-                    return (DirType.Root, dir, None)
-                else:
-                    return None
-        else:
-            dir = base
-
-    return None
 
 def ensure_dir(dir, verbose=True):
     """
@@ -515,20 +370,30 @@ def indent(text, indent):
         stuff.append('%s%s'%(indent,line))
     return '\n'.join(stuff)
 
-def wrap(text):
+def wrap(text, width=None, **kwargs):
     """A convenience wrapper around textwrap.wrap()
 
     (basically because muddled users will have imported utils already).
     """
-    return "\n".join(textwrap.wrap(text))
+    if not width:
+        width = num_cols()
+
+    return "\n".join(textwrap.wrap(text, width=width, **kwargs))
 
 def num_cols():
     """How many columns on our terminal?
 
-    Returns a negative number on error.
+    If it can't tell (e.g., because it curses is not available), returns 70.
     """
-    curses.setupterm()
-    return curses.tigetnum('cols')
+    if curses:
+        curses.setupterm()
+        cols = curses.tigetnum('cols')
+        if cols <= 0:
+            return 70
+        else:
+            return cols
+    else:
+        return 70
 
 def truncate(text, columns=None, less=0):
     """Truncate the given text to fit the terminal.
@@ -554,8 +419,6 @@ def truncate(text, columns=None, less=0):
 
     if columns is None:
         columns = num_cols()
-        if columns <= 0:
-            columns = 80
     max_width = columns - less
     if len(text) > max_width:
         text = text[:max_width-3]+'...'
@@ -568,24 +431,15 @@ def dynamic_load(filename):
         raise Error(\
             "Attempt to call DynamicLoad() with filename None")
     try:
-        fin = open(filename, 'rb')
-        contents = fin.read()
+        with open(filename, 'rb') as fin:
+            contents = fin.read()
         hasher = hashlib.md5()
         hasher.update(contents)
         md5_digest = hasher.hexdigest()
-        fin.close()
-
-        mod = imp.load_source(md5_digest, filename)
-    except Exception, e:
-        print "Cannot load %s - %s \n"%(filename,e)
-        traceback.print_exc()
-        try:
-            fin.close()
-        except: pass
-        raise Failure("Cannot load build description %s - %s"%(filename, e))
-
-    return mod
-
+        return imp.load_source(md5_digest, filename)
+    except Exception as e:
+        raise Failure("Cannot load build description %s:\n"
+                       "%s"%(filename, traceback.format_exc()))
 
 def do_shell_quote(str):
     return maybe_shell_quote(str, True)
@@ -660,7 +514,7 @@ def copy_file_metadata(from_path, to_path):
             os.lchflags(to_path, st.st_flags)
 
         if os.geteuid() == 0 and hasattr(os, 'lchown'):
-            os.lchown(to_path, s.st_uid, s.st_gid)
+            os.lchown(to_path, st.st_uid, st.st_gid)
     else:
         st = os.stat(from_path)
         mode = stat.S_IMODE(st.st_mode)
@@ -669,7 +523,7 @@ def copy_file_metadata(from_path, to_path):
         if hasattr(os, 'chflags'):
             os.chflags(to_path, st.st_flags)
         if os.geteuid() == 0:
-            os.chown(to_path, s.st_uid, s.st_gid)
+            os.chown(to_path, st.st_uid, st.st_gid)
 
 def copy_file(from_path, to_path, object_exactly=False, preserve=False):
     """
@@ -1331,7 +1185,7 @@ class VersionStamp(Mapping):
         * 'repository' is a string giving the default repository (as stored
           in ``.muddle/RootRepository``)
 
-        * ``description`` is a string naming the build descrioption (as stored
+        * ``description`` is a string naming the build description (as stored
           in ``.muddle/Description``)
 
         * 'domains' is a (possibly empty) set of tuples (specifically,
@@ -1354,8 +1208,8 @@ class VersionStamp(Mapping):
               is the domain as given within '(' and ')' in a label, so
               it may contain commas - for instance "fred" or "fred,jim,bob".
             * co_leaf - The leaf directory in which this checkout resides -
-               this is just name for one and two-level checkouts, but will be
-               different for multilevel checkouts.
+              this is just the name for one and two-level checkouts, but will
+              be different for multilevel checkouts
 
           These are essentially the exact arguments that would have been given
           to the VCS initialisation, or to ``muddled.version_control.vcs_handler_for()``
@@ -1389,6 +1243,7 @@ class VersionStamp(Mapping):
         revision = 3
         <BLANKLINE>
         [CHECKOUT jim]
+        co_leaf = sheila
         directory = jim
         name = jim
         repository = Elsewhere
@@ -1397,7 +1252,7 @@ class VersionStamp(Mapping):
         [PROBLEMS]
         problem1 = Oops, a problem
         >>> v['jim']
-        CheckoutTuple(name='jim', repo='Elsewhere', rev=7, rel=None, dir='jim', domain=None, co_leaf='sheila')
+        CheckoutTuple(name='jim', repo='Elsewhere', rev=7, rel=None, dir='jim', domain=None, co_leaf='seila')
 
     Note that this is *not* intended to be a mutable class, so please do not
     change any of its internals directly. In particular, if you *did* change
@@ -1421,10 +1276,10 @@ class VersionStamp(Mapping):
         else:
             self.description = description
 
-        self.domains = []
+        self.domains = set()
         if domains:
             for x in domains:
-                self.domains.append(DomainTuple(*x))
+                self.domains.add(DomainTuple(*x))
 
         self.checkouts = []
         if checkouts:
@@ -1515,7 +1370,8 @@ class VersionStamp(Mapping):
             config.set(section, "name", name)
             config.set(section, "repository", repo)
             config.set(section, "revision", rev)
-            config.set(section, 'co_leaf', co_leaf)
+            if co_leaf:
+                config.set(section, "co_leaf", co_leaf)
             if rel:
                 config.set(section, "relative", rel)
             if dir:
@@ -1625,7 +1481,7 @@ class VersionStamp(Mapping):
                 if label.domain:
                     domain_name = label.domain
                     domain_repo, domain_desc = builder.invocation.db.get_subdomain_info(domain_name)
-                    domains.add(DomainTuple(domain_name, domain_repo, domain_desc))
+                    stamp.domains.add(DomainTuple(domain_name, domain_repo, domain_desc))
 
                 if just_use_head:
                     if not quiet:
@@ -1641,9 +1497,9 @@ class VersionStamp(Mapping):
         if stamp.domains and not quiet:
             print 'Found domains:',stamp.domains
 
-        for label, (repo, dir, rev, rel, co_in) in revisions.items():
+        for label, (repo, dir, rev, rel, co_leaf) in revisions.items():
             stamp.checkouts.append(CheckoutTuple(label.name, repo, rev, rel, dir,
-                                                 label.domain, co_in))
+                                                 label.domain, co_leaf))
 
         if len(revisions) != len(checkout_rules):
             if not quiet:
@@ -1716,12 +1572,10 @@ class VersionStamp(Mapping):
                     domain = config.get(section, 'domain')
                 else:
                     domain = None
-
                 if config.has_option(section, "co_leaf"):
                     co_leaf = config.get(section, "co_leaf")
                 else:
-                    co_leaf = name
-
+                    co_leaf = name  # NB: this is deliberate - see the unstamp command
                 stamp.checkouts.append(CheckoutTuple(name, repo, rev, rel, dir, domain, co_leaf))
             elif section == "PROBLEMS":
                 for name, value in config.items("PROBLEMS"):
@@ -1806,10 +1660,9 @@ class VersionStamp(Mapping):
                         if not quiet:
                             print '  Domain mismatch:',domain1,domain2
                     if co_leaf1 != co_leaf2:
-                        errors.append("co_leaf")
+                        errors.append('co_leaf')
                         if not quiet:
-                            print '  co_leaf mismatch:',co_leaf1, co_leaf2
-
+                            print '  Checkout leaf mismatch:',co_leaf1,co_leaf2
                     if errors:
                         if not quiet:
                             print '  ...only revision mismatch is allowed'

@@ -235,7 +235,7 @@ def set_global_package_env(builder, name, value,
     (The default sets the environment variable globally, i.e., for all roles.)
     """
     for  r in roles:
-        lbl = depend.Label(utils.LabelKind.Package, 
+        lbl = depend.Label(utils.LabelType.Package, 
                            "*", 
                            r, 
                            "*")
@@ -248,7 +248,7 @@ def append_to_path(builder, roles, val):
     Append the given value to the PATH for the given roles
     """
     for r in roles:
-        lbl = depend.Label(utils.LabelKind.Package,
+        lbl = depend.Label(utils.LabelType.Package,
                            "*", 
                            r, 
                            "*")
@@ -380,7 +380,7 @@ def build_role_on_architecture(builder, role, arch):
     This requires all the dependables in that role ("package:*{<role>}/*") to
     be built on architecture <arch>.
     """
-    lbl = depend.Label(utils.LabelKind.Package,
+    lbl = depend.Label(utils.LabelType.Package,
                        "*",
                        role, 
                        "*",

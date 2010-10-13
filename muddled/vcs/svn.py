@@ -3,12 +3,14 @@ Muddle support for svn.
 """
 
 from muddled.version_control import *
+from muddled.depend import Label
 import muddled.utils as utils
 import os
 
 class Svn(VersionControlHandler):
-    def __init__(self, builder, checkout_name, repo, rev, rel, co_dir):
-        VersionControlHandler.__init__(self, builder, checkout_name, repo ,rev, rel, co_dir)
+    def __init__(self, builder, checkout_label, checkout_name, repo, rev, rel, co_dir):
+        VersionControlHandler.__init__(self, builder, checkout_label, checkout_name,
+                                       repo ,rev, rel, co_dir)
 
         sp = conventional_repo_url(repo, rel, co_dir = co_dir)
         if sp is None:
@@ -16,16 +18,14 @@ class Svn(VersionControlHandler):
         
         self.svn_repo = sp[0]
 
-        self.co_path = self.get_checkout_path(self.checkout_name)
+        self.co_path = self.get_checkout_path(self.checkout_label)
+
         self.my_path = self.get_my_absolute_checkout_path()
 
-    def path_in_checkout(self, rel):
-        return conventional_repo_path(rel)
-
     def check_out(self):
-        co_path = self.get_checkout_path(None)
-        utils.ensure_dir(co_path)
-        os.chdir(co_path)
+        parent_dir = os.path.split(self.co_path)[0]
+        utils.ensure_dir(parent_dir)
+        os.chdir(parent_dir)
         utils.run_cmd("svn checkout %s %s %s"%(self.r_option(),
                       self.svn_repo, self.checkout_name))
         
@@ -81,8 +81,8 @@ class SvnVCSFactory(VersionControlHandlerFactory):
     def describe(self):
         return "Subversion"
 
-    def manufacture(self, builder, checkout_name, repo, rev, rel, co_dir, branch):
-        return Svn(builder, checkout_name, repo, rev, rel, co_dir)
+    def manufacture(self, builder, checkout_label, checkout_name, repo, rev, rel, co_dir, branch):
+        return Svn(builder, checkout_label, checkout_name, repo, rev, rel, co_dir)
 
 # Register us with the VCS handler factory
 register_vcs_handler("svn", SvnVCSFactory())
@@ -116,7 +116,8 @@ def svn_dir_handler(action, url=None, directory=None, files=None):
     elif action == 'init':
         print 'The svn directory handler does not know how to "init" a directory'
     elif action == 'add':
-        utils.run_cmd("svn add %s"%' '.join(files))
+        if files:
+            utils.run_cmd("svn add %s"%' '.join(files))
     else:
         raise utils.Failure("Unrecognised action '%s' for svn directory handler"%action)
 

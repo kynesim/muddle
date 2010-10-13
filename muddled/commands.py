@@ -17,6 +17,7 @@ case your programs want to run them themselves
 # XXX (and more consistent with other muddled modules).
 
 from db import Database
+from depend import Label
 import db
 import depend
 import env_store
@@ -98,7 +99,7 @@ class Command:
         return ("no_operation" in self.options)
 
 
-    def with_build_tree(self, builder, local_pkgs, args):
+    def with_build_tree(self, builder, current_dir, args):
         """
         Run this command with a build tree.
         """
@@ -124,7 +125,7 @@ class Root(Command):
     def requires_build_tree(self):
         return False
 
-    def with_build_tree(self, builder, local_pkgs, args):
+    def with_build_tree(self, builder, current_dir, args):
         print "%s"%(builder.invocation.db.root_path)
         
     def without_build_tree(self, muddle_binary, root_path, args):
@@ -163,7 +164,7 @@ class Init(Command):
     def requires_build_tree(self):
         return False
 
-    def with_build_tree(self, builder, local_pkgs, args):
+    def with_build_tree(self, builder, current_dir, args):
         raise utils.Error("Can't initialise a build tree " 
                     "when one already exists (%s)"%builder.invocation.db.root_path)
     
@@ -191,8 +192,129 @@ class Init(Command):
             mechanics.load_builder(root_path, muddle_binary)
 
         print "Done.\n"
-        
-        return 0
+
+
+class Bootstrap(Command):
+    """
+    :Syntax: bootstrap <repo> <build_name>
+
+    Create a new build tree, from scratch.
+
+    * <repo> should be the root URL for the repository which you will be using
+      as the default remote location. It is assumed that it will contain a
+      'builds' and a 'versions' repository/subdirectory/whatever (this depends
+      a bit on version control system being used).
+
+      <repo> should be the same value that you would give to the 'init'
+      command, if that was being used instead.
+
+    * <build_name> is the name for the build. This should be a simple string,
+      usable as a filename. It is strongly recommended that it contain only
+      alphanumerics, underline, hyphen and dot (or period). Ideally it should
+      be a meaningful (but not too long) description of the build.
+
+    For instance::
+
+      $ cd /somewhere/convenient
+      $ muddle bootstrap git+http://example.com/fred/ build-27
+
+    You will end up with a build tree of the form::
+
+      .muddle/
+          RootRepository      -- containing "git+http://example/com/fred/"
+          Description         -- containing "builds/01.py"
+          VersionsRepository  -- containing "git+http://example/com/fred/versions/"
+      src/
+          builds/
+              .git/           -- assuming "http://example/com/fred/builds/"
+              01.py           -- wth a bare minimum of content
+      versions/
+              .git/           -- assuming "http://example/com/fred/versions/"
+
+    Note that 'src/builds/01.py' will have been *added* to the VCS (locally),
+    but will not have been committed (this may change in a future release).
+
+    Note muddle cannot currently set up the VCS support for Subversion in the
+    subdirectories.
+    """
+
+    def name(self):
+        return "bootstrap"
+
+    def requires_build_tree(self):
+        return False
+
+    def with_build_tree(self, builder, current_dir, args):
+        raise utils.Error("Can't bootstrap a build tree " 
+                    "when one already exists (%s)"%builder.invocation.db.root_path)
+
+    def without_build_tree(self, muddle_binary, root_path, args):
+        """
+        Bootstrap a build tree.
+        """
+
+        if len(args) != 2:
+            raise utils.Error(self.__doc__)
+
+        repo = args[0]
+        build_name = args[1]
+
+        build_desc = "builds/01.py"
+        build_dir = os.path.join("src","builds")
+        build_desc_file = os.path.join(build_dir, "01.py")
+
+        print "Bootstrapping build tree in %s "%root_path
+        print "Repository: %s"%repo
+        print "Build description: %s"%build_desc
+        print "\n"
+
+        print "Setting up subdirectories"
+        db = Database(root_path)
+        db.setup(repo, build_desc, versions_repo=os.path.join(repo,"versions"))
+        os.mkdir("versions")
+        os.makedirs(build_dir)
+
+        print "Setting up build description"
+        with open(build_desc_file, "w") as fd:
+            fd.write('''\
+#! /usr/bin/env python
+"""Muddle build description for %s
+"""
+
+def describe_to(builder):
+    builder.build_name = '%s'
+                     '''%(build_name, build_name))
+
+        # TODO: (a) do this properly and (b) do it for other VCS is necessary
+        vcs_name, just_url = version_control.split_vcs_url(repo)
+        if vcs_name == 'git':
+            print 'Hack for git: ignore .pyc files in src/builds'
+            with open(os.path.join(build_dir,'.gitignore'), "w") as fd:
+                fd.write('*.pyc\n')
+
+        print 'Telling muddle the build description is checked out'
+        db.set_tag(Label.from_string('checkout:builds/checked_out'))
+
+        # We shan't try to do anything more for subversion, firstly because
+        # the versions is not (yet) defined (because we're using SVN), and
+        # secondly because it may mean doing an import, or somesuch, which
+        # we don't have a "general" mechanism for.
+        #
+        # Otherwise, we assume we can try to set things up
+        if vcs_name != 'svn':
+            print 'Adding build description to VCS'
+            os.chdir(build_dir)
+            version_control.vcs_init_directory(vcs_name, ["01.py"])
+            if vcs_name == 'git':
+                version_control.vcs_init_directory(vcs_name, [".gitignore"])
+            os.chdir(root_path)
+
+            print 'Adding versions directory to VCS'
+            os.chdir("versions")
+            version_control.vcs_init_directory(vcs_name)
+            os.chdir(root_path)
+
+        print "Done.\n"
 
 class UnitTest(Command):
     """
@@ -210,11 +332,11 @@ class UnitTest(Command):
     def requires_build_tree(self):
         return False
 
-    def with_build_tree(self, builder, local_pkgs, args):
-        return test.unit_test()
+    def with_build_tree(self, builder, current_dir, args):
+        test.unit_test()
 
     def without_build_tree(self, muddle_binary, root_path, args):
-        return test.unit_test()
+        test.unit_test()
 
 class ListVCS(Command):
     """
@@ -230,11 +352,11 @@ class ListVCS(Command):
     def requires_build_tree(self):
         return False
 
-    def with_build_tree(self, builder, local_pkgs, args):
-        return self.do_command()
+    def with_build_tree(self, builder, current_dir, args):
+        self.do_command()
 
     def without_build_tree(self, muddle_binary, root_path, args):
-        return self.do_command()
+        self.do_command()
 
     def do_command(self):
         str_list = [ ]
@@ -280,15 +402,15 @@ class Depend(Command):
     def without_build_tree(self, muddle_binary, root_path, args):
         raise utils.Error("Cannot run without a build tree")
 
-    def with_build_tree(self, builder, local_pkgs, args):
+    def with_build_tree(self, builder, current_dir, args):
         if len(args) != 1 and len(args) != 2:
             print "Syntax: depend [system|user|all][-short] <label to match>"
             print self.__doc__
-            return 2
+            return
         
         type = args[0]
         if len(args) == 2:
-            label = depend.label_from_string(args[1])
+            label = Label.from_string(args[1])
         else:
             label = None
 
@@ -327,14 +449,21 @@ class Query(Command):
     'query <cmd1>' prints out information that doesn't need a label. <cmd1> may
     be any of:
 
-      checkouts
+      checkouts [-j]
         Print a list of known checkouts.
 
-      packages
+      checkout_dirs
+        Print a list of the known checkouts and their checkout paths
+	(relative to ``src/``)
+
+      domains [-j]
+        Prints a list of known domains.
+
+      packages [-j]
         Print a list of known packages.  If there is a rule for "package:*{}/*"
         (for instance), then '*' will be included in the names returned.
 
-      roles
+      roles [-j]
         Print a list of known roles.
 
       root
@@ -346,6 +475,10 @@ class Query(Command):
         instance in bash::
 
             export PROJECT_NAME=$(muddle query name)
+
+    For those <cmd1> switches with [-j], the default is to print one name per
+    line, unless '-j' is specified, in which case all of the values are printed
+    on one "line", separated by spaces.
 
     'query <cmd2> <label>' prints information about the label - the environment
     in which it will execute, or what it depends on, or what depends on it.
@@ -423,6 +556,8 @@ class Query(Command):
         just the defaults).  Otherwise, arguments are labels.
     """
 
+    JOIN_SWITCH = '-j'
+
     def name(self):
         return "query"
 
@@ -430,8 +565,7 @@ class Query(Command):
         return True
 
     def _query_objdir(self, builder, label):
-        print builder.invocation.package_obj_path(label.name, label.role, 
-                                                  domain = label.domain)
+        print builder.invocation.package_obj_path(label)
 
     def _query_preciseenv(self, builder, label):
         the_env = builder.invocation.get_environment_for(label)
@@ -472,19 +606,26 @@ class Query(Command):
 
         # Amend the environment as if we were about to build
         old_env = os.environ
-        os.environ = {}
-        rule = list(rule_set)[0]
-        builder._build_label_env(label, env_store)
-        build_obj = rule.obj
-        co_path = builder.invocation.checkout_path(build_obj.co, domain=label.domain)
-        build_obj._amend_env(co_path)
+        try:
+            os.environ = {}
+            rule = list(rule_set)[0]
+            builder._build_label_env(label, env_store)
+            build_obj = rule.obj
+            tmp = Label(utils.LabelType.Checkout, build_obj.co, domain=label.domain)
+            co_path = builder.invocation.checkout_path(tmp)
+	    try:
+		build_obj._amend_env(co_path)
+	    except AttributeError:
+		# The kernel builder, for instance, does not have _amend_env
+		# Of course, it also doesn't use any of the make.py classes...
+		pass
 
-        keys = os.environ.keys()
-        keys.sort()
-        for key in keys:
-            print '%s=%s'%(key,os.environ[key])
-
-        os.environ = old_env
+            keys = os.environ.keys()
+            keys.sort()
+            for key in keys:
+                print '%s=%s'%(key,os.environ[key])
+        finally:
+            os.environ = old_env
 
     def _query_rule(self, builder, label):
         local_rule = builder.invocation.ruleset.rule_for_target(label)
@@ -527,29 +668,45 @@ class Query(Command):
             print i.get_xml()
         print "-- Done --"
 
-    def _query_checkouts(self, builder, label):
+    def _query_checkouts(self, builder, label, switches=None):
+        joined = switches and (Query.JOIN_SWITCH in switches)
         cos = builder.invocation.all_checkouts()
-        a_list = [ ]
-        for c in cos:
-            a_list.append(c)
+        a_list = list(cos)
         a_list.sort()
-        print "Checkouts: %s"%(" ".join(a_list))
+        if joined:
+            print '%s'%" ".join(a_list)
+        else:
+            print '%s'%"\n".join(a_list)
 
-    def _query_packages(self, builder, label):
-        cos = builder.invocation.all_packages()
-        a_list = [ ]
-        for c in cos:
-            a_list.append(c)
+    def _query_domains(self, builder, label, switches=None):
+        joined = switches and (Query.JOIN_SWITCH in switches)
+        domains = builder.invocation.all_domains()
+        a_list = list(domains)
         a_list.sort()
-        print "Packages: %s"%(" ".join(a_list))
+        if joined:
+            print '%s'%" ".join(a_list)
+        else:
+            print '%s'%"\n".join(a_list)
 
-    def _query_roles(self, builder, label):
-        cos = builder.invocation.all_roles()
-        a_list = [ ]
-        for c in cos:
-            a_list.append(c)
+    def _query_packages(self, builder, label, switches=None):
+        joined = switches and (Query.JOIN_SWITCH in switches)
+        packages = builder.invocation.all_packages()
+        a_list = list(packages)
         a_list.sort()
-        print "Roles: %s"%(" ".join(a_list))
+        if joined:
+            print '%s'%" ".join(a_list)
+        else:
+            print '%s'%"\n".join(a_list)
+
+    def _query_roles(self, builder, label, switches=None):
+        joined = switches and (self.JOIN_SWITCH in switches)
+        roles = builder.invocation.all_roles()
+        a_list = list(roles)
+        a_list.sort()
+        if joined:
+            print '%s'%" ".join(a_list)
+        else:
+            print '%s'%"\n".join(a_list)
 
     def _query_root(self, builder, label):
         print "Root: %s"%builder.invocation.db.root_path
@@ -559,7 +716,7 @@ class Query(Command):
         print builder.build_name
 
     def _query_matching_label(self, builder, label):
-        wildcard_label = depend.Label("*", "*", "*", "*", domain="*")
+        wildcard_label = Label("*", "*", "*", "*", domain="*")
         all_rules = builder.invocation.ruleset.rules_for_target(wildcard_label)
         all_labels = set()
         for r in all_rules:
@@ -583,22 +740,14 @@ class Query(Command):
     def _query_dir(self, builder, label):
             dir = None
 
-            if (label.role == "*"):
-                role = None
-            else:
-                role = label.role
-
-
-            if label.type == utils.LabelKind.Checkout:
-                dir = builder.invocation.db.get_checkout_path(label.name,
-                        domain=label.domain)
-            elif label.type == utils.LabelKind.Package:
-                dir = builder.invocation.package_install_path(label.name, role,
-                        domain=label.domain)
-            elif label.type == utils.LabelKind.Deployment:
+            if label.type == utils.LabelType.Checkout:
+                dir = builder.invocation.db.get_checkout_path(label)
+            elif label.type == utils.LabelType.Package:
+                dir = builder.invocation.package_install_path(label)
+            elif label.type == utils.LabelType.Deployment:
                 dir = builder.invocation.deploy_path(label.name,
                         domain=label.domain)
-                
+
             if dir is not None:
                 print dir
             else:
@@ -607,9 +756,10 @@ class Query(Command):
     def _query_unused(self, builder, args):
 
         def all_deployables(builder):
-            search_label = depend.Label(utils.LabelKind.Deployment,
-                                        "*", "*", utils.Tags.Deployed,
-                                        domain="*")
+            search_label = Label(utils.LabelType.Deployment,
+                                 "*", "*",
+                                 utils.LabelTag.Deployed,
+                                 domain="*")
             all_rules = builder.invocation.ruleset.rules_for_target(search_label)
             deployables = set()
             for r in all_rules:
@@ -622,7 +772,7 @@ class Query(Command):
                 if thing == '_all':
                     targets = targets.union(all_deployables(builder))
                 else:
-                    targets.add(depend.Label.from_string(thing))
+                    targets.add(Label.from_string(thing))
             print 'Finding labels unused by:'
         else:
             print 'Finding labels unused by the default deployables:'
@@ -642,7 +792,7 @@ class Query(Command):
 
         print 'Number of "needed" labels is %d.'%len(all_needed_labels)
 
-        search_label = depend.Label("*", "*", "*", "*", domain="*")
+        search_label = Label("*", "*", "*", "*", domain="*")
         all_rules = builder.invocation.ruleset.rules_for_target(search_label)
         all_labels = set()
         for r in all_rules:
@@ -668,7 +818,7 @@ class Query(Command):
                 num_transient += 1
             elif not l.is_definite():
                 wildcarded.add(l)
-            elif l.tag == utils.Tags.Pulled:
+            elif l.tag == utils.LabelTag.Pulled:
                 pulled.add(l)
             else:
                 missing.add(l)
@@ -700,7 +850,7 @@ class Query(Command):
         def label_key(l):
             key_parts = ['%s:'%l.type]
             if l.domain:
-                key_parts.append = '(%s)'%l.domain
+                key_parts.append('(%s)'%l.domain)
             key_parts.append(l.name)
             if l.role:
                 key_parts.append('{%s}'%l.role)
@@ -714,11 +864,11 @@ class Query(Command):
                 d[key] = [l.tag]
 
         for l in missing:
-            if l.type == utils.LabelKind.Checkout:
+            if l.type == utils.LabelType.Checkout:
                 add_label(checkouts,l)
-            elif l.type == utils.LabelKind.Package:
+            elif l.type == utils.LabelType.Package:
                 add_label(packages,l)
-            elif l.type == utils.LabelKind.Deployment:
+            elif l.type == utils.LabelType.Deployment:
                 add_label(deployments,l)
             else:
                 add_label(other,l)
@@ -738,69 +888,111 @@ class Query(Command):
         print_labels(deployments)
         print_labels(other)
 
+    def _query_checkout_dirs(self, builder, ignored):
+        """Testing stuff...
+        """
+	builder.invocation.db.dump_checkout_paths()
 
-    # Key is <cmd> name, value is (<does it need a label?>, <method>)
+    def _query_test(self, builder, args):
+        """Testing stuff...
+        """
+        if not args or args[0] not in ('all', 'checkouts'):
+            raise utils.Failure('"test all" to test _all, or "test checkouts"'
+                    ' to dump checkout locations')
+
+        which = args[0]
+        args = args[1:]
+
+        if which == 'all':
+            current_dir = os.getcwd()
+            labels = labels_from_pkg_args(builder, args, current_dir,
+                                          utils.LabelTag.PostInstalled)
+            labels.sort()
+            print 'Testing'
+            print 'Current dir:',current_dir
+            for label in labels:
+                print label
+        elif which == 'checkouts':
+            builder.invocation.db.dump_checkout_dirs()
+
+
+    # Key is <cmd> name, value is (<does it need a label?>, <method>, <switches>)
     queries = {
-            'checkouts' : (False, _query_checkouts),
-            'packages' : (False, _query_packages),
-            'roles' : (False, _query_roles),
-            'deps' : (True, _query_deps),
-            'dir' : (True, _query_dir),
-            'env' : (True, _query_env),
-            'envs' : (True, _query_envs),
-            'inst-details' : (True, _query_inst_details),
-            'instructions' : (True, _query_instructions),
-            'makeenv' : (True, _query_make_env),
-            'match' : (True, _query_matching_label),
-            'name' : (False, _query_name),
-            'objdir' : (True, _query_objdir),
-            'preciseenv' : (True, _query_preciseenv),
-            'results' : (True, _query_results),
-            'root' : (False, _query_root),
-            'rule' : (True, _query_rule),
-            'targets' : (True, _query_targets),
-            'unused' : (None, _query_unused), # may have 0 or more labels
+            'checkouts' : (False, _query_checkouts, [JOIN_SWITCH]),
+            'checkout_dirs' : (False, _query_checkout_dirs, []),
+            'domains' : (False, _query_domains, [JOIN_SWITCH]),
+            'packages' : (False, _query_packages, [JOIN_SWITCH]),
+            'roles' : (False, _query_roles, [JOIN_SWITCH]),
+            'deps' : (True, _query_deps, []),
+            'dir' : (True, _query_dir, []),
+            'env' : (True, _query_env, []),
+            'envs' : (True, _query_envs, []),
+            'inst-details' : (True, _query_inst_details, []),
+            'instructions' : (True, _query_instructions, []),
+            'makeenv' : (True, _query_make_env, []),
+            'match' : (True, _query_matching_label, []),
+            'name' : (False, _query_name, []),
+            'objdir' : (True, _query_objdir, []),
+            'preciseenv' : (True, _query_preciseenv, []),
+            'results' : (True, _query_results, []),
+            'root' : (False, _query_root, []),
+            'rule' : (True, _query_rule, []),
+            'targets' : (True, _query_targets, []),
+            'unused' : (None, _query_unused, []),   # may have 0 or more labels
+            'test' : (None, _query_test, []),       # may have 0 or more labels
             }
 
-    def with_build_tree(self, builder, local_pkgs, args):
+    def with_build_tree(self, builder, current_dir, args):
         if len(args) < 1:
             print "Syntax: query <cmd> [<label>]"
             print self.__doc__
-            return 2
+            return
 
         type = args[0]
+        args = args[1:]
 
         if type not in Query.queries.keys():
             print "Unrecognised query type '%s'"%type
             print self.__doc__
-            return 2
+            return
 
-        needs_label, fn = Query.queries[type]
+        needs_label, fn, switches = Query.queries[type]
+
+        # This is nastily hacky, but will work for now
+        with_switches = []
+        if switches:
+            while args and args[0] in switches:
+                with_switches.append(args[0])
+                args = args[1:]
 
         if needs_label is None:
-            label = args[1:]            # just pass the argument down
+            label = args            # just pass the argument down
         elif needs_label:
-            if len(args) != 2:
+            if len(args) != 1:
                 print "Syntax: query %s <label>"%type
                 print self.__doc__
-                return 2
+                return
 
-            label = depend.label_from_string(args[1])
-            if (label is None):
-                print "'%s' is not a valid label"%(args[1])
+            try:
+                label = Label.from_string(args[0])
+            except utils.Failure as exc:
+                print exc
                 print "It should contain at least <type>:<name>/<tag>"
-                return 3
+                return
 
-            if (label.domain is None):
-                label.domain = builder.get_default_domain()
+            if label.domain is None:
+                default_domain = builder.get_default_domain()
+                if default_domain:
+                    label = label.copy_with_domain(default_domain)
 
             label = builder.invocation.apply_unifications(label)
         else:
             label = None
 
-        fn(self, builder, label)
-
-        return 0
+        if with_switches:
+            fn(self, builder, label, with_switches)
+        else:
+            fn(self, builder, label)
 
 
 class RunIn(Command):
@@ -823,16 +1015,15 @@ class RunIn(Command):
     def requires_build_tree(self):
         return True
 
-    def with_build_tree(self, builder, local_pkgs, args):
+    def with_build_tree(self, builder, current_dir, args):
         if (len(args) < 2):
             print "Syntax: runin <label> <command> [ ... ]"
             print self.__doc__
-            return 2
+            return
 
         labels = decode_labels(builder, args[0:1] );
         command = " ".join(args[1:])
         dirs_done = set()
-        orig_environ = os.environ
 
         for l in labels:
             matching = builder.invocation.ruleset.rules_for_target(l)
@@ -845,13 +1036,13 @@ class RunIn(Command):
                     # If it's a wildcard, don't bother.
                     continue
 
-                if (lbl.type == utils.LabelKind.Checkout):
-                    dir = builder.invocation.checkout_path(lbl.name)
-                elif (lbl.type == utils.LabelKind.Package):
+                if (lbl.type == utils.LabelType.Checkout):
+                    dir = builder.invocation.checkout_path(lbl)
+                elif (lbl.type == utils.LabelType.Package):
                     if (lbl.role == "*"): 
                         continue
-                    dir = builder.invocation.package_obj_path(lbl.name, lbl.role)
-                elif (lbl.type == utils.LabelKind.Deployment):
+                    dir = builder.invocation.package_obj_path(lbl)
+                elif (lbl.type == utils.LabelType.Deployment):
                     dir = builder.invocation.deploy_path(lbl.name)
                     
                 if (dir in dirs_done):
@@ -893,7 +1084,7 @@ class BuildLabel(Command):
     def requires_build_tree(self):
         return True
 
-    def with_build_tree(self, builder, local_pkgs, args):
+    def with_build_tree(self, builder, current_dir, args):
         labels = decode_labels(builder, args)
         build_labels(builder, labels)
 
@@ -916,14 +1107,13 @@ class Redeploy(Command):
     def requires_build_tree(self):
         return True
 
-    def with_build_tree(self, builder, local_pkgs, args):
-        labels = decode_deployment_arguments(builder, args, local_pkgs,
-                                             utils.Tags.Deployed)
-        rv = build_a_kill_b(builder, labels, utils.Tags.Clean,
-                            utils.Tags.Deployed)
-        rv = build_labels(builder, labels)
-        return rv
-        
+    def with_build_tree(self, builder, current_dir, args):
+        labels = decode_deployment_arguments(builder, args,
+                                             utils.LabelTag.Deployed)
+        build_a_kill_b(builder, labels, utils.LabelTag.Clean,
+                       utils.LabelTag.Deployed)
+        build_labels(builder, labels)
+
 
 class Cleandeploy(Command):
     """
@@ -944,12 +1134,12 @@ class Cleandeploy(Command):
     def requires_build_tree(self):
         return True
 
-    def with_build_tree(self, builder, local_pkgs, args):
-        labels = decode_deployment_arguments(builder, args, local_pkgs,
-                                             utils.Tags.Clean)
+    def with_build_tree(self, builder, current_dir, args):
+        labels = decode_deployment_arguments(builder, args,
+                                             utils.LabelTag.Clean)
         if (labels is None):
             raise utils.Failure("No deployments specified or implied (this may well be a bug).")
-        rv = build_a_kill_b(builder, labels, utils.Tags.Clean, utils.Tags.Deployed)
+        build_a_kill_b(builder, labels, utils.LabelTag.Clean, utils.LabelTag.Deployed)
 
 
 class Deploy(Command):
@@ -967,12 +1157,62 @@ class Deploy(Command):
     def requires_build_tree(self):
         return True
 
-    def with_build_tree(self, builder, local_pkgs, args):
-        labels = decode_deployment_arguments(builder, args, local_pkgs, 
-                                             utils.Tags.Deployed)
+    def with_build_tree(self, builder, current_dir, args):
+        labels = decode_deployment_arguments(builder, args,
+                                             utils.LabelTag.Deployed)
 
         build_labels(builder, labels)
 
+
+class Configure(Command):
+    """
+    :Syntax: configure [ <package>{<role>} ... ]
+
+    Configure a package. If the package name isn't given, we'll use the
+    list of local packages derived from your current directory.
+
+    If you're in a checkout directory, we'll configure every package
+    which uses that checkout.
+
+    _all is a special package meaning configure everything.
+    """
+
+    def name(self):
+        return "configure"
+
+    def requires_build_tree(self):
+        return True
+
+    def with_build_tree(self, builder, current_dir, args):
+        labels = labels_from_pkg_args(builder, args, current_dir,
+                                      utils.LabelTag.Configured)
+        build_labels(builder, labels)
+
+
+class Reconfigure(Command):
+    """
+    :Syntax: reconfigure [ <package>{<role>} ... ]
+
+    Just like configure except that we clear any configured/built tags first
+    (and their dependencies).
+    """
+
+    def name(self):
+        return "reconfigure"
+
+    def requires_build_tree(self):
+        return True
+
+    def with_build_tree(self, builder, current_dir, args):
+        labels = labels_from_pkg_args(builder, args, current_dir,
+                                      utils.LabelTag.Configured)
+
+        # OK. Now we have our labels, retag them, and kill them and their
+        # consequents
+        to_kill = depend.retag_label_list(labels,
+                                          utils.LabelTag.Configured)
+        kill_labels(builder, to_kill)
+        build_labels(builder, labels)
 
 
 class Build(Command):
@@ -997,9 +1237,9 @@ class Build(Command):
     def requires_build_tree(self):
         return True
     
-    def with_build_tree(self, builder, local_pkgs, args):
-        labels = decode_package_arguments(builder, args, local_pkgs, 
-                                          utils.Tags.PostInstalled)
+    def with_build_tree(self, builder, current_dir, args):
+        labels = labels_from_pkg_args(builder, args, current_dir,
+                                      utils.LabelTag.PostInstalled)
         
         build_labels(builder, labels)
 
@@ -1018,20 +1258,16 @@ class Rebuild(Command):
     def requires_build_tree(self):
         return True
 
-    def with_build_tree(self, builder, local_pkgs, args):
-        labels = decode_package_arguments(builder, args, local_pkgs,
-                                          utils.Tags.PostInstalled)
+    def with_build_tree(self, builder, current_dir, args):
+        labels = labels_from_pkg_args(builder, args, current_dir,
+                                      utils.LabelTag.PostInstalled)
 
         # OK. Now we have our labels, retag them, and kill them and their
         # consequents
         to_kill = depend.retag_label_list(labels, 
-                                          utils.Tags.Built)
-        rv = kill_labels(builder, to_kill)
-        if rv != 0:
-            return rv
-
-        rv = build_labels(builder, labels)
-        return rv
+                                          utils.LabelTag.Built)
+        kill_labels(builder, to_kill)
+        build_labels(builder, labels)
 
 
 class Reinstall(Command):
@@ -1047,21 +1283,16 @@ class Reinstall(Command):
     def requires_build_tree(self):
         return True
 
-    def with_build_tree(self, builder, local_pkgs, args):
-        labels = decode_package_arguments(builder, args, local_pkgs,
-                                          utils.Tags.PostInstalled)
+    def with_build_tree(self, builder, current_dir, args):
+        labels = labels_from_pkg_args(builder, args, current_dir,
+                                      utils.LabelTag.PostInstalled)
 
         # OK. Now we have our labels, retag them, and kill them and their
         # consequents
         to_kill = depend.retag_label_list(labels, 
-                                          utils.Tags.Installed)
-        rv = kill_labels(builder, to_kill)
-        if rv != 0:
-            return rv
-
-        rv = build_labels(builder, labels)
-        return rv
-
+                                          utils.LabelTag.Installed)
+        kill_labels(builder, to_kill)
+        build_labels(builder, labels)
 
 
 class Distrebuild(Command):
@@ -1077,21 +1308,16 @@ class Distrebuild(Command):
     def requires_build_tree(self):
         return True
 
-    def with_build_tree(self, builder, local_pkgs, args):
-        labels = decode_package_arguments(builder, args, local_pkgs,
-                                          utils.Tags.PostInstalled)
+    def with_build_tree(self, builder, current_dir, args):
+        labels = labels_from_pkg_args(builder, args, current_dir,
+                                      utils.LabelTag.PostInstalled)
 
         if (self.no_op()):
             print "Would have distrebuilt: %s"%(" ".join(map(str, labels)))
         else:
-            rv = build_a_kill_b(builder, labels, utils.Tags.DistClean,
-                                utils.Tags.PreConfig)
-            
-            if rv:
-                return rv
-
-            rv = build_labels(builder, labels)
-            return rv
+            build_a_kill_b(builder, labels, utils.LabelTag.DistClean,
+                           utils.LabelTag.PreConfig)
+            build_labels(builder, labels)
 
 
 class Clean(Command):
@@ -1109,16 +1335,13 @@ class Clean(Command):
     def requires_build_tree(self):
         return True
 
-    def with_build_tree(self, builder, local_pkgs, args):
-        labels = decode_package_arguments(builder, args, local_pkgs, 
-                                          utils.Tags.Built)
+    def with_build_tree(self, builder, current_dir, args):
+        labels = labels_from_pkg_args(builder, args, current_dir,
+                                      utils.LabelTag.Built)
         if (self.no_op()):
             print "Would have cleaned: %s"%(" ".join(map(str, labels)))
-            rv = 0
         else:
-            rv = build_a_kill_b(builder, labels, utils.Tags.Clean, utils.Tags.Built)
-
-        return rv
+            build_a_kill_b(builder, labels, utils.LabelTag.Clean, utils.LabelTag.Built)
 
 class DistClean(Command):
     """
@@ -1134,17 +1357,14 @@ class DistClean(Command):
     def requires_build_tree(self):
         return True
 
-    def with_build_tree(self, builder, local_pkgs, args):
-        labels = decode_package_arguments(builder, args, local_pkgs, 
-                                          utils.Tags.Built)
+    def with_build_tree(self, builder, current_dir, args):
+        labels = labels_from_pkg_args(builder, args, current_dir,
+                                      utils.LabelTag.Built)
 
         if (self.no_op()):
             print "Would have disctleaned: %s"%(" ".join(map(str, labels)))
-            rv = 0
         else:
-            rv = build_a_kill_b(builder, labels, utils.Tags.DistClean, utils.Tags.PreConfig)
-
-        return rv
+            build_a_kill_b(builder, labels, utils.LabelTag.DistClean, utils.LabelTag.PreConfig)
 
 class Instruct(Command):
     """
@@ -1177,22 +1397,20 @@ class Instruct(Command):
     def requires_build_tree(self):
         return True
 
-    def with_build_tree(self, builder, local_pkgs, args):
+    def with_build_tree(self, builder, current_dir, args):
         if (len(args) != 2 and len(args) != 1):
             print "Syntax: instruct [pkg{role}] <[instruction-file]>"
             print self.__doc__
-            return 1
+            return
 
         pkg_role = args[0]
         ifile = None
 
-        # Validate this first - the file check may take a while.
-        lbls = labels_from_pkg_args([ pkg_role ], utils.Tags.PreConfig,
-                                    [ ], builder.get_default_domain())
+        # Validate this first
+        label = label_from_pkg_arg(pkg_role, utils.LabelTag.PreConfig,
+                                   None, builder.get_default_domain())
 
-        lbls = builder.invocation.map_unifications(lbls)
-
-        if (len(lbls) != 1 or (lbls[0].role is None)):
+        if label.role is None or label.role == '*':
             raise utils.Failure("instruct takes precisely one package{role} pair "
                                 "and the role must be explicit")
 
@@ -1213,11 +1431,10 @@ class Instruct(Command):
 
             # If we got here, it's obviously OK
 
-        
         # Last, but not least, do the instruction ..
         if (not self.no_op()):
-            builder.instruct(lbls[0].name, lbls[0].role, ifile, domain=lbls[0].domain)
-                                    
+            builder.instruct(label.name, label.role, ifile, domain=label.domain)
+
 class Update(Command):
     """
     :Syntax: update <checkout> [ <checkout> ... ]
@@ -1245,9 +1462,9 @@ class Update(Command):
     def requires_build_tree(self):
         return True
     
-    def with_build_tree(self, builder, local_pkgs, args):
-        checkouts = decode_checkout_arguments(builder, args, local_pkgs,
-                                              utils.Tags.UpToDate)
+    def with_build_tree(self, builder, current_dir, args):
+        checkouts = decode_checkout_arguments(builder, args,
+                                              utils.LabelTag.UpToDate)
         # Forcibly retract all the updated tags.
         if (self.no_op()):
             print "Updating checkouts: %s "%(depend.label_list_to_string(checkouts))
@@ -1287,9 +1504,9 @@ class Commit(Command):
     def requires_build_tree(self):
         return True
 
-    def with_build_tree(self, builder, local_pkgs, args):
-        checkouts = decode_checkout_arguments(builder, args, local_pkgs,
-                                              utils.Tags.ChangesCommitted)
+    def with_build_tree(self, builder, current_dir, args):
+        checkouts = decode_checkout_arguments(builder, args,
+                                              utils.LabelTag.ChangesCommitted)
         # Forcibly retract all the updated tags.
         if (self.no_op()):
             print "Committing checkouts: %s"%(depend.label_list_to_string(checkouts))
@@ -1330,9 +1547,9 @@ class Push(Command):
     def requires_build_tree(self):
         return True
 
-    def with_build_tree(self, builder, local_pkgs, args):
-        checkouts = decode_checkout_arguments(builder, args, local_pkgs,
-                                              utils.Tags.ChangesPushed)
+    def with_build_tree(self, builder, current_dir, args):
+        checkouts = decode_checkout_arguments(builder, args,
+                                              utils.LabelTag.ChangesPushed)
         # Forcibly retract all the updated tags.
         if (self.no_op()):
             print "Pushing checkouts: %s"%(depend.label_list_to_string(checkouts))
@@ -1372,9 +1589,9 @@ class Pull(Command):
     def requires_build_tree(self):
         return True
 
-    def with_build_tree(self, builder, local_pkgs, args):
-        checkouts = decode_checkout_arguments(builder, args, local_pkgs,
-                                              utils.Tags.Pulled)
+    def with_build_tree(self, builder, current_dir, args):
+        checkouts = decode_checkout_arguments(builder, args,
+                                              utils.LabelTag.Pulled)
         # Forcibly retract all the updated tags.
         if (self.no_op()):
             print "Pull checkouts: %s"%(depend.label_list_to_string(checkouts))
@@ -1424,7 +1641,7 @@ class Reparent(Command):
     def requires_build_tree(self):
         return True
 
-    def with_build_tree(self, builder, local_pkgs, args):
+    def with_build_tree(self, builder, current_dir, args):
 
         if args and args[0] in ('-f', '-force'):
             args = args[1:]
@@ -1432,8 +1649,8 @@ class Reparent(Command):
         else:
             force = False
 
-        checkouts = decode_checkout_arguments(builder, args, local_pkgs,
-                                              utils.Tags.Pulled)
+        checkouts = decode_checkout_arguments(builder, args,
+                                              utils.LabelTag.Pulled)
         if (self.no_op()):
             print "Reparent checkouts: %s"%(depend.label_list_to_string(checkouts))
         else:
@@ -1475,9 +1692,9 @@ class PkgUpdate(Command):
     def requires_build_tree(self):
         return True
 
-    def with_build_tree(self, builder, local_pkgs, args):
-        checkouts = decode_dep_checkout_arguments(builder, args, local_pkgs,
-                                              utils.Tags.UpToDate)
+    def with_build_tree(self, builder, current_dir, args):
+        checkouts = decode_dep_checkout_arguments(builder, args, current_dir,
+                                                  utils.LabelTag.UpToDate)
         # Forcibly retract all the updated tags.
         if (self.no_op()):
             print "Updating checkouts: %s "%(depend.label_list_to_string(checkouts))
@@ -1516,9 +1733,9 @@ class PkgCommit(Command):
     def requires_build_tree(self):
         return True
 
-    def with_build_tree(self, builder, local_pkgs, args):
-        checkouts = decode_dep_package_arguments(builder, args, local_pkgs,
-                                              utils.Tags.ChangesCommitted)
+    def with_build_tree(self, builder, current_dir, args):
+        checkouts = decode_dep_checkout_arguments(builder, args, current_dir,
+                                                  utils.LabelTag.ChangesCommitted)
         # Forcibly retract all the updated tags.
         if (self.no_op()):
             print "Committing checkouts: %s"%(depend.label_list_to_string(checkouts))
@@ -1555,9 +1772,9 @@ class PkgPush(Command):
     def requires_build_tree(self):
         return True
 
-    def with_build_tree(self, builder, local_pkgs, args):
-        checkouts = decode_dep_package_arguments(builder, args, local_pkgs,
-                                              utils.Tags.ChangesPushed)
+    def with_build_tree(self, builder, current_dir, args):
+        checkouts = decode_dep_checkout_arguments(builder, args, current_dir,
+                                                  utils.LabelTag.ChangesPushed)
         # Forcibly retract all the updated tags.
         if (self.no_op()):
             print "Pushing checkouts: %s"%(depend.label_list_to_string(checkouts))
@@ -1585,9 +1802,9 @@ class Removed(Command):
     def requires_build_tree(self):
         return True
 
-    def with_build_tree(self, builder, local_pkgs, args):
-        checkouts = decode_checkout_arguments(builder, args, local_pkgs,
-                                              utils.Tags.CheckedOut)
+    def with_build_tree(self, builder, current_dir, args):
+        checkouts = decode_checkout_arguments(builder, args,
+                                              utils.LabelTag.CheckedOut)
 
         if (self.no_op()):
             print "Signalling checkout removal for: "%(depend.label_list_to_string(checkouts))
@@ -1617,10 +1834,9 @@ class Unimport(Command):
     def requires_build_tree(self):
         return True
 
-    def with_build_tree(self, builder, local_pkgs, args):
-        checkouts = decode_checkout_arguments(builder, args, 
-                                              local_pkgs,
-                                              utils.Tags.CheckedOut)
+    def with_build_tree(self, builder, current_dir, args):
+        checkouts = decode_checkout_arguments(builder, args,
+                                              utils.LabelTag.CheckedOut)
 
         if (self.no_op()):
             print "Unimporting checkouts: %s"%(depend.label_list_to_string(checkouts))
@@ -1655,15 +1871,15 @@ class Import(Command):
     def requires_build_tree(self):
         return True
 
-    def with_build_tree(self, builder, local_pkgs, args):
-        checkouts = decode_checkout_arguments(builder, args, local_pkgs,
-                                              utils.Tags.CheckedOut)
+    def with_build_tree(self, builder, current_dir, args):
+        checkouts = decode_checkout_arguments(builder, args,
+                                              utils.LabelTag.CheckedOut)
         if (self.no_op()):
             print "Importing checkouts: %s"%(depend.label_list_to_string(checkouts))
         else:
             for c in checkouts:
                 builder.invocation.db.set_tag(c)
-                d = c.re_tag(utils.Tags.UpToDate)
+                d = c.copy_with_tag(utils.LabelTag.UpToDate)
                 builder.invocation.db.set_tag(d)
 
 class Assert(Command):
@@ -1679,11 +1895,11 @@ class Assert(Command):
     def requires_build_tree(self):
         return True
 
-    def with_build_tree(self, builder, local_pkgs, args):
+    def with_build_tree(self, builder, current_dir, args):
         if (len(args) < 1):
             print "Syntax: assert [label.. ]"
             print __doc__
-            return 1
+            return
 
         labels = decode_labels(builder, args)
         if self.no_op():
@@ -1706,11 +1922,11 @@ class Retract(Command):
     def requires_build_tree(self):
         return True
 
-    def with_build_tree(self, builder, local_pkgs, args):
+    def with_build_tree(self, builder, current_dir, args):
         if len(args) < 1 :
             print "Syntax: retract [label ... ]"
             print __doc__
-            return 1
+            return
 
         labels = decode_labels(builder, args)
         if (self.no_op()):
@@ -1738,9 +1954,9 @@ class Changed(Command):
     def requires_build_tree(self):
         return True
 
-    def with_build_tree(self, builder, local_pkgs, args):
-        labels = decode_package_arguments(builder, args, local_pkgs,
-                                          utils.Tags.Built)
+    def with_build_tree(self, builder, current_dir, args):
+        labels = labels_from_pkg_args(builder, args, current_dir,
+                                      utils.LabelTag.Built)
         if (self.no_op()):
             print "Marking changed: %s"%(depend.label_list_to_string(labels))
         else:
@@ -1765,7 +1981,7 @@ class Env(Command):
     def requires_build_tree(self):
         return True
 
-    def with_build_tree(self,builder, local_pkgs, args):
+    def with_build_tree(self,builder, current_dir, args):
         if (len(args) < 3):
             raise utils.Failure("Syntax: env [language] [build|run] [name] [label ... ]")
 
@@ -1774,15 +1990,13 @@ class Env(Command):
         name = args[2]
 
         if (mode == "build"):
-            tag = utils.Tags.Built
+            tag = utils.LabelTag.Built
         elif (mode == "run"):
-            tag = utils.Tags.RuntimeEnv
+            tag = utils.LabelTag.RuntimeEnv
         else:
             raise utils.Failure("Mode '%s' is not understood - use build or run."%mode)
 
-
-        labels = decode_package_arguments(builder, args[3:], local_pkgs, 
-                                          tag)
+        labels = labels_from_pkg_args(builder, args[3:], current_dir, tag)
         if (self.no_op()):
             print "> Environment for labels %s"%(depend.label_list_to_string(labels))
         else:
@@ -1809,8 +2023,6 @@ class Env(Command):
             
             print script
 
-        return 0
-    
 class UnCheckout(Command):
     """
     :Syntax: uncheckout <checkout> [ <checkout> ... ]
@@ -1839,9 +2051,9 @@ class UnCheckout(Command):
     def requires_build_tree(self):
         return True
 
-    def with_build_tree(self, builder, local_pkgs, args):
-        checkouts = decode_checkout_arguments(builder, args, local_pkgs, 
-                                              utils.Tags.CheckedOut)
+    def with_build_tree(self, builder, current_dir, args):
+        checkouts = decode_checkout_arguments(builder, args,
+                                              utils.LabelTag.CheckedOut)
         if (self.no_op()):
             print "Uncheckout: %s"%(depend.label_list_to_string(checkouts))
         else:
@@ -1867,9 +2079,9 @@ class Checkout(Command):
     def requires_build_tree(self):
         return True
 
-    def with_build_tree(self, builder, local_pkgs, args):
-        checkouts = decode_checkout_arguments(builder, args, local_pkgs, 
-                                              utils.Tags.CheckedOut)
+    def with_build_tree(self, builder, current_dir, args):
+        checkouts = decode_checkout_arguments(builder, args,
+                                              utils.LabelTag.CheckedOut)
         if (self.no_op()):
             print "Checkout: %s"%(depend.label_list_to_string(checkouts))
         else:
@@ -1882,7 +2094,7 @@ class CopyWithout(Command):
 
     Many VCSs use '.XXX' directories to hold metadata. When installing
     files in a makefile, it's often useful to have an operation which
-    copies a heirarchy from one place to another without these dotfiles.
+    copies a hierarchy from one place to another without these dotfiles.
 
     This is that operation. We copy everything from src into dst without
     copying anything which is in [ <without> ... ].  If you omit without, 
@@ -1895,11 +2107,11 @@ class CopyWithout(Command):
     def requires_build_tree(self):
         return False
 
-    def with_build_tree(self, builder, local_pkgs, args):
-        return self.do_copy(args)
+    def with_build_tree(self, builder, current_dir, args):
+        self.do_copy(args)
 
     def without_build_tree(self, muddle_binary, root_path, args):
-        return self.do_copy(args)
+        self.do_copy(args)
 
     def do_copy(self, args):
         if (len(args) < 2):
@@ -1930,7 +2142,7 @@ class Retry(Command):
     def requires_build_tree(self):
         return True
 
-    def with_build_tree(self, builder, local_pkgs, args):
+    def with_build_tree(self, builder, current_dir, args):
         labels = decode_labels(builder, args)
         if (self.no_op()):
             print "Retry: %s"%(depend.label_list_to_string(labels))
@@ -1958,7 +2170,7 @@ class Subst(Command):
     def requires_build_tree(self):
         return False
 
-    def with_build_tree(self, builder, local_pkgs, args):
+    def with_build_tree(self, builder, current_dir, args):
         self.do_subst(args)
 
     def without_build_tree(self, muddle_binary, root_path, args):
@@ -1987,6 +2199,7 @@ class Stamp(Command):
     :or:     stamp push [<repository_url>]
     :or:     stamp pull [<repository_url>]
 
+
     * Saving: ``stamp save [<switches>] [<file>]``
 
       Go through each checkout, and save its remote repository and current
@@ -1996,7 +2209,8 @@ class Stamp(Command):
       entire build tree, as-is.
 
       If a <file> is specified, then output will be written to that file.
-      If its name does not end in '.stamp', then '.stamp' will be appended to it.
+      If its name does not end in '.stamp' or '.partial', then '.stamp' will be
+      appended to it.
 
       If a <file> is not specified, then a name of the form <sha1-hash>.stamp
       will be used, where <sha1-hash> is a hexstring representation of the hash
@@ -2141,8 +2355,8 @@ Try 'muddle help stamp' for more information."""
 
         word = args[0]
         rest = args[1:]
-        if word in ('save', 'version'):
-            print "Can't do 'muddle stamp save' without a build tree"
+        if word in ('save', 'version', 'push', 'pull'):
+            print "Can't do 'muddle stamp %s' without a build tree"%word
             return 2
         elif word == 'diff':
             self.compare_stamp_files(rest)
@@ -2151,14 +2365,14 @@ Try 'muddle help stamp' for more information."""
             self.print_syntax()
             return 2
 
-    def with_build_tree(self, builder, local_pkgs, args):
+    def with_build_tree(self, builder, current_dir, args):
         force = False
         just_use_head = False
         filename = None
 
         if not args:
             self.print_syntax()
-            return 2
+            return
 
         word = args[0]
         rest = args[1:]
@@ -2166,16 +2380,16 @@ Try 'muddle help stamp' for more information."""
             self.write_stamp_file(builder, rest)
         elif word == 'version':
             self.write_version_file(builder, rest)
-        elif word == 'diff':
-            self.compare_stamp_files(rest)
         elif word == 'push':
             self.push_versions_directory(builder, rest)
         elif word == 'pull':
             self.pull_versions_directory(builder, rest)
+        elif word == 'diff':
+            self.compare_stamp_files(rest)
         else:
             print "Unexpected 'stamp %s'"%word
             self.print_syntax()
-            return 2
+            return
 
     def push_versions_directory(self, builder, args):
         if len(args) > 1:
@@ -2237,7 +2451,7 @@ Try 'muddle help stamp' for more information."""
             version_control.vcs_pull_directory(versions_url)
         else:
             print "'versions/' directory does not exist - cloning instead"
-            os.chdir(db.root_dir)
+            os.chdir(db.root_path)
             # Make sure we always clone to a directory of the right name...
             version_control.vcs_get_directory(versions_url, "versions")
 
@@ -2245,7 +2459,6 @@ Try 'muddle help stamp' for more information."""
             print 'Remembering versions repository %s'%versions_url
             db.versions_repo.set(versions_url)
             db.versions_repo.commit()
-
 
     def compare_stamp_files(self, args):
         diff_style = 'unified'
@@ -2318,7 +2531,11 @@ Try 'muddle help stamp' for more information."""
             print 'Wrote revision data to %s'%working_filename
             print 'File has SHA1 hash %s'%hash
 
-            final_name = self.decide_hash_filename(filename, hash, problems)
+            if filename:
+                final_name = filename
+
+            if not final_name:
+                final_name = self.decide_hash_filename(hash, filename, problems)
             print 'Renaming %s to %s'%(working_filename, final_name)
             os.rename(working_filename, final_name)
 
@@ -2367,9 +2584,11 @@ Try 'muddle help stamp' for more information."""
             db = builder.invocation.db
             versions_url = db.versions_repo.from_disc()
             if versions_url:
-                print 'Adding version stamp file to VCS'
                 os.chdir(version_dir)
-                version_control.vcs_init_directory(versions_url, version_filename)
+                vcs_name, just_url = version_control.split_vcs_url(versions_url)
+                if vcs_name:
+                    print 'Adding version stamp file to VCS'
+                    version_control.vcs_init_directory(vcs_name, [version_filename])
 
     def decide_hash_filename(self, hash, basename=None, partial=False):
         """
@@ -2633,8 +2852,6 @@ Try 'muddle help unstamp' for more information."""
         if self.no_op():
             return
 
-        print '  (and remembering that in .muddle/VersionsRepository)'
-
         # Restore to the "versions" directory, regardless of the URL
         os.chdir(current_dir)
         version_control.vcs_get_directory(actual_url, "versions")
@@ -2663,7 +2880,7 @@ Try 'muddle help unstamp' for more information."""
             domain_root_path = os.path.join(root_path, 'domains', domain_name)
             os.makedirs(domain_root_path)
 
-            domain_builder = mechanics.minimal_build_tree(muddle_binary,
+            domain_builder = mechanics.minimal_build_tree(builder.muddle_binary,
                                                           domain_root_path,
                                                           domain_repo, domain_desc)
 
@@ -2678,16 +2895,20 @@ Try 'muddle help unstamp' for more information."""
                 print "Unstamping checkout %s"%name
             # So try registering this as a normal build, in our nascent
             # build system
-            vcs_handler = version_control.vcs_handler_for(builder, co_leaf,
-                                                          repo,
+            label = Label(utils.LabelType.Checkout, name, domain=domain)
+            if dir:
+                builder.invocation.db.set_checkout_path(label, os.path.join(dir, co_leaf))
+            else:
+                builder.invocation.db.set_checkout_path(label, co_leaf)
+            vcs_handler = version_control.vcs_handler_for(builder, label, co_leaf,  repo,
                                                           rev, rel, dir)
             vcs = pkg.VcsCheckoutBuilder(name, vcs_handler)
             pkg.add_checkout_rules(builder.invocation.ruleset, name, vcs)
 
             # Then need to mimic "muddle checkout" for it
-            label = depend.Label(utils.LabelKind.Checkout,
-                                 name, None, utils.Tags.CheckedOut,
-                                 domain=domain)
+            label = Label(utils.LabelType.Checkout,
+                          name, None, utils.LabelTag.CheckedOut,
+                          domain=domain)
             builder.build_label(label, silent=False)
 
     def check_build(self, current_dir, checkouts, builder, muddle_binary):
@@ -2702,12 +2923,9 @@ Try 'muddle help unstamp' for more information."""
 
         b = mechanics.load_builder(build_root, muddle_binary, default_domain=build_domain)
 
-        local_pkgs = utils.find_local_packages(current_dir, build_root,
-                                               builder.invocation)
-
         q = Query()
-        q.with_build_tree(b, local_pkgs, ["root"]) 
-        q.with_build_tree(b, local_pkgs, ["checkouts", "checkout:*/*"]) 
+        q.with_build_tree(b, current_dir, ["root"]) 
+        q.with_build_tree(b, current_dir, ["checkouts", "checkout:*/*"]) 
 
         # Check our checkout names match
         s_checkouts = set([name for name, repo, rev, rel, dir, domain, co_leaf in checkouts])
@@ -2740,16 +2958,16 @@ def get_all_checkouts(builder, tag):
     all_cos = builder.invocation.all_checkouts()
     
     for co in all_cos:
-        rv.append(depend.Label(utils.LabelKind.Checkout, 
-                               co, None, 
-                               tag,
-                               domain = builder.get_default_domain()))
+        rv.append(Label(utils.LabelType.Checkout,
+                        co, None, 
+                        tag,
+                        domain = builder.get_default_domain()))
         
     rv.sort()
     return rv
 
 
-def decode_checkout_arguments(builder, args, local_pkgs, tag):
+def decode_checkout_arguments(builder, args, tag):
     """
     Decode checkout label arguments.
     
@@ -2765,9 +2983,6 @@ def decode_checkout_arguments(builder, args, local_pkgs, tag):
     otherwise all checkouts with directories below the current directory are
     returned.
 
-    The 'local_pkgs' argument is ignored (it is present for compatibility with
-    other similar functions).
-
     Returns a list of checkout labels.
     """
     
@@ -2779,28 +2994,25 @@ def decode_checkout_arguments(builder, args, local_pkgs, tag):
             if (co == "_all"):
                 return get_all_checkouts(builder, tag)
             else:
-                rv.append(depend.Label(utils.LabelKind.Checkout, 
-                                       co, None, tag, 
-                                       domain = builder.get_default_domain()))
+                rv.append(Label(utils.LabelType.Checkout,
+                                co, None, tag, 
+                                domain = builder.get_default_domain()))
 
     else:
-        # We resolutely ignore local_pkgs...
         # Where are we? If in a checkout, that's what we should do - else
         # all checkouts.
-        (what, loc, role) = utils.find_location_in_tree(os.getcwd(),
-                                                        builder.invocation.db.root_path)
-        
-        
+        (what, loc, role) = builder.find_location_in_tree(os.getcwd())
+
         if (what == utils.DirType.CheckOut):
-            cos_below = utils.get_all_checkouts_below(builder, os.getcwd())
+            cos_below = builder.get_all_checkouts_below(os.getcwd())
             for c in cos_below:
-                rv.append(depend.Label(utils.LabelKind.Checkout, 
-                                       c, None, tag, 
-                                       domain = builder.get_default_domain()))
+                rv.append(Label(utils.LabelType.Checkout,
+                                c, None, tag, 
+                                domain = builder.get_default_domain()))
     return rv
 
 
-def decode_dep_checkout_arguments(builder, args, local_pkgs, tag):
+def decode_dep_checkout_arguments(builder, args, current_dir, tag):
     """
     Any arguments given are package names - we return their dependent 
     checkouts.
@@ -2811,8 +3023,8 @@ def decode_dep_checkout_arguments(builder, args, local_pkgs, tag):
     returned.
     """
     
-    labels = decode_package_arguments(builder, args, local_pkgs, 
-                                      utils.Tags.PostInstalled)
+    labels = labels_from_pkg_args(builder, args, current_dir,
+                                  utils.LabelTag.PostInstalled)
     
     rv = [ ]
     out_set = set()
@@ -2820,11 +3032,11 @@ def decode_dep_checkout_arguments(builder, args, local_pkgs, tag):
     for my_label in labels:
         deps = depend.needed_to_build(builder.invocation.ruleset, my_label)
         for d in deps:
-            if (d.target.type == utils.LabelKind.Checkout):
-                out_set.add(depend.Label(utils.LabelKind.Checkout, 
-                                         d.target.name,
-                                         None, 
-                                         tag))
+            if (d.target.type == utils.LabelType.Checkout):
+                out_set.add(Label(utils.LabelType.Checkout,
+                                  d.target.name,
+                                  None, 
+                                  tag))
 
     rv = list(out_set)
     rv.sort()
@@ -2839,14 +3051,12 @@ def decode_labels(builder, in_args):
     """
     rv = [ ]
     for arg in in_args:
-        lbl = depend.label_from_string(arg)
-        if (lbl is None):
-            raise utils.Failure("Putative label '%s' does not parse as a label"%arg)
+        lbl = Label.from_string(arg)
         rv.append(lbl)
 
     return rv
  
-def decode_deployment_arguments(builder, args, local_pkgs, tag):
+def decode_deployment_arguments(builder, args, tag):
     """
     Look through args for deployments. _all means all deployments
     registered.
@@ -2861,10 +3071,10 @@ def decode_deployment_arguments(builder, args, local_pkgs, tag):
             # Everything .. 
             return all_deployment_labels(builder, tag)
         else:
-            lbl = depend.Label(utils.LabelKind.Deployment, 
-                               dep, 
-                               "*",
-                               tag, domain = builder.get_default_domain())
+            lbl = Label(utils.LabelType.Deployment,
+                        dep, 
+                        "*",
+                        tag, domain = builder.get_default_domain())
             return_list.append(lbl)
     
     if len(return_list) == 0:
@@ -2882,8 +3092,8 @@ def all_deployment_labels(builder, tag):
     # Important not to set tag here - if there's a deployment
     #  which doesn't have the right tag, we want an error, 
     #  not to silently ignore it.
-    match_lbl = depend.Label(utils.LabelKind.Deployment,
-                             "*", "*", "*", domain = builder.get_default_domain())
+    match_lbl = Label(utils.LabelType.Deployment,
+                      "*", "*", "*", domain = builder.get_default_domain())
     matching = builder.invocation.ruleset.rules_for_target(match_lbl)
     
     return_set = set()
@@ -2892,10 +3102,10 @@ def all_deployment_labels(builder, tag):
 
     return_list = [ ]
     for r in return_set:
-        lbl = depend.Label(utils.LabelKind.Deployment, 
-                           r, 
-                           "*", 
-                           tag)
+        lbl = Label(utils.LabelType.Deployment,
+                    r,
+                    "*",
+                    tag)
         return_list.append(lbl)
 
     return return_list
@@ -2908,55 +3118,13 @@ def default_deployment_labels(builder, tag):
     default_labels = builder.invocation.default_labels
     return_list = [ ]
     for d in default_labels:
-        if (d.type == utils.LabelKind.Deployment):
-            return_list.append(depend.Label(utils.LabelKind.Deployment,
-                                            d.name, 
-                                            d.role,
-                                            tag))
+        if (d.type == utils.LabelType.Deployment):
+            return_list.append(Label(utils.LabelType.Deployment,
+                               d.name,
+                               d.role,
+                               tag))
 
     return return_list
-    
-
-def decode_package_arguments(builder, args, local_pkgs, tag):
-    """
-    Given your builder, a set of package arguments and the tag you'd
-    like your list of labels to end up with, this function scans your
-    argument list and builds a list of labels which describe your
-    package arguments.
-
-    If args is of zero length, we use local_pkgs instead. There's
-    no logical reason for this, but it eliminates a bit of common
-    logic from the command functions.
-
-    It then checks for special targets (specifically, _all).
-
-    If _all is specified, it returns a list of all labels with any
-    of the roles specified in the argument list (or the default
-    role set if there weren't any).
-    """
-
-    effective_args = args
-    if len(effective_args) == 0:
-        effective_args = local_pkgs
-
-    to_build = labels_from_pkg_args(effective_args, tag, 
-                                    builder.invocation.default_roles,
-                                    builder.get_default_domain())
-    
-    to_build = builder.invocation.map_unifications(to_build)
-
-    all_roles = process_labels_all_spec(to_build, 
-                                        builder.invocation.default_roles)
-    if len(all_roles) > 0:
-        result = [ ]
-        for role in all_roles:
-            result.extend(builder.invocation.labels_for_role(utils.LabelKind.Package,
-                                                             role, 
-                                                             tag))
-        return result
-    else:
-        return to_build
-    
 
 def build_a_kill_b(builder, labels, build_this, kill_this):
     """
@@ -2967,22 +3135,20 @@ def build_a_kill_b(builder, labels, build_this, kill_this):
     We have to interleave these operations so an error doesn't
     lead to too much or too little of a kill.
     """
-    try:
-        for lbl in labels:
-            l_a = lbl.copy()
-            l_a.tag = build_this
+    for lbl in labels:
+        try:
+            l_a = lbl.copy_with_tag(build_this)
             print "Building: %s .. "%(l_a)
             builder.build_label(l_a)
+        except utils.Failure, e:
+            raise utils.Failure("Can't build %s - %s"%(l_a, e))
 
-            l_b = lbl.copy()
-            l_b.tag = kill_this
+        try:
+            l_b = lbl.copy_with_tag(kill_this)
             print "Killing: %s .. "%(l_b)
             builder.kill_label(l_b)
-    except utils.Failure, e:
-        print "Can't build %s - %s"%(str(lbl), e)
-        return 1
-    
-    return 0
+        except utils.Failure, e:
+            raise utils.Failure("Can't kill %s - %s"%(l_b, e))
 
 def kill_labels(builder, to_kill):
     print "Killing %s "%(" ".join(map(str, to_kill)))
@@ -2991,49 +3157,16 @@ def kill_labels(builder, to_kill):
         for lbl in to_kill:
             builder.kill_label(lbl)
     except utils.Failure, e:
-        print "Can't build %s - %s"%(str(lbl), e)
-        #traceback.print_exc()
-        return 1
-
-    return 0
-
+        raise utils.Failure("Can't kill %s - %s"%(str(lbl), e))
 
 def build_labels(builder, to_build):
     print "Building %s "%(" ".join(map(str, to_build)))
-        
+
     try:
         for lbl in to_build:
             builder.build_label(lbl)
     except utils.Failure,e:
-        print "Can't build %s - %s"%(str(lbl), e)
-        #traceback.print_exc()
-        return 1
-
-    return 0
-
-def process_labels_all_spec(label_list, default_roles):
-    """
-    Go through the label_list and if any has an _any, add its role (or the
-    default roles if it doesn't have one) to a set.
-
-    Return an arbitrarily ordered list of the elements of the set. If there
-    are no _all specifiers, return None.
-    """
-    r_set = set()
-    for l in label_list:
-        if (l.name == "_all"):
-            if (l.role is not None):
-                r_set.add(l.role)
-            else:
-                for x in default_roles:
-                    r_set.add(x)
-
-    r_list = [ ]
-    for r in r_set:
-        r_list.append(r)
-
-    return r_list
-    
+        raise utils.Failure("Can't build %s - %s"%(str(lbl), e))
 
 pkg_args_re = re.compile(r"""
                          (\(
@@ -3044,72 +3177,137 @@ pkg_args_re = re.compile(r"""
                             (?P<role>%s)?           # optional <role>
                           \})?                      # in optional {}
                           $                         # and nothing more
-                          """%(depend.Label.domain_part,
-                               depend.Label.label_part,
-                               depend.Label.label_part),
+                          """%(Label.domain_part,
+                               Label.label_part,
+                               Label.label_part),
                          re.VERBOSE)
 
-def labels_from_pkg_args(list, tag, default_roles, default_domain):
+def label_from_pkg_arg(arg, tag, default_role, default_domain):
     """
-    Convert a list of packages expressed as package([{role}]?) into
-    a set of labels with the given tag. This is basically a 
-    cartesian product of all the unqualified packages.
+    Convert a 'package' or 'package{role}' or '(domain)package{role} argument to a label.
+
+    If role or domain is not specified, use the default (which may be None).
+    """
+    m = pkg_args_re.match(arg)
+    if (m is None):
+        raise utils.Error("Package spec '%s' is wrong,\n"
+                          "    expecting 'name', 'name{}', 'name{role}'"
+                          " or '(domain}name{role}'"%arg)
+
+    domain = m.group('domain')    # None if not present
+    if domain is None:
+        domain = default_domain
+    name   = m.group('name')
+    role   = m.group('role')      # None if not present
+    if role is None:
+        role = default_role
+
+    return Label(utils.LabelType.Package,
+                 name, role, tag, domain=domain)
+
+def labels_from_pkg_args(builder, arglist, current_dir, tag):
+    """
+    Convert a list of packages arguments into a list of labels.
+
+    If arglist is of zero length, we work out the "local" packages from our
+    current directory in the build tree instead. If that doesn't give us any
+    result, we raise an exception (a "No packages specified" Failure).
+
+        (Broadly, if we are in a particular checkout, then the packages
+        for that checkout are used, and if we are in a particular 'obj'
+        directory, then the package for that directory is used, otherwise
+        we refuse to guess.)
     
-    All tags will inherit the default domain.
+    Values in arglist may be in one of six forms:
 
-    NB: also allows (domain) type specifications before the package name.
-    If you know what a domain is, you should be able to work that out.
+    * "name"
+    
+      adds the labels "package:(<d>)name{<r...>}/tag" to the results, where <d>
+      is the default domain for this builder (if any), and <r...> is each of
+      the default roles (i.e., the default roles for this builder to build).
+      
+      Note that all of the default roles are used to generate labels, in this
+      case, whether each such a label has meaning or not.
 
-    For example:
+    * "name{role}"
+    
+      adds the label "package:(<d>)name{role}/tag", where <d> is as above.
+      Again, there is no check that that particular label exists.
 
-        >>> x = labels_from_pkg_args( [ 'fred', 'bob{}', 'william{jim}', '(here)fred{jim}' ],
-        ...                           'pobble',
-        ...                           [ 'this', 'that' ], None )
-        >>> for l in x:
-        ...    print l
-        package:fred{this}/pobble
-        package:fred{that}/pobble
-        package:bob{this}/pobble
-        package:bob{that}/pobble
-        package:william{jim}/pobble
-        package:(here)fred{jim}/pobble
+    * "(domain)name"
+    
+      adds the labels "package:(domain)name{<r...>}/tag", where <r...> is
+      interpreted as in the first case, and with the same caveats.
+
+    * "(domain)name{role}"
+    
+      adds the label "package:(domain)name{role}/tag"
+
+    * "_all"
+
+      adds all labels in the default roles, regardless of their domain.
+
+    * "_all{role}"
+
+      adds all labels in the named role, regardless of their domain.
+
+    * "(domain)_all{role}"
+
+      adds all labels in the named role, that are also in the named domain.
+
+    The results list will not be sorted, and will not contain duplicate labels.
     """
 
-    result = [ ]
-
-    if (list is None):
-        raise utils.Failure("No packages specified")
-
-    for elem in list:
-        m = pkg_args_re.match(elem)
-        if (m is None):
-            # Hmm ..
-            raise utils.Error("Package spec '%s' is wrong,\n    expecting " 
-                    "'name', 'name{}', 'name{role}' or '(domain}name{role}'"%elem)
+    if not arglist:
+        rv = builder.find_local_package_labels(current_dir)
+        if rv:
+            return rv
         else:
-            domain = m.group('domain')    # None if not present
-            if (domain is None):
-                domain = default_domain
-            name   = m.group('name')
-            role   = m.group('role')      # None if not present
-            if (role is None):
-                if (len(default_roles) > 0):
-                    # Add the default roles
-                    for r in default_roles:
-                        result.append(depend.Label(utils.LabelKind.Package, 
-                                                   name, r, tag,
-                                                   domain=domain))
-                else:
-                    result.append(depend.Label(utils.LabelKind.Package, 
-                                               name, "*", tag,
-                                               domain=domain))
+            raise utils.Failure("No packages specified")
+
+    inv = builder.invocation
+    result_set = set()
+    default_roles = builder.invocation.default_roles
+    default_domain = builder.get_default_domain()
+
+    for elem in arglist:
+        m = pkg_args_re.match(elem)
+        if m is None:
+            raise utils.Error("Package spec '%s' is wrong,\n"
+                              "    expecting 'name', 'name{}', 'name{role}'"
+                              " or '(domain}name{role}'"%elem)
+
+        domain = m.group('domain')    # None if not present
+        if domain is None:
+            domain = default_domain
+        name   = m.group('name')
+        role   = m.group('role')      # None if not present
+        if name == "_all":
+            if role:
+                roles = [role]
             else:
-                result.append(depend.Label(utils.LabelKind.Package,
-                                           name, role, tag,
-                                           domain=domain))
-    return result
-    
-    
+                roles = inv.all_roles()
+            for r in roles:
+                result_set.update(inv.labels_for_role(utils.LabelType.Package,
+                                                      r, tag,
+                                                      domain=domain))
+        else:
+            if role:
+                result_set.add(Label(utils.LabelType.Package,
+                                     name, role, tag,
+                                     domain=domain))
+            elif default_roles:
+                # Add the default roles
+                for r in default_roles:
+                    result_set.add(Label(utils.LabelType.Package,
+                                         name, r, tag,
+                                         domain=domain))
+            else:
+                # Just wildcard for any role
+                result_set.add(Label(utils.LabelType.Package,
+                                     name, "*", tag,
+                                     domain=domain))
+    return list(result_set)
 
 import inspect
 import types
@@ -3136,10 +3334,9 @@ def _register_commands():
         """
         Return True if obj is a subclass of Command (but not Command itself)
         """
-        #print 'Checking',type(obj),obj,
-        if type(obj) not in (types.ClassType, types.TypeType):
-            #print 'NOT CLASS'
+        if not inspect.isclass(obj):
             return False
+        #print 'Checking',type(obj),obj,
         ok = issubclass(obj,Command) and obj is not Command
         #print 'OK' if ok else 'IGNORE'
         return ok
@@ -3152,6 +3349,17 @@ def _register_commands():
     for klass_name, klass in commands:
         cmd = klass()
         name = cmd.name()
+        # It is unusual to define a new command, but when doing so it is
+        # much too easy to copy an old command and forget to change its name...
+        # Whilst this is yet another slowing down of muddle startup, I think
+        # it is worth doing, at least while development is still ongoing
+        if name in g_command_dict:
+            raise utils.Failure("Command '%s' is defined more than once\n"
+                                "First in class %s, then in %s"%(name,
+                                    g_command_dict[name],
+                                    cmd))
+                                    #g_command_dict[name].__class__,
+                                    #cmd.__class__))
         g_command_dict[name] = cmd
         g_command_names.append(name)
         aliases = cmd.aliases()
@@ -3169,11 +3377,9 @@ def register_commands():
     commands.
     """
 
-    # Maybe we should cache this...
-    _register_commands()
+    if not g_command_dict:
+        _register_commands()
 
     return g_command_dict
 
 # End file.
-
-    

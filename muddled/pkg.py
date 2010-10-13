@@ -45,8 +45,8 @@ class SequentialDependable:
         self.b = b
 
     def build_label(self, builder, label):
-        a.build_label(builder, label)
-        b.build_label(builder, label)
+        self.a.build_label(builder, label)
+        self.b.build_label(builder, label)
 
 class ArchSpecificDependable:
     """
@@ -119,15 +119,15 @@ class VcsCheckoutBuilder(Checkout):
     def build_label(self, builder, label):
         target_tag = label.tag
 
-        if (target_tag == utils.Tags.CheckedOut):
+        if (target_tag == utils.LabelTag.CheckedOut):
             self.vcs.check_out()
-        elif (target_tag == utils.Tags.Pulled):
+        elif (target_tag == utils.LabelTag.Pulled):
             self.vcs.pull()
-        elif (target_tag == utils.Tags.UpToDate):
+        elif (target_tag == utils.LabelTag.UpToDate):
             self.vcs.update()
-        elif (target_tag == utils.Tags.ChangesCommitted):
+        elif (target_tag == utils.LabelTag.ChangesCommitted):
             self.vcs.commit()
-        elif (target_tag == utils.Tags.ChangesPushed):
+        elif (target_tag == utils.LabelTag.ChangesPushed):
             self.vcs.push()
         else:
             raise utils.Error("Attempt to build unknown tag %s "%target_tag + 
@@ -208,41 +208,41 @@ def add_checkout_rules(ruleset, co_name, obj):
 
     # This needs to be slightly clever, since uptodate, changescommitted
     # and changespushed must be transient.
-    co_label = depend.Label(utils.LabelKind.Checkout, 
+    co_label = depend.Label(utils.LabelType.Checkout,
                             co_name, None, 
-                            utils.Tags.CheckedOut)
+                            utils.LabelTag.CheckedOut)
     co_rule = depend.Rule(co_label, obj)
     ruleset.add(co_rule)
     
-    uptodate_label = co_label.re_tag(utils.Tags.UpToDate, transient = True)
+    uptodate_label = co_label.copy_with_tag(utils.LabelTag.UpToDate, transient = True)
     rule = ruleset.rule_for_target(uptodate_label, createIfNotPresent = True)
     rule.add(co_label)
 
     # Pulled is also transient, and uptodate depends on it.
-    pulled_label = co_label.re_tag(utils.Tags.Pulled, transient = False)
+    pulled_label = co_label.copy_with_tag(utils.LabelTag.Pulled, transient = False)
     rule = ruleset.rule_for_target(pulled_label, createIfNotPresent = True)
     rule.add(co_label)
 
     depend.depend_chain(obj, 
                         uptodate_label, 
-                        [ utils.Tags.Pulled ], ruleset)
+                        [ utils.LabelTag.Pulled ], ruleset)
 
     # We actually need to ask the object whether this is a centralised 
     # or a decentralised VCS .. 
     if (obj.must_update_to_commit()):
         depend.depend_chain(obj, 
                             uptodate_label,
-                            [ utils.Tags.ChangesCommitted,
-                              utils.Tags.ChangesPushed ], 
+                            [ utils.LabelTag.ChangesCommitted,
+                              utils.LabelTag.ChangesPushed ],
                             ruleset)
 
     else:
         # We don't need to update to commit.
-        commit_label = co_label.re_tag(utils.Tags.ChangesCommitted, 
+        commit_label = co_label.copy_with_tag(utils.LabelTag.ChangesCommitted,
                                        transient = True)
         depend.depend_chain(obj, 
                             commit_label,
-                            [ utils.Tags.ChangesPushed ], 
+                            [ utils.LabelTag.ChangesPushed ],
                             ruleset)
         commit_rule = ruleset.rule_for_target(commit_label)
         commit_rule.add(co_label)
@@ -264,22 +264,23 @@ def package_depends_on_checkout(ruleset, pkg_name, role_name, co_name, obj):
       the checkout to the package preconfig. You'll normally make this None
       unless you are doing something deeply weird.
     """
-    checkout = depend.Label(utils.LabelKind.Checkout, 
-                            co_name, None,
-                            utils.Tags.CheckedOut)
 
-    preconfig = depend.Label(utils.LabelKind.Package, 
+    checkout = depend.Label(utils.LabelType.Checkout, 
+                            co_name, None,
+                            utils.LabelTag.CheckedOut)
+
+    preconfig = depend.Label(utils.LabelType.Package, 
 		             pkg_name, role_name, 
-			     utils.Tags.PreConfig)
+			     utils.LabelTag.PreConfig)
 
     new_rule = depend.Rule(preconfig, obj)
     new_rule.add(checkout)
     ruleset.add(new_rule)
 
     # We can't distclean a package until we've checked out its checkout
-    distclean = depend.Label(utils.LabelKind.Package,
+    distclean = depend.Label(utils.LabelType.Package,
 		             pkg_name, role_name, 
-			     utils.Tags.DistClean, 
+			     utils.LabelTag.DistClean, 
 			     transient = True)
     ruleset.add(depend.depend_one(obj, distclean, checkout))
 
@@ -291,16 +292,16 @@ def package_depends_on_packages(ruleset, pkg_name, role, tag_name, deps):
     this can be PreConfig or Built, depending on whether you need that dependency
     to configure yourself or not.
     """
-    target_label = depend.Label(utils.LabelKind.Package,
+    target_label = depend.Label(utils.LabelType.Package,
                                 pkg_name, role, tag_name)
 
     r = ruleset.rule_for_target(target_label, createIfNotPresent = True)
 
     for d in deps:
-        dep_label = depend.Label(utils.LabelKind.Package,
+        dep_label = depend.Label(utils.LabelType.Package,
                                  d,
                                  role, 
-                                 utils.Tags.PostInstalled)
+                                 utils.LabelTag.PostInstalled)
         r.add(dep_label)
 
     
@@ -311,13 +312,13 @@ def add_package_rules(ruleset, pkg_name, role_name, obj):
     """
     
     depend.depend_chain(obj,
-                        depend.Label(utils.LabelKind.Package, 
+                        depend.Label(utils.LabelType.Package,
                               pkg_name, role_name, 
-                              utils.Tags.PreConfig),
-                        [ utils.Tags.Configured, 
-                          utils.Tags.Built,
-                          utils.Tags.Installed,
-                          utils.Tags.PostInstalled ], 
+                              utils.LabelTag.PreConfig),
+                        [ utils.LabelTag.Configured,
+                          utils.LabelTag.Built,
+                          utils.LabelTag.Installed,
+                          utils.LabelTag.PostInstalled ],
                         ruleset)
 
     # "clean" dependes on "preconfig", but is transient,
@@ -326,13 +327,13 @@ def add_package_rules(ruleset, pkg_name, role_name, obj):
     # (and it avoids inverse rules which would be a bit
     #  urgh)
     ruleset.add(depend.depend_one(obj, 
-				   depend.Label(utils.LabelKind.Package,
+				   depend.Label(utils.LabelType.Package,
 				                pkg_name, role_name, 
-						utils.Tags.Clean, 
+						utils.LabelTag.Clean, 
 						transient = True),
-				   depend.Label(utils.LabelKind.Package,
+				   depend.Label(utils.LabelType.Package,
 					        pkg_name, role_name,
-						utils.Tags.PreConfig,
+						utils.LabelTag.PreConfig,
 						transient = True)))
     # "distclean" depedsn on the package's checkout(s) having
     # been checked out, so is handled in ``package_depends_on_checkout()``
@@ -358,12 +359,12 @@ def do_depend(builder, pkg_name, role_names,
                 role = role_name
 
             ruleset.add(depend.depend_one(None,
-                                          depend.Label(utils.LabelKind.Package,
+                                          depend.Label(utils.LabelType.Package,
                                                        pkg_name, role_name,
-                                                       utils.Tags.PreConfig),
-                                          depend.Label(utils.LabelKind.Package,
+                                                       utils.LabelTag.PreConfig),
+                                          depend.Label(utils.LabelType.Package,
                                                        pkg, role, 
-                                                       utils.Tags.PostInstalled)))
+                                                       utils.LabelTag.PostInstalled)))
     
 def depend_across_roles(ruleset, pkg_name, role_names, 
                         depends_on_pkgs, depends_on_role):
@@ -374,15 +375,13 @@ def depend_across_roles(ruleset, pkg_name, role_names,
     for pkg in depends_on_pkgs:
         for role_name in role_names:
             ruleset.add(depend.depend_one(None,
-                                          depend.Label(utils.LabelKind.Package,
+                                          depend.Label(utils.LabelType.Package,
                                                        pkg_name, role_name, 
-                                                       utils.Tags.PreConfig),
-                                          depend.Label(utils.LabelKind.Package,
+                                                       utils.LabelTag.PreConfig),
+                                          depend.Label(utils.LabelType.Package,
                                                        pkg,
                                                        depends_on_role,
-                                                       utils.Tags.PostInstalled)))
-
-
+                                                       utils.LabelTag.PostInstalled)))
 
 def append_env_for_package(builder, pkg_name, pkg_roles,
                            name, value, 
@@ -396,7 +395,7 @@ def append_env_for_package(builder, pkg_name, pkg_roles,
     """
     
     for r in pkg_roles:
-        lbl = depend.Label(utils.LabelKind.Package,
+        lbl = depend.Label(utils.LabelType.Package,
                            pkg_name, 
                            r, 
                            "*", 
@@ -418,7 +417,7 @@ def set_env_for_package(builder, pkg_name, pkg_roles,
     """
     
     for r in pkg_roles:
-        lbl = depend.Label(utils.LabelKind.Package,
+        lbl = depend.Label(utils.LabelType.Package,
                            pkg_name, 
                            r, 
                            "*", 

@@ -2,20 +2,16 @@
 Muddle patch
 ============
 
-For the moment, ``muddle_patch.py`` is an independent program in the muddle
-"sandbox" (i.e., the ``sandbox/`` directory in the muddle distribution).
-
-To use it, you will need to add that directory to your PATH, or else just
-alias the command to run it directly (or, I suppose, type it out longform).
-
-At some point, it will probably be integrated into the main ``muddle``
-command.
+``muddle_patch.py`` is an independent program in the same directory as the
+normal ``muddle`` program.
 
 Summary
 -------
 
-This code was written to address issue 111: *Implement "diff build tree against
-version stamp" and corresponding patch command*.
+This program was written to address `issue 111`_: *Implement "diff build tree
+against version stamp" and corresponding patch command*.
+
+.. _`issue 111`: http://code.google.com/p/muddle/issues/detail?id=111
 
 Specifically, given an up-to-date muddle build tree, and the stamp file for a
 less up-to-date build tree, it attempts to work out the patches to make the
@@ -143,12 +139,42 @@ Entries are of the form:
 
 Changed bzr checkouts
 ~~~~~~~~~~~~~~~~~~~~~
+The problem
+...........
+The original version of this program was tested, and seemed to work as
+described in `How it should be`_ below.
+
+Unfortunately, on retesting with `bzr`` 2.1.1 and 2.2.1, it no longer seem to
+work, instead exploding with a ``bzrlib.errors.NoSuchRevision`` exception. At
+time of writing I am still investigating this, in the fond hope that it is
+something I am doing wrong, rather than a bug in Bazaar (although an exception
+rather than an error report still seems rather nasty).
+
+Thus for the moment, the program is instead doing `What we do instead`_.
+
+If you wish to change the behaviour back to the original, then edit the
+``muddle_patch.py`` file, and change::
+
+    BZR_DO_IT_PROPERLY = False
+
+to::
+
+    BZR_DO_IT_PROPERLY = True
+
+.. note:: The ``BZR_DO_IT_PROPERLY`` flag actually only affects the "write"
+   operation. The "read" operation actually decides what to do based on the
+   extension of the ``<checkout>.bzr_send`` or ``<checkout>.diff`` file in
+   the patch directory.
+
+How it should be
+.................
 When writing a changed Bazaar checkout, ``muddle_patch.py`` uses::
 
     bzr send
 
-to create a file (in <patch_dir> containing the differences between the two
-revisions of the checkout.
+to create a file (in <patch_dir>) containing the differences between the two
+revisions of the checkout. The file will be named ``<checkout>.bzr_send``,
+where ``<checkout>`` is the muddle checkout name.
 
 When reading the <patch_dir>, ``muddle_patch.py`` uses::
 
@@ -158,6 +184,37 @@ to update the checkout. This should produce a result identical to having done
 an appropriate merge/pull. The use of ``merge --pull`` means that Bazaar
 should attempt to do a pseudo-pull of the changes, and only revert to "merge"
 behaviour if it has to.
+
+.. note:: Determine if a ``bzr commit`` is still required at this stage.
+
+What we do instead
+..................
+A simple difference file is generated, using::
+
+    bzr diff -p1
+
+to create a file (in <patch_dir>) containing the differences between the two
+revisions of the checkout. The file will be named ``<checkout>.diff``,
+where ``<checkout>`` is the muddle checkout name.
+
+When reading the <patch_dir>, ``muddle_patch.py`` uses::
+
+    patch -p1
+
+to update the checkout. This will produce a result similar to that in the
+"near" checkout, with two important exceptions:
+
+1. History is not propagated, and
+2. Any new but empty files in the "near" checkout will not be created
+   in the "far" checkout. This is a limitation of the diff/patch sequence
+   we have available.
+
+After the patch has succeeded, it will be necessary to do a ``bzr add`` (to
+catch any new files), followed by a ``bzr commit`` to actually commit the
+result.
+
+If any files have been removed by the patch process, these will have to be
+manually removed from bazaar.
 
 Changed svn checkouts
 ~~~~~~~~~~~~~~~~~~~~~
@@ -178,23 +235,28 @@ been changed, so Subversion will think it has a different revision number.
 
 Changed git checkouts
 ~~~~~~~~~~~~~~~~~~~~~
-Support for GIT is untested. Muddle support for version stamps and GIT is, in
-general, untested. Any feedback would be welcomed.
+When writing a changed git checkout, ``muddle_patch.py`` uses::
 
-However, in theory:
+    git format-patch
 
-  When writing a changed git checkout, ``muddle_patch.py`` uses::
+to create a diretory (in <patch_dir> containing the differences between the
+two revisions of the checkout.
 
-      git format-patch
+When reading the <patch_dir>, ``muddle_patch.py`` uses::
 
-  to create a diretory (in <patch_dir> containing the differences between the
-  two revisions of the checkout.
+    git am
 
-  When reading the <patch_dir>, ``muddle_patch.py`` uses::
+to update the checkout.
 
-      git am
+``git am`` leaves HEAD detached, so this needs fixing -- for instance,
+if one *was* on branch ``master``, one might do::
 
-  to update the checkout.
+  git branch post-update-branch   # to reattach HEAD to a branch
+  git checkout master             # to go back to master, if that's correct
+  git merge post-update-branch    # to merge in our new stuff to master
+
+.. note:: The writer of this document is not a git expert, so please treat the
+   above with caution.
 
 New checkouts
 ~~~~~~~~~~~~~
@@ -207,5 +269,7 @@ When reading the <patch_dir>, ``muddle_patch.py`` simply uses ``tar`` to unzip
 and unpack the checkout in the appropriate place. It will refuse to do this if
 a directory of the right name already exists (i.e., it does not overwrite an
 existing directory).
+
+It will not attempt to add the new checkout to any version control system.
 
 .. vim: set filetype=rst tabstop=8 softtabstop=2 shiftwidth=2 expandtab:

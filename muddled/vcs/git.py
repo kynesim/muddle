@@ -3,20 +3,28 @@ Muddle suppport for Git.
 """
 
 from muddled.version_control import *
+from muddled.depend import Label
 import muddled.utils as utils
 import os
 
 class Git(VersionControlHandler):
-    def __init__(self, builder, checkout_name, repo, rev, rel, co_dir, branch = None):
-        VersionControlHandler.__init__(self, builder, checkout_name, repo, rev, rel, co_dir)
+    def __init__(self, builder, checkout_label, checkout_name, repo, rev, rel, co_dir, branch = None):
+        VersionControlHandler.__init__(self, builder, checkout_label, checkout_name,
+                                       repo, rev, rel, co_dir)
         sp = conventional_repo_url(repo, rel, co_dir = co_dir)
         if sp is None:
             raise utils.Error("Cannot extract repository URL from %s, checkout %s"%(repo, rel))
 
         self.git_repo = sp[0]
-        self.co_path = self.get_checkout_path(self.checkout_name)
+
+        self.co_path = self.get_checkout_path(self.checkout_label)
+
         self.branch = branch
         self.parse_revision(rev)
+
+	#print 'GIT',checkout_name
+	#print '... co_dir      ',co_dir
+        #print '... self.co_path',self.co_path
 
     def parse_revision(self, rev):
         # Disentangle git version numbers. These are like '<branch>:<revision>'
@@ -37,12 +45,15 @@ class Git(VersionControlHandler):
         # Is it acceptable to return the inferred branch "master"?
         return "%s:%s"%(self.branch, self.revision)
 
-    def path_in_checkout(self, rel):
-        return conventional_repo_path(rel)
-
     def check_out(self):
         # Clone constructs its own directory .. 
         (parent_path, d) = os.path.split(self.co_path)
+
+        #print 'GIT checkout label %s'%self.checkout_label
+	#print '... co_path',self.co_path
+	#print '... parent_path',parent_path
+	#print '... d', d
+	#print '... checkout name', self.checkout_name
 
         utils.ensure_dir(parent_path)
         os.chdir(parent_path)
@@ -72,7 +83,7 @@ class Git(VersionControlHandler):
             utils.run_cmd("git pull %s %s"%(self.git_repo, self.branch))
         else:
             utils.run_cmd("git pull %s master"%(self.git_repo))
-        
+
     def update(self):
         os.chdir(self.co_path)
         utils.run_cmd("git pull", allowFailure = True)
@@ -162,7 +173,7 @@ class Git(VersionControlHandler):
         # we're reduced to looking for particular strings - and the git
         # documentation says that the "long" texts are allowed to change
 
-        # Earlier version of this command line used 'git status -q', but
+        # Earlier versions of this command line used 'git status -q', but
         # the '-q' switch is not present in git 1.7.0.4
 
         # NB: this is actually a broken solution to a broken problem, as
@@ -188,8 +199,8 @@ class GitVCSFactory(VersionControlHandlerFactory):
     def describe(self):
         return "GIT"
 
-    def manufacture(self, builder, checkout_name, repo, rev, rel, co_dir, branch):
-        return Git(builder, checkout_name, repo, rev, rel, co_dir, branch)
+    def manufacture(self, builder, checkout_label, checkout_name, repo, rev, rel, co_dir, branch):
+        return Git(builder, checkout_label, checkout_name, repo, rev, rel, co_dir, branch)
 
 # Register us with the VCS handler factory
 register_vcs_handler("git", GitVCSFactory())
@@ -216,10 +227,12 @@ def git_dir_handler(action, url=None, directory=None, files=None):
         if not os.path.exists('.git'):
             utils.run_cmd("git init")
     elif action == 'add':
-        utils.run_cmd("git add %s"%' '.join(files))
+        if files:
+            utils.run_cmd("git add %s"%' '.join(files))
     else:
         raise utils.Failure("Unrecognised action '%s' for git directory handler"%action)
 
 register_vcs_dir_handler('git', git_dir_handler)
+
 
 # End file.

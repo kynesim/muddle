@@ -39,7 +39,7 @@ class File:
         archive either though .. 
 
         * key_name is the name of the key under which this file is stored
-          in the parent heirarchy. It's a complete hack, but essential for
+          in the parent hierarchy. It's a complete hack, but essential for
           finding a file in the key map quickly without which deletion 
           becomes an O(n^2) operation (and N = number of files in the root
           fs, so it's quite high).
@@ -91,7 +91,7 @@ class File:
              self.gid, 
              " ".join(map(lambda x: x.name, self.children)))
 
-class Heirarchy:
+class Hierarchy:
     
     def __init__(self, map, roots):
         """
@@ -105,7 +105,7 @@ class Heirarchy:
         """
         Merge other with self.
 
-        We need to keep the heirarchy sensibly updated.
+        We need to keep the hierarchy sensibly updated.
 
         We merge the maps. We then kill all children and iterate over
         everything in the resulting map, finding a parent to add it
@@ -145,7 +145,7 @@ class Heirarchy:
 
     def normalise(self):
         """
-        Normalise the heirarchy into one with a single root.
+        Normalise the hierarchy into one with a single root.
         
         We do this by taking each root in turn and removing a component, creating
         a directory in the process. If the resulting root is in roots, we add it
@@ -189,7 +189,7 @@ class Heirarchy:
 
             self.roots = new_roots
             if (not did_something):
-                raise utils.Failure("Failed to normalise a heirarchy -"
+                raise utils.Failure("Failed to normalise a hierarchy -"
                                     " circular roots?: %s"%self)
             
     
@@ -208,7 +208,7 @@ class Heirarchy:
     def erase_target(self, file_name):
         """
         Recursively remove file_name and all its descendants from the
-        heirarchy.
+        hierarchy.
         """
         
         #print "Erase %s .. "%file_name
@@ -270,14 +270,14 @@ class Heirarchy:
 
 
 class CpioFileDataProvider(filespec.FileSpecDataProvider):    
-    def __init__(self, heirarchy):
+    def __init__(self, hierarchy):
         """
         Given a file map like that returned from files_from_fs()
         and a root name, create a filespec data provider.
 
-        name is the root of the effective heirarchy.
+        name is the root of the effective hierarchy.
         """
-        self.heirarchy = heirarchy
+        self.hierarchy = hierarchy
 
         
     def list_files_under(self, dir, recursively = False, 
@@ -292,7 +292,7 @@ class CpioFileDataProvider(filespec.FileSpecDataProvider):
         #print "l_f_u = %s (vroot = %s)"%(dir,vroot)
         obj = None
 
-        for r in self.heirarchy.roots.keys():
+        for r in self.hierarchy.roots.keys():
             to_find = utils.rel_join(vroot, dir)
         
             abs_path = os.path.join(r, to_find)
@@ -302,7 +302,7 @@ class CpioFileDataProvider(filespec.FileSpecDataProvider):
                 abs_path = abs_path[:-1]
 
             # Find the File representing this directory
-            obj = self.heirarchy.map.get(abs_path)
+            obj = self.hierarchy.map.get(abs_path)
             if (obj is not None):
                 break
 
@@ -334,9 +334,9 @@ class CpioFileDataProvider(filespec.FileSpecDataProvider):
 
         rv = [ ]
         for f in files:
-            if (f in self.heirarchy.map):
+            if (f in self.hierarchy.map):
                 #print "--> Abs_match result = %s"%f
-                rv.append(self.heirarchy.map[f])
+                rv.append(self.hierarchy.map[f])
 
         return rv
     
@@ -368,9 +368,9 @@ def file_from_data(name, data):
 def merge_maps(dest, src):
     """ 
     Merge src into dest. This needs special handling because we need to
-    keep the heirarchy intact
+    keep the hierarchy intact
 
-    We merge dest and src and then just rebuild the entire heirarchy - it's
+    We merge dest and src and then just rebuild the entire hierarchy - it's
     the easiest way, frankly.
     
     For everything in the merged list, zap its children.
@@ -384,14 +384,14 @@ def merge_maps(dest, src):
     
     
 
-def heirarchy_from_fs(name, base_name):
+def hierarchy_from_fs(name, base_name):
     """
-    Create a heirarchy of files from a named object in the
+    Create a hierarchy of files from a named object in the
     filesystem.
 
     The files will be named with 'base_name' substituted for 'name'.
 
-    Returns a Heirarchy with everything filled in.
+    Returns a Hierarchy with everything filled in.
     """
 
     # A map of filename to file object, so you can find 'em eas
@@ -439,7 +439,7 @@ def heirarchy_from_fs(name, base_name):
             by_tgt_map[new_obj] = new_file
             root_file.children.append(new_file)
 
-    return Heirarchy(file_map, { base_name : file_map[base_name] })
+    return Hierarchy(file_map, { base_name : file_map[base_name] })
 
 
 def file_from_fs(orig_file, new_name = None):
@@ -476,7 +476,7 @@ def file_from_fs(orig_file, new_name = None):
 def trace_files(file_list, root):
     """
     Given a File, add it and all its children, top-down, into
-    file_list. Used as a utility routine by Heirarchy.
+    file_list. Used as a utility routine by Hierarchy.
     """
     file_list.append(root)
     for c in root.children:

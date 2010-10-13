@@ -1,0 +1,63 @@
+===================
+Doctests for muddle
+===================
+
+Since we're going to be testing muddle as-such, we want to run shell command
+lines, and thus it is convenient to do:
+
+    >>> from muddled.utils import get_cmd_data
+    >>> import os, tempfile
+    >>> cwd = os.getcwd()
+    >>> updir = os.path.split(cwd)[0]
+    >>> MUDDLE_CMD = 'python %s'%(os.path.join(updir, 'muddled'))
+    >>> TEMPDIR = 'muddle_test1'
+    >>> os.mkdir(TEMPDIR)
+    >>> def m3(what):
+    ...     cmd = 'cd %s; %s %s'%(TEMPDIR, MUDDLE_CMD, what)
+    ...     rc, output, error = get_cmd_data(cmd, fail_nonzero=False)
+    ...     print output.rstrip()
+
+which means we can then do:
+
+    >>> m3(r'env')
+    Command env requires a build tree.
+    >>> m3(r'init svn+http://muddle.googlecode.com/svn/trunk/muddle/examples/gnu_package builds/01.py')
+    A    builds/01.py
+    Checked out revision 405.
+    > Make directory /home/tibs/sw/m3/muddle3_labels/muddle/tests/muddle_test1/.muddle
+    Initialised build tree in /home/tibs/sw/m3/muddle3_labels/muddle/tests/muddle_test1 
+    Repository: svn+http://muddle.googlecode.com/svn/trunk/muddle/examples/gnu_package
+    Build description: builds/01.py
+    <BLANKLINE>
+    <BLANKLINE>
+    Checking out build description .. 
+    <BLANKLINE>
+    > Make directory /home/tibs/sw/m3/muddle3_labels/muddle/tests/muddle_test1/src
+    > svn checkout  http://muddle.googlecode.com/svn/trunk/muddle/examples/gnu_package/builds builds
+    > Make directory /home/tibs/sw/m3/muddle3_labels/muddle/tests/muddle_test1/.muddle/tags/checkout/builds
+    Done.
+    >>> m3(r'query name')
+    01
+
+without too much trouble.
+
+Some other useful helper functions:
+    >>> def mkdir(dir):
+    ...     os.makedirs(os.path.join(TEMPDIR,dir))
+    ...
+    >>> def newfile(path, text):
+    ...     with open(os.path.join(TEMPDIR,path), 'w') as fd:
+    ...         fd.write(text)
+    ...
+    >>> def touch(path):
+    ...     cat(path, '')
+    ...
+    >>> import shutil
+    >>> def tidyup():
+    ...     shutil.rmtree(TEMPDIR)
+
+
+
+And, finally, lose our temporary directory...
+
+    >>> tidyup()

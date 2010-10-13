@@ -3,8 +3,6 @@ Common rules for deployments - basically just the clean rules.
 """
 
 import depend
-import os
-import mechanics
 import utils
 import pkg
 import env_store
@@ -14,9 +12,9 @@ class CleanDeploymentBuilder(pkg.Dependable):
         pass
         
     def build_label(self, builder, label):
-        if (label.type == utils.LabelKind.Deployment and 
-            (label.tag == utils.Tags.Clean or 
-            label.tag == utils.Tags.DistClean)):
+        if (label.type == utils.LabelType.Deployment and
+            (label.tag == utils.LabelTag.Clean or
+            label.tag == utils.LabelTag.DistClean)):
             deploy_path = builder.invocation.deploy_path(label.name, domain= label.domain)
             print "> Remove %s"%deploy_path
             utils.recursively_remove(deploy_path)
@@ -28,16 +26,16 @@ class CleanDeploymentBuilder(pkg.Dependable):
 
 def register_cleanup(builder, deployment):
     """
-    Register the labels you need to clean a deployment.
+    Register the rule you need to clean a deployment.
     
     Cleaning a deployment basically means we remove the directory
     and its deployed tag. 
     """
     
-    target_lbl = depend.Label(utils.LabelKind.Deployment, 
+    target_lbl = depend.Label(utils.LabelType.Deployment,
                               deployment, 
                               "*",
-                              utils.Tags.Clean)
+                              utils.LabelTag.Clean)
     rule = depend.Rule(target_lbl, CleanDeploymentBuilder())
     builder.invocation.ruleset.add(rule)
 
@@ -45,35 +43,43 @@ def register_cleanup(builder, deployment):
 def pkg_depends_on_deployment(builder, pkg, roles, deployment, domain=None):
     """
     Make this package depend on the given deployment
+
+    Specifically, given each role 'r' in 'roles', make the label
+    "package:<pkg>{<r>}/preconfig" depend on the label
+    "deployment:<deployment>/deployed".
+
+    If 'domain' is given, this is (currently) just used for the deploymet
+    label.
     """
+    deployment_label = depend.Label(utils.LabelType.Deployment,
+                                    deployment,
+                                    None,
+                                    utils.LabelTag.Deployed,
+                                    domain=domain)
     for i in roles:
-        tgt = depend.Label(utils.LabelKind.Package, 
-                           pkg, 
+        tgt = depend.Label(utils.LabelType.Package,
+                           pkg,
                            i,
-                           utils.Tags.PreConfig)
+                           utils.LabelTag.PreConfig)
         the_rule = depend.Rule(tgt, None)
-        the_rule.add(depend.Label(utils.LabelKind.Deployment,
-                                  deployment,
-                                  None,
-                                  utils.Tags.Deployed,
-                                  domain=domain))
+        the_rule.add(deployment_label)
         builder.invocation.ruleset.add(the_rule)
-                
+
 
 def role_depends_on_deployment(builder, role, deployment, domain=None):
     """
     Make every package in the given role depend on the given deployment
     """
     
-    tgt = depend.Label(utils.LabelKind.Package, 
+    tgt = depend.Label(utils.LabelType.Package,
                        "*",
                        role, 
-                       utils.Tags.PreConfig)
+                       utils.LabelTag.PreConfig)
     the_rule = depend.Rule(tgt, None)
-    the_rule.add(depend.Label(utils.LabelKind.Deployment,
+    the_rule.add(depend.Label(utils.LabelType.Deployment,
                        deployment,
                        None,
-                       utils.Tags.Deployed,
+                       utils.LabelTag.Deployed,
                        domain=domain))
     builder.invocation.ruleset.add(the_rule)
 
@@ -83,17 +89,17 @@ def deployment_depends_on_roles(builder, deployment, roles, domain=None):
     depend on the installation of every package in the given
     role
     """
-    tgt = depend.Label(utils.LabelKind.Deployment, 
+    tgt = depend.Label(utils.LabelType.Deployment,
                        deployment,
                        None,
-                       utils.Tags.Deployed)
+                       utils.LabelTag.Deployed)
     rule = builder.invocation.ruleset.rule_for_target(tgt, 
                                                       createIfNotPresent = True)
     for r in roles:
-        lbl = depend.Label(utils.LabelKind.Package,
+        lbl = depend.Label(utils.LabelType.Package,
                            "*",
                            r,
-                           utils.Tags.PostInstalled,
+                           utils.LabelTag.PostInstalled,
                            domain=domain)
         rule.add(lbl)
 
@@ -102,16 +108,16 @@ def deployment_depends_on_deployment(builder, what, depends_on, domain=None):
     Inter-deployment dependencies. Aren't you glad we have a
     general purpose dependency solver?
     """
-    tgt = depend.Label(utils.LabelKind.Deployment,
+    tgt = depend.Label(utils.LabelType.Deployment,
                        what,
                        None,
-                       utils.Tags.Deployed)
+                       utils.LabelTag.Deployed)
     rule = builder.invocation.ruleset.rule_for_target(tgt, 
                                                       createIfNotPresent = True)
-    rule.add(depend.Label(utils.LabelKind.Deployment, 
+    rule.add(depend.Label(utils.LabelType.Deployment,
                           depends_on,
                           None,
-                          utils.Tags.Deployed,
+                          utils.LabelTag.Deployed,
                           domain=domain))
     
 
@@ -125,13 +131,13 @@ def inform_deployment_path(builder, name, deployment, roles, domain=None):
     """
     
     for role in roles:
-        lbl = depend.Label(utils.LabelKind.Package,
+        lbl = depend.Label(utils.LabelType.Package,
                            "*",
                            role,
                            "*",
                            domain=domain)
         env = builder.invocation.get_environment_for(lbl)
-        env.set_type(name,env_store.EnvType.SimpleValue)
+        env.set_type(name, env_store.EnvType.SimpleValue)
         env.set(name, builder.invocation.deploy_path(deployment))
     
 
@@ -142,8 +148,8 @@ def deployment_rule_from_name(builder, name):
     Raises an exception if there is more than one such rule.
     """
     rules =  builder.invocation.ruleset.rules_for_target(
-        depend.Label(utils.LabelKind.Deployment, name, None, 
-                     utils.Tags.Deployed), 
+        depend.Label(utils.LabelType.Deployment, name, None,
+                     utils.LabelTag.Deployed),
         useTags = True, 
         useMatch = False)
     if (len(rules) != 1):
@@ -157,9 +163,9 @@ def set_env(builder, deployment, name, value):
     """
     Set NAME=VALUE in the environment for this deployment.
     """
-    lbl = depend.Label(utils.LabelKind.Deployment, 
+    lbl = depend.Label(utils.LabelType.Deployment,
                        deployment, None,
-                       utils.Tags.Deployed)
+                       utils.LabelTag.Deployed)
     env = builder.invocation.get_environment_for(lbl)
     env.set(name, value)
 

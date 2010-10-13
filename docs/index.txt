@@ -12,6 +12,7 @@ Contents:
 
    README
    muddle-dirs
+   muddle_patch.README
    muddle-useful
    muddle-package
    docs.readme

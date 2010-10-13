@@ -3,6 +3,7 @@ Muddle support for naive file copying.
 """
 
 from muddled.version_control import *
+from muddled.depend import Label
 import muddled.utils as utils
 import urlparse 
 
@@ -14,8 +15,8 @@ class File(VersionControlHandler):
     It does _not_ copy data back.
     """
 
-    def __init__(self, inv, co_name, repo, rev, rel, co_dir):
-        VersionControlHandler.__init__(self, inv, co_name, repo, rev, rel, co_dir)
+    def __init__(self, inv, co_label, co_name, repo, rev, rel, co_dir):
+        VersionControlHandler.__init__(self, inv, co_label, co_name, repo, rev, rel, co_dir)
         
         sp = conventional_repo_url(repo, rel)
         if (sp is None):
@@ -26,7 +27,8 @@ class File(VersionControlHandler):
 
         parsed = urlparse.urlparse(real_repo)
         self.source_path = parsed.path
-        self.co_path = self.get_checkout_path(self.checkout_name)
+
+        self.co_path = self.get_checkout_path(self.checkout_label)
 
 
     def check_out(self):
@@ -58,8 +60,8 @@ class FileVCSFactory(VersionControlHandlerFactory):
     def describe(self):
         return "Copy data between directories"
 
-    def manufacture(self, builder, co_name, repo, rev, rel, co_dir, branch):
-        return File(builder, co_name, repo, rev, rel, co_dir)
+    def manufacture(self, builder, co_label, co_name, repo, rev, rel, co_dir, branch):
+        return File(builder, co_name, co_label, repo, rev, rel, co_dir)
 
 
 # Tell the VCS handler about us.

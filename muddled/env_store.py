@@ -389,9 +389,16 @@ class EnvBuilder:
         elif language == EnvLanguage.Sh:
             return self.get_sh(inOldValue, True)
         elif (language == EnvLanguage.C):
-            return self.get_c(True)
-        else:
+            # As it says, the code wouldn't have worked anyway
+            # TODO: Work out what it should do
+            raise utils.Failure("attempt to get value '%s' for C, which is broken"%(inOldValue))
+            ##return self.get_c(True)
+        elif language == EnvLanguage.Python:
             return self.get_py(inOldValue)
+        else:
+            # What else can we do?
+            raise utils.Failure("attempt to get value '%s' for language %d"%(inOldValue,
+                                                                             language))
 
 
     def get_value(self, inOldValue, env = { }):

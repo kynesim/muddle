@@ -8,6 +8,8 @@ from muddled.pkg import PackageBuilder
 import muddled.utils as utils
 import muddled.checkouts.simple as simple_checkouts
 import muddled.checkouts.twolevel as twolevel_checkouts
+
+from muddled.depend import Label
 import os
 
 class LinuxKernel(PackageBuilder):
@@ -59,13 +61,10 @@ class LinuxKernel(PackageBuilder):
         """
         Make sure the relevant directories exist
         """
-        co_path = builder.invocation.checkout_path(self.co, domain = label.domain)
-        build_path = builder.invocation.package_obj_path(label.name,
-                                                         label.role, 
-                                                         domain = label.domain)
-        inst_path = builder.invocation.package_install_path(label.name,
-                                                                 label.role,
-                                                                 domain = label.domain)
+        tmp = Label(utils.LabelType.Checkout, self.co, domain=label.domain)
+        co_path = builder.invocation.checkout_path(tmp)
+        build_path = builder.invocation.package_obj_path(label)
+        inst_path = builder.invocation.package_install_path(label)
         utils.ensure_dir(co_path)
         utils.ensure_dir(os.path.join(build_path, "obj"))
         utils.ensure_dir(inst_path)
@@ -79,11 +78,10 @@ class LinuxKernel(PackageBuilder):
 
         self.ensure_dirs(builder, label)
         
-        co_path = builder.invocation.checkout_path(self.co)
-        build_path = builder.invocation.package_obj_path(label.name,
-                                                         label.role)
-        inst_path = builder.invocation.package_install_path(label.name,
-                                                            label.role)
+        tmp = Label(utils.LabelType.Checkout, self.co, domain=label.domain)
+        co_path = builder.invocation.checkout_path(tmp)
+        build_path = builder.invocation.package_obj_path(label)
+        inst_path = builder.invocation.package_install_path(label)
 
         make_cmd = "make"
         if not self.in_place:
@@ -109,9 +107,9 @@ class LinuxKernel(PackageBuilder):
         combined_include_path = os.path.join(build_path, "fake-kernel-source")
 
 
-        if (tag == utils.Tags.PreConfig):
+        if (tag == utils.LabelTag.PreConfig):
             pass
-        elif (tag == utils.Tags.Configured):
+        elif (tag == utils.LabelTag.Configured):
             # Copy the .config file across and run a distclean
             self.dist_clean(builder, label)
             self.ensure_dirs(builder,label)
@@ -131,7 +129,7 @@ class LinuxKernel(PackageBuilder):
                 raise utils.Failure("Cannot find kernel config source file %s"%config_src)
             utils.copy_file(config_src, dot_config)
 
-        elif (tag == utils.Tags.Built):
+        elif (tag == utils.LabelTag.Built):
             if self.in_place:
 	        linux_src_path = os.path.join(build_path, "obj", self.linux_src)
             else:
@@ -183,17 +181,17 @@ class LinuxKernel(PackageBuilder):
                                    
 
 
-        elif (tag == utils.Tags.Installed):
+        elif (tag == utils.LabelTag.Installed):
             if (self.make_install):
                 os.chdir(co_path)
                 utils.run_cmd("make install")
-        elif (tag == utils.Tags.PostInstalled):
+        elif (tag == utils.LabelTag.PostInstalled):
             # .. and postinstall
             pass
-        elif (tag == utils.Tags.Clean):
+        elif (tag == utils.LabelTag.Clean):
             os.chdir(os.path.join(co_path, self.linux_src))
             utils.run_cmd("%s clean"%make_cmd)
-        elif (tag == utils.Tags.DistClean):
+        elif (tag == utils.LabelTag.DistClean):
             self.dist_clean(builder, label)
         else:
             raise utils.Error("Invalid tag specified for "
@@ -201,8 +199,7 @@ class LinuxKernel(PackageBuilder):
 
     def dist_clean(self, builder, label):
         # Just wipe out the object file directory
-        utils.recursively_remove(builder.invocation.package_obj_path(label.name, 
-                                                                     label.role))
+        utils.recursively_remove(builder.invocation.package_obj_path(label))
 
 
 

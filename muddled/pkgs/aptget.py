@@ -48,7 +48,7 @@ class AptGetBuilder(pkg.PackageBuilder):
         This time, build is the only one we care about.
         """
 
-        if (label.tag == utils.Tags.Built):
+        if (label.tag == utils.LabelTag.Built):
             need_to_install = [ ]
 
             for cur_pkg in self.pkgs_to_install:
@@ -84,15 +84,15 @@ def depends_on_aptget(builder, name, role, pkg, pkg_role):
       add here .. 
     """
     
-    tgt_label = depend.Label(utils.LabelKind.Package, 
+    tgt_label = depend.Label(utils.LabelType.Package,
                              pkg,  pkg_role,
-                             utils.Tags.PreConfig)
+                             utils.LabelTag.PreConfig)
 
     the_rule = builder.invocation.ruleset.rule_for_target(tgt_label,
                                                           createIfNotPresent = True)
-    the_rule.add(depend.Label(utils.LabelKind.Package, 
+    the_rule.add(depend.Label(utils.LabelType.Package,
                               name, role,
-                              utils.Tags.PostInstalled))
+                              utils.LabelTag.PostInstalled))
 
 
 def medium(builder, name, role, apt_pkgs, roles):

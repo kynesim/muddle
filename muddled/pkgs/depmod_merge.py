@@ -59,6 +59,7 @@ import muddled.checkouts.simple as simple_checkouts
 import muddled.checkouts.twolevel as twolevel_checkouts
 import muddled.depend as depend
 import muddled.rewrite as rewrite
+from muddled.depend import Label
 import os
 import re
 
@@ -117,14 +118,15 @@ class MergeDepModBuilder(PackageBuilder):
 
 
     def build_label(self, builder, label):
-        our_dir = builder.invocation.package_obj_path(label.name, label.role, label.domain)
+        our_dir = builder.invocation.package_obj_path(label)
 
         dirlist = [ ]
         tag = label.tag
         
-        if (tag == utils.Tags.Built or tag == utils.Tags.Installed):
+        if (tag == utils.LabelTag.Built or tag == utils.LabelTag.Installed):
             for (l,s) in self.components:
-                root_dir = builder.invocation.package_install_path(l.name, l.role, label.domain)
+                tmp = Label(utils.LabelType.Package, l.name, l.role, domain=label.domain)
+                root_dir = builder.invocation.package_install_path(tmp)
                 dirlist.append( (root_dir, s) )
 
                 print "dirlist:" 
@@ -132,11 +134,11 @@ class MergeDepModBuilder(PackageBuilder):
                     print "%s=%s \n"%(x,y)
         
 
-        if (tag == utils.Tags.PreConfig):
+        if (tag == utils.LabelTag.PreConfig):
             pass
-        elif (tag == utils.Tags.Configured):
+        elif (tag == utils.LabelTag.Configured):
             pass
-        elif (tag == utils.Tags.Built):
+        elif (tag == utils.LabelTag.Built):
             # OK. Building. This is ghastly .. 
             utils.recursively_remove(our_dir)
             utils.ensure_dir(our_dir)
@@ -164,19 +166,19 @@ class MergeDepModBuilder(PackageBuilder):
                     print "Found kernel version %s in %s .. "%(n, our_dir)
                     utils.run_cmd("%s -b %s %s"%(depmod, our_dir, n))
 
-        elif (tag == utils.Tags.Installed):
+        elif (tag == utils.LabelTag.Installed):
             # Now we find all the modules.* files in our_dir and copy them over
             # to our install directory
             names = utils.find_by_predicate(our_dir, predicate_is_module_db)
-            tgt_dir = builder.invocation.package_install_path(label.name, label.role, label.domain)
+            tgt_dir = builder.invocation.package_install_path(label)
             utils.copy_name_list_with_dirs(names, our_dir, tgt_dir)
             for n in names:
                 new_n = utils.replace_root_name(our_dir, tgt_dir, n)
                 print "Installed: %s"%(new_n)
 
-        elif (tag == utils.Tags.Clean):
+        elif (tag == utils.LabelTag.Clean):
             utils.recursively_remove(our_dir)
-        elif (tag == utils.Tags.DistClean):
+        elif (tag == utils.LabelTag.DistClean):
             utils.recursively_remove(our_dir)
         
 
@@ -199,10 +201,10 @@ def add_deps(builder, merger, deps, subdir = "/lib/modules"):
                   deps)
 
     for (pname, role) in deps:
-        lbl = depend.Label(utils.LabelKind.Package,
+        lbl = depend.Label(utils.LabelType.Package,
                            pname,
                            role,
-                           utils.Tags.PostInstalled)
+                           utils.LabelTag.PostInstalled)
         merger.add_label(lbl, subdir)
     
                 
@@ -226,10 +228,10 @@ def create(builder, name, role,
 
     lbls = [ ]
     for (pname, role) in pkgs_and_roles:
-        lbl = depend.Label(utils.LabelKind.Package,
+        lbl = depend.Label(utils.LabelType.Package,
                            pname,
                            role,
-                           utils.Tags.PostInstalled)
+                           utils.LabelTag.PostInstalled)
         dependable.add_label(lbl, subdir)
 
     return dependable

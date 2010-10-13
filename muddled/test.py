@@ -14,6 +14,8 @@ import pkg
 import subst
 import cpiofile
 
+from depend import Label
+
 def unit_test():
     print "> cpio"
     cpio_unit_test()
@@ -25,8 +27,6 @@ def unit_test():
     subst_unit_test()
     print "> filespec"
     filespec_unit_test()
-    print "> Commands"
-    commands_unit_test()
     print "> VCS"
     vcs_unit_test()
     print "> Depends"
@@ -40,7 +40,8 @@ def cpio_unit_test():
     A brief test of the cpio module. Uses ``/tmp/test.cpio``.
     """
 
-    f1 = cpiofile.file_from_fs("/var/run/motd")
+    #f1 = cpiofile.file_from_fs("/var/run/motd")
+    f1 = cpiofile.file_from_fs(__file__)  # A file we're fairly sure exists
     f1.rename("foo")
     f2 = cpiofile.file_for_dir("bar")
     f3 = cpiofile.File()
@@ -142,43 +143,19 @@ def filespec_unit_test():
     assert "/a/b" in results
 
 
-
-def commands_unit_test():
-    """
-    Check command utility routines.
-    """
-    
-    sample_list = [ "a", "b{c}", "d", "(x)e" ]
-    default_roles = [ "d1", "d2" ]
-    
-    lbls = commands.labels_from_pkg_args(sample_list, "t", default_roles, 'y')
-    strs = map(str, lbls)
-
-    print strs
-
-    assert len(lbls) == 7
-    assert lbls[0] == depend.Label(utils.LabelKind.Package, "a", "d1", "t", domain='y')
-    assert lbls[1] == depend.Label(utils.LabelKind.Package, "a", "d2", "t", domain='y')
-    assert lbls[2] == depend.Label(utils.LabelKind.Package, "b", "c", "t", domain='y')
-    assert lbls[3] == depend.Label(utils.LabelKind.Package, "d", "d1", "t", domain='y')
-    assert lbls[4] == depend.Label(utils.LabelKind.Package, "d", "d2", "t", domain='y')
-    assert lbls[5] == depend.Label(utils.LabelKind.Package, "e", "d1", "t", domain='x')
-    assert lbls[6] == depend.Label(utils.LabelKind.Package, "e", "d2", "t", domain='x')
-
-
 def mechanics_unit_test():
     """
     Check mechanics.
     """
 
     inv = mechanics.Invocation("/tmp")
-    lbl = depend.Label(utils.LabelKind.Checkout, "bob", None, "*")
+    lbl = Label(utils.LabelType.Checkout, "bob", None, "*")
     s1 = inv.get_environment_for(lbl)
     s1.set_type("PATH", env_store.EnvType.Path)
     s1.append("PATH", "a")
     s1.set("FISH", "42")
 
-    lbl = depend.Label(utils.LabelKind.Checkout, "bob", None, "a")
+    lbl = Label(utils.LabelType.Checkout, "bob", None, "a")
     s2 = inv.get_environment_for(lbl)
     s2.set_type("PATH", env_store.EnvType.Path)
     s2.append("PATH", "b")
@@ -196,57 +173,55 @@ def depend_unit_test():
     Some fairly simple tests for the dependency solver.
     """
 
-    l1 = depend.Label(utils.LabelKind.Checkout, "co_1", "role_1", utils.Tags.CheckedOut)
-    l2 = depend.Label(utils.LabelKind.Checkout, "co_1", "role_1", utils.Tags.Pulled)
-    l3 = depend.Label(utils.LabelKind.Package, "pkg_1", "role_1", utils.Tags.PreConfig)
-    l4 = depend.Label(utils.LabelKind.Deployment, "dep_1", "role_2", utils.Tags.Built)
+    l1 = Label(utils.LabelType.Checkout, "co_1", "role_1", utils.LabelTag.CheckedOut)
+    l2 = Label(utils.LabelType.Checkout, "co_1", "role_1", utils.LabelTag.Pulled)
+    l3 = Label(utils.LabelType.Package, "pkg_1", "role_1", utils.LabelTag.PreConfig)
+    l4 = Label(utils.LabelType.Deployment, "dep_1", "role_2", utils.LabelTag.Built)
 
     # Check label_from_string ..
-    lx = depend.label_from_string("foo:bar{baz}/wombat[T]")
-    assert (lx is not None)
+    lx = Label.from_string("foo:bar{baz}/wombat[T]")
 
-    lx_a = depend.Label("foo", "bar", "baz", "wombat")
+    lx_a = Label("foo", "bar", "baz", "wombat")
     assert lx.__cmp__(lx_a) == 0
     assert lx.transient
     assert not lx.system
 
-    lx = depend.label_from_string("foo:bar/wombat[T]")
-    assert (lx is not None)
-    lx_a = depend.Label("foo", "bar", None, "wombat")
+    lx = Label.from_string("foo:bar/wombat[T]")
+    lx_a = Label("foo", "bar", None, "wombat")
     assert lx.__cmp__(lx_a) == 0
     assert lx.transient
     assert not lx.system
 
-    lx = depend.label_from_string("*:bar/wombat")
+    lx = Label.from_string("*:bar/wombat")
     assert (lx is not None)
-    lx_a = depend.Label("*", "bar", None, "wombat")
+    lx_a = Label("*", "bar", None, "wombat")
     print "lx = %s\n lx_a = %s"%(lx,lx_a)
     assert lx.__cmp__(lx_a) == 0
     assert not lx.transient
     assert not lx.system
     
 
-    lx = depend.label_from_string("*:wombat/*")
+    lx = Label.from_string("*:wombat/*")
     assert lx is not None
-    lx_a = depend.Label("*", "wombat", None, "*")
+    lx_a = Label("*", "wombat", None, "*")
     assert lx.__cmp__(lx_a) == 0
     assert not lx.transient
     assert not lx.system
     
-    lx = depend.label_from_string(l1.__str__())
+    lx = Label.from_string(l1.__str__())
     print "l1 str = %s"%l1.__str__()
     assert (lx is not None)
     assert (lx == l1)
 
-    lx = depend.label_from_string(l2.__str__())
+    lx = Label.from_string(l2.__str__())
     assert (lx is not None)
     assert (lx == l2)
 
-    lx = depend.label_from_string(l3.__str__())
+    lx = Label.from_string(l3.__str__())
     assert (lx is not None)
     assert (lx == l3)
 
-    lx = depend.label_from_string(l4.__str__())
+    lx = Label.from_string(l4.__str__())
     assert (lx is not None)
     assert (lx == l4)
 

@@ -7,6 +7,9 @@ for fear of complicating the checkout tree.
 import muddled
 import muddled.pkg as pkg
 import muddled.version_control as version_control
+import muddled.utils as utils
+from muddled.depend import Label
+
 import urlparse
 import os
 
@@ -48,13 +51,13 @@ def relative(builder, co_dir, co_name, repo_relative = None, rev = None):
     else:
         rest = repo_relative
 
-    builder.invocation.db.set_checkout_path(co_name, os.path.join(co_dir, co_name), 
-                                            domain = builder.default_domain)
+    co_label = Label(utils.LabelType.Checkout, co_name, domain=builder.default_domain)
+    builder.invocation.db.set_checkout_path(co_label, os.path.join(co_dir, co_name))
 
     vcs_handler = version_control.vcs_dependable_for(builder,
-                                                     co_name, 
-                                                     repo, rev, 
-                                                     rest, 
+                                                     co_label,
+                                                     repo, rev,
+                                                     rest,
                                                      co_dir = co_dir)
     pkg.add_checkout_rules(builder.invocation.ruleset,
                            co_name, 
@@ -69,10 +72,12 @@ def absolute(builder, co_dir, co_name, repo_url, rev = None):
     """
     
     rest = os.path.join(co_dir, co_name)
-    builder.invocation.db.set_checkout_path(co_name, rest, 
-                                            domain = builder.default_domain)
-    vcs_handler = version_control.vcs_dependable_for(builder, co_name, 
-                                                     repo_url, rev, 
+
+    co_label = Label(utils.LabelType.Checkout, co_name, domain=builder.default_domain)
+    builder.invocation.db.set_checkout_path(co_label, rest)
+
+    vcs_handler = version_control.vcs_dependable_for(builder, co_label,
+                                                     repo_url, rev,
                                                      None, co_dir = co_dir)
     pkg.add_checkout_rules(builder.invocation.ruleset,
                            co_name, 

@@ -10,8 +10,8 @@ import xml.dom.minidom
 import traceback
 import depend
 
-import version_control
 from utils import domain_subpath
+from version_control import split_vcs_url
 
 class Database(object):
     """
@@ -28,9 +28,9 @@ class Database(object):
         
         * root_path          - The path to the root of the build tree.
         * local_labels       - Transient labels which are asserted.
-        * checkout_locations - Maps (checkout, domain) to the directory it's in,
-          relative to src/ - if there's no mapping, we believe it's directly
-          in src.
+        * checkout_locations - Maps checkout_label to the directory the
+          checkout is in, relative to src/ - if there's no mapping, we believe
+          it's directly in src.
         """
         self.root_path = root_path
         utils.ensure_dir(os.path.join(self.root_path, ".muddle"))
@@ -57,15 +57,15 @@ class Database(object):
         self.repo.set(repo_location)
         self.build_desc.set(build_desc)
         if versions_repo is None:
-            vcs, repo = version_control.split_vcs_url(repo_location)
-            print 'vcs',vcs
-            print 'repo',repo
+            vcs, repo = split_vcs_url(repo_location)
+            ##print 'vcs',vcs
+            ##print 'repo',repo
             # Rather hackily, assume that it is only the given VCS names
             # that will stop us storing our 'versions' repository in the
             # same "place" as the src/ checkouts (because they store
             # everything in one monolithic entity)
             if vcs not in ('svn', ):
-                print 'setting versions repository'
+                ##print 'setting versions repository'
                 self.versions_repo.set(os.path.join(repo_location,"versions"))
         else:
             self.versions_repo.set(versions_repo)
@@ -86,22 +86,21 @@ class Database(object):
         return (repo_file.get(), desc_file.get())
 
 
-    def include_domain(self,other_builder, other_domain_name):
+    def include_domain(self, other_builder, other_domain_name):
         """
-        Include data from other_builder, built in other_name
+        Include data from other_builder, built in other_domain_name
 
         This is mainly checkout locations.
         """
-        for (k,v) in other_builder.invocation.db.checkout_locations.items():
-            (co,dom) = k
-            #print "Including (%s,%s) -> %s -- %s"%(co,dom,v, other_domain_name)
-            if (dom is None):
-                dom = other_domain_name
-            else:
-                dom = other_domain_name + "." + dom
+        for (co_label,co_dir) in other_builder.invocation.db.checkout_locations.items():
+            #print "Including %s -> %s -- %s"%(co_label,co_dir, other_domain_name)
 
-            self.checkout_locations[(co, dom)] = v
-        
+            new_label = self.normalise_checkout_label(co_label)
+            new_label._mark_unswept()
+            new_label._change_domain(other_domain_name)
+
+            self.checkout_locations[new_label] = co_dir
+
 
     def set_domain_marker(self, domain_name):
         """
@@ -113,33 +112,83 @@ class Database(object):
         utils.mark_as_domain(self.root_path, domain_name)
 
 
-    def set_checkout_path(self, checkout, dir, domain = None):
-        self.checkout_locations[(checkout, domain)] = dir
+    def normalise_checkout_label(self, label):
+        """
+        Given a checkout label with random "other" fields, normalise it.
+
+        NB: We assume that the caller has made sure that its label
+        type really is "checkout:".
+
+        For instance, if the caller filled in the role (which we don't
+        care about), we need to remove it. Similarly, they might have
+        given us various tags, and we want to reduce that to '*' for
+        the purpose of using our label as a key.
+
+        Returns a normalised label.
+
+        (NB: This is not guaranteed to be a different Label instance,
+        since in theory this method need not do anything if the label
+        was already normalised. However, don't assume it is *not* a new
+        instance either...)
+        """
+        new = depend.Label(label.type, label.name,
+                           role=None,
+                           tag='*',
+                           domain=label.domain)
+        return new
+
+
+    def set_checkout_path(self, checkout_label, dir):
+        assert checkout_label.type == utils.LabelType.Checkout
+        key = self.normalise_checkout_label(checkout_label)
+
+	#print '### set_checkout_path for %s'%checkout_label
+	#print '... dir',dir
+
+        self.checkout_locations[key] = dir
 
 
     def dump_checkout_paths(self):
         print "> Checkout paths .. "
-        for (k,v) in self.checkout_locations.items():
-            (co, dom) = k
-            print "(%s,%s) -> %s"%(co,dom,v)
+        keys = self.checkout_locations.keys()
+        max = 0
+        for label in keys:
+            length = len(str(label))
+            if length > max:
+                max = length
+        keys.sort()
+        for label in keys:
+            print "%-*s -> %s"%(max, label, self.checkout_locations[label])
 
-    def get_checkout_path(self, checkout, isRelative = False, domain = None):
+    def get_checkout_path(self, checkout_label):
         """
-        'checkout' is the <name> from a "checkout:" label.
+        'checkout_label' is a "checkout:" Label, or None
+
+        If it is None, then "<root path>/src" is returned.
+
+        Otherwise, the path to the checkout directory for this label is
+        calculated.
         """
-        if domain:
-            root = os.path.join(self.root_path, domain_subpath(domain))
+        if checkout_label is None:
+            return os.path.join(self.root_path, "src")
+
+        assert checkout_label.type == utils.LabelType.Checkout
+
+        if checkout_label.domain:
+            root = os.path.join(self.root_path,
+                                domain_subpath(checkout_label.domain))
         else:
             root = self.root_path
 
-        if (checkout is None):
-            return os.path.join(root, "src")
+        key = self.normalise_checkout_label(checkout_label)
+        rel_dir = self.checkout_locations.get(key, checkout_label.name)
 
-        rel_dir = self.checkout_locations.get((checkout, domain), checkout)
-        if (isRelative):
-            return rel_dir
-        else:
-            return os.path.join(root, "src", rel_dir)
+	#print '*** get_checkout_path for %s'%checkout_label
+	#print '... root',root
+	#print '... rel_dir',rel_dir
+	#print '... giving',os.path.join(root, "src", rel_dir)
+
+        return os.path.join(root, "src", rel_dir)
 
     def build_desc_file_name(self):
         """
@@ -208,8 +257,8 @@ class Database(object):
                     if (role == "_default"):
                         role = None
                         
-                    test_lbl = depend.Label(utils.LabelKind.Package, pkg_name, role, 
-                                            utils.Tags.Temporary,
+                    test_lbl = depend.Label(utils.LabelType.Package, pkg_name, role,
+                                            utils.LabelTag.Temporary,
                                             domain = lbl.domain)
                     #print "Match %s -> %s = %s"%(lbl, test_lbl, lbl.match(test_lbl))
                     if (lbl.match(test_lbl) is not None):
@@ -235,7 +284,7 @@ class Database(object):
         the (absolute) filename of an instruction file to use for this 
         package and role, what would it be?
         """
-        if (label.type != utils.LabelKind.Package):
+        if (label.type != utils.LabelType.Package):
             raise utils.Error("Attempt to retrieve instruction file "
                               "name for non-package tag %s"%(str(label)))
 
@@ -271,7 +320,7 @@ class Database(object):
         return os.path.join(root, 
                             ".muddle",
                             "tags",
-                            utils.label_kind_to_string(label.type),
+                            label.type,
                             label.name, leaf)
 
     def is_tag(self, label):
@@ -321,8 +370,7 @@ class Database(object):
         self.repo.commit()
         self.build_desc.commit()
         self.versions_repo.commit()
-            
-        
+
 
 class PathFile(object):
     """ 
@@ -372,10 +420,11 @@ class PathFile(object):
             # Remove the trailing '\n' if it exists.
             if val[-1] == '\n':
                 val = val[:-1]
-                
+
         except IOError,e:
-            val = None
-        
+            raise utils.Failure("Error retrieving value from %s\n"
+                                "    %s"%(self.file_name, str(e)))
+
         self.value = val
         self.value_valid = True
         return val

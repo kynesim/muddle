@@ -5,7 +5,6 @@ appropriate instructions.
 """
 
 import os
-import muddled
 import muddled.pkg as pkg
 import muddled.env_store
 import muddled.depend as depend
@@ -68,7 +67,7 @@ class FileDeploymentBuilder(pkg.Dependable):
         """
         
         for role, domain in self.roles:
-            lbl = depend.Label(utils.LabelKind.Package,
+            lbl = depend.Label(utils.LabelType.Package,
                                "*",
                                role,
                                "*", 
@@ -89,10 +88,10 @@ class FileDeploymentBuilder(pkg.Dependable):
         """
 
 
-        if (label.tag == utils.Tags.Deployed):
+        if (label.tag == utils.LabelTag.Deployed):
             # We want to deploy 
             self.deploy(builder, label)
-        elif (label.tag == utils.Tags.InstructionsApplied):
+        elif (label.tag == utils.LabelTag.InstructionsApplied):
             self.apply_instructions(builder, label)
         else:
             raise utils.Failure("Attempt to build a deployment with an unexpected tag in label %s"%(label))
@@ -125,7 +124,7 @@ class FileDeploymentBuilder(pkg.Dependable):
         # First off, do we need to at all?
         need_root = False
         for role, domain in self.roles:
-            lbl = depend.Label(utils.LabelKind.Package, 
+            lbl = depend.Label(utils.LabelType.Package,
                                "*",
                                role,
                                "*",
@@ -154,9 +153,9 @@ class FileDeploymentBuilder(pkg.Dependable):
 
         print "Rerunning muddle to apply instructions .. "
         
-        permissions_label = depend.Label(utils.LabelKind.Deployment,
+        permissions_label = depend.Label(utils.LabelType.Deployment,
                                          label.name, label.role,
-                                         utils.Tags.InstructionsApplied,
+                                         utils.LabelTag.InstructionsApplied,
                                          domain = label.domain)
 
         if need_root:
@@ -171,7 +170,7 @@ class FileDeploymentBuilder(pkg.Dependable):
         app_dict = get_instruction_dict()
 
         for role, domain in self.roles:
-            lbl = depend.Label(utils.LabelKind.Package, 
+            lbl = depend.Label(utils.LabelType.Package,
                                "*",
                                role,
                                "*", 
@@ -330,15 +329,15 @@ def deploy_with_domains(builder, target_dir, name, role_domains):
     the_dependable = FileDeploymentBuilder(role_domains,
                                            target_dir)
 
-    dep_label = depend.Label(utils.LabelKind.Deployment,
+    dep_label = depend.Label(utils.LabelType.Deployment,
                              name, 
                              None, 
-                             utils.Tags.Deployed)
+                             utils.LabelTag.Deployed)
     
-    iapp_label = depend.Label(utils.LabelKind.Deployment,
+    iapp_label = depend.Label(utils.LabelType.Deployment,
                               name,
                               None,
-                              utils.Tags.InstructionsApplied,
+                              utils.LabelTag.InstructionsApplied,
                               transient = True)
     
     # We depend on every postinstall for every package in the roles
@@ -346,10 +345,10 @@ def deploy_with_domains(builder, target_dir, name, role_domains):
     deployment_rule = depend.Rule(dep_label, the_dependable)
 
     for role, domain in role_domains:
-        role_label = depend.Label(utils.LabelKind.Package, 
+        role_label = depend.Label(utils.LabelType.Package,
                                   "*",
                                   role, 
-                                  utils.Tags.PostInstalled,
+                                  utils.LabelTag.PostInstalled,
                                   domain = domain)
         deployment_rule.add(role_label)
 

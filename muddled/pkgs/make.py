@@ -10,6 +10,8 @@ import muddled.checkouts.twolevel as twolevel_checkouts
 import muddled.checkouts.multilevel as multilevel_checkouts
 import muddled.depend as depend
 import muddled.rewrite as rewrite
+
+from muddled.depend import Label
 import os
 
 class MakeBuilder(PackageBuilder):
@@ -45,13 +47,15 @@ class MakeBuilder(PackageBuilder):
         """
 
         inv = builder.invocation
-        if not os.path.exists(inv.checkout_path(self.co, domain = label.domain)):
+        tmp = Label(utils.LabelType.Checkout, self.co, domain=label.domain)
+        if not os.path.exists(inv.checkout_path(tmp)):
             raise utils.Error("Path %s for checkout %s does not exist, building %s"%
-                              (inv.checkout_path(self.co, domain = label.domain), self.co, 
+                              (inv.checkout_path(tmp), self.co, 
                                label))
 
-        utils.ensure_dir(inv.package_obj_path(self.name, self.role, domain = label.domain))
-        utils.ensure_dir(inv.package_install_path(self.name, self.role, domain = label.domain))
+        tmp = Label(utils.LabelType.Package, self.name, self.role, domain=label.domain)
+        utils.ensure_dir(inv.package_obj_path(tmp))
+        utils.ensure_dir(inv.package_install_path(tmp))
 
     def _amend_env(self, co_path):
         """Amend the environment before building a label
@@ -63,11 +67,11 @@ class MakeBuilder(PackageBuilder):
         # We really do want PKG_CONFIG_LIBDIR here - it prevents pkg-config
         # from finding system-installed packages.
         if (self.usesAutoconf):
-            print "> setting PKG_CONFIG_LIBDIR to %s"%(os.environ['MUDDLE_PKGCONFIG_DIRS_AS_PATH'])
+            #print "> setting PKG_CONFIG_LIBDIR to %s"%(os.environ['MUDDLE_PKGCONFIG_DIRS_AS_PATH'])
             os.environ['PKG_CONFIG_LIBDIR'] = os.environ['MUDDLE_PKGCONFIG_DIRS_AS_PATH']
         elif(os.environ.has_key('PKG_CONFIG_LIBDIR')):
             # Make sure that pkg-config uses default if we're not setting it.
-            print "> setting removing PKG_CONFIG_LIBDIR from environment"
+            #print "> removing PKG_CONFIG_LIBDIR from environment"
             del os.environ['PKG_CONFIG_LIBDIR']
 
     def build_label(self, builder, label):
@@ -82,7 +86,8 @@ class MakeBuilder(PackageBuilder):
         # XXX We have no way of remembering a checkout in a different domain
         # XXX (from the label we're building) so for the moment we won't even
         # XXX try...
-        co_path =  builder.invocation.checkout_path(self.co, domain = label.domain)
+        tmp = Label(utils.LabelType.Checkout, self.co, domain=label.domain)
+        co_path =  builder.invocation.checkout_path(tmp)
         os.chdir(co_path)
 
         self._amend_env(co_path)
@@ -97,28 +102,26 @@ class MakeBuilder(PackageBuilder):
         else:
             make_args = " -f %s"%(makefile_name)
 
-        if (tag == utils.Tags.PreConfig):
+        if (tag == utils.LabelTag.PreConfig):
             # Preconfigure - nothing need be done
             pass
-        elif (tag == utils.Tags.Configured):
+        elif (tag == utils.LabelTag.Configured):
             # We should probably do the configure thing ..
             if (self.has_make_config):
                 utils.run_cmd("make %s config"%make_args)
-        elif (tag == utils.Tags.Built):
+        elif (tag == utils.LabelTag.Built):
             utils.run_cmd("make %s"%make_args)
-        elif (tag == utils.Tags.Installed):
+        elif (tag == utils.LabelTag.Installed):
             utils.run_cmd("make %s install"%make_args)
-        elif (tag == utils.Tags.PostInstalled):
+        elif (tag == utils.LabelTag.PostInstalled):
             if (self.rewriteAutoconf):
                 #print "> Rewrite autoconf for label %s"%(label)
-                obj_path = builder.invocation.package_obj_path(label.name, 
-                                                               label.role, 
-                                                               domain = label.domain)
+                obj_path = builder.invocation.package_obj_path(label)
                 #print ">obj_path = %s"%(obj_path)
                 rewrite.fix_up_pkgconfig_and_la(builder, obj_path)
-        elif (tag == utils.Tags.Clean):
+        elif (tag == utils.LabelTag.Clean):
             utils.run_cmd("make %s clean"%make_args)
-        elif (tag == utils.Tags.DistClean):
+        elif (tag == utils.LabelTag.DistClean):
             utils.run_cmd("make %s distclean"%make_args)
         else:
             raise utils.Error("Invalid tag specified for "
@@ -163,7 +166,7 @@ def simple(builder, name, role, checkout, rev=None,
     ###attach_env(builder, name, role, checkout)
 
 def medium(builder, name, roles, checkout, rev=None,
-	   deps = None, dep_tag = utils.Tags.PreConfig, 
+	   deps = None, dep_tag = utils.LabelTag.PreConfig,
            simpleCheckout = True, config = True, perRoleMakefiles = False, 
            makefileName = None,
            usesAutoconf = False,
@@ -196,7 +199,7 @@ def medium(builder, name, roles, checkout, rev=None,
 
 def twolevel(builder, name, roles, 
              co_dir = None, co_name = None, rev=None,
-             deps = None, dep_tag = utils.Tags.PreConfig, 
+             deps = None, dep_tag = utils.LabelTag.PreConfig,
              simpleCheckout = True, config = True, perRoleMakefiles = False, 
              makefileName = None, repo_relative=None, 
              usesAutoconf = False,
@@ -216,8 +219,7 @@ def twolevel(builder, name, roles,
 
     if (simpleCheckout):
         twolevel_checkouts.twolevel(builder, co_dir, co_name,
-                                    repo_relative=repo_relative,
-				    rev=rev)
+                                    repo_relative=repo_relative, rev=rev)
 
     if deps is None:
         deps = []
@@ -234,43 +236,42 @@ def twolevel(builder, name, roles,
                                        deps)
         ###attach_env(builder, name, r, co_name)
 
-def multilevel(builder, name, roles, 
-             co_dir = None, co_name = None, rev=None,
-             deps = None, dep_tag = utils.Tags.PreConfig, 
-             simpleCheckout = True, config = True, perRoleMakefiles = False, 
-             makefileName = None, repo_relative=None, 
-             usesAutoconf = False,
-             rewriteAutoconf = False):
+def multilevel(builder, name, roles,
+               co_dir = None, co_name = None, rev=None,
+               deps = None, dep_tag = utils.LabelTag.PreConfig,
+               simpleCheckout = True, config = True, perRoleMakefiles = False,
+               makefileName = None, repo_relative=None,
+               usesAutoconf = False,
+               rewriteAutoconf = False):
     """
     Build a package controlled by make, in the given roles with the
     given dependencies in each role.
-    
+
     * simpleCheckout - If True, register the checkout as simple checkout too.
     * dep_tag        - The tag to depend on being installed before you'll build.
     * perRoleMakefiles - If True, we run 'make -f Makefile.<rolename>' instead
       of just make.
     """
 
-    if (co_name is None): 
+    if (co_name is None):
         co_name = name
 
     if (simpleCheckout):
         multilevel_checkouts.relative(builder, co_dir, co_name,
-                                    repo_relative=repo_relative,
-				    rev=rev)
+                                      repo_relative=repo_relative, rev=rev)
 
     if deps is None:
         deps = []
 
 
     for r in roles:
-        simple(builder, name, r, co_name, config = config, 
+        simple(builder, name, r, co_name, config = config,
                perRoleMakefiles = perRoleMakefiles,
                makefileName = makefileName,
                usesAutoconf = usesAutoconf,
                rewriteAutoconf = rewriteAutoconf)
         pkg.package_depends_on_packages(builder.invocation.ruleset,
-                                       name, r, dep_tag, 
+                                       name, r, dep_tag,
                                        deps)
         ###attach_env(builder, name, r, co_name)
 
@@ -297,9 +298,10 @@ def attach_env(builder, name, role, checkout, domain=None):
     set MUDDLE_SRC therein to the checkout path for 'checkout:<checkout>'.
     """
     env = builder.invocation.get_environment_for(
-        depend.Label(utils.LabelKind.Package, 
+        depend.Label(utils.LabelType.Package,
                      name, role, "*"))
-    env.set("MUDDLE_SRC", builder.invocation.checkout_path(checkout, domain=domain))
+    tmp = Label(utils.LabelType.Checkout, checkout, domain=domain)
+    env.set("MUDDLE_SRC", builder.invocation.checkout_path(tmp))
 
 # Useful extensions
 
@@ -433,5 +435,6 @@ def expanding_package(builder, name, archive_dir,
     # And maybe on other packages
     if deps:
         pkg.do_depend(builder, name, [role], deps)
+
 
 # End file.

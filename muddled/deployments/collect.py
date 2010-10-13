@@ -9,7 +9,6 @@ usually to be processed by some external tool.
 
 import muddled
 import muddled.pkg as pkg
-import muddled.env_store
 import muddled.depend as depend
 import muddled.utils as utils
 import muddled.filespec as filespec
@@ -46,19 +45,16 @@ class AssemblyDescriptor:
 
         
     def get_source_dir(self, builder):
-        if (self.from_label.type == utils.LabelKind.Checkout):
-            return builder.invocation.checkout_path(self.from_label.name,
-                                                    domain=self.from_label.domain)
-        elif (self.from_label.type == utils.LabelKind.Package):
+        if (self.from_label.type == utils.LabelType.Checkout):
+            return builder.invocation.checkout_path(self.from_label)
+        elif (self.from_label.type == utils.LabelType.Package):
             if ((self.from_label.name is None) or 
                 self.from_label.name == "*"):
                 return builder.invocation.role_install_path(self.from_label.role,
                                                             domain=self.from_label.domain)
             else:
-                return builder.invocation.package_obj_path(self.from_label.name, 
-                                                           self.from_label.role,
-                                                           domain=self.from_label.domain)
-        elif (self.from_label.type == utils.LabelKind.Deployment):
+                return builder.invocation.package_obj_path(self.from_label)
+        elif (self.from_label.type == utils.LabelType.Deployment):
             return builder.invocation.deploy_path(self.from_label.name,
                                                   domain=self.from_label.domain)
         else:
@@ -91,7 +87,7 @@ class CollectDeploymentBuilder(pkg.Dependable):
 
         utils.ensure_dir(builder.invocation.deploy_path(label.name, domain=label.domain))
 
-        if (label.tag == utils.Tags.Deployed):
+        if (label.tag == utils.LabelTag.Deployed):
             for asm in self.assemblies:
                 src = os.path.join(asm.get_source_dir(builder), asm.from_rel)
                 dst = os.path.join(builder.invocation.deploy_path(label.name, domain=label.domain), 
@@ -124,9 +120,9 @@ def deploy(builder, name):
     """
     the_dependable = CollectDeploymentBuilder()
 
-    dep_label = depend.Label(utils.LabelKind.Deployment, 
+    dep_label = depend.Label(utils.LabelType.Deployment,
                              name, None,
-                             utils.Tags.Deployed)
+                             utils.LabelTag.Deployed)
 
     deployment_rule = depend.Rule(dep_label, the_dependable)
 
@@ -142,10 +138,10 @@ def copy_from_checkout(builder, name, checkout, rel, dest,
                        domain = None):
     rule = deployment.deployment_rule_from_name(builder, name)
     
-    dep_label = depend.Label(utils.LabelKind.Checkout, 
+    dep_label = depend.Label(utils.LabelType.Checkout,
                              checkout, 
                              None,
-                             utils.Tags.CheckedOut,
+                             utils.LabelTag.CheckedOut,
                              domain=domain)
 
     asm = AssemblyDescriptor(dep_label, rel, dest, recursive = recursive,
@@ -161,9 +157,9 @@ def copy_from_package_obj(builder, name, pkg_name, pkg_role, rel,dest,
                           domain = None):
     rule = deployment.deployment_rule_from_name(builder, name)
     
-    dep_label = depend.Label(utils.LabelKind.Package,
+    dep_label = depend.Label(utils.LabelType.Package,
                              pkg_name, pkg_role,
-                             utils.Tags.Built,
+                             utils.LabelTag.Built,
                              domain=domain)
     asm = AssemblyDescriptor(dep_label, rel, dest, recursive = recursive,
                              failOnAbsentSource = failOnAbsentSource, 
@@ -219,10 +215,10 @@ def copy_from_role_install(builder, name, role, rel, dest,
       otherwise the linked file will be copied.
     """
     rule = deployment.deployment_rule_from_name(builder, name)
-    dep_label = depend.Label(utils.LabelKind.Package,
+    dep_label = depend.Label(utils.LabelType.Package,
                              "*",
                              role,
-                             utils.Tags.PostInstalled,
+                             utils.LabelTag.PostInstalled,
                              domain=domain)
     asm = AssemblyDescriptor(dep_label, rel, dest, recursive = recursive,
                              failOnAbsentSource = failOnAbsentSource, 
@@ -236,10 +232,10 @@ def copy_from_deployment(builder, name, dep_name, rel, dest,
                          copyExactly = True,
                          domain = None):
     rule = deployment.deployment_rule_from_name(builder,name)
-    dep_label = depend.Label(utils.LabelKind.Deployment,
+    dep_label = depend.Label(utils.LabelType.Deployment,
                              dep_name, 
                              None, 
-                             utils.Tags.Deployed,
+                             utils.LabelTag.Deployed,
                              domain=domain)
     asm = AssemblyDescriptor(dep_label, rel, dest, recursive = recursive,
                              failOnAbsentSource = failOnAbsentSource, 

@@ -31,9 +31,10 @@ import os
 import re
 import stat
 import muddled.rewrite as rewrite
+from muddled.depend import Label
 
 def rewrite_links(inv, label):
-    obj_dir = inv.package_obj_path(label.name, label.role, domain = label.domain)
+    obj_dir = inv.package_obj_path(label)
 
     # Now, we walk obj_dir. For every symlink we find to '/' something, 
     # rewrite it to be to 'obj_dir/' something.
@@ -83,8 +84,9 @@ def rewrite_links(inv, label):
 
 
 def extract_into_obj(inv, co_name, label, pkg_file):
-    co_dir = inv.checkout_path(co_name, domain = label.domain)
-    obj_dir = inv.package_obj_path(label.name, label.role, domain = label.domain)
+    tmp = Label(utils.LabelType.Checkout, co_name, domain=label.domain)
+    co_dir = inv.checkout_path(tmp)
+    obj_dir = inv.package_obj_path(label)
     dpkg_cmd = "dpkg-deb -X %s %s"%(os.path.join(co_dir, pkg_file), 
                                     os.path.join(obj_dir, "obj"))
     utils.run_cmd(dpkg_cmd)
@@ -139,11 +141,12 @@ class DebDevDependable(PackageBuilder):
     def ensure_dirs(self, builder, label):
         inv = builder.invocation
 
-        if not os.path.exists(inv.checkout_path(self.co_name, domain = label.domain)):
+        # TODO: Does the following check one dir and then make another???
+        tmp = Label(utils.LabelType.Checkout, self.co_name, domain=label.domain)
+        if not os.path.exists(inv.checkout_path(tmp)):
             raise utils.Failure("Path for checkout %s does not exist."%self.co_name)
 
-        utils.ensure_dir(os.path.join(inv.package_obj_path(label.name, label.role, 
-                                                           domain = label.domain), "obj"))
+        utils.ensure_dir(os.path.join(inv.package_obj_path(label), "obj"))
 
     def build_label(self, builder, label):
         """
@@ -153,14 +156,14 @@ class DebDevDependable(PackageBuilder):
 
         tag = label.tag
         
-        if (tag == utils.Tags.PreConfig):
+        if (tag == utils.LabelTag.PreConfig):
             # Nothing to do
             pass
-        elif (tag == utils.Tags.Configured):
+        elif (tag == utils.LabelTag.Configured):
             pass
-        elif (tag == utils.Tags.Built):
+        elif (tag == utils.LabelTag.Built):
             pass
-        elif (tag == utils.Tags.Installed):
+        elif (tag == utils.LabelTag.Installed):
             # Extract into /obj
             inv = builder.invocation
             extract_into_obj(inv, self.co_name, label, self.pkg_file)
@@ -172,27 +175,25 @@ class DebDevDependable(PackageBuilder):
             rewrite_links(inv, label)
                 
 
-        elif (tag == utils.Tags.PostInstalled):
+        elif (tag == utils.LabelTag.PostInstalled):
             if self.post_install_makefile is not None:
                 inv = builder.invocation
-                co_path =inv.checkout_path(self.co_name, domain = label.domain) 
+                tmp = Label(utils.LabelType.Checkout, self.co_name, domain=label.domain)
+                co_path = inv.checkout_path(tmp)
                 os.chdir(co_path)
                 utils.run_cmd("make -f %s %s-postinstall"%(self.post_install_makefile, 
                                                            label.name))
 
             # .. and now we rewrite any pkgconfig etc. files left lying
             # about.
-            obj_path = builder.invocation.package_obj_path(label.name, 
-                                                           label.role, 
-                                                           domain = label.domain)
+            obj_path = builder.invocation.package_obj_path(label)
             print "> Rewrite .pc and .la files in %s"%(obj_path)
             rewrite.fix_up_pkgconfig_and_la(builder, obj_path)
 
-        elif (tag == utils.Tags.Clean or tag == utils.Tags.DistClean):
+        elif (tag == utils.LabelTag.Clean or tag == utils.LabelTag.DistClean):
             # Just remove the object directory.
             inv = builder.invocation
-            utils.recursively_remove(inv.package_obj_path(label.name, label.role, 
-                                                          domain = label.domain))
+            utils.recursively_remove(inv.package_obj_path(label))
         else:
             raise utils.Error("Invalid tag specified for deb pkg %s"%(label))
 
@@ -230,13 +231,12 @@ class DebDependable(PackageBuilder):
     def ensure_dirs(self, builder, label):
         inv = builder.invocation
 
-        if not os.path.exists(inv.checkout_path(self.co_name, domain = label.domain)):
+        tmp = Label(utils.LabelType.Checkout, self.co_name, domain=label.domain)
+        if not os.path.exists(inv.checkout_path(tmp)):
             raise utils.Failure("Path for checkout %s does not exist."%self.co_name)
 
-        utils.ensure_dir(inv.package_install_path(label.name, label.role, 
-                                                  domain = label.domain))
-        utils.ensure_dir(inv.package_obj_path(label.name, label.role,
-                                              domain = label.domain))
+        utils.ensure_dir(inv.package_install_path(label))
+        utils.ensure_dir(inv.package_obj_path(label))
         
     def build_label(self, builder, label):
         """
@@ -247,14 +247,14 @@ class DebDependable(PackageBuilder):
         
         tag = label.tag
         
-        if (tag == utils.Tags.PreConfig):
+        if (tag == utils.LabelTag.PreConfig):
             # Nothing to do.
             pass
-        elif (tag == utils.Tags.Configured):
+        elif (tag == utils.LabelTag.Configured):
             pass
-        elif (tag == utils.Tags.Built):
+        elif (tag == utils.LabelTag.Built):
             pass
-        elif (tag == utils.Tags.Installed):
+        elif (tag == utils.LabelTag.Installed):
             # Concoct a suitable dpkg command.
             inv = builder.invocation
             
@@ -263,9 +263,9 @@ class DebDependable(PackageBuilder):
             #  - rrw 2009-11-24
             #extract_into_obj(inv, self.co_name, label, self.pkg_file)            
 
-            inst_dir = inv.package_install_path(label.name, label.role, 
-                                                domain = label.domain)
-            co_dir = inv.checkout_path(self.co_name, domain = label.domain)
+            inst_dir = inv.package_install_path(label)
+            tmp = Label(utils.LabelType.Checkout, self.co_name, domain=label.domain)
+            co_dir = inv.checkout_path(tmp)
 
             # Using dpkg doesn't work here for many reasons.
             dpkg_cmd = "dpkg-deb -X %s %s"%(os.path.join(co_dir, self.pkg_file), 
@@ -283,18 +283,18 @@ class DebDependable(PackageBuilder):
                 # We have instructions ..
                 ifile = db.InstructionFile(instr_path)
                 ifile.get()
-                self.builder.instruct(label.name, label.role, ifile)
-        elif (tag == utils.Tags.PostInstalled):
+                builder.instruct(label.name, label.role, ifile)
+        elif (tag == utils.LabelTag.PostInstalled):
             if self.post_install_makefile is not None:
                 inv = builder.invocation
-                co_path =inv.checkout_path(self.co_name, domain =  label.domain) 
+                tmp = Label(utils.LabelType.Checkout, self.co_name, domain=label.domain)
+                co_path = inv.checkout_path(tmp)
                 os.chdir(co_path)
                 utils.run_cmd("make -f %s %s-postinstall"%(self.post_install_makefile, 
                                                            label.name))
-        elif (tag == utils.Tags.Clean or tag == utils.Tags.DistClean):#
+        elif (tag == utils.LabelTag.Clean or tag == utils.LabelTag.DistClean):#
             inv = builder.invocation
-            admin_dir = os.path.join(inv.package_obj_path(label.name, label.role, 
-                                     domain = label.domain))
+            admin_dir = os.path.join(inv.package_obj_path(label))
             utils.recursively_remove(admin_dir)
         else:
             raise utils.Error("Invalid tag specified for deb pkg %s"%(label))
@@ -345,7 +345,7 @@ def simple(builder, coName, name, roles,
                                         name, r, coName, dep)
         # .. and some other packages. Y'know, because we can ..
         pkg.package_depends_on_packages(builder.invocation.ruleset, 
-                                        name, r, utils.Tags.PreConfig, 
+                                        name, r, utils.LabelTag.PreConfig,
                                         depends_on)
         
     # .. and that's it.
@@ -375,7 +375,7 @@ def dev(builder, coName, name, roles,
 
 def deb_prune(h):
     """
-    Given a cpiofile heirarchy, prune it so that only the useful 
+    Given a cpiofile hierarchy, prune it so that only the useful 
     stuff is left.
     
     We do this by lopping off directories, which is easy enough in

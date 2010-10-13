@@ -18,6 +18,7 @@ import muddled.depend as depend
 import muddled.utils as utils
 import os
 import muddled.subst as subst
+from muddled.depend import Label
 
 
 class InitScriptBuilder(pkg.PackageBuilder):
@@ -39,10 +40,9 @@ class InitScriptBuilder(pkg.PackageBuilder):
         Install is the only one we care about ..
         """
         
-        if (label.tag == utils.Tags.Installed):
-            inst_dir = builder.invocation.package_install_path(self.name, 
-                                                               self.role, 
-                                                               domain = label.domain)
+        if (label.tag == utils.LabelTag.Installed):
+            tmp = Label(utils.LabelType.Package, self.name, self.role, domain=label.domain)
+            inst_dir = builder.invocation.package_install_path(tmp)
             
             tgt_dir = os.path.join(inst_dir, "bin")
             src_file = builder.resource_file_name("initscript.sh")
@@ -62,10 +62,10 @@ class InitScriptBuilder(pkg.PackageBuilder):
 
             for d in self.deployments:
                 # Merge in the relevant deployment environments.
-                lbl = depend.Label(utils.LabelKind.Deployment, 
+                lbl = depend.Label(utils.LabelType.Deployment,
                                    d, 
                                    None,
-                                   utils.Tags.Deployed, 
+                                   utils.LabelTag.Deployed,
                                    domain = label.domain)
                 effective_env.merge(builder.invocation.get_environment_for(
                         lbl))
@@ -141,9 +141,9 @@ def get_effective_env(builder, name, role, domain = None):
     """
     return builder.invocation.effective_environment_for(
                 depend.Label(
-                    utils.LabelKind.Package,
+                    utils.LabelType.Package,
                     name, role,
-                    utils.Tags.RuntimeEnv, 
+                    utils.LabelTag.RuntimeEnv,
                     domain = domain))
 
     
@@ -157,9 +157,9 @@ def get_env(builder, name, role, domain = None):
     """
     return builder.invocation.get_environment_for(
         depend.Label(
-            utils.LabelKind.Package,
+            utils.LabelType.Package,
             name, role, 
-            utils.Tags.RuntimeEnv, 
+            utils.LabelTag.RuntimeEnv,
             domain = domain))
                                 
 

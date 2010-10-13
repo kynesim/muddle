@@ -1,0 +1,26 @@
+============================
+Muddle 3 - labels everywhere
+============================
+
+Branch muddle3_labels, for development to make everything pass labels, instead
+of the individual parts of labels.
+
+Original branch at/after revision 361.
+
+::
+
+  mkdir -p ~/sw/m3
+  cd ~/sw/m3
+  svn checkout https://muddle.googlecode.com/svn/branches/muddle3_labels --username tibs@tibsnjoan.co.uk
+
+Defining the "m3" command::
+
+  alias m3='python /Users/tibs/sw/m3/muddle3_labels/muddle/muddled/'
+
+Creating the example::
+
+  mkdir -p ~/sw/m3/eg
+  cd ~/sw/m3/eg
+  m3 init svn+http://muddle.googlecode.com/svn/trunk/muddle/examples/gnu_package builds/01.py
+
+.. vim: set filetype=rst tabstop=8 softtabstop=2 shiftwidth=2 expandtab:

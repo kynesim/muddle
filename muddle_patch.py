@@ -62,6 +62,8 @@ from muddled.version_control import split_vcs_url
 import muddled.utils
 import muddled.mechanics
 
+BZR_DO_IT_PROPERLY = False
+
 class LocalError(Exception):
     pass
 
@@ -135,12 +137,42 @@ def svn_diff(name, directory, rev1, rev2, output_dir, manifest_filename):
                              rev1, rev2))
 
 # Bazaar ======================================================================
+#
+# In an ideal world, we would do::
+#
+#    bzr send --output=<patch_file> --revision=<r1>..<r2>> -v
+#
+# followed by::
+#
+#    bzr merge -pull <patch_file>
+#
+# at the other end. But at the moment (bzr 2.1.1 and 2.2.1, at least) that
+# second command seems to blow up with a::
+#
+#    bzr: ERROR: bzrlib.errors.NoSuchRevision: CHKInventoryRepository('file:///home/tibs/sw/m3/muddle3_labels/muddle/tests/transient/test_build3/src/checkout1/.bzr/repository/') has no revision ('tibs@kynesim.co.uk-20101012153156-1wk54okzghenm296',)
+#
+#    *** Bazaar has encountered an internal error.  This probably indicates a
+#        bug in Bazaar. <and other text pleading for help>
+#
+# The revision it grumbles about is the revision that is not meant to be present
+# in the target checkout - i.e., the revision we are trying to "copy" over.
+#
+# I'm still hoping that this is something I am doing wrong, but I can't see what,
+# and I'm sure this used to work. Also, there are suspiciously many bugs raised
+# in Launchpad about an error very like this one.
+#
+# For the moment, the "solution" is to just do a diff-and-patch sequence, much
+# like that we use for subversion. Which is not very nice, and loses us our
+# history.
+
 def bzr_merge_from_send(name, directory, patch_filename):
 
     checkout_dir = deduce_checkout_dir(directory, name)
 
     # Should we be checking the current revision of our checkout,
     # to make sure it matches?
+
+    filename, extension = os.path.splitext(patch_filename)
 
     # The --pull argument appears to mean that we should pretend to have
     # done the required merge, just as if it were from the remote repository.
@@ -150,7 +182,14 @@ def bzr_merge_from_send(name, directory, patch_filename):
     # Or: "bzr merge --pull" acts like "bzr pull" if it can, but reverts
     # to a "proper" merge if it cannot. So it is probably the right thing
     # to use...
-    cmd = 'cd %s; bzr merge --pull %s'%(checkout_dir, patch_filename)
+    if extension == '.bzr_send':
+        cmd = 'cd %s; bzr merge --pull %s'%(checkout_dir, patch_filename)
+    elif extension == '.diff':
+        cmd = 'cd %s; patch -p1 < %s'%(checkout_dir, patch_filename)
+    else:
+        raise LocalError("Unrecognised extension '%s' (not '.bzr_send' or '.diff')\n"
+                         "  on patch file '%s'"%(extension, os.path.join(checkout_dir,
+                                                                         patch_filename)))
     print '..',cmd
     rv = subprocess.call(cmd, shell=True)
     if rv:
@@ -158,7 +197,11 @@ def bzr_merge_from_send(name, directory, patch_filename):
 
 def bzr_send(name, directory, rev1, rev2, output_dir, manifest_filename):
 
-    output_filename = '%s.bzr_send'%name
+    if BZR_DO_IT_PROPERLY:
+        output_filename = '%s.bzr_send'%name
+    else:
+        output_filename = '%s.diff'%name
+
     output_path = os.path.join(output_dir, output_filename)
 
     checkout_dir = deduce_checkout_dir(directory, name)
@@ -168,12 +211,19 @@ def bzr_send(name, directory, rev1, rev2, output_dir, manifest_filename):
     # probably the checks in Bazaar.revision_to_checkout() are what
     # we would want to be doing...
 
-    cmd = 'cd %s; bzr send --output=%s --revision=%s..%s -v'%(checkout_dir,
-            output_path, rev1, rev2)
-    print '..',cmd
-    rv = subprocess.call(cmd, shell=True)
-    if rv:
-        raise LocalError('bzr send for %s returned %d'%(name,rv))
+    if BZR_DO_IT_PROPERLY:
+        cmd = 'cd %s; bzr send --output=%s --revision=%s..%s -v'%(checkout_dir,
+                output_path, rev1, rev2)
+        print '..',cmd
+        rv = subprocess.call(cmd, shell=True)
+        if rv != 0:
+            raise LocalError('bzr send for %s returned %d'%(name,rv))
+    else:
+        cmd = 'cd %s; bzr diff -p1 -r%s..%s -v > %s'%(checkout_dir, rev1, rev2, output_path)
+        print '..',cmd
+        rv = subprocess.call(cmd, shell=True)
+        if rv != 1:     # for some reason
+            raise LocalError('bzr send for %s returned %d'%(name,rv))
 
     with open(manifest_filename, 'a') as fd:
         # Lazily, just write this out by hand
@@ -188,22 +238,23 @@ def bzr_send(name, directory, rev1, rev2, output_dir, manifest_filename):
 # Git =========================================================================
 def git_am(name, directory, patch_directory):
 
-    # TODO: I have no particular reason to believe that this will work...
-
     checkout_dir = deduce_checkout_dir(directory, name)
 
     # Should we be checking the current revision of our checkout,
     # to make sure it matches?
 
-    cmd = 'cd %s; git am %s'%(checkout_dir, patch_directory)
-    print '..',cmd
-    rv = subprocess.call(cmd, shell=True)
-    if rv:
-        raise LocalError('git am returned %d'%rv)
+    files = os.listdir(patch_directory)
+    files.sort()        # They should be in numeric order
+    for name in files:
+        mailfile = os.path.join(patch_directory, name)
+
+        cmd = 'cd %s; git am %s'%(checkout_dir, mailfile)
+        print '..',cmd
+        rv = subprocess.call(cmd, shell=True)
+        if rv:
+            raise LocalError('git am returned %d'%rv)
 
 def git_format_patch(name, directory, rev1, rev2, output_dir, manifest_filename):
-
-    # TODO: I have no particular reason to believe that this will work...
 
     output_directory = '%s.git_patch'%name
     output_path = os.path.join(output_dir, output_directory)
@@ -213,8 +264,8 @@ def git_format_patch(name, directory, rev1, rev2, output_dir, manifest_filename)
     # *Should* check that neither of the requested revision ids
     # are above the id of the checkout we have to hand?
 
-    cmd = 'cd %s; git format-patch -o %s %s..%s'%(checkout_dir,
-                                                  output_path, rev1, rev2)
+    cmd = 'cd %s; git format-patch -o %s' \
+          ' %s..%s'%(checkout_dir, output_path, rev1, rev2)
     print '..',cmd
     rv = subprocess.call(cmd, shell=True)
     if rv:
@@ -423,7 +474,7 @@ def read(where):
 
 def main(args):
     if not args:
-        raise LocalError('Must specify help, read or write as first argument')
+        raise LocalError('Please specify help, read or write as the first argument')
 
     if args[0] in ('-help', '--help', '-h', 'help'):
         print __doc__

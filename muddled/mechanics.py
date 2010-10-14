@@ -1025,12 +1025,13 @@ class Builder(object):
 
         return rv
 
-    def find_local_package_labels(self, dir):
+    def find_local_package_labels(self, dir, tag):
         """
         This is slightly horrible because if you're in a source checkout
         (as you normally will be), there could be several packages. 
 
-        Returns a list of the package labels involved.
+        Returns a list of the package labels involved. Uses the given tag
+        for the labels.
         """
 
         inv = self.invocation
@@ -1053,11 +1054,11 @@ class Builder(object):
                 return []
             rv = []
             for p in inv.packages_for_checkout(loc):
-                rv.append(Label(utils.LabelType.Package, p.name, p.role,
+                rv.append(Label(utils.LabelType.Package, p.name, p.role, tag,
                                 domain=current_domain))
             return rv
         elif (what == utils.DirType.Object):
-            return [ Label(utils.LabelType.Package, loc, role,
+            return [ Label(utils.LabelType.Package, loc, role, tag,
                            domain=current_domain) ]
         else:
             return []

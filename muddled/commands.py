@@ -3259,7 +3259,7 @@ def labels_from_pkg_args(builder, arglist, current_dir, tag):
     """
 
     if not arglist:
-        rv = builder.find_local_package_labels(current_dir)
+        rv = builder.find_local_package_labels(current_dir, tag)
         if rv:
             return rv
         else:

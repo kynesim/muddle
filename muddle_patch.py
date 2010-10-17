@@ -84,18 +84,18 @@ def deduce_checkout_parent_dir(directory):
         parent_dir = os.path.join(os.getcwd(), 'src')
     return parent_dir
 
-def deduce_checkout_dir(directory, name):
+def deduce_checkout_dir(directory, leaf):
     # Is this always the correct directory?
     if directory:
-        checkout_dir = os.path.join(os.getcwd(), 'src', directory, name)
+        checkout_dir = os.path.join(os.getcwd(), 'src', directory, leaf)
     else:
-        checkout_dir = os.path.join(os.getcwd(), 'src', name)
+        checkout_dir = os.path.join(os.getcwd(), 'src', leaf)
     return checkout_dir
 
 # Subversion ==================================================================
-def svn_patch(name, directory, patch_filename):
+def svn_patch(leaf, directory, patch_filename):
 
-    checkout_dir = deduce_checkout_dir(directory, name)
+    checkout_dir = deduce_checkout_dir(directory, leaf)
 
     # Should we be checking the current revision of our checkout,
     # to make sure it matches?
@@ -106,12 +106,12 @@ def svn_patch(name, directory, patch_filename):
     if rv:
         raise LocalError('patch returned %d'%rv)
 
-def svn_diff(name, directory, rev1, rev2, output_dir, manifest_filename):
+def svn_diff(name, leaf, directory, rev1, rev2, output_dir, manifest_filename):
 
     output_filename = '%s.svn_diff'%name
     output_path = os.path.join(output_dir, output_filename)
 
-    checkout_dir = deduce_checkout_dir(directory, name)
+    checkout_dir = deduce_checkout_dir(directory, leaf)
 
     # *Should* check that neither of the requested revision numbers
     # are above the revno of the checkout we have to hand? Anyway,
@@ -133,7 +133,7 @@ def svn_diff(name, directory, rev1, rev2, output_dir, manifest_filename):
                  'directory=%s\n'
                  'patch=%s\n'
                  'old=%s\n'
-                 'new=%s\n'%(name, name, directory, output_filename,
+                 'new=%s\n'%(name, leaf, directory, output_filename,
                              rev1, rev2))
 
 # Bazaar ======================================================================
@@ -165,9 +165,9 @@ def svn_diff(name, directory, rev1, rev2, output_dir, manifest_filename):
 # like that we use for subversion. Which is not very nice, and loses us our
 # history.
 
-def bzr_merge_from_send(name, directory, patch_filename):
+def bzr_merge_from_send(leaf, directory, patch_filename):
 
-    checkout_dir = deduce_checkout_dir(directory, name)
+    checkout_dir = deduce_checkout_dir(directory, leaf)
 
     # Should we be checking the current revision of our checkout,
     # to make sure it matches?
@@ -195,7 +195,7 @@ def bzr_merge_from_send(name, directory, patch_filename):
     if rv:
         raise LocalError('bzr send returned %d'%rv)
 
-def bzr_send(name, directory, rev1, rev2, output_dir, manifest_filename):
+def bzr_send(name, leaf, directory, rev1, rev2, output_dir, manifest_filename):
 
     if BZR_DO_IT_PROPERLY:
         output_filename = '%s.bzr_send'%name
@@ -204,7 +204,7 @@ def bzr_send(name, directory, rev1, rev2, output_dir, manifest_filename):
 
     output_path = os.path.join(output_dir, output_filename)
 
-    checkout_dir = deduce_checkout_dir(directory, name)
+    checkout_dir = deduce_checkout_dir(directory, leaf)
 
     # *Should* check that neither of the requested revision numbers
     # are above the revno of the checkout we have to hand? Anyway,
@@ -232,21 +232,21 @@ def bzr_send(name, directory, rev1, rev2, output_dir, manifest_filename):
                  'directory=%s\n'
                  'patch=%s\n'
                  'old=%s\n'
-                 'new=%s\n'%(name, name, directory, output_filename,
+                 'new=%s\n'%(name, leaf, directory, output_filename,
                              rev1, rev2))
 
 # Git =========================================================================
-def git_am(name, directory, patch_directory):
+def git_am(leaf, directory, patch_directory):
 
-    checkout_dir = deduce_checkout_dir(directory, name)
+    checkout_dir = deduce_checkout_dir(directory, leaf)
 
     # Should we be checking the current revision of our checkout,
     # to make sure it matches?
 
     files = os.listdir(patch_directory)
     files.sort()        # They should be in numeric order
-    for name in files:
-        mailfile = os.path.join(patch_directory, name)
+    for filename in files:
+        mailfile = os.path.join(patch_directory, filename)
 
         cmd = 'cd %s; git am %s'%(checkout_dir, mailfile)
         print '..',cmd
@@ -254,12 +254,12 @@ def git_am(name, directory, patch_directory):
         if rv:
             raise LocalError('git am returned %d'%rv)
 
-def git_format_patch(name, directory, rev1, rev2, output_dir, manifest_filename):
+def git_format_patch(name, leaf, directory, rev1, rev2, output_dir, manifest_filename):
 
     output_directory = '%s.git_patch'%name
     output_path = os.path.join(output_dir, output_directory)
 
-    checkout_dir = deduce_checkout_dir(directory, name)
+    checkout_dir = deduce_checkout_dir(directory, leaf)
 
     # *Should* check that neither of the requested revision ids
     # are above the id of the checkout we have to hand?
@@ -278,15 +278,15 @@ def git_format_patch(name, directory, rev1, rev2, output_dir, manifest_filename)
                  'directory=%s\n'
                  'patch=%s\n'
                  'old=%s\n'
-                 'new=%s\n'%(name, name, directory, output_directory,
+                 'new=%s\n'%(name, leaf, directory, output_directory,
                              rev1, rev2))
 
 # Tar =========================================================================
-def tar_unpack(name, directory, tar_filename):
+def tar_unpack(leaf, directory, tar_filename):
 
     parent_dir = deduce_checkout_parent_dir(directory)
 
-    checkout_dir = deduce_checkout_dir(directory, name)
+    checkout_dir = deduce_checkout_dir(directory, leaf)
     if os.path.exists(checkout_dir):
         raise LocalError('Checkout directory %s alread exists\n'
                          '   not overwriting it with new data from %s'%(checkout_dir,
@@ -295,13 +295,13 @@ def tar_unpack(name, directory, tar_filename):
     # Should we be checking the current revision of our checkout,
     # to make sure it matches?
 
-    cmd = 'cd %s; tar -zxf %s %s'%(parent_dir, tar_filename, name)
+    cmd = 'cd %s; tar -zxf %s %s'%(parent_dir, tar_filename, leaf)
     print '..',cmd
     rv = subprocess.call(cmd, shell=True)
     if rv:
         raise LocalError('tar -zxf returned %d'%rv)
 
-def tar_pack(name, directory, output_dir, manifest_filename):
+def tar_pack(name, leaf, directory, output_dir, manifest_filename):
 
     tar_filename = '%s.tgz'%name
     tar_path = os.path.join(output_dir, tar_filename)
@@ -311,7 +311,7 @@ def tar_pack(name, directory, output_dir, manifest_filename):
     # *Should* check that neither of the requested revision ids
     # are above the id of the checkout we have to hand?
 
-    cmd = 'tar -C %s -zcf %s %s'%(parent_dir, tar_path, name)
+    cmd = 'tar -C %s -zcf %s %s'%(parent_dir, tar_path, leaf)
     print '..',cmd
     rv = subprocess.call(cmd, shell=True)
     if rv:
@@ -322,7 +322,7 @@ def tar_pack(name, directory, output_dir, manifest_filename):
         fd.write('[TAR %s]\n'
                  'checkout=%s\n'
                  'directory=%s\n'
-                 'patch=%s\n'%(name, name, directory, tar_filename))
+                 'patch=%s\n'%(name, leaf, directory, tar_filename))
 
 # =============================================================================
 def find_builder(current_dir):
@@ -380,14 +380,15 @@ def write(our_stamp_file, far_stamp_file, output_dir_name):
     for name, rev1, rev2 in changed:
         print "-- Determining changes for checkout %s, %s..%s"%(name, rev1, rev2)
         directory = our_stamp[name].dir
+        leaf = our_stamp[name].co_leaf
         repository = our_stamp[name].repo
         vcs, ignore = split_vcs_url(repository)
         if vcs == 'bzr':
-            bzr_send(name, directory, rev1, rev2, output_dir, manifest_filename)
+            bzr_send(name, leaf, directory, rev1, rev2, output_dir, manifest_filename)
         elif vcs == 'svn':
-            svn_diff(name, directory, rev1, rev2, output_dir, manifest_filename)
+            svn_diff(name, leaf, directory, rev1, rev2, output_dir, manifest_filename)
         elif vcs == 'git':
-            git_format_patch(name, directory, rev1, rev2, output_dir, manifest_filename)
+            git_format_patch(name, leaf, directory, rev1, rev2, output_dir, manifest_filename)
         else:
             print 'Unable to deal with VCS %s'%vcs
             continue
@@ -410,9 +411,9 @@ def write(our_stamp_file, far_stamp_file, output_dir_name):
     # (if, at the other end, we're untarring a new checkout, we must check
     # if the directory already exists, and perhaps refuse to do it if so?)
     if new:
-        for name, repo, rev, rel, dir, domain in new:
+        for name, repo, rev, rel, dir, domain, leaf in new:
             print "-- Saving tarfile for new checkout %s"%name
-            tar_pack(name, dir, output_dir, manifest_filename)
+            tar_pack(name, leaf, dir, output_dir, manifest_filename)
 
     if problems:
         print

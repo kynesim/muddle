@@ -1,7 +1,7 @@
 #! /usr/bin/env python
 """Test checkout support.
 
-Give a single argument (one of 'git', 'bzr' or 'vcs') to do tests for a
+Give a single argument (one of 'git', 'bzr' or 'svn') to do tests for a
 particular version control system. That VCS must be installed on the
 machine you are running this on. For example::
 
@@ -704,6 +704,18 @@ def test_git_muddle_patch():
             git('commit -m "Delete program2.c, change our Makefile"')
             muddle(['push'])  # muddle remembers the repository for us
 
+        with Directory('src/twolevel/checkout2'):
+            touch('program.c','// This is very dull C file\n')
+            git('add program.c')
+            git('commit -m "Add program.c"')
+            muddle(['push'])  # muddle remembers the repository for us
+
+        with Directory('src/multilevel/inner/checkout3'):
+            touch('program.c','// This is very dull C file\n')
+            git('add program.c')
+            git('commit -m "Add program.c"')
+            muddle(['push'])  # muddle remembers the repository for us
+
     banner('Generating patches between build1 (altered, near) and build3 (unaltered, far)')
     # test_build2 doesn't have a stamp file...
     with Directory('test_build1'):
@@ -734,6 +746,14 @@ def test_git_muddle_patch():
         check_specific_files_in_this_dir(['Makefile.muddle', 'empty.c',
                                           'program1.c', '.git'])
 
+    with Directory('test_build3/src/twolevel/checkout2'):
+        check_specific_files_in_this_dir(['Makefile.muddle',
+                                          'program.c', '.git'])
+
+    with Directory('test_build3/src/multilevel/inner/checkout3'):
+        check_specific_files_in_this_dir(['Makefile.muddle',
+                                          'program.c', '.git'])
+
 def test_bzr_muddle_patch():
     """Test the workings of the muddle_patch program against bzr
 
@@ -758,6 +778,18 @@ def test_bzr_muddle_patch():
             bzr('commit -m "Delete program2.c, change our Makefile"')
             bzr('push')
 
+        with Directory('src/twolevel/checkout2'):
+            touch('program.c','// This is very dull C file\n')
+            bzr('add program.c')
+            bzr('commit -m "Add program.c"')
+            bzr('push')
+
+        with Directory('src/multilevel/inner/checkout3'):
+            touch('program.c','// This is very dull C file\n')
+            bzr('add program.c')
+            bzr('commit -m "Add program.c"')
+            bzr('push')
+
     banner('TEMPORARY: MAKE VERSION STAMP FOR BUILD 1')
     with Directory('test_build1'):
         muddle(['stamp', 'version'])
@@ -780,7 +812,21 @@ def test_bzr_muddle_patch():
         # We'd *like* empty.c to be there as well, but at the moment
         # it won't be...
 
-        banner('Committing the changes')
+        banner('Committing the changes in checkout1')
+        bzr('add')
+        bzr('commit -m "Changes from muddle_patch"')
+
+    with Directory('test_build3/src/twolevel/checkout2'):
+        check_specific_files_in_this_dir(['Makefile.muddle',
+                                          'program.c', '.bzr'])
+        banner('Committing the changes in checkout2')
+        bzr('add')
+        bzr('commit -m "Changes from muddle_patch"')
+
+    with Directory('test_build3/src/multilevel/inner/checkout3'):
+        check_specific_files_in_this_dir(['Makefile.muddle',
+                                          'program.c', '.bzr'])
+        banner('Committing the changes in checkout3')
         bzr('add')
         bzr('commit -m "Changes from muddle_patch"')
 

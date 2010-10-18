@@ -192,7 +192,23 @@ def _cmdline(args, current_dir, original_env, muddle_binary):
                 # We're at the root, or at least not in a checkout/package/deployment
                 command = cmd_dict["buildlabel"]
                 command.set_options(command_options)
+
+                # Add in the default labels - this includes any default
+                # deployments
                 args = map(str, builder.invocation.default_labels)
+
+                # Default roles will not yet have been turned into labels
+                # - we need to do this lazily so we know we get all the
+                # labels for each role.
+                # This is doubtless not the most compact way of doing this,
+                # but it makes what we are doing fairly clear...
+                for role in builder.invocation.default_roles:
+                    labels = commands.labels_from_pkg_args(builder,
+                                                           ['_all{%s}'%role],
+                                                           current_dir,
+                                                           utils.LabelTag.PostInstalled)
+                    args += map(str, labels)
+            print args
 
         command.with_build_tree(builder, current_dir, args)
     else:

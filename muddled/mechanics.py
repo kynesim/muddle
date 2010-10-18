@@ -557,8 +557,15 @@ class Builder(object):
 
         """
         self.invocation = inv
+        # The 'muddle_binary' is what will be run when the user does
+        # $(MUDDLE) inside a makefile. Obviously our caller has to
+        # decide this.
         self.muddle_binary = muddle_binary
-        self.muddle_dir = os.path.dirname(self.muddle_binary)
+        # The 'muddled_dir' is the directory of our package itself
+        # (which we need to find the resources inside this package,
+        # for instance). This is most easily taken from the location
+        # of *this* module, as we're running it.
+        self.muddled_dir = os.path.split(os.path.abspath(__file__))[0]
         self.default_domain = default_domain
         if (domain_params is None):
             self.domain_params = { }
@@ -611,7 +618,7 @@ class Builder(object):
         self.invocation.roles_do_not_share_libraries(a,b)
 
     def resource_file_name(self, file_name):
-        return os.path.join(self.muddle_dir, "resources", file_name)
+        return os.path.join(self.muddled_dir, "resources", file_name)
 
     def resource_body(self, file_name):
         """

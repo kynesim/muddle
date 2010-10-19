@@ -61,7 +61,7 @@ class FileVCSFactory(VersionControlHandlerFactory):
         return "Copy data between directories"
 
     def manufacture(self, builder, co_label, co_name, repo, rev, rel, co_dir, branch):
-        return File(builder, co_name, co_label, repo, rev, rel, co_dir)
+        return File(builder, co_label, co_name, repo, rev, rel, co_dir)
 
 
 # Tell the VCS handler about us.

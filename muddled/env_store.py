@@ -725,7 +725,7 @@ class Store:
                 retText.append(v.get("os.environ[%s]"%k, EnvLanguage.Python))
                 retText.append("\n")
             
-        retText.append("\n # End code\n")
+        retText.append("\n# End code\n")
         
         return "".join(retText)
 
@@ -755,7 +755,7 @@ class Store:
                 retText.append(v.get("$%s"%k, EnvLanguage.Sh))
                 retText.append("\n")
             
-        retText.append("\n # End file.\n")
+        retText.append("\n# End file.\n")
         
         return "".join(retText)
 

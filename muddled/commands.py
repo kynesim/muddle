@@ -1967,12 +1967,36 @@ class Changed(Command):
 class Env(Command):
     """
     :Syntax: env <language> <mode> <name> <label> [ <label> ... ]
-    
-    Produce a setenv script in the requested language listing all the
-    runtime environment variables bound to label.
 
-    * language may be 'sh', 'c', or 'py'/'python'
-    * mode may be 'build' (build time variables) or 'run' (run-time variables)
+    Produce a setenv script in the requested language listing all the
+    runtime environment variables bound to <label> (or the cumulation
+    of the varibales for several labels).
+
+    * <language> may be 'sh', 'c', or 'py'/'python'
+    * <mode> may be 'build' (build time variables) or 'run' (run-time variables)
+    * <name> is used in various ways depending upon the target language.
+      It should be a legal name/symbol in the aforesaid target language (for
+      instance, in C it will be uppercased and used as part of a macro name).
+    * <label> should be the name of a package, in the normal manner, with or
+      without a role. '_all' means all packages, as usual.
+
+    So, for instance::
+
+        $ muddle env sh run 'encoder_settings' encoder > encoder_vars.sh
+
+    might produce a file ``encoder_vars.sh`` with the following content::
+
+        # setenv script for encoder_settings
+        # 2010-10-19 16:24:05
+
+        export BUILD_SDK=y
+        export MUDDLE_TARGET_LOCATION=/opt/encoder/sdk
+        export PKG_CONFIG_PATH=$MUDDLE_TARGET_LOCATION/lib/pkgconfig:$PKG_CONFIG_PATH
+        export PATH=$MUDDLE_TARGET_LOCATION/bin:$PATH
+        export LD_LIBRARY_PATH=$MUDDLE_TARGET_LOCATION/lib:$LD_LIBRARY_PATH
+
+        # End file.
+
     """
 
     def name(self):

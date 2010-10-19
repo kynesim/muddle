@@ -19,7 +19,8 @@ import os
 class AssemblyDescriptor:
     def __init__(self, from_label, from_rel, to_name, recursive = True, 
                  failOnAbsentSource = False, 
-                 copyExactly = True):
+                 copyExactly = True,
+                 usingRSync = False):
         """
         Construct an assembly descriptor.
 
@@ -40,6 +41,7 @@ class AssemblyDescriptor:
         self.from_rel = from_rel
         self.to_name = to_name
         self.recursive = recursive
+        self.using_rsync = usingRSync
         self.fail_on_absent_source = failOnAbsentSource
         self.copy_exactly = copyExactly
 
@@ -98,7 +100,19 @@ class CollectDeploymentBuilder(pkg.Dependable):
                         raise utils.Failure("Deployment %s: source object %s does not exist."%(label.name, src))
                     # Else no one cares :-)
                 else:
-                    if (asm.recursive):
+                    if (asm.using_rsync):
+                        # Use rsync for speed
+                        try:
+                            os.makedirs(dst)
+                        except OSError,x:
+                            pass
+
+                        xdst = dst
+                        if xdst[-1] != "/":
+                            xdst = xdst + "/"
+
+                        utils.run_cmd("rsync -avz \"%s/.\" \"%s\""%(src,xdst))
+                    elif (asm.recursive):
                         utils.recursively_copy(src, dst, object_exactly = asm.copy_exactly)
                     else:
                         utils.copy_file(src, dst, object_exactly = asm.copy_exactly)
@@ -135,7 +149,8 @@ def copy_from_checkout(builder, name, checkout, rel, dest,
                        recursive = True, 
                        failOnAbsentSource = False, 
                        copyExactly = True,
-                       domain = None):
+                       domain = None,
+                       usingRSync = False):
     rule = deployment.deployment_rule_from_name(builder, name)
     
     dep_label = depend.Label(utils.LabelType.Checkout,
@@ -146,7 +161,8 @@ def copy_from_checkout(builder, name, checkout, rel, dest,
 
     asm = AssemblyDescriptor(dep_label, rel, dest, recursive = recursive,
                              failOnAbsentSource = failOnAbsentSource, 
-                             copyExactly = copyExactly)
+                             copyExactly = copyExactly,
+                             usingRSync = usingRSync)
     rule.add(dep_label)
     rule.obj.add_assembly(asm)
 
@@ -154,7 +170,13 @@ def copy_from_package_obj(builder, name, pkg_name, pkg_role, rel,dest,
                           recursive = True,
                           failOnAbsentSource = False,
                           copyExactly = True,
-                          domain = None):
+                          domain = None,
+                          usingRSync = False):
+    """
+      - If 'usingRSync' is true, copy with rsync - substantially faster than
+           cp, if you have rsync. Not very functional if you don't :-)
+    """
+
     rule = deployment.deployment_rule_from_name(builder, name)
     
     dep_label = depend.Label(utils.LabelType.Package,
@@ -163,7 +185,8 @@ def copy_from_package_obj(builder, name, pkg_name, pkg_role, rel,dest,
                              domain=domain)
     asm = AssemblyDescriptor(dep_label, rel, dest, recursive = recursive,
                              failOnAbsentSource = failOnAbsentSource, 
-                             copyExactly = copyExactly)
+                             copyExactly = copyExactly,
+                             usingRSync = usingRSync)
     rule.add(dep_label)
     rule.obj.add_assembly(asm)
 
@@ -171,7 +194,8 @@ def copy_from_role_install(builder, name, role, rel, dest,
                            recursive = True,
                            failOnAbsentSource = False,
                            copyExactly = True,
-                           domain = None):
+                           domain = None,
+                           usingRSync = False):
     """
     Add a requirement to copy from the given role's install to the named deployment.
 
@@ -213,6 +237,8 @@ def copy_from_role_install(builder, name, role, rel, dest,
       does not exist.
     - If 'copyExactly' is true, then symbolic links will be copied as such,
       otherwise the linked file will be copied.
+    - If 'usingRSync' is true, copy with rsync - substantially faster than
+         cp, if you have rsync. Not very functional if you don't :-)
     """
     rule = deployment.deployment_rule_from_name(builder, name)
     dep_label = depend.Label(utils.LabelType.Package,
@@ -222,7 +248,8 @@ def copy_from_role_install(builder, name, role, rel, dest,
                              domain=domain)
     asm = AssemblyDescriptor(dep_label, rel, dest, recursive = recursive,
                              failOnAbsentSource = failOnAbsentSource, 
-                             copyExactly = copyExactly)
+                             copyExactly = copyExactly,
+                             usingRSync = usingRSync)
     rule.add(dep_label)
     rule.obj.add_assembly(asm)
 
@@ -230,7 +257,12 @@ def copy_from_deployment(builder, name, dep_name, rel, dest,
                          recursive = True,
                          failOnAbsentSource = False,
                          copyExactly = True,
-                         domain = None):
+                         domain = None,
+                         usingRSync = False):
+    """
+    usingRSync - set to True to copy with rsync - substantially faster than
+                 cp
+    """
     rule = deployment.deployment_rule_from_name(builder,name)
     dep_label = depend.Label(utils.LabelType.Deployment,
                              dep_name, 
@@ -239,7 +271,8 @@ def copy_from_deployment(builder, name, dep_name, rel, dest,
                              domain=domain)
     asm = AssemblyDescriptor(dep_label, rel, dest, recursive = recursive,
                              failOnAbsentSource = failOnAbsentSource, 
-                             copyExactly = copyExactly)
+                             copyExactly = copyExactly,
+                             usingRSync = usingRSync)
     rule.add(dep_label)
     rule.obj.add_assembly(asm)
 

@@ -106,7 +106,8 @@ class Git(VersionControlHandler):
             effective_branch = "remotes/origin/%s:%s" % (self.branch, self.branch)
         else:
             effective_branch = ""
-        utils.run_cmd("git push %s %s"%(self.git_repo, effective_branch))
+        utils.run_cmd("git config remote.origin.url=%s"%self.git_repo)
+        utils.run_cmd("git push %s"%effective_branch)
 
     def must_update_to_commit(self):
         return False
@@ -225,7 +226,7 @@ def git_dir_handler(action, url=None, directory=None, files=None):
         # than trying to cope with errors...
         utils.run_cmd("git commit -a", allowFailure = True)
     elif action == 'push':
-        utils.run_cmd("git push %s HEAD"%url)
+        utils.run_cmd("git push -u %s HEAD"%url)
     elif action == 'pull':
         utils.run_cmd("git pull %s HEAD"%url)
     elif action == 'init':

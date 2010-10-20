@@ -75,6 +75,12 @@ class Git(VersionControlHandler):
 
     def pull(self):
         os.chdir(self.co_path)
+
+        # Refuse to pull if there are any local changes or untracked files.
+        output = utils.get_cmd_data("git status --porcelain")
+        if output[1]!="":
+            raise utils.Failure("%s (%s) has uncommitted changes - refusing to pull"%(self.checkout_name, self.checkout_label))
+
         #
         # Todo: we should probably look at what branch you're on and 
         # pull that rather than mindlessly pulling master, but hey ho ..

@@ -81,14 +81,11 @@ class Git(VersionControlHandler):
         if output[1]!="":
             raise utils.Failure("%s (%s) has uncommitted changes - refusing to pull"%(self.checkout_name, self.checkout_label))
 
-        #
-        # Todo: we should probably look at what branch you're on and 
-        # pull that rather than mindlessly pulling master, but hey ho ..
-        #
+        utils.run_cmd("git config remote.origin.url=%s"%self.git_repo)
         if (self.branch):
-            utils.run_cmd("git pull %s %s"%(self.git_repo, self.branch))
+            utils.run_cmd("git pull origin %s"%self.branch)
         else:
-            utils.run_cmd("git pull %s master"%(self.git_repo))
+            utils.run_cmd("git pull origin master")
 
     def update(self):
         os.chdir(self.co_path)
@@ -107,7 +104,7 @@ class Git(VersionControlHandler):
         else:
             effective_branch = ""
         utils.run_cmd("git config remote.origin.url=%s"%self.git_repo)
-        utils.run_cmd("git push %s"%effective_branch)
+        utils.run_cmd("git push origin %s"%effective_branch)
 
     def must_update_to_commit(self):
         return False

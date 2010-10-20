@@ -103,7 +103,7 @@ class Git(VersionControlHandler):
     def push(self):
         os.chdir(self.co_path)
         if (self.branch is not None):
-            effective_branch = self.branch
+            effective_branch = "remotes/origin/%s:%s" % (self.branch, self.branch)
         else:
             effective_branch = ""
         utils.run_cmd("git push %s %s"%(self.git_repo, effective_branch))

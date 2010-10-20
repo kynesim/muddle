@@ -81,7 +81,7 @@ class Git(VersionControlHandler):
         if output[1]!="":
             raise utils.Failure("%s (%s) has uncommitted changes - refusing to pull"%(self.checkout_name, self.checkout_label))
 
-        utils.run_cmd("git config remote.origin.url=%s"%self.git_repo)
+        utils.run_cmd("git config remote.origin.url %s"%self.git_repo)
         if (self.branch):
             utils.run_cmd("git pull origin %s"%self.branch)
         else:
@@ -103,7 +103,7 @@ class Git(VersionControlHandler):
             effective_branch = "remotes/origin/%s:%s" % (self.branch, self.branch)
         else:
             effective_branch = ""
-        utils.run_cmd("git config remote.origin.url=%s"%self.git_repo)
+        utils.run_cmd("git config remote.origin.url %s"%self.git_repo)
         utils.run_cmd("git push origin %s"%effective_branch)
 
     def must_update_to_commit(self):

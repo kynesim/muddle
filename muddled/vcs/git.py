@@ -60,13 +60,12 @@ class Git(VersionControlHandler):
         args = ""
         #if not (self.revision is None) or (not self.revision):
             #args = "-n -o %s"%(self.revision)
+        if self.branch:
+            args = "-b %s"%self.branch
 
         utils.run_cmd("git clone %s %s %s"%(args, self.git_repo, self.checkout_name))
 
         co_path = os.path.join(parent_path, self.checkout_name)
-        if (self.branch is not None):
-            os.chdir(co_path)
-            utils.run_cmd("git pull origin %s"%self.branch)
         
         if not ((self.revision is None) or (not self.revision)):
             print ("checkout to %s"%(self.checkout_name))

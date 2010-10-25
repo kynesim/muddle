@@ -81,10 +81,11 @@ class Git(VersionControlHandler):
             raise utils.Failure("%s (%s) has uncommitted changes - refusing to pull"%(self.checkout_name, self.checkout_label))
 
         utils.run_cmd("git config remote.origin.url %s"%self.git_repo)
-        if (self.branch):
-            utils.run_cmd("git pull origin %s"%self.branch)
-        else:
-            utils.run_cmd("git pull origin master")
+        utils.run_cmd("git pull origin")
+        # Don't specify branch name: we do necessarily want to update
+        # our idea of where the remote head points to be updated.
+        # (See git-pull(1) and git-fetch(1): "without storing the remote
+        # branch anywhere locally".)
 
     def update(self):
         os.chdir(self.co_path)

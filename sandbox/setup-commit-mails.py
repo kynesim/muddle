@@ -200,14 +200,21 @@ while read srcdir; do
         ln -s ${POSTRECEIVE} post-receive
         git config --replace-all hooks.mailinglist "${EMAILDEST}"
         git config --replace-all hooks.emailprefix ""
-        echo "ok: $gitdir"
+        echo "installed hook for $gitdir -> ${EMAILDEST}"
     elif [ -L post-receive ]; then
         # it's a symlink: have we been here before?
         dest=`readlink post-receive`
         if [ "${dest}" == "${POSTRECEIVE}" ]; then
-            echo "already notifying, updating config: $gitdir"
-            git config --replace-all hooks.mailinglist "${EMAILDEST}"
-            git config --replace-all hooks.emailprefix ""
+            CUR=`git config hooks.mailinglist`
+            PREF=`git config hooks.emailprefix`
+            if [ "${CUR}" != "${EMAILDEST}" ]; then
+                if [ ! -z "${PREF}" ]; then
+                    prefwords=" (and emailprefix: ${CUR} -> \"\")"
+                fi
+                echo "${gitdir}: ${CUR} -> ${EMAILDEST} ${prefwords}"
+                git config --replace-all hooks.mailinglist "${EMAILDEST}"
+                git config --replace-all hooks.emailprefix ""
+            fi
         else
             echo "Error: $hooksdir/post-receive was an unexpected symlink (to ${dest}), don't know how to handle this"
             exit 2

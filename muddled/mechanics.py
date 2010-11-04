@@ -1122,16 +1122,19 @@ class Builder(object):
                             normalise_key = invocation.db.normalise_checkout_label
                             for i in range(2, len(rest)+1):
                                 rel_path = rest[1:i]
-                                putative_name = rest[i-1]
-                                if invocation.has_checkout_called(putative_name):
-                                    key = Label(utils.LabelType.Checkout, putative_name)
-                                    key = normalise_key(key)
-                                    db_path = checkout_locations.get(key, putative_name)
-                                    check_path = ""
-                                    for x in rel_path:
-                                        check_path = os.path.join(check_path, x)
-                                        if (check_path == db_path):
-                                            return (utils.DirType.CheckOut, putative_name, None)
+                                twolevel_name = rest[i-1]
+                                multilevel_name = '-'.join(rest[1:i])
+                                for putative_name in twolevel_name,multilevel_name:
+                                    if invocation.has_checkout_called(putative_name):
+                                        key = Label(utils.LabelType.Checkout, putative_name)
+                                        key = normalise_key(key)
+                                        db_path = checkout_locations.get(key, putative_name)
+                                        check_path = ""
+                                        for x in rel_path:
+                                            check_path = os.path.join(check_path, x)
+                                            if (check_path == db_path):
+                                                return (utils.DirType.CheckOut, putative_name, None)
+
                         # If, for whatever reason, we haven't already found this package .. 
                         return (utils.DirType.CheckOut, sub_dir, None)
                     elif rest[0] == "obj":
@@ -1145,6 +1148,8 @@ class Builder(object):
                     elif rest[0] == "domains":
                         # We're inside the current domain - this is actually a root
                         return (utils.DirType.Root, dir, None)
+                    elif rest[0] == "deploy":
+                        return (utils.DirType.Deployed, sub_dir, None)
                     else:
                         return None
             else:

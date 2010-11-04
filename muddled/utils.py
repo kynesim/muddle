@@ -132,6 +132,14 @@ class DirType:
     Builds = 5
     Root = 6
 
+    @staticmethod
+    def name_for_numeric_label(x):
+        for (label,n) in DirType.__dict__.items():
+            if x==n:
+                return label
+        return None
+
+
 def string_cmp(a,b):
     """
     Return -1 if a < b, 0 if a == b,  +1 if a > b.

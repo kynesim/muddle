@@ -2973,6 +2973,40 @@ Try 'muddle help unstamp' for more information."""
             print '...the checkouts present match those in the stamp file.'
             print 'The build looks as if it restored correctly.'
 
+class Whereami(Command):
+    """
+    :Syntax: whereami
+
+    Displays where we think you are in the form <type>:<name>[{<role>},
+    e.g. CheckOut:frobozz or Object:kernel{type1}.
+    """
+
+    def name(self):
+        return "whereami"
+
+    def requires_build_tree(self):
+        return False
+
+    def with_build_tree(self, builder, current_dir, args):
+        r = builder.find_location_in_tree(current_dir)
+        if r==None:
+            print "You are here. (can't tell, sorry; find_location_in_tree returned None)"
+            return
+        (what, loc, role) = r
+        label = utils.DirType.name_for_numeric_label(what)
+        if label == None:
+            print "You are here. (can't tell, sorry; unrecognised dirtype %d)"%what
+            return
+        else:
+            rv = "%s:%s"%(label, loc)
+            if role != None:
+                rv += "{%s}" % role
+            print rv
+
+    def without_build_tree(self, muddle_binary, root_path, args):
+        print "You are here. (not in a build tree)"
+
+
 def get_all_checkouts(builder, tag):
     """
     Return a list of labels corresponding to all checkouts 

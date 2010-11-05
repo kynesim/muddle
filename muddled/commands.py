@@ -2557,8 +2557,7 @@ Try 'muddle help stamp' for more information."""
 
             if filename:
                 final_name = filename
-
-            if not final_name:
+            else:
                 final_name = self.decide_hash_filename(hash, filename, problems)
             print 'Renaming %s to %s'%(working_filename, final_name)
             os.rename(working_filename, final_name)

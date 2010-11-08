@@ -417,7 +417,7 @@ class Depend(Command):
         show_sys = False
         show_user = False
 
-        if type.endswith("-short"):
+        if type.endswith("-short") or type.endswith("_short"):
             # Show only those rules with a dependency
             ignore_empty = True
             type = type[:-len("-short")]

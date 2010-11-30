@@ -869,6 +869,29 @@ def print_deps(deps):
     return "".join(result_str)
 
 
+def string_expr(var):
+    """
+    Create an environment expression consisting of a literal string.
+    """
+    return EnvExpr(EnvExpr.StringType, var)
+
+def prepend_expr(astr, var):
+    """
+    Create an environment expression consisting of a string prepended to a
+     variable
+     """
+    expr = EnvExpr(EnvExpr.CatType);
+    expr.append_str(astr);
+    expr.append_ref(var)
+    return expr
+
+def set_expr(var):
+    """
+    Create an environment expression consisting of a reference to the given
+    variable name
+    """
+    return EnvExpr(EnvExpr.RefType, var)
+
 def append_expr(var, str):
     """
     Create an environment expression consisting of the given string appended to the

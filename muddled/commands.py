@@ -2186,6 +2186,22 @@ class Subst(Command):
 
     Substitute (with ${.. }) src file into dst file using data from
     the environment or from the given xml file. 
+
+    XML queries look at bit like XPath queries - /elem/elem/elem.. .
+    An implicit ::text() is appended so you get all the text in the specified
+    element.
+
+    You can escape a ${ .. } by passing $${ .. } 
+
+    You can insert literals with ${" .. " }
+
+    Or call functions with ${fn: .. } . Available functions include:
+
+    ${val:(something)}  - Value of something as a query (env var or XPath)
+    ${ifeq:(a,b,c)}  - If eval(a)==eval(b), expand to eval(c)
+    ${ifneq:(a,b,c)}  - If eval(a)!=eval(b), expand to eval(c)
+    ${echo:(..)}  -  Evaluate all your parameters in turn.
+
     """
     
     def name (self):

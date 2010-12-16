@@ -21,6 +21,7 @@ import os
 import shutil
 import subprocess
 import sys
+import traceback
 
 this_file = os.path.abspath(__file__)
 this_dir = os.path.split(this_file)[0]
@@ -28,12 +29,14 @@ parent_dir = os.path.split(this_dir)[0]
 
 try:
     import muddled.cmdline
-    from muddled.utils import Error, Failure
+    from muddled.utils import GiveUp, normalise_dir
+    from muddled.utils import Directory, NewDirectory, TransientDirectory
 except ImportError:
     # Try one level up
     sys.path.insert(0,parent_dir)
     import muddled.cmdline
-    from muddled.utils import Error, Failure
+    from muddled.utils import GiveUp, normalise_dir
+    from muddled.utils import Directory, NewDirectory, TransientDirectory
 
 MUDDLE_BINARY = '%s muddle'%this_file
 
@@ -61,8 +64,35 @@ distclean:
 .PHONY: all config install clean distclean
 """
 
-CHECKOUT_BUILD = """ \
-# Test build for testing checkouts
+CHECKOUT_BUILD_SVN_REVISIONS = """ \
+# Test build for testing checkouts at a particular revision
+# This version is specific to subversion
+
+import muddled.checkouts.simple
+
+def describe_to(builder):
+    builder.build_name = 'checkout_test'
+
+    muddled.checkouts.simple.relative(builder,
+                                      co_name='checkout1',
+                                      rev='2')
+"""
+
+CHECKOUT_BUILD_SVN_NO_REVISIONS = """ \
+# Test build for testing checkouts at a particular revision
+# This version is specific to subversion
+
+import muddled.checkouts.simple
+
+def describe_to(builder):
+    builder.build_name = 'checkout_test'
+
+    muddled.checkouts.simple.relative(builder,
+                                      co_name='checkout1')
+"""
+
+CHECKOUT_BUILD_LEVELS = """ \
+# Test build for testing checkouts into directories at different levels
 # Does not test 'repo_rel', since git does not support cloning a "bit" of a
 # repository. Testing that will have to wait for subversion testing (!).
 
@@ -91,115 +121,34 @@ def describe_to(builder):
                                           co_name='alice')
 """
 
-
-def normalise(dir):
-    dir = os.path.expanduser(dir)
-    dir = os.path.abspath(dir)
-    return dir
-
-class Directory(object):
-    """A class to facilitate pushd/popd behaviour
-
-    It is intended for use with 'with', as in::
-
-        with Directory('~'):
-            print 'My home directory contains'
-            print ' ',' '.join(os.listdir('.'))
-    """
-    def __init__(self, where, verbose=True):
-        self.start = normalise(os.getcwd())
-        self.where = normalise(where)
-        self.verbose = verbose
-        os.chdir(self.where)
-        if verbose:
-            print '++ pushd to %s'%self.where
-
-    def close(self):
-        os.chdir(self.start)
-        if self.verbose:
-            print '++ popd to %s'%self.start
-
-    def __enter__(self):
-        return self
-
-    def __exit__(self, etype, value, tb):
-        if tb is None:
-            # No exception, so just finish normally
-            self.close()
-        else:
-            # An exception occurred, so do any tidying up necessary
-            if self.verbose:
-                print '** Oops, an exception occurred - %s tidying up'%self.__class__.__name__
-            # well, there isn't anything special to do, really
-            self.close()
-            if self.verbose:
-                print '** ----------------------------------------------------------------------'
-            # And allow the exception to be re-raised
-            return False
-
-class NewDirectory(Directory):
-    """A pushd/popd directory that gets created first.
-
-    It is an Error if the directory already exists.
-    """
-    def __init__(self, where, verbose=True):
-        where = normalise(where)
-        if os.path.exists(where):
-            raise Error('Directory %s already exists'%where)
-        if verbose:
-            print '++ mkdir %s'%where
-        os.makedirs(where)
-        super(NewDirectory, self).__init__(where, verbose)
-
-class TransientDirectory(NewDirectory):
-    """A pushd/popd directory that gets created first and deleted afterwards
-
-    If 'keep_on_error' is True, then the directory will not be deleted
-    if an exception occurs in its 'with' clause.
-
-    It is an Error if the directory already exists.
-    """
-    def __init__(self, where, keep_on_error=False, verbose=True):
-        self.rmtree_on_error = not keep_on_error
-        super(TransientDirectory, self).__init__(where, verbose)
-
-    def close(self, delete_tree):
-        super(NewDirectory, self).close()
-        if delete_tree:
-            if self.verbose:
-                # The extra space after 'rmtree' is so the directory name
-                # left aligns with a previous 'popd to' message
-                print '++ rmtree  %s'%self.where
-            shutil.rmtree(self.where)
-
-    def __exit__(self, etype, value, tb):
-        if tb is None:
-            # No exception, so just finish normally
-            self.close(True)
-        else:
-            # An exception occurred, so do any tidying up necessary
-            if self.verbose:
-                print '** Oops, an exception occurred - %s tidying up'%self.__class__.__name__
-            # but don't delete the tree if we've been asked not to
-            self.close(self.rmtree_on_error)
-            if self.verbose:
-                print '** ----------------------------------------------------------------------'
-            # And allow the exception to be re-raised
-            return False
-
-class ShellError(Error):
+class ShellError(GiveUp):
     def __init__(self, cmd, retcode):
         msg = "Shell command '%s' failed with retcode %d"%(cmd, retcode)
-        super(Error, self).__init__(msg)
+        super(GiveUp, self).__init__(msg)
         self.retcode=retcode
 
 def shell(cmd, verbose=True):
     """Run a command in the shell
     """
-    print '>> %s'%cmd
+    if verbose:
+        print '>> %s'%cmd
     retcode = subprocess.call(cmd, shell=True)
     if retcode:
         raise ShellError(cmd, retcode)
+
+def get_stdout(cmd, verbose=True):
+    """Run a command in the shell, and grab its (standard) output.
+    """
+    if verbose:
+        print ">> %s"%cmd
+    p = subprocess.Popen(cmd, shell=True, stdout=subprocess.PIPE,
+                         stderr=subprocess.PIPE)
+    stdoutdata, stderrdata = p.communicate()
+    retcode = p.returncode
+    if retcode:
+        raise ShellError(cmd, retcode)
+    return stdoutdata
+
 
 def muddle(args, verbose=True):
     """Pretend to be muddle
@@ -255,7 +204,7 @@ def check_files(paths, verbose=True):
             if verbose:
                 print '  -- %s'%name
         else:
-            raise Error('File %s does not exist'%name)
+            raise GiveUp('File %s does not exist'%name)
     if verbose:
         print '++ All named files exist'
 
@@ -278,7 +227,7 @@ def check_specific_files_in_this_dir(names, verbose=True):
         extra_files = actual_files - wanted_files
         if extra_files:
             text += '    Extra: %s\n'%', '.join(extra_files)
-        raise Error('Required files are not matched\n%s'%text)
+        raise GiveUp('Required files are not matched\n%s'%text)
     else:
         if verbose:
             print '++ Only the requested files exist'
@@ -290,7 +239,7 @@ def check_nosuch_files(paths, verbose=True):
         print '++ Checking files do not exist'
     for name in paths:
         if os.path.exists(name):
-            raise Error('File %s exists'%name)
+            raise GiveUp('File %s exists'%name)
         else:
             if verbose:
                 print '  -- %s'%name
@@ -306,7 +255,7 @@ def banner(text):
 def test_svn_simple_build():
     """Bootstrap a muddle build tree.
     """
-    root_dir = normalise(os.getcwd())
+    root_dir = normalise_dir(os.getcwd())
 
     with NewDirectory('repo'):
         for name in ('main', 'versions'):
@@ -361,10 +310,80 @@ def test_svn_simple_build():
         # our repository corresponds to this versions/ directory as a whole...
         muddle(['unstamp', 'svn+%s'%versions_repo, 'test_build.stamp'])
 
+def test_svn_revisions_build():
+    """Test a build tree where a checkout has a specific revision
+
+    Doing 'muddle fetch' or 'muddle merge' in such a directory should
+    not update it.
+    """
+    root_dir = normalise_dir(os.getcwd())
+
+    with NewDirectory('repo'):
+        shell('svnadmin create main')
+
+    root_repo = 'file://' + os.path.join(root_dir, 'repo', 'main')
+    with NewDirectory('test_build1'):
+        banner('Bootstrapping SVN revisions build')
+        muddle(['bootstrap', 'svn+%s'%root_repo, 'test_build'])
+
+        with Directory('src'):
+            with Directory('builds'):
+                touch('01.py', CHECKOUT_BUILD_SVN_REVISIONS)
+                svn('import . %s/builds -m "Initial import"'%root_repo)
+
+            # Is the next really the best we can do?
+            shell('rm -rf builds')
+            svn('checkout %s/builds'%root_repo)
+
+            with TransientDirectory('checkout1'):
+                touch('Makefile.muddle','# A comment\n')
+                svn('import . %s/checkout1 -m "Initial import"'%root_repo)
+            svn('checkout %s/checkout1'%root_repo)
+
+            with Directory('checkout1'):
+                touch('Makefile.muddle','# A different comment\n')
+                svn('commit -m "Second version of Makefile.muddle"')
+                shell('svnversion')
+
+            with Directory('checkout1'):
+                touch('Makefile.muddle','# Yet another different comment\n')
+                svn('commit -m "Third version of Makefile.muddle"')
+                shell('svnversion')
+
+    # We should be able to check everything out from the repository
+    with NewDirectory('test_build2'):
+        banner('Building from init')
+        muddle(['init', 'svn+%s'%root_repo, 'builds/01.py'])
+        muddle(['checkout','_all'])
+
+        with Directory('src'):
+            with Directory('checkout1'):
+                revno = get_stdout('svnversion').strip()
+                if revno != '2':
+                    raise GiveUp('Revision number for checkout1 is %s, not 2'%revno)
+                muddle(['fetch'])
+                revno = get_stdout('svnversion').strip()
+                if revno != '2':
+                    raise GiveUp('Revision number for checkout1 is %s, not 2 (after fetch)'%revno)
+                muddle(['merge'])
+                revno = get_stdout('svnversion').strip()
+                if revno != '2':
+                    raise GiveUp('Revision number for checkout1 is %s, not 2 (after merge)'%revno)
+
+            # But if we remove the restriction on revision number
+            with Directory('builds'):
+                touch('01.py', CHECKOUT_BUILD_SVN_NO_REVISIONS)
+
+            with Directory('checkout1'):
+                muddle(['fetch'])
+                revno = get_stdout('svnversion').strip()
+                if revno != '4':
+                    raise GiveUp('Revision number for checkout1 is %s, not 4 (after fetch)'%revno)
+
 def test_git_simple_build():
     """Bootstrap a muddle build tree.
     """
-    root_dir = normalise(os.getcwd())
+    root_dir = normalise_dir(os.getcwd())
 
     with NewDirectory('repo'):
         for name in ('builds', 'versions'):
@@ -414,7 +433,7 @@ def test_git_simple_build():
 def test_bzr_simple_build():
     """Bootstrap a muddle build tree.
     """
-    root_dir = normalise(os.getcwd())
+    root_dir = normalise_dir(os.getcwd())
 
     with NewDirectory('repo'):
         for name in ('builds', 'versions'):
@@ -492,7 +511,7 @@ def test_git_checkout_build():
 
     Relies on setup_git_checkout_repositories() having been called.
     """
-    root_dir = normalise(os.getcwd())
+    root_dir = normalise_dir(os.getcwd())
 
     root_repo = 'file://' + os.path.join(root_dir, 'repo')
     with NewDirectory('test_build1'):
@@ -503,7 +522,7 @@ def test_git_checkout_build():
         banner('Setting up src/')
         with Directory('src'):
             with Directory('builds'):
-                touch('01.py', CHECKOUT_BUILD)
+                touch('01.py', CHECKOUT_BUILD_LEVELS)
                 git('add 01.py')
                 git('commit -m "New build"')
                 git('push %s/builds HEAD'%root_repo)
@@ -600,7 +619,7 @@ def test_bzr_checkout_build():
 
     Relies on setup_bzr_checkout_repositories() having been called.
     """
-    root_dir = normalise(os.getcwd())
+    root_dir = normalise_dir(os.getcwd())
 
     root_repo = 'file://' + os.path.join(root_dir, 'repo')
     with NewDirectory('test_build1'):
@@ -611,7 +630,7 @@ def test_bzr_checkout_build():
         banner('Setting up src/')
         with Directory('src'):
             with Directory('builds'):
-                touch('01.py', CHECKOUT_BUILD)
+                touch('01.py', CHECKOUT_BUILD_LEVELS)
                 bzr('add 01.py')
                 bzr('commit -m "New build"')
                 bzr('push %s/builds'%root_repo)
@@ -684,7 +703,7 @@ def test_git_muddle_patch():
 
     Relies upon test_git_checkout_build() having been called.
     """
-    root_dir = normalise(os.getcwd())
+    root_dir = normalise_dir(os.getcwd())
 
     banner('Making changes in build1')
     with Directory('test_build1'):
@@ -759,7 +778,7 @@ def test_bzr_muddle_patch():
 
     Relies upon test_bzr_checkout_build() having been called.
     """
-    root_dir = normalise(os.getcwd())
+    root_dir = normalise_dir(os.getcwd())
 
     banner('Making changes in build1')
     with Directory('test_build1'):
@@ -840,7 +859,7 @@ def main(args):
 
     # Choose a place to work, rather hackily
     #root_dir = os.path.join('/tmp','muddle_tests')
-    root_dir = normalise(os.path.join(os.getcwd(), 'transient'))
+    root_dir = normalise_dir(os.path.join(os.getcwd(), 'transient'))
 
     if vcs == 'git':
         with TransientDirectory(root_dir, keep_on_error=True):
@@ -858,6 +877,9 @@ def main(args):
         with TransientDirectory(root_dir, keep_on_error=True):
             banner('TEST SIMPLE BUILD (SUBVERSION)')
             test_svn_simple_build()
+        with TransientDirectory(root_dir, keep_on_error=True):
+            banner('TEST BUILD WITH REVISION (SUBVERSION)')
+            test_svn_revisions_build()
 
     elif vcs == 'bzr':
         with TransientDirectory(root_dir, keep_on_error=True):
@@ -871,6 +893,9 @@ def main(args):
             banner('TEST MUDDLE PATCH (BZR)')
             test_bzr_muddle_patch()
 
+    elif vcs == 'test':
+        pass
+
     else:
         print 'Unrecognised VCS %s'%vcs
 
@@ -880,6 +905,12 @@ if __name__ == '__main__':
         # Pretend to be muddle the command line program
         muddle(args[1:])
     else:
-        main(args)
+        try:
+            main(args)
+            print '\nGREEN light\n'
+        except Exception as e:
+            print
+            traceback.print_exc()
+            print '\nRED light\n'
 
 # vim: set tabstop=8 softtabstop=4 shiftwidth=4 expandtab:

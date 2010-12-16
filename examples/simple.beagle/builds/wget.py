@@ -29,7 +29,7 @@ class Wget(VersionControlHandler):
         VersionControlHandler.__init__(self, inv, checkout_name, repo, rev, rel, checkout_dir)
         sp = conventional_repo_url(repo, rel)
         if sp is None:
-            raise utils.Error("Cannot extract repository URL from %s, checkout %s"%(repo, rel))
+            raise utils.GiveUp("Cannot extract repository URL from %s, checkout %s"%(repo, rel))
 
         (self.url, r) = sp
 

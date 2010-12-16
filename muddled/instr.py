@@ -43,7 +43,7 @@ class ChangeUserInstruction(db.Instruction):
     def clone_from_xml(self, node):
         if (node.nodeType != node.ELEMENT_NODE or 
             node.nodeName != self.name):
-            raise utils.Error(
+            raise utils.MuddleBug(
                 "Invalid outer element for %s user instruction - %s"%(self.name, node))
 
         new_spec = None
@@ -59,10 +59,10 @@ class ChangeUserInstruction(db.Instruction):
                 elif (c.nodeName == "group"):
                     new_group = utils.text_in_node(c)
                 else:
-                    raise utils.Error("Invalid element in %s instruction: %s"%(self.name,
+                    raise utils.MuddleBug("Invalid element in %s instruction: %s"%(self.name,
                                                                                c.nodeName))
         if (new_spec is None) or ((new_user is None) and (new_group is None)):
-            raise utils.Error("Either user/group or filespec is not specified in XML.")
+            raise utils.MuddleBug("Either user/group or filespec is not specified in XML.")
     
         return ChangeUserInstruction(new_spec, new_user, new_group, self.name)
     
@@ -108,7 +108,7 @@ class ChangeModeInstruction(db.Instruction):
     def clone_from_xml(self, node):
         if (node.nodeType != node.ELEMENT_NODE or 
             node.nodeName != self.name):
-            raise utils.Error(
+            raise utils.MuddleBug(
                 "Invalid outer element for %s user instruction - %s"%(self.name, node))
 
         new_spec = None
@@ -121,10 +121,10 @@ class ChangeModeInstruction(db.Instruction):
                 elif (c.nodeName == "mode"):
                     new_mode = utils.text_in_node(c)
                 else:
-                    raise utils.Error("Invalid element in %s instruction: %s"%(self.name,
+                    raise utils.MuddleBug("Invalid element in %s instruction: %s"%(self.name,
                                                                                c.nodeName))
         if (new_mode is None) or (new_spec is None):
-            raise utils.Error("Either mode or filespec is not specified in XML.")
+            raise utils.MuddleBug("Either mode or filespec is not specified in XML.")
     
         return ChangeModeInstruction(new_spec, new_mode, self.name)
     
@@ -192,7 +192,7 @@ class MakeDeviceInstruction(db.Instruction):
     def clone_from_xml(self, node):
         if (node.nodeType != node.ELEMENT_NODE or 
             node.nodeName != "mknod"):
-            raise utils.Failure("Invalid outer element for %s user instruction - %s"%("mknod", 
+            raise utils.GiveUp("Invalid outer element for %s user instruction - %s"%("mknod", 
                                                                                       node))
         result = MakeDeviceInstruction()
         
@@ -213,27 +213,27 @@ class MakeDeviceInstruction(db.Instruction):
                 elif (c.nodeName == "mode"):
                     result.mode = utils.text_in_node(c)
                 else:
-                    raise utils.Failure("Invalid node in mknod instruction: %s"%(c.nodeName))
+                    raise utils.GiveUp("Invalid node in mknod instruction: %s"%(c.nodeName))
         
         result.validate()
         return result
 
     def validate(self):
         if (self.file_name is None):
-            raise utils.Failure("Invalid mknod node - no file name")
+            raise utils.GiveUp("Invalid mknod node - no file name")
 
         if (self.uid is None):
-            raise utils.Failure("Invalid mknod node - no uid")
+            raise utils.GiveUp("Invalid mknod node - no uid")
         if (self.gid is None):
-            raise utils.Failure("Invalid mknod node - no gid")
+            raise utils.GiveUp("Invalid mknod node - no gid")
         if (self.type is None):
-            raise utils.Failure("Invalid mknod node - no device type (block or char)")
+            raise utils.GiveUp("Invalid mknod node - no device type (block or char)")
         if (self.major is None):
-            raise utils.Failure("Invalid mknod node - no major number")
+            raise utils.GiveUp("Invalid mknod node - no major number")
         if (self.minor is None):
-            raise utils.Failure("Invalid mknod node - no minor number")
+            raise utils.GiveUp("Invalid mknod node - no minor number")
         if (self.mode is None):
-            raise utils.Failure("Invalid mknod node - no mode")
+            raise utils.GiveUp("Invalid mknod node - no mode")
 
         
         
@@ -279,13 +279,13 @@ class BuiltinInstructionFactory(db.InstructionFactory):
         n = xmlNode.nodeName
 
         if (n is None):
-            raise utils.Error("Attempt to initialise an instruction from %s which has no name."%(str(n)))
+            raise utils.MuddleBug("Attempt to initialise an instruction from %s which has no name."%(str(n)))
         
         # Otherwise ..
         if (n in self.instr_map):
             return self.instr_map[n].clone_from_xml(xmlNode)
         else:
-            raise utils.Error("No instruction corresponding to tag %s"%n)
+            raise utils.MuddleBug("No instruction corresponding to tag %s"%n)
 
 
 

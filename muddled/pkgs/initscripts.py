@@ -11,14 +11,14 @@ deployment, and any variables you've set in the
 environment store retrieved with get_env_store().
 """
 
-import muddled
 import muddled.pkg as pkg
 import muddled.env_store as env_store
 import muddled.depend as depend
 import muddled.utils as utils
-import os
 import muddled.subst as subst
 from muddled.depend import Label
+
+import os
 
 
 class InitScriptBuilder(pkg.PackageBuilder):

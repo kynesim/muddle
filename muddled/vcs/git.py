@@ -2,124 +2,174 @@
 Muddle suppport for Git.
 """
 
-from muddled.version_control import *
-from muddled.depend import Label
-import muddled.utils as utils
 import os
 
-class Git(VersionControlHandler):
-    def __init__(self, builder, checkout_label, checkout_name, repo, rev, rel, co_dir, branch = None):
-        VersionControlHandler.__init__(self, builder, checkout_label, checkout_name,
-                                       repo, rev, rel, co_dir)
-        sp = conventional_repo_url(repo, rel, co_dir = co_dir)
-        if sp is None:
-            raise utils.Error("Cannot extract repository URL from %s, checkout %s"%(repo, rel))
+from muddled.version_control import register_vcs_handler, VersionControlSystem
+import muddled.utils as utils
 
-        self.git_repo = sp[0]
+class Git(VersionControlSystem):
+    """
+    Provide version control operations for Git
+    """
 
-        self.co_path = self.get_checkout_path(self.checkout_label)
+    def __init__(self):
+        self.short_name = 'git'
+        self.long_name = 'Git'
 
-        self.branch = branch
-        self.parse_revision(rev)
+    def init_directory(self, verbose=True):
+        """
+        If the directory does not appear to have had '<vcs> init' run in it,
+        then do so first.
 
-	#print 'GIT',checkout_name
-	#print '... co_dir      ',co_dir
-        #print '... self.co_path',self.co_path
+        Will be called in the actual checkout's directory.
+        """
+        # This is *really* hacky...
+        if not os.path.exists('.git'):
+            utils.run_cmd("git init", verbose=verbose)
 
-    def parse_revision(self, rev):
-        # Disentangle git version numbers. These are like '<branch>:<revision>'
-        the_re = re.compile("([^:]*):(.*)$")
-        m = the_re.match(rev)
-        if (m is None):
-            # No branch. If there wasn't one, we meant master.
-            if (rev == "HEAD"):
-                self.revision = "HEAD" # Turns out git uses this too
-            else:
-                self.revision = rev
+    def add_files(self, files=None, verbose=True):
+        """
+        If files are given, add them, but do not commit.
+
+        Will be called in the actual checkout's directory.
+        """
+        if files:
+            utils.run_cmd("git add %s"%' '.join(files), verbose=verbose)
+
+    def checkout(self, repo, co_leaf, branch=None, revision=None, verbose=True):
+        """
+        Clone a given checkout.
+
+        Will be called in the parent directory of the checkout.
+
+        Expected to create a directory called <co_leaf> therein.
+        """
+        if branch:
+            args = "-b %s"%branch
         else:
-            self.branch = m.group(1)
-            self.revision = m.group(2)
-            # No need to adjust HEAD - git uses it too.
+            args = ""
 
-    def get_original_revision(self):
-        # Is it acceptable to return the inferred branch "master"?
-        return "%s:%s"%(self.branch, self.revision)
+        utils.run_cmd("git clone %s %s %s"%(args, repo, co_leaf), verbose=verbose)
 
-    def check_out(self):
-        # Clone constructs its own directory .. 
-        (parent_path, d) = os.path.split(self.co_path)
+        if revision:
+            with utils.Directory(co_leaf):
+                utils.run_cmd("git checkout %s"%revision)
 
-        #print 'GIT checkout label %s'%self.checkout_label
-	#print '... co_path',self.co_path
-	#print '... parent_path',parent_path
-	#print '... d', d
-	#print '... checkout name', self.checkout_name
+    def _is_it_safe(self):
+        """
+        No dentists here...
 
-        utils.ensure_dir(parent_path)
-        os.chdir(parent_path)
-        args = ""
-        #if not (self.revision is None) or (not self.revision):
-            #args = "-n -o %s"%(self.revision)
-        if self.branch:
-            args = "-b %s"%self.branch
+        Raise an exception if there are (uncommitted) local changes or
+        untracked files...
+        """
+        retcode, text, ignore = utils.get_cmd_data("git status --porcelain",
+                                                   fail_nonzero=False)
+        if retcode == 129:
+            print "Warning: Your git does not support --porcelain; you should upgrade it."
+            retcode, text, ignore = utils.get_cmd_data("git status", fail_nonzero=False)
+            if text.find("working directory clean") >= 0:
+                text = ''
 
-        utils.run_cmd("git clone %s %s %s"%(args, self.git_repo, self.checkout_name))
+        if text:
+            raise utils.GiveUp("There are uncommitted changes/untracked files\n"
+                                "%s"%utils.indent(text,'    '))
 
-        co_path = os.path.join(parent_path, self.checkout_name)
-        
-        if not ((self.revision is None) or (not self.revision)):
-            print ("checkout to %s"%(self.checkout_name))
-            os.chdir(co_path)
-            utils.run_cmd("git checkout %s"%self.revision)
-
-    def pull(self):
-        os.chdir(self.co_path)
-
-        repo_unclean = False
+    def fetch(self, repo, branch=None, revision=None, verbose=True):
+        """
+        Will be called in the actual checkout's directory.
+        """
+        if revision and revision != 'HEAD':
+            raise utils.GiveUp(\
+                "The build description specifies revision %s for this checkout.\n"
+                "'muddle fetch' does a git fetch and then a fast-forwards merge.\n"
+                "Since git always merges to the currrent HEAD, muddle does not\n"
+                "support 'muddle fetch' for a git checkout with a revision specified."%revision)
 
         # Refuse to pull if there are any local changes or untracked files.
-        output = utils.get_cmd_data("git status --porcelain", fail_nonzero=False)
-        if output[0]==129:
-            # Your copy of git doesn't support --porcelain
-            print "Warning: Your git doesn't support git status --porcelain; time to upgrade git?"
-            output = utils.get_cmd_data("git status", fail_nonzero=False)
-            if (output[1].find("working directory clean") < 0):
-                repo_unclean = True
+        self._is_it_safe()
+
+        utils.run_cmd("git config remote.origin.url %s"%repo, verbose=verbose)
+        # Retrieve changes from the remote repository to the local repository
+        utils.run_cmd("git fetch origin", verbose=verbose)
+        # Merge them into the working tree, but only if this is a fast-forward
+        # merge, and thus doesn't require the user to do any thinking
+        # Don't specify branch name: we definitely want to update our idea of
+        # where the remote head points to be updated.
+        # (See git-pull(1) and git-fetch(1): "without storing the remote branch
+        # anywhere locally".)
+        # And then merge "fast forward only" - i.e., not if we had to do any
+        # thinking
+        if branch is None:
+            remote = 'remotes/origin/master'
         else:
-            if output[1]!="":
-                repo_unclean = True
+            remote = 'remotes/origin/%s'%branch
+        utils.run_cmd("git merge --ff-only %s"%remote, verbose=verbose)
 
-        if repo_unclean:
-            raise utils.Failure("%s (%s) has uncommitted changes - refusing to pull"%(self.checkout_name, self.checkout_label))
+    def merge(self, other_repo, branch=None, revision=None, verbose=True):
+        """
+        Merge 'other_repo' into the local repository and working tree,
 
-        utils.run_cmd("git config remote.origin.url %s"%self.git_repo)
-        utils.run_cmd("git pull origin")
-        # Don't specify branch name: we do necessarily want to update
-        # our idea of where the remote head points to be updated.
-        # (See git-pull(1) and git-fetch(1): "without storing the remote
-        # branch anywhere locally".)
+        Will be called in the actual checkout's directory.
 
-    def update(self):
-        os.chdir(self.co_path)
-        utils.run_cmd("git pull", allowFailure = True)
+        According to 'git help merge', merge is always done to the current HEAD.
+        So any revision sill not affect the merge process. However, if the user
+        has asked for a specific revision, which obviously already exists (else
+        how did we get here?), then they are actually not interested in merging,
+        or at least not for muddle purposes. In that case we're better off just
+        giving up, and letting the user sort it out directly.
+        """
+        if revision and revision != 'HEAD':
+            raise utils.GiveUp(\
+                   "The build description specifies revision %s for this checkout.\n"
+                   "Since git always merges to the currrent HEAD, muddle does not\n"
+                   "support 'muddle merge' for a git checkout with a revision specified."%revision)
 
-    def commit(self):
-        os.chdir(self.co_path)
-        # We may very well fail here. git commit fails for any number
-        # of bizarre reasons we don't care about .. 
-        utils.run_cmd("git commit -a", allowFailure = True)
+        # Refuse to pull if there are any local changes or untracked files.
+        self._is_it_safe()
 
-    def push(self):
-        os.chdir(self.co_path)
-        if self.branch:
-            effective_branch = self.branch 
+        utils.run_cmd("git config remote.origin.url %s"%other_repo, verbose=verbose)
+        # Retrieve changes from the remote repository to the local repository
+        utils.run_cmd("git fetch origin", verbose=verbose)
+        # And merge them (all) into the current working tree
+        if branch is None:
+            remote = 'remotes/origin/master'
+        else:
+            remote = 'remotes/origin/%s'%branch
+        utils.run_cmd("git merge %s"%remote, verbose=verbose)
+
+    def commit(self, verbose=True):
+        """
+        Will be called in the actual checkout's directory.
+
+        Does 'git commit -a' - i.e., this implicitly does 'git add' for you.
+        This is a contentious choice, and needs review.
+        """
+        utils.run_cmd("git commit -a", verbose=verbose)
+
+    def push(self, repo, branch=None, verbose=True):
+        """
+        Will be called in the actual checkout's directory.
+        """
+        if branch:
+            effective_branch = branch
         else:
             effective_branch = ""
-        utils.run_cmd("git config remote.origin.url %s"%self.git_repo)
-        utils.run_cmd("git push origin %s"%effective_branch)
+        utils.run_cmd("git config remote.origin.url %s"%repo, verbose=verbose)
+        utils.run_cmd("git push origin %s"%effective_branch, verbose=verbose)
 
-    def must_update_to_commit(self):
-        return False
+    def status(self, repo, verbose=False):
+        """
+        Will be called in the actual checkout's directory.
+        """
+        raise NotImplementedError('The git VCS module does not yet support "status"')
+
+    def reparent(self, co_dir, remote_repo, force=False, verbose=True):
+        """
+        Re-associate the local repository with its original remote repository,
+        """
+        if verbose:
+            print "Re-associating checkout '%s' with remote repository"%co_dir
+        utils.run_cmd("git config remote.origin.url %s"%remote_repo, verbose=verbose)
 
     def _git_status_text_ok(self, text):
         """
@@ -130,7 +180,7 @@ class Git(VersionControlHandler):
         return text.startswith('# On branch') and \
                text.endswith('\nnothing to commit (working directory clean)')
 
-    def _git_describe_long(self):
+    def _git_describe_long(self, co_leaf, orig_revision, force=False, verbose=True):
         """
         This returns a "pretty" name for the revision, but only if there
         are annotated tags in its history.
@@ -138,50 +188,54 @@ class Git(VersionControlHandler):
         retcode, revision, ignore = utils.get_cmd_data('git describe --long',
                                                        fail_nonzero=False)
         if retcode:
-            if text:
+            if revision:
                 text = utils.indent(revision.strip(),'    ')
                 if force:
                     if verbose:
                         print "'git describe --long' had problems with checkout" \
-                              " '%s'"%self.checkout_name
+                              " '%s'"%co_leaf
                         print "    %s"%text
-                        print "using original revision %s"%self.get_original_revision()
-                    return self.get_original_revision()
+                        print "using original revision %s"%orig_revision
+                    return orig_revision
             else:
                 text = '    (it failed with return code %d)'%retcode
-            raise utils.Failure("%s\n%s"%(utils.wrap("%s: 'git describe --long'"
-                " could not determine a revision id for checkout:"%self.checkout_name),
+            raise utils.GiveUp("%s\n%s"%(utils.wrap("%s: 'git describe --long'"
+                " could not determine a revision id for checkout:"%co_leaf),
                 text))
         return revision.strip()
 
-    def _git_rev_parse_HEAD(self):
+    def _git_rev_parse_HEAD(self, co_leaf, orig_revision, force=False, verbose=True):
         """
         This returns a bare SHA1 object name for the current revision
         """
         retcode, revision, ignore = utils.get_cmd_data('git rev-parse HEAD',
                                                        fail_nonzero=False)
         if retcode:
-            if text:
+            if revision:
                 text = utils.indent(revision.strip(),'    ')
                 if force:
                     if verbose:
                         print "'git rev-parse HEAD' had problems with checkout" \
-                              " '%s'"%self.checkout_name
+                              " '%s'"%co_leaf
                         print "    %s"%text
-                        print "using original revision %s"%self.get_original_revision()
-                    return self.get_original_revision()
+                        print "using original revision %s"%orig_revision
+                    return orig_revision
             else:
                 text = '    (it failed with return code %d)'%retcode
-            raise utils.Failure("%s\n%s"%(utils.wrap("%s: 'git rev-parse HEAD'"
-                " could not determine a revision id for checkout:"%self.checkout_name),
+            raise utils.GiveUp("%s\n%s"%(utils.wrap("%s: 'git rev-parse HEAD'"
+                " could not determine a revision id for checkout:"%co_leaf),
                 text))
         return revision.strip()
 
-    def revision_to_checkout(self, force=False, verbose=False):
+    def revision_to_checkout(self, co_leaf, orig_revision, force=False, verbose=True):
         """
         Determine a revision id for this checkout, usable to check it out again.
 
-        ...
+        a) Document
+        b) Review the code to see if we now support versions of git that  would
+           allow us to do this more sensibly
+
+        XXX TODO: Needs reviewing given we're using a later version of git now
         """
         # Later versions of git allow one to give a '--short' switch to
         # 'git status', which would probably do what I want - but the
@@ -195,60 +249,30 @@ class Git(VersionControlHandler):
         # NB: this is actually a broken solution to a broken problem, as
         # our git support is probably not terribly well designed.
 
-        os.chdir(self.co_path)
         retcode, text, ignore = utils.get_cmd_data('git status', fail_nonzero=False)
         text = text.strip()
         if not self._git_status_text_ok(text):
-            raise utils.Failure("%s\n%s"%(utils.wrap("%s: 'git status' suggests"
-                " checkout does not match master:"%self.checkout_name),
+            raise utils.GiveUp("%s\n%s"%(utils.wrap("%s: 'git status' suggests"
+                " checkout does not match master:"%co_leaf),
                 utils.indent(text,'    ')))
         if False:
             # Should we try this first, and only "fall back" to the pure
             # SHA1 object name if it fails, or is the pure SHA1 object name
             # better?
-            revision = self._git_describe_long()
+            revision = self._git_describe_long(co_leaf, orig_revision, force, verbose)
         else:
-            revision = self._git_rev_parse_HEAD()
+            revision = self._git_rev_parse_HEAD(co_leaf, orig_revision, force, verbose)
         return revision
 
-class GitVCSFactory(VersionControlHandlerFactory):
-    def describe(self):
-        return "GIT"
+    def allows_relative_in_repo(self):
+        """TODO: Check that this is correct!
+        """
+        return False
 
-    def manufacture(self, builder, checkout_label, checkout_name, repo, rev, rel, co_dir, branch):
-        return Git(builder, checkout_label, checkout_name, repo, rev, rel, co_dir, branch)
+    # I can't see any way to do 'get_file_content', but this needs
+    # reinvestigating periodically
 
-# Register us with the VCS handler factory
-register_vcs_handler("git", GitVCSFactory())
-
-def git_dir_handler(action, url=None, directory=None, files=None):
-    """Clone/push/pull/commit a directory via GIT
-    """
-    if action == 'clone':
-        if directory:
-            utils.run_cmd("git clone %s %s"%(url, directory))
-        else:
-            utils.run_cmd("git clone %s"%url)
-    elif action == 'commit':
-        # It would probably be better to first run 'git status --porcelain'
-        # here to work out if we actually have anything to commit, rather
-        # than trying to cope with errors...
-        utils.run_cmd("git commit -a", allowFailure = True)
-    elif action == 'push':
-        utils.run_cmd("git push -u %s HEAD"%url)
-    elif action == 'pull':
-        utils.run_cmd("git pull %s HEAD"%url)
-    elif action == 'init':
-        # This is *really* hacky...
-        if not os.path.exists('.git'):
-            utils.run_cmd("git init")
-    elif action == 'add':
-        if files:
-            utils.run_cmd("git add %s"%' '.join(files))
-    else:
-        raise utils.Failure("Unrecognised action '%s' for git directory handler"%action)
-
-register_vcs_dir_handler('git', git_dir_handler)
-
+# Tell the version control handler about us..
+register_vcs_handler("git", Git())
 
 # End file.

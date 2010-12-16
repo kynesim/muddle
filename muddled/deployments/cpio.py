@@ -17,7 +17,6 @@ import muddled.pkg as pkg
 import muddled.env_store
 import muddled.depend as depend
 import muddled.utils as utils
-import muddled.filespec as filespec
 import muddled.deployment as deployment
 import muddled.cpiofile as cpiofile
 import types
@@ -27,7 +26,7 @@ class CpioInstructionImplementor:
     def apply(self, builder, instruction, role, path):
         pass
 
-class CpioDeploymentBuilder(pkg.Dependable):
+class CpioDeploymentBuilder(pkg.Action):
     """
     Builds the specified CPIO deployment.
     """
@@ -178,7 +177,7 @@ class CpioDeploymentBuilder(pkg.Dependable):
                                                   base,
                                                   the_hierarchy)
                         else:
-                            raise utils.Failure("CPIO deployments don't know about "
+                            raise utils.GiveUp("CPIO deployments don't know about "
                                                 "the instruction %s (lbl %s, file %s"%(iname, lbl, fn))
             # .. and write the file.
             print "> Writing %s .. "%deploy_file
@@ -190,11 +189,11 @@ class CpioDeploymentBuilder(pkg.Dependable):
                 elif (self.compression_method == "bzip2"):
                     utils.run_cmd("bzip2 -f %s"%deploy_file)
                 else:
-                    raise utils.Failure("Invalid compression method %s"%self.compression_method + 
+                    raise utils.GiveUp("Invalid compression method %s"%self.compression_method + 
                                         "specified for cpio deployment. Pick gzip or bzip2.")
 
         else:
-            raise utils.Failure("Attempt to build a cpio deployment with unknown label %s"%(lbl))
+            raise utils.GiveUp("Attempt to build a cpio deployment with unknown label %s"%(lbl))
 
 class CIApplyChmod(CpioInstructionImplementor):
     def apply(self, builder, instr, role, target_base, hierarchy):
@@ -300,7 +299,7 @@ def deploy_labels(builder, target_file, target_base, name,
     if (target_labels_order is not None):
         for t in target_labels_order:
             if (t in strike_out):
-                raise utils.Error("Duplicate label %s in attempt to order cpio deployment"%t)
+                raise utils.MuddleBug("Duplicate label %s in attempt to order cpio deployment"%t)
                                   
             if (t in target_base):
                 out_target_base.append( (t, target_base[t]) )
@@ -314,7 +313,7 @@ def deploy_labels(builder, target_file, target_base, name,
             
 
 
-    the_dependable = CpioDeploymentBuilder(target_file, 
+    the_action = CpioDeploymentBuilder(target_file, 
                                            out_target_base, compressionMethod, 
                                            pruneFunc = pruneFunc)
     
@@ -323,7 +322,7 @@ def deploy_labels(builder, target_file, target_base, name,
                              utils.LabelTag.Deployed,
                              domain = builder.default_domain)
 
-    deployment_rule = depend.Rule(dep_label, the_dependable)
+    deployment_rule = depend.Rule(dep_label, the_action)
 
     # Now do the dependency thing .. 
     for ( ltuple, base )  in out_target_base:
@@ -343,12 +342,12 @@ def deploy_labels(builder, target_file, target_base, name,
     #print "Add to deployment %s .. "%(deployment_rule)
     builder.invocation.ruleset.add(deployment_rule)
 
-    the_dependable.attach_env(builder)
+    the_action.attach_env(builder)
     
     # Cleanup is generic
     deployment.register_cleanup(builder, name)
 
-    return the_dependable
+    return the_action
 
 
 
@@ -389,8 +388,8 @@ def deploy(builder, target_file, target_base, name, target_roles_order,
 
 
 class CpioWrapper:
-    def __init__(self, builder, dependable, label):
-        self.dependable = dependable
+    def __init__(self, builder, action, label):
+        self.action = action
         self.label = label
         self.builder = builder
 
@@ -398,7 +397,7 @@ class CpioWrapper:
     def copy_from_role(self, from_role, from_fragment, to_fragment):
         """
         Copy the relative path from_fragment in from_role to to_fragment in the CPIO
-        deployment given by 'dependable'
+        deployment given by 'action'
         """
         
         role_label = depend.Label(utils.LabelType.Package,
@@ -408,18 +407,18 @@ class CpioWrapper:
                                   domain = self.builder.default_domain)
         r = self.builder.invocation.ruleset.rule_for_target(self.label, createIfNotPresent = False)
         if (r is None):
-            raise utils.Failure("Cannot copy from a deployment (%s) "%wrapper.label + 
-                                " which has not yet been created.")
+            raise utils.GiveUp("Cannot copy from a deployment (%s) "%self.label +
+                               " which has not yet been created.")
         
         r.add(role_label)
-        self.dependable.target_base.append( ( role_label, ( from_fragment, to_fragment ) ) )
+        self.action.target_base.append( ( role_label, ( from_fragment, to_fragment ) ) )
         
     def done(self):
         """
         Call this once you've added all the roles you want; it attaches
         the deployment environment to them and generally finishes up
         """
-        self.dependable.attach_env(self.builder)
+        self.action.attach_env(self.builder)
 
 
 
@@ -429,7 +428,7 @@ def create(builder, target_file, name, compressionMethod = None,
     Create a CPIO deployment with the given name and return it.
     """
     
-    the_dependable = CpioDeploymentBuilder(target_file,
+    the_action = CpioDeploymentBuilder(target_file,
                                            [ ],
                                            compressionMethod,
                                            pruneFunc)
@@ -438,12 +437,12 @@ def create(builder, target_file, name, compressionMethod = None,
                              utils.LabelTag.Deployed,
                              domain = builder.default_domain)
 
-    deployment_rule = depend.Rule(dep_label, the_dependable)
+    deployment_rule = depend.Rule(dep_label, the_action)
 
     builder.invocation.ruleset.add(deployment_rule)
     deployment.register_cleanup(builder, name)
 
-    return CpioWrapper(builder, the_dependable, dep_label)
+    return CpioWrapper(builder, the_action, dep_label)
 
 
 

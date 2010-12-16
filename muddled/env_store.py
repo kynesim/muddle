@@ -97,7 +97,7 @@ class EnvExpr:
               (isinstance(other, EnvExpr))):
             self.values.append(other)
         else:
-            raise utils.Error("Attempt to append"
+            raise utils.MuddleBug("Attempt to append"
                               " %s (type %s) to an EnvExpr of type %s"%(other, 
                                                                         type(other), 
                                                                         self.type))
@@ -391,13 +391,13 @@ class EnvBuilder:
         elif (language == EnvLanguage.C):
             # As it says, the code wouldn't have worked anyway
             # TODO: Work out what it should do
-            raise utils.Failure("attempt to get value '%s' for C, which is broken"%(inOldValue))
+            raise utils.GiveUp("attempt to get value '%s' for C, which is broken"%(inOldValue))
             ##return self.get_c(True)
         elif language == EnvLanguage.Python:
             return self.get_py(inOldValue)
         else:
             # What else can we do?
-            raise utils.Failure("attempt to get value '%s' for language %d"%(inOldValue,
+            raise utils.GiveUp("attempt to get value '%s' for language %d"%(inOldValue,
                                                                              language))
 
 
@@ -407,7 +407,6 @@ class EnvBuilder:
             return None
 
         val_array = [ ]
-        atLeastOne = False
 
         val_array.extend(map(lambda x: x.to_value(env), self.prepend_list))
         if (inOldValue is not None) and self.retain_old_value: 
@@ -676,7 +675,7 @@ class Store:
         elif (lang == EnvLanguage.C):
             return self.get_setvars_c(builder, name)
         else:
-            raise utils.Error("Can't write a setvars script for language %s"%lang)
+            raise utils.MuddleBug("Can't write a setvars script for language %s"%lang)
 
 
     def apply(self, in_env):
@@ -815,7 +814,6 @@ class Store:
         
         while len(remain) > 0:
             # Take out anything we can
-            take_out = set()
             new_remain = set()
             did_something = False
 
@@ -840,7 +838,7 @@ class Store:
             # If we didn't do anything, we've reached the end
             # of the line.
             if (not did_something):
-                raise utils.Failure("Cannot produce a consistent environment ordering:\n" + 
+                raise utils.GiveUp("Cannot produce a consistent environment ordering:\n" + 
                                     ("Issued: %s\n"%(" ".join(map(str, out_list)))) + 
                                     ("Remain: %s\n"%utils.print_string_set(remain)) + 
                                     ("Deps: %s\n"%(print_deps(deps))))
@@ -867,7 +865,6 @@ def print_deps(deps):
         result_str.append("}\n")
 
     return "".join(result_str)
-
 
 def string_expr(var):
     """

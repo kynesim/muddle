@@ -12,11 +12,10 @@ import muddled.pkg as pkg
 import muddled.env_store
 import muddled.depend as depend
 import muddled.utils as utils
-import muddled.filespec as filespec
 import os
 import muddled.deployment as deployment
 
-class ToolsDeploymentBuilder(pkg.Dependable):
+class ToolsDeploymentBuilder(pkg.Action):
     """
     Copy the dependent roles into the tools deployment.
     """
@@ -28,7 +27,7 @@ class ToolsDeploymentBuilder(pkg.Dependable):
         if (label.tag == utils.LabelTag.Deployed):
             self.deploy(builder, label)
         else:
-            raise utils.Failure("Attempt to build "
+            raise utils.GiveUp("Attempt to build "
                                 "unrecognised tools deployment label %s"%(label))
 
     def deploy(self, builder, label):

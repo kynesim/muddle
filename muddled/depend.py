@@ -2,7 +2,6 @@
 Dependency sets and dependency management
 """
 
-import os
 import re
 import copy
 
@@ -590,18 +589,18 @@ class Label(object):
         """
         Check that a label component is valid.
 
-        Raises a utils.Failure exception if it's Bad, does nothing if it's OK.
+        Raises a utils.GiveUp exception if it's Bad, does nothing if it's OK.
         """
         m = Label.label_part_re.match(value)
         if m is None or m.end() != len(value):
-            raise utils.Failure("Label %s '%s' is not allowed"%(what_part,value))
+            raise utils.GiveUp("Label %s '%s' is not allowed"%(what_part,value))
 
     @staticmethod
     def _check_domain(value):
         """
         Check that a label domain component is valid.
 
-        Raises a utils.Failure exception if it's Bad, does nothing if it's OK.
+        Raises a utils.GiveUp exception if it's Bad, does nothing if it's OK.
 
         For instance:
 
@@ -611,46 +610,46 @@ class Label(object):
             >>> Label._check_domain('')
             Traceback (most recent call last):
             ...
-            Failure: Label domain '()' is not allowed
+            GiveUp: Label domain '()' is not allowed
             >>> Label._check_domain('()')
             Traceback (most recent call last):
             ...
-            Failure: Label domain '(())' starts with zero length domain, '(()', i.e. '(('
+            GiveUp: Label domain '(())' starts with zero length domain, '(()', i.e. '(('
             >>> Label._check_domain('(')
             Traceback (most recent call last):
             ...
-            Failure: Label domain part '(()' has unbalanced parentheses, '('
+            GiveUp: Label domain part '(()' has unbalanced parentheses, '('
             >>> Label._check_domain(')')
             Traceback (most recent call last):
             ...
-            Failure: Label domain '())' has unbalanced parentheses, ')'
+            GiveUp: Label domain '())' has unbalanced parentheses, ')'
             >>> Label._check_domain('fred(jim')
             Traceback (most recent call last):
             ...
-            Failure: Label domain part '(fred(jim)' has unbalanced parentheses, 'fred(jim'
+            GiveUp: Label domain part '(fred(jim)' has unbalanced parentheses, 'fred(jim'
             >>> Label._check_domain('fred((jim(bob)))')
             Traceback (most recent call last):
             ...
-            Failure: Label domain '(fred((jim(bob))))' starts with zero length domain, '((jim(bob))', i.e. '(('
+            GiveUp: Label domain '(fred((jim(bob))))' starts with zero length domain, '((jim(bob))', i.e. '(('
         """
         m = Label.domain_part_re.match(value)
         if m is None or m.end() != len(value):
-            raise utils.Failure("Label domain '(%s)' is not allowed"%(value))
+            raise utils.GiveUp("Label domain '(%s)' is not allowed"%(value))
         dom = value
         while dom:
             pos = dom.find('(')
             if pos == -1:
                 if dom[-1] == ')':
-                    raise utils.Failure("Label domain '(%s)' has unbalanced"
+                    raise utils.GiveUp("Label domain '(%s)' has unbalanced"
                                         " parentheses, '%s'"%(value, dom))
                 break
             else:
                 if dom[-1] != ')':
-                    raise utils.Failure("Label domain part '(%s)' has unbalanced"
+                    raise utils.GiveUp("Label domain part '(%s)' has unbalanced"
                                         " parentheses, '%s'"%(value, dom))
                 part = dom[:pos]
                 if len(part) == 0:
-                    raise utils.Failure("Label domain '(%s)' starts with zero"
+                    raise utils.GiveUp("Label domain '(%s)' starts with zero"
                                         " length domain, '(%s', i.e. '(('"%(value, dom))
                 dom = dom[pos+1:-1]
 
@@ -678,7 +677,7 @@ class Label(object):
         System. Any other flag characters will be ignored.
 
         If the label string is valid, a corresponding Label will be returned,
-        otherwise a utils.Failure exception will be raised.
+        otherwise a utils.GiveUp exception will be raised.
 
             >>> Label.from_string('package:busybox/installed')
             Label('package', 'busybox', role=None, tag='installed')
@@ -702,18 +701,18 @@ class Label(object):
             >>> Label.from_string('package:busybox')
             Traceback (most recent call last):
             ...
-            Failure: Label string 'package:busybox' is not a valid Label
+            GiveUp: Label string 'package:busybox' is not a valid Label
 
         If you specify a domain, it may not be "empty":
 
             >>> Label.from_string('package:()busybox/*')
             Traceback (most recent call last):
             ...
-            Failure: Label string 'package:()busybox/*' is not a valid Label
+            GiveUp: Label string 'package:()busybox/*' is not a valid Label
         """
         m = Label.label_string_re.match(label_string)
         if m is None or m.end() != len(label_string):
-            raise utils.Failure('Label string %s is not a valid'
+            raise utils.GiveUp('Label string %s is not a valid'
                                 ' Label'%repr(label_string))
 
         type   = m.group('type')
@@ -739,7 +738,7 @@ class Label(object):
 
         If there are no subdomains, then a zero length list is returned.
 
-        Raises a utils.Failure exception if the parentheses do not match up
+        Raises a utils.GiveUp exception if the parentheses do not match up
         (the check is only fairly crude), or if there are two adjacent opening
         parentheses.
         """
@@ -749,17 +748,17 @@ class Label(object):
             pos = dom.find('(')
             if pos == -1:
                 if dom[-1] == ')':
-                    raise utils.Failure("Label %s domain part '%s' has unbalanced"
+                    raise utils.GiveUp("Label %s domain part '%s' has unbalanced"
                                         " parentheses"%(self, dom))
                 rv.append(dom)
                 break
             else:
                 if dom[-1] != ')':
-                    raise utils.Failure("Label %s domain part '%s' has unbalanced"
+                    raise utils.GiveUp("Label %s domain part '%s' has unbalanced"
                                         " parentheses"%(self, dom))
                 part = dom[:pos]
                 if len(part) == 0:
-                    raise utils.Failure("Label %s domain part '%s' starts with zero"
+                    raise utils.GiveUp("Label %s domain part '%s' starts with zero"
                                         " length domain - i.e., '(('"%(self, dom))
                 rv.append(part)
                 dom = dom[pos+1:-1]
@@ -785,12 +784,12 @@ class Rule:
     Every Rule has:
     
     * a target Label (its desired result),
-    * an optional Dependable object (to do the work to produce that result),
+    * an optional Action object (to do the work to produce that result),
     * and a set of Labels on which the target depends (which must have been
       satisfied before this Rule can be triggered).
 
     In other words, once all the dependency Labels are satisfied, the object
-    can be called to make the target Label.
+    can be called to 'build' the target Label.
 
         (And if there is no object, the target is automatically satisfied.)
 
@@ -799,7 +798,7 @@ class Rule:
     different flags from a previous label may have an effect, but it's not
     something that should be relied on).
 
-    .. note:: The actual "satisfyin" of labels is done in muddled.mechanics.
+    .. note:: The actual "satisfying" of labels is done in muddled.mechanics.
        For instance, Builder.build_label() "builds" a label in the context
        of the rest of its environment, and uses 'obj' to "build" the label.
     """
@@ -807,19 +806,19 @@ class Rule:
     def __init__(self, target_dep, obj):
         """
         * `target_dep` is the Label this Rule intends to "make".
-        * `obj` is None or a Dependable, which will be used to "make" the
+        * `obj` is None or an Action, which will be used to "make" the
           `target_dep`.
         """
         self.deps = set()
         if (not isinstance(target_dep, Label)):
-            raise utils.Error("Attempt to create a rule without a label"
+            raise utils.MuddleBug("Attempt to create a rule without a label"
                               " as its target")
 
         self.target = target_dep
         self.obj = obj
-        if (self.obj is not None) and (not isinstance(obj, pkg.Dependable)):
-            raise utils.Error("Attempt to create a rule with an object rule "
-                              "which isn't a dependable but a %s."%(obj.__class__.__name__))
+        if (self.obj is not None) and (not isinstance(obj, pkg.Action)):
+            raise utils.MuddleBug("Attempt to create a rule with an object rule "
+                              "which isn't an action but a %s."%(obj.__class__.__name__))
 
     def replace_target(self, new_t):
         self.target = new_t
@@ -854,14 +853,14 @@ class Rule:
             pass
         else:
             if complainOnDuplicate:
-                raise utils.Error(
-                    ("Duplicate dependable objects for %s and %s - have you "%(self.target, other_rule.target)) + 
+                raise utils.MuddleBug(
+                    ("Duplicate action objects for %s and %s - have you "%(self.target, other_rule.target)) + 
                     "remembered to remove a package from one of your domain builds?")
             else:
                 if replaceOnDuplicate:
                     self.obj = other_rule.obj
                 else:
-                    self.obj = pkg.SequentialDependable(self.obj, other_rule.obj)
+                    self.obj = pkg.SequentialAction(self.obj, other_rule.obj)
 
         #print "catenate and merge for target = %s"%(self.target)
         self.deps.union(other_rule.deps)
@@ -884,7 +883,7 @@ class Rule:
             self.add(i)
 
         # This is important to ensure that empty dependencies
-        # (which are rules with None as their dependable object)
+        # (which are rules with None as their action object)
         # get correctly overridden by merged rules when they're
         # registered
         if (deps.obj is not None):
@@ -1057,7 +1056,7 @@ class RuleSet:
 
         return rules
 
-    def wrap_dependables(self, generator, label):
+    def wrap_actions(self, generator, label):
         for r in self.map.values():
             if (r.target.match(label)):
                 r.obj = generator.generate(r.obj)
@@ -1396,7 +1395,7 @@ def needed_to_build(ruleset, target, useTags = True, useMatch = False):
         for tgt in targets:
             rules = ruleset.rules_for_target(tgt, useTags)
             if (rules is None):
-                raise utils.Error("No rule found for target %s"%tgt)
+                raise utils.MuddleBug("No rule found for target %s"%tgt)
 
             # This is slightly icky. Technically, in the presence of wildcard
             # rules, there can be several rules which build a target.
@@ -1409,7 +1408,7 @@ def needed_to_build(ruleset, target, useTags = True, useMatch = False):
             can_build_target = True
 
             if len(rules) == 0:
-                raise utils.Error("Rule list is empty for target %s"%tgt)
+                raise utils.MuddleBug("Rule list is empty for target %s"%tgt)
 
 
             if (trace):
@@ -1451,7 +1450,7 @@ def needed_to_build(ruleset, target, useTags = True, useMatch = False):
     # targets because the graph is circular or incomplete.
     targets = list(targets)
     targets.sort()
-    raise utils.Error("Dependency graph is circular or incomplete. \n" +
+    raise utils.GiveUp("Dependency graph is circular or incomplete. \n" +
                       "building = %s\n"%target +
                       "targets = %s \n"%label_set_to_string(targets,
                                                             start_with='[\n    ',
@@ -1484,7 +1483,7 @@ def required_by(ruleset, label, useTags = True, useMatch = True):
     if (len(rules) == 0):
         # If this was a wildcarded label, who cares?
         if (label.is_definite()):
-            raise utils.Failure("No rules match label %s ."%label)
+            raise utils.GiveUp("No rules match label %s ."%label)
 
     for r in rules:
         depends.add(r.target)

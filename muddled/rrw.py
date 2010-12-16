@@ -375,19 +375,14 @@ def build_with_helper(builder, helpers, pkg_name, checkout, roles,
 
 def build_role_on_architecture(builder, role, arch):
     """
-    Wraps all the dependables in a given role inside an ArchSpecificDependable generator.
+    Wraps all the actions in a given role inside an ArchSpecificAction generator.
 
-    This requires all the dependables in that role ("package:*{<role>}/*") to
+    This requires all the actions in that role ("package:*{<role>}/*") to
     be built on architecture <arch>.
     """
-    lbl = depend.Label(utils.LabelType.Package,
-                       "*",
-                       role, 
-                       "*",
+    lbl = depend.Label(utils.LabelType.Package, "*", role, "*",
                        domain = builder.default_domain)
-    gen = pkg.ArchSpecificDependableGenerator(arch)
-    builder.invocation.ruleset.wrap_dependables(gen, lbl)
-
-
+    gen = pkg.ArchSpecificAction(arch)
+    builder.invocation.ruleset.wrap_actions(gen, lbl)
 
 # End File.

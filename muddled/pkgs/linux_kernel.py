@@ -81,7 +81,6 @@ class LinuxKernel(PackageBuilder):
         tmp = Label(utils.LabelType.Checkout, self.co, domain=label.domain)
         co_path = builder.invocation.checkout_path(tmp)
         build_path = builder.invocation.package_obj_path(label)
-        inst_path = builder.invocation.package_install_path(label)
 
         make_cmd = "make"
         if not self.in_place:
@@ -104,7 +103,6 @@ class LinuxKernel(PackageBuilder):
         hdr_path = os.path.join(build_path) 
         fw_path = os.path.join(build_path, "firmware")
         modules_path = os.path.join(build_path, "modules")
-        combined_include_path = os.path.join(build_path, "fake-kernel-source")
 
 
         if (tag == utils.LabelTag.PreConfig):
@@ -126,7 +124,7 @@ class LinuxKernel(PackageBuilder):
 
             config_src = os.path.join(co_path, self.config_file)
             if not (os.path.exists(config_src)):
-                raise utils.Failure("Cannot find kernel config source file %s"%config_src)
+                raise utils.GiveUp("Cannot find kernel config source file %s"%config_src)
             utils.copy_file(config_src, dot_config)
 
         elif (tag == utils.LabelTag.Built):
@@ -134,22 +132,22 @@ class LinuxKernel(PackageBuilder):
 	        linux_src_path = os.path.join(build_path, "obj", self.linux_src)
             else:
 		linux_src_path = os.path.join(co_path, self.linux_src)
-            os.chdir(os.path.join(linux_src_path))
-            utils.run_cmd("%s bzImage"%make_cmd)
-            utils.run_cmd("%s modules"%make_cmd)
-            utils.run_cmd("%s INSTALL_HDR_PATH=\"%s\" headers_install"%(make_cmd, hdr_path))
-            utils.run_cmd("%s INSTALL_FW_PATH=\"%s\" firmware_install"%(make_cmd, fw_path))
-            utils.run_cmd("%s INSTALL_MOD_PATH=\"%s\" modules_install"%(make_cmd, modules_path))
+            with utils.Directory(os.path.join(linux_src_path)):
+                utils.run_cmd("%s bzImage"%make_cmd)
+                utils.run_cmd("%s modules"%make_cmd)
+                utils.run_cmd("%s INSTALL_HDR_PATH=\"%s\" headers_install"%(make_cmd, hdr_path))
+                utils.run_cmd("%s INSTALL_FW_PATH=\"%s\" firmware_install"%(make_cmd, fw_path))
+                utils.run_cmd("%s INSTALL_MOD_PATH=\"%s\" modules_install"%(make_cmd, modules_path))
 
-            # Now link up the kerneldir directory so that other people can build modules which
-            # depend on us.
-            utils.run_cmd("ln -fs %s %s"%(os.path.join(modules_path, "lib", "modules", 
-                                                       self.kernel_version, "build"), 
-                                          os.path.join(build_path, "kerneldir")))
+                # Now link up the kerneldir directory so that other people can build modules which
+                # depend on us.
+                utils.run_cmd("ln -fs %s %s"%(os.path.join(modules_path, "lib", "modules", 
+                                                           self.kernel_version, "build"), 
+                                              os.path.join(build_path, "kerneldir")))
 
-            # .. and link kernelsource to the source directory.
-            utils.run_cmd("ln -fs %s %s"%(linux_src_path,
-                                          os.path.join(build_path, "kernelsource")))
+                # .. and link kernelsource to the source directory.
+                utils.run_cmd("ln -fs %s %s"%(linux_src_path,
+                                              os.path.join(build_path, "kernelsource")))
 
             # This was a doomed idea, and remains here to show you that it's doomed.
             # Really, really doomed.
@@ -158,6 +156,7 @@ class LinuxKernel(PackageBuilder):
 
             # Some - really irritating - kernel modules - require an include directory
             # which is the union of source and object kernel includes.
+            #combined_include_path = os.path.join(build_path, "fake-kernel-source")
             #utils.run_cmd("rm -rf \"%s\""%combined_include_path)
             
             #actual_inc = os.path.join(combined_include_path, "include")
@@ -177,24 +176,22 @@ class LinuxKernel(PackageBuilder):
             # .. and this for the asm files themselves. Ugh.
             #utils.run_cmd("cp -r -t %s %s"%(os.path.join(actual_inc, "asm"), 
             #                                os.path.join(build_path, "include", "asm", "*")))
-                                   
-                                   
 
 
         elif (tag == utils.LabelTag.Installed):
             if (self.make_install):
-                os.chdir(co_path)
-                utils.run_cmd("make install")
+                with utils.Directory(co_path):
+                    utils.run_cmd("make install")
         elif (tag == utils.LabelTag.PostInstalled):
             # .. and postinstall
             pass
         elif (tag == utils.LabelTag.Clean):
-            os.chdir(os.path.join(co_path, self.linux_src))
-            utils.run_cmd("%s clean"%make_cmd)
+            with utils.Directory(os.path.join(co_path, self.linux_src)):
+                utils.run_cmd("%s clean"%make_cmd)
         elif (tag == utils.LabelTag.DistClean):
             self.dist_clean(builder, label)
         else:
-            raise utils.Error("Invalid tag specified for "
+            raise utils.MuddleBug("Invalid tag specified for "
                               "linux kernel build - %s"%(label))
 
     def dist_clean(self, builder, label):

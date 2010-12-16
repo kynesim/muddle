@@ -11,9 +11,6 @@ element.
 """
 
 import muddled.utils as utils
-import xml.dom
-import xml.dom.minidom
-import os
 import re
 
 g_trace_parser = False
@@ -90,7 +87,7 @@ def query_string_value(xml_doc, env, k):
         if (k in env):
             v = env[k]
         else:
-            raise utils.Failure("Environment variable '%s' not defined."%k)
+            raise utils.GiveUp("Environment variable '%s' not defined."%k)
 
     return v
 
@@ -276,7 +273,7 @@ class TreeNode:
             res = query_string_value(xml_doc, env, key_name)
 
         if (res is None):
-            raise utils.Error("Attempt to substitute key '%s' which does not exist."%key_name)
+            raise utils.MuddleBug("Attempt to substitute key '%s' which does not exist."%key_name)
 
         if (g_trace_parser):
             print "node.val(%s -> %s) = %s"%(self.expr, key_name, res)
@@ -286,7 +283,7 @@ class TreeNode:
 
     def fnval(self, xml_doc, env, output_list):
         if (len(self.params) != 1):
-            raise utils.Failure("val() must have exactly one parameter")
+            raise utils.GiveUp("val() must have exactly one parameter")
 
         key_name = self.params[0].eval_str(xml_doc, env)
         key_name = key_name.strip()
@@ -298,7 +295,7 @@ class TreeNode:
             res = query_string_value(xml_doc, env, key_name)
 
         if (res is None):
-            raise utils.Error("Attempt to substitute key '%s' which does not exist."%key_name)
+            raise utils.MuddleBug("Attempt to substitute key '%s' which does not exist."%key_name)
 
         if (g_trace_parser):
             print "node.fnval(%s -> %s) = %s"%(self.params[0], key_name, res)
@@ -308,7 +305,7 @@ class TreeNode:
     def ifeq(self, xml_doc, env, output_list, polarity):
         # Must have two parameters ..
         if (len(self.params) != 2):
-            raise utils.Failure("ifeq() must have two parameters")
+            raise utils.GiveUp("ifeq() must have two parameters")
 
         key = self.params[0].eval_str(xml_doc, env)
         key = key.strip()
@@ -361,7 +358,7 @@ def parse_document(input_stream, node, end_chars, has_escapes):
             ends_now = (c in end_chars)
 
         if ((end_chars is not None) and (c < 0)):
-            raise utils.Failure("Stream ends whilst waiting for end chars: Syntax error")
+            raise utils.GiveUp("Stream ends whilst waiting for end chars: Syntax error")
 
         if (ends_now):
             cur_node = TreeNode(TreeNode.StringType)
@@ -431,7 +428,7 @@ def skip_whitespace(in_stream):
 
 def flatten_literal_node(in_node):
     """
-    Flatten a literal node into a string. Raise Failure if we, um, fail.
+    Flatten a literal node into a string. Raise GiveUp if we, um, fail.
     """
     lst = [ ]
 
@@ -441,7 +438,7 @@ def flatten_literal_node(in_node):
         pass
     else:
         # Annoyingly, we can't report here yet.
-        raise utils.Failure("Non literal where literal expected.")
+        raise utils.GiveUp("Non literal where literal expected.")
 
     for i in in_node.children:
         lst.append(flatten_literal_node(i))
@@ -478,7 +475,7 @@ def parse_param(input_stream, node, echars):
             # Fine.
             return
         else:
-            raise utils.Failure("Quoted parameter ends with invalid character %c - %s"%(c,
+            raise utils.GiveUp("Quoted parameter ends with invalid character %c - %s"%(c,
                                                                                         input_stream.report()))
     else:
         parse_document(input_stream, node, echars, True)
@@ -515,13 +512,13 @@ def parse_instruction(input_stream, node):
         old_report = input_stream.report() # In case we need it later..
         parse_document(input_stream, container, echars, True)
         if (input_stream.next() != '"'):
-            raise utils.Failure("Literal instruction @ %s never ends"%(old_report))
+            raise utils.GiveUp("Literal instruction @ %s never ends"%(old_report))
 
         skip_whitespace(input_stream)
         c = input_stream.next();
         if (c != '}'):
             # Rats
-            raise utils.Failure("Syntax Error - no end to literal instruction @ %s"%
+            raise utils.GiveUp("Syntax Error - no end to literal instruction @ %s"%
                                 (input_stream.report()))
         # Otherwise ..
         result.set_val(container)
@@ -565,7 +562,7 @@ def parse_instruction(input_stream, node):
             parse_document(input_stream, rest, echars, True)
             result.set_fn(fn_name, params, rest)
         else:
-            raise utils.Failure("Invalid designator in value: %s at %s"%(str, input_stream.report()))
+            raise utils.GiveUp("Invalid designator in value: %s at %s"%(str, input_stream.report()))
     else:
         # This was the end of the directive.
         result.set_val(dummy)
@@ -627,14 +624,12 @@ def subst_str_old(in_str, xml_doc, env):
     the_re = re.compile(r"(\$)?\$\{([^\}]+)\}")
     fn_re = re.compile(r'fn:([^()]+)\(([^\)]+)\)(.*)$')
 
-    out_str = in_str
     interm = the_re.split(in_str)
 
     for i in range(0, len(interm)/3):
         base_idx = 3*i
         
         k = interm[base_idx+2]
-        
 
         if (interm[base_idx+1] == '$'):
             interm[base_idx + 2] = "${%s}"%k

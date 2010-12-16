@@ -4,13 +4,11 @@ out into roles. I've deliberately not implemented arbitrary-level checkouts
 for fear of complicating the checkout tree.
 """
 
-import muddled
 import muddled.pkg as pkg
 import muddled.version_control as version_control
 import muddled.utils as utils
 from muddled.depend import Label
 
-import urlparse
 import os
 
 def relative(builder, co_dir, co_name, repo_relative = None, rev = None):
@@ -54,13 +52,10 @@ def relative(builder, co_dir, co_name, repo_relative = None, rev = None):
     co_label = Label(utils.LabelType.Checkout, co_name, domain=builder.default_domain)
     builder.invocation.db.set_checkout_path(co_label, os.path.join(co_dir, co_name))
 
-    vcs_handler = version_control.vcs_dependable_for(builder,
-                                                     co_label,
-                                                     repo, rev,
-                                                     rest,
-                                                     co_dir = co_dir)
+    vcs_handler = version_control.vcs_action_for(builder, co_label, repo, rev,
+                                                 rest, co_dir=co_dir)
     pkg.add_checkout_rules(builder.invocation.ruleset,
-                           co_name, 
+                           co_label,
                            vcs_handler)
 
 # For historical reasons
@@ -76,11 +71,10 @@ def absolute(builder, co_dir, co_name, repo_url, rev = None):
     co_label = Label(utils.LabelType.Checkout, co_name, domain=builder.default_domain)
     builder.invocation.db.set_checkout_path(co_label, rest)
 
-    vcs_handler = version_control.vcs_dependable_for(builder, co_label,
-                                                     repo_url, rev,
-                                                     None, co_dir = co_dir)
+    vcs_handler = version_control.vcs_action_for(builder, co_label, repo_url,
+                                                 rev, None, co_dir=co_dir)
     pkg.add_checkout_rules(builder.invocation.ruleset,
-                           co_name, 
+                           co_label,
                            vcs_handler)
 
 

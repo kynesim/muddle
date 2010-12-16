@@ -49,7 +49,7 @@ class MakeBuilder(PackageBuilder):
         inv = builder.invocation
         tmp = Label(utils.LabelType.Checkout, self.co, domain=label.domain)
         if not os.path.exists(inv.checkout_path(tmp)):
-            raise utils.Error("Path %s for checkout %s does not exist, building %s"%
+            raise utils.MuddleBug("Path %s for checkout %s does not exist, building %s"%
                               (inv.checkout_path(tmp), self.co, 
                                label))
 
@@ -88,44 +88,43 @@ class MakeBuilder(PackageBuilder):
         # XXX try...
         tmp = Label(utils.LabelType.Checkout, self.co, domain=label.domain)
         co_path =  builder.invocation.checkout_path(tmp)
-        os.chdir(co_path)
+        with utils.Directory(co_path):
+            self._amend_env(co_path)
 
-        self._amend_env(co_path)
+            if self.makefile_name is None:
+                makefile_name = "Makefile"
+            else:
+                makefile_name = self.makefile_name
 
-        if self.makefile_name is None:
-            makefile_name = "Makefile"
-        else:
-            makefile_name = self.makefile_name
+            if self.per_role_makefiles and label.role is not None:
+                make_args = " -f %s.%s"%(makefile_name,label.role)
+            else:
+                make_args = " -f %s"%(makefile_name)
 
-        if self.per_role_makefiles and label.role is not None:
-            make_args = " -f %s.%s"%(makefile_name,label.role)
-        else:
-            make_args = " -f %s"%(makefile_name)
-
-        if (tag == utils.LabelTag.PreConfig):
-            # Preconfigure - nothing need be done
-            pass
-        elif (tag == utils.LabelTag.Configured):
-            # We should probably do the configure thing ..
-            if (self.has_make_config):
-                utils.run_cmd("make %s config"%make_args)
-        elif (tag == utils.LabelTag.Built):
-            utils.run_cmd("make %s"%make_args)
-        elif (tag == utils.LabelTag.Installed):
-            utils.run_cmd("make %s install"%make_args)
-        elif (tag == utils.LabelTag.PostInstalled):
-            if (self.rewriteAutoconf):
-                #print "> Rewrite autoconf for label %s"%(label)
-                obj_path = builder.invocation.package_obj_path(label)
-                #print ">obj_path = %s"%(obj_path)
-                rewrite.fix_up_pkgconfig_and_la(builder, obj_path)
-        elif (tag == utils.LabelTag.Clean):
-            utils.run_cmd("make %s clean"%make_args)
-        elif (tag == utils.LabelTag.DistClean):
-            utils.run_cmd("make %s distclean"%make_args)
-        else:
-            raise utils.Error("Invalid tag specified for "
-                              "MakePackage building %s"%(label))
+            if (tag == utils.LabelTag.PreConfig):
+                # Preconfigure - nothing need be done
+                pass
+            elif (tag == utils.LabelTag.Configured):
+                # We should probably do the configure thing ..
+                if (self.has_make_config):
+                    utils.run_cmd("make %s config"%make_args)
+            elif (tag == utils.LabelTag.Built):
+                utils.run_cmd("make %s"%make_args)
+            elif (tag == utils.LabelTag.Installed):
+                utils.run_cmd("make %s install"%make_args)
+            elif (tag == utils.LabelTag.PostInstalled):
+                if (self.rewriteAutoconf):
+                    #print "> Rewrite autoconf for label %s"%(label)
+                    obj_path = builder.invocation.package_obj_path(label)
+                    #print ">obj_path = %s"%(obj_path)
+                    rewrite.fix_up_pkgconfig_and_la(builder, obj_path)
+            elif (tag == utils.LabelTag.Clean):
+                utils.run_cmd("make %s clean"%make_args)
+            elif (tag == utils.LabelTag.DistClean):
+                utils.run_cmd("make %s distclean"%make_args)
+            else:
+                raise utils.MuddleBug("Invalid tag specified for "
+                                  "MakePackage building %s"%(label))
         
 
 def simple(builder, name, role, checkout, rev=None,
@@ -370,7 +369,7 @@ class ExpandingMakeBuilder(MakeBuilder):
         the PreConfigure step, which means we can safely do whatever we
         need to do in this subclass...
         """
-        if (label.tag == label_tag.PreConfig):
+        if (label.tag == utils.LabelTag.PreConfig):
             # unpack stuff ready to build
             self.unpack_archive(builder, label)
         else:

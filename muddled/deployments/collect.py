@@ -7,13 +7,10 @@ other parts of the system into a directory -
 usually to be processed by some external tool.
 """
 
-import muddled
 import muddled.pkg as pkg
 import muddled.depend as depend
 import muddled.utils as utils
-import muddled.filespec as filespec
 import muddled.deployment as deployment
-import muddled.cpiofile as cpiofile
 import os
 
 class AssemblyDescriptor:
@@ -60,9 +57,9 @@ class AssemblyDescriptor:
             return builder.invocation.deploy_path(self.from_label.name,
                                                   domain=self.from_label.domain)
         else:
-            raise utils.Failure("Label %s for collection dependable has unknown kind."%(self.from_label))
+            raise utils.GiveUp("Label %s for collection action has unknown kind."%(self.from_label))
 
-class CollectDeploymentBuilder(pkg.Dependable):
+class CollectDeploymentBuilder(pkg.Action):
     """
     Builds the specified collect deployment.
     """
@@ -97,14 +94,14 @@ class CollectDeploymentBuilder(pkg.Dependable):
 
                 if (not os.path.exists(src)):
                     if (asm.fail_on_absent_source):
-                        raise utils.Failure("Deployment %s: source object %s does not exist."%(label.name, src))
+                        raise utils.GiveUp("Deployment %s: source object %s does not exist."%(label.name, src))
                     # Else no one cares :-)
                 else:
                     if (asm.using_rsync):
                         # Use rsync for speed
                         try:
                             os.makedirs(dst)
-                        except OSError,x:
+                        except OSError:
                             pass
 
                         xdst = dst
@@ -132,13 +129,13 @@ def deploy(builder, name):
 
     Dependencies get registered when you add an assembly descriptor.
     """
-    the_dependable = CollectDeploymentBuilder()
+    the_action = CollectDeploymentBuilder()
 
     dep_label = depend.Label(utils.LabelType.Deployment,
                              name, None,
                              utils.LabelTag.Deployed)
 
-    deployment_rule = depend.Rule(dep_label, the_dependable)
+    deployment_rule = depend.Rule(dep_label, the_action)
 
     # We need to clean it as well, annoyingly .. 
     deployment.register_cleanup(builder, name)

@@ -7,7 +7,7 @@ import utils
 import pkg
 import env_store
 
-class CleanDeploymentBuilder(pkg.Dependable):
+class CleanDeploymentBuilder(pkg.Action):
     def __init__(self):
         pass
         
@@ -19,7 +19,7 @@ class CleanDeploymentBuilder(pkg.Dependable):
             print "> Remove %s"%deploy_path
             utils.recursively_remove(deploy_path)
         else:
-            raise utils.Failure("Attempt to invoke CleanDeploymentBuilder on "
+            raise utils.GiveUp("Attempt to invoke CleanDeploymentBuilder on "
                                 "unrecognised label %s"%label)
         # And, um, that's it.
         
@@ -153,7 +153,7 @@ def deployment_rule_from_name(builder, name):
         useTags = True, 
         useMatch = False)
     if (len(rules) != 1):
-        raise utils.Failure("Attempt to retrieve rule for deployment %s:"%name + 
+        raise utils.GiveUp("Attempt to retrieve rule for deployment %s:"%name + 
                             " returned list had length %d ,not 1.. "%len(rules))
 
     for r in rules:

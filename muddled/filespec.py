@@ -3,13 +3,10 @@ FileSpecs: a cheap and cheerful way to specify files for the
 purposes of deployment instructions
 """
 
-import string
 import re
 import os
 import os.path
 import utils
-import xml.dom
-import xml.dom.minidom
 
 class FileSpecDataProvider:
     """
@@ -33,7 +30,7 @@ class FileSpecDataProvider:
             
             [ "/fred/wombat/a" .. ]
         """
-        raise utils.Error("Cannot call FileSpecDataProvider.list_files_under() - "
+        raise utils.MuddleBug("Cannot call FileSpecDataProvider.list_files_under() - "
                           "try a subclass")
 
 
@@ -144,7 +141,7 @@ class FileSpec:
             </filespec>
         """
         if (xmlNode.nodeName != "filespec"):
-            raise utils.Failure("Filespec xml node is called %s , not filespec."%(xmlNode.nodeName))
+            raise utils.GiveUp("Filespec xml node is called %s , not filespec."%(xmlNode.nodeName))
 
         new_root = None
         new_spec = None
@@ -162,7 +159,7 @@ class FileSpec:
                 elif (c.nodeName == "all-regex"):
                     new_all_regex = True
                 else:
-                    raise utils.Failure("Unknown element %s in filespec"%(c.nodeName))
+                    raise utils.GiveUp("Unknown element %s in filespec"%(c.nodeName))
 
         return FileSpec(new_root, new_spec, new_all_under, new_all_regex)
 

@@ -5,7 +5,6 @@ Quite a lot of code for embedded systems can be grabbed pretty much
 directly from the relevant Ubuntu binary packages - this won't work
 with complex packages like exim4 without some external frobulation,
 since they have relatively complex postinstall steps, but it works
-quite nicely for things like util-linux, and provided you're on a
 supported architecture it's a quick route to externally maintained
 binaries which actually work and it avoids having to build
 absolutely everything in your linux yourself.
@@ -22,16 +21,15 @@ We basically ignore the package database (there is one, but
 it's always empty and stored in the object directory).
 """
 
-import muddled.pkg as pkg
 import muddled.db as db
-from muddled.pkg import PackageBuilder
-import muddled.utils as utils
-import muddled.checkouts.simple as simple_checkouts
-import os
-import re
-import stat
+import muddled.pkg as pkg
 import muddled.rewrite as rewrite
+import muddled.utils as utils
 from muddled.depend import Label
+from muddled.pkg import PackageBuilder
+
+import os
+import stat
 
 def rewrite_links(inv, label):
     obj_dir = inv.package_obj_path(label)
@@ -40,8 +38,6 @@ def rewrite_links(inv, label):
     # rewrite it to be to 'obj_dir/' something.
     stack = [ ]
 
-    the_re = re.compile(r"(.*)\.la$")
-    
     stack.append(".")
 
     while len(stack) > 0 :
@@ -115,7 +111,7 @@ def extract_into_obj(inv, co_name, label, pkg_file):
                                object_exactly = True)
     
 
-class DebDevDependable(PackageBuilder):
+class DebDevAction(PackageBuilder):
     """
     Use dpkg to extract debian archives into obj/include and obj/lib
     directories so we can use them to build other packages.
@@ -126,7 +122,7 @@ class DebDevDependable(PackageBuilder):
                  nonDevCoName = None,
                  nonDevPkgFile = None):
         """
-        As for a DebDependable, really.
+        As for a DebAction, really.
         """
         PackageBuilder.__init__(self, name, role)
         self.co_name = co
@@ -144,7 +140,7 @@ class DebDevDependable(PackageBuilder):
         # TODO: Does the following check one dir and then make another???
         tmp = Label(utils.LabelType.Checkout, self.co_name, domain=label.domain)
         if not os.path.exists(inv.checkout_path(tmp)):
-            raise utils.Failure("Path for checkout %s does not exist."%self.co_name)
+            raise utils.GiveUp("Path for checkout %s does not exist."%self.co_name)
 
         utils.ensure_dir(os.path.join(inv.package_obj_path(label), "obj"))
 
@@ -180,9 +176,9 @@ class DebDevDependable(PackageBuilder):
                 inv = builder.invocation
                 tmp = Label(utils.LabelType.Checkout, self.co_name, domain=label.domain)
                 co_path = inv.checkout_path(tmp)
-                os.chdir(co_path)
-                utils.run_cmd("make -f %s %s-postinstall"%(self.post_install_makefile, 
-                                                           label.name))
+                with utils.Directory(co_path):
+                    utils.run_cmd("make -f %s %s-postinstall"%(self.post_install_makefile, 
+                                                               label.name))
 
             # .. and now we rewrite any pkgconfig etc. files left lying
             # about.
@@ -195,11 +191,11 @@ class DebDevDependable(PackageBuilder):
             inv = builder.invocation
             utils.recursively_remove(inv.package_obj_path(label))
         else:
-            raise utils.Error("Invalid tag specified for deb pkg %s"%(label))
+            raise utils.MuddleBug("Invalid tag specified for deb pkg %s"%(label))
 
 
 
-class DebDependable(PackageBuilder):
+class DebAction(PackageBuilder):
     """
     Use dpkg to extract debian archives from the given
     checkout into the install directory.
@@ -233,7 +229,7 @@ class DebDependable(PackageBuilder):
 
         tmp = Label(utils.LabelType.Checkout, self.co_name, domain=label.domain)
         if not os.path.exists(inv.checkout_path(tmp)):
-            raise utils.Failure("Path for checkout %s does not exist."%self.co_name)
+            raise utils.GiveUp("Path for checkout %s does not exist."%self.co_name)
 
         utils.ensure_dir(inv.package_install_path(label))
         utils.ensure_dir(inv.package_obj_path(label))
@@ -289,15 +285,15 @@ class DebDependable(PackageBuilder):
                 inv = builder.invocation
                 tmp = Label(utils.LabelType.Checkout, self.co_name, domain=label.domain)
                 co_path = inv.checkout_path(tmp)
-                os.chdir(co_path)
-                utils.run_cmd("make -f %s %s-postinstall"%(self.post_install_makefile, 
-                                                           label.name))
+                with utils.Directory(co_path):
+                    utils.run_cmd("make -f %s %s-postinstall"%(self.post_install_makefile, 
+                                                               label.name))
         elif (tag == utils.LabelTag.Clean or tag == utils.LabelTag.DistClean):#
             inv = builder.invocation
             admin_dir = os.path.join(inv.package_obj_path(label))
             utils.recursively_remove(admin_dir)
         else:
-            raise utils.Error("Invalid tag specified for deb pkg %s"%(label))
+            raise utils.MuddleBug("Invalid tag specified for deb pkg %s"%(label))
 
 def simple(builder, coName, name, roles, 
            depends_on = [ ],
@@ -328,15 +324,15 @@ def simple(builder, coName, name, roles,
 
     for r in roles:
         if isDev:
-            dep = DebDevDependable(name, r, coName, debName, 
-                                   pkgFile, instrFile, 
-                                   postInstallMakefile, 
-                                   nonDevCoName = nonDevCoName,
-                                   nonDevPkgFile = nonDevPkgFile)
+            dep = DebDevAction(name, r, coName, debName, 
+                               pkgFile, instrFile, 
+                               postInstallMakefile, 
+                               nonDevCoName = nonDevCoName,
+                               nonDevPkgFile = nonDevPkgFile)
         else:
-            dep = DebDependable(name, r, coName, debName, 
-                                pkgFile, instrFile, 
-                                postInstallMakefile)
+            dep = DebAction(name, r, coName, debName, 
+                            pkgFile, instrFile, 
+                            postInstallMakefile)
             
         pkg.add_package_rules(builder.invocation.ruleset, 
                               name, r, dep)
@@ -384,7 +380,10 @@ def deb_prune(h):
     h.erase_target("/usr/share/doc")
     h.erase_target("/usr/share/man")
 
-
+# TODO: Deprecated...
+# Legacy names for classes
+DebDependable = DebAction
+DebDevDependable = DebDevAction
 
 # End file.
     

@@ -53,14 +53,6 @@ are special:
     =====================  ====================================================
     ``checked_out``        The state of a copy having been taken from revision
                            control
-    ``pulled``             Changes have been taking from revision control but
-                           not yet applied to the local copy
-    ``up_to_date``         All changes in revision control for this branch have
-                           been applied.
-    ``changes_committed``  Local changes committed, but not yet written back to
-                           version control
-    ``changes_pushed``     Local changes have bene pushed back to revision
-                           control
 
     ``preconfig``          Preconfiguration checks have been made on a package
     ``configured``         A package has been configured

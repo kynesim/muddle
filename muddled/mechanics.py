@@ -227,6 +227,36 @@ class Invocation:
             rv.add(cur.target.name)
         return rv
 
+    def all_deployments(self):
+        """
+        Return a set of the names of all the deployments in our rule set. 
+        
+        Returns a set of strings.
+        """
+        lbl = Label(utils.LabelType.Deployment, "*", "*", "*", domain="*")
+        all_labels = self.ruleset.rules_for_target(lbl)
+        rv = set()
+        for cur in all_labels:
+            rv.add(cur.target.name)
+        return rv
+
+    def all_packages_with_roles(self):
+        """
+        Return a set of the names of all the packages/roles in our rule set. 
+        
+        Returns a set of strings.
+
+        Note that if '*' is one of the package "names" in the ruleset,
+        then it will be included in the names returned.
+        """
+        rv = set()
+        for role in self.all_roles():
+            lbl = Label(utils.LabelType.Package, "*", role, "*", domain="*")
+            all_labels = self.ruleset.rules_for_target(lbl)
+            for cur in all_labels:
+                rv.add('%s{%s}'%(cur.target.name,role))
+        return rv
+
     def all_roles(self):
         """
         Return a set of the names of all the roles in our rule set. 
@@ -450,23 +480,42 @@ class Invocation:
             return self.db.get_checkout_path(label)
         else:
             return self.db.get_checkout_path(None)
-    
-    def packages_for_checkout(self, co):
+
+    def packages_using_checkout(self, co_label):
         """
         Return a set of the packages which directly use a checkout
         (this does not include dependencies)
         """
-        test_label = Label(utils.LabelType.Checkout, co, None, "*",
-                           domain="*")   # XXX This is almost certainly wrong
-        direct_deps = self.ruleset.rules_which_depend_on(test_label, useTags = False)
+        direct_deps = self.ruleset.rules_which_depend_on(co_label, useTags = False)
         pkgs = set()
-        
+
         for rule in direct_deps:
             if (rule.target.type == utils.LabelType.Package):
                 pkgs.add(rule.target)
 
         return pkgs
 
+    def checkouts_for_package(self, pkg_label):
+        """
+        Return a set of the checkouts that the given package depends upon
+        """
+        # A normal package/checkout dependency has the package's PreConfig
+        # tagged label depend upon the checkouts CheckedOut tagged label.
+        # So that would be the obvious thing to look for. However, for safety,
+        # (if not speed) we shall look for ANY checkouts this package depends
+        # on, by ignoring the labels tag.
+
+        rules = self.ruleset.rules_for_target(pkg_label,
+                                              useTags=False,    # ignore the tag
+                                              useMatch=False)   # we don't need wildcarding
+
+        checkouts = set()
+        for rule in rules:
+            for lbl in rule.deps:
+                if (lbl.type == utils.LabelType.Checkout):
+                    checkouts.add(lbl)
+
+        return checkouts
 
     def package_obj_path(self, label):
         """
@@ -709,7 +758,7 @@ class Builder(object):
         
         # This is a perfectly normal build .. 
         vcs = pkg.VcsCheckoutBuilder(desc_co, vcs_handler)
-        pkg.add_checkout_rules(self.invocation.ruleset, desc_co, vcs)
+        pkg.add_checkout_rules(self.invocation.ruleset, checkout_label, vcs)
 
         # But we want to load it once we've checked it out...
         checked_out = Label(utils.LabelType.Checkout, desc_co, None,
@@ -717,7 +766,7 @@ class Builder(object):
 
         loaded = checked_out.copy_with_tag(utils.LabelTag.Loaded, system = True, transient = True)
 
-        loader = BuildDescriptionDependable(self.invocation.db.build_desc_file_name(), 
+        loader = BuildDescriptionAction(self.invocation.db.build_desc_file_name(), 
                                             desc_co)
         self.invocation.ruleset.add(depend.depend_one(loader, 
                                                       loaded, checked_out))
@@ -1009,7 +1058,7 @@ class Builder(object):
     def build_name(self, name):
         m = self.build_name_re.match(name)
         if m is None or m.end() != len(name):
-            raise utils.Failure("Build name '%s' is not allowed"%name)
+            raise utils.GiveUp("Build name '%s' is not allowed"%name)
         self._build_name = name
 
 
@@ -1042,7 +1091,6 @@ class Builder(object):
         """
 
         inv = self.invocation
-        root = inv.db.root_path
 
         # We want to know if we're in a domain. The simplest way to that is:
         root_dir, current_domain = utils.find_root(dir)
@@ -1056,11 +1104,14 @@ class Builder(object):
 
         what, loc, role = tloc
 
-        if (what == utils.DirType.CheckOut):
+        if (what == utils.DirType.Checkout):
             if loc is None:
                 return []
             rv = []
-            for p in inv.packages_for_checkout(loc):
+            # Is this the correct label? Have we got the domain wildcard right?
+            # Do we mean *any* tag?
+            co_label = Label(utils.LabelType.Checkout, loc, None, "*", domain="*")
+            for p in inv.packages_using_checkout(co_label):
                 rv.append(Label(utils.LabelType.Package, p.name, p.role, tag,
                                 domain=current_domain))
             return rv
@@ -1133,10 +1184,10 @@ class Builder(object):
                                         for x in rel_path:
                                             check_path = os.path.join(check_path, x)
                                             if (check_path == db_path):
-                                                return (utils.DirType.CheckOut, putative_name, None)
+                                                return (utils.DirType.Checkout, putative_name, None)
 
                         # If, for whatever reason, we haven't already found this package .. 
-                        return (utils.DirType.CheckOut, sub_dir, None)
+                        return (utils.DirType.Checkout, sub_dir, None)
                     elif rest[0] == "obj":
                         if (len(rest) > 2):
                             role = rest[2]
@@ -1157,7 +1208,7 @@ class Builder(object):
         return None
 
 
-class BuildDescriptionDependable(pkg.Dependable):
+class BuildDescriptionAction(pkg.Action):
     """
     Load the build description.
     """
@@ -1191,8 +1242,11 @@ class BuildDescriptionDependable(pkg.Dependable):
                 print "No describe_to() attribute in module %s"%setup
                 print "Available attributes: %s"%(dir(setup))
                 print "Error was %s"%str(a)
-                raise utils.Error("Cannot load build description %s"%setup)
+                raise utils.MuddleBug("Cannot load build description %s"%setup)
 
+# TODO: Deprecated...
+# A legacy name for this class
+BuildDescriptionDependable = BuildDescriptionAction
 
 def load_builder(root_path, muddle_binary, params = None, 
                  default_domain = None):
@@ -1310,8 +1364,8 @@ def _new_sub_domain(root_path, muddle_binary, domain_name, domain_repo, domain_b
     # Check our domain name is legitimate
     try:
         Label._check_part('dummy',domain_name)
-    except utils.Failure:
-        raise utils.Failure('Domain name "%s" is not valid'%domain_name)
+    except utils.GiveUp:
+        raise utils.GiveUp('Domain name "%s" is not valid'%domain_name)
 
     # So, we're wanting our sub-builds to go into the 'domains/' directory
     domain_root_path = os.path.join(root_path, 'domains', domain_name)

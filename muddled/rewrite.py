@@ -37,8 +37,6 @@ def subst_la(builder, current, dir, libPath, includePath, execPrefix):
     Substitute a .la file.
     """
 
-    an_re = re.compile('^libdir=')
-    
     if (libPath is None):
         libPath = os.path.join(dir, "lib")
 
@@ -53,8 +51,6 @@ def subst_la(builder, current, dir, libPath, includePath, execPrefix):
         (key, value) = parse_line(l)
         done = False
 
-        
-
         if (key is not None):
             if (key == "libdir"):
                 # Excellent.
@@ -66,7 +62,6 @@ def subst_la(builder, current, dir, libPath, includePath, execPrefix):
                 elems = utils.unquote_list(value)
                 new_elems = []
 
-                dirlen = len(dir)
                 for i in elems:
                     #print "> Rewriting .la found %s"%i
                     # This is even harder: some of the dependencies
@@ -78,7 +73,6 @@ def subst_la(builder, current, dir, libPath, includePath, execPrefix):
 
                     base_dir = os.path.dirname(v)
 
-                    
                     if (base_dir == "/lib" or base_dir == "//lib" or
                         base_dir == "/usr/lib" or base_dir == "//usr/lib"):
                         # It's supposed to be ..

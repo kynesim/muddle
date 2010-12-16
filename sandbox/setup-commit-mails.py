@@ -25,14 +25,14 @@ import re
 import tempfile
 
 try:
-    from muddled.utils import Failure
+    from muddled.utils import GiveUp
 except ImportError:
     # try one dir up.
     this_file = os.path.abspath(__file__)
     this_dir = os.path.split(this_file)[0]
     parent_dir = os.path.split(this_dir)[0]
     sys.path.insert(0, parent_dir)
-    from muddled.utils import Failure
+    from muddled.utils import GiveUp
     # This still fails? add the directory containing muddled to your PYTHONPATH
 
 from muddled.utils import run_cmd,get_cmd_data
@@ -114,7 +114,7 @@ class RepositoryBase:
                 if p.returncode:
                     print >> sys.stderr, "Error invoking our remote script (rc=%d):"%p.returncode
                     print >> sys.stderr, stdoutdata
-                    raise Failure("Error invoking our remote script, rc=%d"%p.returncode)
+                    raise GiveUp("Error invoking our remote script, rc=%d"%p.returncode)
                 print "Script exited successfully, output follows:\n%s\n<<<END OUTPUT>>>\n"%stdoutdata
     
         finally:
@@ -274,7 +274,7 @@ def parse_repo_url(url):
         colonPort = m.group(3)
         path = m.group(4)
         return GitRepository(SshAccessibleDirectory(userAt, host, colonPort, path))
-    raise Failure("Sorry, I don't know how to handle this repository: %s"%url)
+    raise GiveUp("Sorry, I don't know how to handle this repository: %s"%url)
     # regexp.
 
 ##########################################################
@@ -293,13 +293,13 @@ def _do_cmdline(args):
         elif word in ('--dry-run', '-n'):
             dry_run = True
         elif word[0] == '-':
-            raise Failure, "Unexpected command line option %s"%word
+            raise GiveUp, "Unexpected command line option %s"%word
         else:
             break
         args = args[1:]
 
     if len(args) != 1:
-        raise Failure, "Incorrect non-option argument count (expected 1, the email destination)"
+        raise GiveUp, "Incorrect non-option argument count (expected 1, the email destination)"
     
     email_dest = args[0]
 
@@ -309,7 +309,7 @@ def _do_cmdline(args):
     # running makefiles, for when they use $(MUDDLE).)
 
     if not builder:
-        raise Failure("Cannot find a build tree.")
+        raise GiveUp("Cannot find a build tree.")
     
     rootrepo = builder.invocation.db.repo.get()
 
@@ -329,6 +329,6 @@ def _do_cmdline(args):
 if __name__ == "__main__":
     try:
         _do_cmdline(sys.argv[1:])
-    except Failure as f:
+    except GiveUp as f:
         print "%s"%f
         sys.exit(1)

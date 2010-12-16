@@ -55,10 +55,7 @@ Grr. Aargh. *beat head against wall*. Etc.
 import muddled.pkg as pkg
 from muddled.pkg import PackageBuilder
 import muddled.utils as utils
-import muddled.checkouts.simple as simple_checkouts
-import muddled.checkouts.twolevel as twolevel_checkouts
 import muddled.depend as depend
-import muddled.rewrite as rewrite
 from muddled.depend import Label
 import os
 import re
@@ -220,27 +217,20 @@ def create(builder, name, role,
     We return the depmod_merge we've created.
     """
 
-    dependable = MergeDepModBuilder(name, role, custom_depmod)
+    action = MergeDepModBuilder(name, role, custom_depmod)
     
-    pkg.add_package_rules(builder.invocation.ruleset, name, role, dependable)
+    pkg.add_package_rules(builder.invocation.ruleset, name, role, action)
     pkg.do_depend(builder, name, [ role ], 
                   pkgs_and_roles)
 
-    lbls = [ ]
     for (pname, role) in pkgs_and_roles:
         lbl = depend.Label(utils.LabelType.Package,
                            pname,
                            role,
                            utils.LabelTag.PostInstalled)
-        dependable.add_label(lbl, subdir)
+        action.add_label(lbl, subdir)
 
-    return dependable
+    return action
 
 
 # End file.
-
-                           
-    
-    
-
-            

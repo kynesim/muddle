@@ -41,7 +41,7 @@ sys.path.insert(0,parent_dir)
 
 try:
     import muddled.cmdline
-    from muddled.utils import Error, Failure
+    from muddled.utils import MuddleBug, GiveUp
 except ImportError:
     # Hah - maybe we're being run throught the 'muddle' soft link
     # from the same directory that contains the muddled/ package,
@@ -49,17 +49,17 @@ except ImportError:
     # to nothing - ho hum). So try:
     sys.path = [this_dir] + sys.path[1:]
     import muddled.cmdline
-    from muddled.utils import Error, Failure
+    from muddled.utils import MuddleBug, GiveUp
 
 if __name__ == "__main__":
     try:
         muddle_binary = __file__
         muddled.cmdline.cmdline(sys.argv[1:], muddle_binary)
         sys.exit(0)
-    except Error, why:
+    except MuddleBug, why:
         print "%s"%why
         traceback.print_exc()
         sys.exit(1)
-    except Failure as f:
+    except GiveUp as f:
         print "%s"%f
         sys.exit(1)

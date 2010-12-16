@@ -139,7 +139,7 @@ class Hierarchy:
                 # Got a parent.
                 parent_node.children.append(v)
             else:
-                raise utils.Failure("Attempt to merge file %s when parent '%s' ('%s') is not a directory: dir mode flag = 0x%x"%(k,parent_node,a, File.S_DIR))
+                raise utils.GiveUp("Attempt to merge file %s when parent '%s' ('%s') is not a directory: dir mode flag = 0x%x"%(k,parent_node,a, File.S_DIR))
 
         # .. and that's all, folks.
 
@@ -189,7 +189,7 @@ class Hierarchy:
 
             self.roots = new_roots
             if (not did_something):
-                raise utils.Failure("Failed to normalise a hierarchy -"
+                raise utils.GiveUp("Failed to normalise a hierarchy -"
                                     " circular roots?: %s"%self)
             
     
@@ -251,7 +251,7 @@ class Hierarchy:
         # Find a parent .. 
         par = self.parent_from_key(name)
         if (par is None):
-            raise utils.Failure("Cannot find a parent for %s in put_target_file()"%name)
+            raise utils.GiveUp("Cannot find a parent for %s in put_target_file()"%name)
 
         par.children.append(obj)
         self.map[name] = obj        

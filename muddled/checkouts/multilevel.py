@@ -3,13 +3,11 @@ Multi-level checkouts. Required for embedding things like android, which
 have a lot of deep internal checkouts.
 """
 
-import muddled
 import muddled.pkg as pkg
 import muddled.version_control as version_control
 import muddled.utils as utils
 from muddled.depend import Label
 
-import urlparse
 import os
 
 
@@ -34,7 +32,7 @@ def relative(builder, co_dir, co_name, repo_relative = None, rev = None,
     builder.invocation.db.set_checkout_path(co_label, co_dir)
 
     # Version control is slightly weird here ..
-    (d, n) = os.path.split(co_dir)
+    (co_dir_dir, co_dir_leaf) = os.path.split(co_dir)
 
     # We have to lie a bit here and reconstruct repo as the classic
     #  two-level resolver doesn't really work.
@@ -42,18 +40,16 @@ def relative(builder, co_dir, co_name, repo_relative = None, rev = None,
 
     #print 'VCS',co_name
     #print '... full co_dir',co_dir
-    #print '... co_dir',d
-    #print '... co_in',n
+    #print '... co_dir',co_dir
+    #print '... co_leaf',co_leaf
 
-    vcs_handler = version_control.vcs_dependable_for(builder,
-                                                     co_label,
-                                                     real_repo, rev,
-                                                     None,
-                                                     co_dir = d,
-                                                     co_in = n,
-                                                     branch = branch)
+    vcs_handler = version_control.vcs_action_for(builder, co_label, real_repo,
+                                                 rev, None,
+                                                 co_dir = co_dir_dir,
+                                                 co_leaf = co_dir_leaf,
+                                                 branch = branch)
     pkg.add_checkout_rules(builder.invocation.ruleset,
-                           co_name,
+                           co_label,
                            vcs_handler)
 
 # def absolute(builder, co_dir, co_name, repo_url, rev = None):

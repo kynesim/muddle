@@ -5,7 +5,7 @@ Routines for manipulating packages and checkouts.
 import utils
 import depend
 
-class Dependable:
+class Action:
     """
     Represents an object you can call to build a tag.
     """
@@ -26,18 +26,18 @@ class Dependable:
     # _mark_unswept()
     # _change_domain(new_domain)
     #
-    #    which are used together to change domains within the Dependable,
+    #    which are used together to change domains within the Action,
     #    that are not contained within Labels.
     #
     # _inner_labels()
     #
-    #    which returns a list of those Labels contained "inside" the Dependable,
+    #    which returns a list of those Labels contained "inside" the Action,
     #    which might not otherwise be moved to the new domain.
 
 
-class SequentialDependable:
+class SequentialAction:
     """
-    Invoke two dependables in turn
+    Invoke two actions in turn
     """
 
     def __init__(self, a, b) :
@@ -48,9 +48,9 @@ class SequentialDependable:
         self.a.build_label(builder, label)
         self.b.build_label(builder, label)
 
-class ArchSpecificDependable:
+class ArchSpecificAction:
     """
-    Allow a dependable to be invoked if and only if you're on the
+    Allow an action to be invoked if and only if you're on the
     right architecture
     """
 
@@ -62,20 +62,20 @@ class ArchSpecificDependable:
         if (utils.arch_name() == self.arch):
             return self.underlying.build_label(builder, label)
         else:
-            raise utils.Error("Label %s cannot be built on this architecture (%s) - requires %s"%(label, utils.arch_name(), self.arch))
+            raise utils.MuddleBug("Label %s cannot be built on this architecture (%s) - requires %s"%(label, utils.arch_name(), self.arch))
 
 
-class ArchSpecificDependableGenerator:
+class ArchSpecificActionGenerator:
     
     def __init__(self, arch):
         self.arch = arch
 
     def generate(self, underlying):
-        return ArchSpecificDependable(underlying, self.arch)
+        return ArchSpecificAction(underlying, self.arch)
 
-class NoneDependable(Dependable):
+class NoAction(Action):
     """
-    A dependable which does nothing - used largely for testing.
+    An action which does nothing - used largely for testing.
     """
     
     def __init__(self):
@@ -84,61 +84,64 @@ class NoneDependable(Dependable):
     def build_label(self, builder, label):
         pass
 
-
-
-class Checkout(Dependable):
+class VcsCheckoutBuilder(Action):
     """
-    Represents a checkout object. Don't use this class - at the very least use
-    VcsCheckout, which has some idea about whether it's in vcs or not.
+    This class represents a checkout, which knows where it's checked out from.
     """
-
     def __init__(self, name, vcs):
         self.name = name
         self.vcs = vcs
 
-
-    def build_label(self, builder, tag):
+    def _checkout_is_checked_out(self, builder, label):
         """
-        Do whatever's needed to ensure that you can assert the given tag. Your
-        dependencies have been met.
+        Return True if this checkout has indeed been checked out
         """
-        pass
+        label = label.copy_with_tag(utils.LabelTag.CheckedOut, transient=False)
+        return builder.invocation.db.is_tag(label)
 
-
-
-class VcsCheckoutBuilder(Checkout):
-    def __init__(self, name, vcs):
-        Checkout.__init__(self, name, vcs)
-        
-    def must_update_to_commit(self):
+    def must_fetch_before_commit(self):
         """
         Must we update in order to commit? Only the VCS handler knows .. 
         """
-        return self.vcs.must_update_to_commit()
+        return self.vcs.must_fetch_before_commit()
 
     def build_label(self, builder, label):
         target_tag = label.tag
 
         if (target_tag == utils.LabelTag.CheckedOut):
-            self.vcs.check_out()
-        elif (target_tag == utils.LabelTag.Pulled):
-            self.vcs.pull()
-        elif (target_tag == utils.LabelTag.UpToDate):
-            self.vcs.update()
+            self.vcs.checkout()
+        elif (target_tag == utils.LabelTag.Fetched):
+            self.vcs.fetch()
+        elif (target_tag == utils.LabelTag.Merged):
+            self.vcs.merge()
         elif (target_tag == utils.LabelTag.ChangesCommitted):
-            self.vcs.commit()
+            if self._checkout_is_checked_out(builder, label):
+                self.vcs.commit()
+            else:
+                print "Checkout %s has not been checked out - not commiting"%label.name
         elif (target_tag == utils.LabelTag.ChangesPushed):
-            self.vcs.push()
+            if self._checkout_is_checked_out(builder, label):
+                self.vcs.push()
+            else:
+                print "Checkout %s has not been checked out - not pushing"%label.name
         else:
-            raise utils.Error("Attempt to build unknown tag %s "%target_tag + 
+            raise utils.MuddleBug("Attempt to build unknown tag %s "%target_tag + 
                               "in checkout %s."%self.name)
 
         return True
 
-    
+# TODO: Deprecated...
+# Legacy names for things.
+# Since I've changed Dependable to Action (and so on), but can't guarantee that
+# other code is not using this directly, I'd better provide aliases, at least
+# for the moment.
+Dependable = Action
+SequentialDependable = SequentialAction
+ArchSpecificDependable = ArchSpecificAction
+ArchSpecificDependableGenerator = ArchSpecificActionGenerator
+NoneDependable = NoAction
 
-
-class PackageBuilder(Dependable):
+class PackageBuilder(Action):
     """
     Describes a package.
     """
@@ -161,9 +164,9 @@ class PackageBuilder(Dependable):
         self.deps = None
 
     def build_label(self, builder, label):
-        raise utils.Error("Attempt to build unknown label %s"%label)
+        raise utils.MuddleBug("Attempt to build unknown label %s"%label)
 
-class Deployment(Dependable):
+class Deployment(Action):
     """
     Represents a deployment. Deployments (typically) package code into
     release packages
@@ -180,7 +183,7 @@ class Deployment(Dependable):
 class Profile:
     """
     A profile ties together a role, a deployment and an installation 
-    directory. Profiles aren't dependable - they modify the builder.
+    directory. Profiles aren't actions - they modify the builder.
 
     There are two things you can do to a profile: you can ``assume()`` it,
     in which case you build that profile, or you can ``use()`` it, in
@@ -197,60 +200,69 @@ class Profile:
 
     def use(self, builder):
         pass
-    
 
-                          
-def add_checkout_rules(ruleset, co_name, obj):
+def add_checkout_rules(ruleset, co_label, obj):
     """
     Add the standard checkout rules to a ruleset for a checkout
-    with name co_name.
+    with name co_label. 'obj' should be an instance of VcsCheckoutBuilder,
+    which knows how to build a checkout: label, depending on its tag.
     """
 
-    # This needs to be slightly clever, since uptodate, changescommitted
-    # and changespushed must be transient.
-    co_label = depend.Label(utils.LabelType.Checkout,
-                            co_name, None, 
-                            utils.LabelTag.CheckedOut)
+    # All of the VCS tags are transient (well, with the obvious exception
+    # of "checked_out" itself). So we need to be a little bit careful.
+
+    # Make sure we have the correct basic tag
+    if co_label.tag != utils.LabelTag.CheckedOut:
+        co_label = co_label.copy_with_tag(utils.LabelTag.CheckedOut)
+
+    # And we simply use the VcsCheckoutBuilder (as we assume it to be)
+    # to build us
     co_rule = depend.Rule(co_label, obj)
     ruleset.add(co_rule)
-    
-    uptodate_label = co_label.copy_with_tag(utils.LabelTag.UpToDate, transient = True)
-    rule = ruleset.rule_for_target(uptodate_label, createIfNotPresent = True)
+
+    # Fetched is a transient label.
+    fetched_label = co_label.copy_with_tag(utils.LabelTag.Fetched, transient=True)
+    # Since 'checked_out' is not transient, and since it seems reasonable
+    # enough that "muddle fetch" should check the checkout out if it has not
+    # already been done, then we can make it depend upon the checked_out label...
+    # Tell its rule that it depends on the checkout being checked out (!)
+    rule = depend.Rule(fetched_label, obj)
     rule.add(co_label)
+    ruleset.add(rule)
+    #rule = ruleset.rule_for_target(fetched_label, createIfNotPresent=True)
+    #rule.add(co_label)
 
-    # Pulled is also transient, and uptodate depends on it.
-    pulled_label = co_label.copy_with_tag(utils.LabelTag.Pulled, transient = False)
-    rule = ruleset.rule_for_target(pulled_label, createIfNotPresent = True)
+    # Merged is very similar, and also depends on the checkout existing
+    merged_label = co_label.copy_with_tag(utils.LabelTag.Merged, transient=True)
+    rule = depend.Rule(merged_label, obj)
     rule.add(co_label)
+    ruleset.add(rule)
+    #rule = ruleset.rule_for_target(merged_label, createIfNotPresent=True)
+    #rule.add(co_label)
 
-    depend.depend_chain(obj, 
-                        uptodate_label, 
-                        [ utils.LabelTag.Pulled ], ruleset)
+    ## We used to say that UpToDate depended on Pulled.
+    ## Our nearest equivalent would be Merged depending on Fetched.
+    ## But that's plainly not a useful dependency, so we shall ignore it.
+    #depend.depend_chain(obj, 
+    #                    uptodate_label, 
+    #                    [ utils.LabelTag.Fetched ], ruleset)
 
-    # We actually need to ask the object whether this is a centralised 
-    # or a decentralised VCS .. 
-    if (obj.must_update_to_commit()):
-        depend.depend_chain(obj, 
-                            uptodate_label,
-                            [ utils.LabelTag.ChangesCommitted,
-                              utils.LabelTag.ChangesPushed ],
-                            ruleset)
+    # We don't really want 'push' to do a 'checkout', so instead we rely on
+    # the action only doing something if the corresponding checkout has
+    # been checked out. Which leaves the rule with no apparent dependencies
+    pushed_label = co_label.copy_with_tag(utils.LabelTag.ChangesPushed, transient=True)
+    rule = depend.Rule(pushed_label, obj)
+    ruleset.add(rule)
 
-    else:
-        # We don't need to update to commit.
-        commit_label = co_label.copy_with_tag(utils.LabelTag.ChangesCommitted,
-                                       transient = True)
-        depend.depend_chain(obj, 
-                            commit_label,
-                            [ utils.LabelTag.ChangesPushed ],
-                            ruleset)
-        commit_rule = ruleset.rule_for_target(commit_label)
-        commit_rule.add(co_label)
-        update_rule = depend.Rule(uptodate_label,
-                                  obj)
-        update_rule.add(co_label)
-        ruleset.add(update_rule)
+    # The same also applies to commit...
+    committed_label = co_label.copy_with_tag(utils.LabelTag.ChangesCommitted, transient=True)
+    rule = depend.Rule(committed_label, obj)
+    ruleset.add(rule)
 
+    # Centralised VCSs, in general, want us to do a 'fetch' (update) before
+    # doing a 'commit', so we should try to honour that, if necessary
+    if (obj.must_fetch_before_commit()):
+        rule.add(fetched_label)
 
 def package_depends_on_checkout(ruleset, pkg_name, role_name, co_name, obj):
     """
@@ -260,7 +272,7 @@ def package_depends_on_checkout(ruleset, pkg_name, role_name, co_name, obj):
     * pkg_name  - The package which depends.
     * role_name - The role which depends. Can be '*' for a wildcard.
     * co_name   - The checkout which this package and role depends on.
-    * obj       - If non-None, specifies a Dependable to be invoked to get from
+    * obj       - If non-None, specifies an Action to be invoked to get from
       the checkout to the package preconfig. You'll normally make this None
       unless you are doing something deeply weird.
     """

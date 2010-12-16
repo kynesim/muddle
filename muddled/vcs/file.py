@@ -2,120 +2,135 @@
 Muddle support for naive file copying.
 """
 
-from muddled.version_control import *
-from muddled.depend import Label
+import os
+import urlparse
+
+from muddled.version_control import register_vcs_handler, VersionControlSystem
 import muddled.utils as utils
-import urlparse 
 
-class File(VersionControlHandler):
+class File(VersionControlSystem):
     """
-    Version control handler for file copies.
-    
-    Simply copies data from a repository directory to a working directory
-    It does _not_ copy data back.
+    Provide version control operations for simple file copying
     """
 
-    def __init__(self, inv, co_label, co_name, repo, rev, rel, co_dir):
-        VersionControlHandler.__init__(self, inv, co_label, co_name, repo, rev, rel, co_dir)
-        
-        sp = conventional_repo_url(repo, rel)
-        if (sp is None):
-            raise utils.Error("Cannot extract repository URL from %s, co %s"%(repo, rel))
-        
-        (real_repo, r) = sp
+    def __init__(self):
+        self.short_name = 'file'
+        self.long_name = 'FileSystem'
 
+    def init_directory(self, verbose=True):
+        """
+        If the directory does not appear to have had '<vcs> init' run in it,
+        then do so first.
 
-        parsed = urlparse.urlparse(real_repo)
-        self.source_path = parsed.path
-
-        self.co_path = self.get_checkout_path(self.checkout_label)
-
-
-    def check_out(self):
-        # Check out.
-        utils.ensure_dir(self.co_path)
-        utils.run_cmd("cp -r %s/* %s"%(self.source_path, self.co_path))
-
-    def pull(self):
-        # Nothing to do here.
+        Will be called in the actual checkout's directory.
+        """
         pass
 
-    def update(self):
-        # Just copy everything over again.
-        self.check_out()
+    def add_files(self, files=None, verbose=True):
+        """
+        If files are given, add them, but do not commit.
 
-    def commit(self):
-        # Nothing to do
+        Will be called in the actual checkout's directory.
+        """
         pass
 
-    def push(self):
-        # Nothing to do
+    def checkout(self, repo, co_leaf, branch=None, revision=None, verbose=True):
+        """
+        Clone a given checkout.
+
+        Will be called in the parent directory of the checkout.
+
+        Expected to create a directory called <co_leaf> therein.
+        """
+        if revision and revision != 'HEAD':
+            raise utils.GiveUp("File does not support the 'revision' argument to"
+                               " 'checkout' (revision='%s'"%revision)
+        if branch:
+            raise utils.GiveUp("File does not support the 'branch' argument to"
+                               " 'checkout' (branch='%s'"%branch)
+        parsed = urlparse.urlparse(repo)
+        source_path = parsed.path
+
+        utils.recursively_copy(source_path, co_leaf, preserve=True)
+
+    def fetch(self, repo, branch=None, revision=None, verbose=True):
+        """
+        Will be called in the actual checkout's directory.
+
+        Just copies everything again.
+        """
+        if revision and revision != 'HEAD':
+            raise utils.GiveUp("File does not support the 'revision' argument to"
+                               " 'fetch' (revision='%s'"%revision)
+        if branch:
+            raise utils.GiveUp("File does not support the 'branch' argument to"
+                               " 'fetch' (branch='%s'"%branch)
+        self.checkout(repo, os.curdir, verbose=verbose)
+
+    def merge(self, other_repo, branch=None, revision=None, verbose=True):
+        """
+        Merge 'other_repo' into the local repository and working tree,
+
+        Just copies everything again. This is an imperfect sort of "merge".
+        """
+        if revision and revision != 'HEAD':
+            raise utils.GiveUp("File does not support the 'revision' argument to"
+                               " 'merge' (revision='%s'"%revision)
+        if branch:
+            raise utils.GiveUp("File does not support the 'branch' argument to"
+                               " 'merge' (branch='%s'"%branch)
+        self.checkout(other_repo, os.curdir, verbose=verbose)
+
+    def commit(self, verbose=True):
+        """
+        Will be called in the actual checkout's directory.
+        """
         pass
 
-    def must_update_to_commit(self):
-        return False
+    def push(self, repo, branch=None, verbose=True):
+        """
+        Will be called in the actual checkout's directory.
 
+        We refuse to copy anything back to the original directory.
+        """
+        pass
 
-class FileVCSFactory(VersionControlHandlerFactory):
-    def describe(self):
-        return "Copy data between directories"
+    def status(self, repo, verbose=False):
+        return True
 
-    def manufacture(self, builder, co_label, co_name, repo, rev, rel, co_dir, branch):
-        return File(builder, co_label, co_name, repo, rev, rel, co_dir)
+    def reparent(self, co_dir, remote_repo, force=False, verbose=True):
+        pass
 
+    def revision_to_checkout(self, co_leaf, orig_revision, force=False, verbose=False):
+        """
+        Determine a revision id for this checkout, usable to check it out again.
+        """
+        return None
 
-# Tell the VCS handler about us.
-register_vcs_handler("file", FileVCSFactory())
+    def allows_relative_in_repo(self):
+        return True         # Strangely enough
+
+    def get_file_content(self, url, verbose=True):
+        """
+        Retrieve a file's content via Subversion.
+        """
+        source_path = _decode_file_url(url)
+        with open(source_path) as fd:
+            return fd.read()
 
 def _decode_file_url(url):
     result = urlparse.urlparse(url)
     if result.scheme not in ('', 'file'):
-        raise utils.Error("'%s' is not a valid 'file:' URL"%url)
+        raise utils.GiveUp("'%s' is not a valid 'file:' URL"%url)
     if result.netloc:
-        raise utils.Error("'%s' is not a valid 'file:' URL - wrong number"
+        raise utils.GiveUp("'%s' is not a valid 'file:' URL - wrong number"
                 " of '/' characters?"%url)
     if result.params or result.query or result.fragment:
-        raise utils.Error("'%s' is not a valid 'file:' URL - don't understand"
+        raise utils.GiveUp("'%s' is not a valid 'file:' URL - don't understand"
                 " params, query or fragment"%url)
     return result.path
 
-def file_file_getter(url):
-    """Retrieve a file's content.
-    """
-    source_path = _decode_file_url(url)
-    with open(source_path) as fd:
-        return fd.read()
+# Tell the version control handler about us..
+register_vcs_handler("file", File())
 
-register_vcs_file_getter('file', file_file_getter)
-
-def file_dir_handler(action, url=None, directory=None, files=None):
-    """Clone/push/pull/commit a directory via file operations
-    """
-    if action == 'clone':
-        remote_path = _decode_file_url(url)
-        if directory:
-            local_path = directory
-        else:
-            local_path = os.path.split(remote_path)[1]
-        if os.path.exists(local_path):
-            raise utils.Error("Cannot copy '%s', as target '%s' already"
-                    " exists"%(remote_path, local_path))
-        utils.recursively_copy(remote_path, local_path)
-    elif action == 'commit':
-        pass
-    elif action == 'push':
-        raise utils.Failure("'push' is not yet supported for file directory handler")
-    elif action == 'pull':
-        # Just copy the whole thing again
-        remote_path = _decode_file_url(url)
-        utils.recursively_copy(remote_path, os.getcwd())
-    elif action == 'init':
-        pass
-    elif action == 'add':
-        pass
-    else:
-        raise utils.Failure("Unrecognised action '%s' for file directory handler"%action)
-
-register_vcs_dir_handler('file', file_dir_handler)
-
-# End File
+# End file.

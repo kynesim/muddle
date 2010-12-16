@@ -10,7 +10,6 @@ import re
 import shutil
 import socket
 import stat
-import string
 import subprocess
 import sys
 import textwrap
@@ -27,24 +26,33 @@ try:
 except:
     curses = None
 
-class Error(Exception):
+class MuddleBug(Exception):
     """
-    Used to signal an error from muddle, which should be traced.
+    Use this to indicate that something has gone wrong with muddle itself.
+
+    We thus expect that a traceback will be produced.
     """
     pass
 
-class Failure(Exception):
+class GiveUp(Exception):
     """
-    Used to signal an error which shouldn't be backtraced.
+    Use this to indicate that something has gone wrong and we are giving up.
+
+    This is not an error in muddle itself, however, so there is no need for
+    a traceback.
     """
     pass
+
+# Keep the old exception names for the moment, as well
+Failure = GiveUp
+Error = MuddleBug
 
 # Start with the known label tags. Keys are the "in program" representation,
 # values are the tag as used in labels themselves.
 __label_tags = {# For checkouts.
                 'CheckedOut' : "checked_out",
-                'Pulled' : "pulled",
-                'UpToDate' : "up_to_date",
+                'Fetched' : "fetched",
+                'Merged' : "merged",
                 'ChangesCommitted' : "changes_committed",
                 'ChangesPushed' : "changes_pushed",
 
@@ -110,35 +118,20 @@ __label_type_type = namedtuple('LabelType',
 
 LabelType = __label_type_type(**__label_types)
 
-class DirType:
-    """
-    Provides a uniform vocabulary in which we can talk about
-    the types of directory we support.
+# And directory types - i.e., what is the purpose of a particular directory?
+# We use a description of the purpose of the directory type as its value,
+# and trust to Python to be kind to us
+__directory_types = {'Checkout' : 'checkout directory',
+                     'Object'   : 'package object directory',
+                     'Deployed' : 'deployment directory',
+                     'Install'  : 'install directory',
+                     'Root'     : 'root of the build tree',
+                     }
 
-    :CheckOut: denotes a source checkout.
-    :Object:   denotes an object directory (one per package)
-    :Deployed: denotes the deployment directory.
-    :Install:  denotes an install directory.
-    :Builds:   denotes the builds directory.
-    :Root:     directly under the root of the build tree
+__directory_type_type = namedtuple('DirType',
+                                   ' '.join(__directory_types.keys()))
 
-    ``dict`` maps directory names to values.
-
-    """
-    CheckOut = 1
-    Object = 2
-    Deployed = 3
-    Install = 4
-    Builds = 5
-    Root = 6
-
-    @staticmethod
-    def name_for_numeric_label(x):
-        for (label,n) in DirType.__dict__.items():
-            if x==n:
-                return label
-        return None
-
+DirType = __directory_type_type(**__directory_types)
 
 def string_cmp(a,b):
     """
@@ -206,7 +199,7 @@ def get_domain_name_from(dir):
     if should_be_domains == 'domains':
         return domain_name
     else:
-        raise Error("Cannot find domain name for '%s' because it is not"
+        raise MuddleBug("Cannot find domain name for '%s' because it is not"
                     " '<something>/domains/<domain_name>' (unexpected '%s')"%(dir,should_be_domains))
 
 
@@ -252,7 +245,7 @@ def ensure_dir(dir, verbose=True):
     if os.path.isdir(dir):
         return True
     elif os.path.exists(dir):
-        raise Error("%s exists but is not a directory"%dir)
+        raise MuddleBug("%s exists but is not a directory"%dir)
     else:
         if verbose:
             print "> Make directory %s"%dir
@@ -313,9 +306,9 @@ def run_cmd(cmd, env = None, allowFailure = False, isSystem = False,
     * if allowFailure is true, then failure of the command will be ignored.
     * otherwise, isSystem is used to decide what to do if the command fails.
       If isSystem is true, then this is a command being run by the system and
-      failure should be reported by raising utils.Error. otherwise, it's being
+      failure should be reported by raising utils.MuddleBug. otherwise, it's being
       run on behalf of the user and failure should be reported by raising
-      utils.Failure.
+      utils.GiveUp.
     * if verbose is true, then print out the command before executing it
 
     Return the exit code of this command.
@@ -329,9 +322,9 @@ def run_cmd(cmd, env = None, allowFailure = False, isSystem = False,
         return rv
     else:
         if isSystem:
-            raise Error("Command '%s' execution failed - %d"%(cmd,rv))
+            raise MuddleBug("Command '%s' execution failed - %d"%(cmd,rv))
         else:
-            raise Failure("Command '%s' execution failed - %d"%(cmd,rv))
+            raise GiveUp("Command '%s' execution failed - %d"%(cmd,rv))
 
 
 def get_cmd_data(cmd, env=None, isSystem=False, fold_stderr=True,
@@ -343,7 +336,7 @@ def get_cmd_data(cmd, env=None, isSystem=False, fold_stderr=True,
     (returncode, stdout_data, NONE).
 
     If 'fail_nonzero' then if the return code is non-0, raise an explanatory
-    exception (Error is 'isSystem', otherwise Failure).
+    exception (MuddleBug is 'isSystem', otherwise GiveUp).
 
     And yes, that means the default use-case returns a tuple of the form
     (0, <string>, None), but otherwise it gets rather awkward handling all
@@ -361,9 +354,9 @@ def get_cmd_data(cmd, env=None, isSystem=False, fold_stderr=True,
     returncode = p.returncode
     if fail_nonzero and returncode:
         if isSystem:
-            raise Error("Command '%s' execution failed - %d"%(cmd,returncode))
+            raise MuddleBug("Command '%s' execution failed - %d"%(cmd,returncode))
         else:
-            raise Failure("Command '%s' execution failed - %d"%(cmd,returncode))
+            raise GiveUp("Command '%s' execution failed - %d"%(cmd,returncode))
     return returncode, stdoutdata, stderrdata
 
 
@@ -434,9 +427,8 @@ def truncate(text, columns=None, less=0):
 
 
 def dynamic_load(filename):
-    mod = None
     if (filename == None):
-        raise Error(\
+        raise MuddleBug(\
             "Attempt to call DynamicLoad() with filename None")
     try:
         with open(filename, 'rb') as fin:
@@ -445,8 +437,8 @@ def dynamic_load(filename):
         hasher.update(contents)
         md5_digest = hasher.hexdigest()
         return imp.load_source(md5_digest, filename)
-    except Exception as e:
-        raise Failure("Cannot load build description %s:\n"
+    except Exception:
+        raise GiveUp("Cannot load build description %s:\n"
                        "%s"%(filename, traceback.format_exc()))
 
 def do_shell_quote(str):
@@ -703,7 +695,7 @@ def parse_mode(in_mode):
         return (clear_bits, set_bits)
     else:
         # @todo Parse symbolic modes here.
-        raise Failure("Unsupported UNIX modespec %s"%in_mode)
+        raise GiveUp("Unsupported UNIX modespec %s"%in_mode)
 
 def parse_uid(builder, text_uid):
     """
@@ -761,12 +753,12 @@ def _copy_without(src, dst, ignored_names, object_exactly, preserve):
             else:
                 copy_file(srcname, dstname, object_exactly=object_exactly, preserve=preserve)
         except (IOError, os.error), why:
-            raise Failure('Unable to copy %s to %s: %s'%(srcname, dstname, why))
+            raise GiveUp('Unable to copy %s to %s: %s'%(srcname, dstname, why))
 
     try:
         copy_file_metadata(src, dst)
     except OSError, why:
-        raise Failure('Unable to copy properties of %s to %s: %s'%(src, dst, why))
+        raise GiveUp('Unable to copy properties of %s to %s: %s'%(src, dst, why))
 
 def copy_without(src, dst, without=None, object_exactly=True, preserve=False):
     """
@@ -860,7 +852,7 @@ def split_domain(domain_name):
         >>> split_domain('a(b(c)')
         Traceback (most recent call last):
         ...
-        Failure: Domain name "a(b(c)" has mis-matched parentheses
+        GiveUp: Domain name "a(b(c)" has mis-matched parentheses
 
     We don't actually allow "sibling" sub-domains, so we try to complain
     helpfully:
@@ -868,21 +860,21 @@ def split_domain(domain_name):
         >>> split_domain('a(b(c)(d))')
         Traceback (most recent call last):
         ...
-        Failure: Domain name "a(b(c)(d))" has 'sibling' sub-domains
+        GiveUp: Domain name "a(b(c)(d))" has 'sibling' sub-domains
     """
 
     if '(' not in domain_name:
         return [domain_name]
 
     if ')(' in domain_name:
-        raise Failure('Domain name "%s" has '
+        raise GiveUp('Domain name "%s" has '
                       "'sibling' sub-domains"%domain_name)
 
     parts = domain_name.split('(')
 
     num_closing = len(parts) - 1
     if not parts[-1].endswith( num_closing * ')' ):
-        raise Failure('Domain name "%s" has mis-matched parentheses'%domain_name)
+        raise GiveUp('Domain name "%s" has mis-matched parentheses'%domain_name)
 
     parts[-1] = parts[-1][:- num_closing]
     return parts
@@ -901,7 +893,7 @@ def domain_subpath(domain_name):
         >>> domain_subpath('a(b(c)')
         Traceback (most recent call last):
         ...
-        Failure: Domain name "a(b(c)" has mis-matched parentheses
+        GiveUp: Domain name "a(b(c)" has mis-matched parentheses
     """
     parts = []
     for thing in split_domain(domain_name):
@@ -941,7 +933,7 @@ def unescape_backslashes(str):
             wasBackslash = False
         else:
             if (i == '\\'):
-                wasBlackslash = True
+                wasBackslash = True
             else:
                 result.append(i)
 
@@ -1122,7 +1114,7 @@ class HashFile(object):
         specified.
         """
         if self.mode != 'w':
-            raise Error("Cannot write to HashFile '%s', opened for read"%self.name)
+            raise MuddleBug("Cannot write to HashFile '%s', opened for read"%self.name)
         self.fd.write(text)
         self.sha.update(text)
 
@@ -1133,7 +1125,7 @@ class HashFile(object):
         Returns '' if there is no next line (i.e., EOF is reached).
         """
         if self.mode != 'r':
-            raise Error("Cannot read from HashFile '%s', opened for write"%self.name)
+            raise MuddleBug("Cannot read from HashFile '%s', opened for write"%self.name)
         text = self.fd.readline()
 
         if text == '':
@@ -1172,7 +1164,7 @@ class HashFile(object):
     # Support for iteration (over lines)
     def __iter__(self):
         if self.mode != 'r':
-            raise Error("Cannot iterate over HashFile '%s', opened for write"%self.name)
+            raise MuddleBug("Cannot iterate over HashFile '%s', opened for write"%self.name)
         return self
 
     def next(self):
@@ -1183,7 +1175,7 @@ class HashFile(object):
             return text
 
 DomainTuple = namedtuple('DomainTuple', 'name repository description')
-CheckoutTuple = namedtuple('CheckoutTuple', 'name repo rev rel dir domain co_leaf')
+CheckoutTuple = namedtuple('CheckoutTuple', 'name repo rev rel dir domain co_leaf branch')
 
 class VersionStamp(Mapping):
     """A representation of the revision state of a build tree's checkouts.
@@ -1218,6 +1210,8 @@ class VersionStamp(Mapping):
             * co_leaf - The leaf directory in which this checkout resides -
               this is just the name for one and two-level checkouts, but will
               be different for multilevel checkouts
+            * branch - the branch for this checkout, if it is not the default
+              (e.g., "master" in git).
 
           These are essentially the exact arguments that would have been given
           to the VCS initialisation, or to ``muddled.version_control.vcs_handler_for()``
@@ -1260,7 +1254,7 @@ class VersionStamp(Mapping):
         [PROBLEMS]
         problem1 = Oops, a problem
         >>> v['jim']
-        CheckoutTuple(name='jim', repo='Elsewhere', rev=7, rel=None, dir='jim', domain=None, co_leaf='seila')
+        CheckoutTuple(name='jim', repo='Elsewhere', rev=7, rel=None, dir='jim', domain=None, co_leaf='sheila', branch=None)
 
     Note that this is *not* intended to be a mutable class, so please do not
     change any of its internals directly. In particular, if you *did* change
@@ -1367,7 +1361,7 @@ class VersionStamp(Mapping):
             config.write(fd)
 
         config = RawConfigParser(None, dict_type=MuddleSortedDict)
-        for name, repo, rev, rel, dir, domain, co_leaf in self.checkouts:
+        for name, repo, rev, rel, dir, domain, co_leaf, branch in self.checkouts:
             if domain:
                 section = 'CHECKOUT (%s)%s'%(domain,name)
             else:
@@ -1384,6 +1378,8 @@ class VersionStamp(Mapping):
                 config.set(section, "relative", rel)
             if dir:
                 config.set(section, "directory", dir)
+            if branch:
+                config.set(section, "branch", branch)
         config.write(fd)
 
         if self.problems:
@@ -1413,12 +1409,12 @@ class VersionStamp(Mapping):
         if not output:
             output = sys.stdout
         if not truncate:
-            columns = self.MAX_PROBLEM_LEN
+            truncate = self.MAX_PROBLEM_LEN
 
         for index, item in enumerate(self.problems):
             item = item.rstrip()
             output.write('%sProblem %2d: %s\n'%(indent, index+1,
-                                truncate(str(item),columns=truncate)))
+                                truncate(str(item), columns=truncate)))
 
     @staticmethod
     def from_builder(builder, force=False, just_use_head=False, quiet=False):
@@ -1453,11 +1449,6 @@ class VersionStamp(Mapping):
               empty, then the stamp was calculated fully. Note that this
               is the same list as held withing the VersionStamp instance.
         """
-        # There is some worry that some of the underlying operations may
-        # cause us to change directory
-
-        start_dir = os.getcwd()
-
         stamp = VersionStamp()
 
         stamp.repository = builder.invocation.db.repo.get()
@@ -1482,7 +1473,7 @@ class VersionStamp(Mapping):
                         print stamp.problems[-1]
                     continue
                 if not quiet:
-                    print "Processing %s checkout '%s'"%(vcs.__class__.__name__,
+                    print "Processing %s checkout '%s'"%(vcs.short_name(),
                                                  '(%s)%s'%(label.domain,label.name)
                                                            if label.domain
                                                            else label.name)
@@ -1497,17 +1488,17 @@ class VersionStamp(Mapping):
                     rev = "HEAD"
                 else:
                     rev = vcs.revision_to_checkout(force=force, verbose=True)
-                revisions[label] = (vcs.repository, vcs.checkout_dir, rev, vcs.relative, vcs.checkout_name)
-            except Failure as exc:
+                revisions[label] = (vcs.repo_as_given, vcs.checkout_dir, rev, vcs.relative, vcs.checkout_leaf, vcs.branch)
+            except GiveUp as exc:
                 print exc
                 stamp.problems.append(str(exc))
 
         if stamp.domains and not quiet:
             print 'Found domains:',stamp.domains
 
-        for label, (repo, dir, rev, rel, co_leaf) in revisions.items():
+        for label, (repo, dir, rev, rel, co_leaf, branch) in revisions.items():
             stamp.checkouts.append(CheckoutTuple(label.name, repo, rev, rel, dir,
-                                                 label.domain, co_leaf))
+                                                 label.domain, co_leaf, branch))
 
         if len(revisions) != len(checkout_rules):
             if not quiet:
@@ -1524,9 +1515,6 @@ class VersionStamp(Mapping):
             if not stamp.problems:
                 # This should not, I think, happen, but just in case...
                 stamp.problems.append('Unable to work out revision ids for all the checkouts')
-
-        # Make sure we're where the user thinks we are, just in case
-        os.chdir(start_dir)
 
         stamp._update_checkout_dict()
         return stamp, stamp.problems
@@ -1584,7 +1572,12 @@ class VersionStamp(Mapping):
                     co_leaf = config.get(section, "co_leaf")
                 else:
                     co_leaf = name  # NB: this is deliberate - see the unstamp command
-                stamp.checkouts.append(CheckoutTuple(name, repo, rev, rel, dir, domain, co_leaf))
+                if config.has_option(section, "branch"):
+                    branch = config.get(section, 'branch')
+                else:
+                    branch = None
+                stamp.checkouts.append(CheckoutTuple(name, repo, rev, rel, dir,
+                                                     domain, co_leaf, branch))
             elif section == "PROBLEMS":
                 for name, value in config.items("PROBLEMS"):
                     stamp.problems.append(value)
@@ -1626,9 +1619,6 @@ class VersionStamp(Mapping):
               are present in both VersionStamps, but differ in something other
               than revision.
         """
-        checkouts1 = self.checkouts
-        checkouts2 = other.checkouts
-
         deleted = set()
         new = set()
         changed = set()
@@ -1645,8 +1635,8 @@ class VersionStamp(Mapping):
                 if self[name] != other[name]:
                     if not quiet:
                         print 'Checkout %s has changed'%name
-                    name1, repo1, rev1, rel1, dir1, domain1, co_leaf1 = self[name]
-                    name2, repo2, rev2, rel2, dir2, domain2, co_leaf2 = other[name]
+                    name1, repo1, rev1, rel1, dir1, domain1, co_leaf1, branch1 = self[name]
+                    name2, repo2, rev2, rel2, dir2, domain2, co_leaf2, branch2 = other[name]
                     # For the moment, be *very* conservative on what we allow
                     # to have changed - basically, just the revision
                     # (arguably we shouldn't care about domain...)
@@ -1671,6 +1661,10 @@ class VersionStamp(Mapping):
                         errors.append('co_leaf')
                         if not quiet:
                             print '  Checkout leaf mismatch:',co_leaf1,co_leaf2
+                    if branch1 != branch2:
+                        errors.append('branch')
+                        if not quiet:
+                            print '  Checkout branch mismatch:',branch1,branch2
                     if errors:
                         if not quiet:
                             print '  ...only revision mismatch is allowed'
@@ -1678,7 +1672,7 @@ class VersionStamp(Mapping):
                                                         ', '.join(errors))))
                         continue
                     changed.add((name1, rev1, rev2))
-            except KeyError as what:
+            except KeyError:
                 if name in self._checkout_dict:
                     if not quiet:
                         print 'Checkout %s was deleted'%name
@@ -1689,5 +1683,149 @@ class VersionStamp(Mapping):
                     new.add(other[name])
 
         return deleted, new, changed, problems
+
+def normalise_dir(dir):
+    dir = os.path.expanduser(dir)
+    dir = os.path.abspath(dir)
+    return dir
+
+class Directory(object):
+    """A class to facilitate pushd/popd behaviour
+
+    It is intended for use with 'with', as in::
+
+        with Directory('~'):
+            print 'My home directory contains'
+            print ' ',' '.join(os.listdir('.'))
+
+    If 'stay_on_error' is true, then the directory will not be left ("popd"
+    will not be done) if an exception occurs in its 'with' clause.
+
+    If 'show_pushd' is true, then a message will be printed out showing the
+    directory that is being 'cd'ed into.
+
+    If 'show_popd' is true, then a message will be printed out showing the
+    directory that is being returned to. An extra "wrapper" message for any
+    exception being propagated out will also be shown.
+    """
+    def __init__(self, where, stay_on_error=False, show_pushd=True, show_popd=False):
+        self.start = normalise_dir(os.getcwd())
+        self.where = normalise_dir(where)
+        self.close_on_error = not stay_on_error
+        self.show_pushd = show_pushd
+        self.show_popd = show_popd
+        os.chdir(self.where)
+        if show_pushd:
+            print '++ pushd to %s'%self.where
+
+    def close(self):
+        os.chdir(self.start)
+        if self.show_popd:
+            print '++ popd to  %s'%self.start
+
+    def __enter__(self):
+        return self
+
+    def __exit__(self, etype, value, tb):
+        if tb is None:
+            # No exception, so just finish normally
+            self.close()
+        else:
+            # An exception occurred, so do any tidying up necessary
+            if self.show_popd:
+                print '** Oops, an exception occurred - %s tidying up'%self.__class__.__name__
+            # well, there isn't anything special to do, really
+            if self.close_on_error:
+                self.close()
+            if self.show_popd:
+                print '** ----------------------------------------------------------------------'
+            # And allow the exception to be re-raised
+            return False
+
+class NewDirectory(Directory):
+    """A pushd/popd directory that gets created first.
+
+    It is an error if the directory already exists, and a MuddleBug exception
+    will be raised.
+
+    If 'stay_on_error' is True, then the directory will not be left ("popd"
+    will not be done) if an exception occurs in its 'with' clause.
+
+    If 'show_pushd' is true, then a message will be printed out showing the
+    directory that is being 'cd'ed into.
+
+    If 'show_popd' is true, then a message will be printed out showing the
+    directory that is being returned to. An extra "wrapper" message for any
+    exception being propagated out will also be shown.
+
+    If 'show_dirops' is true, then a message will be printed out showing the
+    'mkdir' command used to create the new directory.
+    """
+    def __init__(self, where, stay_on_error=False,
+                 show_pushd=True, show_popd=False, show_dirops=True):
+        where = normalise_dir(where)
+        if os.path.exists(where):
+            raise MuddleBug('Directory %s already exists'%where)
+        self.show_dirops = show_dirops
+        if show_dirops:
+            # The extra spaces are to line up with 'pushd to'
+            print '++ mkdir    %s'%where
+        os.makedirs(where)
+        super(NewDirectory, self).__init__(where, stay_on_error, show_pushd, show_popd)
+
+class TransientDirectory(NewDirectory):
+    """A pushd/popd directory that gets created first and deleted afterwards
+
+    If 'stay_on_error' is True, then the directory will not be left ("popd"
+    will not be done) if an exception occurs in its 'with' clause.
+
+    If 'keep_on_error' is True, then the directory will not be deleted
+    if an exception occurs in its 'with' clause.
+
+    If 'show_pushd' is true, then a message will be printed out showing the
+    directory that is being 'cd'ed into.
+
+    If 'show_popd' is true, then a message will be printed out showing the
+    directory that is being returned to. An extra "wrapper" message for any
+    exception being propagated out will also be shown.
+
+    If 'show_dirops' is true, then a message will be printed out showing the
+    'mkdir' command used to create and the 'rmtree' command used to delete the
+    transient directory.
+
+    It is an error if the directory already exists, and a MuddleBug exception
+    will be raised.
+    """
+    def __init__(self, where, stay_on_error=False, keep_on_error=False,
+                 show_pushd=True, show_popd=False, show_dirops=True):
+        self.rmtree_on_error = not keep_on_error
+        super(TransientDirectory, self).__init__(where, stay_on_error,
+                                                 show_pushd, show_popd, show_dirops)
+
+    def close(self, delete_tree):
+        # Don't delete the tree unless asked to
+        super(TransientDirectory, self).close()
+        if delete_tree:
+            if self.show_dirops:
+                # The extra space after 'rmtree' is so the directory name
+                # left aligns with any previous 'popd  to' message
+                print '++ rmtree   %s'%self.where
+            shutil.rmtree(self.where)
+
+    def __exit__(self, etype, value, tb):
+        if tb is None:
+            # No exception, so just finish normally
+            self.close(True)
+        else:
+            # An exception occurred, so do any tidying up necessary
+            if self.show_popd:
+                print '** Oops, an exception occurred - %s tidying up'%self.__class__.__name__
+            if self.close_on_error:
+                self.close(self.rmtree_on_error)
+            if self.show_popd:
+                print '** ----------------------------------------------------------------------'
+            # And allow the exception to be re-raised
+            return False
+
 
 # End file.

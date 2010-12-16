@@ -6,8 +6,6 @@ from db import Database
 from mechanics import Invocation
 from mechanics import Builder
 from pkg import PackageBuilder
-from utils import Error
-from commands import register_commands
 
 import vcs
 

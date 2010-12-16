@@ -1,0 +1,95 @@
+Changes in the new_vcs branch
+=============================
+
+VCS changes
+-----------
+The version control support has been rewritten. The actual code to write for a
+new version control system is now smaller, and does not rely on any particular
+knowledge of muddle. This should make it much easier to add a new version
+control system, and also simpler to maintain/extend the existing support.
+
+Changed commands: Pull/Update replaced by Fetch/Merge
+-----------------------------------------------------
+'muddle pull' and 'muddle update' are now deprecated (partly because no-one
+could remember what the difference between them was, and partly because
+different version control systems use those terms very differently). Instead
+we now have 'muddle fetch' and 'muddle merge'.
+
+'muddle fetch' will pull changes from a remote repository, but will only merge
+those changes if it can be done with no interaction. 'muddle merge' will go
+ahead and do any merges, even if interaction is required. See the the help for
+these commands for more information.
+
+    (It is assumed that, in practice, most people will use 'muddle fetch',
+    and that if more complex merging is required, people are likely to use
+    the specific version control system commands to do this. However, it is
+    conceivable that 'muddle merge' may be enough, so it is still, for the
+    moment at least, provided.)
+
+Note that both 'muddle fetch _all' and 'muddle merge _all' now default to
+processing all checkouts, and then (re)reporting any problems at the end. The
+old behaviour (of stopping at the first problem) is available with the '-s' or
+'-stop' switch.
+
+For the moment, 'muddle pull' and 'muddle update' are both still available,
+but they are just aliases for 'muddle fetch'.
+
+Changed commands: 'package' support in 'checkout' commands
+----------------------------------------------------------
+Those muddle commands that expect checkout names can now also be given
+arguments of the form 'package:<name>' or 'package:<name>{role}' (and so on).
+Such arguemnts will be interrepreted as "all checkouts required by the named
+package(s)". This means that the "dep-" and "pkg" variants of some commands
+have gone away, as they are no longer needed.
+
+Changed commands: Help
+----------------------
+The help infrastructure has been rewritten. The main user-visible change is
+that help for subcommands is now available per subcommand - for instance:
+
+   muddle help query
+
+now reports on what subcommands are available for 'query', and:
+
+   muddle help query rules
+
+gives help for the single subcommand. See 'muddle help' for more details on
+how the help command works.
+
+Changed commands: Query subcommands
+-----------------------------------
+Various of the query subcommands now have aliases, and in some cases what is
+the alias and what is the main command has been changed. See 'muddle help
+query' for more information.
+
+There are some new queries: 'deployments', 'default-labels' and
+'default-roles'
+
+Internal changes
+----------------
+Apart from the above, the following:
+
+* 'Dependable' has become 'Action' throughout (and similarly for all classes
+  with Dependable in their names). All things called "dependable" have also
+  been renamed as "action". For the moment, all the old names have been
+  retained as aliases, in case of other code relying on them.
+* The checkout tag names in utils.py have been changed, and code using them
+  modified.
+* The pkg.py::add_checkout_rules() function has been changed to fit the new
+  command names. Things that should be transient have been made so. Various
+  things have been simplified. In particular, 'Push' and 'Commit' no longer
+  depend on 'CheckedOut'. This means that "muddle push" on a checkout that has
+  not yet been checked out will no longer check it out (which sounds like a
+  good idea).
+* Since I can never rememember the difference between utils.Error and
+  utils.Failure (indeed, I tend to guess that they are the other way round
+  than intended), they have been replaced with utils.MuddleBug and
+  utils.GiveUp (although Error and Failure are retained as aliases for the
+  moment, just in case other code is relying on them).
+* 'pylint' and 'pyflakes' have been run over the code, and many changes
+  (mostly minor, but a few clear bugs) have been made.
+* When starting up, only the specific command that has been requested is
+  instatiated from its class - this may give a small speedup, especially as
+  subcommands are now split out as separate classes.
+* utils.DirType is now a named tuple, and the output of 'muddle whereami' is
+  slightly prettier.

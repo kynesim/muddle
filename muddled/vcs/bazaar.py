@@ -2,181 +2,39 @@
 Muddle support for Bazaar.
 """
 
-from muddled.version_control import *
-from muddled.depend import Label
+import os
+
+from muddled.version_control import register_vcs_handler, VersionControlSystem
 import muddled.utils as utils
 
-import sys
-
-class Bazaar(VersionControlHandler):
+class Bazaar(VersionControlSystem):
     """
-    Version control handler for bazaar.
-
-    Bazaar repositories are named: bzr+<url>.
-
-    It's assumed that the first path component of 'rel' is the name of the repository.
+    Provide version control operations for Bazaar
     """
 
-    def __init__(self, builder, co_label, co_name, repo, rev, rel, co_dir):
-        VersionControlHandler.__init__(self, builder, co_label, co_name, repo, rev, rel, co_dir)
-        
-        sp = conventional_repo_url(repo, rel, co_dir = co_dir)
-        if sp is None:
-            raise utils.Error("Cannot extract repository URL from %s, co %s"%(repo, rel))
+    def __init__(self):
+        self.short_name = 'bzr'
+        self.long_name = 'Bazaar'
 
-        self.bzr_repo = sp[0]
-
-        self.checkout_path = self.get_checkout_path(self.checkout_label)
-
-        if self.bzr_repo.startswith("ssh://"):
-            # For some reason, the bzr command wants us to use "bzr+ssh" to
-            # communicate over ssh, not just "ssh". Accomodate it, so the user
-            # does not need to care about this.
-            self.bzr_repo = "bzr+%s"%self.bzr_repo
-
-    def check_out(self):
-        # If we do "checkout" and then "unbind", then (a) we've made a non-standard
-        # branch and then converted it into a standard one (!), but (b) we've lost
-        # the linkage to the original repository, and so ``bzr revno`` will report
-        # HEAD until after our first pull or push. Moreover, we'll need to tell
-        # that pull or push what reposiroty we want to use.
-        #
-        # Solution: just make a local branch...
-        parent_dir = os.path.split(self.checkout_path)[0]
-        utils.ensure_dir(parent_dir)
-        os.chdir(parent_dir)
-        utils.run_cmd("bzr branch %s %s %s"%(self.r_option(),
-                      self.bzr_repo, self.checkout_name),
-                      env=self._derive_env())
-
-    def pull(self):
-        os.chdir(self.checkout_path)
-        utils.run_cmd("bzr pull %s"%self.bzr_repo,
-                      env=self._derive_env())
-
-    def update(self):
-        os.chdir(self.checkout_path)
-        utils.run_cmd("bzr update", allowFailure=True,
-                      env=self._derive_env())
-
-    def commit(self):
-        os.chdir(self.checkout_path)
-        utils.run_cmd("bzr commit", allowFailure=True,
-                      env=self._derive_env())
-
-    def push(self):
-        os.chdir(self.checkout_path)
-        print "> push to %s "%self.bzr_repo
-        utils.run_cmd("bzr push %s"%self.bzr_repo,
-                      env=self._derive_env())
-
-    def reparent(self, force=False, verbose=True):
+    def _normalised_repo(self, repo):
         """
-        Re-associate the local repository with its original remote repository,
-
-        ``bzr info`` is your friend for finding out if the checkout is
-        already associated with a remote repository. The "parent branch"
-        is used for pulling and merging (and is what we set). If present,
-        the "push branch" is used for pushing.
-
-        If force is true, we set "parent branch", and delete "push branch" (so
-        it will default to the "parent branch").
-
-        If force is false, we only set "parent branch", and then only if it is
-        not set.
-
-        The actual information is held in <checkout-dir>/.bzr/branch/branch.conf,
-        which is a .INI file.
+        For some reason, the bzr command wants us to use "bzr+ssh" to
+        communicate over ssh, not just "ssh".
+        Accomodate it, so the user does not need to care about this.
         """
-        if verbose:
-            print "Re-associating checkout '%s' with remote repository"%(
-                  self.checkout_name),
-        this_dir = self.checkout_path
-        this_file = os.path.join(this_dir, '.bzr', 'branch', 'branch.conf')
-
-        # It would be nice if Bazaar used the ConfigParser for the branch.conf
-        # files, but it doesn't - they lack a [section] name. Thus we will have
-        # to do this by hand...
-        #
-        # Note that I'm going to try to preserve, as much as possible, any lines
-        # that I do not actually change...
-        with open(this_file) as f:
-            lines = f.readlines()
-        items = {}
-        posns = []
-        count = 0
-        for orig_line in lines:
-            count += 1                  # normal people like first line is line 1
-            line = orig_line.strip()
-            if len(line) == 0 or line.startswith('#'):
-                posns.append(('#', orig_line))
-                continue
-            elif '=' not in line:
-                raise utils.Failure("Cannot parse '%s' - no '=' in line %d:"
-                                    "\n    %s"%(this_file, count, line))
-            words = line.split('=')
-            key = words[0].strip()
-            val = ''.join(words[1:]).strip()
-            items[key] = val
-            posns.append((key, orig_line))
-
-        changed = False
-        if force:
-            changed = True
-            if 'push_location' in items:        # Forget it
-                if verbose:
-                    print
-                    print '.. Forgetting "push" location'
-                items['push_location'] = None
-            if 'parent_location' not in items:  # Place it at the end
-                posns.append(('parent_location', self.bzr_repo))
-                if verbose:
-                    print
-                    print '.. Setting "parent" location %s'%self.bzr_repo
-            else:
-                if verbose:
-                    print '.. Overwriting "parent" location'
-                    print '   it was     %s'%items['parent_location']
-                    print '   it becomes %s'%self.bzr_repo
-            items['parent_location'] = self.bzr_repo
+        if repo.startswith("ssh://"):
+            return "bzr+%s"%repo
         else:
-            if 'parent_location' not in items:  # Place it at the end
-                if verbose:
-                    print
-                    print '.. Setting "parent" location %s'%self.bzr_repo
-                posns.append(('parent_location', self.bzr_repo))
-                items['parent_location'] = self.bzr_repo
-                changed = True
-            elif verbose:
-                print ' - already associated'
-                if items['parent_location'] != self.bzr_repo:
-                    print '.. NB with %s'%items['parent_location']
-                    print '       not %s'%self.bzr_repo
+            return repo
 
-        if changed:
-            print '.. Writing branch configuration file'
-            with open(this_file, 'w') as fd:
-                for key, orig_line in posns:
-                    if key == '#':
-                        fd.write(orig_line)
-                    elif key in items:
-                        if items[key] is not None:
-                            fd.write('%s = %s\n'%(key, items[key]))
-                    else:
-                        fd.write(orig_line)
-
-
-    def must_update_to_commit(self):
-        return False
-
-    def r_option(self):
+    def _r_option(self, revision):
         """
         Return the -r option to pass to bzr commands, if any
         """
-        if ((self.revision is None) or (self.revision == "HEAD")):
+        if revision is None or revision == "HEAD":
             return ""
         else:
-            return "-r %s"%(self.revision)
+            return "-r %s"%revision
 
     def _derive_env(self):
         """
@@ -200,9 +58,285 @@ class Bazaar(VersionControlHandler):
             del env['PYTHONPATH']
         return env
 
-    def revision_to_checkout(self, force=False, verbose=False):
+    def init_directory(self, verbose=True):
+        """
+        If the directory does not appear to have had '<vcs> init' run in it,
+        then do so first.
+
+        Will be called in the actual checkout's directory.
+        """
+        # This is *really* hacky...
+        if not os.path.exists('.bzr'):
+            utils.run_cmd("bzr init", env=self._derive_env(), verbose=verbose)
+
+    def add_files(self, files=None, verbose=True):
+        """
+        If files are given, add them, but do not commit.
+
+        Will be called in the actual checkout's directory.
+        """
+        if files:
+            utils.run_cmd("bzr add %s"%' '.join(files))
+
+    def checkout(self, repo, co_leaf, branch=None, revision=None, verbose=True):
+        """
+        Checkout (clone) a given checkout.
+
+        Will be called in the parent directory of the checkout.
+
+        Expected to create a directory called <co_leaf> therein.
+
+        So far as I can see, we have no use for the 'branch' option.
+        """
+        # Remember that 'bzr checkout' does something different - it produces
+        # a checkout that is "bound" to the remote repository, so that doing
+        # 'bzr commit' will behave like SVN, and commit/push to the remote
+        # repository. We don't want that behaviour.
+        if branch:
+            raise utils.GiveUp("Bazaar does not support the 'branch' argument"
+                               " to 'checkout' (branch='%s')"%branch)
+
+        utils.run_cmd("bzr branch %s %s %s"%(self._r_option(revision),
+                                             self._normalised_repo(repo),
+                                             co_leaf),
+                      env=self._derive_env(), verbose=verbose)
+
+    def _is_it_safe(self, env):
+        """
+        No dentists here...
+
+        Raise an exception if there are (uncommitted) local changes.
+        """
+        ok, cmd, txt = self._all_checked_in(env)
+        if not ok:
+            raise utils.GiveUp("There are uncommitted changes")
+
+    def fetch(self, repo, branch=None, revision=None, verbose=True):
+        """
+        Fetch changes, but don't do a merge.
+
+        Will be called in the actual checkout's directory.
+        """
+        if branch:
+            raise utils.GiveUp("Bazaar does not support the 'branch' argument"
+                               " to 'fetch' (branch='%s')"%branch)
+
+        if revision:
+            rspec='-r%d'%revision
+        else:
+            rspec=''
+
+        # Refuse to pull if there are any local changes
+        env = self._derive_env()
+        self._is_it_safe(env)
+
+        utils.run_cmd("bzr pull %s %s"%(rspec, self._normalised_repo(repo)),
+                      env=env, verbose=verbose)
+
+    def merge(self, other_repo, branch=None, revision=None, verbose=True):
+        """
+        Merge 'other_repo' into the local repository and working tree,
+
+        'bzr merge' will not (by default) merge if there are uncommitted changes
+        in the destination (i.e., local) tree. This is what we want.
+
+        Will be called in the actual checkout's directory.
+        """
+        if branch:
+            raise utils.GiveUp("Bazaar does not support the 'branch' argument"
+                               " to 'merge' (branch='%s')"%branch)
+
+        # Refuse to pull if there are any local changes
+        env = self._derive_env()
+        self._is_it_safe(env)
+
+        if revision:
+            rspec='-r%d'%revision
+        else:
+            rspec=''
+
+        utils.run_cmd("bzr merge %s %s"%(rspec, self._normalised_repo(other_repo)),
+                      env=env, verbose=verbose)
+
+    def commit(self, verbose=True):
+        """
+        Will be called in the actual checkout's directory.
+        """
+        # Options: --strict means it will not commit if there are unknown
+        # files in the working tree
+        utils.run_cmd("bzr commit", allowFailure=True,
+                      env=self._derive_env(), verbose=verbose)
+
+    def push(self, repo, branch=None, verbose=True):
+        """
+        Will be called in the actual checkout's directory.
+        """
+        if branch:
+            raise utils.GiveUp("Bazaar does not support the 'branch' argument to 'push'")
+        utils.run_cmd("bzr push %s"%self._normalised_repo(repo),
+                      env=self._derive_env(), verbose=verbose)
+
+    def status(self, repo, verbose=False):
+        """
+        Will be called in the actual checkout's directory.
+        """
+        env = self._derive_env()
+
+        # So, have we checked everything in?
+        ok, cmd, text = self._all_checked_in(env)
+        if not ok:
+            if verbose:
+                print "'%s' reports uncommitted data\n%s"%(cmd, text)
+            return False
+
+        # So, is our current revision (on this local branch) also present
+        # in the remote branch (our push/pull location)?
+        missing, cmd = self._current_revision_missing(env)
+        missing = missing.strip()
+        if missing:
+            if verbose:
+                print "'%s' reports checkout does not match the remote" \
+                        " repository"%cmd
+                print missing
+            return False
+        return True
+
+    def reparent(self, co_leaf, remote_repo, force=False, verbose=True):
+        """
+        Re-associate the local repository with its original remote repository,
+
+        * 'co_leaf' should be the name of this checkout directory, for use
+          in messages reporting what we are doing. Note that we are called
+          already *in* that directory, though.
+        * 'remote_repo' is the repository we would like to associate it with.
+
+        ``bzr info`` is your friend for finding out if the checkout is
+        already associated with a remote repository. The "parent branch"
+        is used for pulling and merging (and is what we set). If present,
+        the "push branch" is used for pushing.
+
+        If force is true, we set "parent branch", and delete "push branch" (so
+        it will default to the "parent branch").
+
+        If force is false, we only set "parent branch", and then only if it is
+        not set.
+
+        The actual information is held in <checkout-dir>/.bzr/branch/branch.conf,
+        which is a .INI file.
+        """
+        if verbose:
+            print "Re-associating checkout '%s' with remote repository"%co_leaf
+        this_dir = os.curdir
+        this_file = os.path.join(this_dir, '.bzr', 'branch', 'branch.conf')
+
+        remote_repo = self._normalised_repo(remote_repo)
+
+        # It would be nice if Bazaar used the ConfigParser for the branch.conf
+        # files, but it doesn't - they lack a [section] name. Thus we will have
+        # to do this by hand...
+        #
+        # Note that I'm going to try to preserve, as much as possible, any lines
+        # that I do not actually change...
+        with open(this_file) as f:
+            lines = f.readlines()
+        items = {}
+        posns = []
+        count = 0
+        for orig_line in lines:
+            count += 1                  # normal people like first line is line 1
+            line = orig_line.strip()
+            if len(line) == 0 or line.startswith('#'):
+                posns.append(('#', orig_line))
+                continue
+            elif '=' not in line:
+                raise utils.GiveUp("Cannot parse '%s' - no '=' in line %d:"
+                                    "\n    %s"%(this_file, count, line))
+            words = line.split('=')
+            key = words[0].strip()
+            val = ''.join(words[1:]).strip()
+            items[key] = val
+            posns.append((key, orig_line))
+
+        changed = False
+        if force:
+            changed = True
+            if 'push_location' in items:        # Forget it
+                if verbose:
+                    print
+                    print '.. Forgetting "push" location'
+                items['push_location'] = None
+            if 'parent_location' not in items:  # Place it at the end
+                posns.append(('parent_location', remote_repo))
+                if verbose:
+                    print
+                    print '.. Setting "parent" location %s'%remote_repo
+            else:
+                if verbose:
+                    print '.. Overwriting "parent" location'
+                    print '   it was     %s'%items['parent_location']
+                    print '   it becomes %s'%remote_repo
+            items['parent_location'] = remote_repo
+        else:
+            if 'parent_location' not in items:  # Place it at the end
+                if verbose:
+                    print
+                    print '.. Setting "parent" location %s'%remote_repo
+                posns.append(('parent_location', remote_repo))
+                items['parent_location'] = remote_repo
+                changed = True
+            elif verbose:
+                print ' - already associated'
+                if items['parent_location'] != remote_repo:
+                    print '.. NB with %s'%items['parent_location']
+                    print '       not %s'%remote_repo
+
+        if changed:
+            print '.. Writing branch configuration file'
+            with open(this_file, 'w') as fd:
+                for key, orig_line in posns:
+                    if key == '#':
+                        fd.write(orig_line)
+                    elif key in items:
+                        if items[key] is not None:
+                            fd.write('%s = %s\n'%(key, items[key]))
+                    else:
+                        fd.write(orig_line)
+
+    def _all_checked_in(self, env):
+        """
+        Do we have anything that is not yet checked in?
+
+        Returns (True, <cmd>, None) if everything appears OK,
+        (False, <cmd>, <text>) if not, where <cmd> is the BZR command used, and
+        <text> is its output.
+        """
+        cmd = 'bzr version-info --check-clean'
+        retcode, text, ignore = utils.get_cmd_data(cmd, env=env, fold_stderr=False)
+        if 'clean: False' in text:
+            return False, cmd, text
+        return True, cmd, None
+
+    def _current_revision_missing(self, env):
+        """
+        Is our current revision (on this local branch) also present in
+        the remote branch (our push/pull location)?
+
+        Return (True, <cmd>) if it is missing, (False, <cmd>) if it is not
+        """
+        cmd = 'bzr missing -q --mine-only'
+        retcode, missing, ignore = utils.get_cmd_data(cmd, env=env,
+                                                      fold_stderr=True,
+                                                      fail_nonzero=False)
+        return missing, cmd
+
+    def revision_to_checkout(self, co_leaf, orig_revision, force=False, verbose=True):
         """
         Determine a revision id for this checkout, usable to check it out again.
+
+        * 'co_leaf' should be the name of this checkout directory, for use
+          in messages reporting what we are doing. Note that we are called
+          already *in* that directory, though.
+        * 'orig_revision' is the original revision (from the build description)
 
         If 'force' is true, then if we can't get one from bzr, and it seems
         "reasonable" to do so, use the original revision from the muddle
@@ -240,52 +374,44 @@ class Bazaar(VersionControlHandler):
 
         env = self._derive_env()
 
-        os.chdir(self.checkout_path)
-
         # So, have we checked everything in?
-        retcode, text, ignore = utils.get_cmd_data('bzr version-info --check-clean',
-                                                   env=env,
-                                                   fold_stderr=False)
-        if 'clean: False' in text:
+        ok, cmd, txt = self._all_checked_in(env)
+        if not ok:
             if force:
-                print "'bzr version-info --check-clean' reports" \
-                      " checkout '%s' has uncommitted data (ignoring it)"%self.checkout_name
+                print "'%s' reports checkout '%s' has uncommitted data" \
+                        " (ignoring it)"%(cmd, co_leaf)
             else:
-                raise utils.Failure("%s: 'bzr version-info --check-clean' reports"
-                        " checkout has uncommitted data"%self.checkout_name)
+                raise utils.GiveUp("%s: '%s' reports"
+                        " checkout has uncommitted data"%(cmd, co_leaf))
 
         # So, is our current revision (on this local branch) also present
         # in the remote branch (our push/pull location)?
-        retcode, missing, ignore = utils.get_cmd_data('bzr missing -q --mine-only',
-                                                      env=env,
-                                                      fold_stderr=True,
-                                                      fail_nonzero=False)
+        missing, cmd = self._current_revision_missing(env)
         if missing:
             missing = missing.strip()
             if missing == 'bzr: ERROR: No peer location known or specified.':
                 # This presumably means that they have never pushed since
                 # the original checkout
                 if force:
-                    orig_revision = self.get_original_revision()
                     if all([x.isdigit() for x in orig_revision]):
                         if verbose:
                             print missing
                             print 'Using original revision: %s'%orig_revision
                         return orig_revision
                     else:
-                        raise utils.Failure("%s: 'bzr missing' says '%s',\n"
+                        raise utils.GiveUp("%s: 'bzr missing' says '%s',\n"
                                             "    and original revision is '%s', so"
-                                            " cannot use that"%(self.checkout_name,
+                                            " cannot use that"%(co_leaf,
                                                                 missing[5:],
                                                                 orig_revision))
                 else:
-                    raise utils.Failure("%s: 'bzr missing' says '%s',\n"
-                                        "    so cannot determine revision"%(self.checkout_name,
+                    raise utils.GiveUp("%s: 'bzr missing' says '%s',\n"
+                                        "    so cannot determine revision"%(co_leaf,
                                                                             missing[5:]))
             else:
-                raise utils.Failure("%s: 'bzr missing' suggests checkout does"
-                        " not match the remote repository:\n%s"%(self.checkout_name,
-                            utils.indent(missing,'    ')))
+                raise utils.GiveUp("%s: 'bzr missing' suggests checkout does"
+                                    " not match the remote repository:\n%s"%(co_leaf,
+                                    utils.indent(missing,'    ')))
 
         # So, let's get our revision number - where we are in the history
         # of the current branch
@@ -294,68 +420,21 @@ class Bazaar(VersionControlHandler):
         if all([x.isdigit() for x in revno]):
             return revno
         else:
-            raise utils.Failure("%s: 'bzr revno' reports checkout has revision"
-                    " '%s', which is not an integer"%(self.checkout_name,revision))
+            raise utils.GiveUp("%s: 'bzr revno' reports checkout has revision"
+                    " '%s', which is not an integer"%(co_leaf, revno))
 
+    def allows_relative_in_repo(self):
+        return False
 
-class BazaarVCSFactory(VersionControlHandlerFactory):
-    def describe(self):
-        return "The Bazaar VCS"
+    def get_file_content(self, url, verbose=True):
+        """
+        Retrieve a file's content via BZR.
+        """
+        retcode, text, ignore = utils.get_cmd_data('bzr cat %s'%self._normalised_repo(url),
+                                                    fold_stderr=False, verbose=verbose)
+        return text
 
-    def manufacture(self, builder, co_label, co_name, repo, rev, rel, co_dir, branch):
-        return Bazaar(builder, co_label, co_name, repo, rev, rel, co_dir)
-
-        
 # Tell the version control handler about us..
-register_vcs_handler("bzr", BazaarVCSFactory())
-
-def bzr_file_getter(url):
-    """Retrieve a file's content via BZR.
-    """
-    if url.startswith("ssh://"):
-        # For some reason, the bzr command wants us to use "bzr+ssh" to
-        # communicate over ssh, not just "ssh". Accomodate it, so the user
-        # does not need to care about this.
-        url = "bzr+%s"%url
-    retcode, text, ignore = utils.get_cmd_data('bzr cat %s'%url,
-                                                fold_stderr=False)
-    return text
-
-register_vcs_file_getter('bzr', bzr_file_getter)
-
-def bzr_dir_handler(action, url=None, directory=None, files=None):
-    """Clone/push/pull/commit a directory via BZR
-    """
-    if url and url.startswith("ssh://"):
-        # For some reason, the bzr command wants us to use "bzr+ssh" to
-        # communicate over ssh, not just "ssh". Accomodate it, so the user
-        # does not need to care about this.
-        url = "bzr+%s"%url
-    env = os.environ.copy()
-    if 'PYTHONPATH' in env:
-        del env['PYTHONPATH']
-
-    if action == 'clone':
-        if directory:
-            utils.run_cmd("bzr branch %s %s"%(url, directory), env=env)
-        else:
-            utils.run_cmd("bzr branch %s"%url, env=env)
-    elif action == 'commit':
-        utils.run_cmd("bzr commit", allowFailure=True, env=env)
-    elif action == 'push':
-        utils.run_cmd("bzr push %s"%url, env=env)
-    elif action == 'pull':
-        utils.run_cmd("bzr pull %s"%url, env=env)
-    elif action == 'init':
-        # This is *really* hacky...
-        if not os.path.exists('.bzr'):
-            utils.run_cmd("bzr init")
-    elif action == 'add':
-        if files:
-            utils.run_cmd("bzr add %s"%' '.join(files))
-    else:
-        raise utils.Failure("Unrecognised action '%s' for bzr directory handler"%action)
-
-register_vcs_dir_handler('bzr', bzr_dir_handler)
+register_vcs_handler("bzr", Bazaar())
 
 # End file.

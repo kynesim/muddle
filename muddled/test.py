@@ -2,13 +2,11 @@
 Tests the rest of muddled.
 """
 
-import muddled.db
 import depend
 import utils
 import version_control
 import env_store
 import mechanics
-import commands
 import filespec
 import pkg
 import subst
@@ -174,7 +172,7 @@ def depend_unit_test():
     """
 
     l1 = Label(utils.LabelType.Checkout, "co_1", "role_1", utils.LabelTag.CheckedOut)
-    l2 = Label(utils.LabelType.Checkout, "co_1", "role_1", utils.LabelTag.Pulled)
+    l2 = Label(utils.LabelType.Checkout, "co_1", "role_1", utils.LabelTag.Fetched)
     l3 = Label(utils.LabelType.Package, "pkg_1", "role_1", utils.LabelTag.PreConfig)
     l4 = Label(utils.LabelType.Deployment, "dep_1", "role_2", utils.LabelTag.Built)
 
@@ -246,13 +244,13 @@ def depend_unit_test():
     assert (l2.match(la4)) == -1
     assert l1.match(la3) == -2
     
-    r1 = depend.Rule(l1, pkg.NoneDependable())
+    r1 = depend.Rule(l1, pkg.NoAction())
 
-    r2 = depend.Rule(l2, pkg.NoneDependable())
+    r2 = depend.Rule(l2, pkg.NoAction())
     r2.add(l1)
 
-    r3 = depend.Rule(l3, pkg.NoneDependable())
-    r4 = depend.Rule(l4, pkg.NoneDependable())
+    r3 = depend.Rule(l3, pkg.NoAction())
+    r4 = depend.Rule(l4, pkg.NoAction())
 
     r3.add(l2)
     r4.add(l3); r4.add(l2)

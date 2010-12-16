@@ -3,12 +3,9 @@ An apt-get package. When you try to build it, this package
 pulls in a pre-canned set of packages via apt-get.
 """
 
-import muddled
 import muddled.pkg as pkg
-import muddled.env_store
 import muddled.depend as depend
 import muddled.utils as utils
-import os
 import subprocess
 
 
@@ -61,7 +58,7 @@ class AptGetBuilder(pkg.PackageBuilder):
                 print "> %s"%(" ".join(cmd_list))
                 rv = subprocess.call(cmd_list)
                 if rv != 0:
-                    raise utils.Failure("Couldn't install required packages")
+                    raise utils.GiveUp("Couldn't install required packages")
 
             print ">> Installed %s"%(" ".join(self.pkgs_to_install))
 

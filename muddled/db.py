@@ -285,7 +285,7 @@ class Database(object):
         package and role, what would it be?
         """
         if (label.type != utils.LabelType.Package):
-            raise utils.Error("Attempt to retrieve instruction file "
+            raise utils.MuddleBug("Attempt to retrieve instruction file "
                               "name for non-package tag %s"%(str(label)))
 
         # Otherwise .. 
@@ -422,7 +422,7 @@ class PathFile(object):
                 val = val[:-1]
 
         except IOError,e:
-            raise utils.Failure("Error retrieving value from %s\n"
+            raise utils.GiveUp("Error retrieving value from %s\n"
                                 "    %s"%(self.file_name, str(e)))
 
         self.value = val
@@ -461,14 +461,14 @@ class Instruction(object):
         """
         Given an XML document, return a node which represents this instruction
         """
-        raise utils.Error("Cannot convert Instruction base class to XML")
+        raise utils.MuddleBug("Cannot convert Instruction base class to XML")
 
     def clone_from_xml(self, xmlNode):
         """
         Given an XML node, create a clone of yourself, initialised from that
         XML or raise an error.
         """
-        raise utils.Error("Cannot convert XML to Instruction base class")
+        raise utils.MuddleBug("Cannot convert XML to Instruction base class")
 
     def outer_elem_name(self):
         """
@@ -578,7 +578,7 @@ class InstructionFile(object):
             doc = top.documentElement
 
             if (doc.nodeName != "instructions"):
-                raise utils.Error("Instruction file %s does not have <instructions> as its document element.",
+                raise utils.MuddleBug("Instruction file %s does not have <instructions> as its document element.",
                                   self.file_name)
 
             # See if we have a priority attribute.
@@ -594,16 +594,16 @@ class InstructionFile(object):
                     # Try to build an instruction from it ..
                     instr = self.factory.from_xml(i)
                     if (instr is None):
-                        raise utils.Error("Could not manufacture an instruction "
+                        raise utils.MuddleBug("Could not manufacture an instruction "
                                           "from node %s in file %s."%(i.nodeName, self.file_name))
                     self.values.append(instr)
 
 
-        except utils.Error, e:
+        except utils.MuddleBug, e:
             raise e
         except Exception, x:
             traceback.print_exc()
-            raise utils.Error("Cannot read instruction XML from %s - %s"%(self.file_name,x))
+            raise utils.MuddleBug("Cannot read instruction XML from %s - %s"%(self.file_name,x))
 
 
     def commit(self, file_name):
@@ -620,7 +620,7 @@ class InstructionFile(object):
             f.write(self.get_xml())
             f.close()
         except Exception, e:
-            raise utils.Error("Could not write instruction file %s - %s"%(file_name,e ))
+            raise utils.MuddleBug("Could not write instruction file %s - %s"%(file_name,e ))
 
     def get_xml(self):
         """
@@ -641,7 +641,7 @@ class InstructionFile(object):
             return top.toxml()
         except Exception,e:
             traceback.print_exc()
-            raise utils.Error("Could not render instruction list - %s"%e)
+            raise utils.MuddleBug("Could not render instruction list - %s"%e)
 
     def __str__(self):
         """
@@ -767,7 +767,7 @@ class TagFile(object):
             f.write(top.toxml())
             f.close()
         except:
-            raise utils.Error("Could not write tagfile %s"%self.file_name)
+            raise utils.MuddleBug("Could not write tagfile %s"%self.file_name)
 
 
 def load_instruction_helper(x,y):

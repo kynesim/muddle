@@ -10,8 +10,22 @@ usually to be processed by some external tool.
 import muddled.pkg as pkg
 import muddled.depend as depend
 import muddled.utils as utils
+import muddled.filespec as filespec
 import muddled.deployment as deployment
 import os
+
+class CollectInstructionImplementor:
+    def prepare(self, builder, instruction, role, path):
+        """
+        Prepares for rsync. This means fixing up the destination file
+        (e.g. removing it if it may have changed uid by a previous deploy)
+        so we will be able to rsync it.
+        """
+        pass
+    def apply(self, builder, instruction, role, path):
+        pass
+    def needs_privilege(self, builder, instr, role, path):
+        pass
 
 class AssemblyDescriptor:
     def __init__(self, from_label, from_rel, to_name, recursive = True, 
@@ -87,6 +101,14 @@ class CollectDeploymentBuilder(pkg.Action):
         utils.ensure_dir(builder.invocation.deploy_path(label.name, domain=label.domain))
 
         if (label.tag == utils.LabelTag.Deployed):
+            self.apply_instructions(builder, label, True)
+            self.deploy(builder, label)
+        elif (label.tag == utils.LabelTag.InstructionsApplied):
+            self.apply_instructions(builder, label, False)
+        else:
+            raise utils.GiveUp("Attempt to build a deployment with an unexpected tag in label %s"%(label))
+
+    def deploy(self, builder, label):
             for asm in self.assemblies:
                 src = os.path.join(asm.get_source_dir(builder), asm.from_rel)
                 dst = os.path.join(builder.invocation.deploy_path(label.name, domain=label.domain), 
@@ -113,8 +135,68 @@ class CollectDeploymentBuilder(pkg.Action):
                         utils.recursively_copy(src, dst, object_exactly = asm.copy_exactly)
                     else:
                         utils.copy_file(src, dst, object_exactly = asm.copy_exactly)
-        else:
-            pass
+
+            # Sort out and run the instructions. This may need root.
+            need_root = False
+            for asm in self.assemblies:
+                # there's a from label - does it have instructions?
+                lbl = depend.Label(utils.LabelType.Package, '*', asm.from_label.role, '*', domain = asm.from_label.domain)
+                install_dir = builder.invocation.role_install_path(lbl.role, label.domain)
+                instr_list = builder.load_instructions(lbl)
+                app_dict = get_instruction_dict()
+
+                for (lbl, fn, instr_file) in instr_list:
+                    # Obey this instruction?
+                    for instr in instr_file:
+                        iname = instr.outer_elem_name()
+                        if (iname in app_dict):
+                            if (app_dict[iname].needs_privilege(builder, instr, lbl.role, install_dir)):
+                                need_root = True
+                        # Deliberately do not break - we want to check everything for
+                        # validity before acquiring privilege.
+                        else:
+                            raise utils.GiveUp("Collect deployments don't know about " + 
+                                                "instruction %s"%iname + 
+                                                " found in label %s (filename %s)"%(lbl, fn))
+
+
+            print "Rerunning muddle to apply instructions .. "
+            
+            permissions_label = depend.Label(utils.LabelType.Deployment,
+                                             label.name, label.role,
+                                             utils.LabelTag.InstructionsApplied,
+                                             domain = label.domain)
+
+            if need_root:
+                print "I need root to do this - sorry! - running sudo .."
+                utils.run_cmd("sudo %s buildlabel '%s'"%(builder.muddle_binary, 
+                                                         permissions_label))
+            else:
+                utils.run_cmd("%s buildlabel '%s'"%(builder.muddle_binary, 
+                                                    permissions_label))
+
+    def apply_instructions(self, builder, label, prepare):
+        app_dict = get_instruction_dict()
+
+        for asm in self.assemblies:
+            lbl = depend.Label(utils.LabelType.Package, '*', asm.from_label.role, '*', domain = asm.from_label.domain)
+
+            deploy_dir = builder.invocation.deploy_path(label.name, domain = label.domain)
+
+            instr_list = builder.load_instructions(lbl)
+            for (lbl, fn, instrs) in instr_list:
+                print "Applying instructions for role %s, label %s .. "%(lbl.role, lbl)
+                for instr in instrs:
+                    # Obey this instruction.
+                    iname = instr.outer_elem_name()
+                    if (iname in app_dict):
+                        if prepare:
+                            app_dict[iname].prepare(builder, instr, lbl.role, deploy_dir)
+                        else:
+                            app_dict[iname].apply(builder, instr, lbl.role, deploy_dir)
+                    else:
+                        raise utils.GiveUp("Collect deployments don't know about instruction %s"%iname +
+                                            " found in label %s (filename %s)"%(lbl, fn))
 
 
 def deploy(builder, name):
@@ -141,6 +223,14 @@ def deploy(builder, name):
     deployment.register_cleanup(builder, name)
 
     builder.invocation.ruleset.add(deployment_rule)
+
+    # InstructionsApplied is a standalone rule, invoked by the deployment
+    iapp_label = depend.Label(utils.LabelType.Deployment, name, None,
+                              utils.LabelTag.InstructionsApplied,
+                              transient = True)
+    iapp_rule = depend.Rule(iapp_label, the_action)
+    builder.invocation.ruleset.add(iapp_rule)
+    
 
 def copy_from_checkout(builder, name, checkout, rel, dest, 
                        recursive = True, 
@@ -273,5 +363,73 @@ def copy_from_deployment(builder, name, dep_name, rel, dest,
     rule.add(dep_label)
     rule.obj.add_assembly(asm)
 
+# And the instruction implementations:
+class CollectApplyChmod(CollectInstructionImplementor):
+    def prepare(self, builder, instr, role, path):
+        return True
+
+    def apply(self, builder, instr, role, path):
+
+        dp = filespec.FSFileSpecDataProvider(path)
+
+        files = dp.abs_match(instr.filespec)
+        # @todo We _really_ need to use xargs here ..
+        for f in files:
+            utils.run_cmd("chmod %s \"%s\""%(instr.new_mode, f))
+        return True
+
+    def needs_privilege(self, builder, instr, role, path):
+        # You don't, in general, need root to change permissions.
+        # Except, you do in order to chmod setuid after a chown ...
+        return True
+
+class CollectApplyChown(CollectInstructionImplementor):
+    def prepare(self, builder, instr, role, path):
+        return self._prep_or_apply(builder, instr, role, path, True)
+
+    def apply(self, builder, instr, role, path):
+        return self._prep_or_apply(builder, instr, role, path, False)
+
+    def _prep_or_apply(self, builder, instr, role, path, is_prepare):
+
+        # NB: take care to apply a chown command to the file named,
+        # even if it is a symbolic link (the default is --reference,
+        # which would only apply the chown to the file the symbolic
+        # link references)
+
+        dp = filespec.FSFileSpecDataProvider(path)
+        files = dp.abs_match(instr.filespec)
+        if (instr.new_user is None):
+            cmd = "chgrp %s"%(instr.new_group)
+        elif (instr.new_group is None):
+            cmd = "chown --no-dereference %s"%(instr.new_user)
+        else:
+            cmd = "chown --no-dereference %s:%s"%(instr.new_user, instr.new_group)
+
+        for f in files:
+            if is_prepare:
+                # @TODO: This doesn't handle directories that have been
+                # chowned and will collapse in a soggy heap. If support for
+                # those is required, need to either:
+                #   sudo rm -rf dir
+                #   sudo chown -R <nonprivuser> dir
+                #   or just run the whole rsync under sudo.
+                utils.run_cmd("rm -f \"%s\""%f)
+            else:
+                utils.run_cmd("%s \"%s\""%(cmd, f))
+
+    def needs_privilege(self, builder, instr, role, path):
+        return True
+
+
+def get_instruction_dict():
+    """
+    Return a dictionary mapping the names of instructions to the
+    classes that implement them.
+    """
+    app_dict = { }
+    app_dict["chown"] = CollectApplyChown()
+    app_dict["chmod"] = CollectApplyChmod()
+    return app_dict
 
 # End file.

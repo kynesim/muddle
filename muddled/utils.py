@@ -459,7 +459,7 @@ def maybe_shell_quote(str, doQuote):
     if doQuote:
         result = []
         for i in str:
-            if i=='"' or i=="\\" or i=="'":
+            if i=='"' or i=="\\" or i=="'" or i==" ":
                 result.append("\\")
             result.append(i)
         return "".join(result)

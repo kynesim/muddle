@@ -421,7 +421,9 @@ class PathFile(object):
             if val[-1] == '\n':
                 val = val[:-1]
 
-        except IOError,e:
+        except IndexError as i:
+            raise utils.GiveUp("Contents of db file %s are empty - %s\n"%(self.file_name, i))
+        except IOError as e:
             raise utils.GiveUp("Error retrieving value from %s\n"
                                 "    %s"%(self.file_name, str(e)))
 

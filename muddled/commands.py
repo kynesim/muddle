@@ -3068,6 +3068,9 @@ def decode_checkout_arguments(builder, args, current_dir, tag):
       * "<name>" means the label "checkout:<name>{}/<tag>" in the current
         default domain
 
+      * If an argument starts "checkout:", then that is allowed but makes
+        no difference, since the "checkout:" is implied.
+
       * if an argument starts "package:" then it means "all the checkout
         labels that this package depends upon", with the given 'tag'.
 
@@ -3096,9 +3099,16 @@ def decode_checkout_arguments(builder, args, current_dir, tag):
                     co_set = co_set.union(builder.invocation.checkouts_for_package(pkg))
                 for lbl in co_set:
                     rv.append(lbl.copy_with_tag(tag))
+            elif co.startswith("deployment"):
+                raise GiveUp("'deployment:' not allowed (%s)"%co)
+            elif co.startswith("checkout:"):
+                co = co[9:]
+                rv.append(Label(utils.LabelType.Checkout,
+                                co, None, tag,
+                                domain = builder.get_default_domain()))
             else:
                 rv.append(Label(utils.LabelType.Checkout,
-                                co, None, tag, 
+                                co, None, tag,
                                 domain = builder.get_default_domain()))
 
             print 'Checkouts are:'

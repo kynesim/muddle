@@ -1348,6 +1348,9 @@ class Configure(Command):
     which uses that checkout.
 
     _all is a special package meaning configure everything.
+
+    You can specify all packages that depend on a particular checkout
+    with "checkout:name".
     """
 
     def requires_build_tree(self):
@@ -1396,6 +1399,9 @@ class Build(Command):
     which uses that checkout.
 
     _all is a special package meaning build everything.
+
+    You can specify all packages that depend on a particular checkout
+    with "checkout:name".
     """
 
     def requires_build_tree(self):
@@ -1986,6 +1992,9 @@ class Changed(Command):
     
     Note that we don't reconfigure (or indeed clean) packages - 
     we just clear the tags asserting that they've been built.
+
+    You can specify all packages that depend on a particular checkout
+    with "checkout:name".
     """
 
     def requires_build_tree(self):
@@ -3334,30 +3343,30 @@ def labels_from_pkg_args(builder, arglist, current_dir, tag):
         for that checkout are used, and if we are in a particular 'obj'
         directory, then the package for that directory is used, otherwise
         we refuse to guess.)
-    
-    Values in arglist may be in one of six forms:
+
+    Values in arglist may be in one of the following forms:
 
     * "name"
-    
+
       adds the labels "package:(<d>)name{<r...>}/tag" to the results, where <d>
       is the default domain for this builder (if any), and <r...> is each of
       the default roles (i.e., the default roles for this builder to build).
-      
+
       Note that all of the default roles are used to generate labels, in this
       case, whether each such a label has meaning or not.
 
     * "name{role}"
-    
+
       adds the label "package:(<d>)name{role}/tag", where <d> is as above.
       Again, there is no check that that particular label exists.
 
     * "(domain)name"
-    
+
       adds the labels "package:(domain)name{<r...>}/tag", where <r...> is
       interpreted as in the first case, and with the same caveats.
 
     * "(domain)name{role}"
-    
+
       adds the label "package:(domain)name{role}/tag"
 
     * "_all"
@@ -3371,6 +3380,11 @@ def labels_from_pkg_args(builder, arglist, current_dir, tag):
     * "(domain)_all{role}"
 
       adds all labels in the named role, that are also in the named domain.
+
+    * "checkout:name"
+
+      adds all labels for packages that depend on the named checkout.
+      For the moment, this last does not allow specifying a domain.
 
     The results list will not be sorted, and will not contain duplicate labels.
     """
@@ -3388,42 +3402,48 @@ def labels_from_pkg_args(builder, arglist, current_dir, tag):
     default_domain = builder.get_default_domain()
 
     for elem in arglist:
-        m = pkg_args_re.match(elem)
-        if m is None:
-            raise utils.GiveUp("Package spec '%s' is wrong,\n"
-                              "    expecting 'name', 'name{}', 'name{role}'"
-                              " or '(domain}name{role}'"%elem)
-
-        domain = m.group('domain')    # None if not present
-        if domain is None:
-            domain = default_domain
-        name   = m.group('name')
-        role   = m.group('role')      # None if not present
-        if name == "_all":
-            if role:
-                roles = [role]
-            else:
-                roles = inv.all_roles()
-            for r in roles:
-                result_set.update(inv.labels_for_role(utils.LabelType.Package,
-                                                      r, tag,
-                                                      domain=domain))
+        if elem.startswith("checkout:"):
+            pkgs = inv.packages_using_checkout(Label(utils.LabelType.Checkout,
+                                                     elem[9:], None, "*",
+                                                     domain=default_domain))
+            result_set.update(pkgs)
         else:
-            if role:
-                result_set.add(Label(utils.LabelType.Package,
-                                     name, role, tag,
-                                     domain=domain))
-            elif default_roles:
-                # Add the default roles
-                for r in default_roles:
-                    result_set.add(Label(utils.LabelType.Package,
-                                         name, r, tag,
-                                         domain=domain))
+            m = pkg_args_re.match(elem)
+            if m is None:
+                raise utils.GiveUp("Package spec '%s' is wrong,\n"
+                                  "    expecting 'name', 'name{}', 'name{role}'"
+                                  " or '(domain}name{role}'"%elem)
+
+            domain = m.group('domain')    # None if not present
+            if domain is None:
+                domain = default_domain
+            name   = m.group('name')
+            role   = m.group('role')      # None if not present
+            if name == "_all":
+                if role:
+                    roles = [role]
+                else:
+                    roles = inv.all_roles()
+                for r in roles:
+                    result_set.update(inv.labels_for_role(utils.LabelType.Package,
+                                                          r, tag,
+                                                          domain=domain))
             else:
-                # Just wildcard for any role
-                result_set.add(Label(utils.LabelType.Package,
-                                     name, "*", tag,
-                                     domain=domain))
+                if role:
+                    result_set.add(Label(utils.LabelType.Package,
+                                         name, role, tag,
+                                         domain=domain))
+                elif default_roles:
+                    # Add the default roles
+                    for r in default_roles:
+                        result_set.add(Label(utils.LabelType.Package,
+                                             name, r, tag,
+                                             domain=domain))
+                else:
+                    # Just wildcard for any role
+                    result_set.add(Label(utils.LabelType.Package,
+                                         name, "*", tag,
+                                         domain=domain))
     return list(result_set)
 
 # End file.

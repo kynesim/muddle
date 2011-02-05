@@ -27,7 +27,8 @@ class MakeBuilder(PackageBuilder):
                  perRoleMakefiles = False, 
                  makefileName = None, 
                  rewriteAutoconf = False, 
-                 usesAutoconf = False):
+                 usesAutoconf = False, 
+                 execRelPath = None):
         """
         Constructor for the make package.
         """
@@ -38,6 +39,7 @@ class MakeBuilder(PackageBuilder):
         self.makefile_name = makefileName
         self.rewriteAutoconf = rewriteAutoconf
         self.usesAutoconf = usesAutoconf
+        self.execRelPath = execRelPath
 
 
 
@@ -117,7 +119,12 @@ class MakeBuilder(PackageBuilder):
                     #print "> Rewrite autoconf for label %s"%(label)
                     obj_path = builder.invocation.package_obj_path(label)
                     #print ">obj_path = %s"%(obj_path)
-                    rewrite.fix_up_pkgconfig_and_la(builder, obj_path)
+                    if (self.execRelPath is None):
+                        sendExecPrefix = None
+                    else:
+                        sendExecPrefix = os.path.join(obj_path, self.execRelPath)
+
+                    rewrite.fix_up_pkgconfig_and_la(builder, obj_path, execPrefix = sendExecPrefix)
             elif (tag == utils.LabelTag.Clean):
                 utils.run_cmd("make %s clean"%make_args)
             elif (tag == utils.LabelTag.DistClean):
@@ -132,7 +139,8 @@ def simple(builder, name, role, checkout, rev=None,
            perRoleMakefiles = False, 
            makefileName = None,
            usesAutoconf = False,
-           rewriteAutoconf = False):
+           rewriteAutoconf = False, 
+           execRelPath = None):
     """
     Build a package controlled by make, called name with role role 
     from the sources in checkout checkout.
@@ -147,6 +155,8 @@ def simple(builder, name, role, checkout, rev=None,
       output directory so that packages which use autoconf continue to 
       depend correctly. Intended for use with the MUDDLE_PKGCONFIG_DIRS 
       environment variable.
+    * execRelPath    - Where, relative to the object directory, do we find
+                        binaries for this package?
     """
     if (simpleCheckout):
         simple_checkouts.relative(builder, checkout, rev=rev)
@@ -155,7 +165,8 @@ def simple(builder, name, role, checkout, rev=None,
                           perRoleMakefiles = perRoleMakefiles,
                           makefileName = makefileName,
                           usesAutoconf = usesAutoconf,
-                          rewriteAutoconf = rewriteAutoconf)
+                          rewriteAutoconf = rewriteAutoconf,
+                          execRelPath = execRelPath)
     # Add the standard dependencies ..
     pkg.add_package_rules(builder.invocation.ruleset, 
                           name, role, the_pkg)
@@ -169,7 +180,8 @@ def medium(builder, name, roles, checkout, rev=None,
            simpleCheckout = True, config = True, perRoleMakefiles = False, 
            makefileName = None,
            usesAutoconf = False,
-           rewriteAutoconf = False):
+           rewriteAutoconf = False, 
+           execRelPath = None):
     """
     Build a package controlled by make, in the given roles with the
     given dependencies in each role.
@@ -190,7 +202,8 @@ def medium(builder, name, roles, checkout, rev=None,
                perRoleMakefiles = perRoleMakefiles,
                makefileName = makefileName,
                usesAutoconf = usesAutoconf,
-               rewriteAutoconf = rewriteAutoconf)
+               rewriteAutoconf = rewriteAutoconf, 
+               execRelPath = execRelPath)
         pkg.package_depends_on_packages(builder.invocation.ruleset,
                                        name, r, dep_tag, 
                                        deps)
@@ -202,7 +215,8 @@ def twolevel(builder, name, roles,
              simpleCheckout = True, config = True, perRoleMakefiles = False, 
              makefileName = None, repo_relative=None, 
              usesAutoconf = False,
-             rewriteAutoconf = False):
+             rewriteAutoconf = False, 
+             execRelPath = None):
     """
     Build a package controlled by make, in the given roles with the
     given dependencies in each role.
@@ -229,7 +243,8 @@ def twolevel(builder, name, roles,
                perRoleMakefiles = perRoleMakefiles,
                makefileName = makefileName,
                usesAutoconf = usesAutoconf,
-               rewriteAutoconf = rewriteAutoconf)
+               rewriteAutoconf = rewriteAutoconf, 
+               execRelPath = execRelPath)
         pkg.package_depends_on_packages(builder.invocation.ruleset,
                                        name, r, dep_tag, 
                                        deps)
@@ -241,7 +256,8 @@ def multilevel(builder, name, roles,
                simpleCheckout = True, config = True, perRoleMakefiles = False,
                makefileName = None, repo_relative=None,
                usesAutoconf = False,
-               rewriteAutoconf = False):
+               rewriteAutoconf = False, 
+               execRelPath = None):
     """
     Build a package controlled by make, in the given roles with the
     given dependencies in each role.
@@ -268,7 +284,8 @@ def multilevel(builder, name, roles,
                perRoleMakefiles = perRoleMakefiles,
                makefileName = makefileName,
                usesAutoconf = usesAutoconf,
-               rewriteAutoconf = rewriteAutoconf)
+               rewriteAutoconf = rewriteAutoconf, 
+               execRelPath = execRelPath)
         pkg.package_depends_on_packages(builder.invocation.ruleset,
                                        name, r, dep_tag,
                                        deps)
@@ -280,14 +297,16 @@ def multilevel(builder, name, roles,
 
 def single(builder, name, role, deps = None, 
            usesAutoconf = False, 
-           rewriteAutoconf = False):
+           rewriteAutoconf = False, 
+           execRelPath = None):
     """
     A simple make package with a single checkout named after the package and
     a single role.
     """
     medium(builder, name, [ role ], name, deps, 
            usesAutoconf = usesAutoconf,
-           rewriteAutoconf = rewriteAutoconf)
+           rewriteAutoconf = rewriteAutoconf, 
+           execRelPath = execRelPath)
     
 def attach_env(builder, name, role, checkout, domain=None):
     """

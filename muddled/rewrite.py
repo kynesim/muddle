@@ -118,6 +118,9 @@ def subst_pc(builder, current, dir, libPath, includePath, execPrefix):
             if (key == "prefix"):
                 outlines.append("prefix=%s\n"%(dir))
                 done = True
+            elif (key == "libdir"):
+                outlines.append("libdir=%s\n"%(libPath))
+                done = True
             elif (key == "exec_prefix"):
                 outlines.append("exec_prefix=%s\n"%(execPrefix))
                 done = True

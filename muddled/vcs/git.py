@@ -3,9 +3,31 @@ Muddle suppport for Git.
 """
 
 import os
+import re
 
 from muddled.version_control import register_vcs_handler, VersionControlSystem
 import muddled.utils as utils
+
+g_supports_ff_only = None
+
+def git_supports_ff_only():
+    """
+    Does my git support --ff-only?
+    """
+    global g_supports_ff_only
+
+    if (g_supports_ff_only is None):
+        result = utils.run_cmd_for_output("git --version", allowFailure = True, useShell = True)
+        version = result[1]
+        m = re.search(r' ([0-9]+)\.([a0-9]+)', version)
+        if (int(m.group(1)) <= 1 and int(m.group(2)) <= 6):
+            g_supports_ff_only = False
+        else:
+            g_supports_ff_only = True
+        
+
+    return g_supports_ff_only
+
 
 class Git(VersionControlSystem):
     """
@@ -103,7 +125,11 @@ class Git(VersionControlSystem):
             remote = 'remotes/origin/master'
         else:
             remote = 'remotes/origin/%s'%branch
-        utils.run_cmd("git merge --ff-only %s"%remote, verbose=verbose)
+        if (git_supports_ff_only()):
+            utils.run_cmd("git merge --ff-only %s"%remote, verbose=verbose)
+        else:
+            utils.run_cmd("git merge --ff %s"%remote, verbose=verbose)
+
 
     def merge(self, other_repo, branch=None, revision=None, verbose=True):
         """

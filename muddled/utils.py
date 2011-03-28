@@ -295,6 +295,16 @@ def current_machine_name():
     return socket.gethostname()
     
     
+def run_cmd_for_output(cmd_array, env = None, allowFailure = False, useShell = False, verbose = True):
+    """
+    Run a command and return a pair (return value, output, err). If you set allowFailure = True,
+    of course, the return value will always be 0 (otherwise 
+    """
+    a_process = subprocess.Popen(cmd_array, stdout = subprocess.PIPE, stderr = subprocess.PIPE, \
+                                     shell = useShell)
+    (out, err) = a_process.communicate()
+    return (a_process.wait(), out, err)
+
 
 def run_cmd(cmd, env = None, allowFailure = False, isSystem = False,
             verbose = True):

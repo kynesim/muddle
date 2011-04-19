@@ -1693,11 +1693,12 @@ class Fetch(Command):
 
     def with_build_tree(self, builder, current_dir, args):
 
+        problems = []
+
         if len(args) and args[0] in ('-s', '-stop'):
             stop_on_problem = True
         else:
             stop_on_problem = False
-            problems = []
 
         checkouts = decode_checkout_arguments(builder, args, current_dir,
                                               utils.LabelTag.Fetched)
@@ -1755,11 +1756,12 @@ class Merge(Command):
 
     def with_build_tree(self, builder, current_dir, args):
 
+        problems = []
+
         if len(args) and args[0] in ('-s', '-stop'):
             stop_on_problem = True
         else:
             stop_on_problem = False
-            problems = []
 
         checkouts = decode_checkout_arguments(builder, args, current_dir,
                                               utils.LabelTag.Merged)

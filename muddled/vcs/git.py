@@ -69,7 +69,8 @@ class Git(VersionControlSystem):
         if branch:
             args = "-b %s"%branch
         else:
-            args = ""
+            args = "-b master"
+            # Explicitly use master if no branch specified - don't default
 
         utils.run_cmd("git clone %s %s %s"%(args, repo, co_leaf), verbose=verbose)
 
@@ -179,7 +180,12 @@ class Git(VersionControlSystem):
         if branch:
             effective_branch = branch
         else:
-            effective_branch = ""
+            effective_branch = "master"
+            # Explicitly push master if nothing else is specified.
+            # This is so that the user sees what we're doing, instead of
+            # being potentially confused by git's config hiding non-default
+            # behaviour.
+
         # TODO: issue 143: This is no longer believed necessary now that git
         # reparent does git remote rm+git remote add:
         #utils.run_cmd("git config remote.origin.url %s"%repo, verbose=verbose)

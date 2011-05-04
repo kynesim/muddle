@@ -180,7 +180,9 @@ class Git(VersionControlSystem):
             effective_branch = branch
         else:
             effective_branch = ""
-        utils.run_cmd("git config remote.origin.url %s"%repo, verbose=verbose)
+        # TODO: issue 143: This is no longer believed necessary now that git
+        # reparent does git remote rm+git remote add:
+        #utils.run_cmd("git config remote.origin.url %s"%repo, verbose=verbose)
         utils.run_cmd("git push origin %s"%effective_branch, verbose=verbose)
 
     def status(self, repo, verbose=False):
@@ -195,7 +197,13 @@ class Git(VersionControlSystem):
         """
         if verbose:
             print "Re-associating checkout '%s' with remote repository"%co_dir
-        utils.run_cmd("git config remote.origin.url %s"%remote_repo, verbose=verbose)
+
+        # We used to git config remote.origin.url %s here, but that
+        # doesn't handle the case where you've created a new repo (with
+        # muddle bootstrap or import) - git remote _add_ adds some
+        # branch-tracking entries on the side.
+        utils.run_cmd("git remote rm origin", verbose=verbose, allowFailure=True)
+        utils.run_cmd("git remote add origin %s"%remote_repo, verbose=verbose)
 
     def _git_status_text_ok(self, text):
         """

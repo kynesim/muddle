@@ -1908,12 +1908,14 @@ class Import(Command):
     Assert that the given checkout (which may be the builds checkout) has
     been checked out. This is mainly used when you've just written a package
     you plan to commit to the central repository - muddle obviously can't check
-    it out because it's still being created, but you probably want to add it to
-    the build description for testing (and in fact you may want to commit it
-    with muddle push).
+    it out because the repository doesn't exist yet, but you probably want to
+    add it to the build description for testing (and in fact you may want to
+    commit it with muddle push). For convenience in the expected use case, it
+    goes on to prime the relevant VCS module (by way of 'muddle reparent') so
+    it can be pushed once ready; this should be at worst harmless in all cases.
 
-    This is really just an implicit version of muddle assert with the right
-    magic label names
+    This command is really just an wrapper to 'muddle assert' with the right
+    magic label names, and to 'muddle reparent'.
 
     The special <checkout> name _all means all checkouts.
 
@@ -1932,6 +1934,8 @@ class Import(Command):
         else:
             for c in checkouts:
                 builder.invocation.db.set_tag(c)
+            # issue 143: Call reparent so the VCS is locked and loaded.
+            Reparent().with_build_tree(builder, current_dir, args=[])
 
 @command('assert')
 class Assert(Command):

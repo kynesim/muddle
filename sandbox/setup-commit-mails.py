@@ -266,7 +266,7 @@ def parse_repo_url(url):
        TODO: Factor out this parsing into the *Repository classes.
        TODO: ask muddle which VCS we're using, maybe build the string parser into its per-VCS support?
     """
-    pgit = re.compile("git\+ssh://([^@]+\@)?([^/:]+)(:\d+)?/(/.*)")
+    pgit = re.compile("git\+ssh://([^@]+\@)?([^/:]+)(:\d+)?(/.*)")
     m = pgit.match(url)
     if m is not None:
         userAt = m.group(1)

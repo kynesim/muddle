@@ -108,11 +108,12 @@ class FileSpec:
                 # Gotcha
                 #print "Found match = %s"%os.path.join(self.root, f)
                 return_set.add(os.path.join(self.root, f))
-        
+
         # Right. Now, if we're recursive, recurse.
         if self.all_under:
             extras = set()
-            for i in return_set:
+
+            def maybe_add_and_recurse(i):
                 #print "i = %s"%i
                 under = data_provider.list_files_under(i, True, 
                                                        vroot = vroot)
@@ -121,6 +122,10 @@ class FileSpec:
                     to_add = os.path.join(self.root, i, u)
                     if to_add not in return_set:
                         extras.add(to_add)
+                        maybe_add_and_recurse(os.path.join(i,u))
+
+            for i in return_set:
+                maybe_add_and_recurse(i)
 
             return_set.update(extras)
 

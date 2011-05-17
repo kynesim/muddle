@@ -110,7 +110,7 @@ class RepositoryBase:
             else:
                 print "> %s"%cmd
                 p = subprocess.Popen(cmd, stdin=subprocess.PIPE, stdout=subprocess.PIPE, stderr=subprocess.STDOUT)
-                stdoutdata, stderrdata = p.communicate("\n".join(dirs))
+                stdoutdata, stderrdata = p.communicate("\n".join(dirs) +'\n')
                 if p.returncode:
                     print >> sys.stderr, "Error invoking our remote script (rc=%d):"%p.returncode
                     print >> sys.stderr, stdoutdata
@@ -173,7 +173,7 @@ while read srcdir; do
     cd $OLDPWD
     cd $REPOROOT
     
-    #echo "Processing $srcdir"
+    echo "Processing $srcdir"
 
     if [ -d "$srcdir/.git" ]; then
         # non-bare
@@ -240,6 +240,7 @@ while read srcdir; do
 done
 
 cd $OLDPWD
+echo finished
 """
 
 ##########################################################

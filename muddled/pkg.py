@@ -443,6 +443,9 @@ def set_checkout_vcs_option(builder, label, **kwargs):
     Sets extra VCS options for a checkout (identified by its label).
     These are set in the relevant VersionControlHandler and passed on 
     to the underlying vcs handler.
+
+    For example:
+      pkg.set_checkout_vcs_option(builder, depend.Label('checkout', 'kernel-source'), shallow_checkout=True)
     
     Note that options are strictly set per-checkout.
     Defaults are set by version_control.default_vcs_options_dict.

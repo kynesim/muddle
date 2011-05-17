@@ -1628,7 +1628,7 @@ class Commit(Command):
 @command('push')
 class Push(Command):
     """
-    :Syntax: push <checkout> [ <checkout> ... ]
+    :Syntax: push [-s[top]] <checkout> [ <checkout> ... ]
 
     Push the specified checkouts to their remote repositories.
 
@@ -1645,12 +1645,23 @@ class Push(Command):
 
     Without a <checkout>, we use the checkout you're in, or the checkouts
     below the current directory.
+
+    If '-s' or '-stop' is given, then we'll stop at the first problem,
+    otherwise an attempt will be made to process all the checkouts, and any
+    problems will be re-reported at the end.
     """
 
     def requires_build_tree(self):
         return True
 
     def with_build_tree(self, builder, current_dir, args):
+        if len(args) and args[0] in ('-s', '-stop'):
+            stop_on_problem = True
+        else:
+            stop_on_problem = False
+
+        problems = []
+
         checkouts = decode_checkout_arguments(builder, args, current_dir,
                                               utils.LabelTag.ChangesPushed)
         # Forcibly retract all the updated tags.
@@ -1658,8 +1669,19 @@ class Push(Command):
             print "Pushing checkouts: %s"%(depend.label_list_to_string(checkouts))
         else:
             for co in checkouts:
-                builder.invocation.db.clear_tag(co)
-                builder.build_label(co)
+                try:
+                    builder.invocation.db.clear_tag(co)
+                    builder.build_label(co)
+                except utils.GiveUp as e:
+                    if stop_on_problem:
+                        raise
+                    else:
+                        print e
+                        problems.append(e)
+        if problems:
+            print '\nThe following problems occurred:\n'
+            for e in problems:
+                print e
 
 @command('fetch', ['pull', 'update'])   # we want to retire the aliases
 class Fetch(Command):

@@ -4,6 +4,7 @@ Routines for manipulating packages and checkouts.
 
 import utils
 import depend
+import muddled.pkg
 
 class Action:
     """
@@ -437,9 +438,21 @@ def set_env_for_package(builder, pkg_name, pkg_roles,
         env = builder.invocation.get_environment_for(lbl)
         env.set(name, value)
 
+def set_checkout_vcs_option(builder, label, **kwargs):
+    """
+    Sets extra VCS options for a checkout (identified by its label).
+    These are set in the relevant VersionControlHandler and passed on 
+    to the underlying vcs handler.
+    
+    Note that options are strictly set per-checkout.
+    Defaults are set by version_control.default_vcs_options_dict.
+    """
+    if label.type is not utils.LabelType.Checkout:
+        raise utils.GiveUp('set_checkout_vcs_option called on non-checkout %s'%label)
+    for rule in builder.invocation.ruleset.rules_for_target(label):
+        if rule.obj is not None:
+            if not isinstance(rule.obj, muddled.pkg.VcsCheckoutBuilder):
+                raise utils.MuddleBug('rule for checkout %s had a non-builder object of type %s'%(label, rule.obj.__class__.__name__))
+            rule.obj.vcs.add_options(kwargs)
 
 # End file.
-
-    
-    
-    

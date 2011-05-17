@@ -78,7 +78,7 @@ class Bazaar(VersionControlSystem):
         if files:
             utils.run_cmd("bzr add %s"%' '.join(files))
 
-    def checkout(self, repo, co_leaf, branch=None, revision=None, verbose=True):
+    def checkout(self, repo, co_leaf, options, branch=None, revision=None, verbose=True):
         """
         Checkout (clone) a given checkout.
 
@@ -111,7 +111,7 @@ class Bazaar(VersionControlSystem):
         if not ok:
             raise utils.GiveUp("There are uncommitted changes")
 
-    def fetch(self, repo, branch=None, revision=None, verbose=True):
+    def fetch(self, repo, options, branch=None, revision=None, verbose=True):
         """
         Fetch changes, but don't do a merge.
 
@@ -133,7 +133,7 @@ class Bazaar(VersionControlSystem):
         utils.run_cmd("bzr pull %s %s"%(rspec, self._normalised_repo(repo)),
                       env=env, verbose=verbose)
 
-    def merge(self, other_repo, branch=None, revision=None, verbose=True):
+    def merge(self, other_repo, options, branch=None, revision=None, verbose=True):
         """
         Merge 'other_repo' into the local repository and working tree,
 
@@ -158,7 +158,7 @@ class Bazaar(VersionControlSystem):
         utils.run_cmd("bzr merge %s %s"%(rspec, self._normalised_repo(other_repo)),
                       env=env, verbose=verbose)
 
-    def commit(self, verbose=True):
+    def commit(self, options, verbose=True):
         """
         Will be called in the actual checkout's directory.
         """
@@ -167,7 +167,7 @@ class Bazaar(VersionControlSystem):
         utils.run_cmd("bzr commit", allowFailure=True,
                       env=self._derive_env(), verbose=verbose)
 
-    def push(self, repo, branch=None, verbose=True):
+    def push(self, repo, options, branch=None, verbose=True):
         """
         Will be called in the actual checkout's directory.
         """
@@ -176,7 +176,7 @@ class Bazaar(VersionControlSystem):
         utils.run_cmd("bzr push %s"%self._normalised_repo(repo),
                       env=self._derive_env(), verbose=verbose)
 
-    def status(self, repo, verbose=False):
+    def status(self, repo, options, verbose=False):
         """
         Will be called in the actual checkout's directory.
         """
@@ -201,7 +201,7 @@ class Bazaar(VersionControlSystem):
             return False
         return True
 
-    def reparent(self, co_leaf, remote_repo, force=False, verbose=True):
+    def reparent(self, co_leaf, remote_repo, options, force=False, verbose=True):
         """
         Re-associate the local repository with its original remote repository,
 
@@ -329,7 +329,7 @@ class Bazaar(VersionControlSystem):
                                                       fail_nonzero=False)
         return missing, cmd
 
-    def revision_to_checkout(self, co_leaf, orig_revision, force=False, verbose=True):
+    def revision_to_checkout(self, co_leaf, orig_revision, options, force=False, verbose=True):
         """
         Determine a revision id for this checkout, usable to check it out again.
 
@@ -426,7 +426,7 @@ class Bazaar(VersionControlSystem):
     def allows_relative_in_repo(self):
         return False
 
-    def get_file_content(self, url, verbose=True):
+    def get_file_content(self, url, options, verbose=True):
         """
         Retrieve a file's content via BZR.
         """

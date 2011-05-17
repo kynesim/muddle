@@ -41,7 +41,7 @@ class Subversion(VersionControlSystem):
         else:
             return "-r %s"%revision
 
-    def checkout(self, repo, co_leaf, branch=None, revision=None, verbose=True):
+    def checkout(self, repo, co_leaf, options, branch=None, revision=None, verbose=True):
         """
         Clone a given checkout.
 
@@ -55,7 +55,7 @@ class Subversion(VersionControlSystem):
         utils.run_cmd("svn checkout %s %s %s"%(self._r_option(revision),
                                                repo, co_leaf), verbose=verbose)
 
-    def fetch(self, repo, branch=None, revision=None, verbose=True):
+    def fetch(self, repo, options, branch=None, revision=None, verbose=True):
         """
         Will be called in the actual checkout's directory.
 
@@ -77,7 +77,7 @@ class Subversion(VersionControlSystem):
                                     " if you want to merge"%(utils.indent(text,'    ')))
         utils.run_cmd("svn update %s"%(self._r_option(revision)), verbose=verbose)
 
-    def merge(self, other_repo, branch=None, revision=None, verbose=True):
+    def merge(self, other_repo, options, branch=None, revision=None, verbose=True):
         """
         Merge 'other_repo' into the local repository and working tree,
 
@@ -91,7 +91,7 @@ class Subversion(VersionControlSystem):
                                " argument to 'merge' (branch='%s')"%branch)
         utils.run_cmd("svn update %s"%(self._r_option(revision)), verbose=verbose)
 
-    def commit(self, verbose=True):
+    def commit(self, options, verbose=True):
         """
         Will be called in the actual checkout's directory.
 
@@ -100,7 +100,7 @@ class Subversion(VersionControlSystem):
         """
         pass
 
-    def push(self, repo, branch=None, verbose=True):
+    def push(self, repo, options, branch=None, verbose=True):
         """
         Will be called in the actual checkout's directory.
 
@@ -109,7 +109,7 @@ class Subversion(VersionControlSystem):
         """
         utils.run_cmd("svn commit", verbose=verbose)
 
-    def status(self, repo, verbose=False):
+    def status(self, repo, options, verbose=False):
         """
         Will be called in the actual checkout's directory.
 
@@ -126,7 +126,7 @@ class Subversion(VersionControlSystem):
 
         return True
 
-    def reparent(self, co_dir, remote_repo, force=False, verbose=True):
+    def reparent(self, co_dir, remote_repo, options, force=False, verbose=True):
         """
         Re-associate the local repository with its original remote repository,
 
@@ -134,7 +134,7 @@ class Subversion(VersionControlSystem):
         """
         pass                # or should we say something? I assume not...
 
-    def revision_to_checkout(self, co_leaf, orig_revision, force=False, verbose=False):
+    def revision_to_checkout(self, co_leaf, orig_revision, options, force=False, verbose=False):
         """
         Determine a revision id for this checkout, usable to check it out again.
 
@@ -154,7 +154,7 @@ class Subversion(VersionControlSystem):
     def allows_relative_in_repo(self):
         return True
 
-    def get_file_content(self, url, verbose=True):
+    def get_file_content(self, url, options, verbose=True):
         """
         Retrieve a file's content via Subversion.
         """
@@ -163,7 +163,7 @@ class Subversion(VersionControlSystem):
                                                    verbose=verbose)
         return text
 
-    def must_fetch_before_commit(self):
+    def must_fetch_before_commit(self, options):
         """
         Subversion recommends doing 'commit' before "fetch" (i.e., pull/update)
         """

@@ -41,7 +41,7 @@ class VersionControlSystem(object):
         """
         pass
 
-    def checkout(self, repo, co_leaf, branch=None, revision=None, verbose=True):
+    def checkout(self, repo, co_leaf, options, branch=None, revision=None, verbose=True):
         """
         Checkout (clone) a given checkout.
 
@@ -53,7 +53,7 @@ class VersionControlSystem(object):
         """
         pass
 
-    def fetch(self, repo, branch=None, revision=None, verbose=True):
+    def fetch(self, repo, options, branch=None, revision=None, verbose=True):
         """
         Will be called in the actual checkout's directory.
 
@@ -61,7 +61,7 @@ class VersionControlSystem(object):
         """
         pass
 
-    def merge(self, other_repo, branch=None, revision=None, verbose=True):
+    def merge(self, other_repo, options, branch=None, revision=None, verbose=True):
         """
         Will be called in the actual checkout's directory.
 
@@ -69,7 +69,7 @@ class VersionControlSystem(object):
         """
         pass
 
-    def commit(self, verbose=True):
+    def commit(self, options, verbose=True):
         """
         Will be called in the actual checkout's directory.
 
@@ -77,7 +77,7 @@ class VersionControlSystem(object):
         """
         pass
 
-    def push(self, repo, branch=None, verbose=True):
+    def push(self, repo, options, branch=None, verbose=True):
         """
         Will be called in the actual checkout's directory.
 
@@ -85,13 +85,13 @@ class VersionControlSystem(object):
         """
         pass
 
-    def status(self, repo, verbose=False):
+    def status(self, repo, options, verbose=False):
         """
         Will be called in the actual checkout's directory.
         """
         pass
 
-    def reparent(self, co_leaf, remote_repo, force=False, verbose=True):
+    def reparent(self, co_leaf, remote_repo, options, force=False, verbose=True):
         """
         TODO: Is 'co_leaf' (used for reporting problems) the best thing to
         pass down? It shouldn't be too long, so the entire directory path
@@ -103,7 +103,7 @@ class VersionControlSystem(object):
             print "Re-associating checkout '%s' with remote repository:" \
                     " %s does not support 'reparent'"%(co_leaf, self.short_name)
 
-    def revision_to_checkout(self, co_leaf, orig_revision, force=False, verbose=True):
+    def revision_to_checkout(self, co_leaf, orig_revision, options, force=False, verbose=True):
         """
         TODO: Is 'co_leaf' (used for reporting problems) the best thing to
         pass down? It shouldn't be too long, so the entire directory path
@@ -121,13 +121,13 @@ class VersionControlSystem(object):
         """
         return False
 
-    def get_file_content(self, url, verbose=True):
+    def get_file_content(self, url, options, verbose=True):
         """
         Retrieve a file's content via a VCS.
         """
         raise utils.GiveUp("Do not know how to get file content from '%s'"%url)
 
-    def must_fetch_before_commit(self):
+    def must_fetch_before_commit(self, options):
         """
         Do we need to 'fetch' before we 'commit'?
 
@@ -167,7 +167,7 @@ class VersionControlHandler(object):
     """
 
     def __init__(self, builder, vcs_handler, co_label, co_leaf, repo,
-                 rev=None, rel=None, co_dir=None, branch=None):
+                 rev=None, rel=None, co_dir=None, branch=None, addoptions=None):
         """
         * 'builder' is the builder for this build
         * 'vcs_handler' knows how to do VCS operations for this checkout
@@ -250,6 +250,9 @@ class VersionControlHandler(object):
             raise utils.MuddleBug("Cannot extract repository URL from %s,"
                               " relative %s, checkout dir %s"%(repo, rel, co_dir))
         self.actual_repo, self.name_in_repo = pair
+
+        self._options = default_vcs_options_dict()
+        self.add_options(addoptions)
 
     def _parse_revision(self, branch, revision):
         """
@@ -346,6 +349,7 @@ class VersionControlHandler(object):
         with utils.Directory(self.parent_dir):
             try:
                 self.vcs_handler.checkout(self.actual_repo, self.checkout_leaf,
+                                          self._options,
                                           self.branch, self.revision, verbose)
             except utils.MuddleBug as err:
                 raise utils.MuddleBug('Error checking out %s in %s:\n%s'%(self.checkout_label,
@@ -362,8 +366,8 @@ class VersionControlHandler(object):
         """
         with utils.Directory(self.actual_dir):
             try:
-                self.vcs_handler.fetch(self.actual_repo, self.branch,
-                                       self.revision, verbose)
+                self.vcs_handler.fetch(self.actual_repo, self._options,
+                                       self.branch, self.revision, verbose)
             except utils.MuddleBug as err:
                 raise utils.MuddleBug('Error fetching %s in %s:\n%s'%(self.checkout_label,
                                   self.src_rel_dir, err))
@@ -378,8 +382,8 @@ class VersionControlHandler(object):
         """
         with utils.Directory(self.actual_dir):
             try:
-                self.vcs_handler.merge(self.actual_repo, self.branch,
-                                       self.revision, verbose)
+                self.vcs_handler.merge(self.actual_repo, self._options,
+                                       self.branch, self.revision, verbose)
             except utils.MuddleBug as err:
                 raise utils.MuddleBug('Error merging %s in %s:\n%s'%(self.checkout_label,
                                   self.src_rel_dir, err))
@@ -396,7 +400,7 @@ class VersionControlHandler(object):
         """
         with utils.Directory(self.actual_dir):
             try:
-                self.vcs_handler.commit(verbose)
+                self.vcs_handler.commit(self._options, verbose)
             except utils.MuddleBug as err:
                 raise utils.MuddleBug('Error commiting %s in %s:\n%s'%(self.checkout_label,
                                   self.src_rel_dir, err))
@@ -415,7 +419,8 @@ class VersionControlHandler(object):
         """
         with utils.Directory(self.actual_dir):
             try:
-                self.vcs_handler.push(self.actual_repo, self.branch, verbose)
+                self.vcs_handler.push(self.actual_repo, self._options,
+                                      self.branch, verbose)
             except utils.MuddleBug as err:
                 raise utils.MuddleBug('Error pushing %s in %s:\n%s'%(self.checkout_label,
                                   self.src_rel_dir, err))
@@ -444,7 +449,7 @@ class VersionControlHandler(object):
 
         """
         with utils.Directory(self.actual_dir):
-            self.vcs_handler.status(self.actual_repo, verbose)
+            self.vcs_handler.status(self.actual_repo, self._options, verbose)
 
     def reparent(self, force=False, verbose=True):
         """
@@ -461,7 +466,8 @@ class VersionControlHandler(object):
         """
         with utils.Directory(self.actual_dir):
             self.vcs_handler.reparent(self.get_my_absolute_checkout_path(), # or self.checkout_leaf
-                                      self.actual_repo, force, verbose)
+                                      self.actual_repo, self._options,
+                                      force, verbose)
 
     def revision_to_checkout(self, force=False, verbose=False):
         """
@@ -492,16 +498,52 @@ class VersionControlHandler(object):
         with utils.Directory(self.actual_dir):
             return self.vcs_handler.revision_to_checkout(self.checkout_leaf,
                                                          self.revision,
+                                                         self._options,
                                                          force, verbose)
 
     def must_fetch_before_commit(self):
-        return self.vcs_handler.must_fetch_before_commit()
+        return self.vcs_handler.must_fetch_before_commit(self._options)
 
     def get_file_content(self, url, verbose=True):
         """
         Retrieve a file's content via a VCS.
         """
-        return self.vcs_handler.get_file_content(url, verbose)
+        return self.vcs_handler.get_file_content(url, self._options, verbose)
+
+    def get_options(self):
+        return self._options
+
+    def add_options(self, optsdict=None, **kwargs):
+        """
+        Adds extra VCS options to this checkout - specified by dictionary,
+        keyword args or both. (If an option is present both in the dictionary
+        and the keyword args, the resulting effect is undefined.)
+
+        Any unrecognised option causes an exception.
+        """
+        newopts = {}
+        if optsdict is not None:
+            newopts.update(optsdict)
+        newopts.update(kwargs)
+        for o in newopts:
+            if not o in self._options:
+                raise utils.GiveUp("VCS option %s was not recognised"%o)
+            self._options[o] = newopts[o]
+
+def default_vcs_options_dict():
+    """
+    Construct a default VCS options dictionary for a checkout.
+    This dictionary is also the set of allowed options.
+
+    NOTE: The implementer of a new option is responsible for deciding
+    what the option's behaviour should be across ALL currently-implemented
+    VCS modules. By default a VCS module simply ignores options it doesn't
+    understand; in some cases this might not be appropriate and a module
+    would instead want to raise an error because the option doesn't make
+    sense to that system.
+    """
+    return {
+            }
 
 # This dictionary holds the global list of registered VCS handler
 # factories.

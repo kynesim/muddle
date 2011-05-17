@@ -53,7 +53,7 @@ class VersionControlSystem(object):
         """
         pass
 
-    def fetch(self, repo, branch, verbose=True):
+    def fetch(self, repo, branch=None, revision=None, verbose=True):
         """
         Will be called in the actual checkout's directory.
 
@@ -61,7 +61,7 @@ class VersionControlSystem(object):
         """
         pass
 
-    def merge(self, repo, branch, verbose=True):
+    def merge(self, other_repo, branch=None, revision=None, verbose=True):
         """
         Will be called in the actual checkout's directory.
 
@@ -103,7 +103,7 @@ class VersionControlSystem(object):
             print "Re-associating checkout '%s' with remote repository:" \
                     " %s does not support 'reparent'"%(co_leaf, self.short_name)
 
-    def revision_to_checkout(self, co_leaf, repo, force=False, verbose=True):
+    def revision_to_checkout(self, co_leaf, orig_revision, force=False, verbose=True):
         """
         TODO: Is 'co_leaf' (used for reporting problems) the best thing to
         pass down? It shouldn't be too long, so the entire directory path

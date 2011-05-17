@@ -543,6 +543,7 @@ def default_vcs_options_dict():
     sense to that system.
     """
     return {
+            'shallow_checkout': False,
             }
 
 # This dictionary holds the global list of registered VCS handler

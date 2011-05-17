@@ -71,6 +71,8 @@ class Git(VersionControlSystem):
         else:
             args = "-b master"
             # Explicitly use master if no branch specified - don't default
+        if options['shallow_checkout']:
+            args="%s --depth 1"%args
 
         utils.run_cmd("git clone %s %s %s"%(args, repo, co_leaf), verbose=verbose)
 
@@ -97,6 +99,13 @@ class Git(VersionControlSystem):
             raise utils.GiveUp("There are uncommitted changes/untracked files\n"
                                 "%s"%utils.indent(text,'    '))
 
+    def _shallow_not_allowed(self, options):
+        """ Checks to see if the current checkout is shallow, and refuses if so.
+        Must only be called from the checkout directory. """
+        if options['shallow_checkout']:
+            if os.path.exists('.git/shallow'):
+                raise utils.GiveUp('Shallow checkouts cannot interact with their upstream repositories.')
+
     def fetch(self, repo, options, branch=None, revision=None, verbose=True):
         """
         Will be called in the actual checkout's directory.
@@ -110,6 +119,8 @@ class Git(VersionControlSystem):
 
         # Refuse to pull if there are any local changes or untracked files.
         self._is_it_safe()
+
+        self._shallow_not_allowed(options)
 
         utils.run_cmd("git config remote.origin.url %s"%repo, verbose=verbose)
         # Retrieve changes from the remote repository to the local repository
@@ -154,6 +165,8 @@ class Git(VersionControlSystem):
         # Refuse to pull if there are any local changes or untracked files.
         self._is_it_safe()
 
+        self._shallow_not_allowed(options)
+
         utils.run_cmd("git config remote.origin.url %s"%other_repo, verbose=verbose)
         # Retrieve changes from the remote repository to the local repository
         utils.run_cmd("git fetch origin", verbose=verbose)
@@ -177,6 +190,7 @@ class Git(VersionControlSystem):
         """
         Will be called in the actual checkout's directory.
         """
+        self._shallow_not_allowed(options)
         if branch:
             effective_branch = branch
         else:

@@ -173,7 +173,7 @@ while read srcdir; do
     cd $OLDPWD
     cd $REPOROOT
     
-    echo "Processing $srcdir"
+    #echo "Processing $srcdir"
 
     if [ -d "$srcdir/.git" ]; then
         # non-bare
@@ -240,7 +240,7 @@ while read srcdir; do
 done
 
 cd $OLDPWD
-echo finished
+#echo finished
 """
 
 ##########################################################

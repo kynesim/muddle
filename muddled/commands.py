@@ -1956,8 +1956,11 @@ class Import(Command):
         else:
             for c in checkouts:
                 builder.invocation.db.set_tag(c)
-            # issue 143: Call reparent so the VCS is locked and loaded.
-            Reparent().with_build_tree(builder, current_dir, args=[])
+        # issue 143: Call reparent so the VCS is locked and loaded.
+        rep = g_command_dict['reparent']() # should be Reparent but go via the dict just in case
+        rep.set_options(self.options)
+        rep.set_old_env(self.old_env)
+        rep.with_build_tree(builder, current_dir, args)
 
 @command('assert')
 class Assert(Command):

@@ -38,6 +38,7 @@ import subprocess
 import sys
 import urllib
 import textwrap
+import pydoc
 from urlparse import urlparse
 from utils import VersionStamp
 
@@ -3070,6 +3071,38 @@ class Whereami(Command):
 
     def without_build_tree(self, muddle_binary, root_path, args):
         print "You are here. Here is not in a muddle build tree."
+
+@command('doc')
+class Doc(Command):
+    """
+    :Syntax: doc <name>
+
+    Looks up the documentation string for ``muddled.<name>`` and presents
+    it, using the pydoc Python help mechanisms.
+
+    For instance:
+
+        muddle doc depend.Label
+
+    """
+
+    def requires_build_tree(self):
+        return False
+
+    def with_build_tree(self, builder, current_dir, args):
+        self.doc_for(args)
+
+    def without_build_tree(self, muddle_binary, root_path, args):
+        self.doc_for(args)
+
+    def doc_for(self, args):
+        if len(args) != 1:
+            print 'Syntax: doc <name>'
+            print 'Only one argument allowed'
+            return
+        environment = {}
+        exec 'import muddled; thing=muddled.%s'%args[0] in environment
+        print pydoc.doc(environment['thing'])
 
 
 def get_all_checkouts(builder, tag):

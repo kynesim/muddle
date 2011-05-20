@@ -3101,8 +3101,16 @@ class Doc(Command):
             print 'Only one argument allowed'
             return
         environment = {}
-        exec 'import muddled; thing=muddled.%s'%args[0] in environment
-        print pydoc.doc(environment['thing'])
+        what = args[0]
+
+        # Allow 'muddle doc muddled' explicitly
+        if what != 'muddled' and not what.startswith('muddled.'):
+                what = 'muddled.%s'%what
+        try:
+            exec 'import muddled; thing=%s'%what in environment
+            print pydoc.doc(environment['thing'])
+        except AttributeError:
+            print 'Cannot find %s'%what
 
 
 def get_all_checkouts(builder, tag):

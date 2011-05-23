@@ -3075,15 +3075,18 @@ class Whereami(Command):
 @command('doc')
 class Doc(Command):
     """
-    :Syntax: doc <name>
+    :Syntax: doc [-d] <name>
 
     Looks up the documentation string for ``muddled.<name>`` and presents
-    it, using the pydoc Python help mechanisms.
+    it, using the pydoc Python help mechanisms. Doesn't put "muddled." on
+    the start of <name> if it is already there.
 
     For instance:
 
         muddle doc depend.Label
 
+    With -d, just presents the symbols in <name>, omitting anything that starts
+    with an underscore.
     """
 
     def requires_build_tree(self):
@@ -3096,19 +3099,30 @@ class Doc(Command):
         self.doc_for(args)
 
     def doc_for(self, args):
-        if len(args) != 1:
-            print 'Syntax: doc <name>'
-            print 'Only one argument allowed'
+        just_dir = False
+        if len(args) == 1:
+            what = args[0]
+        elif len(args) == 2 and args[0] == '-d':
+            what = args[1]
+            just_dir = True
+        else:
+            print 'Syntax: doc [-d] <name>'
             return
         environment = {}
-        what = args[0]
 
         # Allow 'muddle doc muddled' explicitly
         if what != 'muddled' and not what.startswith('muddled.'):
                 what = 'muddled.%s'%what
+
         try:
             exec 'import muddled; thing=%s'%what in environment
-            print pydoc.doc(environment['thing'])
+            if just_dir:
+                d = dir(environment['thing'])
+                for item in d:
+                    if item[0] != '_':
+                        print '  %s'%item
+            else:
+                print pydoc.doc(environment['thing'])
         except AttributeError:
             print 'Cannot find %s'%what
 

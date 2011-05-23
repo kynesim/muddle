@@ -3117,17 +3117,28 @@ class Doc(Command):
         if what != 'muddled' and not what.startswith('muddled.'):
                 what = 'muddled.%s'%what
 
-        try:
-            exec 'import muddled; thing=%s'%what in environment
-            if just_dir:
-                d = dir(environment['thing'])
-                for item in d:
-                    if item[0] != '_':
-                        print '  %s'%item
-            else:
-                print pydoc.doc(environment['thing'])
-        except AttributeError:
-            print 'Cannot find %s'%what
+        # We need a bit of trickery to cope with the fact that,
+        # for instance, we cannot "import muddled" and then access
+        # "muddled.deployments.cpio", but we can "import
+        # muddled.deployments.cpio" directly.
+        words = what.split('.')
+        count = len(words)
+        for idx in range(0, count):
+            a = words[:idx+1]
+            try:
+                exec 'import %s; thing=%s'%('.'.join(a), what) in environment
+                if just_dir:
+                    d = dir(environment['thing'])
+                    for item in d:
+                        if item[0] != '_':
+                            print '  %s'%item
+                else:
+                    print pydoc.doc(environment['thing'])
+                return
+            except AttributeError:
+                pass
+
+        print 'Cannot find %s'%what
 
 
 def get_all_checkouts(builder, tag):

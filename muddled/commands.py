@@ -1682,7 +1682,8 @@ class Push(Command):
         if problems:
             print '\nThe following problems occurred:\n'
             for e in problems:
-                print e
+                print str(e).rstrip()
+                print
 
 @command('fetch', ['pull', 'update'])   # we want to retire the aliases
 class Fetch(Command):
@@ -1744,7 +1745,8 @@ class Fetch(Command):
         if problems:
             print '\nThe following problems occurred:\n'
             for e in problems:
-                print e
+                print str(e).rstrip()
+                print
 
 @command('merge')
 class Merge(Command):
@@ -1807,7 +1809,8 @@ class Merge(Command):
         if problems:
             print '\nThe following problems occurred:\n'
             for e in problems:
-                print e
+                print str(e).rstrip()
+                print
 
 @command('reparent')
 class Reparent(Command):

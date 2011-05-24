@@ -70,8 +70,7 @@ def describe_to(builder):
     muddled.pkg.package_depends_on_checkout(builder.invocation.ruleset,
                                     "omap_kernel",  # this package
                                     role,           # in this role
-                                    "omap_kernel",  # depends on this checkout
-                                    None)
+                                    "omap_kernel")  # depends on this checkout
 
     # On top of that, we want to build busybox
     #
@@ -115,8 +114,7 @@ def describe_to(builder):
     muddled.pkg.package_depends_on_checkout(builder.invocation.ruleset,
                                     "busybox",      # this package
                                     role,           # in this role
-                                    "busybox",      # depends on this checkout
-                                    None)
+                                    "busybox")      # depends on this checkout
 
 
     # Can we use the same bootloader and such that we already had for the
@@ -141,8 +139,7 @@ def describe_to(builder):
     muddled.pkg.package_depends_on_checkout(builder.invocation.ruleset,
                                     "u-boot",       # this package
                                     role,           # in this role
-                                    "u-boot",       # depends on this checkout
-                                    None)
+                                    "u-boot")       # depends on this checkout
     # Oh, and this one as well...
     rule = muddled.depend.depend_one(None,
                               label_from_string('package:u-boot/installed'),

@@ -265,7 +265,7 @@ def add_checkout_rules(ruleset, co_label, obj):
     if (obj.must_fetch_before_commit()):
         rule.add(fetched_label)
 
-def package_depends_on_checkout(ruleset, pkg_name, role_name, co_name, obj):
+def package_depends_on_checkout(ruleset, pkg_name, role_name, co_name, action=None):
     """
     Make the given package depend on the given checkout
 
@@ -273,9 +273,10 @@ def package_depends_on_checkout(ruleset, pkg_name, role_name, co_name, obj):
     * pkg_name  - The package which depends.
     * role_name - The role which depends. Can be '*' for a wildcard.
     * co_name   - The checkout which this package and role depends on.
-    * obj       - If non-None, specifies an Action to be invoked to get from
-      the checkout to the package preconfig. You'll normally make this None
-      unless you are doing something deeply weird.
+    * action    - If non-None, specifies an Action to be invoked to get from
+      the checkout to the package preconfig. If you are a normal (outside
+      muddle itself) caller, then you will normally leave this None unless you
+      are doing something deeply weird.
     """
 
     checkout = depend.Label(utils.LabelType.Checkout, 
@@ -286,7 +287,7 @@ def package_depends_on_checkout(ruleset, pkg_name, role_name, co_name, obj):
 		             pkg_name, role_name, 
 			     utils.LabelTag.PreConfig)
 
-    new_rule = depend.Rule(preconfig, obj)
+    new_rule = depend.Rule(preconfig, action)
     new_rule.add(checkout)
     ruleset.add(new_rule)
 
@@ -295,7 +296,7 @@ def package_depends_on_checkout(ruleset, pkg_name, role_name, co_name, obj):
 		             pkg_name, role_name, 
 			     utils.LabelTag.DistClean, 
 			     transient = True)
-    ruleset.add(depend.depend_one(obj, distclean, checkout))
+    ruleset.add(depend.depend_one(action, distclean, checkout))
 
 def package_depends_on_packages(ruleset, pkg_name, role, tag_name, deps):
     """

@@ -370,7 +370,7 @@ def build_with_helper(builder, helpers, pkg_name, checkout, roles,
         pkg.package_depends_on_checkout(builder.invocation.ruleset,
                                         pkg_name,
                                         r,
-                                        checkout, None)
+                                        checkout)
 
 
 def build_role_on_architecture(builder, role, arch):

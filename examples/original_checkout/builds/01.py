@@ -32,7 +32,7 @@ def describe_to(builder):
     # kbus we pulled.
     muddled.pkg.package_depends_on_checkout(builder.invocation.ruleset,
                                             "kbus", "main", 
-                                            "kbus", None)
+                                            "kbus")
     
     # Let's deploy main somewhere ..
     muddled.deployments.filedep.deploy(builder, "/opt/kynesim/original_checkout", 

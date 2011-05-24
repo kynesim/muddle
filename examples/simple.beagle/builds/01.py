@@ -80,8 +80,7 @@ def describe_to(builder):
     muddled.pkg.package_depends_on_checkout(builder.invocation.ruleset,
                                     "omap_kernel",  # this package
                                     role,           # in this role
-                                    "omap_kernel",  # depends on this checkout
-                                    None)
+                                    "omap_kernel")  # depends on this checkout
 
     # On top of that, we want to build busybox
     #

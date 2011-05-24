@@ -14,6 +14,8 @@ import muddled.rewrite as rewrite
 from muddled.depend import Label
 import os
 
+DEFAULT_MAKEFILE_NAME = "Makefile.muddle"
+
 class MakeBuilder(PackageBuilder):
     """
     Use make to build your package from the given checkout.
@@ -25,7 +27,7 @@ class MakeBuilder(PackageBuilder):
     
     def __init__(self, name, role, co, config = True, 
                  perRoleMakefiles = False, 
-                 makefileName = None, 
+                 makefileName = DEFAULT_MAKEFILE_NAME,
                  rewriteAutoconf = False, 
                  usesAutoconf = False, 
                  execRelPath = None):
@@ -94,7 +96,7 @@ class MakeBuilder(PackageBuilder):
             self._amend_env(co_path)
 
             if self.makefile_name is None:
-                makefile_name = "Makefile"
+                makefile_name = DEFAULT_MAKEFILE_NAME
             else:
                 makefile_name = self.makefile_name
 
@@ -137,7 +139,7 @@ class MakeBuilder(PackageBuilder):
 def simple(builder, name, role, checkout, rev=None,
 	   simpleCheckout = False, config = True, 
            perRoleMakefiles = False, 
-           makefileName = None,
+           makefileName = DEFAULT_MAKEFILE_NAME,
            usesAutoconf = False,
            rewriteAutoconf = False, 
            execRelPath = None):
@@ -178,7 +180,7 @@ def simple(builder, name, role, checkout, rev=None,
 def medium(builder, name, roles, checkout, rev=None,
 	   deps = None, dep_tag = utils.LabelTag.PreConfig,
            simpleCheckout = True, config = True, perRoleMakefiles = False, 
-           makefileName = None,
+           makefileName = DEFAULT_MAKEFILE_NAME,
            usesAutoconf = False,
            rewriteAutoconf = False, 
            execRelPath = None):
@@ -213,7 +215,8 @@ def twolevel(builder, name, roles,
              co_dir = None, co_name = None, rev=None,
              deps = None, dep_tag = utils.LabelTag.PreConfig,
              simpleCheckout = True, config = True, perRoleMakefiles = False, 
-             makefileName = None, repo_relative=None, 
+             makefileName = DEFAULT_MAKEFILE_NAME,
+             repo_relative=None, 
              usesAutoconf = False,
              rewriteAutoconf = False, 
              execRelPath = None):
@@ -254,7 +257,8 @@ def multilevel(builder, name, roles,
                co_dir = None, co_name = None, rev=None,
                deps = None, dep_tag = utils.LabelTag.PreConfig,
                simpleCheckout = True, config = True, perRoleMakefiles = False,
-               makefileName = None, repo_relative=None,
+               makefileName = DEFAULT_MAKEFILE_NAME,
+               repo_relative=None,
                usesAutoconf = False,
                rewriteAutoconf = False, 
                execRelPath = None):
@@ -328,7 +332,8 @@ class ExpandingMakeBuilder(MakeBuilder):
     A MakeBuilder that first expands an archive file.
     """
 
-    def __init__(self, name, role, co_name, archive_file, archive_dir, makefile = None):
+    def __init__(self, name, role, co_name, archive_file, archive_dir,
+                 makefile=DEFAULT_MAKEFILE_NAME):
         """
         A MakeBuilder that first expands an archive file.
 
@@ -336,8 +341,6 @@ class ExpandingMakeBuilder(MakeBuilder):
         'archive_file'. Unpack that into $MUDDLE_OBJ, as 'archive_dir', with 'obj/'
         linked to it, and use 'makefile' to build it.
         """
-        if makefile is None:
-            makefile = "Makefile.muddle"
         MakeBuilder.__init__(self, name, role, co_name, config=True,
                              perRoleMakefiles=False,
                              makefileName=makefile,
@@ -399,7 +402,7 @@ class ExpandingMakeBuilder(MakeBuilder):
 
 def expanding_package(builder, name, archive_dir,
                       role, co_name, co_dir,
-                      makefile="Makefile.muddle", deps=None,
+                      makefile=DEFAULT_MAKEFILE_NAME, deps=None,
                       archive_file=None, archive_ext='.tar.bz2',):
     """Specify how to expand and build an archive file.
 
@@ -448,7 +451,7 @@ def expanding_package(builder, name, archive_dir,
 
     # It depends on the checkout
     pkg.package_depends_on_checkout(builder.invocation.ruleset, name, role,
-                                    co_name, None) ###dep)
+                                    co_name)
 
     # And maybe on other packages
     if deps:

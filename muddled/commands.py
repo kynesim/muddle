@@ -3090,6 +3090,9 @@ class Doc(Command):
 
     With -d, just presents the symbols in <name>, omitting anything that starts
     with an underscore.
+
+    NB: "muddle doc" uses the pydoc module, which will automatically page
+    its output. This does not apply for "doc -d".
     """
 
     def requires_build_tree(self):
@@ -3133,7 +3136,7 @@ class Doc(Command):
                         if item[0] != '_':
                             print '  %s'%item
                 else:
-                    print pydoc.doc(environment['thing'])
+                    pydoc.doc(environment['thing'])
                 return
             except AttributeError:
                 pass

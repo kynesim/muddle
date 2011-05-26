@@ -324,6 +324,9 @@ def cmdline(args, muddle_binary):
     # of whoever is calling us.
     original_env = os.environ.copy()
     original_dir = os.getcwd()
+    shell_dir = os.getenv('PWD')
+    if shell_dir and shell_dir != original_dir:
+        original_dir = shell_dir
 
     try:
         _cmdline(args, original_dir, original_env, muddle_binary)

@@ -3230,10 +3230,10 @@ def decode_checkout_arguments(builder, args, current_dir, tag):
     else:
         # Where are we? If in a checkout, that's what we should do - else
         # all checkouts.
-        (what, loc, role) = builder.find_location_in_tree(os.getcwd())
+        (what, loc, role) = builder.find_location_in_tree(current_dir)
 
         if (what == utils.DirType.Checkout):
-            cos_below = builder.get_all_checkouts_below(os.getcwd())
+            cos_below = builder.get_all_checkouts_below(current_dir)
             for c in cos_below:
                 rv.append(Label(utils.LabelType.Checkout,
                                 c, None, tag, 

@@ -4,10 +4,10 @@
 This is a graph generator for visualising the relationships between
 muddle repositories.
 
-Run this script from somewhere within a muddle tree; 
+Run this script from somewhere within a muddle tree;
 provide a list of goal labels on the command-line.
 
-For example: 
+For example:
 	visualise-dependencies.py  package:*{linux}/postinstalled
 	visualise-dependencies.py  deployment:ramdisk/deployed deployment:sdcard/deployed deployment:system/deployed deployment:tools/deployed
 
@@ -29,6 +29,10 @@ except ImportError:
 
 from muddled.cmdline import find_and_load
 from muddled.depend import Label
+
+if sys.argv[1] in ('-h', '-help', '--help'):
+	print __doc__
+	sys.exit(0)
 
 goals = sys.argv[1:]
 if not len(goals):

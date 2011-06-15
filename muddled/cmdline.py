@@ -308,7 +308,7 @@ def _cmdline(args, current_dir, original_env, muddle_binary):
 
         command.without_build_tree(muddle_binary, specified_root, args)
 
-def cmdline(args, muddle_binary):
+def cmdline(args, muddle_binary=None):
     """
     Work out what to do from a muddle command line.
 
@@ -316,7 +316,9 @@ def cmdline(args, muddle_binary):
 
     'muddle_binary' should be the __file__ value for the Python script that
     is calling us, or whatever other value we wish $(MUDDLE) to be set to
-    by muddle itself.
+    by muddle itself. It is important to get this right, as it is used in
+    Makefiles to run muddle itself. If it is given as None then we shall
+    make up what should be a sensible value.
     """
 
     # This is actually just a wrapper function, to allow us to neatly
@@ -327,6 +329,12 @@ def cmdline(args, muddle_binary):
     shell_dir = os.getenv('PWD')
     if shell_dir and shell_dir != original_dir:
         original_dir = shell_dir
+
+    if muddle_binary is None:
+        # The 'muddle' comamnd is actually just a link to our __main__.py
+        # so we should be able to work with that...
+        this_dir, this_file = os.path.split(__file__)
+        muddle_binary = os.path.join(this_dir, '__main__.py')
 
     try:
         _cmdline(args, original_dir, original_env, muddle_binary)

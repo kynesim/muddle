@@ -3140,6 +3140,18 @@ class Doc(Command):
                 return
             except AttributeError:
                 pass
+            except ImportError as e:
+                print 'ImportError: %s'%e
+                break
+
+        # Arguably, we should also try looking in muddled.XXX.<what>,
+        # where XXX is one of ('checkouts', 'deployments', 'pkgs', 'vcs')
+        # If we're going to do that sort of thing, then perhaps we should
+        # precalculate all the things we're going to try, and then run
+        # through them...
+        # Pragmatically, also, if <what> starts with (for instance) "make.",
+        # then we might assume that it should actually start with
+        # "muddled.pkgs.make." - there must be other common examples of this...
 
         print 'Cannot find %s'%what
 

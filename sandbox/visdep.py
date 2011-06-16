@@ -13,12 +13,16 @@ Usage:
 
 Where <switches> are:
 
-    -t[red]     The intermediate dot file will be piped through 'tred', which
-                performs transitive reduction of the graph. See ``man tred``
-                for more information.
+  -t[red]           The intermediate dot file will be piped through 'tred',
+                    which performs transitive reduction of the graph. See ``man
+                    tred`` for more information. This is recommended for many
+                    muddle dependency trees.
 
-    -v[erbose]  The programs being run and the names of the intermediate
-                dot files will be shown.
+  -f[ilter] <name>  Tell xdot.py to use the named graphviz filter (one of
+                    dot, neato, twopi, circo or fdp). The default is dot.
+
+  -v[erbose]        The programs being run and the names of the intermediate
+                    dot files will be shown.
 """
 
 from tempfile import mkstemp
@@ -27,7 +31,7 @@ import os
 import subprocess
 import sys
 
-def process(label, reduce=False, verbose=False):
+def process(label, reduce=False, filter='dot', verbose=False):
     fd, dotfile_path = mkstemp(suffix='.dot', prefix='visdep_', text=True)
 
     # The first program we want to run is in the sandbox with us
@@ -70,7 +74,7 @@ def process(label, reduce=False, verbose=False):
     try:
         if verbose:
             print 'Running', xdot
-        retcode = subprocess.call('%s %s'%(xdot, dotfile_path), shell=True)
+        retcode = subprocess.call('%s --filter=%s %s'%(xdot, filter, dotfile_path), shell=True)
         if retcode != 0:
             print 'Error %d running %s'%(abs(retcode), xdot)
             return
@@ -86,6 +90,7 @@ def main(args):
 
     reduce = False
     verbose = False
+    filter = 'dot'
     label = None
 
     while args:
@@ -97,6 +102,8 @@ def main(args):
             reduce = True
         elif word in ('-v', '-verbose'):
             verbose = True
+        elif word in ('-f', '-filter'):
+            filter = args.pop(0)
         elif word[0] == '-':
             print 'Unrecognised switch', word
             return
@@ -110,7 +117,7 @@ def main(args):
         print __doc__
         return 1
 
-    process(label, reduce, verbose)
+    process(label, reduce, filter, verbose)
     return 0
 
 if __name__ == '__main__':

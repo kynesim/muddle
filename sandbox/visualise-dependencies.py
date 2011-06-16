@@ -30,35 +30,14 @@ except ImportError:
 from muddled.cmdline import find_and_load
 from muddled.depend import Label
 
-if sys.argv[1] in ('-h', '-help', '--help'):
-	print __doc__
-	sys.exit(0)
-
-goals = sys.argv[1:]
-if not len(goals):
-	raise Exception, 'No goals given'
-
-# Do we care about labelling the edges?
-hideEdgeLabels = True
-# Do we care about nodes touching an AptGetBuilder?
-omitAptGetNodes = True
-
-## ... find a build tree
-original_dir = os.getcwd()
-gbuilder = find_and_load(original_dir, muddle_binary=None)
-# Don't bother determining muddle_binary: our invocation of find_and_load
-# doesn't make use of it. (Tibs writes: it's only needed for when
-# running makefiles, for when they use $(MUDDLE).)
-
 def format_nodename(node):
 	""" Sanitises a nodename so it won't choke graphviz.
-	    Input should be a string or something with a __str__ method
+		Input should be a string or something with a __str__ method
 		(e.g. a muddle Label). """
 	xnode = str(node)[:]
 	xnode = re.sub(r'[\[\]():/{}\-.]', '_', xnode)
 	xnode = re.sub(r'\*', '__star__', xnode)
 	return xnode
-
 
 
 class Node:
@@ -130,7 +109,7 @@ class Edge:
 	def __str__(self):
 		return 'Edge <%s -> %s, label="%s">' %(self.nodeFrom.displayname, self.nodeTo.displayname, self.label)
 
-def do_deps(goal):
+def do_deps(gbuilder, goal):
 	""" Main dependency walker. Recurses depth-first. """
 	# deps := `muddle depend user-short goal` !
 	#print 'Would do %s'%goal
@@ -177,114 +156,141 @@ def do_deps(goal):
 				Edge(depnode, goalnode, label)
 
 			if newnode:
-					do_deps(str(dep))
+					do_deps(gbuilder, str(dep))
 
-for g in goals:
-	Node(g, isGoal=True, extras="shape=parallelogram")
-	# color=green fillcolor=green style=filled...?
+def process(goals):
+	if not len(goals):
+		raise GiveUp('No goals given - specify one or more labels on the command line')
 
-for g in goals:
-	do_deps(g)
+	if goals[0] in ('-h', '-help', '--help'):
+		print __doc__
+		sys.exit(0)
 
-# Nodes created by AptGetBuilders aren't very interesting.
-if omitAptGetNodes:
-	for k,e in Edge.all_edges.items():
-		if e.nodeFrom.isAptGet:
-			del Edge.all_edges[k]
-	for k,n in Node.all_nodes.items():
-		if n.isAptGet:
-			del Node.all_nodes[k]
+	# Do we care about labelling the edges?
+	hideEdgeLabels = True
+	# Do we care about nodes touching an AptGetBuilder?
+	omitAptGetNodes = True
 
-# If we have A/preconfig -> A/configured -> A/built -> A/installed 
-# [ -> A/preinstalled], we can condense them into one.
-reductio = { 
-		'preconfig' : 'configured',
-		'configured' : 'built',
-		'built' : 'installed',
-		'installed' : 'postinstalled',
-}
-while True:
-	madeChange = False
-	for k,e in Edge.all_edges.items():
-		if e.nodeTo.isGoal:
-			continue # Don't conflate explicit goal nodes
+	## ... find a build tree
+	original_dir = os.getcwd()
+	gbuilder = find_and_load(original_dir, muddle_binary=None)
+	# Don't bother determining muddle_binary: our invocation of find_and_load
+	# doesn't make use of it. (Tibs writes: it's only needed for when
+	# running makefiles, for when they use $(MUDDLE).)
 
-		nFrom = e.nodeFrom.rawname.rsplit('/',1)
-		nTo = e.nodeTo.rawname.rsplit('/',1)
-		if not nFrom[0] == nTo[0]:
-			continue # labels are not the same, no chance of reduction
+	for g in goals:
+		Node(g, isGoal=True, extras="shape=parallelogram")
+		# color=green fillcolor=green style=filled...?
 
-		# TODO: This logic is horrible!
-		reducable = False
-		try:
-			if reductio[nFrom[1]] == nTo[1]:
-				reducable = True
-		except KeyError: pass
-		for aux in e.nodeFrom.auxNames:
+	for g in goals:
+		do_deps(gbuilder, g)
+
+	# Nodes created by AptGetBuilders aren't very interesting.
+	if omitAptGetNodes:
+		for k,e in Edge.all_edges.items():
+			if e.nodeFrom.isAptGet:
+				del Edge.all_edges[k]
+		for k,n in Node.all_nodes.items():
+			if n.isAptGet:
+				del Node.all_nodes[k]
+
+	# If we have A/preconfig -> A/configured -> A/built -> A/installed 
+	# [ -> A/preinstalled], we can condense them into one.
+	reductio = { 
+			'preconfig' : 'configured',
+			'configured' : 'built',
+			'built' : 'installed',
+			'installed' : 'postinstalled',
+	}
+	while True:
+		madeChange = False
+		for k,e in Edge.all_edges.items():
+			if e.nodeTo.isGoal:
+				continue # Don't conflate explicit goal nodes
+
+			nFrom = e.nodeFrom.rawname.rsplit('/',1)
+			nTo = e.nodeTo.rawname.rsplit('/',1)
+			if not nFrom[0] == nTo[0]:
+				continue # labels are not the same, no chance of reduction
+
+			# TODO: This logic is horrible!
+			reducable = False
 			try:
-				auxFrom = aux.rsplit('/',1)
-				assert auxFrom[0] == nFrom[0]
-				if reductio[auxFrom[1]] == nTo[1]:
+				if reductio[nFrom[1]] == nTo[1]:
 					reducable = True
-					break
 			except KeyError: pass
+			for aux in e.nodeFrom.auxNames:
+				try:
+					auxFrom = aux.rsplit('/',1)
+					assert auxFrom[0] == nFrom[0]
+					if reductio[auxFrom[1]] == nTo[1]:
+						reducable = True
+						break
+				except KeyError: pass
 
-		if not reducable: continue
+			if not reducable: continue
 
-		# Are there any other edges to nodeTo? If so, we can't reduce.
-		count = 0
-		for ee in Edge.all_edges.values():
-			if ee.nodeTo.rawname == e.nodeTo.rawname:
-				count=count+1
-		if count > 1:
-			# NOTE: This code path is untested...
-			continue
+			# Are there any other edges to nodeTo? If so, we can't reduce.
+			count = 0
+			for ee in Edge.all_edges.values():
+				if ee.nodeTo.rawname == e.nodeTo.rawname:
+					count=count+1
+			if count > 1:
+				# NOTE: This code path is untested...
+				continue
 
-		# OK, it's safe to conflate the two.
-		#print "WOULD REDUCE: %s -> %s" %(e.nodeFrom.rawname,e.nodeTo.rawname)
-		oldname = e.nodeFrom.displayname
-		if e.nodeTo.displayname.find('+') != -1:
-			substr = e.nodeTo.displayname.rsplit('/')[1]
-			e.nodeFrom.displayname = "%s+%s" %(e.nodeFrom.displayname, substr)
-		else:
-			e.nodeFrom.displayname = "%s+%s" %(e.nodeFrom.displayname, nTo[1])
-		#print "RENAME: %s => %s"%(oldname, e.nodeFrom.displayname)
+			# OK, it's safe to conflate the two.
+			#print "WOULD REDUCE: %s -> %s" %(e.nodeFrom.rawname,e.nodeTo.rawname)
+			oldname = e.nodeFrom.displayname
+			if e.nodeTo.displayname.find('+') != -1:
+				substr = e.nodeTo.displayname.rsplit('/')[1]
+				e.nodeFrom.displayname = "%s+%s" %(e.nodeFrom.displayname, substr)
+			else:
+				e.nodeFrom.displayname = "%s+%s" %(e.nodeFrom.displayname, nTo[1])
+			#print "RENAME: %s => %s"%(oldname, e.nodeFrom.displayname)
 
-		e.nodeFrom.auxNames.add(e.nodeTo.rawname)
-		e.nodeFrom.auxNames |= e.nodeTo.auxNames
+			e.nodeFrom.auxNames.add(e.nodeTo.rawname)
+			e.nodeFrom.auxNames |= e.nodeTo.auxNames
 
-		# Now kill all nodes B->C, replace with A'->C:
-		for kk,ee in Edge.all_edges.items():
-			if ee.nodeFrom == e.nodeTo:
-				Edge(e.nodeFrom, ee.nodeTo, e.label)
-				del Edge.all_edges[kk]
-		# Finally, kill off edge A->B and node B themselves:
-		del Edge.all_edges[k]
-		del Node.all_nodes[e.nodeTo.rawname]
+			# Now kill all nodes B->C, replace with A'->C:
+			for kk,ee in Edge.all_edges.items():
+				if ee.nodeFrom == e.nodeTo:
+					Edge(e.nodeFrom, ee.nodeTo, e.label)
+					del Edge.all_edges[kk]
+			# Finally, kill off edge A->B and node B themselves:
+			del Edge.all_edges[k]
+			del Node.all_nodes[e.nodeTo.rawname]
 
-		madeChange = True
-		break
+			madeChange = True
+			break
 
-	if not madeChange: 
-		break
-	# else loop forever
+		if not madeChange: 
+			break
+		# else loop forever
 
-# Now tidy up the conflated display names:
-for n in Node.all_nodes.values():
-	if len(n.auxNames)>0:
-		tmp = n.displayname.rsplit('/',1)
-		n.displayname = '%s/\\n%s'%(tmp[0],tmp[1])
+	# Now tidy up the conflated display names:
+	for n in Node.all_nodes.values():
+		if len(n.auxNames)>0:
+			tmp = n.displayname.rsplit('/',1)
+			n.displayname = '%s/\\n%s'%(tmp[0],tmp[1])
 
-print 'digraph muddle {'
+	print 'digraph muddle {'
 
-print "\n# Nodes"
-print "node [shape=box];"
-for n in Node.all_nodes.values():
-	print n.todot()
+	print "\n# Nodes"
+	print "node [shape=box];"
+	for n in Node.all_nodes.values():
+		print n.todot()
 
-print "\n# Edges"
-print "edge [fontsize=9, labelangle=90, decorate];"
-for e in Edge.all_edges.values():
-	print e.todot(hideEdgeLabels)
+	print "\n# Edges"
+	print "edge [fontsize=9, labelangle=90, decorate=true];"
+	for e in Edge.all_edges.values():
+		print e.todot(hideEdgeLabels)
 
-print '}'
+	print '}'
+
+if __name__ == '__main__':
+	try:
+		process(sys.argv[1:])
+	except GiveUp as e:
+		print >> sys.stderr, e
+		sys.exit(1)

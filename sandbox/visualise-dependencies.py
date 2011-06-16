@@ -69,7 +69,18 @@ class Node:
 			extras = ', %s'%self.extras
 		else:
 			extras = ''
-		return '%s [label="%s" %s]' % (self.dotname, self.displayname, extras)
+
+		if self.rawname.startswith('checkout:'):
+			color = 'bisque'
+		elif self.rawname.startswith('package:'):
+			color = 'lawngreen'
+		elif self.rawname.startswith('deployment:'):
+			color = 'skyblue'
+		else:
+			color = 'hotpink'		# some problem, surely
+
+		return '%s [label="%s" fillcolor=%s style=filled %s]' % (self.dotname, self.displayname, color, extras)
+		#return '%s [label="%s" %s]' % (self.dotname, self.displayname, extras)
 	def __str__(self):
 		return 'Node <raw=%s label="%s" %s>' %(self.displayname, self.dotname, self.extras)
 

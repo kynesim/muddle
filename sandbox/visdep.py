@@ -8,7 +8,17 @@ depends on PyGTK and Graphviz.
 
 Usage:
 
-    visdep.py  <label>
+    visdep.py  [<switches>]  <label>  [<switches>]
+    visdep.py  -h[elp]|--help
+
+Where <switches> are:
+
+    -t[red]     The intermediate dot file will be piped through 'tred', which
+                performs transitive reduction of the graph. See ``man tred``
+                for more information.
+
+    -v[erbose]  The programs being run and the names of the intermediate
+                dot files will be shown.
 """
 
 from tempfile import mkstemp
@@ -17,7 +27,7 @@ import os
 import subprocess
 import sys
 
-def main(label):
+def process(label, reduce=False, verbose=False):
     fd, dotfile_path = mkstemp(suffix='.dot', prefix='visdep_', text=True)
 
     # The first program we want to run is in the sandbox with us
@@ -25,9 +35,12 @@ def main(label):
     visualiser = os.path.join(thisdir, 'visualise-dependencies.py')
 
     try:
-        retcode = subprocess.call([visualiser, label], stdout=fd)
-        if retcode < 0:
-            print 'Error %d running %s'%(-retcode, visualiser)
+        if verbose:
+            print 'Running', visualiser, 'for', label
+            print 'Outut dot file is', dotfile_path
+        retcode = subprocess.call('%s %s'%(visualiser, label), stdout=fd, shell=True)
+        if retcode != 0:
+            print 'Error %d running %s'%(abs(retcode), visualiser)
             return
     except OSError as e:
         print 'Error running %s: %s'%(visualiser, e)
@@ -36,22 +49,71 @@ def main(label):
     os.close(fd)
 
     # We assume that xdot.py is on our PATH
-    xdot = 'xdot.py'
+    if reduce:
+        tred = 'tred'
+        fd2, dotfile_path2 = mkstemp(suffix='.dot', prefix='visdep_', text=True)
+        try:
+            if verbose:
+                print 'Running', tred
+                print 'Output dot file is', dotfile_path2
+            retcode = subprocess.call('%s %s'%(tred, dotfile_path), stdout=fd2, shell=True)
+            if retcode != 0:
+                print 'Error %d running %s'%(abs(retcode), tred)
+                return
+        except OSError as e:
+            print 'Error running %s: %s'%(tred, e)
+            return
+        os.close(fd2)
+        dotfile_path = dotfile_path2
 
+    xdot = 'xdot.py'
     try:
-        retcode = subprocess.call([xdot, dotfile_path])
-        if retcode < 0:
-            print 'Error %d running %s'%(-retcode, xdot)
+        if verbose:
+            print 'Running', xdot
+        retcode = subprocess.call('%s %s'%(xdot, dotfile_path), shell=True)
+        if retcode != 0:
+            print 'Error %d running %s'%(abs(retcode), xdot)
             return
     except OSError as e:
         print 'Error running %s: %s'%(xdot, e)
         return
 
-if __name__ == '__main__':
-    args = sys.argv[1:]
-    if len(args) != 1:
+def main(args):
+
+    if not args:
         print __doc__
-    else:
-        main(args[0])
+        return 0
+
+    reduce = False
+    verbose = False
+    label = None
+
+    while args:
+        word = args.pop(0)
+        if word in ('-h', '-help', '--help'):
+            print __doc__
+            return
+        elif word in ('-t', '-tred'):
+            reduce = True
+        elif word in ('-v', '-verbose'):
+            verbose = True
+        elif word[0] == '-':
+            print 'Unrecognised switch', word
+            return
+        elif label is None:
+            label = word
+        else:
+            print 'Label "%s" already given, only one label allowed'
+            return
+
+    if label is None:
+        print __doc__
+        return 1
+
+    process(label, reduce, verbose)
+    return 0
+
+if __name__ == '__main__':
+    main(sys.argv[1:])
 
 # vim: set tabstop=8 softtabstop=4 shiftwidth=4 expandtab:

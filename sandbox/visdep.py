@@ -48,7 +48,7 @@ def process(labels, reduce=False, filter='dot', keep_files=False, verbose=False)
         fd, dotfile_path1 = mkstemp(suffix='.dot', prefix='visdep_', text=True)
         try:
             if verbose:
-                print 'Running', visualiser, 'for', label
+                print 'Running', visualiser, 'for', ' '.join(labels)
                 print 'Outut dot file is', dotfile_path1
             retcode = subprocess.call('%s %s'%(visualiser, ' '.join(labels)),
                                       stdout=fd, shell=True)

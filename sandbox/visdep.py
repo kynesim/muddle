@@ -35,7 +35,7 @@ import os
 import subprocess
 import sys
 
-def process(label, reduce=False, filter='dot', keep_files=False, verbose=False):
+def process(labels, reduce=False, filter='dot', keep_files=False, verbose=False):
 
     # The first program we want to run is in the sandbox with us
     thisdir = os.path.split(__file__)[0]
@@ -50,7 +50,8 @@ def process(label, reduce=False, filter='dot', keep_files=False, verbose=False):
             if verbose:
                 print 'Running', visualiser, 'for', label
                 print 'Outut dot file is', dotfile_path1
-            retcode = subprocess.call('%s %s'%(visualiser, label), stdout=fd, shell=True)
+            retcode = subprocess.call('%s %s'%(visualiser, ' '.join(labels)),
+                                      stdout=fd, shell=True)
             if retcode != 0:
                 print 'Error %d running %s'%(abs(retcode), visualiser)
                 return
@@ -108,7 +109,7 @@ def main(args):
     verbose = False
     keep_files = False
     filter = 'dot'
-    label = None
+    labels = []
 
     while args:
         word = args.pop(0)
@@ -126,17 +127,14 @@ def main(args):
         elif word[0] == '-':
             print 'Unrecognised switch', word
             return
-        elif label is None:
-            label = word
         else:
-            print 'Label "%s" already given, only one label allowed'
-            return
+            labels.append(word)
 
-    if label is None:
+    if not labels:
         print __doc__
         return 1
 
-    process(label, reduce, filter, keep_files, verbose)
+    process(labels, reduce, filter, keep_files, verbose)
     return 0
 
 if __name__ == '__main__':

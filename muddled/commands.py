@@ -1246,7 +1246,8 @@ class RunIn(Command):
                     builder.invocation.setup_environment(lbl, env)
 
                     with utils.Directory(dir):
-                        subprocess.call(command, shell=True, env=env)
+                        subprocess.call(command, shell=True, env=env,
+                                        stdout=sys.stdout, stderr=subprocess.STDOUT)
                 else:
                     print "! %s does not exist."%dir
 

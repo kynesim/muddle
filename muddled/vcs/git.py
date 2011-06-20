@@ -17,14 +17,13 @@ def git_supports_ff_only():
     global g_supports_ff_only
 
     if (g_supports_ff_only is None):
-        result = utils.run_cmd_for_output("git --version", allowFailure = True, useShell = True)
-        version = result[1]
+        retcode, stdout, stderr = utils.run_cmd_for_output("git --version", useShell = True)
+        version = stdout
         m = re.search(r' ([0-9]+)\.([a0-9]+)', version)
         if (int(m.group(1)) <= 1 and int(m.group(2)) <= 6):
             g_supports_ff_only = False
         else:
             g_supports_ff_only = True
-        
 
     return g_supports_ff_only
 

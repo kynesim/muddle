@@ -22,8 +22,9 @@ class AptGetBuilder(pkg.PackageBuilder):
         """
         Decide if the quoted debian package is already installed.
         """
-        process = subprocess.Popen([ "dpkg-query", "-l", 
-                                     pkg ], stdout = subprocess.PIPE)
+        process = subprocess.Popen([ "dpkg-query", "-l", pkg ],
+                                   stdout = subprocess.PIPE,
+                                   stderr = subprocess.PIPE)
         (stdout_data, stderr_data) = process.communicate()
         process.wait()
         # Now split the output into lines .. 

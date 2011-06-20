@@ -293,21 +293,18 @@ def current_machine_name():
     domain name, possibly not
     """
     return socket.gethostname()
-    
-    
-def run_cmd_for_output(cmd_array, env = None, allowFailure = False, useShell = False, verbose = True):
+
+def run_cmd_for_output(cmd_array, env = None, useShell = False, verbose = True):
     """
-    Run a command and return a pair (return value, output, err). If you set allowFailure = True,
-    of course, the return value will always be 0 (otherwise 
+    Run a command and return a tuple (return value, stdour output, stderr output).
     """
-    a_process = subprocess.Popen(cmd_array, stdout = subprocess.PIPE, stderr = subprocess.PIPE, \
-                                     shell = useShell)
+    a_process = subprocess.Popen(cmd_array, stdout=subprocess.PIPE, stderr=subprocess.PIPE,
+                                 shell = useShell)
     (out, err) = a_process.communicate()
     return (a_process.wait(), out, err)
 
 
-def run_cmd(cmd, env = None, allowFailure = False, isSystem = False,
-            verbose = True):
+def run_cmd(cmd, env=None, allowFailure=False, isSystem=False, verbose=True):
     """
     Run a command via the shell, raising an exception on failure,
 
@@ -321,13 +318,16 @@ def run_cmd(cmd, env = None, allowFailure = False, isSystem = False,
       utils.GiveUp.
     * if verbose is true, then print out the command before executing it
 
+    The command's stdout and stderr are redirected through Python's sys.stdout
+    and sys.stderr respectively.
+
     Return the exit code of this command.
     """
     if env is None: # so, for instance, an empty dictionary is allowed
         env = os.environ
     if verbose:
         print "> %s"%cmd
-    rv = subprocess.call(cmd, shell = True, env = env)
+    rv = subprocess.call(cmd, shell=True, env=env, stdout=sys.stdout, stderr=subprocess.STDOUT)
     if allowFailure or rv == 0:
         return rv
     else:
@@ -924,7 +924,8 @@ def arch_name():
 
     if (gArchName is None):
         # This is what the docs say you should do. Ugh.
-        x = subprocess.Popen(["uname", "-m"], stdout=subprocess.PIPE).communicate()[0]
+        x = subprocess.Popen(["uname", "-m"], stdout=subprocess.PIPE,
+                stderr=subprocess.PIPE).communicate()[0]
         gArchName = x.strip()
 
     return gArchName

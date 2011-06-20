@@ -1,5 +1,23 @@
 """
-Main command line support for the muddle program
+Main command line support for the muddle program.
+
+Usage:
+
+  muddle [<options>] <command> [<arg> ...]
+
+Options include:
+
+  --help, -h, -?      This help text
+  --tree <dir>        Use the muddle build tree at <dir>
+  --just-print, -n    Just print what muddle would have done. This is currently
+                      only partially supported - please do not trust it.
+
+If you don't give --tree, muddle will traverse directories up to the root to
+try and find a .muddle directory, which signifies the top of the build tree.
+
+To get help on commands, use:
+
+  muddle help [<command>]
 """
 import os
 
@@ -117,7 +135,7 @@ def help(cmd_dict, subcmd_dict, about=None):
     """
     Return the help message for 'about'.
 
-    If 'about' is None or empty, return help for all commands.
+    If 'about' is None or empty, return summary of all commands.
     """
 
     if not about:
@@ -205,7 +223,7 @@ def _cmdline(args, current_dir, original_env, muddle_binary):
 
     while args:
         word = args[0]
-        if word in ('-h', '--help', '-?'):
+        if word in ('-h', '-help', '--help', '-?'):
             print __doc__
             return
         elif word == '--tree':

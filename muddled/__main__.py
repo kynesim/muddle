@@ -4,23 +4,7 @@
 #
 
 """
-Main program for muddle:
-
-  muddle [<options>] <command> [<arg> ...]
-
-Options include:
-
-  --help, -h, -?      This help text
-  --tree [dir]        Use the muddle build tree at [dir]
-  --just-print, -n    Just print what you would have done.
-
-If you don't give --tree, we'll traverse directories up to the root
-to try and find a .muddle directory which signifies the top of the
-build tree.
-
-To get help on commands, use:
-
-  muddle help [<command>]
+Main program for muddle. Just calls the command line handler.
 """
 
 import os

@@ -2300,7 +2300,7 @@ class Subst(Command):
 @subcommand('stamp', 'save')
 class StampSave(Command):
     """
-    :Syntax: stamp save [-f[orce]|-h[ead]] [<file>]
+    :Syntax: stamp save [-f[orce]|-h[ead]] [<filename>]
 
     Go through each checkout, and save its remote repository and current
     revision id/number to a file.
@@ -2308,19 +2308,19 @@ class StampSave(Command):
     This is intended to be enough information to allow reconstruction of the
     entire build tree, as-is.
 
-    If a <file> is specified, then output will be written to that file.
-    If its name does not end in '.stamp' or '.partial', then '.stamp' will be
-    appended to it.
+    If a <filename> is specified, then output will be written to a file called
+    either <filename>.stamp or <filename>.partial. If <filename> already ended
+    in '.stamp' or '.partial', then the old extension will be removed before
+    deciding on whether to use '.stamp' or '.partial'.
 
-    If a <file> is not specified, then a name of the form <sha1-hash>.stamp
-    will be used, where <sha1-hash> is a hexstring representation of the hash
-    of the content of the file.
+    If a <filename> is not specified, then a file called <sha1-hash>.stamp or
+    <sha1-hash>.partial will be used, where <sha1-hash> is a hexstring
+    representation of the hash of the content of the file.
 
-    If it is not possible to write a full stamp file (revisions could not be
-    determined for all checkouts, and neither '-force' nor '-head' was
-    specified) then the extension ".partial" will be used instead of ".stamp".
-    An attempt will be made to give useful information about what the problems
-    are.
+    The '.partial' extension will be used if it was not possible to write a
+    full stamp file (revisions could not be determined for all checkouts, and
+    neither '-force' nor '-head' was specified). An attempt will be made to
+    give useful information about what the problems are.
 
     If a file already exists with the name ultimately chosen, that file will
     be overwritten.
@@ -2384,14 +2384,11 @@ class StampSave(Command):
             print 'Wrote revision data to %s'%working_filename
             print 'File has SHA1 hash %s'%hash
 
-            if filename:
-                final_name = filename
-            else:
-                final_name = self.decide_hash_filename(hash, filename, problems)
+            final_name = self.decide_stamp_filename(hash, filename, problems)
             print 'Renaming %s to %s'%(working_filename, final_name)
             os.rename(working_filename, final_name)
 
-    def decide_hash_filename(self, hash, basename=None, partial=False):
+    def decide_stamp_filename(self, hash, basename=None, partial=False):
         """
         Return filename, given a SHA1 hash hexstring, and maybe a basename.
 

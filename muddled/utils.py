@@ -12,6 +12,7 @@ import socket
 import stat
 import subprocess
 import sys
+import tempfile
 import textwrap
 import time
 import traceback
@@ -1759,6 +1760,9 @@ class NewDirectory(Directory):
     It is an error if the directory already exists, and a MuddleBug exception
     will be raised.
 
+    If 'where' is None, then tempfile.mkdtemp() will be used to create the
+    directory, and 'self.where' will be set to its name.
+
     If 'stay_on_error' is True, then the directory will not be left ("popd"
     will not be done) if an exception occurs in its 'with' clause.
 
@@ -1774,18 +1778,30 @@ class NewDirectory(Directory):
     """
     def __init__(self, where, stay_on_error=False,
                  show_pushd=True, show_popd=False, show_dirops=True):
-        where = normalise_dir(where)
-        if os.path.exists(where):
-            raise MuddleBug('Directory %s already exists'%where)
         self.show_dirops = show_dirops
-        if show_dirops:
-            # The extra spaces are to line up with 'pushd to'
-            print '++ mkdir    %s'%where
-        os.makedirs(where)
+        if where is None:
+            where = tempfile.mkdtemp()
+            if show_dirops:     # Obviously, this is a bit of a bluff
+                # The extra spaces are to line up with 'pushd to'
+                print '++ mkdir    %s'%where
+        else:
+            where = normalise_dir(where)
+            if os.path.exists(where):
+                raise MuddleBug('Directory %s already exists'%where)
+            if show_dirops:
+                # The extra spaces are to line up with 'pushd to'
+                print '++ mkdir    %s'%where
+            os.makedirs(where)
         super(NewDirectory, self).__init__(where, stay_on_error, show_pushd, show_popd)
 
 class TransientDirectory(NewDirectory):
     """A pushd/popd directory that gets created first and deleted afterwards
+
+    It is an error if the directory already exists, and a MuddleBug exception
+    will be raised.
+
+    If 'where' is None, then tempfile.mkdtemp() will be used to create the
+    directory, and 'self.where' will be set to its name.
 
     If 'stay_on_error' is True, then the directory will not be left ("popd"
     will not be done) if an exception occurs in its 'with' clause.
@@ -1803,11 +1819,8 @@ class TransientDirectory(NewDirectory):
     If 'show_dirops' is true, then a message will be printed out showing the
     'mkdir' command used to create and the 'rmtree' command used to delete the
     transient directory.
-
-    It is an error if the directory already exists, and a MuddleBug exception
-    will be raised.
     """
-    def __init__(self, where, stay_on_error=False, keep_on_error=False,
+    def __init__(self, where=None, stay_on_error=False, keep_on_error=False,
                  show_pushd=True, show_popd=False, show_dirops=True):
         self.rmtree_on_error = not keep_on_error
         super(TransientDirectory, self).__init__(where, stay_on_error,

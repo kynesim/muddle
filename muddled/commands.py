@@ -1181,6 +1181,45 @@ class QueryUnused(QueryCommand):
         print_labels(deployments)
         print_labels(other)
 
+@subcommand('query', 'kernelver')
+class QueryKernelver(QueryCommand):
+    """
+    :Syntax: query kernelver <label>
+
+    Determine the Linux kernel version.
+
+    <label> should be the package label for the kernel version. This command
+    looks in <obj>/obj/include/linux/version.h (where <obj> is the directory
+    returned by "muddle query objdir <label>") for the LINUX_VERSION_CODE
+    definition, and attempts to decode that.
+
+    It prints out the Linux version, e.g.::
+
+      muddle query kernelver package:linux_kernel{boot}/built
+      2.6.29
+    """
+
+    def kernel_version(self, builder, kernel_pkg):
+        """Given the label for the kernel, determine its version.
+        """
+        kernel_root = builder.invocation.package_obj_path(kernel_pkg)
+        include_file = os.path.join(kernel_root, 'obj', 'include', 'linux', 'version.h')
+        with open(include_file) as fd:
+            line1 = fd.readline()
+        parts = line1.split()
+        if parts[0] != '#define' or parts[1] != 'LINUX_VERSION_CODE':
+            raise GiveUp('Unable to determine kernel version: first line of %s is %s'%(include_file,
+                         line1.strip()))
+        version = int(parts[2])
+        a = (version & 0xFF0000) >> 16
+        b = (version & 0x00FF00) >> 8
+        c = (version & 0x0000FF)
+        return '%d.%d.%d'%(a,b,c)
+
+    def with_build_tree(self, builder, current_dir, args):
+        label = self.get_label(builder, args)
+        print self.kernel_version(builder, label)
+
 
 @command('runin')
 class RunIn(Command):

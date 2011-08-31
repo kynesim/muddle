@@ -1,0 +1,7 @@
+# Ignore standard Python things
+*.pyc
+
+# Ignore editor artefacts
+*~
+.*.swp
+.*.swo

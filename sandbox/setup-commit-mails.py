@@ -19,7 +19,6 @@ NYI: set up a notify on the top-level versions directory if it is held in
 
 import os
 import sys
-import traceback
 import subprocess
 import re
 import tempfile
@@ -35,16 +34,10 @@ except ImportError:
     from muddled.utils import GiveUp
     # This still fails? add the directory containing muddled to your PYTHONPATH
 
-from muddled.utils import run_cmd,get_cmd_data
+from muddled.utils import run_cmd
 from muddled.cmdline import find_and_load
 
 ##########################################################
-
-def maybe_run(cmd, dryRun):
-    if dryRun:
-        print "WOULD RUN: %s"%cmd
-    else:
-        run_cmd(cmd)
 
 class RepositoryBase(object):
     """
@@ -87,7 +80,7 @@ class RepositoryBase(object):
         try:
             local_tempfile = "<local tempfile>"
             remote_tempfile = "<remote tempfile>"
-            if dry_run is True:
+            if dry_run:
                 print "Script to use:\n%s<<< END SCRIPT >>>"%self.get_script()
             else:
                 localtemp_raw = tempfile.mkstemp(prefix="mcms-", suffix=".tmp", text=True)
@@ -103,14 +96,14 @@ class RepositoryBase(object):
 
             # Then run it remotely
             remote_cmd = [ './'+remote_tempfile, self.ssh_access.path, build_name, email_dest ]
-            self.ssh_acccess.ssh_remote_cmd(remote_cmd, dirs, dry_run)
+            self.ssh_access.ssh_remote_cmd(remote_cmd, dirs, dry_run)
 
         finally:
             if local_tempfile is not "<local tempfile>":
-                    if dry_run:
-                        print "Would remove %s"%local_tempfile
-                    else:
-                        os.remove(local_tempfile)
+                if dry_run:
+                    print "Would remove %s"%local_tempfile
+                else:
+                    os.remove(local_tempfile)
             if remote_tempfile is not "<remote tempfile>":
                 self.ssh_access.ssh_remote_cmd(['rm', remote_tempfile], dry_run)
 
@@ -251,10 +244,12 @@ class SshAccess(object):
         s = host
         if user:
             s = '%s@%s'%(user, s)
-        if port:
-            s = '%s:%s'%(s, port)
 
-    def scp_remote_cmd(self, local_script, remote_script, try_run=False):
+        # We don't include the port in this because scp and ssh need to
+        # be told it in different ways
+        self.user_at_host = s
+
+    def scp_remote_cmd(self, local_script, remote_script, dry_run=False):
         """SCP the given script to our location.
         """
         parts = ['scp']
@@ -280,7 +275,7 @@ class SshAccess(object):
             parts.append('%s:%s'%(self.user_at_host, self.port))
         else:
             parts.append(self.user_at_host)
-        parts.append(remote_cmd)
+        parts += remote_cmd
         cmd = ' '.join(parts)
         if dry_run:
             print "Would run: %s "%cmd
@@ -310,11 +305,11 @@ def parse_repo_url(url):
     pgit = re.compile("git\+ssh://([^@]+\@)?([^/:]+)(:\d+)?(/.*)")
     m = pgit.match(url)
     if m is not None:
-        userAt = m.group(1)
+        user = m.group(1)
         host = m.group(2)
-        colonPort = m.group(3)
+        port = m.group(3)
         path = m.group(4)
-        return GitRepository(SshAccess(userAt, host, colonPort, path))
+        return GitRepository(SshAccess(user, host, port, path))
     raise GiveUp("Sorry, I don't know how to handle this repository: %s"%url)
     # regexp.
 
@@ -322,7 +317,6 @@ def parse_repo_url(url):
 
 def _do_cmdline(args):
     original_dir = os.getcwd()
-    original_env = os.environ.copy()
     dry_run = False
 
     # TODO: allow switches after args.

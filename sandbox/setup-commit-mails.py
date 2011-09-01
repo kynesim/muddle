@@ -1,12 +1,12 @@
 #! /usr/bin/env python
 
 """
-This is a helper script to automatically set up commit mails in the 
+This is a helper script to automatically set up commit mails in the
 repositories behind the checkouts of an instance of muddle.
 
 Invoke this script from somewhere within a muddle tree:
     python /path/to/setup-commit-mails.py [<options>] email-destination
-    
+
 Options are:
     --help, -h, -?  Shows this help text
     --dry-run, -n   Don't actually make any changes, just describe what
@@ -49,12 +49,12 @@ def maybe_run(cmd, dryRun):
 class RepositoryBase:
     """
         Base class for a repository we can meddle with over ssh.
-        
+
         TODO: build repo URL parsing into these classes?
     """
     def __init__(self, sshdir):
         self.sshdir = sshdir
-        
+
     def get_script(self):
         """
             Returns the text of a script (with shebang) that knows how to
@@ -69,10 +69,10 @@ class RepositoryBase:
               suitable identifying tag to the subject lines of the emails it sends.
 
             The script is expected to read a line at a time from stdin,
-            each line being a directory name relative to "rootdir", 
-            and do whatever is appropriate to that directory. 
-            The script must cope with any vcs-specific quirks 
-            (e.g. git repos may be bare and may need to have ".git" 
+            each line being a directory name relative to "rootdir",
+            and do whatever is appropriate to that directory.
+            The script must cope with any vcs-specific quirks
+            (e.g. git repos may be bare and may need to have ".git"
             appended to their names).
         """
         raise Exception("get_script not defined")
@@ -97,9 +97,9 @@ class RepositoryBase:
                 lt_f = os.fdopen(localtemp_raw[0],'w')
                 lt_f.write(self.get_script()+"\n")
                 lt_f.close()
-    
+
             maybe_run('scp "%s" "%s:%s"'
-                      % (local_tempfile, self.sshdir.user_at_host, remote_tempfile), 
+                      % (local_tempfile, self.sshdir.user_at_host, remote_tempfile),
                       dry_run)
 
             cmd = [ 'ssh', self.sshdir.user_at_host, './'+remote_tempfile, self.sshdir.path, build_name, email_dest ]
@@ -116,7 +116,7 @@ class RepositoryBase:
                     print >> sys.stderr, stdoutdata
                     raise GiveUp("Error invoking our remote script, rc=%d"%p.returncode)
                 print "Script exited successfully, output follows:\n%s\n<<<END OUTPUT>>>\n"%stdoutdata
-    
+
         finally:
             if local_tempfile is not "<local tempfile>":
                     if dry_run:
@@ -128,7 +128,7 @@ class RepositoryBase:
 
 
 ##############################
-    
+
 class GitRepository(RepositoryBase):
     def get_script(self):
         return """
@@ -172,7 +172,7 @@ fi
 while read srcdir; do
     cd $OLDPWD
     cd $REPOROOT
-    
+
     #echo "Processing $srcdir"
 
     if [ -d "$srcdir/.git" ]; then
@@ -252,7 +252,7 @@ class SshAccessibleDirectory:
     """
     path = ""
     user_at_host = ""
-    
+
     def __init__(self,userAt,host,colonPort,path):
         self.path = path
         s = ""
@@ -284,7 +284,7 @@ def _do_cmdline(args):
     original_dir = os.getcwd()
     original_env = os.environ.copy()
     dry_run = False
-    
+
     # TODO: allow switches after args.
     while args:
         word = args[0]
@@ -301,7 +301,7 @@ def _do_cmdline(args):
 
     if len(args) != 1:
         raise GiveUp, "Incorrect non-option argument count (expected 1, the email destination)"
-    
+
     email_dest = args[0]
 
     builder = find_and_load(original_dir, muddle_binary=None)
@@ -311,7 +311,7 @@ def _do_cmdline(args):
 
     if not builder:
         raise GiveUp("Cannot find a build tree.")
-    
+
     rootrepo = builder.invocation.db.repo.get()
 
     repo = parse_repo_url(rootrepo)

@@ -261,6 +261,74 @@ class SshAccessibleDirectory:
         if colonPort is not None: s += colonPort
         self.user_at_host = s
 
+class SshAccess(object):
+    """A wrapper for managing ssh and scp access to a repository.
+    """
+
+    def __init__(self, user=None, host=None, port=None, path=None):
+        """Where we want to access.
+
+        Some combination equivalent to [user@][host][:port][path]
+        """
+        self.user = user
+        self.host = host
+        self.port = port
+        self.path = path
+
+        s = host
+        if user:
+            s = '%s@%s'%(user, s)
+        if port:
+            s = '%s:%s'%(s, port)
+
+    def scp_remote_cmd(self, local_script, remote_script, try_run=False):
+        """SCP the given script to our location.
+        """
+        parts = ['scp']
+        if self.port:
+            parts.append('-P %s'%self.port)
+        parts.append(local_script)
+        parts.append('%s:%s'%(self.user_at_host, remote_script))
+        cmd = ' '.join(parts)
+        if dry_run:
+            print "Would run: %s"%cmd
+        else:
+            run_cmd(cmd)
+
+    def ssh_remote_cmd(self, remote_cmd, dirs=None, dry_run=False):
+        """SSH to our location, and run the command over the directories.
+
+        * 'remote_cmd' is the words that make up the command (as a list).
+        * 'dirs' is the list of directories we want to pass to the command.
+          If this is None, or an empty list, then we won't do that...
+        """
+        parts = ['ssh']
+        if self.port:
+            parts.append('%s:%s'%(self.user_at_host, self.port))
+        else:
+            parts.append(self.user_at_host)
+        parts.append(remote_cmd)
+        cmd = ' '.join(parts)
+        if dry_run:
+            print "Would run: %s "%cmd
+            if dirs:
+                print "and pass it the following directories:"
+                print "  \n".join(dirs)
+        elif dirs:
+            print "> %s"%cmd
+            p = subprocess.Popen(cmd,
+                                 stdin=subprocess.PIPE,
+                                 stdout=subprocess.PIPE,
+                                 stderr=subprocess.STDOUT)
+            stdoutdata, stderrdata = p.communicate("\n".join(dirs) +'\n')
+            if p.returncode:
+                print >> sys.stderr, "Error invoking the remote script (rc=%d):"%p.returncode
+                print >> sys.stderr, stdoutdata
+                raise GiveUp("Error invoking the remote script, rc=%d"%p.returncode)
+            print "Script exited successfully, output was:\n%s\n<<<END OUTPUT>>>\n"%stdoutdata
+        else:
+            run_cmd(cmd)
+
 
 def parse_repo_url(url):
     """

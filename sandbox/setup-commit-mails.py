@@ -46,14 +46,14 @@ def maybe_run(cmd, dryRun):
     else:
         run_cmd(cmd)
 
-class RepositoryBase:
+class RepositoryBase(object):
     """
         Base class for a repository we can meddle with over ssh.
 
         TODO: build repo URL parsing into these classes?
     """
-    def __init__(self, sshdir):
-        self.sshdir = sshdir
+    def __init__(self, ssh_access):
+        self.ssh_access = ssh_access
 
     def get_script(self):
         """
@@ -98,24 +98,12 @@ class RepositoryBase:
                 lt_f.write(self.get_script()+"\n")
                 lt_f.close()
 
-            maybe_run('scp "%s" "%s:%s"'
-                      % (local_tempfile, self.sshdir.user_at_host, remote_tempfile),
-                      dry_run)
+            # First, copy the script over to the remote host
+            self.ssh_access.scp_remote_cmd(local_tempfile, remote_tempfile, dry_run)
 
-            cmd = [ 'ssh', self.sshdir.user_at_host, './'+remote_tempfile, self.sshdir.path, build_name, email_dest ]
-            if dry_run:
-                print "Would invoke our script (%s) and provide it the following input:"%cmd
-                print "\n".join(dirs)
-                print "<<< END LIST >>>"
-            else:
-                print "> %s"%cmd
-                p = subprocess.Popen(cmd, stdin=subprocess.PIPE, stdout=subprocess.PIPE, stderr=subprocess.STDOUT)
-                stdoutdata, stderrdata = p.communicate("\n".join(dirs) +'\n')
-                if p.returncode:
-                    print >> sys.stderr, "Error invoking our remote script (rc=%d):"%p.returncode
-                    print >> sys.stderr, stdoutdata
-                    raise GiveUp("Error invoking our remote script, rc=%d"%p.returncode)
-                print "Script exited successfully, output follows:\n%s\n<<<END OUTPUT>>>\n"%stdoutdata
+            # Then run it remotely
+            remote_cmd = [ './'+remote_tempfile, self.ssh_access.path, build_name, email_dest ]
+            self.ssh_acccess.ssh_remote_cmd(remote_cmd, dirs, dry_run)
 
         finally:
             if local_tempfile is not "<local tempfile>":
@@ -124,12 +112,13 @@ class RepositoryBase:
                     else:
                         os.remove(local_tempfile)
             if remote_tempfile is not "<remote tempfile>":
-                maybe_run('ssh "%s" rm "%s"'%(self.sshdir.user_at_host, remote_tempfile), dry_run)
+                self.ssh_access.ssh_remote_cmd(['rm', remote_tempfile], dry_run)
 
 
 ##############################
 
 class GitRepository(RepositoryBase):
+
     def get_script(self):
         return """
 #!/bin/bash -e
@@ -245,22 +234,6 @@ cd $OLDPWD
 
 ##########################################################
 
-class SshAccessibleDirectory:
-    """
-        Representation of a repository directory we can access over ssh:
-        [user@]host[:port] (user_at_host) and the path on that system.
-    """
-    path = ""
-    user_at_host = ""
-
-    def __init__(self,userAt,host,colonPort,path):
-        self.path = path
-        s = ""
-        if userAt is not None: s += userAt
-        s += host
-        if colonPort is not None: s += colonPort
-        self.user_at_host = s
-
 class SshAccess(object):
     """A wrapper for managing ssh and scp access to a repository.
     """
@@ -316,7 +289,7 @@ class SshAccess(object):
                 print "  \n".join(dirs)
         elif dirs:
             print "> %s"%cmd
-            p = subprocess.Popen(cmd,
+            p = subprocess.Popen(parts,
                                  stdin=subprocess.PIPE,
                                  stdout=subprocess.PIPE,
                                  stderr=subprocess.STDOUT)
@@ -328,7 +301,6 @@ class SshAccess(object):
             print "Script exited successfully, output was:\n%s\n<<<END OUTPUT>>>\n"%stdoutdata
         else:
             run_cmd(cmd)
-
 
 def parse_repo_url(url):
     """
@@ -342,7 +314,7 @@ def parse_repo_url(url):
         host = m.group(2)
         colonPort = m.group(3)
         path = m.group(4)
-        return GitRepository(SshAccessibleDirectory(userAt, host, colonPort, path))
+        return GitRepository(SshAccess(userAt, host, colonPort, path))
     raise GiveUp("Sorry, I don't know how to handle this repository: %s"%url)
     # regexp.
 

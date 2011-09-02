@@ -1,4 +1,4 @@
-# Ignore standard Python things
+# Ignore normal Python things
 *.pyc
 
 # Ignore editor artefacts

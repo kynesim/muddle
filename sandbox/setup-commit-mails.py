@@ -117,7 +117,7 @@ class GitRepository(RepositoryBase):
 #!/bin/bash -e
 
 if [ -z "$3" ] || [ ! -z "$4" ]; then
-    echo "Wrong number of arguments (expected 3)"
+    echo "Wrong number of arguments (expected 3: REPOROOT BUILDNAME EMAILDEST)"
     exit 5
 fi
 
@@ -127,29 +127,37 @@ EMAILDEST=$3
 
 OLDPWD=`pwd`
 
-# Known locations for the post-receive hook:
-PRH_SRC=/usr/share/doc/git-core/contrib/hooks/post-receive-email
-PRH_DEST=/usr/local/lib/git-post-receive-email
+# Contributed hooks are meant to be stored in a standard place.
+# On Ubuntu 10.04, they were in:
 
-if [ ! -x ${PRH_DEST} ]; then
-    if [ ! -f ${PRH_SRC} ]; then
-        echo "Error: Cannot locate post-receive-email hook on this system"
-        # non-debian/ubuntu machines may need some logic above to iterate over possible values of PRH_SRC.
-        exit 5
-    fi
+CONTRIB_HOOKS_DIR_1=/usr/share/doc/git-core/contrib/hooks
 
-    # Try to set it up, if we can write to /usr/local/lib
-    cp -f ${PRH_SRC} ${PRH_DEST} || true
-    chmod a+x ${PRH_DEST} || true
-    if [ ! -x ${PRH_DEST} ]; then
-        echo "Error: Could not set up post-receive-email hook"
-        echo -e "As root, please run: \n  cp ${PRH_SRC} ${PRH_DEST}\n  chmod a+x ${PRH_DEST}"
-        exit 4
-    fi
-    POSTRECEIVE=${PRH_DEST}
+# but in Ubuntu 11.04 they are now in:
+
+CONTRIB_HOOKS_DIR_2=/usr/share/doc/git/contrib/hooks
+
+# So, which do we have?
+if [ -d "${CONTRIB_HOOKS_DIR_1}" ]; then
+    CONTRIB_HOOKS_DIR=${CONTRIB_HOOKS_DIR_1}
+    CONTRIB_HOOKS_OTHER_DIR=${CONTRIB_HOOKS_DIR_2}
+elif [ -d "${CONTRIB_HOOKS_DIR_2}" ]; then
+    CONTRIB_HOOKS_DIR=${CONTRIB_HOOKS_DIR_2}
+    CONTRIB_HOOKS_OTHER_DIR=${CONTRIB_HOOKS_DIR_1}
 else
-    POSTRECEIVE=${PRH_DEST}
+    echo "error: cannot find git contributed hooks directory"
+    echo "it is not ${CONTRIB_HOOKS_DIR_1}"
+    echo "       or ${CONTRIB_HOOKS_DIR_2}"
+    exit 1
 fi
+
+# The hook we want is
+POST_RECEIVE_EMAIL_HOOK=${CONTRIB_HOOKS_DIR}/post-receive-email
+# and if we find this hook, we might expect to replace it
+OTHER_POST_RECEIVE_EMAIL_HOOK=${CONTRIB_HOOKS_OTHER_DIR}/post-receive-email
+
+# Older versions of this script linked to:
+LEGACY_LINK=/usr/local/lib/git-post-receive-email
+
 
 while read srcdir; do
     cd $OLDPWD
@@ -172,35 +180,49 @@ while read srcdir; do
     fi
 
     hooksdir="$gitdir/hooks"
-    if [ ! -d "${hooksdir}" ]; then 
+    if [ ! -d "${hooksdir}" ]; then
         echo "error: ${REPOROOT}/$gitdir has no hooks dir"
         exit 1
     fi
 
     cd ${hooksdir}
-    if [ ! -e post-receive ]; then
-        ln -s ${POSTRECEIVE} post-receive
-        git config --replace-all hooks.mailinglist "${EMAILDEST}"
-        git config --replace-all hooks.emailprefix ""
-        echo "installed hook for $gitdir -> ${EMAILDEST}"
-    elif [ -L post-receive ]; then
-        # it's a symlink: have we been here before?
+    if [ -L post-receive ]; then
+        # it's a symlink: is it one we recognise?
         dest=`readlink post-receive`
-        if [ "${dest}" == "${POSTRECEIVE}" ]; then
+        if [ "${dest}" == "${POST_RECEIVE_EMAIL_HOOK}" ]; then
+            # It's the right sumlink - is it to the correct email address?
             CUR=`git config hooks.mailinglist`
             PREF=`git config hooks.emailprefix`
             if [ "${CUR}" != "${EMAILDEST}" ]; then
                 if [ ! -z "${PREF}" ]; then
                     prefwords=" (and emailprefix: ${CUR} -> \"\")"
                 fi
-                echo "${gitdir}: ${CUR} -> ${EMAILDEST} ${prefwords}"
                 git config --replace-all hooks.mailinglist "${EMAILDEST}"
                 git config --replace-all hooks.emailprefix ""
+                echo "changed email address: ${gitdir}: ${CUR} -> ${EMAILDEST} ${prefwords}"
             fi
+        elif [ "${dest}" == "${OTHER_POST_RECEIVE_EMAIL_HOOK}" ]; then
+            # It *was* the other Ubuntu location - update it to the one we have now
+            ln -sf ${POST_RECEIVE_EMAIL_HOOK} post-receive
+            git config --replace-all hooks.mailinglist "${EMAILDEST}"
+            git config --replace-all hooks.emailprefix ""
+            echo "updated hook to current Ubuntu hook: $gitdir -> ${EMAILDEST}"
+        elif [ "${dest}" == "${LEGACY_LINK}" ]; then
+            # It was the old link previous versions used - update it
+            ln -sf ${POST_RECEIVE_EMAIL_HOOK} post-receive
+            git config --replace-all hooks.mailinglist "${EMAILDEST}"
+            git config --replace-all hooks.emailprefix ""
+            echo "updated legacy link to current Ubuntu hook: $gitdir -> ${EMAILDEST}"
         else
             echo "Error: $hooksdir/post-receive was an unexpected symlink (to ${dest}), don't know how to handle this"
             exit 2
         fi
+    elif [ ! -e post-receive ]; then
+        # A new repository, with no such file
+        ln -s ${POST_RECEIVE_EMAIL_HOOK} post-receive
+        git config --replace-all hooks.mailinglist "${EMAILDEST}"
+        git config --replace-all hooks.emailprefix ""
+        echo "installed hook: $gitdir -> ${EMAILDEST}"
     else
         # exists and isn't a symlink, gah
         echo "Error: $hooksdir/post-receive was an unexpected file, don't know how to handle this"
@@ -272,16 +294,15 @@ class SshAccess(object):
         """
         parts = ['ssh']
         if self.port:
-            parts.append('%s:%s'%(self.user_at_host, self.port))
-        else:
-            parts.append(self.user_at_host)
+            parts.append('-p %s'%self.port)
+        parts.append(self.user_at_host)
         parts += remote_cmd
         cmd = ' '.join(parts)
         if dry_run:
             print "Would run: %s "%cmd
             if dirs:
                 print "and pass it the following directories:"
-                print "  \n".join(dirs)
+                print "\n".join(dirs)
         elif dirs:
             print "> %s"%cmd
             p = subprocess.Popen(parts,
@@ -305,9 +326,9 @@ def parse_repo_url(url):
     pgit = re.compile("git\+ssh://([^@]+\@)?([^/:]+)(:\d+)?(/.*)")
     m = pgit.match(url)
     if m is not None:
-        user = m.group(1)
+        user = m.group(1)[:-1]  # lose the trailing '@'
         host = m.group(2)
-        port = m.group(3)
+        port = m.group(3)[1:]   # lose the initial ':'
         path = m.group(4)
         return GitRepository(SshAccess(user, host, port, path))
     raise GiveUp("Sorry, I don't know how to handle this repository: %s"%url)

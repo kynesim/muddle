@@ -204,7 +204,9 @@ class Init(Command):
 
       file+file:///somewhere/else/examples/d
 
-    as its repository and a build description of "builds/01.py".
+    as its repository and a build description of "builds/01.py". The build tree
+    is set up in the current directory. Traditionally, that should have been
+    empty before doing ``muddle init``.
 
     The astute will notice that you haven't told muddle which actual repository
     the build description is in - you've only told it where the repository root
@@ -212,6 +214,10 @@ class Init(Command):
 
     Muddle assumes that builds/01.py means repository
     "file+file:///somewhere/else/examples/d/builds" and file "01.py" therein.
+
+    Note: if you find yourself trying to ``muddle init`` a subdomain, don't.
+    Instead, add the subdomain to the current build description, and check it
+    out that way.
     """
 
     def requires_build_tree(self):
@@ -250,9 +256,9 @@ class Init(Command):
 @command('bootstrap')
 class Bootstrap(Command):
     """
-    :Syntax: bootstrap <repo> <build_name>
+    :Syntax: bootstrap [-subdomain] <repo> <build_name>
 
-    Create a new build tree, from scratch.
+    Create a new build tree, from scratch, in the current directory.
 
     * <repo> should be the root URL for the repository which you will be using
       as the default remote location. It is assumed that it will contain a
@@ -288,22 +294,48 @@ class Bootstrap(Command):
     Note that 'src/builds/01.py' will have been *added* to the VCS (locally),
     but will not have been committed (this may change in a future release).
 
-    Note muddle cannot currently set up the VCS support for Subversion in the
+    Also, muddle cannot currently set up the VCS support for Subversion in the
     subdirectories.
+
+    If you try to do this in a directory that is itself within an existing
+    build tree (i.e., in some parent directory there is a ``.muddle``
+    directory), then it will normally fail because you are trying to create a
+    build within an existing build. If you are actually doing this because you
+    are bootstrapping a subdomain, then specify the ``-subdomain`` switch.
+
+    Note that this command will never bootstrap a new build tree in the same
+    directory as an existing ``.muddle`` directory.
     """
 
     def requires_build_tree(self):
         return False
 
     def with_build_tree(self, builder, current_dir, args):
-        raise utils.GiveUp("Can't bootstrap a build tree " 
-                    "when one already exists (%s)"%builder.invocation.db.root_path)
+        if args[0] != '-subdomain':
+            raise utils.GiveUp("Can't bootstrap a build tree when one already"
+                               " exists (%s)\nTry using '-bootstrap' if you"
+                               " want to bootstrap a subdomain"%builder.invocation.db.root_path)
+        args = args[1:]
+
+        if os.path.exists('.muddle'):
+            raise utils.GiveUp("Even with '-subdomain', can't bootstrap a build"
+                               " tree in the same directory as an existing"
+                               " tree (found .muddle)")
+
+        self.bootstrap(current_dir, args)
 
     def without_build_tree(self, muddle_binary, root_path, args):
         """
         Bootstrap a build tree.
         """
 
+        if args[0] == '-subdomain':
+            print 'You are not currently within a build tree. "-subdomain" ignored'
+            args = args[1:]
+
+        self.bootstrap(root_path, args)
+
+    def bootstrap(self, root_path, args):
         if len(args) != 2:
             raise utils.GiveUp(self.__doc__)
 

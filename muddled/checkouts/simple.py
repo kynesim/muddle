@@ -9,7 +9,7 @@ import muddled.version_control as version_control
 
 from muddled.depend import Label
 
-def relative(builder, co_name, repo_relative = None, rev = None):
+def relative(builder, co_name, repo_relative = None, rev = None, branch = None):
     """
     A simple, VCS-controlled, checkout from a given repo_relative
     name. 
@@ -30,12 +30,12 @@ def relative(builder, co_name, repo_relative = None, rev = None):
     builder.invocation.db.set_checkout_path(co_label, co_name)
 
     vcs_handler = version_control.vcs_action_for(builder, co_label, repo, rev,
-                                                 rest)
+                                                 rest, branch=branch)
     pkg.add_checkout_rules(builder.invocation.ruleset,
                            co_label,
                            vcs_handler)
 
-def absolute(builder, co_name, repo_url, rev = None):
+def absolute(builder, co_name, repo_url, rev = None, branch = None):
     """
     Check out a twolevel repository from an absolute URL.
     """
@@ -44,7 +44,7 @@ def absolute(builder, co_name, repo_url, rev = None):
     builder.invocation.db.set_checkout_path(co_label, co_name)
 
     vcs_handler = version_control.vcs_action_for(builder, co_label, repo_url,
-                                                 rev, None)
+                                                 rev, None, branch=branch)
     pkg.add_checkout_rules(builder.invocation.ruleset,
                            co_label,
                            vcs_handler)

@@ -11,7 +11,7 @@ from muddled.depend import Label
 
 import os
 
-def relative(builder, co_dir, co_name, repo_relative = None, rev = None):
+def relative(builder, co_dir, co_name, repo_relative = None, rev = None, branch = None):
     """
     A two-level version of checkout.simple.relative().
 
@@ -53,7 +53,8 @@ def relative(builder, co_dir, co_name, repo_relative = None, rev = None):
     builder.invocation.db.set_checkout_path(co_label, os.path.join(co_dir, co_name))
 
     vcs_handler = version_control.vcs_action_for(builder, co_label, repo, rev,
-                                                 rest, co_dir=co_dir)
+                                                 rest, co_dir=co_dir,
+                                                 branch=branch)
     pkg.add_checkout_rules(builder.invocation.ruleset,
                            co_label,
                            vcs_handler)
@@ -61,7 +62,7 @@ def relative(builder, co_dir, co_name, repo_relative = None, rev = None):
 # For historical reasons
 twolevel = relative   
 
-def absolute(builder, co_dir, co_name, repo_url, rev = None):
+def absolute(builder, co_dir, co_name, repo_url, rev = None, branch = None):
     """
     Check out a twolevel repository from an absolute URL.
     """
@@ -72,7 +73,8 @@ def absolute(builder, co_dir, co_name, repo_url, rev = None):
     builder.invocation.db.set_checkout_path(co_label, rest)
 
     vcs_handler = version_control.vcs_action_for(builder, co_label, repo_url,
-                                                 rev, None, co_dir=co_dir)
+                                                 rev, None, co_dir=co_dir,
+                                                 branch=branch)
     pkg.add_checkout_rules(builder.invocation.ruleset,
                            co_label,
                            vcs_handler)

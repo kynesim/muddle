@@ -22,7 +22,8 @@ class Bazaar(VersionControlSystem):
         communicate over ssh, not just "ssh".
         Accomodate it, so the user does not need to care about this.
         """
-        if repo.startswith("ssh://"):
+        print 'Repo is', repo
+        if repo.startswith("ssh:"):
             return "bzr+%s"%repo
         else:
             return repo

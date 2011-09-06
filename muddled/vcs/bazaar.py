@@ -93,12 +93,19 @@ class Bazaar(VersionControlSystem):
         # a checkout that is "bound" to the remote repository, so that doing
         # 'bzr commit' will behave like SVN, and commit/push to the remote
         # repository. We don't want that behaviour.
+        ##if branch:
+        ##    raise utils.GiveUp("Bazaar does not support the 'branch' argument"
+        ##                       " to 'checkout' (branch='%s')"%branch)
+
         if branch:
-            raise utils.GiveUp("Bazaar does not support the 'branch' argument"
-                               " to 'checkout' (branch='%s')"%branch)
+            effective_repo = os.path.join(repo, branch)
+        else:
+            effective_repo = repo
+
+        print 'xxx',effective_repo
 
         utils.run_cmd("bzr branch %s %s %s"%(self._r_option(revision),
-                                             self._normalised_repo(repo),
+                                             self._normalised_repo(effective_repo),
                                              co_leaf),
                       env=self._derive_env(), verbose=verbose)
 

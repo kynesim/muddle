@@ -28,7 +28,7 @@ class Bazaar(VersionControlSystem):
         else:
             return repo
 
-    def _r_option(self, revision, branch):
+    def _r_option(self, revision):
         """
         Return the -r option(s) to pass to bzr commands, if any
         """

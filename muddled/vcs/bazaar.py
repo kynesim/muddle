@@ -28,13 +28,18 @@ class Bazaar(VersionControlSystem):
         else:
             return repo
 
-    def _r_option(self, revision):
+    def _r_option(self, revision, branch):
         """
-        Return the -r option to pass to bzr commands, if any
+        Return the -r option(s) to pass to bzr commands, if any
         """
+        option = ""
+
         if revision is None or revision == "HEAD":
             return ""
         else:
+            # We can't says "-r revno:xxx" because we don't know what the
+            # user has given us, and it may not be a revno (indeed, they
+            # could have given us "date:yesterday"
             return "-r %s"%revision
 
     def _derive_env(self):
@@ -93,16 +98,11 @@ class Bazaar(VersionControlSystem):
         # a checkout that is "bound" to the remote repository, so that doing
         # 'bzr commit' will behave like SVN, and commit/push to the remote
         # repository. We don't want that behaviour.
-        ##if branch:
-        ##    raise utils.GiveUp("Bazaar does not support the 'branch' argument"
-        ##                       " to 'checkout' (branch='%s')"%branch)
 
         if branch:
             effective_repo = os.path.join(repo, branch)
         else:
             effective_repo = repo
-
-        print 'xxx',effective_repo
 
         utils.run_cmd("bzr branch %s %s %s"%(self._r_option(revision),
                                              self._normalised_repo(effective_repo),

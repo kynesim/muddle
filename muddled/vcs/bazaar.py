@@ -126,8 +126,9 @@ class Bazaar(VersionControlSystem):
         Will be called in the actual checkout's directory.
         """
         if branch:
-            raise utils.GiveUp("Bazaar does not support the 'branch' argument"
-                               " to 'fetch' (branch='%s')"%branch)
+            effective_repo = os.path.join(repo, branch)
+        else:
+            effective_repo = repo
 
         if revision:
             rspec='-r%d'%revision
@@ -138,7 +139,7 @@ class Bazaar(VersionControlSystem):
         env = self._derive_env()
         self._is_it_safe(env)
 
-        utils.run_cmd("bzr pull %s %s"%(rspec, self._normalised_repo(repo)),
+        utils.run_cmd("bzr pull %s %s"%(rspec, self._normalised_repo(effective_repo)),
                       env=env, verbose=verbose)
 
     def merge(self, other_repo, options, branch=None, revision=None, verbose=True):
@@ -151,8 +152,9 @@ class Bazaar(VersionControlSystem):
         Will be called in the actual checkout's directory.
         """
         if branch:
-            raise utils.GiveUp("Bazaar does not support the 'branch' argument"
-                               " to 'merge' (branch='%s')"%branch)
+            effective_other_repo = os.path.join(other_repo, branch)
+        else:
+            effective_other_repo = other_repo
 
         # Refuse to pull if there are any local changes
         env = self._derive_env()
@@ -163,7 +165,7 @@ class Bazaar(VersionControlSystem):
         else:
             rspec=''
 
-        utils.run_cmd("bzr merge %s %s"%(rspec, self._normalised_repo(other_repo)),
+        utils.run_cmd("bzr merge %s %s"%(rspec, self._normalised_repo(effective_other_repo)),
                       env=env, verbose=verbose)
 
     def commit(self, options, verbose=True):
@@ -180,8 +182,10 @@ class Bazaar(VersionControlSystem):
         Will be called in the actual checkout's directory.
         """
         if branch:
-            raise utils.GiveUp("Bazaar does not support the 'branch' argument to 'push'")
-        utils.run_cmd("bzr push %s"%self._normalised_repo(repo),
+            effective_repo = os.path.join(repo, branch)
+        else:
+            effective_repo = repo
+        utils.run_cmd("bzr push %s"%self._normalised_repo(effective_repo),
                       env=self._derive_env(), verbose=verbose)
 
     def status(self, repo, options, verbose=False):

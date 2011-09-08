@@ -1884,6 +1884,55 @@ class Merge(Command):
                 print str(e).rstrip()
                 print
 
+@command('status')
+class Status(Command):
+    """
+    :Syntax: status <checkout> [ <checkout> ... ]
+
+    Report on the status of checkouts that need attention.
+
+    The intent is to report if the checkouts named have diverged from the
+    remote repository. If a checkout has not, then it should report nothing.
+
+    Runs the equivalent (more or less) of ``git status --porcelain`` on
+    each checkout, in so far as possible.
+
+    If no checkouts are given, we'll use those implied by your current
+    location.
+
+    Each <checkout> should be the name of a checkout.
+
+    The special <checkout> name _all means all checkouts.
+
+    Without a <checkout>, we use the checkout you're in, or the checkouts
+    below the current directory.
+    """
+
+    def requires_build_tree(self):
+        return True
+
+    def with_build_tree(self, builder, current_dir, args):
+
+        checkouts = decode_checkout_arguments(builder, args, current_dir,
+                                              utils.LabelTag.Fetched)
+        if (self.no_op()):
+            print "Status for checkouts: %s"%(depend.label_list_to_string(checkouts))
+        else:
+            something_needs_doing = False
+            for co in checkouts:
+                rule = builder.invocation.ruleset.rule_for_target(co)
+                try:
+                    vcs = rule.obj.vcs
+                except AttributeError:
+                    print "Rule for label '%s' has no VCS - cannot find its status"%co
+                    continue
+                text = vcs.status()
+                if text:
+                    print text
+                    something_needs_doing = True
+            if not something_needs_doing:
+                print 'All checkouts seemed clean'
+
 @command('reparent')
 class Reparent(Command):
     """

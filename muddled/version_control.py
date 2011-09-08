@@ -428,18 +428,18 @@ class VersionControlHandler(object):
                 raise utils.GiveUp('Failure pushing %s in %s:\n%s'%(self.checkout_label,
                                     self.src_rel_dir, err))
 
-    def status(self, verbose=False):
+    def status(self):
         """
         Report on the status of the checkout, in a VCS-appropriate manner
 
-        If 'verbose' is False, does not produce any output.
+        If there is nothing to be done for this repository, returns None.
 
-        Also, return True if there is nothing to be done for this checkout,
-        False if it has outstanding commits, etc.
+        Otherwise, returns a string comprising a report on the status
+        of the repository, in a VCS appropriate manner.
 
         The reliability and accuracy of this varies by VCS, but the idea
         is that a checkout is 'safe' if:
-            
+
         * there are no files in the local checkout that are not also in the
           (local) repository, unless explicitly marked to be ignored
         * there are no files that need committing to the local repository
@@ -449,7 +449,7 @@ class VersionControlHandler(object):
 
         """
         with utils.Directory(self.actual_dir):
-            self.vcs_handler.status(self.actual_repo, self._options, verbose)
+            return self.vcs_handler.status(self.actual_repo, self._options)
 
     def reparent(self, force=False, verbose=True):
         """

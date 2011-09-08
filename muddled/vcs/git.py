@@ -204,11 +204,20 @@ class Git(VersionControlSystem):
         #utils.run_cmd("git config remote.origin.url %s"%repo, verbose=verbose)
         utils.run_cmd("git push origin %s"%effective_branch, verbose=verbose)
 
-    def status(self, repo, options, verbose=False):
+    def status(self, repo, options):
         """
         Will be called in the actual checkout's directory.
         """
-        raise NotImplementedError('The git VCS module does not yet support "status"')
+        retcode, text, ignore = utils.get_cmd_data("git status --porcelain",
+                                                   fail_nonzero=False)
+        if retcode == 129:
+            print "Warning: Your git does not support --porcelain; you should upgrade it."
+            retcode, text, ignore = utils.get_cmd_data("git status", fail_nonzero=False)
+
+        if text:
+            return text
+        else:
+            return None
 
     def reparent(self, co_dir, remote_repo, options, force=False, verbose=True):
         """

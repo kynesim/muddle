@@ -52,6 +52,21 @@ def relative(builder, co_dir, co_name, repo_relative = None, rev = None,
                            co_label,
                            vcs_handler)
 
-# def absolute(builder, co_dir, co_name, repo_url, rev = None):
+def absolute(builder, co_dir, co_name, repo_url, rev = None, branch = None):
+    """
+    Check out a multilevel repository from an absolute URL.
+    """
+    rest = os.path.join(co_dir, co_name)
+
+    co_label = Label(utils.LabelType.Checkout, co_name, domain=builder.default_domain)
+    builder.invocation.db.set_checkout_path(co_label, rest)
+
+    vcs_handler = version_control.vcs_action_for(builder, co_label, repo_url,
+                                                 rev, None,
+                                                 co_dir = co_dir,
+                                                 branch = branch)
+    pkg.add_checkout_rules(builder.invocation.ruleset,
+                           co_label,
+                           vcs_handler)
 
 # End file.

@@ -88,6 +88,8 @@ class VersionControlSystem(object):
     def status(self, repo, options, verbose=False):
         """
         Will be called in the actual checkout's directory.
+
+        Return status text or None if there is no interesting status.
         """
         pass
 
@@ -448,8 +450,24 @@ class VersionControlHandler(object):
         the remote repository into it.
 
         """
-        with utils.Directory(self.actual_dir):
-            return self.vcs_handler.status(self.actual_repo, self._options)
+        with utils.Directory(self.actual_dir, show_pushd=False):
+            try:
+                status_text = self.vcs_handler.status(self.actual_repo, self._options)
+                if status_text:
+                    full_text = '%s status for %s in %s:\n%s'%(self.short_name(),
+                                                 self.checkout_label,
+                                                 self.src_rel_dir,
+                                                 #self.actual_dir,
+                                                 status_text)
+                    return full_text
+                else:
+                    return None
+            except utils.MuddleBug as err:
+                raise utils.MuddleBug('Error finding status for %s in %s:\n%s'%(self.checkout_label,
+                                  self.src_rel_dir, err))
+            except utils.GiveUp as err:
+                raise utils.GiveUp('Failure finding status for %s in %s:\n%s'%(self.checkout_label,
+                                    self.src_rel_dir, err))
 
     def reparent(self, force=False, verbose=True):
         """

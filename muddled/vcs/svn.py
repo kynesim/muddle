@@ -109,22 +109,36 @@ class Subversion(VersionControlSystem):
         """
         utils.run_cmd("svn commit", verbose=verbose)
 
-    def status(self, repo, options, verbose=False):
+    def status(self, repo, options):
         """
         Will be called in the actual checkout's directory.
 
-        Runs "svn status". Looks at the first column of each line, and
-        returns True if they are all <space>.
+        Return status text or None if there is no interesting status.
         """
-        retcode, text, ignore = utils.get_cmd_data("svn status", verbose=verbose)
-        if verbose:
-            print text
+        retcode, text, ignore = utils.get_cmd_data("svn status --show-updates --verbose")
 
-        for line in text:
-            if line[0] != ' ':
-                return False
+        lines = text.split('\n')
+        stuff = []
+        seven_spaces = ' '*7
+        for line in lines:
+            # The first 7 characters and the 9th give us our status
+            if line.startswith(seven_spaces) and line[8] == ' ':
+                continue
+            elif line == '':    # typically, a blank final line
+                continue
+            else:
+                stuff.append(line)
 
-        return True
+        # Was it just reporting that nothing happened in this particular
+        # revision?
+        if len(stuff) == 1 and stuff[0].startswith('Status against revision'):
+            stuff = []
+
+        if stuff:
+            stuff.append('')        # add back a cosmetic blank line
+            return '\n'.join(stuff)
+        else:
+            return None
 
     def reparent(self, co_dir, remote_repo, options, force=False, verbose=True):
         """

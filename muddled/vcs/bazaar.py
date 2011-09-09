@@ -188,12 +188,23 @@ class Bazaar(VersionControlSystem):
         utils.run_cmd("bzr push %s"%self._normalised_repo(effective_repo),
                       env=self._derive_env(), verbose=verbose)
 
-    def status(self, repo, options, verbose=False):
+    def status(self, repo, options):
         """
         Will be called in the actual checkout's directory.
+
+        Return status text or None if there is no interesting status.
         """
         env = self._derive_env()
 
+        # --quiet means only report warnings and errors
+        cmd = 'bzr status --quiet'
+        retcode, text, ignore = utils.get_cmd_data(cmd, env=env, fold_stderr=False)
+        if text:
+            return text
+        else:
+            return None
+
+        # --- UNREACHED CODE
         # So, have we checked everything in?
         ok, cmd, text = self._all_checked_in(env)
         if not ok:

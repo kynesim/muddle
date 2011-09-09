@@ -1726,7 +1726,10 @@ class Directory(object):
         self.close_on_error = not stay_on_error
         self.show_pushd = show_pushd
         self.show_popd = show_popd
-        os.chdir(self.where)
+        try:
+            os.chdir(self.where)
+        except OSError as e:
+            raise GiveUp('Cannot change to directory %s: %s\n'%(where, e))
         if show_pushd:
             print '++ pushd to %s'%self.where
 

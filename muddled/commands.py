@@ -1891,14 +1891,13 @@ class Status(Command):
 
     Report on the status of checkouts that need attention.
 
-    The intent is to report if the checkouts named have diverged from the
-    remote repository. If a checkout has not, then it should report nothing.
-
-    Runs the equivalent (more or less) of ``git status --porcelain`` on
-    each checkout, in so far as possible.
+    Runs the equivalent of ``git status`` or ``bzr status`` on each repository,
+    and tries to only report those which have significant status.
 
     If no checkouts are given, we'll use those implied by your current
-    location.
+    location. At the top level, this will be interpreted as "_all" (note
+    this is a different convention from other VCS related commands, which
+    assume 'nothing' if no checkout is specified).
 
     Each <checkout> should be the name of a checkout.
 
@@ -1912,6 +1911,11 @@ class Status(Command):
         return True
 
     def with_build_tree(self, builder, current_dir, args):
+
+        if len(args) == 0:
+            (what, loc, role) = builder.find_location_in_tree(current_dir)
+            if what == utils.DirType.Root:
+                args = ['_all']
 
         checkouts = decode_checkout_arguments(builder, args, current_dir,
                                               utils.LabelTag.Fetched)

@@ -95,8 +95,12 @@ class File(VersionControlSystem):
         """
         pass
 
-    def status(self, repo, options, verbose=False):
-        return True
+    def status(self, repo, options):
+        """Status is not supported for 'file'.
+
+        Just report 'nothing important has happened'.
+        """
+        return None
 
     def reparent(self, co_dir, remote_repo, options, force=False, verbose=True):
         pass

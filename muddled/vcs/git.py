@@ -207,6 +207,8 @@ class Git(VersionControlSystem):
     def status(self, repo, options):
         """
         Will be called in the actual checkout's directory.
+
+        Return status text or None if there is no interesting status.
         """
         retcode, text, ignore = utils.get_cmd_data("git status --porcelain",
                                                    fail_nonzero=False)

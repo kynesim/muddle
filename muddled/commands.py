@@ -1905,6 +1905,9 @@ class Status(Command):
 
     Without a <checkout>, we use the checkout you're in, or the checkouts
     below the current directory.
+
+        Note: For subversion, the (remote) repository is queried,
+        which may be slow.
     """
 
     def requires_build_tree(self):

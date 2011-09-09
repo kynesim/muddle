@@ -448,7 +448,6 @@ class VersionControlHandler(object):
 
         In general, if a checkout is 'safe' then it should be OK to 'merge'
         the remote repository into it.
-
         """
         with utils.Directory(self.actual_dir, show_pushd=False):
             try:
@@ -457,7 +456,6 @@ class VersionControlHandler(object):
                     full_text = '%s status for %s in %s:\n%s'%(self.short_name(),
                                                  self.checkout_label,
                                                  self.src_rel_dir,
-                                                 #self.actual_dir,
                                                  status_text)
                     return full_text
                 else:

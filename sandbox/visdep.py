@@ -27,6 +27,11 @@ Where <switches> are:
   -k[eep]           Keep the intermediate dot file(s). If you specify this
                     it's probably also worth using -verbose so you know what
                     they are called.
+
+  -o[utput] <filename>
+                    Output to the named file, instead of putting up a
+                    GUI with xdot. The format to output is deduced from
+                    the extension.
 """
 
 from tempfile import mkstemp
@@ -35,7 +40,8 @@ import os
 import subprocess
 import sys
 
-def process(labels, reduce=False, filter='dot', keep_files=False, verbose=False):
+def process(labels, reduce=False, filter='dot', keep_files=False,
+            verbose=False, outputfile=None):
 
     # The first program we want to run is in the sandbox with us
     thisdir = os.path.split(__file__)[0]
@@ -81,17 +87,33 @@ def process(labels, reduce=False, filter='dot', keep_files=False, verbose=False)
         else:
             dotfile_path = dotfile_path1
 
-        xdot = 'xdot.py'
-        try:
-            if verbose:
-                print 'Running', xdot
-            retcode = subprocess.call('%s --filter=%s %s'%(xdot, filter, dotfile_path), shell=True)
-            if retcode != 0:
-                print 'Error %d running %s'%(abs(retcode), xdot)
+        if outputfile:
+            try:
+                # Assume we can work out the output format from the extension
+                ignore, filetype = os.path.splitext(outputfile)
+                filetype = filetype[1:]
+                if verbose:
+                    print 'Outputting to', outputfile
+                retcode = subprocess.call('dot -o%s -T%s %s'%(outputfile, filetype,
+                    dotfile_path), shell=True)
+                if retcode != 0:
+                    print 'Error %d running dot to output file'%(abs(retcode))
+                    return
+            except OSError as e:
+                print 'Error running dot to output file: %s'%(e)
                 return
-        except OSError as e:
-            print 'Error running %s: %s'%(xdot, e)
-            return
+        else:
+            xdot = 'xdot.py'
+            try:
+                if verbose:
+                    print 'Running', xdot
+                retcode = subprocess.call('%s --filter=%s %s'%(xdot, filter, dotfile_path), shell=True)
+                if retcode != 0:
+                    print 'Error %d running %s'%(abs(retcode), xdot)
+                    return
+            except OSError as e:
+                print 'Error running %s: %s'%(xdot, e)
+                return
     finally:
         if not keep_files:
             if dotfile_path1:
@@ -101,15 +123,12 @@ def process(labels, reduce=False, filter='dot', keep_files=False, verbose=False)
 
 def main(args):
 
-    if not args:
-        print __doc__
-        return 0
-
     reduce = False
     verbose = False
     keep_files = False
     filter = 'dot'
     labels = []
+    outputfile = None
 
     while args:
         word = args.pop(0)
@@ -124,17 +143,16 @@ def main(args):
             keep_files = True
         elif word in ('-f', '-filter'):
             filter = args.pop(0)
+        elif word in ('-o', '-output'):
+            outputfile = args[0]
+            args = args[1:]
         elif word[0] == '-':
             print 'Unrecognised switch', word
             return
         else:
             labels.append(word)
 
-    if not labels:
-        print __doc__
-        return 1
-
-    process(labels, reduce, filter, keep_files, verbose)
+    process(labels, reduce, filter, keep_files, verbose, outputfile)
     return 0
 
 if __name__ == '__main__':

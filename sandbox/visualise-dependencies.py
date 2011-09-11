@@ -170,17 +170,10 @@ def do_deps(gbuilder, goal):
 					do_deps(gbuilder, str(dep))
 
 def process(goals):
-	if not len(goals):
-		raise GiveUp('No goals given - specify one or more labels on the command line')
 
-	if goals[0] in ('-h', '-help', '--help'):
+	if goals and goals[0] in ('-h', '-help', '--help'):
 		print __doc__
 		sys.exit(0)
-
-	# Do we care about labelling the edges?
-	hideEdgeLabels = True
-	# Do we care about nodes touching an AptGetBuilder?
-	omitAptGetNodes = True
 
 	## ... find a build tree
 	original_dir = os.getcwd()
@@ -188,6 +181,19 @@ def process(goals):
 	# Don't bother determining muddle_binary: our invocation of find_and_load
 	# doesn't make use of it. (Tibs writes: it's only needed for when
 	# running makefiles, for when they use $(MUDDLE).)
+	if not gbuilder:
+		raise GiveUp('Not in a muddle build tree')
+
+	if not goals:
+		print '# No goals given: assuming default labels'
+		default_labels = gbuilder.invocation.default_labels
+		goals = map(str, default_labels)
+		print '#  %s'%', '.join(goals)
+
+	# Do we care about labelling the edges?
+	hideEdgeLabels = True
+	# Do we care about nodes touching an AptGetBuilder?
+	omitAptGetNodes = True
 
 	for g in goals:
 		Node(g, isGoal=True, extras="shape=parallelogram")

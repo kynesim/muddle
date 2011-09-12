@@ -183,15 +183,34 @@ class Invocation:
     def all_checkouts(self):
         """
         Return a set of the names of all the checkouts in our rule set. 
-        
+
         Returns a set of strings.
+
+        Beware - does not reflect any subdomain names.
         """
         lbl = Label(utils.LabelType.Checkout, "*", "*", "*", domain="*")
-        all_labels = self.ruleset.rules_for_target(lbl)
+        all_rules = self.ruleset.rules_for_target(lbl)
         rv = set()
-        for cur in all_labels:
+        for cur in all_rules:
             rv.add(cur.target.name)
         return rv
+
+    def all_checkout_labels(self):
+        """
+        Return a set of the labels of all the checkouts in our rule set. 
+        """
+        lbl = Label(utils.LabelType.Checkout, "*", "*", "*", domain="*")
+        all_rules = self.ruleset.rules_for_target(lbl)
+        all_labels = set()
+        already_got = set()
+        for cur in all_rules:
+            lbl = cur.target
+            tup = (lbl.domain, lbl.name)
+            if tup not in already_got:
+                already_got.add(tup)
+                all_labels.add(Label(utils.LabelType.Checkout,
+                                     lbl.name, tag='*', domain=lbl.domain))
+        return all_labels
 
     def all_domains(self):
         """

@@ -232,19 +232,36 @@ class VersionControlHandler(object):
             self.parent_dir = os.path.join(root_path, 'src')
 
         # And we might as well precalculate the actual checkout directory
-        self.actual_dir = os.path.join(self.parent_dir, co_leaf)
+        self.actual_dir = self.get_my_absolute_checkout_path()
 
         # That *should* be identical to the registered checkout directory,
-        # but without the prefixed "<root_path>/src/"
+        # but without the prefixed "<root_path>/src/" and any domain gubbins
         # TODO: instead of making the caller register the checkout directory
         #       for this label separately, do it for them...
-        assert self.actual_dir == os.path.join(root_path, 'src',self.get_my_absolute_checkout_path())
+        if co_label.domain:
+            calculated_path = os.path.join(root_path, 'src',
+                                           utils.domain_subpath(co_label.domain),
+                                           self.get_my_absolute_checkout_path())
+        else:
+            calculated_path = os.path.join(root_path, 'src',
+                                           self.get_my_absolute_checkout_path())
+        print
+        print 'xx ACTUAL', self.actual_dir
 
         # For exceptions, we want the directory relative to the root
-        if co_dir:
-            self.src_rel_dir = os.path.join('src', co_dir, co_leaf)
+        # (but if we have subdomains, we probably had better mean the
+        # root of the topmost build)
+        if co_label.domain:
+            domain_part = utils.domain_subpath(co_label.domain)
         else:
-            self.src_rel_dir = os.path.join('src', co_leaf)
+            domain_part = ''
+
+        if co_dir:
+            self.src_rel_dir = os.path.join('src', domain_part, co_dir, co_leaf)
+        else:
+            self.src_rel_dir = os.path.join('src', domain_part, co_leaf)
+
+        print 'xx RELATV',self.src_rel_dir
 
         # Sort out what our repository URL actually is
         pair = conventional_repo_url(repo, rel, co_dir=co_dir)

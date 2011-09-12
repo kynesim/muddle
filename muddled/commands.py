@@ -562,13 +562,25 @@ class QueryCheckouts(QueryCommand):
             joined = True
         else:
             joined = False
-        cos = builder.invocation.all_checkouts()
+        cos = builder.invocation.all_checkout_labels()
         a_list = list(cos)
+
+        got_domains = False
+        for lbl in a_list:
+            if lbl.domain:
+                got_domains = True
+                break
         a_list.sort()
+        out_list = []
+        for lbl in a_list:
+            if lbl.domain:
+                out_list.append('(%s)%s'%(lbl.domain,lbl.name))
+            else:
+                out_list.append(lbl.name)
         if joined:
-            print '%s'%" ".join(a_list)
+            print '%s'%" ".join(out_list)
         else:
-            print '%s'%"\n".join(a_list)
+            print '%s'%"\n".join(out_list)
 
 @subcommand('query', 'checkout-dirs')
 class QueryCheckoutDirs(QueryCommand):
@@ -3134,6 +3146,7 @@ Try 'muddle help unstamp' for more information."""
         # Check our checkout names match
         s_checkouts = set([name for name, repo, rev, rel, dir,
                            domain, co_leaf, branch in checkouts])
+        # TODO: really should be using checkout labels, not names
         b_checkouts = b.invocation.all_checkouts()
         s_difference = s_checkouts.difference(b_checkouts)
         b_difference = b_checkouts.difference(s_checkouts)

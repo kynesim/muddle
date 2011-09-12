@@ -1100,6 +1100,24 @@ class Builder(object):
 
         return rv
 
+    def get_all_checkout_labels_below(self, dir):
+        """
+        Get the labels of all the checkouts in or below directory 'dir'
+        """
+        rv = [ ]
+        all_cos = self.invocation.all_checkout_labels()
+
+        for co in all_cos:
+            co_dir = self.invocation.checkout_path(co)
+            # Is it below dir? If it isn't, os.path.relpath() will
+            # start with .. ..
+            rp = os.path.relpath(co_dir, dir)
+            if (rp[0:2] != ".."):
+                # It's relative
+                rv.append(co)
+
+        return rv
+
     def find_local_package_labels(self, dir, tag):
         """
         This is slightly horrible because if you're in a source checkout

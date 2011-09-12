@@ -3287,14 +3287,11 @@ def get_all_checkouts(builder, tag):
     in the system, with the given tag
     """
     rv = [ ]
-    all_cos = builder.invocation.all_checkouts()
-    
+    all_cos = builder.invocation.all_checkout_labels()
+
     for co in all_cos:
-        rv.append(Label(utils.LabelType.Checkout,
-                        co, None, 
-                        tag,
-                        domain = builder.get_default_domain()))
-        
+        rv.append(co.copy_with_tag(tag))
+
     rv.sort()
     return rv
 

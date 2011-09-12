@@ -186,7 +186,8 @@ class Invocation:
 
         Returns a set of strings.
 
-        Beware - does not reflect any subdomain names.
+        This is not domain aware. Consider using all_checkout_labels(),
+        which is.
         """
         lbl = Label(utils.LabelType.Checkout, "*", "*", "*", domain="*")
         all_rules = self.ruleset.rules_for_target(lbl)
@@ -1084,6 +1085,9 @@ class Builder(object):
     def get_all_checkouts_below(self, dir):
         """
         Do all our checkouts have directories at or below 'dir'.
+
+        This is not domain aware. Consider using get_all_checkout_labels_below,
+        which is.
         """
         rv = [ ]
         all_cos = self.invocation.all_checkouts()

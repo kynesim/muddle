@@ -245,8 +245,6 @@ class VersionControlHandler(object):
         else:
             calculated_path = os.path.join(root_path, 'src',
                                            self.get_my_absolute_checkout_path())
-        print
-        print 'xx ACTUAL', self.actual_dir
 
         # For exceptions, we want the directory relative to the root
         # (but if we have subdomains, we probably had better mean the
@@ -260,8 +258,6 @@ class VersionControlHandler(object):
             self.src_rel_dir = os.path.join('src', domain_part, co_dir, co_leaf)
         else:
             self.src_rel_dir = os.path.join('src', domain_part, co_leaf)
-
-        print 'xx RELATV',self.src_rel_dir
 
         # Sort out what our repository URL actually is
         pair = conventional_repo_url(repo, rel, co_dir=co_dir)

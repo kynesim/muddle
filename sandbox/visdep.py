@@ -56,7 +56,11 @@ def process(labels, reduce=False, filter='dot', keep_files=False,
             if verbose:
                 print 'Running', visualiser, 'for', ' '.join(labels)
                 print 'Outut dot file is', dotfile_path1
-            retcode = subprocess.call('%s %s'%(visualiser, ' '.join(labels)),
+            # Labels may contain parentheses
+            labels2 = []
+            for label in labels:
+                labels2.append("'%s'"%label)
+            retcode = subprocess.call('%s %s'%(visualiser, ' '.join(labels2)),
                                       stdout=fd, shell=True)
             if retcode != 0:
                 print 'Error %d running %s'%(abs(retcode), visualiser)

@@ -1895,9 +1895,7 @@ class Status(Command):
     and tries to only report those which have significant status.
 
     If no checkouts are given, we'll use those implied by your current
-    location. At the top level, this will be interpreted as "_all" (note
-    this is a different convention from other VCS related commands, which
-    assume 'nothing' if no checkout is specified).
+    location.
 
     Each <checkout> should be the name of a checkout.
 
@@ -1908,17 +1906,18 @@ class Status(Command):
 
         Note: For subversion, the (remote) repository is queried,
         which may be slow.
+
+    Be aware that "muddle status" will report on the currently checked out
+    checkouts. "muddle status _all" will (attempt to) report on *all* the
+    checkouts described by the build, even if they have not yet been checked
+    out. This will fail on the first checkout directory it can't "cd" into
+    (i.e., the first checkout that isn't there yet).
     """
 
     def requires_build_tree(self):
         return True
 
     def with_build_tree(self, builder, current_dir, args):
-
-        if len(args) == 0:
-            (what, loc, role) = builder.find_location_in_tree(current_dir)
-            if what == utils.DirType.Root:
-                args = ['_all']
 
         checkouts = decode_checkout_arguments(builder, args, current_dir,
                                               utils.LabelTag.Fetched)
@@ -3367,11 +3366,9 @@ def decode_checkout_arguments(builder, args, current_dir, tag):
         (what, loc, role) = builder.find_location_in_tree(current_dir)
 
         if (what == utils.DirType.Checkout):
-            cos_below = builder.get_all_checkouts_below(current_dir)
+            cos_below = builder.get_all_checkout_labels_below(current_dir)
             for c in cos_below:
-                rv.append(Label(utils.LabelType.Checkout,
-                                c, None, tag, 
-                                domain = builder.get_default_domain()))
+                rv.append(co.copy_with_tag(tag))
     return rv
 
 

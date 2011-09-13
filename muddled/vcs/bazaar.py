@@ -188,7 +188,7 @@ class Bazaar(VersionControlSystem):
         utils.run_cmd("bzr push %s"%self._normalised_repo(effective_repo),
                       env=self._derive_env(), verbose=verbose)
 
-    def status(self, repo, options):
+    def status(self, repo, options=None, branch=None, verbose=False):
         """
         Will be called in the actual checkout's directory.
 
@@ -196,8 +196,13 @@ class Bazaar(VersionControlSystem):
         """
         env = self._derive_env()
 
+        if branch:
+            effective_repo = os.path.join(repo, branch)
+        else:
+            effective_repo = repo
+
         # --quiet means only report warnings and errors
-        cmd = 'bzr status --quiet'
+        cmd = 'bzr status --quiet -r branch:%s'%effective_repo
         retcode, text, ignore = utils.get_cmd_data(cmd, env=env, fold_stderr=False)
         if text:
             return text

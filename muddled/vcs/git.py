@@ -204,9 +204,11 @@ class Git(VersionControlSystem):
         #utils.run_cmd("git config remote.origin.url %s"%repo, verbose=verbose)
         utils.run_cmd("git push origin %s"%effective_branch, verbose=verbose)
 
-    def status(self, repo, options):
+    def status(self, repo, options, branch=None):
         """
         Will be called in the actual checkout's directory.
+
+        'branch' is ignnored - we assume you are in the correct branch.
 
         Return status text or None if there is no interesting status.
         """

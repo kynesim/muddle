@@ -3378,6 +3378,8 @@ def decode_checkout_arguments(builder, args, current_dir, tag):
         # all checkouts.
         (what, loc, role) = builder.find_location_in_tree(current_dir)
 
+        print what, loc, role
+
         if (what == utils.DirType.Checkout):
             cos_below = builder.get_all_checkout_labels_below(current_dir)
             for c in cos_below:

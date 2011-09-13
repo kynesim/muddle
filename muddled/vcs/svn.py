@@ -109,9 +109,11 @@ class Subversion(VersionControlSystem):
         """
         utils.run_cmd("svn commit", verbose=verbose)
 
-    def status(self, repo, options):
+    def status(self, repo, options, branch=None):
         """
         Will be called in the actual checkout's directory.
+
+        'branch' is ignored.
 
         Return status text or None if there is no interesting status.
         """

@@ -85,7 +85,7 @@ class VersionControlSystem(object):
         """
         pass
 
-    def status(self, repo, options, verbose=False):
+    def status(self, repo, options, branch=None):
         """
         Will be called in the actual checkout's directory.
 
@@ -464,7 +464,8 @@ class VersionControlHandler(object):
         """
         with utils.Directory(self.actual_dir, show_pushd=False):
             try:
-                status_text = self.vcs_handler.status(self.actual_repo, self._options)
+                status_text = self.vcs_handler.status(self.actual_repo,
+                        self._options, self.branch)
                 if status_text:
                     full_text = '%s status for %s in %s:\n%s'%(self.short_name(),
                                                  self.checkout_label,

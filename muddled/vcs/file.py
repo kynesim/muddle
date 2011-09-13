@@ -95,7 +95,7 @@ class File(VersionControlSystem):
         """
         pass
 
-    def status(self, repo, options):
+    def status(self, repo, options, branch=None):
         """Status is not supported for 'file'.
 
         Just report 'nothing important has happened'.

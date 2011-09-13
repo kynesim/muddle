@@ -122,11 +122,12 @@ LabelType = __label_type_type(**__label_types)
 # And directory types - i.e., what is the purpose of a particular directory?
 # We use a description of the purpose of the directory type as its value,
 # and trust to Python to be kind to us
-__directory_types = {'Checkout' : 'checkout directory',
-                     'Object'   : 'package object directory',
-                     'Deployed' : 'deployment directory',
-                     'Install'  : 'install directory',
-                     'Root'     : 'root of the build tree',
+__directory_types = {'Checkout'  : 'checkout directory',
+                     'Object'    : 'package object directory',
+                     'Deployed'  : 'deployment directory',
+                     'Install'   : 'install directory',
+                     'Root'      : 'root of the build tree',
+                     'DomainRoot': 'root of a subdomain',
                      }
 
 __directory_type_type = namedtuple('DirType',
@@ -204,14 +205,70 @@ def get_domain_name_from(dir):
                     " '<something>/domains/<domain_name>' (unexpected '%s')"%(dir,should_be_domains))
 
 
-def find_root(dir):
+def find_domain(root_dir, dir):
     """
-    Find the build tree root starting at 'dir'.
+    Find the domain of 'dir'.
 
-    Returns a pair (dir, current_domain) - the current domain is
-    the first one encountered on our way up.
+    'root_dir' is the root of the (entire) muddle build tree.
+
+    This function basically works backwards through the path of 'dir', until it
+    reaches 'root_dir'. As it goes, it assembles the full domain name for the
+    domain enclosing 'dir'.
+
+    Returns the domain name, or None if 'dir' is not within a subdomain, and
+    the directory of the root of the domain. That is:
+
+        (domain_name, domain_dir)  or  (None, None)
     """
-    
+
+    # Normalise so path.split() doesn't produce confusing junk.
+    dir = os.path.normcase(os.path.normpath(dir))
+
+    if not dir.startswith(root_dir):
+        raise GiveUp("Directory '%s' is not within muddle build tree '%s'"%(
+            dir, root_dir))
+
+    domain_name = None
+    domain_dir = None
+
+    # Note that we assume a proper layout of the tree structure
+    while dir != root_dir:
+        # Might this be a subdomain root?
+        if os.path.exists(os.path.join(dir, ".muddle")):
+            if is_subdomain(dir):
+                new_domain = get_domain_name_from(dir)
+                if (domain_name is None):
+                    domain_name = new_domain
+                else:
+                    domain_name = "%s(%s)"%(new_domain,domain_name)
+
+                if domain_dir is None:
+                    domain_dir = dir
+            else:
+                raise GiveUp("Directory '%s' contains a '.muddle' directory,\n"
+                        "and is within the build tree at '%s'\n"
+                        "but is marked as a subdomain"%(dir, root_dir))
+        dir, tail = os.path.split(dir)
+
+    return (domain_name, domain_dir)
+
+def find_root_and_domain(dir):
+    """
+    Find the build tree root containing 'dir', and the domain of 'dir'.
+
+    This function basically works backwards through the path of 'dir', until it
+    finds a directory containing a '.muddle/' directory, that is not within a
+    subdomain. As it goes, it assembles the full domain name for the domain
+    enclosing 'dir'.
+
+    Returns a pair (root_dir, current_domain).
+
+    If 'dir' is not within a subdomain, then 'current_domain' will be None.
+
+    If 'dir' is not within a muddle build tree, then 'root_dir' will also
+    be None.
+    """
+
     # Normalise so path.split() doesn't produce confusing junk.
     dir = os.path.normcase(os.path.normpath(dir))
     current_domain = None

@@ -1134,7 +1134,7 @@ class Builder(object):
         inv = self.invocation
 
         # We want to know if we're in a domain. The simplest way to that is:
-        root_dir, current_domain = utils.find_root(dir)
+        root_dir, current_domain = utils.find_root_and_domain(dir)
 
         # We then try to figure out where we are in the build tree
         # - this must be duplicating some of what we just did above,
@@ -1143,7 +1143,7 @@ class Builder(object):
         if tloc is None:
             return []
 
-        what, loc, role = tloc
+        what, loc, role, domain = tloc
 
         if (what == utils.DirType.Checkout):
             if loc is None:
@@ -1173,80 +1173,125 @@ class Builder(object):
         * dir - The directory to analyse
         * root - The root directory.
 
-        Returns a tuple (DirType, pkg_name, role_name) or None if no information
-        can be gained.
+        If nothing sensible can be determined, we return None.
+        Otherwise we return a tuple of the form:
 
-        TODO: It may be a serious bug that this does not take account of domain names.
+            (DirType, name, role_name, domain_name)
+
+        where:
+
+        * 'DirType' is a utils.DirType value,
+        * 'name' depends on 'DirType:
+
+            * ...detail what it contains...
+
+        * 'role_name' is the role name (None if not applicable), and
+        * 'domain_name' is the domain name (ditto)
+
+        TODO: However, what it *should* return is one of:
+
+            * (DirType.xxx, None) if we're not in somewhere describable
+              with a label, or
+            * (DirType.xxx, label) if we are
         """
 
         invocation = self.invocation
-        root = invocation.db.root_path
+        root_dir = invocation.db.root_path
 
+        # Are these necessary? normcase doesn't do anything on Posix,
+        # and anyway we should surely have done such earlier on if needed?
         dir = os.path.normcase(os.path.normpath(dir))
-        root = os.path.normcase(os.path.normpath(root))
+        root_dir = os.path.normcase(os.path.normpath(root_dir))
 
-        if dir == root:
-            return (utils.DirType.Root, root, None)
+        if not dir.startswith(root_dir):
+            raise GiveUp("Directory '%s' is not within muddle build tree '%s'"%(
+                dir, root_dir))
+
+        if dir == root_dir:
+            return (utils.DirType.Root, root_dir, None, None)
+
+        # Are we in a subdomain?
+        domain_name, domain_dir = utils.find_domain(root_dir, dir)
+
+        print 'xx', root_dir
+        print 'xx', domain_dir
+        print 'xx', domain_name
+
+        if dir == domain_dir:
+            return (utils.DirType.DomainRoot, domain_dir, None, domain_name)
+
+        # If we're in a subdomain, then we're working with respect to that,
+        # otherwise we're working with respect to the build root
+        if domain_name:
+            our_root = domain_dir
+        else:
+            our_root = root_dir
 
         # Dir is (hopefully) a bit like 
         # root / X , so we walk up it  ...
         rest = []
-        while dir != '/':
+        while dir != our_root:
             (base, cur) = os.path.split(dir)
             # Prepend .. 
             rest.insert(0, cur)
-            if base == root:
-                # Rest is now the rest of the path.
-                if len(rest) == 0:    # We were at the root
-                    return (utils.DirType.Root, dir, None)
-                else:                   # We weren't at the root
-                    sub_dir = None
-                    if len(rest) > 1:
-                        sub_dir = rest[1]
-                    else:
-                        sub_dir = None
-                    if rest[0] == "src":
-                        if len(rest) > 1:
-                            # Now, this could be a two-level checkout. There's little way to 
-                            # know, beyond that if rest[1:n] is the rest of the checkout path
-                            # it must be our checkout.
-                            checkout_locations = invocation.db.checkout_locations
-                            normalise_key = invocation.db.normalise_checkout_label
-                            for i in range(2, len(rest)+1):
-                                rel_path = rest[1:i]
-                                twolevel_name = rest[i-1]
-                                multilevel_name = '-'.join(rest[1:i])
-                                for putative_name in twolevel_name,multilevel_name:
-                                    if invocation.has_checkout_called(putative_name):
-                                        key = Label(utils.LabelType.Checkout, putative_name)
-                                        key = normalise_key(key)
-                                        db_path = checkout_locations.get(key, putative_name)
-                                        check_path = ""
-                                        for x in rel_path:
-                                            check_path = os.path.join(check_path, x)
-                                            if (check_path == db_path):
-                                                return (utils.DirType.Checkout, putative_name, None)
+            dir = base
 
-                        # If, for whatever reason, we haven't already found this package .. 
-                        return (utils.DirType.Checkout, sub_dir, None)
-                    elif rest[0] == "obj":
-                        if (len(rest) > 2):
-                            role = rest[2]
-                        else:
-                            role = None
-                        return (utils.DirType.Object, sub_dir, role)
-                    elif rest[0] == "install":
-                        return (utils.DirType.Install, sub_dir, None)
-                    elif rest[0] == "domains":
-                        # We're inside the current domain - this is actually a root
-                        return (utils.DirType.Root, dir, None)
-                    elif rest[0] == "deploy":
-                        return (utils.DirType.Deployed, sub_dir, None)
-                    else:
-                        return None
+        print 'xx', rest
+
+        # Rest is now the rest of the path.
+        if len(rest) == 0:    # We were at the root
+            return (utils.DirType.Root, dir, None, domain_name)
+
+        sub_dir = None
+        if len(rest) > 1:
+            sub_dir = rest[1]
+        else:
+            sub_dir = None
+
+        result = None
+
+        if rest[0] == "src":
+            if len(rest) > 1:
+                # Now, this could be a two-level checkout. There's little way to 
+                # know, beyond that if rest[1:n] is the rest of the checkout path
+                # it must be our checkout.
+                checkout_locations = invocation.db.checkout_locations
+                normalise_key = invocation.db.normalise_checkout_label
+                for i in range(2, len(rest)+1):
+                    rel_path = rest[1:i]
+                    twolevel_name = rest[i-1]
+                    multilevel_name = '-'.join(rest[1:i])
+                    for putative_name in twolevel_name,multilevel_name:
+                        if invocation.has_checkout_called(putative_name):
+                            key = Label(utils.LabelType.Checkout, putative_name)
+                            key = normalise_key(key)
+                            db_path = checkout_locations.get(key, putative_name)
+                            check_path = ""
+                            for x in rel_path:
+                                check_path = os.path.join(check_path, x)
+                                if (check_path == db_path):
+                                    return (utils.DirType.Checkout, putative_name, None, domain_name)
+
+            # If, for whatever reason, we haven't already found this package .. 
+            result = (utils.DirType.Checkout, sub_dir, None, domain_name)
+        elif rest[0] == "obj":
+            # We know it goes obj/<package>/<role>
+            if (len(rest) > 2):
+                role = rest[2]
             else:
-                dir = base
-        return None
+                role = None
+            result = (utils.DirType.Object, sub_dir, role, domain_name)
+        elif rest[0] == "install":
+            # We know it goes install/<role>
+            result = (utils.DirType.Install, sub_dir, None, domain_name)
+        elif rest[0] == "deploy":
+            # We know it goes deploy/<deployment>
+            result = (utils.DirType.Deployed, sub_dir, None, domain_name)
+        elif rest[0] == "domains":
+            # We're inside the current domain - this is actually a root
+            result = (utils.DirType.DomainRoot, dir, None, domain_name)
+
+        return result
 
 
 class BuildDescriptionAction(pkg.Action):
@@ -1417,7 +1462,7 @@ def _new_sub_domain(root_path, muddle_binary, domain_name, domain_repo, domain_b
     # Did we already retrieve it, earlier on?
     # muddle itself just does::
     #
-    #    muddled.utils.find_root(specified_root)
+    #    muddled.utils.find_root_and_domain(specified_root)
     #
     # to see if it has a build present (i.e., looking up-tree). That's essentially
     # just a search for a .muddle directory. So a similarly simple algorithm to

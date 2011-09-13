@@ -327,7 +327,7 @@ def tar_pack(name, leaf, directory, output_dir, manifest_filename):
 # =============================================================================
 def find_builder(current_dir):
     try:
-        build_root, build_domain = muddled.utils.find_root(current_dir)
+        build_root, build_domain = muddled.utils.find_root_and_domain(current_dir)
         if not build_root:
             raise LocalError('Cannot locate muddle build tree')
 

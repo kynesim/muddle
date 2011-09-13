@@ -2960,7 +2960,7 @@ Try 'muddle help unstamp' for more information."""
         # build tree. However, in practice, the top-level script may call us
         # because it can't find an *intact* build tree. So it's up to us to
         # know that we want to be a bit more careful...
-        dir, domain = utils.find_root(current_dir)
+        dir, domain = utils.find_root_and_domain(current_dir)
         if dir:
             print
             print 'Found a .muddle directory in %s'%dir
@@ -3133,7 +3133,7 @@ Try 'muddle help unstamp' for more information."""
         print
         print 'Checking that the build is restored correctly...'
         print
-        (build_root, build_domain) = utils.find_root(current_dir)
+        (build_root, build_domain) = utils.find_root_and_domain(current_dir)
 
         b = mechanics.load_builder(build_root, muddle_binary, default_domain=build_domain)
 
@@ -3199,10 +3199,12 @@ class Whereami(Command):
                                   'Build tree is at  %s\n'
                                   'Current directory %s'%(builder.invocation.db.root_path,
                                                           current_dir))
-        (what, loc, role) = r
+        (what, loc, role, domain) = r
         if what is None:
             raise utils.MuddleBug('Unable to determine location in the muddle build tree:\n'
                                   "'Directory type' returned as None")
+        elif what == utils.DirType.DomainRoot:
+            print 'root of subdomain %s: %s'%(domain, loc)
         else:
             rv = "%s: %s"%(what, loc)
             if role:
@@ -3376,7 +3378,7 @@ def decode_checkout_arguments(builder, args, current_dir, tag):
     else:
         # Where are we? If in a checkout, that's what we should do - else
         # all checkouts.
-        (what, loc, role) = builder.find_location_in_tree(current_dir)
+        (what, loc, role, domain) = builder.find_location_in_tree(current_dir)
 
         if (what == utils.DirType.Checkout):
             cos_below = builder.get_all_checkout_labels_below(current_dir)

@@ -289,7 +289,7 @@ def _cmdline(args, current_dir, original_env, muddle_binary):
             if r is None:
                 raise utils.GiveUp("Can't seem to determine where you are in the build tree")
 
-            (what, loc, role) = r
+            (what, loc, role, domain) = r
 
             if (what == utils.DirType.Root or loc == None):
                 # We're at the root, or at least not in a checkout/package/deployment

@@ -1084,7 +1084,7 @@ class Builder(object):
 
     def get_all_checkouts_below(self, dir):
         """
-        Do all our checkouts have directories at or below 'dir'.
+        Return all our checkouts have directories at or below 'dir'.
 
         This is not domain aware. Consider using get_all_checkout_labels_below,
         which is.
@@ -1146,9 +1146,9 @@ class Builder(object):
         what, label, domain = tloc
 
         if (what == utils.DirType.Checkout):
-            rv = []
+            packages = set()
             if label:
-                co_label = label
+                co_labels = [label]
             else:
                 # FIXME
                 # Do we really mean *any* checkout in this domain?
@@ -1162,15 +1162,22 @@ class Builder(object):
                 #
                 # Perhaps we should be looking explicitly for checkouts
                 # below us...
-                co_label = Label(utils.DirType.Checkout, '*', domain=domain)
+                #
+                # TODO: Check this next is a correct replacement
+                co_labels = self.get_all_checkout_labels_below(dir)
+                #co_label = Label(utils.DirType.Checkout, '*', domain=domain)
 
-            for p in inv.packages_using_checkout(co_label):
-                rv.append(Label(utils.LabelType.Package, p.name, p.role, tag,
-                                domain=current_domain))
-            return rv
+            # TODO: Check this next is a correct replacement
+            for co in co_labels:
+                for p in inv.packages_using_checkout(co):
+                    packages.add(p.copy_with_tag(tag))
+            #    rv.append(Label(utils.LabelType.Package, p.name, p.role, tag,
+            #                    domain=current_domain))
+            return list(packages)
         elif (what == utils.DirType.Object):
             if label is None:
-                label = Label(utils.LabelType.Package, '*', '*', domain=domain)
+                label = Label(utils.LabelType.Package, '*', '*', tag=tag,
+                              domain=domain)
             return [label]
         else:
             return []

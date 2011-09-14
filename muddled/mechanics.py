@@ -1213,10 +1213,6 @@ class Builder(object):
         # Are we in a subdomain?
         domain_name, domain_dir = utils.find_domain(root_dir, dir)
 
-        print 'xx', root_dir
-        print 'xx', domain_dir
-        print 'xx', domain_name
-
         if dir == domain_dir:
             return (utils.DirType.DomainRoot, domain_dir, None, domain_name)
 
@@ -1236,8 +1232,6 @@ class Builder(object):
             rest.insert(0, cur)
             dir = base
 
-        print 'xx', rest
-
         # Rest is now the rest of the path.
         if len(rest) == 0:    # We were at the root
             return (utils.DirType.Root, dir, None, domain_name)
@@ -1251,29 +1245,15 @@ class Builder(object):
         result = None
 
         if rest[0] == "src":
-            if len(rest) > 1:
-                # Now, this could be a two-level checkout. There's little way to 
-                # know, beyond that if rest[1:n] is the rest of the checkout path
-                # it must be our checkout.
-                checkout_locations = invocation.db.checkout_locations
-                normalise_key = invocation.db.normalise_checkout_label
-                for i in range(2, len(rest)+1):
-                    rel_path = rest[1:i]
-                    twolevel_name = rest[i-1]
-                    multilevel_name = '-'.join(rest[1:i])
-                    for putative_name in twolevel_name,multilevel_name:
-                        if invocation.has_checkout_called(putative_name):
-                            key = Label(utils.LabelType.Checkout, putative_name)
-                            key = normalise_key(key)
-                            db_path = checkout_locations.get(key, putative_name)
-                            check_path = ""
-                            for x in rel_path:
-                                check_path = os.path.join(check_path, x)
-                                if (check_path == db_path):
-                                    return (utils.DirType.Checkout, putative_name, None, domain_name)
-
-            # If, for whatever reason, we haven't already found this package .. 
-            result = (utils.DirType.Checkout, sub_dir, None, domain_name)
+            checkout_locations = invocation.db.checkout_locations
+            normalise_key = invocation.db.normalise_checkout_label
+            lookfor = os.path.join(*rest[1:])
+            for label, locn in checkout_locations.items():
+                if lookfor.startswith(locn) and domain_name == label.domain:
+                    result = (utils.DirType.Checkout, label.name, None, domain_name)
+                    break
+            if result is None:
+                result = (utils.DirType.Checkout, None, None, domain_name)
         elif rest[0] == "obj":
             # We know it goes obj/<package>/<role>
             if (len(rest) > 2):

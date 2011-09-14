@@ -131,7 +131,7 @@ class Bazaar(VersionControlSystem):
             effective_repo = repo
 
         if revision:
-            rspec='-r%d'%revision
+            rspec='-r%s'%revision
         else:
             rspec=''
 

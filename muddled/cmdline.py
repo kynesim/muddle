@@ -198,7 +198,7 @@ def find_and_load(specified_root, muddle_binary):
     """Find our .muddle root, and then load our builder, and return it.
     """
     try:
-        (build_root, build_domain) = utils.find_root(specified_root)
+        (build_root, build_domain) = utils.find_root_and_domain(specified_root)
         if build_root:
             builder = mechanics.load_builder(build_root, muddle_binary,
                                              default_domain = build_domain)

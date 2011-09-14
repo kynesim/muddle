@@ -31,6 +31,12 @@ class Database(object):
         * checkout_locations - Maps checkout_label to the directory the
           checkout is in, relative to src/ - if there's no mapping, we believe
           it's directly in src.
+
+        NB: the existence of an entry in the checkout_locations dictionary
+        does not necessarily imply that such a checkout exists. It may, for
+        instance, have gone away during a ``builder.unify()`` operation.
+        Thus it is not safe to try to deduce all of the checkout labels
+        from the keys to this dictionary.
         """
         self.root_path = root_path
         utils.ensure_dir(os.path.join(self.root_path, ".muddle"))

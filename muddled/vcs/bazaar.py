@@ -130,10 +130,7 @@ class Bazaar(VersionControlSystem):
         else:
             effective_repo = repo
 
-        if revision:
-            rspec='-r%s'%revision
-        else:
-            rspec=''
+        rspec = self._r_option(revision)
 
         # Refuse to pull if there are any local changes
         env = self._derive_env()
@@ -160,10 +157,7 @@ class Bazaar(VersionControlSystem):
         env = self._derive_env()
         self._is_it_safe(env)
 
-        if revision:
-            rspec='-r%d'%revision
-        else:
-            rspec=''
+        rspec = self._r_option(revision)
 
         utils.run_cmd("bzr merge %s %s"%(rspec, self._normalised_repo(effective_other_repo)),
                       env=env, verbose=verbose)

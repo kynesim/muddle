@@ -289,16 +289,21 @@ def _cmdline(args, current_dir, original_env, muddle_binary):
             if r is None:
                 raise utils.GiveUp("Can't seem to determine where you are in the build tree")
 
-            (what, loc, role, domain) = r
+            (what, label, domain) = r
 
-            if (what == utils.DirType.Root or loc == None):
-                # We're at the root, or at least not in a checkout/package/deployment
+            if (what == utils.DirType.Root or
+                (domain is None and label is None)):
+                # We're either (1) actually at the root of the entire tree, or
+                # (2) we're not anywhere particularly identifiable but near the
+                # top of the entire tree.
+                #
+                # As such, our default is to build labels:
                 command_class = cmd_dict["buildlabel"]
                 command = command_class()
                 command.set_options(command_options)
 
-                # Add in the default labels - this includes any default
-                # deployments
+                # and the labels to build are the default labels - this
+                # includes any default deployments
                 args = map(str, builder.invocation.default_labels)
 
                 # Default roles will not yet have been turned into labels

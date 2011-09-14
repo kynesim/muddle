@@ -3199,19 +3199,19 @@ class Whereami(Command):
                                   'Build tree is at  %s\n'
                                   'Current directory %s'%(builder.invocation.db.root_path,
                                                           current_dir))
-        (what, loc, role, domain) = r
+        (what, label, domain) = r
         if what is None:
             raise utils.MuddleBug('Unable to determine location in the muddle build tree:\n'
                                   "'Directory type' returned as None")
 
         if what == utils.DirType.DomainRoot:
-            print 'root of subdomain %s: %s'%(domain, loc)
+            print 'root of subdomain %s'%domain
         else:
-            rv = "%s: %s"%(what, loc)
-            if role:
-                rv += "{%s}" % role
-            if domain:
-                rv += " in subdomain %s"%domain
+            rv = "%s"%what
+            if label:
+                rv = '%s for %s'%(rv, label)
+            elif domain:
+                rv = '%s in subdomain %s'%(rv, domain)
             print rv
 
     def without_build_tree(self, muddle_binary, root_path, args):
@@ -3381,9 +3381,9 @@ def decode_checkout_arguments(builder, args, current_dir, tag):
     else:
         # Where are we? If in a checkout, that's what we should do - else
         # all checkouts.
-        (what, loc, role, domain) = builder.find_location_in_tree(current_dir)
+        (what, label, domain) = builder.find_location_in_tree(current_dir)
 
-        print what, loc, role
+        print 'xx', what, label, domain
 
         if (what == utils.DirType.Checkout):
             cos_below = builder.get_all_checkout_labels_below(current_dir)

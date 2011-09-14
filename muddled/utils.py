@@ -127,7 +127,7 @@ __directory_types = {'Checkout'  : 'checkout directory',
                      'Deployed'  : 'deployment directory',
                      'Install'   : 'install directory',
                      'Root'      : 'root of the build tree',
-                     'DomainRoot': 'root of a subdomain',
+                     'DomainRoot': 'root of subdomain',
                      }
 
 __directory_type_type = namedtuple('DirType',

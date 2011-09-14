@@ -3203,12 +3203,15 @@ class Whereami(Command):
         if what is None:
             raise utils.MuddleBug('Unable to determine location in the muddle build tree:\n'
                                   "'Directory type' returned as None")
-        elif what == utils.DirType.DomainRoot:
+
+        if what == utils.DirType.DomainRoot:
             print 'root of subdomain %s: %s'%(domain, loc)
         else:
             rv = "%s: %s"%(what, loc)
             if role:
                 rv += "{%s}" % role
+            if domain:
+                rv += " in subdomain %s"%domain
             print rv
 
     def without_build_tree(self, muddle_binary, root_path, args):

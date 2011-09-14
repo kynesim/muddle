@@ -1250,8 +1250,15 @@ class Builder(object):
             lookfor = os.path.join(*rest[1:])
             for label, locn in checkout_locations.items():
                 if lookfor.startswith(locn) and domain_name == label.domain:
-                    result = (utils.DirType.Checkout, label.name, None, domain_name)
-                    break
+                    # but just in case we have (for instance) checkouts
+                    # 'fred' and 'freddy'...
+                    relpath = os.path.relpath(lookfor, locn)
+                    if relpath.startswith('..'):
+                        # It's not actually the same
+                        continue
+                    else:
+                        result = (utils.DirType.Checkout, label.name, None, domain_name)
+                        break
             if result is None:
                 result = (utils.DirType.Checkout, None, None, domain_name)
         elif rest[0] == "obj":

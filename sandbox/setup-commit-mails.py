@@ -5,16 +5,25 @@ This is a helper script to automatically set up commit mails in the
 repositories behind the checkouts of an instance of muddle.
 
 Invoke this script from somewhere within a muddle tree:
+
     python /path/to/setup-commit-mails.py [<options>] email-destination
 
 Options are:
+
     --help, -h, -?  Shows this help text
     --dry-run, -n   Don't actually make any changes, just describe what
                     you would have done.
 
-NYI: support for domains
-NYI: set up a notify on the top-level versions directory if it is held in
-     revision control
+This is a very simple script for very simple use.
+
+1. It only understands git plugins
+2. It assumes the system at the far end is running Ubuntu
+3. It does not understand subdomains, and will ignore any checkouts in a
+   subdomain
+4. It assumes that checkouts at the far end are laid out in a manner that
+   it can guess from their layout on the local machine.
+5. If there is a 'versions/' directory, it is ignored, even if it is in
+   revision control.
 """
 
 import os
@@ -375,6 +384,9 @@ def _do_cmdline(args):
     dirs = []
     for r in rules:
         key = builder.invocation.db.normalise_checkout_label(r.target)
+        # Unfortunately, we do not currently support subdomains
+        if key.domain:
+            continue
         rel_dir = builder.invocation.db.checkout_locations.get(key, r.target.name)
         dirs.append(rel_dir)
     # in testing, use dirs[0:2] (or something similarly small) in place of dirs.

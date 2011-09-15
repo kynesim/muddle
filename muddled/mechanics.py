@@ -1256,13 +1256,14 @@ class Builder(object):
             # We know it goes obj/<package>/<role>
             if len(rest) > 2:
                 label = Label(utils.LabelType.Package, name=rest[1],
-                              role=rest[2], domain=domain_name),
+                              role=rest[2], domain=domain_name)
             elif len(rest) == 2:
                 label = Label(utils.LabelType.Package, name=rest[1],
                               role='*', domain=domain_name)
             else:
                 label = None
             result = (utils.DirType.Object, label, domain_name)
+
         elif rest[0] == "install":
             # We know it goes install/<role>
             if len(rest) > 1:
@@ -1271,6 +1272,7 @@ class Builder(object):
             else:
                 label = None
             result = (utils.DirType.Install, label, domain_name)
+
         elif rest[0] == "deploy":
             # We know it goes deploy/<deployment>
             if len(rest) > 1:
@@ -1279,9 +1281,19 @@ class Builder(object):
             else:
                 label = None
             result = (utils.DirType.Deployed, None, domain_name)
+
         elif rest[0] == "domains":
             # We're inside the current domain - this is actually a root
             result = (utils.DirType.DomainRoot, None, domain_name)
+
+        elif rest[0] == '.muddle':
+            result = (utils.DirType.MuddleDir, None, domain_name)
+
+        elif rest[0] == 'versions':
+            result = (utils.DirType.Versions, None, domain_name)
+
+        else:
+            result = (utils.DirType.Unexpected, None, domain_name)
 
         return result
 

@@ -128,6 +128,9 @@ __directory_types = {'Checkout'  : 'checkout directory',
                      'Install'   : 'install directory',
                      'Root'      : 'root of the build tree',
                      'DomainRoot': 'root of subdomain',
+                     'MuddleDir' : '.muddle directory',
+                     'Versions'  : 'versions directory',
+                     'Unexpected': 'an unexpectd place',
                      }
 
 __directory_type_type = namedtuple('DirType',

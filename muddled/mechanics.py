@@ -1150,29 +1150,11 @@ class Builder(object):
             if label:
                 co_labels = [label]
             else:
-                # FIXME
-                # Do we really mean *any* checkout in this domain?
-                # what if we were in src/this/ for a tree like:
-                #
-                #  src/
-                #     this/
-                #        checkout1/
-                #     that/
-                #        checkout2
-                #
-                # Perhaps we should be looking explicitly for checkouts
-                # below us...
-                #
-                # TODO: Check this next is a correct replacement
                 co_labels = self.get_all_checkout_labels_below(dir)
-                #co_label = Label(utils.DirType.Checkout, '*', domain=domain)
 
-            # TODO: Check this next is a correct replacement
             for co in co_labels:
                 for p in inv.packages_using_checkout(co):
                     packages.add(p.copy_with_tag(tag))
-            #    rv.append(Label(utils.LabelType.Package, p.name, p.role, tag,
-            #                    domain=current_domain))
             return list(packages)
         elif (what == utils.DirType.Object):
             if label is None:
@@ -1273,15 +1255,18 @@ class Builder(object):
         elif rest[0] == "obj":
             # We know it goes obj/<package>/<role>
             if len(rest) > 2:
-                label = Label(utils.LabelTag.Package, name=rest[1],
+                label = Label(utils.LabelType.Package, name=rest[1],
                               role=rest[2], domain=domain_name),
+            elif len(rest) == 2:
+                label = Label(utils.LabelType.Package, name=rest[1],
+                              role='*', domain=domain_name)
             else:
                 label = None
             result = (utils.DirType.Object, label, domain_name)
         elif rest[0] == "install":
             # We know it goes install/<role>
             if len(rest) > 1:
-                label = Label(utils.LabelTag.Package, name='*',
+                label = Label(utils.LabelType.Package, name='*',
                               role=rest[1], domain=domain_name)
             else:
                 label = None
@@ -1289,7 +1274,7 @@ class Builder(object):
         elif rest[0] == "deploy":
             # We know it goes deploy/<deployment>
             if len(rest) > 1:
-                label = Label(utils.LabelTag.Deployment, name=rest[1],
+                label = Label(utils.LabelType.Deployment, name=rest[1],
                               domain=domain_name)
             else:
                 label = None

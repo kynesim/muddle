@@ -3386,7 +3386,7 @@ def decode_checkout_arguments(builder, args, current_dir, tag):
         if (what == utils.DirType.Checkout):
             cos_below = builder.get_all_checkout_labels_below(current_dir)
             for c in cos_below:
-                rv.append(co.copy_with_tag(tag))
+                rv.append(c.copy_with_tag(tag))
     return rv
 
 

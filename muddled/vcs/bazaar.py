@@ -22,7 +22,6 @@ class Bazaar(VersionControlSystem):
         communicate over ssh, not just "ssh".
         Accomodate it, so the user does not need to care about this.
         """
-        print 'Repo is', repo
         if repo.startswith("ssh:"):
             return "bzr+%s"%repo
         else:
@@ -196,7 +195,8 @@ class Bazaar(VersionControlSystem):
             effective_repo = repo
 
         # --quiet means only report warnings and errors
-        cmd = 'bzr status --quiet -r branch:%s'%effective_repo
+        cmd = 'bzr status --quiet -r branch:%s'%self._normalised_repo(effective_repo),
+
         retcode, text, ignore = utils.get_cmd_data(cmd, env=env, fold_stderr=False)
         if text:
             return text

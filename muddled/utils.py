@@ -122,12 +122,15 @@ LabelType = __label_type_type(**__label_types)
 # And directory types - i.e., what is the purpose of a particular directory?
 # We use a description of the purpose of the directory type as its value,
 # and trust to Python to be kind to us
-__directory_types = {'Checkout'  : 'checkout directory',
-                     'Object'    : 'package object directory',
-                     'Deployed'  : 'deployment directory',
-                     'Install'   : 'install directory',
-                     'Root'      : 'root of the build tree',
-                     'DomainRoot': 'root of subdomain',
+__directory_types = {'Checkout'  : 'Checkout directory',
+                     'Object'    : 'Package object directory',
+                     'Deployed'  : 'Deployment directory',
+                     'Install'   : 'Install directory',
+                     'Root'      : 'Root of the build tree',
+                     'DomainRoot': 'Root of subdomain',
+                     'MuddleDir' : '.muddle directory',
+                     'Versions'  : 'Versions directory',
+                     'Unexpected': 'An unexpectd place',
                      }
 
 __directory_type_type = namedtuple('DirType',

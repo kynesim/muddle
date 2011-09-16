@@ -1084,7 +1084,7 @@ class Builder(object):
 
     def get_all_checkouts_below(self, dir):
         """
-        Do all our checkouts have directories at or below 'dir'.
+        Return all our checkouts have directories at or below 'dir'.
 
         This is not domain aware. Consider using get_all_checkout_labels_below,
         which is.
@@ -1143,22 +1143,24 @@ class Builder(object):
         if tloc is None:
             return []
 
-        what, loc, role, domain = tloc
+        what, label, domain = tloc
 
         if (what == utils.DirType.Checkout):
-            if loc is None:
-                return []
-            rv = []
-            # Is this the correct label? Have we got the domain wildcard right?
-            # Do we mean *any* tag?
-            co_label = Label(utils.LabelType.Checkout, loc, None, "*", domain="*")
-            for p in inv.packages_using_checkout(co_label):
-                rv.append(Label(utils.LabelType.Package, p.name, p.role, tag,
-                                domain=current_domain))
-            return rv
+            packages = set()
+            if label:
+                co_labels = [label]
+            else:
+                co_labels = self.get_all_checkout_labels_below(dir)
+
+            for co in co_labels:
+                for p in inv.packages_using_checkout(co):
+                    packages.add(p.copy_with_tag(tag))
+            return list(packages)
         elif (what == utils.DirType.Object):
-            return [ Label(utils.LabelType.Package, loc, role, tag,
-                           domain=current_domain) ]
+            if label is None:
+                label = Label(utils.LabelType.Package, '*', '*', tag=tag,
+                              domain=domain)
+            return [label]
         else:
             return []
 
@@ -1171,28 +1173,20 @@ class Builder(object):
         which packages to rebuild
 
         * dir - The directory to analyse
-        * root - The root directory.
 
         If nothing sensible can be determined, we return None.
         Otherwise we return a tuple of the form:
 
-            (DirType, name, role_name, domain_name)
+          (DirType, label, domain_name)
 
         where:
 
         * 'DirType' is a utils.DirType value,
-        * 'name' depends on 'DirType:
+        * 'label' is None or a label describing our location,
+        * 'domain_name' None or the subdomain we are in and
 
-            * ...detail what it contains...
-
-        * 'role_name' is the role name (None if not applicable), and
-        * 'domain_name' is the domain name (ditto)
-
-        TODO: However, what it *should* return is one of:
-
-            * (DirType.xxx, None) if we're not in somewhere describable
-              with a label, or
-            * (DirType.xxx, label) if we are
+        If 'label' and 'domain_name' are both given, they will name the same
+        domain.
         """
 
         invocation = self.invocation
@@ -1208,13 +1202,13 @@ class Builder(object):
                 dir, root_dir))
 
         if dir == root_dir:
-            return (utils.DirType.Root, root_dir, None, None)
+            return (utils.DirType.Root, None, None)
 
         # Are we in a subdomain?
         domain_name, domain_dir = utils.find_domain(root_dir, dir)
 
         if dir == domain_dir:
-            return (utils.DirType.DomainRoot, domain_dir, None, domain_name)
+            return (utils.DirType.DomainRoot, None, domain_name)
 
         # If we're in a subdomain, then we're working with respect to that,
         # otherwise we're working with respect to the build root
@@ -1227,14 +1221,9 @@ class Builder(object):
         # root / X , so we walk up it  ...
         rest = []
         while dir != our_root:
-            (base, cur) = os.path.split(dir)
-            # Prepend .. 
+            base, cur = os.path.split(dir)
             rest.insert(0, cur)
             dir = base
-
-        # Rest is now the rest of the path.
-        if len(rest) == 0:    # We were at the root
-            return (utils.DirType.Root, dir, None, domain_name)
 
         sub_dir = None
         if len(rest) > 1:
@@ -1246,37 +1235,65 @@ class Builder(object):
 
         if rest[0] == "src":
             checkout_locations = invocation.db.checkout_locations
-            normalise_key = invocation.db.normalise_checkout_label
-            lookfor = os.path.join(*rest[1:])
-            for label, locn in checkout_locations.items():
-                if lookfor.startswith(locn) and domain_name == label.domain:
-                    # but just in case we have (for instance) checkouts
-                    # 'fred' and 'freddy'...
-                    relpath = os.path.relpath(lookfor, locn)
-                    if relpath.startswith('..'):
-                        # It's not actually the same
-                        continue
-                    else:
-                        result = (utils.DirType.Checkout, label.name, None, domain_name)
-                        break
+            if len(rest) > 1:
+                lookfor = os.path.join(*rest[1:])
+                for label, locn in checkout_locations.items():
+                    if lookfor.startswith(locn) and domain_name == label.domain:
+                        # but just in case we have (for instance) checkouts
+                        # 'fred' and 'freddy'...
+                        relpath = os.path.relpath(lookfor, locn)
+                        if relpath.startswith('..'):
+                            # It's not actually the same
+                            continue
+                        else:
+                            result = (utils.DirType.Checkout, label, domain_name)
+                            break
             if result is None:
-                result = (utils.DirType.Checkout, None, None, domain_name)
+                # Part way down a from src/ towards a checkout
+                result = (utils.DirType.Checkout, None, domain_name)
+
         elif rest[0] == "obj":
             # We know it goes obj/<package>/<role>
-            if (len(rest) > 2):
-                role = rest[2]
+            if len(rest) > 2:
+                label = Label(utils.LabelType.Package, name=rest[1],
+                              role=rest[2], domain=domain_name)
+            elif len(rest) == 2:
+                label = Label(utils.LabelType.Package, name=rest[1],
+                              role='*', domain=domain_name)
             else:
-                role = None
-            result = (utils.DirType.Object, sub_dir, role, domain_name)
+                label = None
+            result = (utils.DirType.Object, label, domain_name)
+
         elif rest[0] == "install":
             # We know it goes install/<role>
-            result = (utils.DirType.Install, sub_dir, None, domain_name)
+            if len(rest) > 1:
+                label = Label(utils.LabelType.Package, name='*',
+                              role=rest[1], domain=domain_name)
+            else:
+                label = None
+            result = (utils.DirType.Install, label, domain_name)
+
         elif rest[0] == "deploy":
             # We know it goes deploy/<deployment>
-            result = (utils.DirType.Deployed, sub_dir, None, domain_name)
+            if len(rest) > 1:
+                label = Label(utils.LabelType.Deployment, name=rest[1],
+                              domain=domain_name)
+            else:
+                label = None
+            result = (utils.DirType.Deployed, None, domain_name)
+
         elif rest[0] == "domains":
             # We're inside the current domain - this is actually a root
-            result = (utils.DirType.DomainRoot, dir, None, domain_name)
+            result = (utils.DirType.DomainRoot, None, domain_name)
+
+        elif rest[0] == '.muddle':
+            result = (utils.DirType.MuddleDir, None, domain_name)
+
+        elif rest[0] == 'versions':
+            result = (utils.DirType.Versions, None, domain_name)
+
+        else:
+            result = (utils.DirType.Unexpected, None, domain_name)
 
         return result
 

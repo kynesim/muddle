@@ -388,6 +388,8 @@ def _do_cmdline(args):
         if key.domain:
             continue
         rel_dir = builder.invocation.db.checkout_locations.get(key, r.target.name)
+        if rel_dir.startswith("src/"):
+            rel_dir = rel_dir[4:]
         dirs.append(rel_dir)
     # in testing, use dirs[0:2] (or something similarly small) in place of dirs.
     repo.run_script(dirs, builder.build_name, email_dest, dry_run)

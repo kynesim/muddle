@@ -1236,7 +1236,8 @@ class Builder(object):
         if rest[0] == "src":
             checkout_locations = invocation.db.checkout_locations
             if len(rest) > 1:
-                lookfor = os.path.join(*rest[1:])
+                lookfor = os.path.join(utils.domain_subpath(domain_name),
+                                       'src', *rest[1:])
                 for label, locn in checkout_locations.items():
                     if lookfor.startswith(locn) and domain_name == label.domain:
                         # but just in case we have (for instance) checkouts

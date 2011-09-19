@@ -966,6 +966,9 @@ def domain_subpath(domain_name):
         ...
         GiveUp: Domain name "a(b(c)" has mis-matched parentheses
     """
+    if domain_name is None:
+        return ''
+
     parts = []
     for thing in split_domain(domain_name):
         parts.append('domains')

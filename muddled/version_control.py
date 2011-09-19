@@ -334,10 +334,10 @@ class VersionControlHandler(object):
             domain_part = ''
 
         if self.checkout_dir:
-            src_rel_dir = os.path.join('src', domain_part, self.checkout_dir,
+            src_rel_dir = os.path.join(domain_part, 'src', self.checkout_dir,
                                        self.checkout_leaf)
         else:
-            src_rel_dir = os.path.join('src', domain_part, self.checkout_leaf)
+            src_rel_dir = os.path.join(domain_part, 'src', self.checkout_leaf)
 
         return src_rel_dir
 

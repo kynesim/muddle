@@ -186,12 +186,6 @@ class Database(object):
 
         assert checkout_label.type == utils.LabelType.Checkout
 
-        # This bit is not needed because we KNOW our correct root path
-        #if checkout_label.domain:
-        #    root = os.path.join(self.root_path,
-        #                        domain_subpath(checkout_label.domain))
-        #else:
-
         root = self.root_path
 
         key = self.normalise_checkout_label(checkout_label)

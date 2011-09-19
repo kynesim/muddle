@@ -223,41 +223,11 @@ class VersionControlHandler(object):
             self.revision = None
         self.branch = branch
 
-        # Sometimes it is useful to know the directory within which our
-        # leaf directory lies
-        root_path = builder.invocation.db.root_path
-        if co_dir:
-            self.parent_dir = os.path.join(root_path, 'src', co_dir)
-        else:
-            self.parent_dir = os.path.join(root_path, 'src')
-
-        # And we might as well precalculate the actual checkout directory
-        self.actual_dir = self.get_my_absolute_checkout_path()
-
-        # That *should* be identical to the registered checkout directory,
-        # but without the prefixed "<root_path>/src/" and any domain gubbins
         # TODO: instead of making the caller register the checkout directory
         #       for this label separately, do it for them...
-        if co_label.domain:
-            calculated_path = os.path.join(root_path, 'src',
-                                           utils.domain_subpath(co_label.domain),
-                                           self.get_my_absolute_checkout_path())
-        else:
-            calculated_path = os.path.join(root_path, 'src',
-                                           self.get_my_absolute_checkout_path())
+        #       (but always remember that, at this stage, we probably don't
+        #       yet know if we're in a subdomain or not)
 
-        # For exceptions, we want the directory relative to the root
-        # (but if we have subdomains, we probably had better mean the
-        # root of the topmost build)
-        if co_label.domain:
-            domain_part = utils.domain_subpath(co_label.domain)
-        else:
-            domain_part = ''
-
-        if co_dir:
-            self.src_rel_dir = os.path.join('src', domain_part, co_dir, co_leaf)
-        else:
-            self.src_rel_dir = os.path.join('src', domain_part, co_leaf)
 
         # Sort out what our repository URL actually is
         pair = conventional_repo_url(repo, rel, co_dir=co_dir)
@@ -268,6 +238,13 @@ class VersionControlHandler(object):
 
         self._options = default_vcs_options_dict()
         self.add_options(addoptions)
+
+    def _inner_labels(self):
+        """
+        Return any "inner" labels, so their domains may be altered.
+        """
+        labels = [self.checkout_label]
+        return labels
 
     def _parse_revision(self, branch, revision):
         """
@@ -345,6 +322,25 @@ class VersionControlHandler(object):
         else:
             return self.builder.invocation.checkout_path(None)
 
+    def src_rel_dir(self):
+        """For exceptions, we want the directory relative to the root
+
+        (but if we have subdomains, we probably had better mean the root of the
+        topmost build)
+        """
+        if self.checkout_label.domain:
+            domain_part = utils.domain_subpath(self.checkout_label.domain)
+        else:
+            domain_part = ''
+
+        if self.checkout_dir:
+            src_rel_dir = os.path.join('src', domain_part, self.checkout_dir,
+                                       self.checkout_leaf)
+        else:
+            src_rel_dir = os.path.join('src', domain_part, self.checkout_leaf)
+
+        return src_rel_dir
+
     def check_out(self):
         """A synonym for old time's sake.
         """
@@ -358,20 +354,24 @@ class VersionControlHandler(object):
         version control systems. We retain the name "checkout" because it
         instantiates a muddle checkout.
         """
+        # We want to be in the checkout's parent directory
+        parent_dir, rest = os.path.split(self.get_my_absolute_checkout_path())
+
         # Be careful - if the parent is 'src/', then it may well exist by now
-        if not os.path.exists(self.parent_dir):
-            os.makedirs(self.parent_dir)
-        with utils.Directory(self.parent_dir):
+        if not os.path.exists(parent_dir):
+            os.makedirs(parent_dir)
+
+        with utils.Directory(parent_dir):
             try:
                 self.vcs_handler.checkout(self.actual_repo, self.checkout_leaf,
                                           self._options,
                                           self.branch, self.revision, verbose)
             except utils.MuddleBug as err:
                 raise utils.MuddleBug('Error checking out %s in %s:\n%s'%(self.checkout_label,
-                                  self.parent_dir, err))
+                                      parent_dir, err))
             except utils.GiveUp as err:
                 raise utils.GiveUp('Failure checking out %s in %s:\n%s'%(self.checkout_label,
-                                    self.parent_dir, err))
+                                   parent_dir, err))
 
     def fetch(self, verbose=True):
         """
@@ -379,32 +379,32 @@ class VersionControlHandler(object):
         the local working copy, but not if a merge operation would be
         required, in which case an exception shall be raised.
         """
-        with utils.Directory(self.actual_dir):
+        with utils.Directory(self.get_my_absolute_checkout_path()):
             try:
                 self.vcs_handler.fetch(self.actual_repo, self._options,
                                        self.branch, self.revision, verbose)
             except utils.MuddleBug as err:
                 raise utils.MuddleBug('Error fetching %s in %s:\n%s'%(self.checkout_label,
-                                  self.src_rel_dir, err))
+                                  self.src_rel_dir(), err))
             except utils.GiveUp as err:
                 raise utils.GiveUp('Failure fetching %s in %s:\n%s'%(self.checkout_label,
-                                    self.src_rel_dir, err))
+                                    self.src_rel_dir(), err))
 
     def merge(self, verbose=True):
         """
         Retrieve changes from the remote repository, and apply them to
         the local working copy, performing a merge operation if necessary.
         """
-        with utils.Directory(self.actual_dir):
+        with utils.Directory(self.get_my_absolute_checkout_path()):
             try:
                 self.vcs_handler.merge(self.actual_repo, self._options,
                                        self.branch, self.revision, verbose)
             except utils.MuddleBug as err:
                 raise utils.MuddleBug('Error merging %s in %s:\n%s'%(self.checkout_label,
-                                  self.src_rel_dir, err))
+                                  self.src_rel_dir(), err))
             except utils.GiveUp as err:
                 raise utils.GiveUp('Failure merging %s in %s:\n%s'%(self.checkout_label,
-                                    self.src_rel_dir, err))
+                                    self.src_rel_dir(), err))
 
     def commit(self, verbose=True):
         """
@@ -413,15 +413,15 @@ class VersionControlHandler(object):
         In a centralised VCS, like subverson, this does not do anything, as
         there is no *local* repository.
         """
-        with utils.Directory(self.actual_dir):
+        with utils.Directory(self.get_my_absolute_checkout_path()):
             try:
                 self.vcs_handler.commit(self._options, verbose)
             except utils.MuddleBug as err:
                 raise utils.MuddleBug('Error commiting %s in %s:\n%s'%(self.checkout_label,
-                                  self.src_rel_dir, err))
+                                  self.src_rel_dir(), err))
             except utils.GiveUp as err:
                 raise utils.GiveUp('Failure commiting %s in %s:\n%s'%(self.checkout_label,
-                                    self.src_rel_dir, err))
+                                    self.src_rel_dir(), err))
 
     def push(self, verbose=True):
         """
@@ -432,18 +432,18 @@ class VersionControlHandler(object):
 
         This operaton does not do a 'commit'.
         """
-        with utils.Directory(self.actual_dir):
+        with utils.Directory(self.get_my_absolute_checkout_path()):
             try:
                 self.vcs_handler.push(self.actual_repo, self._options,
                                       self.branch, verbose)
             except utils.MuddleBug as err:
                 raise utils.MuddleBug('Error pushing %s in %s:\n%s'%(self.checkout_label,
-                                  self.src_rel_dir, err))
+                                  self.src_rel_dir(), err))
             except utils.GiveUp as err:
                 raise utils.GiveUp('Failure pushing %s in %s:\n%s'%(self.checkout_label,
-                                    self.src_rel_dir, err))
+                                    self.src_rel_dir(), err))
 
-    def status(self):
+    def status(self, verbose=False):
         """
         Report on the status of the checkout, in a VCS-appropriate manner
 
@@ -451,6 +451,8 @@ class VersionControlHandler(object):
 
         Otherwise, returns a string comprising a report on the status
         of the repository, in a VCS appropriate manner.
+
+        If 'verbose', then report each checkout label as it is checked.
 
         The reliability and accuracy of this varies by VCS, but the idea
         is that a checkout is 'safe' if:
@@ -462,24 +464,26 @@ class VersionControlHandler(object):
         In general, if a checkout is 'safe' then it should be OK to 'merge'
         the remote repository into it.
         """
-        with utils.Directory(self.actual_dir, show_pushd=False):
+        if verbose:
+            print '>>', self.checkout_label
+        with utils.Directory(self.get_my_absolute_checkout_path(), show_pushd=False):
             try:
                 status_text = self.vcs_handler.status(self.actual_repo,
                         self._options, self.branch)
                 if status_text:
                     full_text = '%s status for %s in %s:\n%s'%(self.short_name(),
                                                  self.checkout_label,
-                                                 self.src_rel_dir,
+                                                 self.src_rel_dir(),
                                                  status_text)
                     return full_text
                 else:
                     return None
             except utils.MuddleBug as err:
                 raise utils.MuddleBug('Error finding status for %s in %s:\n%s'%(self.checkout_label,
-                                  self.src_rel_dir, err))
+                                  self.src_rel_dir(), err))
             except utils.GiveUp as err:
                 raise utils.GiveUp('Failure finding status for %s in %s:\n%s'%(self.checkout_label,
-                                    self.src_rel_dir, err))
+                                    self.src_rel_dir(), err))
 
     def reparent(self, force=False, verbose=True):
         """
@@ -494,8 +498,9 @@ class VersionControlHandler(object):
         If 'force' is true, it does this regardless. If 'force' is false, then
         it only does it if the checkout is actually not so associated.
         """
-        with utils.Directory(self.actual_dir):
-            self.vcs_handler.reparent(self.get_my_absolute_checkout_path(), # or self.checkout_leaf
+        actual_dir = self.get_my_absolute_checkout_path()
+        with utils.Directory(actual_dir):
+            self.vcs_handler.reparent(actual_dir, # or self.checkout_leaf
                                       self.actual_repo, self._options,
                                       force, verbose)
 
@@ -525,7 +530,7 @@ class VersionControlHandler(object):
         implementation will raise a GiveUp unless 'force' is true, in which
         case it will return the string '0'.
         """
-        with utils.Directory(self.actual_dir):
+        with utils.Directory(self.get_my_absolute_checkout_path()):
             return self.vcs_handler.revision_to_checkout(self.checkout_leaf,
                                                          self.revision,
                                                          self._options,

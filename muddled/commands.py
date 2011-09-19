@@ -237,7 +237,7 @@ class Init(Command):
         repo = args[0]
         build = args[1]
 
-        if (not self.no_op()):
+        if not self.no_op():
             db = Database(root_path)
             db.setup(repo, build)
 
@@ -1581,10 +1581,11 @@ class Clean(Command):
     def with_build_tree(self, builder, current_dir, args):
         labels = labels_from_pkg_args(builder, args, current_dir,
                                       utils.LabelTag.Built)
-        if (self.no_op()):
+        if self.no_op():
             print "Would have cleaned: %s"%(" ".join(map(str, labels)))
-        else:
-            build_a_kill_b(builder, labels, utils.LabelTag.Clean, utils.LabelTag.Built)
+            return
+
+        build_a_kill_b(builder, labels, utils.LabelTag.Clean, utils.LabelTag.Built)
 
 @command('distclean')
 class DistClean(Command):
@@ -1702,13 +1703,21 @@ class Commit(Command):
     def with_build_tree(self, builder, current_dir, args):
         checkouts = decode_checkout_arguments(builder, args, current_dir,
                                               utils.LabelTag.ChangesCommitted)
-        # Forcibly retract all the updated tags.
-        if (self.no_op()):
+
+        checkouts.sort()
+
+        if self.no_op():
             print "Committing checkouts: %s"%(depend.label_list_to_string(checkouts))
-        else:
-            for co in checkouts:
-                builder.kill_label(co)
-                builder.build_label(co)
+            return
+
+        if not checkouts:
+            print 'Nothing selected'
+            return
+
+        # Forcibly retract all the updated tags.
+        for co in checkouts:
+            builder.kill_label(co)
+            builder.build_label(co)
 
 @command('push')
 class Push(Command):
@@ -1745,24 +1754,28 @@ class Push(Command):
         else:
             stop_on_problem = False
 
-        problems = []
-
         checkouts = decode_checkout_arguments(builder, args, current_dir,
                                               utils.LabelTag.ChangesPushed)
-        # Forcibly retract all the updated tags.
-        if (self.no_op()):
+
+        if self.no_op():
             print "Pushing checkouts: %s"%(depend.label_list_to_string(checkouts))
-        else:
-            for co in checkouts:
-                try:
-                    builder.invocation.db.clear_tag(co)
-                    builder.build_label(co)
-                except utils.GiveUp as e:
-                    if stop_on_problem:
-                        raise
-                    else:
-                        print e
-                        problems.append(e)
+            return
+
+        checkouts.sort()
+
+        problems = []
+
+        for co in checkouts:
+            try:
+                builder.invocation.db.clear_tag(co)
+                builder.build_label(co)
+            except utils.GiveUp as e:
+                if stop_on_problem:
+                    raise
+                else:
+                    print e
+                    problems.append(e)
+
         if problems:
             print '\nThe following problems occurred:\n'
             for e in problems:
@@ -1801,8 +1814,6 @@ class Fetch(Command):
 
     def with_build_tree(self, builder, current_dir, args):
 
-        problems = []
-
         if len(args) and args[0] in ('-s', '-stop'):
             stop_on_problem = True
         else:
@@ -1810,9 +1821,17 @@ class Fetch(Command):
 
         checkouts = decode_checkout_arguments(builder, args, current_dir,
                                               utils.LabelTag.Fetched)
-        if (self.no_op()):
+        if self.no_op():
             print "Fetch checkouts: %s"%(depend.label_list_to_string(checkouts))
             return
+
+        if not checkouts:
+            print 'Nothing selected'
+            return
+
+        checkouts.sort()
+
+        problems = []
 
         for co in checkouts:
             try:
@@ -1826,6 +1845,7 @@ class Fetch(Command):
                 else:
                     print e
                     problems.append(e)
+
         if problems:
             print '\nThe following problems occurred:\n'
             for e in problems:
@@ -1865,8 +1885,6 @@ class Merge(Command):
 
     def with_build_tree(self, builder, current_dir, args):
 
-        problems = []
-
         if len(args) and args[0] in ('-s', '-stop'):
             stop_on_problem = True
         else:
@@ -1877,6 +1895,14 @@ class Merge(Command):
         if (self.no_op()):
             print "Merge checkouts: %s"%(depend.label_list_to_string(checkouts))
             return
+
+        if not checkouts:
+            print 'Nothing selected'
+            return
+
+        checkouts.sort()
+
+        problems = []
 
         for co in checkouts:
             try:
@@ -1899,9 +1925,12 @@ class Merge(Command):
 @command('status')
 class Status(Command):
     """
-    :Syntax: status <checkout> [ <checkout> ... ]
+    :Syntax: status [-v] <checkout> [ <checkout> ... ]
 
     Report on the status of checkouts that need attention.
+
+    If '-v' is given, report each checkout label as it is checked (allowing
+    a sense of progress if there are many bazaar checkouts, for instance).
 
     Runs the equivalent of ``git status`` or ``bzr status`` on each repository,
     and tries to only report those which have significant status.
@@ -1931,25 +1960,45 @@ class Status(Command):
 
     def with_build_tree(self, builder, current_dir, args):
 
+        verbose = False
+        if args and args[0] == '-v':
+            args = args[1:]
+            verbose = True
+
         checkouts = decode_checkout_arguments(builder, args, current_dir,
                                               utils.LabelTag.Fetched)
-        if (self.no_op()):
+
+        # As an experiment (because this is actually what I think
+        # decode_checkout_arguments is meant to do):
+        if not checkouts:
+            cos_below = builder.get_all_checkout_labels_below(current_dir)
+            for c in cos_below:
+                checkouts.append(c.copy_with_tag(utils.LabelTag.Fetched))
+
+        if self.no_op():
             print "Status for checkouts: %s"%(depend.label_list_to_string(checkouts))
-        else:
-            something_needs_doing = False
-            for co in checkouts:
-                rule = builder.invocation.ruleset.rule_for_target(co)
-                try:
-                    vcs = rule.obj.vcs
-                except AttributeError:
-                    print "Rule for label '%s' has no VCS - cannot find its status"%co
-                    continue
-                text = vcs.status()
-                if text:
-                    print text
-                    something_needs_doing = True
-            if not something_needs_doing:
-                print 'All checkouts seemed clean'
+            return
+
+        if not checkouts:
+            print 'Nothing selected'
+            return
+
+        checkouts.sort()
+
+        something_needs_doing = False
+        for co in checkouts:
+            rule = builder.invocation.ruleset.rule_for_target(co)
+            try:
+                vcs = rule.obj.vcs
+            except AttributeError:
+                print "Rule for label '%s' has no VCS - cannot find its status"%co
+                continue
+            text = vcs.status(verbose)
+            if text:
+                print text
+                something_needs_doing = True
+        if not something_needs_doing:
+            print 'All checkouts seemed clean'
 
 @command('reparent')
 class Reparent(Command):
@@ -2001,15 +2050,22 @@ class Reparent(Command):
                                               utils.LabelTag.Fetched)
         if (self.no_op()):
             print "Reparent checkouts: %s"%(depend.label_list_to_string(checkouts))
-        else:
-            for co in checkouts:
-                rule = builder.invocation.ruleset.rule_for_target(co)
-                try:
-                    vcs = rule.obj.vcs
-                except AttributeError:
-                    print "Rule for label '%s' has no VCS - cannot reparent, ignored"%co
-                    continue
-                vcs.reparent(force=force, verbose=True)
+            return
+
+        if not checkouts:
+            print 'Nothing selected'
+            return
+
+        checkouts.sort()
+
+        for co in checkouts:
+            rule = builder.invocation.ruleset.rule_for_target(co)
+            try:
+                vcs = rule.obj.vcs
+            except AttributeError:
+                print "Rule for label '%s' has no VCS - cannot reparent, ignored"%co
+                continue
+            vcs.reparent(force=force, verbose=True)
 
 @command('removed')
 class Removed(Command):

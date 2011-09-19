@@ -1508,12 +1508,26 @@ def _new_sub_domain(root_path, muddle_binary, domain_name, domain_repo, domain_b
 
     rules = ruleset.map.values()
 
+    # TODO: This is terribly clumsy, as any change elsewhere in muddle
+    #       requires us to remember to update this.
+
+    # Unfortunately, as it turns out, the seemingly sensible decision that
+    # each VCS handler object should know its builder causes us a problem,
+    # since we're going to need to change each of their minds, one at a time...
+    vcs_handlers = []
+
     for rule in rules:
         labels.append(rule.target)
         for l in rule.deps:
             labels.append(l)
-        if rule.obj is not None and hasattr(rule.obj, '_inner_labels'):
-            labels.extend(rule.obj._inner_labels())
+        if rule.obj is not None:
+            if hasattr(rule.obj, '_inner_labels'):
+                labels.extend(rule.obj._inner_labels())
+            if hasattr(rule.obj, 'vcs'):
+                # This relies WAY too much on knowledge of the inside of a
+                # version control handler - TODO is to fix it!!!
+                labels.append(rule.obj.vcs.checkout_label)
+                vcs_handlers.append(rule.obj.vcs)
 
     # Then, mark them all as "unchanged" (because we can't guarantee we won't
     # have the same label more than once, and it's easier to do this than to
@@ -1543,7 +1557,7 @@ def _new_sub_domain(root_path, muddle_binary, domain_name, domain_repo, domain_b
     # Now mark the builder as a domain.
     domain_builder.invocation.mark_domain(domain_name)
 
-    return domain_builder
+    return domain_builder, vcs_handlers
 
 def include_domain(builder, domain_name, domain_repo, domain_desc):
     """
@@ -1565,13 +1579,13 @@ def include_domain(builder, domain_name, domain_repo, domain_desc):
     ``include_domain()`` if necessary.
     """
 
-    domain_builder = _new_sub_domain(builder.invocation.db.root_path,
-                                     builder.muddle_binary,
-                                     domain_name,
-                                     domain_repo,
-                                     domain_desc, 
-                                     parent_domain = builder)
-    
+    domain_builder, vcs_handlers = _new_sub_domain(builder.invocation.db.root_path,
+                                                   builder.muddle_binary,
+                                                   domain_name,
+                                                   domain_repo,
+                                                   domain_desc,
+                                                   parent_domain = builder)
+
     # And make sure we merge its rules into ours...
     builder.invocation.ruleset.merge(domain_builder.invocation.ruleset)
 
@@ -1579,8 +1593,12 @@ def include_domain(builder, domain_name, domain_repo, domain_desc):
     for key, value in domain_builder.invocation.env.items():
         builder.invocation.env[key] = value
 
+    # And sort out which builder its VCS handlers think they belong to
+    for vcs in vcs_handlers:
+        vcs.builder = builder
+
     builder.invocation.include_domain(domain_builder, domain_name)
-    
+
     return domain_builder
 
 

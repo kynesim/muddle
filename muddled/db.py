@@ -98,6 +98,7 @@ class Database(object):
 
         This is mainly checkout locations.
         """
+        #print 'include domain:', other_domain_name
         for (co_label,co_dir) in other_builder.invocation.db.checkout_locations.items():
             #print "Including %s -> %s -- %s"%(co_label,co_dir, other_domain_name)
 
@@ -105,7 +106,12 @@ class Database(object):
             new_label._mark_unswept()
             new_label._change_domain(other_domain_name)
 
-            self.checkout_locations[new_label] = co_dir
+            new_dir = os.path.join(utils.domain_subpath(other_domain_name),
+                                   co_dir)
+
+            #print "          %s -> %s"%(new_label, new_dir)
+
+            self.checkout_locations[new_label] = new_dir
 
 
     def set_domain_marker(self, domain_name):
@@ -151,7 +157,7 @@ class Database(object):
 	#print '### set_checkout_path for %s'%checkout_label
 	#print '... dir',dir
 
-        self.checkout_locations[key] = dir
+        self.checkout_locations[key] = os.path.join('src', dir)
 
 
     def dump_checkout_paths(self):
@@ -180,21 +186,21 @@ class Database(object):
 
         assert checkout_label.type == utils.LabelType.Checkout
 
-        if checkout_label.domain:
-            root = os.path.join(self.root_path,
-                                domain_subpath(checkout_label.domain))
-        else:
-            root = self.root_path
+        # This bit is not needed because we KNOW our correct root path
+        #if checkout_label.domain:
+        #    root = os.path.join(self.root_path,
+        #                        domain_subpath(checkout_label.domain))
+        #else:
+
+        root = self.root_path
 
         key = self.normalise_checkout_label(checkout_label)
-        rel_dir = self.checkout_locations.get(key, checkout_label.name)
+        try:
+            rel_dir = self.checkout_locations[key]
+        except KeyError:
+            raise utils.GiveUp('There is no checkout path registered for label %s'%checkout_label)
 
-	#print '*** get_checkout_path for %s'%checkout_label
-	#print '... root',root
-	#print '... rel_dir',rel_dir
-	#print '... giving',os.path.join(root, "src", rel_dir)
-
-        return os.path.join(root, "src", rel_dir)
+        return os.path.join(root, rel_dir)
 
     def build_desc_file_name(self):
         """

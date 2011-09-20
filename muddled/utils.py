@@ -16,6 +16,7 @@ import tempfile
 import textwrap
 import time
 import traceback
+import errno
 import xml.dom
 import xml.dom.minidom
 from collections import MutableMapping, Mapping, namedtuple
@@ -596,7 +597,7 @@ def copy_file_metadata(from_path, to_path):
         if os.geteuid() == 0:
             os.chown(to_path, st.st_uid, st.st_gid)
 
-def copy_file(from_path, to_path, object_exactly=False, preserve=False):
+def copy_file(from_path, to_path, object_exactly=False, preserve=False, force=False):
     """
     Copy a file (either a "proper" file, not a directory, or a symbolic link).
 
@@ -614,6 +615,9 @@ def copy_file(from_path, to_path, object_exactly=False, preserve=False):
     If 'preserve' is true, then the file's mode, ownership and timestamp will
     be copied, if possible. Note that on Un*x file ownership can only be copied
     if the process is running as 'root' (or within 'sudo').
+
+    If 'force' is true, then if a target file is not writeable, try removing it
+    and then copying it.
     """
 
     if object_exactly and os.path.islink(from_path):
@@ -622,12 +626,19 @@ def copy_file(from_path, to_path, object_exactly=False, preserve=False):
             os.remove(to_path)
         os.symlink(linkto, to_path)
     else:
-        shutil.copyfile(from_path, to_path)
+        try:
+            shutil.copyfile(from_path, to_path)
+        except IOError as e:
+            if force and e.errno == errno.EACCES:
+                os.remove(to_path)
+                shutil.copyfile(from_path, to_path)
+            else:
+                raise
 
     if preserve:
         copy_file_metadata(from_path, to_path)
 
-def recursively_copy(from_dir, to_dir, object_exactly=False, preserve=True):
+def recursively_copy(from_dir, to_dir, object_exactly=False, preserve=True, force=False):
     """
     Take everything in from_dir and copy it to to_dir, overwriting
     anything that might already be there.
@@ -640,10 +651,13 @@ def recursively_copy(from_dir, to_dir, object_exactly=False, preserve=True):
     If preserve is true, then the file's mode, ownership and timestamp will be
     copied, if possible. This is only really useful when copying as a
     privileged user.
+
+    If 'force' is true, then if a target file is not writeable, try removing it
+    and then copying it.
     """
-    
+
     copy_without(from_dir, to_dir, object_exactly=object_exactly,
-                 preserve=preserve)
+                 preserve=preserve, force=force)
 
 
 def split_path_left(in_path):
@@ -792,7 +806,7 @@ def xml_elem_with_child(doc, elem_name, child_text):
     return el
 
 
-def _copy_without(src, dst, ignored_names, object_exactly, preserve):
+def _copy_without(src, dst, ignored_names, object_exactly, preserve, force):
     """
     The insides of copy_without. See that for more documentation.
 
@@ -820,9 +834,11 @@ def _copy_without(src, dst, ignored_names, object_exactly, preserve):
                 copy_file(srcname, dstname, object_exactly=True, preserve=preserve)
             elif os.path.isdir(srcname):
                 _copy_without(srcname, dstname, ignored_names=ignored_names,
-                              object_exactly=object_exactly, preserve=preserve)
+                              object_exactly=object_exactly, preserve=preserve,
+                              force=force)
             else:
-                copy_file(srcname, dstname, object_exactly=object_exactly, preserve=preserve)
+                copy_file(srcname, dstname, object_exactly=object_exactly,
+                          preserve=preserve, force=force)
         except (IOError, os.error), why:
             raise GiveUp('Unable to copy %s to %s: %s'%(srcname, dstname, why))
 
@@ -831,9 +847,9 @@ def _copy_without(src, dst, ignored_names, object_exactly, preserve):
     except OSError, why:
         raise GiveUp('Unable to copy properties of %s to %s: %s'%(src, dst, why))
 
-def copy_without(src, dst, without=None, object_exactly=True, preserve=False):
+def copy_without(src, dst, without=None, object_exactly=True, preserve=False, force=False):
     """
-    Copy without entries in the sequence 'without'.
+    Copy files from the 'src' directory to the 'dst' directory, without those in 'without'
 
     If given, 'without' should be a sequence of filenames - for instance,
     ['.bzr', '.svn'].
@@ -841,9 +857,12 @@ def copy_without(src, dst, without=None, object_exactly=True, preserve=False):
     If 'object_exactly' is true, then symbolic links will be copied as links,
     otherwise the referenced file will be copied.
 
-    If 'preserve' is true, then the file's mode, ownership and timestamp will be
+    If 'preserve' is true, then the file's mode, ownership and timestamp will
     be copied, if possible. Note that on Un*x file ownership can only be copied
     if the process is running as 'root' (or within 'sudo').
+
+    If 'force' is true, then if a target file is not writeable, try removing it
+    and then copying it.
 
     Creates directories in the destination, if necessary.
 
@@ -860,7 +879,7 @@ def copy_without(src, dst, without=None, object_exactly=True, preserve=False):
         print 'ignoring %s'%without
     print
 
-    _copy_without(src, dst, ignored_names, object_exactly, preserve)
+    _copy_without(src, dst, ignored_names, object_exactly, preserve, force)
 
 def copy_name_list_with_dirs(file_list, old_root, new_root,
                              object_exactly = True, preserve = False): 

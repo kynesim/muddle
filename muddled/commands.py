@@ -2383,15 +2383,20 @@ class Checkout(Command):
 @command('copywithout')
 class CopyWithout(Command):
     """
-    :Syntax: copywithout <src> <dst> [ <without> ... ]
+    :Syntax: copywithout [-f[orce]] <src-dir> <dst-dir> [ <without> ... ]
 
     Many VCSs use '.XXX' directories to hold metadata. When installing
     files in a makefile, it's often useful to have an operation which
     copies a hierarchy from one place to another without these dotfiles.
 
-    This is that operation. We copy everything from src into dst without
-    copying anything which is in [ <without> ... ].  If you omit without, 
-    we just copy - this is a useful, working, version of 'cp -a'
+    This is that operation. We copy everything from the source directory,
+    <src-dir>, into the target directory,  <dst-dir>, without copying anything
+    which is in [ <without> ... ].  If you omit without, we just copy - this is
+    a useful, working, version of 'cp -a'
+
+    If you specify -f (or -force), then if a destination file cannot be
+    overwritten because of its permissions, and attempt will be made to remove
+    it, and then copy again. This is what 'cp' does for its '-f' flag.
     """
 
     def requires_build_tree(self):
@@ -2404,9 +2409,16 @@ class CopyWithout(Command):
         self.do_copy(args)
 
     def do_copy(self, args):
+
+        if args and args[0] in ('-f', '-force'):
+            force = True
+            args = args[1:]
+        else:
+            force = False
+
         if (len(args) < 2):
             raise utils.GiveUp("Bad syntax for copywithout command")
-        
+
         src_dir = args[0]
         dst_dir = args[1]
         without = args[2:]
@@ -2416,7 +2428,8 @@ class CopyWithout(Command):
             print "Copy to  : %s"%(dst_dir)
             print "Excluding: %s"%(" ".join(without))
         else:
-            utils.copy_without(src_dir, dst_dir, without, object_exactly=True, preserve=True)
+            utils.copy_without(src_dir, dst_dir, without, object_exactly=True,
+                    preserve=True, force=force)
 
 @command('retry')
 class Retry(Command):

@@ -79,7 +79,16 @@ def muddle(args, verbose=True):
     """
     if verbose:
         print '++ muddle %s'%(' '.join(args))
-    muddled.cmdline.cmdline(args, MUDDLE_BINARY)
+    # In order to cope with soft links in directory structures, muddle
+    # tries to use the current PWD as set by the shell. Which, of course,
+    # isn't done by the Directory classes. So we need to do it by hand.
+    old_pwd = os.environ.get('PWD', None)
+    try:
+        os.environ['PWD'] = os.getcwd()
+        muddled.cmdline.cmdline(args, MUDDLE_BINARY)
+    finally:
+        if old_pwd:
+            os.environ['PWD'] = old_pwd
 
 def git(cmd, verbose=True):
     """Run a git command

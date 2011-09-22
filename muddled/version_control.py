@@ -796,7 +796,8 @@ def vcs_get_directory(url, directory=None):
     handler.
     """
     vcs_handler, plain_url = get_vcs_handler(url)
-    return vcs_handler.checkout(plain_url, directory)
+    options = default_vcs_options_dict()
+    return vcs_handler.checkout(plain_url, directory, options)
 
 def vcs_push_directory(url):
     """
@@ -809,7 +810,8 @@ def vcs_push_directory(url):
     handler.
     """
     vcs_handler, plain_url = get_vcs_handler(url)
-    vcs_handler.push(plain_url)
+    options = default_vcs_options_dict()
+    vcs_handler.push(plain_url, options)
 
 def vcs_fetch_directory(url):
     """
@@ -822,7 +824,8 @@ def vcs_fetch_directory(url):
     handler.
     """
     vcs_handler, plain_url = get_vcs_handler(url)
-    vcs_handler.fetch(plain_url)
+    options = default_vcs_options_dict()
+    vcs_handler.fetch(plain_url, options)
 
 def vcs_init_directory(scheme, files=None):
     """

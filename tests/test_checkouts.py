@@ -263,11 +263,18 @@ def test_git_simple_build():
                   '# A comment\n# Another comment\n')
             git('add fred.stamp')
             git('commit -m "New stamp file"')
-            git('push %s/versions HEAD'%root_repo)
+            # We have to associate it with a repository
+            git('remote add origin %s/versions'%root_repo)
+            git('push origin master')
 
         with Directory('src/builds'):
             git('commit -m "New build"')
-            git('push %s/builds HEAD'%root_repo)
+            ##git('push %s/builds HEAD'%root_repo)
+            # We can use the big blunt stick of 'reparent',
+            # or we could use 'git remote add origin' directly
+            # TODO: muddle bootstrap should have done this for us
+            muddle(['reparent'])
+            muddle(['push'])
 
         banner('Stamping simple build')
         muddle(['stamp', 'version'])
@@ -419,7 +426,9 @@ def test_git_checkout_build():
         with Directory('versions'):
             git('add checkout_test.stamp')
             git('commit -m "A stamp file"')
-            git('push %s/versions HEAD'%root_repo)
+            # We have to associate it with a repository
+            git('remote add origin %s/versions'%root_repo)
+            git('push origin master')
             cat('checkout_test.stamp')
 
         # We should be able to use muddle to push the stamp file

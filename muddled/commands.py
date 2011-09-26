@@ -1704,10 +1704,9 @@ class Commit(Command):
         checkouts = decode_checkout_arguments(builder, args, current_dir,
                                               utils.LabelTag.ChangesCommitted)
 
-        checkouts.sort()
+        name_selected_checkouts("Commit", checkouts);
 
         if self.no_op():
-            print "Committing checkouts: %s"%(depend.label_list_to_string(checkouts))
             return
 
         # Forcibly retract all the updated tags.
@@ -1753,11 +1752,11 @@ class Push(Command):
         checkouts = decode_checkout_arguments(builder, args, current_dir,
                                               utils.LabelTag.ChangesPushed)
 
+        name_selected_checkouts("Push", checkouts)
+
         if self.no_op():
-            print "Pushing checkouts: %s"%(depend.label_list_to_string(checkouts))
             return
 
-        checkouts.sort()
 
         problems = []
 
@@ -1817,11 +1816,11 @@ class Fetch(Command):
 
         checkouts = decode_checkout_arguments(builder, args, current_dir,
                                               utils.LabelTag.Fetched)
-        if self.no_op():
-            print "Fetch checkouts: %s"%(depend.label_list_to_string(checkouts))
-            return
 
-        checkouts.sort()
+        name_selected_checkouts("Fetch", checkouts)
+
+        if self.no_op():
+            return
 
         problems = []
 
@@ -1884,11 +1883,11 @@ class Merge(Command):
 
         checkouts = decode_checkout_arguments(builder, args, current_dir,
                                               utils.LabelTag.Merged)
-        if (self.no_op()):
-            print "Merge checkouts: %s"%(depend.label_list_to_string(checkouts))
-            return
 
-        checkouts.sort()
+        name_selected_checkouts("Merge", checkouts)
+
+        if (self.no_op()):
+            return
 
         problems = []
 
@@ -1956,11 +1955,10 @@ class Status(Command):
         checkouts = decode_checkout_arguments(builder, args, current_dir,
                                               utils.LabelTag.Fetched)
 
-        if self.no_op():
-            print "Status for checkouts: %s"%(depend.label_list_to_string(checkouts))
-            return
+        name_selected_checkouts("Status for", checkouts)
 
-        checkouts.sort()
+        if self.no_op():
+            return
 
         something_needs_doing = False
         for co in checkouts:
@@ -2025,11 +2023,11 @@ class Reparent(Command):
 
         checkouts = decode_checkout_arguments(builder, args, current_dir,
                                               utils.LabelTag.Fetched)
-        if (self.no_op()):
-            print "Reparent checkouts: %s"%(depend.label_list_to_string(checkouts))
-            return
 
-        checkouts.sort()
+        name_selected_checkouts("Reparent", checkouts)
+
+        if (self.no_op()):
+            return
 
         for co in checkouts:
             rule = builder.invocation.ruleset.rule_for_target(co)
@@ -2061,11 +2059,13 @@ class Removed(Command):
         checkouts = decode_checkout_arguments(builder, args, current_dir,
                                               utils.LabelTag.CheckedOut)
 
+        name_selected_checkouts("Remove", checkouts)
+
         if (self.no_op()):
-            print "Signalling checkout removal for: "%(depend.label_list_to_string(checkouts))
-        else:
-            for c in checkouts:
-                builder.kill_label(c)
+            return
+
+        for c in checkouts:
+            builder.kill_label(c)
 
 @command('unimport')
 class Unimport(Command):
@@ -2088,11 +2088,13 @@ class Unimport(Command):
         checkouts = decode_checkout_arguments(builder, args, current_dir,
                                               utils.LabelTag.CheckedOut)
 
+        name_selected_checkouts("Unimport", checkouts)
+
         if (self.no_op()):
-            print "Unimporting checkouts: %s"%(depend.label_list_to_string(checkouts))
-        else:
-            for c in checkouts:
-                builder.invocation.db.clear_tag(c)
+            return
+
+        for c in checkouts:
+            builder.invocation.db.clear_tag(c)
 
 @command('import')
 class Import(Command):
@@ -2123,11 +2125,14 @@ class Import(Command):
     def with_build_tree(self, builder, current_dir, args):
         checkouts = decode_checkout_arguments(builder, args, current_dir,
                                               utils.LabelTag.CheckedOut)
+
+        name_selected_checkouts("Import", checkouts)
+
         if (self.no_op()):
-            print "Importing checkouts: %s"%(depend.label_list_to_string(checkouts))
-        else:
-            for c in checkouts:
-                builder.invocation.db.set_tag(c)
+            return
+
+        for c in checkouts:
+            builder.invocation.db.set_tag(c)
         # issue 143: Call reparent so the VCS is locked and loaded.
         rep = g_command_dict['reparent']() # should be Reparent but go via the dict just in case
         rep.set_options(self.options)
@@ -2322,11 +2327,14 @@ class UnCheckout(Command):
     def with_build_tree(self, builder, current_dir, args):
         checkouts = decode_checkout_arguments(builder, args, current_dir,
                                               utils.LabelTag.CheckedOut)
+
+        name_selected_checkouts("Uncheckout", checkouts)
+
         if (self.no_op()):
-            print "Uncheckout: %s"%(depend.label_list_to_string(checkouts))
-        else:
-            for co in checkouts:
-                builder.kill_label(co)
+            return
+
+        for co in checkouts:
+            builder.kill_label(co)
 
 @command('checkout')
 class Checkout(Command):
@@ -2347,11 +2355,14 @@ class Checkout(Command):
     def with_build_tree(self, builder, current_dir, args):
         checkouts = decode_checkout_arguments(builder, args, current_dir,
                                               utils.LabelTag.CheckedOut)
+
+        name_selected_checkouts("Checkout", checkouts)
+
         if (self.no_op()):
-            print "Checkout: %s"%(depend.label_list_to_string(checkouts))
-        else:
-            for co in checkouts:
-                builder.build_label(co)
+            return
+
+        for co in checkouts:
+            builder.build_label(co)
 
 @command('copywithout')
 class CopyWithout(Command):
@@ -3386,8 +3397,8 @@ def decode_checkout_arguments(builder, args, current_dir, tag):
     Otherwise all checkouts with directories at or below the current directory
     are returned.
 
-    Returns a list of checkout labels, and also prints out the selected
-    checkout labels, or an appropriate message if there are none.
+    Returns a sorted list of checkout labels, or an empty list if there
+    are no checkouts selected.
     """
 
     rv = [ ]
@@ -3433,12 +3444,16 @@ def decode_checkout_arguments(builder, args, current_dir, tag):
             for c in cos_below:
                 rv.append(c.copy_with_tag(tag))
 
-    if rv:
-        print utils.wrap('Checkouts are: %s'%depend.label_list_to_string(rv),
-                         subsequent_indent='  ')
+    # We promised a sorted list
+    rv.sort()
+    return rv
+
+def name_selected_checkouts(verb, checkout_labels):
+    if checkout_labels:
+        print '%s checkouts: %s'%(verb,
+                depend.label_list_to_string(checkout_labels))
     else:
         print 'No checkouts selected'
-    return rv
 
 
 def decode_dep_checkout_arguments(builder, args, current_dir, tag):

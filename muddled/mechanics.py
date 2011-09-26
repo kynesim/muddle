@@ -1107,6 +1107,10 @@ class Builder(object):
     def get_all_checkout_labels_below(self, dir):
         """
         Get the labels of all the checkouts in or below directory 'dir'
+
+        NOTE that this will not work if you are in a subdirectory of a
+        checkout. It's not meant to. Consider using find_location_in_tree()
+        to determine that, before calling this method.
         """
         rv = [ ]
         all_cos = self.invocation.all_checkout_labels()

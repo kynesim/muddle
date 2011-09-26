@@ -1710,10 +1710,6 @@ class Commit(Command):
             print "Committing checkouts: %s"%(depend.label_list_to_string(checkouts))
             return
 
-        if not checkouts:
-            print 'Nothing selected'
-            return
-
         # Forcibly retract all the updated tags.
         for co in checkouts:
             builder.kill_label(co)
@@ -1825,10 +1821,6 @@ class Fetch(Command):
             print "Fetch checkouts: %s"%(depend.label_list_to_string(checkouts))
             return
 
-        if not checkouts:
-            print 'Nothing selected'
-            return
-
         checkouts.sort()
 
         problems = []
@@ -1894,10 +1886,6 @@ class Merge(Command):
                                               utils.LabelTag.Merged)
         if (self.no_op()):
             print "Merge checkouts: %s"%(depend.label_list_to_string(checkouts))
-            return
-
-        if not checkouts:
-            print 'Nothing selected'
             return
 
         checkouts.sort()
@@ -1968,19 +1956,8 @@ class Status(Command):
         checkouts = decode_checkout_arguments(builder, args, current_dir,
                                               utils.LabelTag.Fetched)
 
-        # As an experiment (because this is actually what I think
-        # decode_checkout_arguments is meant to do):
-        if not checkouts:
-            cos_below = builder.get_all_checkout_labels_below(current_dir)
-            for c in cos_below:
-                checkouts.append(c.copy_with_tag(utils.LabelTag.Fetched))
-
         if self.no_op():
             print "Status for checkouts: %s"%(depend.label_list_to_string(checkouts))
-            return
-
-        if not checkouts:
-            print 'Nothing selected'
             return
 
         checkouts.sort()
@@ -2050,10 +2027,6 @@ class Reparent(Command):
                                               utils.LabelTag.Fetched)
         if (self.no_op()):
             print "Reparent checkouts: %s"%(depend.label_list_to_string(checkouts))
-            return
-
-        if not checkouts:
-            print 'Nothing selected'
             return
 
         checkouts.sort()
@@ -3385,14 +3358,14 @@ def get_all_checkouts(builder, tag):
 def decode_checkout_arguments(builder, args, current_dir, tag):
     """
     Decode checkout label arguments.
-    
+
     Use this to decode arguments when you're expecting to refer to a
     checkout rather than a package.
 
     If 'args' is given, it is a list of command line arguments:
 
       * "_all" means all checkouts with the given 'tag'.
-      
+
         Note that including "_all" in the list of arguments 'short circuits'
         argument processing, and automatically just means "all checkouts" - any
         other arguments are ignored. This should not make any difference.
@@ -3410,12 +3383,13 @@ def decode_checkout_arguments(builder, args, current_dir, tag):
         as a package argument (just as for commands that take package names
         as their arguments).
 
-    Otherwise all checkouts with directories below the current directory are
-    returned.
+    Otherwise all checkouts with directories at or below the current directory
+    are returned.
 
-    Returns a list of checkout labels.
+    Returns a list of checkout labels, and also prints out the selected
+    checkout labels, or an appropriate message if there are none.
     """
-    
+
     rv = [ ]
 
     if (len(args) > 0):
@@ -3443,19 +3417,27 @@ def decode_checkout_arguments(builder, args, current_dir, tag):
                                 co, None, tag,
                                 domain = builder.get_default_domain()))
 
-            print 'Checkouts are:'
-            for l in rv:
-                print '  %s'%l
-
     else:
         # Where are we? If in a checkout, that's what we should do - else
         # all checkouts.
-        (what, label, domain) = builder.find_location_in_tree(current_dir)
+        what, label, domain = builder.find_location_in_tree(current_dir)
 
-        if (what == utils.DirType.Checkout):
+        if what == utils.DirType.Checkout and label:
+            # We're actually inside a checkout - job done
+            rv.append(label.copy_with_tag(tag))
+        elif what in (utils.DirType.Checkout,
+                      utils.DirType.Root,
+                      utils.DirType.DomainRoot):
+            # We're somewhere that we expect to have checkouts below
             cos_below = builder.get_all_checkout_labels_below(current_dir)
             for c in cos_below:
                 rv.append(c.copy_with_tag(tag))
+
+    if rv:
+        print utils.wrap('Checkouts are: %s'%depend.label_list_to_string(rv),
+                         subsequent_indent='  ')
+    else:
+        print 'No checkouts selected'
     return rv
 
 

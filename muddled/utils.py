@@ -258,7 +258,7 @@ def find_domain(root_dir, dir):
 
 def find_root_and_domain(dir):
     """
-    Find the build tree root containing 'dir', and the domain of 'dir'.
+    Find the build tree root containing 'dir', and find the domain of 'dir'.
 
     This function basically works backwards through the path of 'dir', until it
     finds a directory containing a '.muddle/' directory, that is not within a

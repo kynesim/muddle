@@ -1,20 +1,5 @@
 #! /usr/bin/env python
-"""Test checkout support.
-
-Give a single argument (one of 'git', 'bzr' or 'svn') to do tests for a
-particular version control system. That VCS must be installed on the
-machine you are running this on. For example::
-
-    $ ./test_checkouts.py git
-
-Give a set of commands starting with 'muddle' to run a muddle command,
-just as if you were running the muddle command line program itself. For
-example::
-
-    $ ./test_checkouts.py muddle help query
-
-The normal variants on 'help', '-help', etc. will probably work to
-give this text...
+"""Test domain support, and anything that might be affected by it.
 """
 
 import os
@@ -27,13 +12,17 @@ from test_support import *
 
 try:
     import muddled.cmdline
+    from muddled.utils import GiveUp, normalise_dir
+    from muddled.utils import Directory, NewDirectory, TransientDirectory
 except ImportError:
     # Try one level up
-    sys.path.insert(0, get_parent_file(__file__))
+    parent_dir = get_parent_dir(__file__)
+    sys.path.insert(0,parent_dir)
     import muddled.cmdline
+    from muddled.utils import GiveUp, normalise_dir
+    from muddled.utils import Directory, NewDirectory, TransientDirectory
 
-from muddled.utils import GiveUp, normalise_dir
-from muddled.utils import Directory, NewDirectory, TransientDirectory
+MUDDLE_BINARY = '%s muddle'%os.path.abspath(__file__)
 
 MUDDLE_MAKEFILE = """\
 # Trivial muddle makefile
@@ -55,62 +44,193 @@ distclean:
 .PHONY: all config install clean distclean
 """
 
-CHECKOUT_BUILD_SVN_REVISIONS = """ \
-# Test build for testing checkouts at a particular revision
-# This version is specific to subversion
+# You may recognise these example build descriptions from the documentation
+SUBDOMAIN_BUILD = """ \
+# An example of how to build a cpio archive as a
+# deployment - e.g. for a Linux initrd.
 
+import muddled
+import muddled.pkgs.make
+import muddled.deployments.cpio
 import muddled.checkouts.simple
 
 def describe_to(builder):
-    builder.build_name = 'checkout_test'
+    # Checkout ..
+    muddled.checkouts.simple.relative(builder, "cpio_co")
+    muddled.pkgs.make.simple(builder, "pkg_cpio", "x86", "cpio_co")
+    muddled.deployments.cpio.deploy(builder, "my_archive.cpio",
+                                    {"x86": "/"},
+                                    "cpio_dep", [ "x86" ])
 
-    muddled.checkouts.simple.relative(builder,
-                                      co_name='checkout1',
-                                      rev='2')
+    builder.invocation.add_default_role("x86")
+    builder.by_default_deploy("cpio_dep")
 """
 
-CHECKOUT_BUILD_SVN_NO_REVISIONS = """ \
-# Test build for testing checkouts at a particular revision
-# This version is specific to subversion
+MAIN_BUILD = """ \
+# An example of building with a subdomain
 
+import muddled
+import muddled.pkgs.make
+import muddled.deployments.cpio
 import muddled.checkouts.simple
+import muddled.deployments.collect as collect
+from muddled.mechanics import include_domain
 
 def describe_to(builder):
-    builder.build_name = 'checkout_test'
+    # Checkout ..
+    muddled.checkouts.simple.relative(builder, "cpio_co")
+    muddled.pkgs.make.simple(builder, "pkg_cpio", "x86", "cpio_co")
 
-    muddled.checkouts.simple.relative(builder,
-                                      co_name='checkout1')
+    include_domain(builder,
+                   domain_name = "b",
+                   domain_repo = "svn+http://muddle.googlecode.com/svn/trunk/muddle/examples/b",
+                   domain_desc = "builds/01.py")
+
+    collect.deploy(builder, "everything")
+    collect.copy_from_role_install(builder, "everything",
+                                   role = "x86",
+                                   rel = "", dest = "",
+                                   domain = None)
+    collect.copy_from_role_install(builder, "everything",
+                                   role = "x86",
+                                   rel = "", dest = "usr",
+                                   domain = "b")
+
+    builder.invocation.add_default_role("x86")
+    builder.by_default_deploy("everything")
 """
 
-CHECKOUT_BUILD_LEVELS = """ \
-# Test build for testing checkouts into directories at different levels
-# Does not test 'repo_rel', since git does not support cloning a "bit" of a
-# repository. Testing that will have to wait for subversion testing (!).
 
-import muddled.checkouts.simple
-import muddled.checkouts.twolevel
-import muddled.checkouts.multilevel
+class ShellError(GiveUp):
+    def __init__(self, cmd, retcode):
+        msg = "Shell command '%s' failed with retcode %d"%(cmd, retcode)
+        super(GiveUp, self).__init__(msg)
+        self.retcode=retcode
 
-def describe_to(builder):
-    builder.build_name = 'checkout_test'
+def shell(cmd, verbose=True):
+    """Run a command in the shell
+    """
+    if verbose:
+        print '>> %s'%cmd
+    retcode = subprocess.call(cmd, shell=True)
+    if retcode:
+        raise ShellError(cmd, retcode)
 
-    # checkout1
-    # Simple, <repo>/<checkout> -> src/<checkout>
-    muddled.checkouts.simple.relative(builder,
-                                      co_name='checkout1')
+def get_stdout(cmd, verbose=True):
+    """Run a command in the shell, and grab its (standard) output.
+    """
+    if verbose:
+        print ">> %s"%cmd
+    p = subprocess.Popen(cmd, shell=True, stdout=subprocess.PIPE,
+                         stderr=subprocess.PIPE)
+    stdoutdata, stderrdata = p.communicate()
+    retcode = p.returncode
+    if retcode:
+        raise ShellError(cmd, retcode)
+    return stdoutdata
 
-    # checkout2
-    # twolevel, <repo>/twolevel/<checkout> -> src/twolevel/<checkout>
-    muddled.checkouts.twolevel.relative(builder,
-                                        co_dir='twolevel',
-                                        co_name='checkout2')
 
-    # checkout3
-    # Multilevel, <repo>/multilevel/inner/<checkout> -> src/multilevel/inner/<checkout>
-    muddled.checkouts.multilevel.relative(builder,
-                                          co_dir='multilevel/inner/checkout3',
-                                          co_name='alice')
-"""
+def muddle(args, verbose=True):
+    """Pretend to be muddle
+
+    I already know it's going to be a pain remembering that the first
+    argument is a list of words...
+    """
+    if verbose:
+        print '++ muddle %s'%(' '.join(args))
+    muddled.cmdline.cmdline(args, MUDDLE_BINARY)
+
+def git(cmd, verbose=True):
+    """Run a git command
+    """
+    shell('%s %s'%('git',cmd), verbose)
+
+def bzr(cmd, verbose=True):
+    """Run a bazaar command
+    """
+    shell('%s %s'%('bzr',cmd), verbose)
+
+def svn(cmd, verbose=True):
+    """Run a subversion command
+    """
+    shell('%s %s'%('svn',cmd), verbose)
+
+def cat(filename):
+    """Print out the contents of a file.
+    """
+    with open(filename) as fd:
+        print '++ cat %s'%filename
+        print '='*40
+        for line in fd.readlines():
+            print line.rstrip()
+        print '='*40
+
+def touch(filename, content=None, verbose=True):
+    """Create a new file, and optionally give it content.
+    """
+    if verbose:
+        print '++ touch %s'%filename
+    with open(filename, 'w') as fd:
+        if content:
+            fd.write(content)
+
+def check_files(paths, verbose=True):
+    """Given a list of paths, check they all exist.
+    """
+    if verbose:
+        print '++ Checking files exist'
+    for name in paths:
+        if os.path.exists(name):
+            if verbose:
+                print '  -- %s'%name
+        else:
+            raise GiveUp('File %s does not exist'%name)
+    if verbose:
+        print '++ All named files exist'
+
+def check_specific_files_in_this_dir(names, verbose=True):
+    """Given a list of filenames, check they are the only files
+    in the current directory
+    """
+    wanted_files = set(names)
+    actual_files = set(os.listdir('.'))
+
+    if verbose:
+        print '++ Checking only specific files exist in this directory'
+        print '++ Wanted files are: %s'%(', '.join(wanted_files))
+
+    if wanted_files != actual_files:
+        text = ''
+        missing_files = wanted_files - actual_files
+        if missing_files:
+            text += '    Missing: %s\n'%', '.join(missing_files)
+        extra_files = actual_files - wanted_files
+        if extra_files:
+            text += '    Extra: %s\n'%', '.join(extra_files)
+        raise GiveUp('Required files are not matched\n%s'%text)
+    else:
+        if verbose:
+            print '++ Only the requested files exist'
+
+def check_nosuch_files(paths, verbose=True):
+    """Given a list of paths, check they do not exist.
+    """
+    if verbose:
+        print '++ Checking files do not exist'
+    for name in paths:
+        if os.path.exists(name):
+            raise GiveUp('File %s exists'%name)
+        else:
+            if verbose:
+                print '  -- %s'%name
+    if verbose:
+        print '++ All named files do not exist'
+
+def banner(text):
+    delim = '*' * (len(text)+4)
+    print delim
+    print '* %s *'%text
+    print delim
 
 def test_svn_simple_build():
     """Bootstrap a muddle build tree.
@@ -263,18 +383,11 @@ def test_git_simple_build():
                   '# A comment\n# Another comment\n')
             git('add fred.stamp')
             git('commit -m "New stamp file"')
-            # We have to associate it with a repository
-            git('remote add origin %s/versions'%root_repo)
-            git('push origin master')
+            git('push %s/versions HEAD'%root_repo)
 
         with Directory('src/builds'):
             git('commit -m "New build"')
-            ##git('push %s/builds HEAD'%root_repo)
-            # We can use the big blunt stick of 'reparent',
-            # or we could use 'git remote add origin' directly
-            # TODO: muddle bootstrap should have done this for us
-            muddle(['reparent'])
-            muddle(['push'])
+            git('push %s/builds HEAD'%root_repo)
 
         banner('Stamping simple build')
         muddle(['stamp', 'version'])
@@ -426,9 +539,7 @@ def test_git_checkout_build():
         with Directory('versions'):
             git('add checkout_test.stamp')
             git('commit -m "A stamp file"')
-            # We have to associate it with a repository
-            git('remote add origin %s/versions'%root_repo)
-            git('push origin master')
+            git('push %s/versions HEAD'%root_repo)
             cat('checkout_test.stamp')
 
         # We should be able to use muddle to push the stamp file
@@ -772,7 +883,6 @@ if __name__ == '__main__':
     args = sys.argv[1:]
     if args and args[0] == 'muddle':
         # Pretend to be muddle the command line program
-        # (but note we won't catch any exceptions)
         muddle(args[1:])
     else:
         try:

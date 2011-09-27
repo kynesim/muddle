@@ -100,7 +100,10 @@ def test_simple_subdomain():
     """
 
     # We're not going to make any attempt to have a real repository
-    root_repo = 'git+ssh://tibs@somewhere.over.the.rainbow/repository/'
+    # but we will "pretend" to use bzr, so I don't accidentally write
+    # code that tracks up to find the muddle .git directory, and alter
+    # that (muddle import, I'm looking at you...)
+    root_repo = 'bzr+ssh://tibs@somewhere.over.the.rainbow/repository/'
     with NewDirectory('test_build1'):
         banner('Bootstrapping subdomain build')
 
@@ -133,10 +136,10 @@ def test_simple_subdomain():
             touch('Makefile.muddle', MUDDLE_MAKEFILE)
 
         # Pretend we've actually checked out our checkouts
-        muddle(['import', 'cpio_co'])
         # This one is actually a subtle test that we can specify
         # subdomains in checkouts at the command line
         muddle(['import', '(b)cpio_co'])
+        muddle(['import', 'cpio_co'])
 
 def main(args):
 

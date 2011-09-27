@@ -95,14 +95,63 @@ def describe_to(builder):
     builder.by_default_deploy("everything")
 """
 
+def test_simple_subdomain():
+    """Bootstrap a muddle build tree.
+    """
+
+    # We're not going to make any attempt to have a real repository
+    root_repo = 'git+ssh://tibs@somewhere.over.the.rainbow/repository/'
+    with NewDirectory('test_build1'):
+        banner('Bootstrapping subdomain build')
+
+        # We need to create the subdomain first, because if we run
+        # 'muddle' with the top level build description in place,
+        # and muddle doesn't think we've got the subdomain, it will
+        # try to obey the top level build description and check the
+        # subdomain out. And that won't work (in various ways)
+        with NewDirectory('domains'):
+            with NewDirectory('b'):
+                # We don't need to say "boostrap -subdomain" because
+                # we aren't yet within a build tree
+                muddle(['bootstrap', root_repo, 'test_subdomain_build'])
+
+                with Directory('src/builds'):
+                    os.remove('01.py')
+                    touch('01.py', SUBDOMAIN_BUILD)
+
+                with NewDirectory('src/cpio_co'):
+                    touch('Makefile.muddle', MUDDLE_MAKEFILE)
+
+        # And now we can safely create our top level build
+        muddle(['bootstrap', root_repo, 'test_build'])
+
+        with Directory('src/builds'):
+            os.remove('01.py')
+            touch('01.py', MAIN_BUILD)
+
+        with NewDirectory('src/cpio_co'):
+            touch('Makefile.muddle', MUDDLE_MAKEFILE)
+
+        # Pretend we've actually checked out our checkouts
+        muddle(['import', 'cpio_co'])
+        # This one is actually a subtle test that we can specify
+        # subdomains in checkouts at the command line
+        muddle(['import', '(b)cpio_co'])
+
 def main(args):
 
-    if not args or len(args) > 1:
+    if args:
         print __doc__
-        return
+        raise GiveUp('Unexpected arguments %s'%' '.join(args))
 
-    print 'args:', args
+    # Working in a local transient directory seems to work OK
+    # although if it's anyone other than me they might prefer
+    # somewhere in $TMPDIR...
+    root_dir = normalise_dir(os.path.join(os.getcwd(), 'transient'))
 
+    with TransientDirectory(root_dir, keep_on_error=True):
+        banner('SIMPLE SUBDOMAIN')
+        test_simple_subdomain()
 
 if __name__ == '__main__':
     args = sys.argv[1:]

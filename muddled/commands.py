@@ -3366,6 +3366,35 @@ def get_all_checkouts(builder, tag):
     return rv
 
 
+checkout_args_re = re.compile(r"""
+                             (\(
+                                 (?P<domain>%s)         # <domain>
+                             \))?                       # in optional ()
+                             (?P<name>%s)               # <name>
+                              $                         # and nothing more
+                              """%(Label.domain_part,
+                                   Label.label_part),
+                             re.VERBOSE)
+
+def label_from_checkout_arg(arg, tag, default_domain, prefix=''):
+    """
+    Convert a 'checkout' or '(domain)checkout' argument to a label.
+
+    If domain is not specified, use the default (which may be None).
+    """
+    m = checkout_args_re.match(arg)
+    if (m is None):
+        raise utils.GiveUp("Checkout spec '%s%s' is wrong,\n"
+                          "    expecting 'name' or '(domain}name'"%(prefix, arg))
+
+    domain = m.group('domain')    # None if not present
+    if domain is None:
+        domain = default_domain
+    name   = m.group('name')
+
+    return Label(utils.LabelType.Checkout,
+                 name, None, tag, domain=domain)
+
 def decode_checkout_arguments(builder, args, current_dir, tag):
     """
     Decode checkout label arguments.
@@ -3381,8 +3410,13 @@ def decode_checkout_arguments(builder, args, current_dir, tag):
         argument processing, and automatically just means "all checkouts" - any
         other arguments are ignored. This should not make any difference.
 
-      * "<name>" means the label "checkout:<name>{}/<tag>" in the current
+      * "<name>" means the label "checkout:<name>/<tag>" in the current
         default domain
+
+      * "(domain)<name>" means the label "checkout:(domain)<name>/<tag>"
+
+      * "(domain)_all" means all checkout labels in that domain, given
+        the tag <tag>.
 
       * If an argument starts "checkout:", then that is allowed but makes
         no difference, since the "checkout:" is implied.
@@ -3403,31 +3437,46 @@ def decode_checkout_arguments(builder, args, current_dir, tag):
 
     rv = [ ]
 
-    if (len(args) > 0):
+    default_domain = builder.get_default_domain()
+
+    if args:
         # Excellent!
-        for co in args:
-            if co == "_all":
+        for word in args:
+            if word == "_all":
                 return get_all_checkouts(builder, tag)
-            elif co.startswith("package:"):
-                pkg_labels = labels_from_pkg_args(builder, [co[8:]], current_dir,
+            elif word.startswith("package:"):
+                pkg_labels = labels_from_pkg_args(builder, [word[8:]], current_dir,
                                                   utils.LabelTag.Built)
                 co_set = set()
                 for pkg in pkg_labels:
                     co_set = co_set.union(builder.invocation.checkouts_for_package(pkg))
                 for lbl in co_set:
                     rv.append(lbl.copy_with_tag(tag))
-            elif co.startswith("deployment"):
-                raise GiveUp("'deployment:' not allowed (%s)"%co)
-            elif co.startswith("checkout:"):
-                co = co[9:]
-                rv.append(Label(utils.LabelType.Checkout,
-                                co, None, tag,
-                                domain = builder.get_default_domain()))
+            elif word.startswith("deployment"):
+                raise GiveUp("'deployment:' not allowed (%s)"%word)
+            elif word.startswith("checkout:"):
+                word = word[9:]
+                rv.append(label_from_checkout_arg(word, tag, default_domain,
+                                                  prefix='checkout:'))
             else:
-                rv.append(Label(utils.LabelType.Checkout,
-                                co, None, tag,
-                                domain = builder.get_default_domain()))
+                m = checkout_args_re.match(word)
+                if m is None:
+                    raise utils.GiveUp("Checkout spec '%s' is wrong,\n"
+                                      "    expecting 'name' or '(domain}name'"%elem)
 
+                domain = m.group('domain')    # None if not present
+                if domain is None:
+                    domain = default_domain
+                name   = m.group('name')
+                if name == "_all":
+                    # We know we've got a domain, else we'd have matched earlier
+                    all_cos = builder.all_checkout_labels()
+                    for co in all_cos:
+                        if co.domain == domain:
+                            rv.append(co.copy_with_tag(tag))
+                else:
+                    rv.append(Label(utils.LabelType.Checkout,
+                                    name, None, tag, domain=domain))
     else:
         # Where are we? If in a checkout, that's what we should do - else
         # all checkouts.
@@ -3612,19 +3661,19 @@ def build_labels(builder, to_build):
     except utils.GiveUp,e:
         raise utils.GiveUp("Can't build %s - %s"%(str(lbl), e))
 
-pkg_args_re = re.compile(r"""
-                         (\(
-                             (?P<domain>%s)         # <domain>
-                         \))?                       # in optional ()
-                         (?P<name>%s)               # <name>
-                         (\{
-                            (?P<role>%s)?           # optional <role>
-                          \})?                      # in optional {}
-                          $                         # and nothing more
-                          """%(Label.domain_part,
-                               Label.label_part,
-                               Label.label_part),
-                         re.VERBOSE)
+package_args_re = re.compile(r"""
+                             (\(
+                                 (?P<domain>%s)         # <domain>
+                             \))?                       # in optional ()
+                             (?P<name>%s)               # <name>
+                             (\{
+                                (?P<role>%s)?           # optional <role>
+                              \})?                      # in optional {}
+                              $                         # and nothing more
+                              """%(Label.domain_part,
+                                   Label.label_part,
+                                   Label.label_part),
+                             re.VERBOSE)
 
 def label_from_pkg_arg(arg, tag, default_role, default_domain):
     """
@@ -3632,7 +3681,7 @@ def label_from_pkg_arg(arg, tag, default_role, default_domain):
 
     If role or domain is not specified, use the default (which may be None).
     """
-    m = pkg_args_re.match(arg)
+    m = package_args_re.match(arg)
     if (m is None):
         raise utils.GiveUp("Package spec '%s' is wrong,\n"
                           "    expecting 'name', 'name{}', 'name{role}'"
@@ -3726,7 +3775,7 @@ def labels_from_pkg_args(builder, arglist, current_dir, tag):
                                                      domain=default_domain))
             result_set.update(pkgs)
         else:
-            m = pkg_args_re.match(elem)
+            m = package_args_re.match(elem)
             if m is None:
                 raise utils.GiveUp("Package spec '%s' is wrong,\n"
                                   "    expecting 'name', 'name{}', 'name{role}'"

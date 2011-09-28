@@ -1647,12 +1647,11 @@ class Instruct(Command):
             print self.__doc__
             return
 
-        pkg_role = args[0]
+        arg = args[0]
         ifile = None
 
         # Validate this first
-        label = label_from_pkg_arg(pkg_role, utils.LabelTag.PreConfig,
-                                   None, builder.get_default_domain())
+        label = decode_single_package_label(builder, arg, utils.LabelTag.PreConfig)
 
         if label.role is None or label.role == '*':
             raise utils.GiveUp("instruct takes precisely one package{role} pair "
@@ -3386,12 +3385,10 @@ class Test(Command):
 
         print
         print 'As package args:'
-        print depend.label_list_to_string(labels_from_pkg_args(builder, args, current_dir, 'built'))
         print depend.label_list_to_string(decode_package_arguments(builder, args, current_dir, 'built'))
 
         print
         print 'As checkout args:'
-        print depend.label_list_to_string(decode_checkout_arguments_OLD(builder, args, current_dir, 'FRED'))
         print depend.label_list_to_string(decode_checkout_arguments(builder, args, current_dir, 'FRED'))
 
 
@@ -3504,144 +3501,6 @@ def decode_checkout_arguments(builder, arglist, current_dir, required_tag=None):
     # We promised a sorted list
     result_list.sort()
     return result_list
-
-
-
-
-checkout_args_re = re.compile(r"""
-                             (\(
-                                 (?P<domain>%s)         # <domain>
-                             \))?                       # in optional ()
-                             (?P<name>%s)               # <name>
-                              $                         # and nothing more
-                              """%(Label.domain_part,
-                                   Label.label_part),
-                             re.VERBOSE)
-
-def label_from_checkout_arg(arg, tag, default_domain, prefix=''):
-    """
-    Convert a 'checkout' or '(domain)checkout' argument to a label.
-
-    If domain is not specified, use the default (which may be None).
-    """
-    m = checkout_args_re.match(arg)
-    if (m is None):
-        raise utils.GiveUp("Checkout spec '%s%s' is wrong,\n"
-                          "    expecting 'name' or '(domain}name'"%(prefix, arg))
-
-    domain = m.group('domain')    # None if not present
-    if domain is None:
-        domain = default_domain
-    name   = m.group('name')
-
-    return Label(utils.LabelType.Checkout,
-                 name, None, tag, domain=domain)
-
-def decode_checkout_arguments_OLD(builder, args, current_dir, tag):
-    """
-    Decode checkout label arguments.
-
-    Use this to decode arguments when you're expecting to refer to a
-    checkout rather than a package.
-
-    If 'args' is given, it is a list of command line arguments:
-
-      * "_all" means all checkouts with the given 'tag'.
-
-        Note that including "_all" in the list of arguments 'short circuits'
-        argument processing, and automatically just means "all checkouts" - any
-        other arguments are ignored. This should not make any difference.
-
-      * "<name>" means the label "checkout:<name>/<tag>" in the current
-        default domain
-
-      * "(domain)<name>" means the label "checkout:(domain)<name>/<tag>"
-
-      * "(domain)_all" means all checkout labels in that domain, given
-        the tag <tag>.
-
-      * If an argument starts "checkout:", then that is allowed but makes
-        no difference, since the "checkout:" is implied.
-
-      * if an argument starts "package:" then it means "all the checkout
-        labels that this package depends upon", with the given 'tag'.
-
-        The rest of the argument (after the "package:") will be interpreted
-        as a package argument (just as for commands that take package names
-        as their arguments).
-
-    Otherwise all checkouts with directories at or below the current directory
-    are returned.
-
-    Returns a sorted list of checkout labels, or an empty list if there
-    are no checkouts selected.
-    """
-
-    rv = [ ]
-
-    default_domain = builder.get_default_domain()
-
-    if args:
-        # Excellent!
-        for word in args:
-            if word == "_all":
-                all_cos = builder.invocation.all_checkout_labels()
-                for co in all_cos:
-                    rv.append(co.copy_with_tag(tag))
-                rv.sort()
-                return rv
-            elif word.startswith("package:"):
-                pkg_labels = labels_from_pkg_args(builder, [word[8:]], current_dir,
-                                                  utils.LabelTag.Built)
-                co_set = set()
-                for pkg in pkg_labels:
-                    co_set = co_set.union(builder.invocation.checkouts_for_package(pkg))
-                for lbl in co_set:
-                    rv.append(lbl.copy_with_tag(tag))
-            elif word.startswith("deployment"):
-                raise GiveUp("'deployment:' not allowed (%s)"%word)
-            elif word.startswith("checkout:"):
-                word = word[9:]
-                rv.append(label_from_checkout_arg(word, tag, default_domain,
-                                                  prefix='checkout:'))
-            else:
-                m = checkout_args_re.match(word)
-                if m is None:
-                    raise utils.GiveUp("Checkout spec '%s' is wrong,\n"
-                                      "    expecting 'name' or '(domain}name'"%word)
-
-                domain = m.group('domain')    # None if not present
-                if domain is None:
-                    domain = default_domain
-                name   = m.group('name')
-                if name == "_all":
-                    # We know we've got a domain, else we'd have matched earlier
-                    all_cos = builder.invocation.all_checkout_labels()
-                    for co in all_cos:
-                        if co.domain == domain:
-                            rv.append(co.copy_with_tag(tag))
-                else:
-                    rv.append(Label(utils.LabelType.Checkout,
-                                    name, None, tag, domain=domain))
-    else:
-        # Where are we? If in a checkout, that's what we should do - else
-        # all checkouts.
-        what, label, domain = builder.find_location_in_tree(current_dir)
-
-        if what == utils.DirType.Checkout and label:
-            # We're actually inside a checkout - job done
-            rv.append(label.copy_with_tag(tag))
-        elif what in (utils.DirType.Checkout,
-                      utils.DirType.Root,
-                      utils.DirType.DomainRoot):
-            # We're somewhere that we expect to have checkouts below
-            cos_below = builder.get_all_checkout_labels_below(current_dir)
-            for c in cos_below:
-                rv.append(c.copy_with_tag(tag))
-
-    # We promised a sorted list
-    rv.sort()
-    return rv
 
 def name_selected_checkouts(verb, checkout_labels):
     if checkout_labels:
@@ -3781,29 +3640,16 @@ def build_labels(builder, to_build):
     except utils.GiveUp,e:
         raise utils.GiveUp("Can't build %s - %s"%(str(lbl), e))
 
-package_args_re = re.compile(r"""
-                             (\(
-                                 (?P<domain>%s)         # <domain>
-                             \))?                       # in optional ()
-                             (?P<name>%s)               # <name>
-                             (\{
-                                (?P<role>%s)?           # optional <role>
-                              \})?                      # in optional {}
-                              $                         # and nothing more
-                              """%(Label.domain_part,
-                                   Label.label_part,
-                                   Label.label_part),
-                             re.VERBOSE)
-
-def label_from_pkg_arg(arg, tag, default_role, default_domain):
+def decode_single_package_label(builder, arg, tag):
     """
     Convert a 'package' or 'package{role}' or '(domain)package{role} argument to a label.
 
     If role or domain is not specified, use the default (which may be None).
     """
+    default_domain = builder.get_default_domain()
     label = Label.from_fragment(word,
                                 default_type=utils.LabelType.Package,
-                                default_role=default_role,
+                                default_role=None,
                                 default_domain=default_domain)
     if label.tag != tag:
         label = label.copy_with_tag(tag)
@@ -3926,121 +3772,5 @@ def decode_package_arguments(builder, arglist, current_dir, required_tag=None):
     result_list = list(result_set)
     result_list.sort()
     return result_list
-
-
-def labels_from_pkg_args(builder, arglist, current_dir, tag):
-    """
-    Convert a list of packages arguments into a list of labels.
-
-    If arglist is of zero length, we work out the "local" packages from our
-    current directory in the build tree instead. If that doesn't give us any
-    result, we raise an exception (a "No packages specified" GiveUp).
-
-        (Broadly, if we are in a particular checkout, then the packages
-        for that checkout are used, and if we are in a particular 'obj'
-        directory, then the package for that directory is used, otherwise
-        we refuse to guess.)
-
-    Values in arglist may be in one of the following forms:
-
-    * "name"
-
-      adds the labels "package:(<d>)name{<r...>}/tag" to the results, where <d>
-      is the default domain for this builder (if any), and <r...> is each of
-      the default roles (i.e., the default roles for this builder to build).
-
-      Note that all of the default roles are used to generate labels, in this
-      case, whether each such a label has meaning or not.
-
-    * "name{role}"
-
-      adds the label "package:(<d>)name{role}/tag", where <d> is as above.
-      Again, there is no check that that particular label exists.
-
-    * "(domain)name"
-
-      adds the labels "package:(domain)name{<r...>}/tag", where <r...> is
-      interpreted as in the first case, and with the same caveats.
-
-    * "(domain)name{role}"
-
-      adds the label "package:(domain)name{role}/tag"
-
-    * "_all"
-
-      adds all labels in the default roles, regardless of their domain.
-
-    * "_all{role}"
-
-      adds all labels in the named role, regardless of their domain.
-
-    * "(domain)_all{role}"
-
-      adds all labels in the named role, that are also in the named domain.
-
-    * "checkout:name"
-
-      adds all labels for packages that depend on the named checkout.
-      For the moment, this last does not allow specifying a domain.
-
-    The results list will not be sorted, and will not contain duplicate labels.
-    """
-
-    if not arglist:
-        rv = builder.find_local_package_labels(current_dir, tag)
-        if rv:
-            return rv
-        else:
-            raise utils.GiveUp("No packages specified")
-
-    inv = builder.invocation
-    result_set = set()
-    default_roles = builder.invocation.default_roles
-    default_domain = builder.get_default_domain()
-
-    for elem in arglist:
-        if elem.startswith("checkout:"):
-            pkgs = inv.packages_using_checkout(Label(utils.LabelType.Checkout,
-                                                     elem[9:], None, "*",
-                                                     domain=default_domain))
-            result_set.update(pkgs)
-        else:
-            m = package_args_re.match(elem)
-            if m is None:
-                raise utils.GiveUp("Package spec '%s' is wrong,\n"
-                                  "    expecting 'name', 'name{}', 'name{role}'"
-                                  " or '(domain}name{role}'"%elem)
-
-            domain = m.group('domain')    # None if not present
-            if domain is None:
-                domain = default_domain
-            name   = m.group('name')
-            role   = m.group('role')      # None if not present
-            if name == "_all":
-                if role:
-                    roles = [role]
-                else:
-                    roles = inv.all_roles()
-                for r in roles:
-                    result_set.update(inv.labels_for_role(utils.LabelType.Package,
-                                                          r, tag,
-                                                          domain=domain))
-            else:
-                if role:
-                    result_set.add(Label(utils.LabelType.Package,
-                                         name, role, tag,
-                                         domain=domain))
-                elif default_roles:
-                    # Add the default roles
-                    for r in default_roles:
-                        result_set.add(Label(utils.LabelType.Package,
-                                             name, r, tag,
-                                             domain=domain))
-                else:
-                    # Just wildcard for any role
-                    result_set.add(Label(utils.LabelType.Package,
-                                         name, "*", tag,
-                                         domain=domain))
-    return list(result_set)
 
 # End file.

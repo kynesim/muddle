@@ -775,7 +775,7 @@ class Label(object):
               useful in command lines when the default domain is a
               subdomain
             * {<role>} - if this is not given, the default is used.
-            * /<tag> - if this is not given, a tag approrpriate to the
+            * /<tag> - if this is not given, a tag appropriate to the
               <type> is chosen (checked_out, postinstalled or deployed)
 
         all of which may be "*" (the wildcard character).

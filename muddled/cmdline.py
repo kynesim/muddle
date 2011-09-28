@@ -312,10 +312,10 @@ def _cmdline(args, current_dir, original_env, muddle_binary):
                 # This is doubtless not the most compact way of doing this,
                 # but it makes what we are doing fairly clear...
                 for role in builder.invocation.default_roles:
-                    labels = commands.labels_from_pkg_args(builder,
-                                                           ['_all{%s}'%role],
-                                                           current_dir,
-                                                           utils.LabelTag.PostInstalled)
+                    labels = commands.decode_package_arguments(builder,
+                                                               ['_all{%s}'%role],
+                                                               current_dir,
+                                                               utils.LabelTag.PostInstalled)
                     args += map(str, labels)
 
         command.with_build_tree(builder, current_dir, args)

@@ -1351,6 +1351,10 @@ class BuildLabel(Command):
 
     def with_build_tree(self, builder, current_dir, args):
         labels = decode_labels(builder, args)
+        if self.no_op():
+            print 'Build:', depend.label_list_to_string(labels)
+            return
+
         build_labels(builder, labels)
 
 @command('redeploy')
@@ -1442,7 +1446,7 @@ class Configure(Command):
         return True
 
     def with_build_tree(self, builder, current_dir, args):
-        labels = labels_from_pkg_args(builder, args, current_dir,
+        labels = decode_package_arguments(builder, args, current_dir,
                                       utils.LabelTag.Configured)
         build_labels(builder, labels)
 
@@ -1459,7 +1463,7 @@ class Reconfigure(Command):
         return True
 
     def with_build_tree(self, builder, current_dir, args):
-        labels = labels_from_pkg_args(builder, args, current_dir,
+        labels = decode_package_arguments(builder, args, current_dir,
                                       utils.LabelTag.Configured)
 
         # OK. Now we have our labels, retag them, and kill them and their
@@ -1493,7 +1497,7 @@ class Build(Command):
         return True
     
     def with_build_tree(self, builder, current_dir, args):
-        labels = labels_from_pkg_args(builder, args, current_dir,
+        labels = decode_package_arguments(builder, args, current_dir,
                                       utils.LabelTag.PostInstalled)
         
         build_labels(builder, labels)
@@ -1511,7 +1515,7 @@ class Rebuild(Command):
         return True
 
     def with_build_tree(self, builder, current_dir, args):
-        labels = labels_from_pkg_args(builder, args, current_dir,
+        labels = decode_package_arguments(builder, args, current_dir,
                                       utils.LabelTag.PostInstalled)
 
         # OK. Now we have our labels, retag them, and kill them and their
@@ -1533,7 +1537,7 @@ class Reinstall(Command):
         return True
 
     def with_build_tree(self, builder, current_dir, args):
-        labels = labels_from_pkg_args(builder, args, current_dir,
+        labels = decode_package_arguments(builder, args, current_dir,
                                       utils.LabelTag.PostInstalled)
 
         # OK. Now we have our labels, retag them, and kill them and their
@@ -1555,7 +1559,7 @@ class Distrebuild(Command):
         return True
 
     def with_build_tree(self, builder, current_dir, args):
-        labels = labels_from_pkg_args(builder, args, current_dir,
+        labels = decode_package_arguments(builder, args, current_dir,
                                       utils.LabelTag.PostInstalled)
 
         if (self.no_op()):
@@ -1579,7 +1583,7 @@ class Clean(Command):
         return True
 
     def with_build_tree(self, builder, current_dir, args):
-        labels = labels_from_pkg_args(builder, args, current_dir,
+        labels = decode_package_arguments(builder, args, current_dir,
                                       utils.LabelTag.Built)
         if self.no_op():
             print "Would have cleaned: %s"%(" ".join(map(str, labels)))
@@ -1600,7 +1604,7 @@ class DistClean(Command):
         return True
 
     def with_build_tree(self, builder, current_dir, args):
-        labels = labels_from_pkg_args(builder, args, current_dir,
+        labels = decode_package_arguments(builder, args, current_dir,
                                       utils.LabelTag.Built)
 
         if (self.no_op()):
@@ -2209,7 +2213,7 @@ class Changed(Command):
         return True
 
     def with_build_tree(self, builder, current_dir, args):
-        labels = labels_from_pkg_args(builder, args, current_dir,
+        labels = decode_package_arguments(builder, args, current_dir,
                                       utils.LabelTag.Built)
         if (self.no_op()):
             print "Marking changed: %s"%(depend.label_list_to_string(labels))
@@ -2271,7 +2275,7 @@ class Env(Command):
         else:
             raise utils.GiveUp("Mode '%s' is not understood - use build or run."%mode)
 
-        labels = labels_from_pkg_args(builder, args[3:], current_dir, tag)
+        labels = decode_package_arguments(builder, args[3:], current_dir, tag)
         if (self.no_op()):
             print "> Environment for labels %s"%(depend.label_list_to_string(labels))
         else:
@@ -3382,7 +3386,7 @@ class Test(Command):
 
         print
         print 'As package args:'
-        print depend.label_list_to_string(decode_package_arguments(builder, args, current_dir))
+        print depend.label_list_to_string(decode_package_arguments(builder, args, current_dir, 'FRED'))
         print depend.label_list_to_string(labels_from_pkg_args(builder, args, current_dir, 'FRED'))
 
 
@@ -3734,11 +3738,14 @@ def label_from_pkg_arg(arg, tag, default_role, default_domain):
                  name, role, tag, domain=domain)
 
 
-def expand_package_label(builder, label):
+def expand_package_label(builder, label, required_tag):
     """Given an intermediate package label, expand it to a set of labels.
     """
     result_set = set()
     default_roles = builder.invocation.default_roles
+
+    if required_tag is not None and label.tag != required_tag:
+        label = label.copy_with_tag(required_tag)
 
     if label.name == '_all':
         if label.role:
@@ -3763,22 +3770,32 @@ def expand_package_label(builder, label):
 
     return result_set
 
-def expand_package_checkout_label(builder, label):
+def expand_package_checkout_label(builder, label, required_tag):
     """Given an intermediate checkout label, expand it to a set of package labels.
     """
-    result_set = set()
     checkout_labels = set()
+
     if label.name == '_all':
         checkout_labels.update(builder.invocation.all_checkout_labels())
     else:
         checkout_labels.add(label)
 
+    intermediat_set = set()
     for lbl in checkout_labels:
-        result_set.update(builder.invocation.packages_using_checkout(lbl))
+        intermediat_set.update(builder.invocation.packages_using_checkout(lbl))
+
+    if required_tag is not None:
+        result_set = set()
+        for lbl in intermediate_set:
+            if lbl.tag != required_tag:
+                lbl = lbl.copy_with_tag(required_tag)
+            result_set.add(lbl)
+    else:
+        result_set = intermediate_set
 
     return result_set
 
-def decode_package_arguments(builder, arglist, current_dir):
+def decode_package_arguments(builder, arglist, current_dir, required_tag=None):
     """
     TBD
     """
@@ -3815,9 +3832,9 @@ def decode_package_arguments(builder, arglist, current_dir):
     result_set = set()
     for index, label in enumerate(initial_list):
         if label.type == utils.LabelType.Package:
-            result_set.update(expand_package_label(builder, label))
+            result_set.update(expand_package_label(builder, label, required_tag))
         elif label.type == utils.LabelType.Checkout:
-            result_set.update(expand_package_checkout_label(builder, label))
+            result_set.update(expand_package_checkout_label(builder, label, required_tag))
         else:
             raise GiveUp("Cannot cope with label '%s', from input arg '%s'"%(label, arglist[index]))
 

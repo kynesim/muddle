@@ -3651,38 +3651,6 @@ def name_selected_checkouts(verb, checkout_labels):
         print 'No checkouts selected'
 
 
-def decode_dep_checkout_arguments(builder, args, current_dir, tag):
-    """
-    Any arguments given are package names - we return their dependent 
-    checkouts.
-
-    If there are arguments, they specify checkouts.
-
-    If there aren't, all checkouts dependent on any local_pkgs tag are
-    returned.
-    """
-    
-    labels = labels_from_pkg_args(builder, args, current_dir,
-                                  utils.LabelTag.PostInstalled)
-    
-    rv = [ ]
-    out_set = set()
-
-    for my_label in labels:
-        deps = depend.needed_to_build(builder.invocation.ruleset, my_label)
-        for d in deps:
-            if (d.target.type == utils.LabelType.Checkout):
-                out_set.add(Label(utils.LabelType.Checkout,
-                                  d.target.name,
-                                  None, 
-                                  tag))
-
-    rv = list(out_set)
-    rv.sort()
-
-    return rv
-    
-
 def decode_labels(builder, in_args):
     """
     Each argument is a label - convert each to a proper label
@@ -3694,28 +3662,34 @@ def decode_labels(builder, in_args):
         rv.append(lbl)
 
     return rv
- 
+
 def decode_deployment_arguments(builder, args, tag):
     """
     Look through args for deployments. _all means all deployments
     registered.
-    
+
     If args is empty, we use the default deployments registered with the
     builder.
     """
     return_list = [ ]
-    
+
+    default_domain = builder.get_default_domain()
     for dep in args:
         if (dep == "_all"):
             # Everything .. 
             return all_deployment_labels(builder, tag)
         else:
-            lbl = Label(utils.LabelType.Deployment,
-                        dep, 
-                        "*",
-                        tag, domain = builder.get_default_domain())
+            lbl = Label.from_fragment(dep,
+                                      default_type=utils.LabelType.Deployment,
+                                      default_role="*",
+                                      default_domain=default_domain)
+            if lbl.type != utils.LabelType.Deployment:
+                raise utils.GiveUp("Label '%s', from argument '%s' not allowed"
+                        " as a deployment label"%(lbl, dep))
+            if lbl.tag != tag:
+                lbl = lbl.copy_with_tag(tag)
             return_list.append(lbl)
-    
+
     if len(return_list) == 0:
         # Input was empty - default deployments.
         return default_deployment_labels(builder, tag)
@@ -3827,22 +3801,16 @@ def label_from_pkg_arg(arg, tag, default_role, default_domain):
 
     If role or domain is not specified, use the default (which may be None).
     """
-    m = package_args_re.match(arg)
-    if (m is None):
-        raise utils.GiveUp("Package spec '%s' is wrong,\n"
-                          "    expecting 'name', 'name{}', 'name{role}'"
-                          " or '(domain}name{role}'"%arg)
-
-    domain = m.group('domain')    # None if not present
-    if domain is None:
-        domain = default_domain
-    name   = m.group('name')
-    role   = m.group('role')      # None if not present
-    if role is None:
-        role = default_role
-
-    return Label(utils.LabelType.Package,
-                 name, role, tag, domain=domain)
+    label = Label.from_fragment(word,
+                                default_type=utils.LabelType.Package,
+                                default_role=default_role,
+                                default_domain=default_domain)
+    if label.tag != tag:
+        label = label.copy_with_tag(tag)
+    if label.type != utils.LabelType.Package:
+        raise utils.GiveUp("Label '%s', from argument '%s', is not a valid"
+                " package label"%(label, arg))
+    return label
 
 
 def expand_package_label(builder, label, required_tag):

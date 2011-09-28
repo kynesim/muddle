@@ -123,9 +123,10 @@ class Label(object):
                              (\{
                                 (?P<role>%s)?           # optional <role>
                               \})?                      # in optional {}
+                              (/ (?P<tag>%s))?          # optional slash and <tag>
                               $                         # and nothing more
                               """%(label_part, domain_part, label_part,
-                                   label_part),
+                                   label_part, label_part),
                              re.VERBOSE)
 
     def __init__(self, type, name, role=None, tag='*', transient=False,
@@ -297,6 +298,15 @@ class Label(object):
         cp._tag = new_tag
         cp.system = system
         cp.transient = transient
+        return cp
+
+    def copy_with_role(self, new_role):
+        """
+        Return a copy of self, with the role changed to new_role.
+        """
+        Label._check_part('role', new_role)
+        cp = self.copy()
+        cp._role = new_role
         return cp
 
     def copy_with_domain(self, new_domain):
@@ -749,8 +759,7 @@ class Label(object):
         return Label(type, name, role=role, tag=tag, transient=transient,
                      system=system, domain=domain)
     @staticmethod
-    def from_fragment(fragment, default_type, default_role, default_domain, tag,
-                      allow_role=True):
+    def from_fragment(fragment, default_type, default_role, default_domain):
         """
         Given a string containing a label fragment, return a Label.
 
@@ -765,15 +774,13 @@ class Label(object):
               Note that "()" means "the top level domain" - this can be
               useful in command lines when the default domain is a
               subdomain
-            * {<role>} - if this is not given, the default is used. If
-              allow_role is False, then this is not allowed.
+            * {<role>} - if this is not given, the default is used.
+            * /<tag> - if this is not given, a tag approrpriate to the
+              <type> is chosen (checked_out, postinstalled or deployed)
 
         all of which may be "*" (the wildcard character).
 
         Any of the default_xx values may be None.
-
-        <tag> is always taken to be the tag given, the user does not specify
-        this.
         """
         m = Label.fragment_re.match(fragment)
         if m is None or m.end() != len(fragment):
@@ -788,6 +795,13 @@ class Label(object):
             raise utils.Giveup("Label fragment '%s' should not contain a role"%fragment)
         if role is None:
             role = default_role         # which may be None as well
+        tag = m.group("tag")
+        if tag is None:
+            try:
+                tag = utils.package_type_to_tag[type]
+            except KeyError:
+                raise utils.GiveUp("Cannot guess tag for label fragment '%s'"
+                        " (using label type '%s')"%(fragment, type))
         domain = m.group("domain")
         if domain is None:
             domain = default_domain

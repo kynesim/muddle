@@ -322,6 +322,8 @@ class Invocation:
         """
         Return True if this label is a target.
 
+        If it is not, then we are not going to be able to build it.
+
         Note that this method does not understand wildcards, so the match
         must be exact.
         """

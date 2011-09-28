@@ -3367,18 +3367,23 @@ class Test(Command):
             label = Label.from_fragment(word,
                     default_type=utils.LabelType.Checkout,
                     default_role=None,
-                    default_domain=builder.get_default_domain(),
-                    tag=utils.LabelTag.CheckedOut)
+                    default_domain=builder.get_default_domain())
             print '  ', label
-            print '  exists?', builder.invocation.checkout_label_exists(label)
+            print '  checkout exists?', builder.invocation.checkout_label_exists(label)
+            print '  target   exists?', builder.invocation.target_label_exists(label)
+            print
             print 'As package:'
             label = Label.from_fragment(word,
                     default_type=utils.LabelType.Package,
                     default_role='*',
-                    default_domain=builder.get_default_domain(),
-                    tag=utils.LabelTag.PostInstalled)
+                    default_domain=builder.get_default_domain())
             print '  ', label
-            print '  exists?', builder.invocation.target_label_exists(label)
+            print '  target  exists?', builder.invocation.target_label_exists(label)
+
+        print
+        print 'As package args:'
+        print depend.label_list_to_string(decode_package_arguments(builder, args, current_dir))
+        print depend.label_list_to_string(labels_from_pkg_args(builder, args, current_dir, 'FRED'))
 
 
 def get_all_checkouts(builder, tag):
@@ -3727,6 +3732,101 @@ def label_from_pkg_arg(arg, tag, default_role, default_domain):
 
     return Label(utils.LabelType.Package,
                  name, role, tag, domain=domain)
+
+
+def expand_package_label(builder, label):
+    """Given an intermediate package label, expand it to a set of labels.
+    """
+    result_set = set()
+    default_roles = builder.invocation.default_roles
+
+    if label.name == '_all':
+        if label.role:
+            roles = [label.role]
+        else:
+            roles = builder.invocation.all_roles()
+        for r in roles:
+            lbl = label.copy_with_role(r)
+            result_set.update(inv.labels_for_role(lbl))
+    else:
+        if label.role:
+            result_set.add(label)
+        elif default_roles:
+            # Add the default roles
+            for r in default_roles:
+                lbl = label.copy_with_role(r)
+                result_set.add(lbl)
+        else:
+            # Just wildcard for any role
+            lbl = label.copy_with_role('*')
+            result_set.add(lbl)
+
+    return result_set
+
+def expand_package_checkout_label(builder, label):
+    """Given an intermediate checkout label, expand it to a set of package labels.
+    """
+    result_set = set()
+    checkout_labels = set()
+    if label.name == '_all':
+        checkout_labels.update(builder.invocation.all_checkout_labels())
+    else:
+        checkout_labels.add(label)
+
+    for lbl in checkout_labels:
+        result_set.update(builder.invocation.packages_using_checkout(lbl))
+
+    return result_set
+
+def decode_package_arguments(builder, arglist, current_dir):
+    """
+    TBD
+    """
+
+    if not arglist:
+        rv = builder.find_local_package_labels(current_dir,
+                                               utils.LabelTag.PostInstalled)
+        if rv:
+            rv.sort()
+            return rv
+        else:
+            raise utils.GiveUp("No packages specified")
+
+    inv = builder.invocation
+    result_set = set()
+    default_roles = builder.invocation.default_roles
+    default_domain = builder.get_default_domain()
+
+    # Build up an initial list from the arguments given
+    # Make sure we have a one-for-one correspondence between the input
+    # list and the result
+    initial_list = []
+    for word in arglist:
+        label = Label.from_fragment(word,
+                                    default_type=utils.LabelType.Package,
+                                    default_role=None,
+                                    default_domain=default_domain)
+        initial_list.append(label)
+
+    print 'Initial list:', depend.label_list_to_string(initial_list)
+
+    # Do a first sanity pass over that - here we rely on the ordering of the
+    # argument list and the initial list being the same, for error reports
+    result_set = set()
+    for index, label in enumerate(initial_list):
+        if label.type == utils.LabelType.Package:
+            result_set.update(expand_package_label(builder, label))
+        elif label.type == utils.LabelType.Checkout:
+            result_set.update(expand_package_checkout_label(builder, label))
+        else:
+            raise GiveUp("Cannot cope with label '%s', from input arg '%s'"%(label, arglist[index]))
+
+    print 'Result set', depend.label_list_to_string(result_set)
+
+    result_list = list(result_set)
+    result_list.sort()
+    return result_list
+
 
 def labels_from_pkg_args(builder, arglist, current_dir, tag):
     """

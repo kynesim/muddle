@@ -120,6 +120,14 @@ __label_type_type = namedtuple('LabelType',
 
 LabelType = __label_type_type(**__label_types)
 
+# Sometimes, we want to map a package type to a default tag
+# - these are the tags that we want to reach in our rules for each type
+package_type_to_tag = {
+        LabelType.Checkout   : LabelTag.CheckedOut,
+        LabelType.Package    : LabelTag.PostInstalled,
+        LabelType.Deployment : LabelTag.Deployed,
+        }
+
 # And directory types - i.e., what is the purpose of a particular directory?
 # We use a description of the purpose of the directory type as its value,
 # and trust to Python to be kind to us

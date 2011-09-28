@@ -3474,7 +3474,7 @@ def decode_checkout_arguments(builder, arglist, current_dir, required_tag=None):
             if label.is_definite():
                 result_set.add(label)
             else:
-                result_set.update(expand_wildcards(builder, label))
+                result_set.update(expand_wildcards(builder, label, required_tag))
 
         #print 'Result set', depend.label_list_to_string(result_set)
         result_list = list(result_set)
@@ -3522,7 +3522,7 @@ def decode_labels(builder, in_args):
 
     return rv
 
-def decode_deployment_arguments(builder, args, tag):
+def decode_deployment_arguments(builder, args, required_tag):
     """
     Look through args for deployments. _all means all deployments
     registered.
@@ -3536,7 +3536,7 @@ def decode_deployment_arguments(builder, args, tag):
     for dep in args:
         if (dep == "_all"):
             # Everything .. 
-            return_list = all_deployment_labels(builder, tag)
+            return_list = all_deployment_labels(builder, required_tag)
             return_list.sort()
             return return_list
         else:
@@ -3547,13 +3547,13 @@ def decode_deployment_arguments(builder, args, tag):
             if lbl.type != utils.LabelType.Deployment:
                 raise utils.GiveUp("Label '%s', from argument '%s' not allowed"
                         " as a deployment label"%(lbl, dep))
-            if lbl.tag != tag:
-                lbl = lbl.copy_with_tag(tag)
+            if lbl.required_tag != required_tag:
+                lbl = lbl.copy_with_tag(required_tag)
             return_list.append(lbl)
 
     if len(return_list) == 0:
         # Input was empty - default deployments.
-        return_list = default_deployment_labels(builder, tag)
+        return_list = default_deployment_labels(builder, required_tag)
         return_list.sort()
         return return_list
 
@@ -3562,7 +3562,7 @@ def decode_deployment_arguments(builder, args, tag):
         if label.is_definite():
             result_set.add(label)
         else:
-            result_set.update(expand_wildcards(builder, label))
+            result_set.update(expand_wildcards(builder, label, required_tag))
 
     return_list = list(result_set)
     return_list.sort()
@@ -3765,7 +3765,7 @@ def decode_package_arguments(builder, arglist, current_dir, required_tag=None):
         if label.is_definite():
             result_set.add(label)
         else:
-            result_set.update(expand_wildcards(builder, label))
+            result_set.update(expand_wildcards(builder, label, required_tag))
 
     #print 'Result set', depend.label_list_to_string(result_set)
 
@@ -3773,12 +3773,15 @@ def decode_package_arguments(builder, arglist, current_dir, required_tag=None):
     result_list.sort()
     return result_list
 
-def expand_wildcards(builder, label):
+def expand_wildcards(builder, label, required_tag=None):
     """
     Given a label which may contain wildcards, return a set of labels that match.
 
     As per the normal definition of labels, the <type>, <name>, <role> and
     <tag> parts of the label may be wildcarded.
+
+    If required_tag is given, then any labels found that have a '*' for
+    their tag will have it replaced by this value.
     """
 
     if label.is_definite():
@@ -3803,6 +3806,8 @@ def expand_wildcards(builder, label):
         wildcardiness = label.match(possible)
         if wildcardiness is None:                   # They didn't match
             continue
+        if required_tag is not None and possible.tag == '*':
+            possible = possible.copy_with_tag(required_tag)
         actual_labels.add(possible)
 
     return actual_labels

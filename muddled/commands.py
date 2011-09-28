@@ -3350,6 +3350,36 @@ class Doc(Command):
 
         print 'Cannot find %s'%what
 
+@command('test')
+class Test(Command):
+    """
+    :Syntax: test <label-fragment>
+
+    For testing label fragment parsing, and whether labels exist
+    """
+
+    def requires_build_tree(self):
+        return True
+
+    def with_build_tree(self, builder, current_dir, args):
+        for word in args:
+            print 'As checkout:'
+            label = Label.from_fragment(word,
+                    default_type=utils.LabelType.Checkout,
+                    default_role=None,
+                    default_domain=builder.get_default_domain(),
+                    tag=utils.LabelTag.CheckedOut)
+            print '  ', label
+            print '  exists?', builder.invocation.checkout_label_exists(label)
+            print 'As package:'
+            label = Label.from_fragment(word,
+                    default_type=utils.LabelType.Package,
+                    default_role='*',
+                    default_domain=builder.get_default_domain(),
+                    tag=utils.LabelTag.PostInstalled)
+            print '  ', label
+            print '  exists?', builder.invocation.target_label_exists(label)
+
 
 def get_all_checkouts(builder, tag):
     """
@@ -3462,7 +3492,7 @@ def decode_checkout_arguments(builder, args, current_dir, tag):
                 m = checkout_args_re.match(word)
                 if m is None:
                     raise utils.GiveUp("Checkout spec '%s' is wrong,\n"
-                                      "    expecting 'name' or '(domain}name'"%elem)
+                                      "    expecting 'name' or '(domain}name'"%word)
 
                 domain = m.group('domain')    # None if not present
                 if domain is None:

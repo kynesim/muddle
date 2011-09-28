@@ -1422,6 +1422,9 @@ class Deploy(Command):
     def with_build_tree(self, builder, current_dir, args):
         labels = decode_deployment_arguments(builder, args,
                                              utils.LabelTag.Deployed)
+        if self.no_op():
+            print "Would have deployed: %s"%(" ".join(map(str, labels)))
+            return
 
         build_labels(builder, labels)
 
@@ -3455,14 +3458,23 @@ def decode_checkout_arguments(builder, arglist, current_dir, required_tag=None):
 
         #print 'Initial list:', depend.label_list_to_string(initial_list)
 
-        result_set = set()
+        intermediate_set = set()
         for index, label in enumerate(initial_list):
-            if label.type == utils.LabelType.Package:
-                result_set.update(expand_checkout_label(builder, label, required_tag))
-            elif label.type == utils.LabelType.Checkout:
-                result_set.update(expand_checkout_package_label(builder, label, required_tag))
+            if label.type == utils.LabelType.Checkout:
+                intermediate_set.update(expand_checkout_label(builder, label, required_tag))
+            elif label.type == utils.LabelType.Package:
+                intermediate_set.update(expand_checkout_package_label(builder, label, required_tag))
             else:
                 raise GiveUp("Cannot cope with label '%s', from input arg '%s'"%(label, arglist[index]))
+
+        #print 'Intermediate set', depend.label_list_to_string(intermediate_set)
+
+        result_set = set()
+        for label in intermediate_set:
+            if label.is_definite():
+                result_set.add(label)
+            else:
+                result_set.update(expand_wildcards(builder, label))
 
         #print 'Result set', depend.label_list_to_string(result_set)
         result_list = list(result_set)
@@ -3524,7 +3536,9 @@ def decode_deployment_arguments(builder, args, tag):
     for dep in args:
         if (dep == "_all"):
             # Everything .. 
-            return all_deployment_labels(builder, tag)
+            return_list = all_deployment_labels(builder, tag)
+            return_list.sort()
+            return return_list
         else:
             lbl = Label.from_fragment(dep,
                                       default_type=utils.LabelType.Deployment,
@@ -3539,8 +3553,19 @@ def decode_deployment_arguments(builder, args, tag):
 
     if len(return_list) == 0:
         # Input was empty - default deployments.
-        return default_deployment_labels(builder, tag)
+        return_list = default_deployment_labels(builder, tag)
+        return_list.sort()
+        return return_list
 
+    result_set = set()
+    for label in return_list:
+        if label.is_definite():
+            result_set.add(label)
+        else:
+            result_set.update(expand_wildcards(builder, label))
+
+    return_list = list(result_set)
+    return_list.sort()
     return return_list
 
 
@@ -3650,6 +3675,7 @@ def decode_single_package_label(builder, arg, tag):
 def expand_package_label(builder, label, required_tag):
     """Given an intermediate package label, expand it to a set of labels.
     """
+    intermediate_set = set()
     result_set = set()
     default_roles = builder.invocation.default_roles
 
@@ -3723,19 +3749,62 @@ def decode_package_arguments(builder, arglist, current_dir, required_tag=None):
 
     #print 'Initial list:', depend.label_list_to_string(initial_list)
 
-    result_set = set()
+    intermediate_set = set()
     for index, label in enumerate(initial_list):
         if label.type == utils.LabelType.Package:
-            result_set.update(expand_package_label(builder, label, required_tag))
+            intermediate_set.update(expand_package_label(builder, label, required_tag))
         elif label.type == utils.LabelType.Checkout:
-            result_set.update(expand_package_checkout_label(builder, label, required_tag))
+            intermediate_set.update(expand_package_checkout_label(builder, label, required_tag))
         else:
             raise GiveUp("Cannot cope with label '%s', from input arg '%s'"%(label, arglist[index]))
+
+    #print 'Intermediate set', depend.label_list_to_string(intermediate_set)
+
+    result_set = set()
+    for label in intermediate_set:
+        if label.is_definite():
+            result_set.add(label)
+        else:
+            result_set.update(expand_wildcards(builder, label))
 
     #print 'Result set', depend.label_list_to_string(result_set)
 
     result_list = list(result_set)
     result_list.sort()
     return result_list
+
+def expand_wildcards(builder, label):
+    """
+    Given a label which may contain wildcards, return a set of labels that match.
+
+    As per the normal definition of labels, the <type>, <name>, <role> and
+    <tag> parts of the label may be wildcarded.
+    """
+
+    if label.is_definite():
+        # There are no wildcards - it matches itself
+        # (should we check if it exists?)
+        return set(label)
+
+    # This is perhaps not the most efficient way to do this, but it is simple
+    possible_labels = []
+    if label.type == utils.LabelType.Checkout:
+        possible_labels = builder.invocation.all_checkout_labels()
+    elif label.type == utils.LabelType.Package:
+        possible_labels = builder.invocation.all_package_labels()
+    elif label.type == utils.LabelType.Deployment:
+        possible_labels = builder.invocation.all_deployment_labels()
+    else:
+        raise utils.GiveUp("Cannot expand wildcards in label '%s', which"
+                " has an unrecognised type"%label)
+
+    actual_labels = set()
+    for possible in possible_labels:
+        wildcardiness = label.match(possible)
+        if wildcardiness is None:                   # They didn't match
+            continue
+        actual_labels.add(possible)
+
+    return actual_labels
 
 # End file.

@@ -318,6 +318,24 @@ class Invocation:
         all_labels = self.ruleset.rules_for_target(lbl)
         return (len(all_labels) > 0)
         
+    def target_label_exists(self, label):
+        """
+        Return True if this label is a target.
+
+        Note that this method does not understand wildcards, so the match
+        must be exact.
+        """
+        return label in self.ruleset.map.keys()
+
+    def checkout_label_exists(self, label):
+        """
+        Return True if this checkout label is in any rules (i.e., is used).
+
+        Note that this method does not understand wildcards, so the match
+        must be exact.
+        """
+        all_labels = self.ruleset.rules_for_target(label)
+        return len(all_labels) > 0
 
     def labels_for_role(self, kind,  role, tag, domain=None):
         """

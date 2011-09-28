@@ -780,6 +780,8 @@ class Label(object):
             raise utils.GiveUp("Label fragment '%s' is not allowed"%fragment)
 
         type = m.group("type")
+        if type is None:
+            type = default_type
         name = m.group("name")
         role = m.group("role")
         if role and not allow_role:

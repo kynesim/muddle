@@ -111,6 +111,23 @@ class Label(object):
                                       label_part,label_part),
                                  re.VERBOSE)
 
+    # In fragments, we allow want to allow ()<name> to mean "in the toplevel
+    # domain", so that we can override the default domain (which is presumably
+    # implied by location in the build tree)
+    fragment_re = re.compile(r"""
+                             ((?P<type>%s) :)?          # optional <type> and colon
+                             (\(
+                                 (?P<domain>%s)?        # optional <domain>
+                             \))?                       # in optional ()
+                             (?P<name>%s)               # <name>
+                             (\{
+                                (?P<role>%s)?           # optional <role>
+                              \})?                      # in optional {}
+                              $                         # and nothing more
+                              """%(label_part, domain_part, label_part,
+                                   label_part),
+                             re.VERBOSE)
+
     def __init__(self, type, name, role=None, tag='*', transient=False,
                  system=False, domain=None):
         """
@@ -731,6 +748,49 @@ class Label(object):
 
         return Label(type, name, role=role, tag=tag, transient=transient,
                      system=system, domain=domain)
+    @staticmethod
+    def from_fragment(fragment, default_type, default_role, default_domain, tag,
+                      allow_role=True):
+        """
+        Given a string containing a label fragment, return a Label.
+
+        The caller indicates the default type and domain, and what tag
+        should be used.
+
+        The fragment must contain a <name>, but otherwise *may* contain
+        any of:
+
+            * <type>: - if this is not given, the default is used
+            * (<domain>) - if this is not given, the default is used.
+              Note that "()" means "the top level domain" - this can be
+              useful in command lines when the default domain is a
+              subdomain
+            * {<role>} - if this is not given, the default is used. If
+              allow_role is False, then this is not allowed.
+
+        all of which may be "*" (the wildcard character).
+
+        Any of the default_xx values may be None.
+
+        <tag> is always taken to be the tag given, the user does not specify
+        this.
+        """
+        m = Label.fragment_re.match(fragment)
+        if m is None or m.end() != len(fragment):
+            raise utils.GiveUp("Label fragment '%s' is not allowed"%fragment)
+
+        type = m.group("type")
+        name = m.group("name")
+        role = m.group("role")
+        if role and not allow_role:
+            raise utils.Giveup("Label fragment '%s' should not contain a role"%fragment)
+        if role is None:
+            role = default_role         # which may be None as well
+        domain = m.group("domain")
+        if domain is None:
+            domain = default_domain
+
+        return Label(type, name, role, tag, domain=domain)
 
     def split_domains(self):
         """

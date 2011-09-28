@@ -791,8 +791,6 @@ class Label(object):
             type = default_type
         name = m.group("name")
         role = m.group("role")
-        if role and not allow_role:
-            raise utils.Giveup("Label fragment '%s' should not contain a role"%fragment)
         if role is None:
             role = default_role         # which may be None as well
         tag = m.group("tag")

@@ -3367,6 +3367,14 @@ class Test(Command):
 
     def with_build_tree(self, builder, current_dir, args):
         for word in args:
+            print 'As package:'
+            label = Label.from_fragment(word,
+                    default_type=utils.LabelType.Package,
+                    default_role='*',
+                    default_domain=builder.get_default_domain())
+            print '  ', label
+            print '  target  exists?', builder.invocation.target_label_exists(label)
+            print
             print 'As checkout:'
             label = Label.from_fragment(word,
                     default_type=utils.LabelType.Checkout,
@@ -3375,34 +3383,129 @@ class Test(Command):
             print '  ', label
             print '  checkout exists?', builder.invocation.checkout_label_exists(label)
             print '  target   exists?', builder.invocation.target_label_exists(label)
-            print
-            print 'As package:'
-            label = Label.from_fragment(word,
-                    default_type=utils.LabelType.Package,
-                    default_role='*',
-                    default_domain=builder.get_default_domain())
-            print '  ', label
-            print '  target  exists?', builder.invocation.target_label_exists(label)
 
         print
         print 'As package args:'
-        print depend.label_list_to_string(decode_package_arguments(builder, args, current_dir, 'FRED'))
-        print depend.label_list_to_string(labels_from_pkg_args(builder, args, current_dir, 'FRED'))
+        print depend.label_list_to_string(labels_from_pkg_args(builder, args, current_dir, 'built'))
+        print depend.label_list_to_string(decode_package_arguments(builder, args, current_dir, 'built'))
+
+        print
+        print 'As checkout args:'
+        print depend.label_list_to_string(decode_checkout_arguments_OLD(builder, args, current_dir, 'FRED'))
+        print depend.label_list_to_string(decode_checkout_arguments(builder, args, current_dir, 'FRED'))
 
 
-def get_all_checkouts(builder, tag):
+def expand_checkout_label(builder, label, required_tag):
+    """Given an intermediate checkout label, expand it to a set of labels.
     """
-    Return a list of labels corresponding to all checkouts 
-    in the system, with the given tag
+    intermediate_set = set()
+    result_set = set()
+
+    if label.name == '_all':
+        all_checkouts = builder.invocation.all_checkout_labels()
+        for label in all_checkouts:
+            intermediate_set.add(label.copy_with_tag(required_tag))
+    else:
+        intermediate_set.add(label.copy_with_tag(tag))
+
+    if required_tag is not None:
+        for label in intermediate_set:
+            if label.tag != required_tag:
+                label = label.copy_with_tag(required_tag)
+            result_set.add(label)
+    else:
+        result_set = intermediate_set
+
+    return result_set
+
+def expand_checkout_package_label(builder, label, required_tag):
+    """Given an intermediate package label, expand it to a set of checkout labels.
     """
-    rv = [ ]
-    all_cos = builder.invocation.all_checkout_labels()
+    result_set = set()
 
-    for co in all_cos:
-        rv.append(co.copy_with_tag(tag))
+    if label.name == '_all':
+        package_labels = set()
+        all_labels = builder.invocation.all_package_labels()
+        for pkg in all_labels:
+            # TODO Check if I've got these right
+            if label.domain is not None and label.domain != '*' and label.domain != pkg.domain:
+                continue
+            if label.role is not None and label.role != '*' and label.role != pkg.role:
+                continue
+            package_labels.add(pkg)
 
-    rv.sort()
-    return rv
+        co_set = set()
+        for pkg in package_labels:
+            these_labels = builder.invocation.checkouts_for_package(pkg)
+            co_set = co_set.union(these_labels)
+        for lbl in co_set:
+            result_set.add(lbl.copy_with_tag(required_tag))
+    else:
+        result_set.add(label.copy_with_tag(required_tag))
+
+    return result_set
+
+def decode_checkout_arguments(builder, arglist, current_dir, required_tag=None):
+    """
+    TBD
+    """
+    result_list = []
+
+    default_domain = builder.get_default_domain()
+
+    if arglist:
+        # Excellent!
+        result_set = set()
+        # Build up an initial list from the arguments given
+        # Make sure we have a one-for-one correspondence between the input
+        # list and the result
+        initial_list = []
+        for word in arglist:
+            label = Label.from_fragment(word,
+                                        default_type=utils.LabelType.Checkout,
+                                        default_role=None,
+                                        default_domain=default_domain)
+            initial_list.append(label)
+
+        #print 'Initial list:', depend.label_list_to_string(initial_list)
+
+        # And sort out things like expanding _all, forcing tags, etc.
+        result_set = set()
+        for index, label in enumerate(initial_list):
+            if label.type == utils.LabelType.Package:
+                result_set.update(expand_checkout_label(builder, label, required_tag))
+            elif label.type == utils.LabelType.Checkout:
+                result_set.update(expand_checkout_package_label(builder, label, required_tag))
+            else:
+                raise GiveUp("Cannot cope with label '%s', from input arg '%s'"%(label, arglist[index]))
+
+        #print 'Result set', depend.label_list_to_string(result_set)
+        result_list = list(result_set)
+
+    else:
+        # Where are we? If in a checkout, that's what we should do - else
+        # all checkouts.
+        what, label, domain = builder.find_location_in_tree(current_dir)
+
+        if what == utils.DirType.Checkout and label:
+            # We're actually inside a checkout - job done
+            result_list.append(label.copy_with_tag(tag))
+        elif what in (utils.DirType.Checkout,
+                      utils.DirType.Root,
+                      utils.DirType.DomainRoot):
+            # We're somewhere that we expect to have checkouts below
+            cos_below = builder.get_all_checkout_labels_below(current_dir)
+            for c in cos_below:
+                result_list.append(c.copy_with_tag(tag))
+        else:
+            # Hmm - choose not to grumble, just to have an empty list
+            pass
+
+    # We promised a sorted list
+    result_list.sort()
+    return result_list
+
+
 
 
 checkout_args_re = re.compile(r"""
@@ -3434,7 +3537,7 @@ def label_from_checkout_arg(arg, tag, default_domain, prefix=''):
     return Label(utils.LabelType.Checkout,
                  name, None, tag, domain=domain)
 
-def decode_checkout_arguments(builder, args, current_dir, tag):
+def decode_checkout_arguments_OLD(builder, args, current_dir, tag):
     """
     Decode checkout label arguments.
 
@@ -3482,7 +3585,11 @@ def decode_checkout_arguments(builder, args, current_dir, tag):
         # Excellent!
         for word in args:
             if word == "_all":
-                return get_all_checkouts(builder, tag)
+                all_cos = builder.invocation.all_checkout_labels()
+                for co in all_cos:
+                    rv.append(co.copy_with_tag(tag))
+                rv.sort()
+                return rv
             elif word.startswith("package:"):
                 pkg_labels = labels_from_pkg_args(builder, [word[8:]], current_dir,
                                                   utils.LabelTag.Built)
@@ -3509,7 +3616,7 @@ def decode_checkout_arguments(builder, args, current_dir, tag):
                 name   = m.group('name')
                 if name == "_all":
                     # We know we've got a domain, else we'd have matched earlier
-                    all_cos = builder.all_checkout_labels()
+                    all_cos = builder.invocation.all_checkout_labels()
                     for co in all_cos:
                         if co.domain == domain:
                             rv.append(co.copy_with_tag(tag))
@@ -3754,7 +3861,11 @@ def expand_package_label(builder, label, required_tag):
             roles = builder.invocation.all_roles()
         for r in roles:
             lbl = label.copy_with_role(r)
-            result_set.update(inv.labels_for_role(lbl))
+            these_labels = builder.invocation.labels_for_role(lbl.type,
+                                                              lbl.role,
+                                                              lbl.tag,
+                                                              lbl.domain)
+            result_set.update(these_labels)
     else:
         if label.role:
             result_set.add(label)
@@ -3776,13 +3887,18 @@ def expand_package_checkout_label(builder, label, required_tag):
     checkout_labels = set()
 
     if label.name == '_all':
-        checkout_labels.update(builder.invocation.all_checkout_labels())
+        all_cos = builder.invocation.all_checkout_labels()
+        for co in all_cos:
+            # TODO Check if I've got these right
+            if label.domain is not None and label.domain != '*' and label.domain != co.domain:
+                continue
+            checkout_labels.add(co)
     else:
         checkout_labels.add(label)
 
-    intermediat_set = set()
+    intermediate_set = set()
     for lbl in checkout_labels:
-        intermediat_set.update(builder.invocation.packages_using_checkout(lbl))
+        intermediate_set.update(builder.invocation.packages_using_checkout(lbl))
 
     if required_tag is not None:
         result_set = set()
@@ -3825,10 +3941,9 @@ def decode_package_arguments(builder, arglist, current_dir, required_tag=None):
                                     default_domain=default_domain)
         initial_list.append(label)
 
-    print 'Initial list:', depend.label_list_to_string(initial_list)
+    #print 'Initial list:', depend.label_list_to_string(initial_list)
 
-    # Do a first sanity pass over that - here we rely on the ordering of the
-    # argument list and the initial list being the same, for error reports
+    # And sort out things like expanding _all, forcing tags, etc.
     result_set = set()
     for index, label in enumerate(initial_list):
         if label.type == utils.LabelType.Package:
@@ -3838,7 +3953,7 @@ def decode_package_arguments(builder, arglist, current_dir, required_tag=None):
         else:
             raise GiveUp("Cannot cope with label '%s', from input arg '%s'"%(label, arglist[index]))
 
-    print 'Result set', depend.label_list_to_string(result_set)
+    #print 'Result set', depend.label_list_to_string(result_set)
 
     result_list = list(result_set)
     result_list.sort()

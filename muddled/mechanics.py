@@ -247,6 +247,17 @@ class Invocation:
             rv.add(cur.target.name)
         return rv
 
+    def all_package_labels(self):
+        """
+        Return a set of the labels of all the packages in our rule set. 
+        """
+        lbl = Label(utils.LabelType.Package, "*", "*", "*", domain="*")
+        all_rules = self.ruleset.rules_for_target(lbl)
+        rv = set()
+        for rule in all_rules:
+            rv.add(rule.target)
+        return rv
+
     def all_deployments(self):
         """
         Return a set of the names of all the deployments in our rule set. 

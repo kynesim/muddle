@@ -1152,7 +1152,7 @@ class RuleSet:
                 if (k.match(target) is not None):
                     result_set.add(k)
         elif target in self.map.keys():
-                result_set.add(target)
+            result_set.add(target)
 
         return result_set
 

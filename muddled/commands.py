@@ -40,7 +40,7 @@ import urllib
 import textwrap
 import pydoc
 from urlparse import urlparse
-from utils import VersionStamp
+from utils import VersionStamp, GiveUp
 
 # Following Richard's naming conventions...
 # A dictionary of <command name> : <command class>
@@ -60,7 +60,7 @@ def command(command_name, aliases=None):
     """A simple decorator to remmember a class by its command name.
     """
     if command_name in g_command_dict:
-        raise utils.GiveUp("Command '%s' is already defined"%command_name)
+        raise GiveUp("Command '%s' is already defined"%command_name)
     def rememberer(klass):
         g_command_dict[command_name] = klass
         if aliases:
@@ -95,7 +95,7 @@ def subcommand(main_command, sub_command, aliases=None):
     else:
         sub_dict = g_subcommand_dict[main_command]
         if sub_command in sub_dict:
-            raise utils.GiveUp("Command '%s %s' is already defined"%(main_command,sub_command))
+            raise GiveUp("Command '%s %s' is already defined"%(main_command,sub_command))
     g_subcommand_names.append((main_command, sub_command))
     def rememberer(klass):
         sub_dict[sub_command] = klass
@@ -160,13 +160,13 @@ class Command:
         """
         Run this command with a build tree.
         """
-        raise utils.GiveUp("Can't run %s with a build tree."%self.cmd_name)
+        raise GiveUp("Can't run %s with a build tree."%self.cmd_name)
 
     def without_build_tree(self, muddle_binary, root_path, args):
         """
         Run this command without a build tree.
         """
-        raise utils.GiveUp("Can't run %s without a build tree."%self.cmd_name)
+        raise GiveUp("Can't run %s without a build tree."%self.cmd_name)
         
 
 @command('root')
@@ -224,7 +224,7 @@ class Init(Command):
         return False
 
     def with_build_tree(self, builder, current_dir, args):
-        raise utils.GiveUp("Can't initialise a build tree " 
+        raise GiveUp("Can't initialise a build tree " 
                     "when one already exists (%s)"%builder.invocation.db.root_path)
     
     def without_build_tree(self, muddle_binary, root_path, args):
@@ -232,7 +232,7 @@ class Init(Command):
         Initialise a build tree.
         """
         if len(args) != 2:
-            raise utils.GiveUp(self.__doc__)
+            raise GiveUp(self.__doc__)
 
         repo = args[0]
         build = args[1]
@@ -312,13 +312,13 @@ class Bootstrap(Command):
 
     def with_build_tree(self, builder, current_dir, args):
         if args[0] != '-subdomain':
-            raise utils.GiveUp("Can't bootstrap a build tree when one already"
+            raise GiveUp("Can't bootstrap a build tree when one already"
                                " exists (%s)\nTry using '-bootstrap' if you"
                                " want to bootstrap a subdomain"%builder.invocation.db.root_path)
         args = args[1:]
 
         if os.path.exists('.muddle'):
-            raise utils.GiveUp("Even with '-subdomain', can't bootstrap a build"
+            raise GiveUp("Even with '-subdomain', can't bootstrap a build"
                                " tree in the same directory as an existing"
                                " tree (found .muddle)")
 
@@ -337,7 +337,7 @@ class Bootstrap(Command):
 
     def bootstrap(self, root_path, args):
         if len(args) != 2:
-            raise utils.GiveUp(self.__doc__)
+            raise GiveUp(self.__doc__)
 
         repo = args[0]
         build_name = args[1]
@@ -471,7 +471,7 @@ class Depend(Command):
         return True
     
     def without_build_tree(self, muddle_binary, root_path, args):
-        raise utils.GiveUp("Cannot run without a build tree")
+        raise GiveUp("Cannot run without a build tree")
 
     def with_build_tree(self, builder, current_dir, args):
         if len(args) != 1 and len(args) != 2:
@@ -504,7 +504,7 @@ class Depend(Command):
             show_sys = True
             show_user = True
         else:
-            raise utils.GiveUp("Bad dependency type: %s"%(type))
+            raise GiveUp("Bad dependency type: %s"%(type))
 
         
         print builder.invocation.ruleset.to_string(matchLabel = label, 
@@ -521,12 +521,12 @@ class QueryCommand(Command):
 
     def get_label(self, builder, args):
         if len(args) != 1:
-            raise utils.GiveUp("Command '%s' needs a label"%(self.cmd_name))
+            raise GiveUp("Command '%s' needs a label"%(self.cmd_name))
 
         try:
             label = Label.from_string(args[0])
-        except utils.GiveUp as exc:
-            raise utils.GiveUp("%s\nIt should contain at least <type>:<name>/<tag>"%exc)
+        except GiveUp as exc:
+            raise GiveUp("%s\nIt should contain at least <type>:<name>/<tag>"%exc)
 
         if label.domain is None:
             default_domain = builder.get_default_domain()
@@ -564,12 +564,6 @@ class QueryCheckouts(QueryCommand):
             joined = False
         cos = builder.invocation.all_checkout_labels()
         a_list = list(cos)
-
-        got_domains = False
-        for lbl in a_list:
-            if lbl.domain:
-                got_domains = True
-                break
         a_list.sort()
         out_list = []
         for lbl in a_list:
@@ -1402,7 +1396,7 @@ class Cleandeploy(Command):
         labels = decode_deployment_arguments(builder, args,
                                              utils.LabelTag.Clean)
         if (labels is None):
-            raise utils.GiveUp("No deployments specified or implied (this may well be a bug).")
+            raise GiveUp("No deployments specified or implied (this may well be a bug).")
         build_a_kill_b(builder, labels, utils.LabelTag.Clean, utils.LabelTag.Deployed)
 
 @command('deploy')
@@ -1657,7 +1651,7 @@ class Instruct(Command):
         label = decode_single_package_label(builder, arg, utils.LabelTag.PreConfig)
 
         if label.role is None or label.role == '*':
-            raise utils.GiveUp("instruct takes precisely one package{role} pair "
+            raise GiveUp("instruct takes precisely one package{role} pair "
                                 "and the role must be explicit")
 
 
@@ -1665,7 +1659,7 @@ class Instruct(Command):
             filename = args[1]
 
             if (not os.path.exists(filename)):
-                raise utils.GiveUp("Attempt to register instructions in " 
+                raise GiveUp("Attempt to register instructions in " 
                                     "%s: file does not exist"%filename)
 
             if (self.no_op()):
@@ -1770,7 +1764,7 @@ class Push(Command):
             try:
                 builder.invocation.db.clear_tag(co)
                 builder.build_label(co)
-            except utils.GiveUp as e:
+            except GiveUp as e:
                 if stop_on_problem:
                     raise
                 else:
@@ -1836,7 +1830,7 @@ class Fetch(Command):
                 builder.invocation.db.clear_tag(co)
                 # And then build it again
                 builder.build_label(co)
-            except utils.GiveUp as e:
+            except GiveUp as e:
                 if stop_on_problem:
                     raise
                 else:
@@ -1903,7 +1897,7 @@ class Merge(Command):
                 builder.invocation.db.clear_tag(co)
                 # And then build it again
                 builder.build_label(co)
-            except utils.GiveUp as e:
+            except GiveUp as e:
                 if stop_on_problem:
                     raise
                 else:
@@ -2264,7 +2258,7 @@ class Env(Command):
 
     def with_build_tree(self,builder, current_dir, args):
         if (len(args) < 3):
-            raise utils.GiveUp("Syntax: env [language] [build|run] [name] [label ... ]")
+            raise GiveUp("Syntax: env [language] [build|run] [name] [label ... ]")
 
         lang = args[0]
         mode = args[1]
@@ -2275,7 +2269,7 @@ class Env(Command):
         elif (mode == "run"):
             tag = utils.LabelTag.RuntimeEnv
         else:
-            raise utils.GiveUp("Mode '%s' is not understood - use build or run."%mode)
+            raise GiveUp("Mode '%s' is not understood - use build or run."%mode)
 
         labels = decode_package_arguments(builder, args[3:], current_dir, tag)
         if (self.no_op()):
@@ -2300,7 +2294,7 @@ class Env(Command):
             elif (lang == "c"):
                 script = env.get_setvars_script(builder, name, env_store.EnvLanguage.C)
             else:
-                raise utils.GiveUp("Language must be sh, py, python or c, not %s"%lang)
+                raise GiveUp("Language must be sh, py, python or c, not %s"%lang)
             
             print script
 
@@ -2407,7 +2401,7 @@ class CopyWithout(Command):
             force = False
 
         if (len(args) < 2):
-            raise utils.GiveUp("Bad syntax for copywithout command")
+            raise GiveUp("Bad syntax for copywithout command")
 
         src_dir = args[0]
         dst_dir = args[1]
@@ -2481,7 +2475,7 @@ class Subst(Command):
 
     def do_subst(self, args):
         if len(args) != 3:
-            raise utils.GiveUp("Syntax: subst [src] [xml] [dst]")
+            raise GiveUp("Syntax: subst [src] [xml] [dst]")
         
         src = args[0]
         xml_file = args[1]
@@ -2561,11 +2555,11 @@ class StampSave(Command):
                 just_use_head = True
                 force = False
             elif word.startswith('-'):
-                raise utils.GiveUp("Unexpected switch '%s' for 'stamp save'"%word)
+                raise GiveUp("Unexpected switch '%s' for 'stamp save'"%word)
             elif filename is None:
                 filename = word
             else:
-                raise utils.GiveUp("Unexpected argument '%s' for 'stamp save'"%word)
+                raise GiveUp("Unexpected argument '%s' for 'stamp save'"%word)
 
         if just_use_head:
             print 'Using HEAD for all checkouts'
@@ -2659,9 +2653,9 @@ class StampVersion(Command):
             if word in ('-f', '-force'):
                 force = True
             elif word.startswith('-'):
-                raise utils.GiveUp("Unexpected switch '%s' for 'stamp version'"%word)
+                raise GiveUp("Unexpected switch '%s' for 'stamp version'"%word)
             else:
-                raise utils.GiveUp("Unexpected argument '%s' for 'stamp version'"%word)
+                raise GiveUp("Unexpected argument '%s' for 'stamp version'"%word)
 
         if force:
             print 'Forcing original revision ids when necessary'
@@ -2671,7 +2665,7 @@ class StampVersion(Command):
 
         if problems:
             print problems
-            raise utils.GiveUp('Problems prevent writing version stamp file')
+            raise GiveUp('Problems prevent writing version stamp file')
 
         if not self.no_op():
             version_dir = os.path.join(builder.invocation.db.root_path, 'versions')
@@ -2732,12 +2726,12 @@ class StampDiff(Command):
 
     def without_build_tree(self, muddle_binary, root_path, args):
         if not args:
-            raise utils.GiveUp("'stamp diff' needs two stamp files to compare")
+            raise GiveUp("'stamp diff' needs two stamp files to compare")
         self.compare_stamp_files(args)
 
     def with_build_tree(self, builder, current_dir, args):
         if not args:
-            raise utils.GiveUp("'stamp diff' needs two stamp files to compare")
+            raise GiveUp("'stamp diff' needs two stamp files to compare")
         self.compare_stamp_files(args)
 
     def compare_stamp_files(self, args):
@@ -2845,7 +2839,7 @@ class StampPush(Command):
 
     def with_build_tree(self, builder, current_dir, args):
         if len(args) > 1:
-            raise utils.GiveUp("Unexpected argument '%s' for 'stamp push'"%' '.join(args))
+            raise GiveUp("Unexpected argument '%s' for 'stamp push'"%' '.join(args))
 
         db = builder.invocation.db
 
@@ -2857,13 +2851,13 @@ class StampPush(Command):
             versions_url = db.versions_repo.from_disc()
 
         if not versions_url:
-            raise utils.GiveUp("Cannot push 'versions/' directory, as there is no repository specified\n"
+            raise GiveUp("Cannot push 'versions/' directory, as there is no repository specified\n"
                                 "Check the contents of '.muddle/VersionsRepository',\n"
                                 "or give a repository on the command line")
 
         versions_dir = os.path.join(db.root_path, "versions")
         if not os.path.exists(versions_dir):
-            raise utils.GiveUp("Cannot push 'versions/' directory, as it does not exist.\n"
+            raise GiveUp("Cannot push 'versions/' directory, as it does not exist.\n"
                                 "Have you done 'muddle stamp version'?")
 
         with utils.Directory('versions'):
@@ -2903,7 +2897,7 @@ class StampPull(Command):
 
     def with_build_tree(self, builder, current_dir, args):
         if len(args) > 1:
-            raise utils.GiveUp("Unexpected argument '%s' for 'stamp pull'"%' '.join(args))
+            raise GiveUp("Unexpected argument '%s' for 'stamp pull'"%' '.join(args))
 
         db = builder.invocation.db
 
@@ -2915,7 +2909,7 @@ class StampPull(Command):
             versions_url = db.versions_repo.from_disc()
 
         if not versions_url:
-            raise utils.GiveUp("Cannot pull 'versions/' directory, as there is no repository specified\n"
+            raise GiveUp("Cannot pull 'versions/' directory, as there is no repository specified\n"
                                 "Check the contents of '.muddle/VersionsRepository',\n"
                                 "or give a repository on the command line")
 
@@ -3112,12 +3106,12 @@ Try 'muddle help unstamp' for more information."""
         version_dir, version_file = os.path.split(version_path)
 
         if not version_file:
-            raise utils.GiveUp("'unstamp <vcs+url> %s' does not end with"
+            raise GiveUp("'unstamp <vcs+url> %s' does not end with"
                     " a filename"%version_path)
 
         # XXX I'm not entirely sure about this check - is it overkill?
         if os.path.splitext(version_file)[1] != '.stamp':
-            raise utils.GiveUp("Stamp file specified (%s) does not end"
+            raise GiveUp("Stamp file specified (%s) does not end"
                     " .stamp"%version_file)
 
         actual_url = '%s/%s'%(repo, version_dir)
@@ -3319,7 +3313,7 @@ class Doc(Command):
 
         # Allow 'muddle doc muddled' explicitly
         if what != 'muddled' and not what.startswith('muddled.'):
-                what = 'muddled.%s'%what
+            what = 'muddled.%s'%what
 
         # We need a bit of trickery to cope with the fact that,
         # for instance, we cannot "import muddled" and then access
@@ -3486,14 +3480,14 @@ def decode_checkout_arguments(builder, arglist, current_dir, required_tag=None):
 
         if what == utils.DirType.Checkout and label:
             # We're actually inside a checkout - job done
-            result_list.append(label.copy_with_tag(tag))
+            result_list.append(label.copy_with_tag(required_tag))
         elif what in (utils.DirType.Checkout,
                       utils.DirType.Root,
                       utils.DirType.DomainRoot):
             # We're somewhere that we expect to have checkouts below
             cos_below = builder.get_all_checkout_labels_below(current_dir)
             for c in cos_below:
-                result_list.append(c.copy_with_tag(tag))
+                result_list.append(c.copy_with_tag(required_tag))
         else:
             # Hmm - choose not to grumble, just to have an empty list
             pass
@@ -3545,9 +3539,9 @@ def decode_deployment_arguments(builder, args, required_tag):
                                       default_role="*",
                                       default_domain=default_domain)
             if lbl.type != utils.LabelType.Deployment:
-                raise utils.GiveUp("Label '%s', from argument '%s' not allowed"
+                raise GiveUp("Label '%s', from argument '%s' not allowed"
                         " as a deployment label"%(lbl, dep))
-            if lbl.required_tag != required_tag:
+            if lbl.tag != required_tag:
                 lbl = lbl.copy_with_tag(required_tag)
             return_list.append(lbl)
 
@@ -3625,15 +3619,15 @@ def build_a_kill_b(builder, labels, build_this, kill_this):
             l_a = lbl.copy_with_tag(build_this)
             print "Building: %s .. "%(l_a)
             builder.build_label(l_a)
-        except utils.GiveUp, e:
-            raise utils.GiveUp("Can't build %s - %s"%(l_a, e))
+        except GiveUp, e:
+            raise GiveUp("Can't build %s - %s"%(l_a, e))
 
         try:
             l_b = lbl.copy_with_tag(kill_this)
             print "Killing: %s .. "%(l_b)
             builder.kill_label(l_b)
-        except utils.GiveUp, e:
-            raise utils.GiveUp("Can't kill %s - %s"%(l_b, e))
+        except GiveUp, e:
+            raise GiveUp("Can't kill %s - %s"%(l_b, e))
 
 def kill_labels(builder, to_kill):
     print "Killing %s "%(" ".join(map(str, to_kill)))
@@ -3641,8 +3635,8 @@ def kill_labels(builder, to_kill):
     try:
         for lbl in to_kill:
             builder.kill_label(lbl)
-    except utils.GiveUp, e:
-        raise utils.GiveUp("Can't kill %s - %s"%(str(lbl), e))
+    except GiveUp, e:
+        raise GiveUp("Can't kill %s - %s"%(str(lbl), e))
 
 def build_labels(builder, to_build):
     print "Building %s "%(" ".join(map(str, to_build)))
@@ -3650,8 +3644,8 @@ def build_labels(builder, to_build):
     try:
         for lbl in to_build:
             builder.build_label(lbl)
-    except utils.GiveUp,e:
-        raise utils.GiveUp("Can't build %s - %s"%(str(lbl), e))
+    except GiveUp,e:
+        raise GiveUp("Can't build %s - %s"%(str(lbl), e))
 
 def decode_single_package_label(builder, arg, tag):
     """
@@ -3660,14 +3654,14 @@ def decode_single_package_label(builder, arg, tag):
     If role or domain is not specified, use the default (which may be None).
     """
     default_domain = builder.get_default_domain()
-    label = Label.from_fragment(word,
+    label = Label.from_fragment(arg,
                                 default_type=utils.LabelType.Package,
                                 default_role=None,
                                 default_domain=default_domain)
     if label.tag != tag:
         label = label.copy_with_tag(tag)
     if label.type != utils.LabelType.Package:
-        raise utils.GiveUp("Label '%s', from argument '%s', is not a valid"
+        raise GiveUp("Label '%s', from argument '%s', is not a valid"
                 " package label"%(label, arg))
     return label
 
@@ -3726,7 +3720,7 @@ def decode_package_arguments(builder, arglist, current_dir, required_tag=None):
             rv.sort()
             return rv
         else:
-            raise utils.GiveUp("No packages specified")
+            raise GiveUp("No packages specified")
 
     inv = builder.invocation
     result_set = set()
@@ -3798,7 +3792,7 @@ def expand_wildcards(builder, label, required_tag=None):
     elif label.type == utils.LabelType.Deployment:
         possible_labels = builder.invocation.all_deployment_labels()
     else:
-        raise utils.GiveUp("Cannot expand wildcards in label '%s', which"
+        raise GiveUp("Cannot expand wildcards in label '%s', which"
                 " has an unrecognised type"%label)
 
     actual_labels = set()

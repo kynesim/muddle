@@ -18,7 +18,6 @@ case your programs want to run them themselves
 
 from db import Database
 from depend import Label
-import db
 import depend
 import env_store
 import instr
@@ -30,7 +29,6 @@ import utils
 import version_control
 
 import difflib
-import re
 import os
 import xml.dom.minidom
 import subst
@@ -39,6 +37,7 @@ import sys
 import urllib
 import textwrap
 import pydoc
+from db import InstructionFile
 from urlparse import urlparse
 from utils import VersionStamp, GiveUp
 
@@ -1666,7 +1665,7 @@ class Instruct(Command):
                 print "Register instructions in %s"%(filename)
             else:
                 # Try loading it.
-                ifile = db.InstructionFile(filename, instr.factory)
+                ifile = InstructionFile(filename, instr.factory)
                 ifile.get()
 
             # If we got here, it's obviously OK
@@ -3669,7 +3668,6 @@ def decode_single_package_label(builder, arg, tag):
 def expand_package_label(builder, label, required_tag):
     """Given an intermediate package label, expand it to a set of labels.
     """
-    intermediate_set = set()
     result_set = set()
     default_roles = builder.invocation.default_roles
 
@@ -3722,9 +3720,7 @@ def decode_package_arguments(builder, arglist, current_dir, required_tag=None):
         else:
             raise GiveUp("No packages specified")
 
-    inv = builder.invocation
     result_set = set()
-    default_roles = builder.invocation.default_roles
     default_domain = builder.get_default_domain()
 
     # Build up an initial list from the arguments given

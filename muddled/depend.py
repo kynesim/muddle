@@ -117,7 +117,7 @@ class Label(object):
     fragment_re = re.compile(r"""
                              ((?P<type>%s) :)?          # optional <type> and colon
                              (\(
-                                 (?P<domain>%s)?        # optional <domain>
+                                 (?P<domain>%s)         # <domain>
                              \))?                       # in optional ()
                              (?P<name>%s)               # <name>
                              (\{

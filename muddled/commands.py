@@ -3394,16 +3394,13 @@ class Test(Command):
 
 def expand_checkout_label(builder, label, required_tag):
     """Given an intermediate checkout label, expand it to a set of labels.
+
+    TODO: decide what wildcards we accept, and expand them(?)
     """
     intermediate_set = set()
     result_set = set()
 
-    if label.name == '_all':
-        all_checkouts = builder.invocation.all_checkout_labels()
-        for label in all_checkouts:
-            intermediate_set.add(label.copy_with_tag(required_tag))
-    else:
-        intermediate_set.add(label.copy_with_tag(tag))
+    intermediate_set.add(label)
 
     if required_tag is not None:
         for label in intermediate_set:
@@ -3420,25 +3417,13 @@ def expand_checkout_package_label(builder, label, required_tag):
     """
     result_set = set()
 
-    if label.name == '_all':
-        package_labels = set()
-        all_labels = builder.invocation.all_package_labels()
-        for pkg in all_labels:
-            # TODO Check if I've got these right
-            if label.domain is not None and label.domain != '*' and label.domain != pkg.domain:
-                continue
-            if label.role is not None and label.role != '*' and label.role != pkg.role:
-                continue
-            package_labels.add(pkg)
+    these_labels = builder.invocation.checkouts_for_package(label)
 
-        co_set = set()
-        for pkg in package_labels:
-            these_labels = builder.invocation.checkouts_for_package(pkg)
-            co_set = co_set.union(these_labels)
-        for lbl in co_set:
+    if required_tag:
+        for lbl in these_labels:
             result_set.add(lbl.copy_with_tag(required_tag))
     else:
-        result_set.add(label.copy_with_tag(required_tag))
+        result_set = set(these_labels)
 
     return result_set
 
@@ -3458,15 +3443,18 @@ def decode_checkout_arguments(builder, arglist, current_dir, required_tag=None):
         # list and the result
         initial_list = []
         for word in arglist:
-            label = Label.from_fragment(word,
-                                        default_type=utils.LabelType.Checkout,
-                                        default_role=None,
-                                        default_domain=default_domain)
-            initial_list.append(label)
+            if word == '_all':
+                all_checkouts = builder.invocation.all_checkout_labels()
+                initial_list.extend(all_checkouts)
+            else:
+                label = Label.from_fragment(word,
+                                            default_type=utils.LabelType.Checkout,
+                                            default_role=None,
+                                            default_domain=default_domain)
+                initial_list.append(label)
 
         #print 'Initial list:', depend.label_list_to_string(initial_list)
 
-        # And sort out things like expanding _all, forcing tags, etc.
         result_set = set()
         for index, label in enumerate(initial_list):
             if label.type == utils.LabelType.Package:
@@ -3668,51 +3656,26 @@ def expand_package_label(builder, label, required_tag):
     if required_tag is not None and label.tag != required_tag:
         label = label.copy_with_tag(required_tag)
 
-    if label.name == '_all':
-        if label.role:
-            roles = [label.role]
-        else:
-            roles = builder.invocation.all_roles()
-        for r in roles:
+    if label.role:
+        result_set.add(label)
+    elif default_roles:
+        # Add the default roles
+        for r in default_roles:
             lbl = label.copy_with_role(r)
-            these_labels = builder.invocation.labels_for_role(lbl.type,
-                                                              lbl.role,
-                                                              lbl.tag,
-                                                              lbl.domain)
-            result_set.update(these_labels)
-    else:
-        if label.role:
-            result_set.add(label)
-        elif default_roles:
-            # Add the default roles
-            for r in default_roles:
-                lbl = label.copy_with_role(r)
-                result_set.add(lbl)
-        else:
-            # Just wildcard for any role
-            lbl = label.copy_with_role('*')
             result_set.add(lbl)
+    else:
+        # Just wildcard for any role
+        lbl = label.copy_with_role('*')
+        result_set.add(lbl)
 
     return result_set
 
 def expand_package_checkout_label(builder, label, required_tag):
     """Given an intermediate checkout label, expand it to a set of package labels.
     """
-    checkout_labels = set()
-
-    if label.name == '_all':
-        all_cos = builder.invocation.all_checkout_labels()
-        for co in all_cos:
-            # TODO Check if I've got these right
-            if label.domain is not None and label.domain != '*' and label.domain != co.domain:
-                continue
-            checkout_labels.add(co)
-    else:
-        checkout_labels.add(label)
 
     intermediate_set = set()
-    for lbl in checkout_labels:
-        intermediate_set.update(builder.invocation.packages_using_checkout(lbl))
+    intermediate_set.update(builder.invocation.packages_using_checkout(label))
 
     if required_tag is not None:
         result_set = set()
@@ -3749,15 +3712,17 @@ def decode_package_arguments(builder, arglist, current_dir, required_tag=None):
     # list and the result
     initial_list = []
     for word in arglist:
-        label = Label.from_fragment(word,
-                                    default_type=utils.LabelType.Package,
-                                    default_role=None,
-                                    default_domain=default_domain)
-        initial_list.append(label)
+        if word == '_all':
+            initial_list.extend(builder.invocation.all_package_labels())
+        else:
+            label = Label.from_fragment(word,
+                                        default_type=utils.LabelType.Package,
+                                        default_role=None,
+                                        default_domain=default_domain)
+            initial_list.append(label)
 
     #print 'Initial list:', depend.label_list_to_string(initial_list)
 
-    # And sort out things like expanding _all, forcing tags, etc.
     result_set = set()
     for index, label in enumerate(initial_list):
         if label.type == utils.LabelType.Package:

@@ -23,12 +23,14 @@ MUDDLE_MAKEFILE = """\
 # Trivial muddle makefile
 all:
 \t@echo Make all for $(MUDDLE_LABEL)
+\t$(CC) $(MUDDLE_SRC)/{progname}.c -o $(MUDDLE_OBJ)/{progname}
 
 config:
 \t@echo Make configure for $(MUDDLE_LABEL)
 
 install:
 \t@echo Make install for $(MUDDLE_LABEL)
+\tcp $(MUDDLE_OBJ)/{progname} $(MUDDLE_INSTALL)
 
 clean:
 \t@echo Make clean for $(MUDDLE_LABEL)
@@ -40,9 +42,8 @@ distclean:
 """
 
 # You may recognise these example build descriptions from the documentation
-SUBDOMAIN_BUILD = """ \
-# An example of how to build a cpio archive as a
-# deployment - e.g. for a Linux initrd.
+SUBDOMAIN_BUILD_DESC = """ \
+# A simple subdomain
 
 import muddled
 import muddled.pkgs.make
@@ -51,17 +52,17 @@ import muddled.checkouts.simple
 
 def describe_to(builder):
     # Checkout ..
-    muddled.checkouts.simple.relative(builder, "cpio_co")
-    muddled.pkgs.make.simple(builder, "pkg_cpio", "x86", "cpio_co")
+    muddled.checkouts.simple.relative(builder, "subdomain1_co1")
+    muddled.pkgs.make.simple(builder, "main", "x86", "main_co1")
     muddled.deployments.cpio.deploy(builder, "my_archive.cpio",
                                     {"x86": "/"},
-                                    "cpio_dep", [ "x86" ])
+                                    "main_dep", [ "x86" ])
 
     builder.invocation.add_default_role("x86")
-    builder.by_default_deploy("cpio_dep")
+    builder.by_default_deploy("main_dep")
 """
 
-MAIN_BUILD = """ \
+MAIN_BUILD_DESC = """ \
 # An example of building with a subdomain
 
 import muddled
@@ -73,12 +74,12 @@ from muddled.mechanics import include_domain
 
 def describe_to(builder):
     # Checkout ..
-    muddled.checkouts.simple.relative(builder, "cpio_co")
-    muddled.pkgs.make.simple(builder, "pkg_cpio", "x86", "cpio_co")
+    muddled.checkouts.simple.relative(builder, "main_co1")
+    muddled.pkgs.make.simple(builder, "main", "x86", "main_co1")
 
     include_domain(builder,
-                   domain_name = "b",
-                   domain_repo = "svn+http://muddle.googlecode.com/svn/trunk/muddle/examples/b",
+                   domain_name = "subdomain1",
+                   domain_repo = "git+file://{rootpath}/subdomain1/builds",
                    domain_desc = "builds/01.py")
 
     collect.deploy(builder, "everything")
@@ -89,11 +90,53 @@ def describe_to(builder):
     collect.copy_from_role_install(builder, "everything",
                                    role = "x86",
                                    rel = "", dest = "usr",
-                                   domain = "b")
+                                   domain = "subdomain1")
 
     builder.invocation.add_default_role("x86")
     builder.by_default_deploy("everything")
 """
+
+MAIN_C_SRC = """\
+// Simple example C source code
+#include <stdio.h>
+int main(int argc, char **argv)
+{
+    printf("Program %s\n", argv[0]);
+}
+"""
+
+def make_repos_with_subdomain(this_dir):
+    """Create git repositories for our subdomain tests.
+    """
+    rootpath = os.path.join(this_dir, 'repo')
+    with NewDirectory('repo'):
+        with NewDirectory('main'):
+            with NewDirectory('builds'):
+                git('init')
+                touch('01.py', MAIN_BUILD_DESC.format(rootpath=rootpath))
+                git('add 01.py')
+                git('commit -a -m "Commit main build desc"')
+            with NewDirectory('main_co1'):
+                progname = 'main1'
+                git('init')
+                touch('{progname}.c'.format(progname=progname), MAIN_C_SRC)
+                touch('Makefile.muddle', MUDDLE_MAKEFILE.format(progname=progname))
+                git('add {progname}.c Makefile.muddle'.format(progname=progname))
+                git('commit -a -m "Commit main checkout 1"')
+        with NewDirectory('subdomain1'):
+            with NewDirectory('builds'):
+                git('init')
+                touch('01.py', SUBDOMAIN_BUILD_DESC)
+                git('add 01.py')
+                git('commit -a -m "Commit subdomain1 build desc"')
+            with NewDirectory('main_co1'):
+                progname = 'subdomain1'
+                git('init')
+                touch('{progname}.c'.format(progname=progname), MAIN_C_SRC)
+                touch('Makefile.muddle', MUDDLE_MAKEFILE.format(progname=progname))
+                git('add {progname}.c Makefile.muddle'.format(progname=progname))
+                git('commit -a -m "Commit subdomain 1 checkout 1"')
+
 
 def test_simple_subdomain():
     """Bootstrap a muddle build tree.
@@ -152,9 +195,15 @@ def main(args):
     # somewhere in $TMPDIR...
     root_dir = normalise_dir(os.path.join(os.getcwd(), 'transient'))
 
-    with TransientDirectory(root_dir, keep_on_error=True):
-        banner('SIMPLE SUBDOMAIN')
-        test_simple_subdomain()
+    if False:
+        with TransientDirectory(root_dir, keep_on_error=True):
+            banner('SIMPLE SUBDOMAIN')
+            test_simple_subdomain()
+    else:
+        # Initial testing of our tests
+        with NewDirectory(root_dir):
+            banner('REPOSITORIES WITH SUBDOMAIN')
+            make_repos_with_subdomain(root_dir)
 
 if __name__ == '__main__':
     args = sys.argv[1:]

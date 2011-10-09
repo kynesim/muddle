@@ -83,7 +83,7 @@ def describe_to(builder):
 
     include_domain(builder,
                    domain_name = "subdomain1",
-                   domain_repo = "git+file://{rootpath}/subdomain1",
+                   domain_repo = "git+file://{repo}/subdomain1",
                    domain_desc = "builds/01.py")
 
     collect.deploy(builder, "everything")
@@ -109,14 +109,15 @@ int main(int argc, char **argv)
 }}
 """
 
-def make_repos_with_subdomain(rootpath):
+def make_repos_with_subdomain(root_dir):
     """Create git repositories for our subdomain tests.
     """
+    repo = os.path.join(root_dir, 'repo')
     with NewDirectory('repo'):
         with NewDirectory('main'):
             with NewDirectory('builds'):
                 git('init')
-                touch('01.py', MAIN_BUILD_DESC.format(rootpath=rootpath))
+                touch('01.py', MAIN_BUILD_DESC.format(repo=repo))
                 git('add 01.py')
                 git('commit -a -m "Commit main build desc"')
             with NewDirectory('main_co'):
@@ -142,12 +143,31 @@ def make_repos_with_subdomain(rootpath):
                 git('add {progname}.c Makefile.muddle'.format(progname=progname))
                 git('commit -a -m "Commit subdomain 1 checkout 1"')
 
-def check_repos_out(rootpath):
+def check_repos_out(root_dir):
 
+    repo = os.path.join(root_dir, 'repo')
+    here = os.path.join(root_dir, 'build')
     with NewDirectory('build'):
-        muddle(['init', 'git+file://{rootpath}/main'.format(rootpath=rootpath),
+        muddle(['init', 'git+file://{repo}/main'.format(repo=repo),
             'builds/01.py'])
+        check_files([os.path.join(here, 'src', 'builds', '01.py'),
+                     os.path.join(here, 'domains', 'subdomain1', 'src', 'builds', '01.py'),
+                    ])
+
+        muddle(['checkout'])
+        check_files([os.path.join(here, 'src', 'builds', '01.py'),
+                     os.path.join(here, 'src', 'main_co', 'Makefile.muddle'),
+                     os.path.join(here, 'src', 'main_co', 'main1.c'),
+                     os.path.join(here, 'domains', 'subdomain1', 'src', 'builds', '01.py'),
+                     os.path.join(here, 'domains', 'subdomain1', 'src', 'main_co', 'Makefile.muddle'),
+                     os.path.join(here, 'domains', 'subdomain1', 'src', 'main_co', 'subdomain1.c'),
+                    ])
+
+def build(root_dir):
+
+    with Directory('build'):
         muddle([])
+        check_files([])
 
 def main(args):
 
@@ -161,12 +181,12 @@ def main(args):
     root_dir = normalise_dir(os.path.join(os.getcwd(), 'transient'))
 
     with NewDirectory(root_dir):
-        rootpath = os.path.join(root_dir, 'repo')
         banner('MAKE REPOSITORIES')
-        make_repos_with_subdomain(rootpath)
+        make_repos_with_subdomain(root_dir)
 
         banner('CHECK REPOSITORIES OUT')
-        check_repos_out(rootpath)
+        check_repos_out(root_dir)
+        build(root_dir)
 
 if __name__ == '__main__':
     args = sys.argv[1:]

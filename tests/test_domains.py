@@ -106,6 +106,7 @@ MAIN_C_SRC = """\
 int main(int argc, char **argv)
 {{
     printf("Program {progname}\\n");
+    return 0;
 }}
 """
 
@@ -165,9 +166,53 @@ def check_repos_out(root_dir):
 
 def build(root_dir):
 
+    here = os.path.join(root_dir, 'build')
     with Directory('build'):
         muddle([])
-        check_files([])
+        # Things get built in their subdomains, but we're deploying at top level
+        check_files([os.path.join(here, 'obj', 'main_pkg', 'x86', 'main1'),
+                     os.path.join(here, 'install', 'x86', 'main1'),
+                     os.path.join(here, 'domains', 'subdomain1', 'obj', 'main_pkg', 'x86', 'subdomain1'),
+                     os.path.join(here, 'domains', 'subdomain1', 'install', 'x86', 'subdomain1'),
+                     os.path.join(here, 'deploy', 'everything', 'main1'),
+                     os.path.join(here, 'deploy', 'everything', 'usr', 'subdomain1'),
+                    ])
+
+        # The top level build has its own stuff
+        tags = os.path.join(here, '.muddle', 'tags')
+        check_files([os.path.join(tags, 'checkout', 'builds', 'checked_out'),
+                     os.path.join(tags, 'checkout', 'main_co', 'checked_out'),
+                     os.path.join(tags, 'package', 'main_pkg', 'x86-built'),
+                     os.path.join(tags, 'package', 'main_pkg', 'x86-configured'),
+                     os.path.join(tags, 'package', 'main_pkg', 'x86-installed'),
+                     os.path.join(tags, 'package', 'main_pkg', 'x86-postinstalled'),
+                     os.path.join(tags, 'package', 'main_pkg', 'x86-preconfig'),
+                     os.path.join(tags, 'deployment', 'everything', 'deployed'),
+                    ])
+
+        # The subdomain has its stuff
+        mdir = os.path.join(here, 'domains', 'subdomain1', '.muddle')
+        check_files([os.path.join(mdir, 'am_subdomain')])
+
+        tags = os.path.join(mdir, 'tags')
+        check_files([os.path.join(tags, 'checkout', 'builds', 'checked_out'),
+                     os.path.join(tags, 'checkout', 'main_co', 'checked_out'),
+                     os.path.join(tags, 'package', 'main_pkg', 'x86-built'),
+                     os.path.join(tags, 'package', 'main_pkg', 'x86-configured'),
+                     os.path.join(tags, 'package', 'main_pkg', 'x86-installed'),
+                     os.path.join(tags, 'package', 'main_pkg', 'x86-postinstalled'),
+                     os.path.join(tags, 'package', 'main_pkg', 'x86-preconfig'),
+                    ])
+        check_nosuch_files([os.path.join('domain', 'subdomain1', 'deployment')])
+
+        # And running the programs gives the expected result
+        main1_result = get_stdout(os.path.join(here, 'deploy', 'everything', 'main1'))
+        if main1_result != 'Program main1\n':
+            raise GiveUp('Program main1 printed out "{0}"'.format(main1_result))
+
+        subdomain1_result = get_stdout(os.path.join(here, 'deploy', 'everything', 'usr', 'subdomain1'))
+        if subdomain1_result != 'Program subdomain1\n':
+            raise GiveUp('Program subdomain1 printed out "{0}"'.format(subdomain1_result))
 
 def main(args):
 

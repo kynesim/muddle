@@ -19,7 +19,7 @@ def get_parent_dir(this_file=None):
     """
     if this_file is None:
         this_file = __file__
-    this_file = os.path.abspath(__file__)
+    this_file = os.path.abspath(this_file)
     this_dir = os.path.split(this_file)[0]
     parent_dir = os.path.split(this_dir)[0]
     return parent_dir
@@ -35,8 +35,11 @@ except ImportError:
 
 from muddled.utils import GiveUp, MuddleBug
 
-# This file can act as if it were the muddle binary itself
-MUDDLE_BINARY = os.path.abspath(__file__)
+# We know (strongly assume!) that there should be a 'muddle' available
+# in the same directory as the 'muddled' package - we shall use that as
+# the muddle program
+MUDDLE_BINARY_DIR = os.path.abspath(get_parent_dir(muddled.cmdline.__file__))
+MUDDLE_BINARY = os.path.join(MUDDLE_BINARY_DIR, 'muddle')
 
 # Make up for not necessarily having a PYTHONPATH that helps
 # Assume the location of muddle_patch.py relative to ourselves

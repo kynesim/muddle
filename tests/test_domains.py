@@ -41,7 +41,6 @@ distclean:
 .PHONY: all config install clean distclean
 """
 
-# You may recognise these example build descriptions from the documentation
 SIMPLE_BUILD_DESC = """ \
 # A simple build description
 
@@ -110,109 +109,113 @@ int main(int argc, char **argv)
 }}
 """
 
+def make_build_desc(co_dir, file_content):
+    """Take some of the repetition out of making build descriptions.
+    """
+    git('init')
+    touch('01.py', file_content)
+    git('add 01.py')
+    git('commit -a -m "Commit build desc"')
+
+def make_standard_checkout(co_dir, progname, desc):
+    """Take some of the repetition out of making checkouts.
+    """
+    git('init')
+    touch('{progname}.c'.format(progname=progname),
+            MAIN_C_SRC.format(progname=progname))
+    touch('Makefile.muddle', MUDDLE_MAKEFILE.format(progname=progname))
+    git('add {progname}.c Makefile.muddle'.format(progname=progname))
+    git('commit -a -m "Commit {desc} checkout {progname}"'.format(desc=desc,
+        progname=progname))
+
 def make_repos_with_subdomain(root_dir):
     """Create git repositories for our subdomain tests.
     """
     repo = os.path.join(root_dir, 'repo')
     with NewDirectory('repo'):
         with NewDirectory('main'):
-            with NewDirectory('builds'):
-                git('init')
-                touch('01.py', MAIN_BUILD_DESC.format(repo=repo))
-                git('add 01.py')
-                git('commit -a -m "Commit main build desc"')
-            with NewDirectory('main_co'):
-                progname = 'main1'
-                git('init')
-                touch('{progname}.c'.format(progname=progname),
-                        MAIN_C_SRC.format(progname=progname))
-                touch('Makefile.muddle', MUDDLE_MAKEFILE.format(progname=progname))
-                git('add {progname}.c Makefile.muddle'.format(progname=progname))
-                git('commit -a -m "Commit main checkout 1"')
+            with NewDirectory('builds') as d:
+                make_build_desc(d.where, MAIN_BUILD_DESC.format(repo=repo))
+            with NewDirectory('main_co') as d:
+                make_standard_checkout(d.where, 'main1', 'main')
         with NewDirectory('subdomain1'):
-            with NewDirectory('builds'):
-                git('init')
-                touch('01.py', SIMPLE_BUILD_DESC)
-                git('add 01.py')
-                git('commit -a -m "Commit subdomain1 build desc"')
-            with NewDirectory('main_co'):
-                progname = 'subdomain1'
-                git('init')
-                touch('{progname}.c'.format(progname=progname),
-                        MAIN_C_SRC.format(progname=progname))
-                touch('Makefile.muddle', MUDDLE_MAKEFILE.format(progname=progname))
-                git('add {progname}.c Makefile.muddle'.format(progname=progname))
-                git('commit -a -m "Commit subdomain 1 checkout 1"')
+            with NewDirectory('builds') as d:
+                make_build_desc(d.where, SIMPLE_BUILD_DESC)
+            with NewDirectory('main_co') as d:
+                make_standard_checkout(d.where, 'subdomain1', 'subdomain1')
 
 def check_repos_out(root_dir):
 
     repo = os.path.join(root_dir, 'repo')
-    here = os.path.join(root_dir, 'build')
-    with NewDirectory('build'):
+    with NewDirectory('build') as d:
+        here = d.where
         muddle(['init', 'git+file://{repo}/main'.format(repo=repo),
             'builds/01.py'])
-        check_files([os.path.join(here, 'src', 'builds', '01.py'),
-                     os.path.join(here, 'domains', 'subdomain1', 'src', 'builds', '01.py'),
+        check_files([d.join('src', 'builds', '01.py'),
+                     d.join('domains', 'subdomain1', 'src', 'builds', '01.py'),
                     ])
 
         muddle(['checkout'])
-        check_files([os.path.join(here, 'src', 'builds', '01.py'),
-                     os.path.join(here, 'src', 'main_co', 'Makefile.muddle'),
-                     os.path.join(here, 'src', 'main_co', 'main1.c'),
-                     os.path.join(here, 'domains', 'subdomain1', 'src', 'builds', '01.py'),
-                     os.path.join(here, 'domains', 'subdomain1', 'src', 'main_co', 'Makefile.muddle'),
-                     os.path.join(here, 'domains', 'subdomain1', 'src', 'main_co', 'subdomain1.c'),
+        check_files([d.join('src', 'builds', '01.py'),
+                     d.join('src', 'main_co', 'Makefile.muddle'),
+                     d.join('src', 'main_co', 'main1.c'),
+                     d.join('domains', 'subdomain1', 'src', 'builds', '01.py'),
+                     d.join('domains', 'subdomain1', 'src', 'main_co', 'Makefile.muddle'),
+                     d.join('domains', 'subdomain1', 'src', 'main_co', 'subdomain1.c'),
                     ])
 
 def build(root_dir):
 
-    here = os.path.join(root_dir, 'build')
-    with Directory('build'):
+    with Directory('build') as d:
+        here = d.where
         muddle([])
         # Things get built in their subdomains, but we're deploying at top level
-        check_files([os.path.join(here, 'obj', 'main_pkg', 'x86', 'main1'),
-                     os.path.join(here, 'install', 'x86', 'main1'),
-                     os.path.join(here, 'domains', 'subdomain1', 'obj', 'main_pkg', 'x86', 'subdomain1'),
-                     os.path.join(here, 'domains', 'subdomain1', 'install', 'x86', 'subdomain1'),
-                     os.path.join(here, 'deploy', 'everything', 'main1'),
-                     os.path.join(here, 'deploy', 'everything', 'usr', 'subdomain1'),
+        check_files([d.join('obj', 'main_pkg', 'x86', 'main1'),
+                     d.join('install', 'x86', 'main1'),
+                     d.join('domains', 'subdomain1', 'obj', 'main_pkg', 'x86', 'subdomain1'),
+                     d.join('domains', 'subdomain1', 'install', 'x86', 'subdomain1'),
+                     d.join('deploy', 'everything', 'main1'),
+                     d.join('deploy', 'everything', 'usr', 'subdomain1'),
                     ])
 
         # The top level build has its own stuff
-        tags = os.path.join(here, '.muddle', 'tags')
-        check_files([os.path.join(tags, 'checkout', 'builds', 'checked_out'),
-                     os.path.join(tags, 'checkout', 'main_co', 'checked_out'),
-                     os.path.join(tags, 'package', 'main_pkg', 'x86-built'),
-                     os.path.join(tags, 'package', 'main_pkg', 'x86-configured'),
-                     os.path.join(tags, 'package', 'main_pkg', 'x86-installed'),
-                     os.path.join(tags, 'package', 'main_pkg', 'x86-postinstalled'),
-                     os.path.join(tags, 'package', 'main_pkg', 'x86-preconfig'),
-                     os.path.join(tags, 'deployment', 'everything', 'deployed'),
-                    ])
+        with Directory(d.join('.muddle', 'tags')) as t:
+            check_files([t.join('checkout', 'builds', 'checked_out'),
+                         t.join('checkout', 'main_co', 'checked_out'),
+                         t.join('package', 'main_pkg', 'x86-built'),
+                         t.join('package', 'main_pkg', 'x86-configured'),
+                         t.join('package', 'main_pkg', 'x86-installed'),
+                         t.join('package', 'main_pkg', 'x86-postinstalled'),
+                         t.join('package', 'main_pkg', 'x86-preconfig'),
+                         t.join('deployment', 'everything', 'deployed'),
+                        ])
 
         # The subdomain has its stuff
-        mdir = os.path.join(here, 'domains', 'subdomain1', '.muddle')
-        check_files([os.path.join(mdir, 'am_subdomain')])
+        with Directory(d.join('domains', 'subdomain1')) as subdomain:
 
-        tags = os.path.join(mdir, 'tags')
-        check_files([os.path.join(tags, 'checkout', 'builds', 'checked_out'),
-                     os.path.join(tags, 'checkout', 'main_co', 'checked_out'),
-                     os.path.join(tags, 'package', 'main_pkg', 'x86-built'),
-                     os.path.join(tags, 'package', 'main_pkg', 'x86-configured'),
-                     os.path.join(tags, 'package', 'main_pkg', 'x86-installed'),
-                     os.path.join(tags, 'package', 'main_pkg', 'x86-postinstalled'),
-                     os.path.join(tags, 'package', 'main_pkg', 'x86-preconfig'),
-                    ])
-        check_nosuch_files([os.path.join('domain', 'subdomain1', 'deployment')])
+            with Directory(subdomain.join('.muddle')) as m:
+                check_files([m.join('am_subdomain')])
+                with Directory(m.join('tags')) as t:
+                    check_files([t.join('checkout', 'builds', 'checked_out'),
+                                 t.join('checkout', 'main_co', 'checked_out'),
+                                 t.join('package', 'main_pkg', 'x86-built'),
+                                 t.join('package', 'main_pkg', 'x86-configured'),
+                                 t.join('package', 'main_pkg', 'x86-installed'),
+                                 t.join('package', 'main_pkg', 'x86-postinstalled'),
+                                 t.join('package', 'main_pkg', 'x86-preconfig'),
+                                ])
+
+            check_nosuch_files([subdomain.join('deployment')])
 
         # And running the programs gives the expected result
-        main1_result = get_stdout(os.path.join(here, 'deploy', 'everything', 'main1'))
-        if main1_result != 'Program main1\n':
-            raise GiveUp('Program main1 printed out "{0}"'.format(main1_result))
+        with Directory(d.join('deploy', 'everything')) as deploy:
+            main1_result = get_stdout(deploy.join('main1'))
+            if main1_result != 'Program main1\n':
+                raise GiveUp('Program main1 printed out "{0}"'.format(main1_result))
 
-        subdomain1_result = get_stdout(os.path.join(here, 'deploy', 'everything', 'usr', 'subdomain1'))
-        if subdomain1_result != 'Program subdomain1\n':
-            raise GiveUp('Program subdomain1 printed out "{0}"'.format(subdomain1_result))
+            subdomain1_result = get_stdout(deploy.join('usr', 'subdomain1'))
+            if subdomain1_result != 'Program subdomain1\n':
+                raise GiveUp('Program subdomain1 printed out "{0}"'.format(subdomain1_result))
 
 def main(args):
 

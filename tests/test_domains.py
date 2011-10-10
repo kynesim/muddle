@@ -167,7 +167,7 @@ def check_repos_out(root_dir):
 def assert_where_is_buildlabel(path):
     with Directory(path):
         print '1. in directory', path
-        where = get_stdout('{muddle} where'.format(muddle=MUDDLE_BINARY))
+        where = get_stdout('{muddle} where'.format(muddle=MUDDLE_BINARY), False)
         where = where.strip()
         print '2. "muddle where" says', where
         words = where.split(' ')
@@ -189,17 +189,30 @@ def assert_where_is_buildlabel(path):
 
         print '3. Trying "muddle -n {verb}"'.format(verb=verb)
 
-        build = get_stdout('{muddle} -n {verb}'.format(muddle=MUDDLE_BINARY,
-            verb=verb))
-        build = build.strip()
+        build1 = get_stdout('{muddle} -n {verb}'.format(muddle=MUDDLE_BINARY,
+            verb=verb), False)
+        build1 = build1.strip()
+        build1_words = build1.split(' ')
 
-        print '4. which said', build
+        print '4. which said', build1
 
-        build_words = build.split(' ')
-        build_label_str = build_words[-1]
+        if verb != 'checkout':      # Since we've already checked it out...
+            print '5. Trying "muddle -n"'
+
+            build2 = get_stdout('{muddle} -n'.format(muddle=MUDDLE_BINARY), False)
+            build2 = build2.strip()
+            build2_words = build2.split(' ')
+
+            print '6. which said', build1
+
+            if build1_words[-1] != build2_words[-1]:
+                raise GiveUp('"muddle" says "{0}, but "muddle {1}" says'
+                             ' "{2}"'.format(build1, verb, build2))
+
+        build_label_str = build1_words[-1]
         build_label = Label.from_string(build_label_str)
 
-        print '5. So comparing', build_label_str, 'and', where_label_str
+        print '7. So comparing', build_label_str, 'and', where_label_str
 
         # We expect the 'where' label to have a wildcarded tag, so let's
         # not worry about it...
@@ -207,7 +220,7 @@ def assert_where_is_buildlabel(path):
             raise GiveUp('"muddle where" says "{0}", but "muddle {1}" says '
                          '"{2}"'.format(where, verb, build))
 
-        print '6. OK'
+        print '8. OK'
 
 def check_buildlabel():
     """Check 'muddle where' and 'muddle -n buildlabel' agree.

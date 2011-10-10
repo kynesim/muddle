@@ -16,8 +16,9 @@ except ImportError:
     sys.path.insert(0, get_parent_file(__file__))
     import muddled.cmdline
 
-from muddled.utils import GiveUp, normalise_dir
+from muddled.utils import GiveUp, normalise_dir, LabelType
 from muddled.utils import Directory, NewDirectory, TransientDirectory
+from muddled.depend import Label
 
 MUDDLE_MAKEFILE = """\
 # Trivial muddle makefile
@@ -148,7 +149,6 @@ def check_repos_out(root_dir):
 
     repo = os.path.join(root_dir, 'repo')
     with NewDirectory('build') as d:
-        here = d.where
         muddle(['init', 'git+file://{repo}/main'.format(repo=repo),
             'builds/01.py'])
         check_files([d.join('src', 'builds', '01.py'),
@@ -164,10 +164,91 @@ def check_repos_out(root_dir):
                      d.join('domains', 'subdomain1', 'src', 'main_co', 'subdomain1.c'),
                     ])
 
+def assert_where_is_buildlabel(path):
+    with Directory(path):
+        print '1. in directory', path
+        where = get_stdout('{muddle} where'.format(muddle=MUDDLE_BINARY))
+        where = where.strip()
+        print '2. "muddle where" says', where
+        words = where.split(' ')
+        try:
+            where_label_str = words[-1]
+            where_label = Label.from_string(where_label_str)
+        except GiveUp:
+            # There was no label there - nowt to do
+            return
+
+        if where_label.type == LabelType.Checkout:
+            verb = 'checkout'
+        elif where_label.type == LabelType.Package:
+            verb = 'build'
+        elif where_label.type == LabelType.Deployment:
+            verb = 'deploy'
+        else:
+            raise GiveUp('Unexpected label type in label {0}'.format(where_label))
+
+        print '3. Trying "muddle -n {verb}"'.format(verb=verb)
+
+        build = get_stdout('{muddle} -n {verb}'.format(muddle=MUDDLE_BINARY,
+            verb=verb))
+        build = build.strip()
+
+        print '4. which said', build
+
+        build_words = build.split(' ')
+        build_label_str = build_words[-1]
+        build_label = Label.from_string(build_label_str)
+
+        print '5. So comparing', build_label_str, 'and', where_label_str
+
+        # We expect the 'where' label to have a wildcarded tag, so let's
+        # not worry about it...
+        if not where_label.match_without_tag(build_label):
+            raise GiveUp('"muddle where" says "{0}", but "muddle {1}" says '
+                         '"{2}"'.format(where, verb, build))
+
+        print '6. OK'
+
+def check_buildlabel():
+    """Check 'muddle where' and 'muddle -n buildlabel' agree.
+    """
+    # Of course, at top level we have a special case if we give no args
+    # - test that later on...
+
+    with Directory('build') as d:
+        assert_where_is_buildlabel(d.where)
+        assert_where_is_buildlabel(d.join('src'))
+        assert_where_is_buildlabel(d.join('src', 'builds'))
+        assert_where_is_buildlabel(d.join('src', 'main_co'))
+
+        assert_where_is_buildlabel(d.join('obj'))
+        assert_where_is_buildlabel(d.join('obj', 'main_pkg'))
+        assert_where_is_buildlabel(d.join('obj', 'main_pkg', 'x86'))
+
+        assert_where_is_buildlabel(d.join('install'))
+        assert_where_is_buildlabel(d.join('install', 'x86'))
+
+        assert_where_is_buildlabel(d.join('deploy'))
+        assert_where_is_buildlabel(d.join('deploy', 'everything'))
+
+        with Directory(d.join('domains')) as dom:
+            assert_where_is_buildlabel(d.where)
+            with Directory(dom.join('subdomain1')) as sub:
+                assert_where_is_buildlabel(sub.where)
+                assert_where_is_buildlabel(sub.join('src'))
+                assert_where_is_buildlabel(sub.join('src', 'builds'))
+                assert_where_is_buildlabel(sub.join('src', 'main_co'))
+
+                assert_where_is_buildlabel(sub.join('obj'))
+                assert_where_is_buildlabel(sub.join('obj', 'main_pkg'))
+                assert_where_is_buildlabel(sub.join('obj', 'main_pkg', 'x86'))
+
+                assert_where_is_buildlabel(sub.join('install'))
+                assert_where_is_buildlabel(sub.join('install', 'x86'))
+
 def build(root_dir):
 
     with Directory('build') as d:
-        here = d.where
         muddle([])
         # Things get built in their subdomains, but we're deploying at top level
         check_files([d.join('obj', 'main_pkg', 'x86', 'main1'),
@@ -235,6 +316,9 @@ def main(args):
         banner('CHECK REPOSITORIES OUT')
         check_repos_out(root_dir)
         build(root_dir)
+
+        banner('CHECK WHERE AND BUILD')
+        check_buildlabel()
 
 if __name__ == '__main__':
     args = sys.argv[1:]

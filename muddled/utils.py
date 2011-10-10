@@ -1800,6 +1800,11 @@ class Directory(object):
             print 'My home directory contains'
             print ' ',' '.join(os.listdir('.'))
 
+    or::
+
+        with Directory('fred') as d:
+            print 'In directory', d.where
+
     If 'stay_on_error' is true, then the directory will not be left ("popd"
     will not be done) if an exception occurs in its 'with' clause.
 
@@ -1822,6 +1827,11 @@ class Directory(object):
             raise GiveUp('Cannot change to directory %s: %s\n'%(where, e))
         if show_pushd:
             print '++ pushd to %s'%self.where
+
+    def join(self, *args):
+        """Return os.path.join(self.where, *args).
+        """
+        return os.path.join(self.where, *args)
 
     def close(self):
         os.chdir(self.start)
@@ -1854,7 +1864,7 @@ class NewDirectory(Directory):
     will be raised.
 
     If 'where' is None, then tempfile.mkdtemp() will be used to create the
-    directory, and 'self.where' will be set to its name.
+    directory, and 'self.where' will be set to its path.
 
     If 'stay_on_error' is True, then the directory will not be left ("popd"
     will not be done) if an exception occurs in its 'with' clause.
@@ -1894,7 +1904,7 @@ class TransientDirectory(NewDirectory):
     will be raised.
 
     If 'where' is None, then tempfile.mkdtemp() will be used to create the
-    directory, and 'self.where' will be set to its name.
+    directory, and 'self.where' will be set to its path.
 
     If 'stay_on_error' is True, then the directory will not be left ("popd"
     will not be done) if an exception occurs in its 'with' clause.

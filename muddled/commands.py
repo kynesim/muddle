@@ -17,7 +17,7 @@ case your programs want to run them themselves
 # XXX (and more consistent with other muddled modules).
 
 from db import Database
-from depend import Label
+from depend import Label, label_list_to_string
 import depend
 import env_store
 import instr
@@ -236,18 +236,19 @@ class Init(Command):
         repo = args[0]
         build = args[1]
 
-        if not self.no_op():
-            db = Database(root_path)
-            db.setup(repo, build)
-
-        print "Initialised build tree in %s "%root_path
+        print "Initialising build tree in %s "%root_path
         print "Repository: %s"%repo
         print "Build description: %s"%build
-        print "\n"
 
-        if (not self.no_op()):
-            print "Checking out build description .. \n"
-            mechanics.load_builder(root_path, muddle_binary)
+        if self.no_op():
+            return
+
+        db = Database(root_path)
+        db.setup(repo, build)
+
+        print
+        print "Checking out build description .. \n"
+        mechanics.load_builder(root_path, muddle_binary)
 
         print "Done.\n"
 
@@ -348,8 +349,11 @@ class Bootstrap(Command):
         print "Bootstrapping build tree in %s "%root_path
         print "Repository: %s"%repo
         print "Build description: %s"%build_desc
-        print "\n"
 
+        if self.no_op():
+            return
+
+        print
         print "Setting up database"
         db = Database(root_path)
         db.setup(repo, build_desc, versions_repo=os.path.join(repo,"versions"))
@@ -395,25 +399,6 @@ class Bootstrap(Command):
                 version_control.vcs_init_directory(vcs_name)
 
         print "Done.\n"
-
-@command('unittest', ['unit_test', 'unit-test'])
-class UnitTest(Command):
-    """
-    :Syntax: unit_test
-
-    Run the muddle unit tests.
-
-    This command is deprecated, unsupported, and may not work.
-    """
-
-    def requires_build_tree(self):
-        return False
-
-    def with_build_tree(self, builder, current_dir, args):
-        test.unit_test()
-
-    def without_build_tree(self, muddle_binary, root_path, args):
-        test.unit_test()
 
 @command('vcs')
 class ListVCS(Command):
@@ -1286,6 +1271,10 @@ class RunIn(Command):
         command = " ".join(args[1:])
         dirs_done = set()
 
+        if self.no_op():
+            print 'Run "%s" for: %s'%(command, label_list_to_string(labels))
+            return
+
         for l in labels:
             matching = builder.invocation.ruleset.rules_for_target(l)
 
@@ -1344,8 +1333,9 @@ class BuildLabel(Command):
 
     def with_build_tree(self, builder, current_dir, args):
         labels = decode_labels(builder, args)
+
         if self.no_op():
-            print 'Build:', depend.label_list_to_string(labels)
+            print 'Build:', label_list_to_string(labels)
             return
 
         build_labels(builder, labels)
@@ -1370,6 +1360,11 @@ class Redeploy(Command):
     def with_build_tree(self, builder, current_dir, args):
         labels = decode_deployment_arguments(builder, args,
                                              utils.LabelTag.Deployed)
+
+        if self.no_op():
+            print 'Redeploy:', label_list_to_string(labels)
+            return
+
         build_a_kill_b(builder, labels, utils.LabelTag.Clean,
                        utils.LabelTag.Deployed)
         build_labels(builder, labels)
@@ -1396,6 +1391,11 @@ class Cleandeploy(Command):
                                              utils.LabelTag.Clean)
         if (labels is None):
             raise GiveUp("No deployments specified or implied (this may well be a bug).")
+
+        if self.no_op():
+            print 'Cleandeploy:', label_list_to_string(labels)
+            return
+
         build_a_kill_b(builder, labels, utils.LabelTag.Clean, utils.LabelTag.Deployed)
 
 @command('deploy')
@@ -1416,7 +1416,7 @@ class Deploy(Command):
         labels = decode_deployment_arguments(builder, args,
                                              utils.LabelTag.Deployed)
         if self.no_op():
-            print "Would have deployed: %s"%(" ".join(map(str, labels)))
+            print "Deploy: %s"%(label_list_to_string(labels))
             return
 
         build_labels(builder, labels)
@@ -1462,6 +1462,10 @@ class Reconfigure(Command):
         labels = decode_package_arguments(builder, args, current_dir,
                                       utils.LabelTag.Configured)
 
+        if self.no_op():
+            print "Reconfigure: %s"%(label_list_to_string(labels))
+            return
+
         # OK. Now we have our labels, retag them, and kill them and their
         # consequents
         to_kill = depend.retag_label_list(labels,
@@ -1491,11 +1495,15 @@ class Build(Command):
 
     def requires_build_tree(self):
         return True
-    
+
     def with_build_tree(self, builder, current_dir, args):
         labels = decode_package_arguments(builder, args, current_dir,
                                       utils.LabelTag.PostInstalled)
-        
+
+        if self.no_op():
+            print "Build: %s"%(label_list_to_string(labels))
+            return
+
         build_labels(builder, labels)
 
 @command('rebuild')
@@ -1513,6 +1521,10 @@ class Rebuild(Command):
     def with_build_tree(self, builder, current_dir, args):
         labels = decode_package_arguments(builder, args, current_dir,
                                       utils.LabelTag.PostInstalled)
+
+        if self.no_op():
+            print "Rebuild: %s"%(label_list_to_string(labels))
+            return
 
         # OK. Now we have our labels, retag them, and kill them and their
         # consequents
@@ -1536,6 +1548,10 @@ class Reinstall(Command):
         labels = decode_package_arguments(builder, args, current_dir,
                                       utils.LabelTag.PostInstalled)
 
+        if self.no_op():
+            print "Reinstall: %s"%(label_list_to_string(labels))
+            return
+
         # OK. Now we have our labels, retag them, and kill them and their
         # consequents
         to_kill = depend.retag_label_list(labels, 
@@ -1558,12 +1574,13 @@ class Distrebuild(Command):
         labels = decode_package_arguments(builder, args, current_dir,
                                       utils.LabelTag.PostInstalled)
 
-        if (self.no_op()):
-            print "Would have distrebuilt: %s"%(" ".join(map(str, labels)))
-        else:
-            build_a_kill_b(builder, labels, utils.LabelTag.DistClean,
-                           utils.LabelTag.PreConfig)
-            build_labels(builder, labels)
+        if self.no_op():
+            print "Distrebuild: %s"%(label_list_to_string(labels))
+            return
+
+        build_a_kill_b(builder, labels, utils.LabelTag.DistClean,
+                       utils.LabelTag.PreConfig)
+        build_labels(builder, labels)
 
 @command('clean')
 class Clean(Command):
@@ -1581,8 +1598,9 @@ class Clean(Command):
     def with_build_tree(self, builder, current_dir, args):
         labels = decode_package_arguments(builder, args, current_dir,
                                       utils.LabelTag.Built)
+
         if self.no_op():
-            print "Would have cleaned: %s"%(" ".join(map(str, labels)))
+            print "Clean: %s"%(label_list_to_string(labels))
             return
 
         build_a_kill_b(builder, labels, utils.LabelTag.Clean, utils.LabelTag.Built)
@@ -1603,10 +1621,11 @@ class DistClean(Command):
         labels = decode_package_arguments(builder, args, current_dir,
                                       utils.LabelTag.Built)
 
-        if (self.no_op()):
-            print "Would have disctleaned: %s"%(" ".join(map(str, labels)))
-        else:
-            build_a_kill_b(builder, labels, utils.LabelTag.DistClean, utils.LabelTag.PreConfig)
+        if self.no_op():
+            print "Distclean: %s"%(label_list_to_string(labels))
+            return
+
+        build_a_kill_b(builder, labels, utils.LabelTag.DistClean, utils.LabelTag.PreConfig)
 
 @command('instruct')
 class Instruct(Command):
@@ -1644,6 +1663,7 @@ class Instruct(Command):
             return
 
         arg = args[0]
+        filename = None
         ifile = None
 
         # Validate this first
@@ -1661,18 +1681,21 @@ class Instruct(Command):
                 raise GiveUp("Attempt to register instructions in " 
                                     "%s: file does not exist"%filename)
 
-            if (self.no_op()):
-                print "Register instructions in %s"%(filename)
-            else:
-                # Try loading it.
-                ifile = InstructionFile(filename, instr.factory)
-                ifile.get()
+            # Try loading it.
+            ifile = InstructionFile(filename, instr.factory)
+            ifile.get()
 
             # If we got here, it's obviously OK
 
+        if self.no_op():
+            if filename:
+                print "Register instructions for %s from %s"%(str(label), filename)
+            else:
+                print "Unregister instructions for %s"%label
+            return
+
         # Last, but not least, do the instruction ..
-        if (not self.no_op()):
-            builder.instruct(label.name, label.role, ifile, domain=label.domain)
+        builder.instruct(label.name, label.role, ifile, domain=label.domain)
 
 @command('commit')
 class Commit(Command):
@@ -2156,11 +2179,13 @@ class Assert(Command):
             return
 
         labels = decode_labels(builder, args)
+
         if self.no_op():
-            print "Asserting: %s"%(depend.label_list_to_string(labels))
-        else:
-            for l in labels:
-                builder.invocation.db.set_tag(l)
+            print "Assert: %s"%(label_list_to_string(labels))
+            return
+
+        for l in labels:
+            builder.invocation.db.set_tag(l)
 
 @command('retract')
 class Retract(Command):
@@ -2182,10 +2207,11 @@ class Retract(Command):
 
         labels = decode_labels(builder, args)
         if (self.no_op()):
-            print "Retracting: %s"%(depend.label_list_to_string(labels))
-        else:
-            for l in labels:
-                builder.kill_label(l)
+            print "Retract: %s"%(label_list_to_string(labels))
+            return
+
+        for l in labels:
+            builder.kill_label(l)
 
 @command('changed')
 class Changed(Command):
@@ -2211,10 +2237,11 @@ class Changed(Command):
         labels = decode_package_arguments(builder, args, current_dir,
                                       utils.LabelTag.Built)
         if (self.no_op()):
-            print "Marking changed: %s"%(depend.label_list_to_string(labels))
-        else:
-            for l in labels:
-                builder.kill_label(l)
+            print "Mark changed: %s"%(label_list_to_string(labels))
+            return
+
+        for l in labels:
+            builder.kill_label(l)
 
 @command('env')
 class Env(Command):
@@ -2271,31 +2298,29 @@ class Env(Command):
             raise GiveUp("Mode '%s' is not understood - use build or run."%mode)
 
         labels = decode_package_arguments(builder, args[3:], current_dir, tag)
-        if (self.no_op()):
-            print "> Environment for labels %s"%(depend.label_list_to_string(labels))
-        else:
-            env = env_store.Store()
+        print "Environment for labels %s"%(label_list_to_string(labels))
 
-            for lbl in labels:
-                x_env = builder.invocation.effective_environment_for(lbl)
-                env.merge(x_env)
-                
-                if (mode == "run"):
-                    # If we have a MUDDLE_TARGET_LOCATION, use it.
-                    if (not env.empty("MUDDLE_TARGET_LOCATION")):
-                        env_store.add_install_dir_env(env, "MUDDLE_TARGET_LOCATION")
-    
-                        
-            if (lang == "sh"):
-                script = env.get_setvars_script(builder, name, env_store.EnvLanguage.Sh)
-            elif (lang == "py" or lang == "python"):
-                script = env.get_setvars_script(builder, name, env_store.EnvLanguage.Python)
-            elif (lang == "c"):
-                script = env.get_setvars_script(builder, name, env_store.EnvLanguage.C)
-            else:
-                raise GiveUp("Language must be sh, py, python or c, not %s"%lang)
-            
-            print script
+        env = env_store.Store()
+
+        for lbl in labels:
+            x_env = builder.invocation.effective_environment_for(lbl)
+            env.merge(x_env)
+
+            if (mode == "run"):
+                # If we have a MUDDLE_TARGET_LOCATION, use it.
+                if (not env.empty("MUDDLE_TARGET_LOCATION")):
+                    env_store.add_install_dir_env(env, "MUDDLE_TARGET_LOCATION")
+
+        if (lang == "sh"):
+            script = env.get_setvars_script(builder, name, env_store.EnvLanguage.Sh)
+        elif (lang == "py" or lang == "python"):
+            script = env.get_setvars_script(builder, name, env_store.EnvLanguage.Python)
+        elif (lang == "c"):
+            script = env.get_setvars_script(builder, name, env_store.EnvLanguage.C)
+        else:
+            raise GiveUp("Language must be sh, py, python or c, not %s"%lang)
+
+        print script
 
 @command('uncheckout')
 class UnCheckout(Command):
@@ -2410,9 +2435,10 @@ class CopyWithout(Command):
             print "Copy from: %s"%(src_dir)
             print "Copy to  : %s"%(dst_dir)
             print "Excluding: %s"%(" ".join(without))
-        else:
-            utils.copy_without(src_dir, dst_dir, without, object_exactly=True,
-                    preserve=True, force=force)
+            return
+
+        utils.copy_without(src_dir, dst_dir, without, object_exactly=True,
+                preserve=True, force=force)
 
 @command('retry')
 class Retry(Command):
@@ -2429,15 +2455,16 @@ class Retry(Command):
     def with_build_tree(self, builder, current_dir, args):
         labels = decode_labels(builder, args)
         if (self.no_op()):
-            print "Retry: %s"%(depend.label_list_to_string(labels))
-        else:
-            print "Clear: %s"%(depend.label_list_to_string(labels))
-            for l in labels:
-                builder.invocation.db.clear_tag(l)
-            
-            print "Build: %s"%(depend.label_list_to_string(labels))
-            for l in labels:
-                builder.build_label(l)
+            print "Retry: %s"%(label_list_to_string(labels))
+            return
+
+        print "Clear: %s"%(label_list_to_string(labels))
+        for l in labels:
+            builder.invocation.db.clear_tag(l)
+
+        print "Build: %s"%(label_list_to_string(labels))
+        for l in labels:
+            builder.build_label(l)
 
 @command('subst')
 class Subst(Command):
@@ -2475,10 +2502,16 @@ class Subst(Command):
     def do_subst(self, args):
         if len(args) != 3:
             raise GiveUp("Syntax: subst [src] [xml] [dst]")
-        
+
         src = args[0]
         xml_file = args[1]
         dst = args[2]
+
+        if self.no_op():
+            print 'Substitute source file %s'%src
+            print '       using data from %s'%xml_file
+            print '            to produce %s'%dst
+            return
 
         f = open(xml_file, "r")
         xml_doc = xml.dom.minidom.parse(f)
@@ -2565,18 +2598,20 @@ class StampSave(Command):
         elif force:
             print 'Forcing original revision ids when necessary'
 
+        if self.no_op():
+            return
+
         stamp, problems = VersionStamp.from_builder(builder, force, just_use_head)
 
-        if not self.no_op():
-            working_filename = 'working.stamp'
-            print 'Writing to',working_filename
-            hash = stamp.write_to_file(working_filename)
-            print 'Wrote revision data to %s'%working_filename
-            print 'File has SHA1 hash %s'%hash
+        working_filename = 'working.stamp'
+        print 'Writing to',working_filename
+        hash = stamp.write_to_file(working_filename)
+        print 'Wrote revision data to %s'%working_filename
+        print 'File has SHA1 hash %s'%hash
 
-            final_name = self.decide_stamp_filename(hash, filename, problems)
-            print 'Renaming %s to %s'%(working_filename, final_name)
-            os.rename(working_filename, final_name)
+        final_name = self.decide_stamp_filename(hash, filename, problems)
+        print 'Renaming %s to %s'%(working_filename, final_name)
+        os.rename(working_filename, final_name)
 
     def decide_stamp_filename(self, hash, basename=None, partial=False):
         """
@@ -2659,6 +2694,9 @@ class StampVersion(Command):
         if force:
             print 'Forcing original revision ids when necessary'
 
+        if self.no_op():
+            return
+
         stamp, problems = VersionStamp.from_builder(builder, force,
                                                     just_use_head=False)
 
@@ -2666,31 +2704,30 @@ class StampVersion(Command):
             print problems
             raise GiveUp('Problems prevent writing version stamp file')
 
-        if not self.no_op():
-            version_dir = os.path.join(builder.invocation.db.root_path, 'versions')
-            if not os.path.exists(version_dir):
-                print 'Creating directory %s'%version_dir
-                os.mkdir(version_dir)
+        version_dir = os.path.join(builder.invocation.db.root_path, 'versions')
+        if not os.path.exists(version_dir):
+            print 'Creating directory %s'%version_dir
+            os.mkdir(version_dir)
 
-            working_filename = os.path.join(version_dir, '_temporary.stamp')
-            print 'Writing to',working_filename
-            hash = stamp.write_to_file(working_filename)
-            print 'Wrote revision data to %s'%working_filename
-            print 'File has SHA1 hash %s'%hash
+        working_filename = os.path.join(version_dir, '_temporary.stamp')
+        print 'Writing to',working_filename
+        hash = stamp.write_to_file(working_filename)
+        print 'Wrote revision data to %s'%working_filename
+        print 'File has SHA1 hash %s'%hash
 
-            version_filename = "%s.stamp"%builder.build_name
-            final_name = os.path.join(version_dir, version_filename)
-            print 'Renaming %s to %s'%(working_filename, final_name)
-            os.rename(working_filename, final_name)
+        version_filename = "%s.stamp"%builder.build_name
+        final_name = os.path.join(version_dir, version_filename)
+        print 'Renaming %s to %s'%(working_filename, final_name)
+        os.rename(working_filename, final_name)
 
-            db = builder.invocation.db
-            versions_url = db.versions_repo.from_disc()
-            if versions_url:
-                with utils.Directory(version_dir):
-                    vcs_name, just_url = version_control.split_vcs_url(versions_url)
-                    if vcs_name:
-                        print 'Adding version stamp file to VCS'
-                        version_control.vcs_init_directory(vcs_name, [version_filename])
+        db = builder.invocation.db
+        versions_url = db.versions_repo.from_disc()
+        if versions_url:
+            with utils.Directory(version_dir):
+                vcs_name, just_url = version_control.split_vcs_url(versions_url)
+                if vcs_name:
+                    print 'Adding version stamp file to VCS'
+                    version_control.vcs_init_directory(vcs_name, [version_filename])
 
 @subcommand('stamp', 'diff')
 class StampDiff(Command):
@@ -2762,6 +2799,11 @@ class StampDiff(Command):
                     print "Unexpected '%s'"%word
                     self.print_syntax()
                     return 2
+
+        if self.no_op():
+            print 'Comparing stamp files %s and %s'%(file1, file2)
+            return
+
         self.diff(file1, file2, diff_style, output_file)
 
     def diff(self, file1, file2, diff_style='unified', output_file=None):
@@ -2859,6 +2901,10 @@ class StampPush(Command):
             raise GiveUp("Cannot push 'versions/' directory, as it does not exist.\n"
                                 "Have you done 'muddle stamp version'?")
 
+        if self.no_op():
+            print 'Push versions directory to', versions_url
+            return
+
         with utils.Directory('versions'):
             version_control.vcs_push_directory(versions_url)
 
@@ -2913,6 +2959,13 @@ class StampPull(Command):
                                 "or give a repository on the command line")
 
         versions_dir = os.path.join(db.root_path, "versions")
+
+        if self.no_op():
+            if os.path.exists(versions_dir):
+                print 'Pull versions directory from', versions_url
+            else:
+                print 'Clone versions directory from', versions_url
+            return
 
         if os.path.exists(versions_dir):
             with utils.Directory(versions_dir):
@@ -3059,6 +3112,7 @@ Try 'muddle help unstamp' for more information."""
 
         # So what is our "thing"?
         vcs_name, just_url = version_control.split_vcs_url(thing)
+
         if vcs_name:
             print 'Retrieving %s'%thing
             data = version_control.vcs_get_file_data(thing)
@@ -3080,10 +3134,10 @@ Try 'muddle help unstamp' for more information."""
             print 'Retrieving %s'%filename
             data = urllib.urlretrieve(thing, filename)
 
-        stamp = VersionStamp.from_file(filename)
-
         if self.no_op():
             return
+
+        stamp = VersionStamp.from_file(filename)
 
         builder = mechanics.minimal_build_tree(muddle_binary, current_dir,
                                                stamp.repository,
@@ -3354,6 +3408,8 @@ class Test(Command):
     """
     :Syntax: test <label-fragment>
 
+    This is a transient, temporary command. Do not expect it to stay.
+
     For testing label fragment parsing, and whether labels exist
     """
 
@@ -3381,11 +3437,11 @@ class Test(Command):
 
         print
         print 'As package args:'
-        print depend.label_list_to_string(decode_package_arguments(builder, args, current_dir, 'built'))
+        print label_list_to_string(decode_package_arguments(builder, args, current_dir, 'built'))
 
         print
         print 'As checkout args:'
-        print depend.label_list_to_string(decode_checkout_arguments(builder, args, current_dir, 'FRED'))
+        print label_list_to_string(decode_checkout_arguments(builder, args, current_dir, 'FRED'))
 
 
 def expand_checkout_label(builder, label, required_tag):
@@ -3449,7 +3505,7 @@ def decode_checkout_arguments(builder, arglist, current_dir, required_tag=None):
                                             default_domain=default_domain)
                 initial_list.append(label)
 
-        #print 'Initial list:', depend.label_list_to_string(initial_list)
+        #print 'Initial list:', label_list_to_string(initial_list)
 
         intermediate_set = set()
         for index, label in enumerate(initial_list):
@@ -3460,7 +3516,7 @@ def decode_checkout_arguments(builder, arglist, current_dir, required_tag=None):
             else:
                 raise GiveUp("Cannot cope with label '%s', from input arg '%s'"%(label, arglist[index]))
 
-        #print 'Intermediate set', depend.label_list_to_string(intermediate_set)
+        #print 'Intermediate set', label_list_to_string(intermediate_set)
 
         result_set = set()
         for label in intermediate_set:
@@ -3469,7 +3525,7 @@ def decode_checkout_arguments(builder, arglist, current_dir, required_tag=None):
             else:
                 result_set.update(expand_wildcards(builder, label, required_tag))
 
-        #print 'Result set', depend.label_list_to_string(result_set)
+        #print 'Result set', label_list_to_string(result_set)
         result_list = list(result_set)
 
     else:
@@ -3498,7 +3554,7 @@ def decode_checkout_arguments(builder, arglist, current_dir, required_tag=None):
 def name_selected_checkouts(verb, checkout_labels):
     if checkout_labels:
         print '%s checkouts: %s'%(verb,
-                depend.label_list_to_string(checkout_labels))
+                label_list_to_string(checkout_labels))
     else:
         print 'No checkouts selected'
 
@@ -3737,7 +3793,7 @@ def decode_package_arguments(builder, arglist, current_dir, required_tag=None):
                                         default_domain=default_domain)
             initial_list.append(label)
 
-    #print 'Initial list:', depend.label_list_to_string(initial_list)
+    #print 'Initial list:', label_list_to_string(initial_list)
 
     intermediate_set = set()
     for index, label in enumerate(initial_list):
@@ -3748,7 +3804,7 @@ def decode_package_arguments(builder, arglist, current_dir, required_tag=None):
         else:
             raise GiveUp("Cannot cope with label '%s', from input arg '%s'"%(label, arglist[index]))
 
-    #print 'Intermediate set', depend.label_list_to_string(intermediate_set)
+    #print 'Intermediate set', label_list_to_string(intermediate_set)
 
     result_set = set()
     for label in intermediate_set:
@@ -3757,7 +3813,7 @@ def decode_package_arguments(builder, arglist, current_dir, required_tag=None):
         else:
             result_set.update(expand_wildcards(builder, label, required_tag))
 
-    #print 'Result set', depend.label_list_to_string(result_set)
+    #print 'Result set', label_list_to_string(result_set)
 
     result_list = list(result_set)
     result_list.sort()

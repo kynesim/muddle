@@ -9,8 +9,11 @@ Options include:
 
   --help, -h, -?      This help text
   --tree <dir>        Use the muddle build tree at <dir>
-  --just-print, -n    Just print what muddle would have done. This is currently
-                      only partially supported - please do not trust it.
+  --just-print, -n    Just print what muddle would have done. For commands
+                      that 'do something', just print out the labels for
+                      which that action would be performed. For commands
+                      that "enquire" (or "find out") something, this switch
+                      is ignored.
 
 If you don't give --tree, muddle will traverse directories up to the root to
 try and find a .muddle directory, which signifies the top of the build tree.

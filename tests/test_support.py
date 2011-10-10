@@ -83,8 +83,8 @@ def muddle(args, verbose=True):
     if verbose:
         print '++ muddle %s'%(' '.join(args))
     # In order to cope with soft links in directory structures, muddle
-    # tries to use the current PWD as set by the shell. Which, of course,
-    # isn't done by the Directory classes. So we need to do it by hand.
+    # tries to use the current PWD as set by the shell. Since we don't
+    # know what called us, we need to do it by hand.
     old_pwd = os.environ.get('PWD', None)
     try:
         os.environ['PWD'] = os.getcwd()

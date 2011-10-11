@@ -45,6 +45,18 @@ class GiveUp(Exception):
     """
     pass
 
+class NotNeeded(GiveUp):
+    """
+    Use this to indicate that we gave up on an action, but nothing went wrong.
+
+    This is used, for instance, when git reports that it will not pull to a
+    shallow clone, which is not an error, but the user should be told about.
+
+    This is deliberately a subclass of GiveUp, because it *is* telling muddle
+    to give up an operation.
+    """
+    pass
+
 # Keep the old exception names for the moment, as well
 Failure = GiveUp
 Error = MuddleBug

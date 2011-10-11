@@ -39,7 +39,7 @@ import textwrap
 import pydoc
 from db import InstructionFile
 from urlparse import urlparse
-from utils import VersionStamp, GiveUp
+from utils import VersionStamp, GiveUp, NotNeeded
 
 # Following Richard's naming conventions...
 # A dictionary of <command name> : <command class>
@@ -1882,6 +1882,7 @@ class Pull(Command):
             return
 
         problems = []
+        not_needed  = []
 
         for co in checkouts:
             try:
@@ -1889,12 +1890,21 @@ class Pull(Command):
                 builder.invocation.db.clear_tag(co)
                 # And then build it again
                 builder.build_label(co)
+            except NotNeeded as e:
+                print e
+                not_needed.append(e)
             except GiveUp as e:
                 if stop_on_problem:
                     raise
                 else:
                     print e
                     problems.append(e)
+
+        if not_needed:
+            print '\nThe following pulls were not needed:\n'
+            for e in problems:
+                print str(e).rstrip()
+                print
 
         if problems:
             print '\nThe following problems occurred:\n'

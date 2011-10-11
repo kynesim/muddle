@@ -386,6 +386,9 @@ class VersionControlHandler(object):
             except utils.MuddleBug as err:
                 raise utils.MuddleBug('Error fetching %s in %s:\n%s'%(self.checkout_label,
                                   self.src_rel_dir(), err))
+            except utils.NotNeeded as err:
+                raise utils.NotNeeded('Not fetching %s in %s:\n%s'%(self.checkout_label,
+                                     self.src_rel_dir(), err))
             except utils.GiveUp as err:
                 raise utils.GiveUp('Failure fetching %s in %s:\n%s'%(self.checkout_label,
                                     self.src_rel_dir(), err))
@@ -402,6 +405,9 @@ class VersionControlHandler(object):
             except utils.MuddleBug as err:
                 raise utils.MuddleBug('Error merging %s in %s:\n%s'%(self.checkout_label,
                                   self.src_rel_dir(), err))
+            except utils.NotNeeded as err:
+                raise utils.NotNeeded('Not merging %s in %s:\n%s'%(self.checkout_label,
+                                      self.src_rel_dir(), err))
             except utils.GiveUp as err:
                 raise utils.GiveUp('Failure merging %s in %s:\n%s'%(self.checkout_label,
                                     self.src_rel_dir(), err))
@@ -419,7 +425,7 @@ class VersionControlHandler(object):
             except utils.MuddleBug as err:
                 raise utils.MuddleBug('Error commiting %s in %s:\n%s'%(self.checkout_label,
                                   self.src_rel_dir(), err))
-            except utils.GiveUp as err:
+            except (utils.GiveUp, utils.NotNeeded) as err:
                 raise utils.GiveUp('Failure commiting %s in %s:\n%s'%(self.checkout_label,
                                     self.src_rel_dir(), err))
 
@@ -439,7 +445,7 @@ class VersionControlHandler(object):
             except utils.MuddleBug as err:
                 raise utils.MuddleBug('Error pushing %s in %s:\n%s'%(self.checkout_label,
                                   self.src_rel_dir(), err))
-            except utils.GiveUp as err:
+            except (utils.GiveUp, utils.NotNeeded) as err:
                 raise utils.GiveUp('Failure pushing %s in %s:\n%s'%(self.checkout_label,
                                     self.src_rel_dir(), err))
 

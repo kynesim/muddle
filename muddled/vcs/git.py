@@ -103,7 +103,7 @@ class Git(VersionControlSystem):
         Must only be called from the checkout directory. """
         if options['shallow_checkout']:
             if os.path.exists('.git/shallow'):
-                raise utils.GiveUp('Shallow checkouts cannot interact with their upstream repositories.')
+                raise utils.NotNeeded('Shallow checkouts cannot interact with their upstream repositories.')
 
     def fetch(self, repo, options, branch=None, revision=None, verbose=True):
         """

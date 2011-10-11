@@ -1191,7 +1191,7 @@ class Builder(object):
 
         what, label, domain = tloc
 
-        if (what == utils.DirType.Checkout):
+        if what == utils.DirType.Checkout:
             packages = set()
             if label:
                 co_labels = [label]
@@ -1202,7 +1202,12 @@ class Builder(object):
                 for p in inv.packages_using_checkout(co):
                     packages.add(p.copy_with_tag(tag))
             return list(packages)
-        elif (what == utils.DirType.Object):
+        elif what == utils.DirType.Object:
+            if label is None:
+                label = Label(utils.LabelType.Package, '*', '*', tag=tag,
+                              domain=domain)
+            return [label]
+        elif what == utils.DirType.Install:
             if label is None:
                 label = Label(utils.LabelType.Package, '*', '*', tag=tag,
                               domain=domain)

@@ -1391,7 +1391,7 @@ class Redeploy(Command):
         return True
 
     def with_build_tree(self, builder, current_dir, args):
-        labels = decode_deployment_arguments(builder, args,
+        labels = decode_deployment_arguments(builder, args, current_dir,
                                              utils.LabelTag.Deployed)
 
         if self.no_op():
@@ -1420,7 +1420,7 @@ class Cleandeploy(Command):
         return True
 
     def with_build_tree(self, builder, current_dir, args):
-        labels = decode_deployment_arguments(builder, args,
+        labels = decode_deployment_arguments(builder, args, current_dir,
                                              utils.LabelTag.Clean)
         if (labels is None):
             raise GiveUp("No deployments specified or implied (this may well be a bug).")
@@ -1446,7 +1446,7 @@ class Deploy(Command):
         return True
 
     def with_build_tree(self, builder, current_dir, args):
-        labels = decode_deployment_arguments(builder, args,
+        labels = decode_deployment_arguments(builder, args, current_dir,
                                              utils.LabelTag.Deployed)
         if self.no_op():
             print "Deploy: %s"%(label_list_to_string(labels))
@@ -3618,40 +3618,41 @@ def decode_labels(builder, in_args):
 
     return rv
 
-def decode_deployment_arguments(builder, args, required_tag):
+def decode_deployment_arguments(builder, args, current_dir, required_tag):
     """
-    Look through args for deployments. _all means all deployments
-    registered.
-
-    If args is empty, we use the default deployments registered with the
-    builder.
+    TBD
     """
     return_list = [ ]
 
     default_domain = builder.get_default_domain()
-    for dep in args:
-        if (dep == "_all"):
-            # Everything .. 
-            return_list = all_deployment_labels(builder, required_tag)
-            return_list.sort()
-            return return_list
-        else:
-            lbl = Label.from_fragment(dep,
-                                      default_type=utils.LabelType.Deployment,
-                                      default_role="*",
-                                      default_domain=default_domain)
-            if lbl.type != utils.LabelType.Deployment:
-                raise GiveUp("Label '%s', from argument '%s' not allowed"
-                        " as a deployment label"%(lbl, dep))
-            if lbl.tag != required_tag:
-                lbl = lbl.copy_with_tag(required_tag)
-            return_list.append(lbl)
 
-    if len(return_list) == 0:
-        # Input was empty - default deployments.
-        return_list = default_deployment_labels(builder, required_tag)
-        return_list.sort()
-        return return_list
+    if args:
+        for dep in args:
+            if (dep == "_all"):
+                # Everything .. 
+                return_list = all_deployment_labels(builder, required_tag)
+                return_list.sort()
+                return return_list
+            else:
+                lbl = Label.from_fragment(dep,
+                                          default_type=utils.LabelType.Deployment,
+                                          default_role="*",
+                                          default_domain=default_domain)
+                if lbl.type != utils.LabelType.Deployment:
+                    raise GiveUp("Label '%s', from argument '%s' not allowed"
+                            " as a deployment label"%(lbl, dep))
+                if lbl.tag != required_tag:
+                    lbl = lbl.copy_with_tag(required_tag)
+                return_list.append(lbl)
+    else:
+        # Can we guess what to do from where we are?
+        what, label, domain = builder.find_location_in_tree(current_dir)
+        if what == utils.DirType.Deployment:
+            # We're actually inside a deployment - job done
+            result_list.append(label.copy_with_tag(required_tag))
+        else:
+            # The best we can do is to use the default deployments
+            return_list = default_deployment_labels(builder, required_tag)
 
     result_set = set()
     for label in return_list:
@@ -3676,7 +3677,7 @@ def all_deployment_labels(builder, tag):
     match_lbl = Label(utils.LabelType.Deployment,
                       "*", "*", "*", domain = builder.get_default_domain())
     matching = builder.invocation.ruleset.rules_for_target(match_lbl)
-    
+
     return_set = set()
     for m in matching:
         return_set.add(m.target.name)
@@ -3695,7 +3696,7 @@ def default_deployment_labels(builder, tag):
     """
     Return labels tagged with tag for all the default deployments.
     """
-    
+
     default_labels = builder.invocation.default_labels
     return_list = [ ]
     for d in default_labels:

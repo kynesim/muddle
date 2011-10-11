@@ -1837,7 +1837,8 @@ class Pull(Command):
     """
     :Syntax: pull [-s[top]] <checkout> [ <checkout> ... ]
 
-    Pull the specified checkouts from their remote repositories.
+    Pull the specified checkouts from their remote repositories. Any problems
+    will be (re)reported at the end.
 
     For each checkout named, retrieve changes from the corresponding remote
     repository (as described by the build description) and apply them (to
@@ -1857,9 +1858,9 @@ class Pull(Command):
     Without a <checkout>, we use the checkout you're in, or the checkouts
     below the current directory.
 
-    If '-s' or '-stop' is given, then we'll stop at the first problem,
-    otherwise an attempt will be made to process all the checkouts, and any
-    problems will be re-reported at the end.
+    Normally, 'muddle pull' will attempt to pull all the chosen checkouts,
+    re-reporting any problems at the end. If '-s' or '-stop' is given, then
+    it will instead stop at the first problem.
     """
 
     def requires_build_tree(self):

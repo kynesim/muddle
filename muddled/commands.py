@@ -51,12 +51,42 @@ g_command_dict = {}
 # A list of all of the known commands, by their "main" name
 # (so one name per command, only)
 g_command_names = []
+# A dictionary of <category name> : [<command name>]
+g_command_categories = {}
 # A dictionary of <command alias> : <command name>
 # (of course, the keys are then the list of things that *are* aliases)
 g_command_aliases = {}
 
-def command(command_name, aliases=None):
+# The categories, and an order for them
+CAT_INIT='init'
+CAT_CHECKOUT='checkout'
+CAT_PACKAGE='package'
+CAT_DEPLOYMENT='deployment'
+CAT_QUERY='query'
+CAT_STAMP='stamp'
+CAT_MISC='misc'
+CAT_OTHER='other'
+g_command_categories_in_order = [CAT_INIT, CAT_CHECKOUT, CAT_PACKAGE,
+        CAT_DEPLOYMENT, CAT_QUERY, CAT_STAMP, CAT_MISC, CAT_OTHER]
+
+def in_category(command_name, category, for_subcommand=False):
+    if category not in g_command_categories_in_order:
+        raise GiveUp("Command %s cannot be added to unexpected"
+                     " category %s"%(command_name, category))
+
+    if for_subcommand:
+        if category not in g_command_categories:
+            g_command_categories[category] = [command_name]
+    else:
+        if category in g_command_categories:
+            g_command_categories[category].append(command_name)
+        else:
+            g_command_categories[category] = [command_name]
+
+def command(command_name, category, aliases=None):
     """A simple decorator to remmember a class by its command name.
+
+    'category' indicates which type of command this is
     """
     if command_name in g_command_dict:
         raise GiveUp("Command '%s' is already defined"%command_name)
@@ -70,6 +100,8 @@ def command(command_name, aliases=None):
         return klass
 
     g_command_names.append(command_name)
+    in_category(command_name, category)
+
     return rememberer
 
 # A dictionary of the form <command_name> : <sub_command_dict>,
@@ -84,7 +116,7 @@ g_subcommand_aliases = {}
 # (so one name per command, only) each as a tuple of (<cmd>, <subcmd>)
 g_subcommand_names = []
 
-def subcommand(main_command, sub_command, aliases=None):
+def subcommand(main_command, sub_command, category, aliases=None):
     """Remember the class for <main_command> <subcommand>.
     """
     if main_command not in g_command_dict:
@@ -96,6 +128,7 @@ def subcommand(main_command, sub_command, aliases=None):
         if sub_command in sub_dict:
             raise GiveUp("Command '%s %s' is already defined"%(main_command,sub_command))
     g_subcommand_names.append((main_command, sub_command))
+    in_category(main_command, category, True)
     def rememberer(klass):
         sub_dict[sub_command] = klass
         klass.cmd_name = '%s %s'%(main_command, sub_command)
@@ -168,7 +201,7 @@ class Command:
         raise GiveUp("Can't run %s without a build tree."%self.cmd_name)
         
 
-@command('root')
+@command('root', CAT_QUERY)
 class Root(Command):
     """
     :Syntax: root
@@ -186,7 +219,7 @@ class Root(Command):
         print "<uninitialized> %s"%(root_path)
 
 
-@command('init')
+@command('init', CAT_INIT)
 class Init(Command):
     """
     :Syntax: init <repository> <build_description>
@@ -253,7 +286,7 @@ class Init(Command):
         print "Done.\n"
 
 
-@command('bootstrap')
+@command('bootstrap', CAT_INIT)
 class Bootstrap(Command):
     """
     :Syntax: bootstrap [-subdomain] <repo> <build_name>
@@ -400,7 +433,7 @@ class Bootstrap(Command):
 
         print "Done.\n"
 
-@command('vcs')
+@command('vcs', CAT_QUERY)
 class ListVCS(Command):
     """
     :Syntax: vcs
@@ -427,7 +460,7 @@ class ListVCS(Command):
         print str
         return 0
 
-@command('dependencies', ['depend', 'depends'])   # It used to be 'depend'
+@command('dependencies', CAT_QUERY, ['depend', 'depends'])
 class Depend(Command):
     """
     :Syntax: depend <what>
@@ -530,7 +563,7 @@ class QueryCommand(Command):
         return switches
 
 
-@subcommand('query', 'checkouts')
+@subcommand('query', 'checkouts', CAT_QUERY)
 class QueryCheckouts(QueryCommand):
     """
     :Syntax: query checkouts [-j]
@@ -560,7 +593,7 @@ class QueryCheckouts(QueryCommand):
         else:
             print '%s'%"\n".join(out_list)
 
-@subcommand('query', 'checkout-dirs')
+@subcommand('query', 'checkout-dirs', CAT_QUERY)
 class QueryCheckoutDirs(QueryCommand):
     """
     :Syntax: query checkout_dirs
@@ -572,7 +605,7 @@ class QueryCheckoutDirs(QueryCommand):
     def with_build_tree(self, builder, current_dir, args):
         builder.invocation.db.dump_checkout_paths()
 
-@subcommand('query', 'domains')
+@subcommand('query', 'domains', CAT_QUERY)
 class QueryDomains(QueryCommand):
     """
     :Syntax: query domains [-j]
@@ -596,7 +629,7 @@ class QueryDomains(QueryCommand):
         else:
             print '%s'%"\n".join(a_list)
 
-@subcommand('query', 'packages')
+@subcommand('query', 'packages', CAT_QUERY)
 class QueryPackages(QueryCommand):
     """
     :Syntax: query packages [-j]
@@ -623,7 +656,7 @@ class QueryPackages(QueryCommand):
         else:
             print '%s'%"\n".join(a_list)
 
-@subcommand('query', 'package-roles')
+@subcommand('query', 'package-roles', CAT_QUERY)
 class QueryPackageRoles(QueryCommand):
     """
     :Syntax: query packageroles [-j]
@@ -650,7 +683,7 @@ class QueryPackageRoles(QueryCommand):
         else:
             print '%s'%"\n".join(a_list)
 
-@subcommand('query', 'deployments')
+@subcommand('query', 'deployments', CAT_QUERY)
 class QueryDeployments(QueryCommand):
     """
     :Syntax: query deployments [-j]
@@ -674,7 +707,7 @@ class QueryDeployments(QueryCommand):
         else:
             print '%s'%"\n".join(a_list)
 
-@subcommand('query', 'roles')
+@subcommand('query', 'roles', CAT_QUERY)
 class QueryRoles(QueryCommand):
     """
     :Syntax: query roles [-j]
@@ -698,7 +731,7 @@ class QueryRoles(QueryCommand):
         else:
             print '%s'%"\n".join(a_list)
 
-@subcommand('query', 'default-roles')
+@subcommand('query', 'default-roles', CAT_QUERY)
 class QueryDefaultRoles(QueryCommand):
     """
     :Syntax: query default-roles [-j]
@@ -722,7 +755,7 @@ class QueryDefaultRoles(QueryCommand):
         else:
             print '%s'%"\n".join(default_roles)
 
-@subcommand('query', 'default-labels')
+@subcommand('query', 'default-labels', CAT_QUERY)
 class QueryDefaultLabels(QueryCommand):
     """
     :Syntax: query default-labels [-j]
@@ -750,7 +783,7 @@ class QueryDefaultLabels(QueryCommand):
         else:
             print '%s'%"\n".join(l)
 
-@subcommand('query', 'root')
+@subcommand('query', 'root', CAT_QUERY)
 class QueryRoot(QueryCommand):
     """
     :Syntax: query root
@@ -762,7 +795,7 @@ class QueryRoot(QueryCommand):
         print "Root: %s"%builder.invocation.db.root_path
         print "Default domain: %s"%builder.get_default_domain()
 
-@subcommand('query', 'name')
+@subcommand('query', 'name', CAT_QUERY)
 class QueryName(QueryCommand):
     """
     :Syntax: query name
@@ -777,7 +810,7 @@ class QueryName(QueryCommand):
     def with_build_tree(self, builder, current_dir, args):
         print builder.build_name
 
-@subcommand('query', 'needed-by', ['deps'])     # it used to be 'deps'
+@subcommand('query', 'needed-by', CAT_QUERY, ['deps'])     # it used to be 'deps'
 class QueryDeps(QueryCommand):
     """
     :Syntax: query needed-by <label>
@@ -795,7 +828,7 @@ class QueryDeps(QueryCommand):
         else:
             print "Nothing else needs building to build %s"%label
 
-@subcommand('query', 'dir')
+@subcommand('query', 'dir', CAT_QUERY)
 class QueryDir(QueryCommand):
     """
     :Syntax: query dir <label>
@@ -824,7 +857,7 @@ class QueryDir(QueryCommand):
         else:
             print None
 
-@subcommand('query', 'env')
+@subcommand('query', 'env', CAT_QUERY)
 class QueryEnv(QueryCommand):
     """
     :Syntax: query env <label>
@@ -838,7 +871,7 @@ class QueryEnv(QueryCommand):
         print "Effective environment for %s .. "%label
         print the_env.get_setvars_script(builder, label, env_store.EnvLanguage.Sh)
 
-@subcommand('query', 'all-env', ['envs'])       # It used to be 'env'
+@subcommand('query', 'all-env', CAT_QUERY, ['envs'])       # It used to be 'env'
 class QueryEnvs(QueryCommand):
     """
     :Syntax: query all-env <label>
@@ -858,7 +891,7 @@ class QueryEnvs(QueryCommand):
                                                   env_store.EnvLanguage.Sh))
         print "---"
 
-@subcommand('query', 'inst-details')
+@subcommand('query', 'inst-details', CAT_QUERY)
 class QueryInstDetails(QueryCommand):
     """
     :Syntax: query inst-details <label>
@@ -875,7 +908,7 @@ class QueryInstDetails(QueryCommand):
             print i.get_xml()
         print "-- Done --"
 
-@subcommand('query', 'inst-files', ['instructions'])    # It used to be 'instructions'
+@subcommand('query', 'inst-files', CAT_QUERY, ['instructions'])    # It used to be 'instructions'
 class QueryInstructions(QueryCommand):
     """
     :Syntax: query inst-files <label>
@@ -890,7 +923,7 @@ class QueryInstructions(QueryCommand):
         for (l, f) in result:
             print "Label: %s  Filename: %s"%(l,f)
 
-@subcommand('query', 'match')
+@subcommand('query', 'match', CAT_QUERY)
 class QueryMatch(QueryCommand):
     """
     :Syntax: query match <label>
@@ -921,7 +954,7 @@ class QueryMatch(QueryCommand):
             if not found:
                 print 'Label %s does not match any labels'%label
 
-@subcommand('query', 'make-env', ['makeenv'])   # It used to be 'makeenv'
+@subcommand('query', 'make-env', CAT_QUERY, ['makeenv'])   # It used to be 'makeenv'
 class QueryMakeEnv(QueryCommand):
     """
     :Syntax: query make-env <label>
@@ -975,7 +1008,7 @@ class QueryMakeEnv(QueryCommand):
         finally:
             os.environ = old_env
 
-@subcommand('query', 'objdir')
+@subcommand('query', 'objdir', CAT_QUERY)
 class QueryObjdir(QueryCommand):
     """
     :Syntax: query objdir <label>
@@ -988,7 +1021,7 @@ class QueryObjdir(QueryCommand):
         label = self.get_label(builder, args)
         print builder.invocation.package_obj_path(label)
 
-@subcommand('query', 'precise-env', ['preciseenv']) # It used to be 'preciseenv'
+@subcommand('query', 'precise-env', CAT_QUERY, ['preciseenv']) # It used to be 'preciseenv'
 class QueryPreciseEnv(QueryCommand):
     """
     :Syntax: query precise-env <label>
@@ -1007,7 +1040,7 @@ class QueryPreciseEnv(QueryCommand):
         print "Environment for %s .. "%label
         print local_store.get_setvars_script(builder, label, env_store.EnvLanguage.Sh)
 
-@subcommand('query', 'needs', ['results'])      # It used to be 'results'
+@subcommand('query', 'needs', CAT_QUERY, ['results'])      # It used to be 'results'
 class QueryResults(QueryCommand):
     """
     :Syntax: query needs <label>
@@ -1022,7 +1055,7 @@ class QueryResults(QueryCommand):
         for lbl in result:
             print lbl
 
-@subcommand('query', 'rules', ['rule'])        # It used to be 'rule'
+@subcommand('query', 'rules', CAT_QUERY, ['rule'])        # It used to be 'rule'
 class QueryRules(QueryCommand):
     """
     :Syntax: query rules <label>
@@ -1039,7 +1072,7 @@ class QueryRules(QueryCommand):
             print "Rule set for %s .. "%label
             print local_rule
 
-@subcommand('query', 'targets')
+@subcommand('query', 'targets', CAT_QUERY)
 class QueryTargets(QueryCommand):
     """
     :Syntax: query targets <label>
@@ -1054,7 +1087,7 @@ class QueryTargets(QueryCommand):
         for i in local_rules:
             print "%s"%i
 
-@subcommand('query', 'unused')
+@subcommand('query', 'unused', CAT_QUERY)
 class QueryUnused(QueryCommand):
     """
     :Syntax: query unused [<label> [...]]
@@ -1203,7 +1236,7 @@ class QueryUnused(QueryCommand):
         print_labels(deployments)
         print_labels(other)
 
-@subcommand('query', 'kernelver')
+@subcommand('query', 'kernelver', CAT_QUERY)
 class QueryKernelver(QueryCommand):
     """
     :Syntax: query kernelver <label>
@@ -1243,7 +1276,7 @@ class QueryKernelver(QueryCommand):
         print self.kernel_version(builder, label)
 
 
-@command('runin')
+@command('runin', CAT_MISC)
 class RunIn(Command):
     """
     :Syntax: runin <label> <command> [ ... ]
@@ -1316,7 +1349,7 @@ class RunIn(Command):
                 else:
                     print "! %s does not exist."%dir
 
-@command('buildlabel')
+@command('buildlabel', CAT_OTHER)
 class BuildLabel(Command):
     """
     :Syntax: buildlabel <label> [ <label> ... ]
@@ -1340,7 +1373,7 @@ class BuildLabel(Command):
 
         build_labels(builder, labels)
 
-@command('redeploy')
+@command('redeploy', CAT_DEPLOYMENT)
 class Redeploy(Command):
     """
     :Syntax: redeploy <deployment> [<deployment> ... ]
@@ -1369,7 +1402,7 @@ class Redeploy(Command):
                        utils.LabelTag.Deployed)
         build_labels(builder, labels)
 
-@command('cleandeploy')
+@command('cleandeploy', CAT_DEPLOYMENT)
 class Cleandeploy(Command):
     """
     :Syntax: cleandeploy <deployment> [<deployment> ... ]
@@ -1398,7 +1431,7 @@ class Cleandeploy(Command):
 
         build_a_kill_b(builder, labels, utils.LabelTag.Clean, utils.LabelTag.Deployed)
 
-@command('deploy')
+@command('deploy', CAT_DEPLOYMENT)
 class Deploy(Command):
     """
     :Syntax: deploy <deployment> [<deployment> ... ]
@@ -1421,7 +1454,7 @@ class Deploy(Command):
 
         build_labels(builder, labels)
 
-@command('configure')
+@command('configure', CAT_PACKAGE)
 class Configure(Command):
     """
     :Syntax: configure [ <package>{<role>} ... ]
@@ -1446,7 +1479,7 @@ class Configure(Command):
                                       utils.LabelTag.Configured)
         build_labels(builder, labels)
 
-@command('reconfigure')
+@command('reconfigure', CAT_PACKAGE)
 class Reconfigure(Command):
     """
     :Syntax: reconfigure [ <package>{<role>} ... ]
@@ -1473,7 +1506,7 @@ class Reconfigure(Command):
         kill_labels(builder, to_kill)
         build_labels(builder, labels)
 
-@command('build')
+@command('build', CAT_PACKAGE)
 class Build(Command):
     """
     :Syntax: build [ <package>{<role>} ... ]
@@ -1506,7 +1539,7 @@ class Build(Command):
 
         build_labels(builder, labels)
 
-@command('rebuild')
+@command('rebuild', CAT_PACKAGE)
 class Rebuild(Command):
     """
     :Syntax: rebuild [ <package>{<role>} ... ]
@@ -1533,7 +1566,7 @@ class Rebuild(Command):
         kill_labels(builder, to_kill)
         build_labels(builder, labels)
 
-@command('reinstall')
+@command('reinstall', CAT_PACKAGE)
 class Reinstall(Command):
     """
     :Syntax: reinstall [ <package>{<role>} ... ]
@@ -1559,7 +1592,7 @@ class Reinstall(Command):
         kill_labels(builder, to_kill)
         build_labels(builder, labels)
 
-@command('distrebuild')
+@command('distrebuild', CAT_PACKAGE)
 class Distrebuild(Command):
     """
     :Syntax: distrebuild [ <package>{<role>} ... ]
@@ -1582,7 +1615,7 @@ class Distrebuild(Command):
                        utils.LabelTag.PreConfig)
         build_labels(builder, labels)
 
-@command('clean')
+@command('clean', CAT_PACKAGE)
 class Clean(Command):
     """
     :Syntax: clean [ <package>{<role>} ... ]
@@ -1605,7 +1638,7 @@ class Clean(Command):
 
         build_a_kill_b(builder, labels, utils.LabelTag.Clean, utils.LabelTag.Built)
 
-@command('distclean')
+@command('distclean', CAT_PACKAGE)
 class DistClean(Command):
     """
     :Syntax: distclean [ <package>{<role>} ... ]
@@ -1627,7 +1660,7 @@ class DistClean(Command):
 
         build_a_kill_b(builder, labels, utils.LabelTag.DistClean, utils.LabelTag.PreConfig)
 
-@command('instruct')
+@command('instruct', CAT_PACKAGE)
 class Instruct(Command):
     """
     :Syntax: instruct <package>{<role>} <instruction-file>
@@ -1697,7 +1730,7 @@ class Instruct(Command):
         # Last, but not least, do the instruction ..
         builder.instruct(label.name, label.role, ifile, domain=label.domain)
 
-@command('commit')
+@command('commit', CAT_PACKAGE)
 class Commit(Command):
     """
     :Syntax: commit <checkout> [ <checkout> ... ]
@@ -1736,7 +1769,7 @@ class Commit(Command):
             builder.kill_label(co)
             builder.build_label(co)
 
-@command('push')
+@command('push', CAT_CHECKOUT)
 class Push(Command):
     """
     :Syntax: push [-s[top]] <checkout> [ <checkout> ... ]
@@ -1799,16 +1832,19 @@ class Push(Command):
                 print str(e).rstrip()
                 print
 
-@command('fetch', ['pull', 'update'])   # we want to retire the aliases
-class Fetch(Command):
+@command('pull', CAT_CHECKOUT, ['fetch', 'update'])   # we want to settle on one command
+class Pull(Command):
     """
-    :Syntax: fetch [-s[top]] <checkout> [ <checkout> ... ]
+    :Syntax: pull [-s[top]] <checkout> [ <checkout> ... ]
 
-    Fetch the specified checkouts from their remote repositories.
+    Pull the specified checkouts from their remote repositories.
 
     For each checkout named, retrieve changes from the corresponding remote
     repository (as described by the build description) and apply them (to
     the checkout), but *not* if a merge would be required.
+
+        (For a VCS such as git, this actually means "not if a user-assisted
+        merge would be required - i.e., fast-forwards will be done.)
 
     If no checkouts are given, we'll use those implied by your current
     location.
@@ -1865,7 +1901,7 @@ class Fetch(Command):
                 print str(e).rstrip()
                 print
 
-@command('merge')
+@command('merge', CAT_CHECKOUT)
 class Merge(Command):
     """
     :Syntax: merge [-s[top]] <checkout> [ <checkout> ... ]
@@ -1931,7 +1967,7 @@ class Merge(Command):
                 print str(e).rstrip()
                 print
 
-@command('status')
+@command('status', CAT_CHECKOUT)
 class Status(Command):
     """
     :Syntax: status [-v] <checkout> [ <checkout> ... ]
@@ -1997,7 +2033,7 @@ class Status(Command):
         if not something_needs_doing:
             print 'All checkouts seemed clean'
 
-@command('reparent')
+@command('reparent', CAT_CHECKOUT)
 class Reparent(Command):
     """
     :Syntax: reparent [-f[orce]] <checkout> [ <checkout> ... ]
@@ -2060,7 +2096,7 @@ class Reparent(Command):
                 continue
             vcs.reparent(force=force, verbose=True)
 
-@command('removed')
+@command('removed', CAT_CHECKOUT)
 class Removed(Command):
     """
     :Syntax: removed <checkout> [ <checkout> ... ]
@@ -2089,7 +2125,7 @@ class Removed(Command):
         for c in checkouts:
             builder.kill_label(c)
 
-@command('unimport')
+@command('unimport', CAT_CHECKOUT)
 class Unimport(Command):
     """
     :Syntax: unimport <checkout> [ <checkout> ... ]
@@ -2118,7 +2154,7 @@ class Unimport(Command):
         for c in checkouts:
             builder.invocation.db.clear_tag(c)
 
-@command('import')
+@command('import', CAT_CHECKOUT)
 class Import(Command):
     """
     :Syntax: import <checkout> [ <checkout> ... ]
@@ -2161,7 +2197,7 @@ class Import(Command):
         rep.set_old_env(self.old_env)
         rep.with_build_tree(builder, current_dir, args)
 
-@command('assert')
+@command('assert', CAT_OTHER)
 class Assert(Command):
     """
     :Syntax: assert <label> [ <label> ... ]
@@ -2187,7 +2223,7 @@ class Assert(Command):
         for l in labels:
             builder.invocation.db.set_tag(l)
 
-@command('retract')
+@command('retract', CAT_OTHER)
 class Retract(Command):
     """
     :Syntax: retract <label> [ <label> ... ]
@@ -2213,7 +2249,7 @@ class Retract(Command):
         for l in labels:
             builder.kill_label(l)
 
-@command('changed')
+@command('changed', CAT_PACKAGE)
 class Changed(Command):
     """
     :Syntax: changed <package> [ <package> ... ]
@@ -2243,7 +2279,7 @@ class Changed(Command):
         for l in labels:
             builder.kill_label(l)
 
-@command('env')
+@command('env', CAT_OTHER)
 class Env(Command):
     """
     :Syntax: env <language> <mode> <name> <label> [ <label> ... ]
@@ -2322,7 +2358,7 @@ class Env(Command):
 
         print script
 
-@command('uncheckout')
+@command('uncheckout', CAT_CHECKOUT)
 class UnCheckout(Command):
     """
     :Syntax: uncheckout <checkout> [ <checkout> ... ]
@@ -2360,7 +2396,7 @@ class UnCheckout(Command):
         for co in checkouts:
             builder.kill_label(co)
 
-@command('checkout')
+@command('checkout', CAT_CHECKOUT)
 class Checkout(Command):
     """
     :Syntax: checkout <checkout> [ <checkout> ... ]
@@ -2388,7 +2424,7 @@ class Checkout(Command):
         for co in checkouts:
             builder.build_label(co)
 
-@command('copywithout')
+@command('copywithout', CAT_MISC)
 class CopyWithout(Command):
     """
     :Syntax: copywithout [-f[orce]] <src-dir> <dst-dir> [ <without> ... ]
@@ -2440,7 +2476,7 @@ class CopyWithout(Command):
         utils.copy_without(src_dir, dst_dir, without, object_exactly=True,
                 preserve=True, force=force)
 
-@command('retry')
+@command('retry', CAT_OTHER)
 class Retry(Command):
     """
     :Syntax: retry <label> [ <label> ... ]
@@ -2466,7 +2502,7 @@ class Retry(Command):
         for l in labels:
             builder.build_label(l)
 
-@command('subst')
+@command('subst', CAT_MISC)
 class Subst(Command):
     """
     :Syntax: subst <src_file> <xml_file> <dst_file>
@@ -2520,7 +2556,7 @@ class Subst(Command):
         subst.subst_file(src, dst, xml_doc, self.old_env)
         return 0
 
-@subcommand('stamp', 'save')
+@subcommand('stamp', 'save', CAT_STAMP)
 class StampSave(Command):
     """
     :Syntax: stamp save [-f[orce]|-h[ead]] [<filename>]
@@ -2639,7 +2675,7 @@ class StampSave(Command):
             else:
                 return '%s%s'%(basename, extension)
 
-@subcommand('stamp', 'version')
+@subcommand('stamp', 'version', CAT_STAMP)
 class StampVersion(Command):
     """
     :Syntax: stamp version [-f[orce]]
@@ -2729,7 +2765,7 @@ class StampVersion(Command):
                     print 'Adding version stamp file to VCS'
                     version_control.vcs_init_directory(vcs_name, [version_filename])
 
-@subcommand('stamp', 'diff')
+@subcommand('stamp', 'diff', CAT_STAMP)
 class StampDiff(Command):
     """
     :Syntax: stamp diff [-u[nified]|-c[ontext]|-n|-h[tml]] <file1> <file2> [<output_file>]
@@ -2848,7 +2884,7 @@ class StampDiff(Command):
         else:
             sys.stdout.writelines(diff)
 
-@subcommand('stamp', 'push')
+@subcommand('stamp', 'push', CAT_STAMP)
 class StampPush(Command):
     """
     :Syntax: stamp push [<repository_url>]
@@ -2913,7 +2949,7 @@ class StampPush(Command):
             db.versions_repo.set(versions_url)
             db.versions_repo.commit()
 
-@subcommand('stamp', 'pull')
+@subcommand('stamp', 'pull', CAT_STAMP)
 class StampPull(Command):
     """
     :Syntax: stamp pull [<repository_url>]
@@ -2981,7 +3017,7 @@ class StampPull(Command):
             db.versions_repo.set(versions_url)
             db.versions_repo.commit()
 
-@command('unstamp')
+@command('unstamp', CAT_STAMP)
 class UnStamp(Command):
     """
     :Syntax: unstamp <file>
@@ -3273,7 +3309,7 @@ Try 'muddle help unstamp' for more information."""
             print '...the checkouts present match those in the stamp file.'
             print 'The build looks as if it restored correctly.'
 
-@command('whereami', ['where'])
+@command('whereami', CAT_QUERY, ['where'])
 class Whereami(Command):
     """
     :Syntax: whereami
@@ -3323,7 +3359,7 @@ class Whereami(Command):
     def without_build_tree(self, muddle_binary, root_path, args):
         print "You are here. Here is not in a muddle build tree."
 
-@command('doc')
+@command('doc', CAT_QUERY)
 class Doc(Command):
     """
     :Syntax: doc [-d] <name>
@@ -3403,7 +3439,7 @@ class Doc(Command):
 
         print 'Cannot find %s'%what
 
-@command('test')
+@command('test', CAT_OTHER)
 class Test(Command):
     """
     :Syntax: test <label-fragment>

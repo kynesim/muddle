@@ -51,16 +51,34 @@ def help_list(cmd_dict):
     result_array.append("\n  muddle help _all           is the same as 'help all'")
     result_array.append("\n  muddle help <cmd> all      for help on all <cmd> subcommands")
     result_array.append("\n  muddle help <cmd> _all     is the same as 'help <cmd> all'")
+    result_array.append("\n  muddle help categories     shows command names sorted by category")
     result_array.append("\n  muddle help aliases        says which commands have more than one name")
     result_array.append("\n")
 
     # Temporarily
-    result_array.append("\nPlease note that 'muddle pull' and 'muddle update' are deprecated.")
-    result_array.append("\nUse 'fetch' or 'merge', as appropriate, instead.")
+    result_array.append("\n"+utils.wrap("Please note that 'muddle pull' is "
+        "preferred to 'muddle fetch' and muddle update', which are deprecated."))
     # Temporarily
 
     return "".join(result_array)
 
+def help_categories():
+    result_array = []
+    result_array.append("Commands by category:\n")
+
+    categories_dict = commands.g_command_categories
+    categories_list = commands.g_command_categories_in_order
+
+    maxlen = len(max(categories_list, key=len)) +1  # +1 for a colon
+    indent = ' '*(maxlen+3)
+
+    for name in categories_list:
+        cmd_list = categories_dict[name]
+        cmd_list.sort()
+        line = "  %-*s %s"%(maxlen, '%s:'%name, ' '.join(cmd_list))
+        result_array.append(utils.wrap(line, subsequent_indent=indent))
+
+    return "\n".join(result_array)
 
 def help_all(cmd_dict, subcmd_dict):
     """
@@ -149,6 +167,9 @@ def help(cmd_dict, subcmd_dict, about=None):
 
     if about[0] == "aliases":
         return help_aliases()
+
+    if about[0] == "categories":
+        return help_categories()
 
     if len(about) == 1:
         cmd = about[0]

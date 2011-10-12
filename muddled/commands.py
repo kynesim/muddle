@@ -3344,9 +3344,10 @@ class Whereami(Command):
     unless the '-detail' switch is given, in which case output suitable
     for parsing is output, of the form:
 
-        (<what>, <label>, <domain>)
+        <what> <label> <domain>
 
-    for instance::
+    i.e., a space-separated triple of items that don't contain whitespace.
+    For instance::
 
         $ muddle where
         Checkout directory for checkout:screen-4.0.3/*
@@ -3377,7 +3378,7 @@ class Whereami(Command):
         (what, label, domain) = r
 
         if detail:
-            print '(%s, %s, %s)'%(utils.ReverseDirType[what], label, domain)
+            print '%s %s %s'%(utils.ReverseDirType[what], label, domain)
             return
 
         if what is None:

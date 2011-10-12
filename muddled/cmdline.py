@@ -1,222 +1,17 @@
 """
 Main command line support for the muddle program.
 
-Usage:
+See:
 
-  muddle [<options>] <command> [<arg> ...]
+  muddle help
 
-Options include:
-
-  --help, -h, -?      This help text
-  --tree <dir>        Use the muddle build tree at <dir>
-  --just-print, -n    Just print what muddle would have done. For commands
-                      that 'do something', just print out the labels for
-                      which that action would be performed. For commands
-                      that "enquire" (or "find out") something, this switch
-                      is ignored.
-
-If you don't give --tree, muddle will traverse directories up to the root to
-try and find a .muddle directory, which signifies the top of the build tree.
-
-To get help on commands, use:
-
-  muddle help [<command>]
+for help on how to use it.
 """
 import os
 
 import muddled.commands as commands
 import muddled.utils as utils
 import muddled.mechanics as mechanics
-
-def help_list(cmd_dict):
-    """
-    Return a list of all commands
-    """
-    result_array = [ __doc__, "\n" ]
-
-    # Use the entire set of command names, including any aliases
-    keys = cmd_dict.keys()
-    keys.sort()
-    keys_text = ", ".join(keys)
-
-    result_array.append(utils.wrap('Commands are: %s'%keys_text,
-                                   # I'd like to do this, but it's not in Python 2.6.5
-                                   #break_on_hyphens=False,
-                                   subsequent_indent='              '))
-
-    result_array.append("\n\nUse:\n")
-    result_array.append("\n  muddle help <cmd>          for help on a command")
-    result_array.append("\n  muddle help <cmd> <subcmd> for help on a subcommand")
-    result_array.append("\n  muddle help all            for help on all commands")
-    result_array.append("\n  muddle help _all           is the same as 'help all'")
-    result_array.append("\n  muddle help <cmd> all      for help on all <cmd> subcommands")
-    result_array.append("\n  muddle help <cmd> _all     is the same as 'help <cmd> all'")
-    result_array.append("\n  muddle help categories     shows command names sorted by category")
-    result_array.append("\n  muddle help aliases        says which commands have more than one name")
-    result_array.append("\n")
-
-    # Temporarily
-    result_array.append("\n"+utils.wrap("Please note that 'muddle pull' is "
-        "preferred to 'muddle fetch' and muddle update', which are deprecated."))
-    # Temporarily
-
-    return "".join(result_array)
-
-def help_categories():
-    result_array = []
-    result_array.append("Commands by category:\n")
-
-    categories_dict = commands.g_command_categories
-    categories_list = commands.g_command_categories_in_order
-
-    maxlen = len(max(categories_list, key=len)) +1  # +1 for a colon
-    indent = ' '*(maxlen+3)
-
-    for name in categories_list:
-        cmd_list = categories_dict[name]
-        cmd_list.sort()
-        line = "  %-*s %s"%(maxlen, '%s:'%name, ' '.join(cmd_list))
-        result_array.append(utils.wrap(line, subsequent_indent=indent))
-
-    return "\n".join(result_array)
-
-def help_all(cmd_dict, subcmd_dict):
-    """
-    Return help for all commands
-    """
-    result_array = []
-    result_array.append("Commands:\n")
-
-    cmd_list = []
-
-    # First, all the main command names (without any aliases)
-    for name in commands.g_command_names:
-        v = cmd_dict[name]
-        cmd_list.append((name, v()))
-
-    # Then, all the subcommands (ditto)
-    for main, sub in commands.g_subcommand_names:
-        v = subcmd_dict[main][sub]
-        cmd_list.append(('%s %s'%(main, sub), v()))
-
-    cmd_list.sort()
-
-    for name, obj in cmd_list:
-        result_array.append("%s\n%s"%(name, v().help()))
-
-    return "\n".join(result_array)
-
-def help_subcmd_all(cmd_name, cmd_dict):
-    """
-    Return help for all commands in this dictionary
-    """
-    result_array = []
-    result_array.append("Subcommands for '%s' are:\n"%cmd_name)
-
-    keys = cmd_dict.keys()
-    keys.sort()
-
-    for name in keys:
-        v = cmd_dict[name]
-        result_array.append('%s\n%s'%(name, v().help()))
-
-    return "\n".join(result_array)
-
-def help_aliases():
-    """
-    Return a list of all commands with aliases
-    """
-    result_array = []
-    result_array.append("Commands aliases are:\n")
-
-    aliases = commands.g_command_aliases
-
-    keys = aliases.keys()
-    keys.sort()
-
-    for alias in keys:
-        result_array.append("  %-10s  %s"%(alias, aliases[alias]))
-
-    aliases = commands.g_subcommand_aliases
-    if aliases:
-        result_array.append("\nSubcommand aliases are:\n")
-
-        main_keys = aliases.keys()
-        main_keys.sort()
-        for cmd in main_keys:
-            sub_keys = aliases[cmd].keys()
-            sub_keys.sort()
-            for alias in sub_keys:
-                result_array.append("  %-20s %s"%("%s %s"%(cmd, alias),
-                                                        "%s %s"%(cmd, aliases[cmd][alias])))
-
-    return "\n".join(result_array)
-
-def help(cmd_dict, subcmd_dict, about=None):
-    """
-    Return the help message for 'about'.
-
-    If 'about' is None or empty, return summary of all commands.
-    """
-
-    if not about:
-        return help_list(cmd_dict)
-
-    if about[0] in ("all", "_all"):
-        return help_all(cmd_dict, subcmd_dict)   # and ignore the rest of the command line
-
-    if about[0] == "aliases":
-        return help_aliases()
-
-    if about[0] == "categories":
-        return help_categories()
-
-    if len(about) == 1:
-        cmd = about[0]
-        try:
-            v = cmd_dict[cmd]
-            if v is None:
-                keys = subcmd_dict[cmd].keys()
-                keys.sort()
-                keys_text = ", ".join(keys)
-                return utils.wrap("Subcommands of '%s' are: %s"%(cmd,keys_text),
-                                  # I'd like to do this, but it's not in Python 2.6.5
-                                  #break_on_hyphens=False,
-                                  subsequent_indent='              ')
-            else:
-                return "%s\n%s"%(cmd, v().help())
-        except KeyError:
-            return "There is no muddle command '%s'"%cmd
-    elif len(about) == 2:
-        cmd = about[0]
-        subcmd = about[1]
-        try:
-            sub_dict = subcmd_dict[cmd]
-        except KeyError:
-            if cmd in cmd_dict:
-                return "Muddle command '%s' does not take a subcommand"%cmd
-            else:
-                return "There is no muddle command '%s %s'"%(cmd, subcmd)
-
-        if subcmd in ("all", "_all"):
-            return help_subcmd_all(cmd, sub_dict)
-
-        try:
-            v = sub_dict[subcmd]
-            return "%s %s\n%s"%(cmd, subcmd, v().help())
-        except KeyError:
-            return "There is no muddle command '%s %s'"%(cmd, subcmd)
-    else:
-        return "There is no muddle command '%s'"%' '.join(about)
-    result_array = []
-    for cmd in about:
-        try:
-            v = cmd_dict[cmd]
-            result_array.append("%s\n%s"%(cmd, v().help()))
-        except KeyError:
-            result_array.append("There is no muddle command '%s'\n"%cmd)
-
-    return "\n".join(result_array)
 
 def find_and_load(specified_root, muddle_binary):
     """Find our .muddle root, and then load our builder, and return it.
@@ -248,8 +43,8 @@ def _cmdline(args, current_dir, original_env, muddle_binary):
     while args:
         word = args[0]
         if word in ('-h', '-help', '--help', '-?'):
-            print __doc__
-            return
+            args = ['help']      # Ignore any other command words
+            break
         elif word == '--tree':
             args = args[1:]
             specified_root = args[0]
@@ -275,12 +70,6 @@ def _cmdline(args, current_dir, original_env, muddle_binary):
     # First things first, let's look up the command .. 
     cmd_dict = commands.g_command_dict
     subcmd_dict = commands.g_subcommand_dict
-
-    # The help command needs to be provided here because the 
-    # command module doesn't have the necessary information
-    if (command_name == "help"):
-        print help(cmd_dict, subcmd_dict, args)
-        return
 
     try:
         command_class = cmd_dict[command_name]

@@ -12,7 +12,7 @@ case your programs want to run them themselves
 #
 # XXX It also means that a firm decision needs to be made about those
 # XXX same docstrings. For "help" purposes, as unadorned (by markup)
-# XXX as possible is good, whilst for sphix/reStructuredText purposes,
+# XXX as possible is good, whilst for sphinx/reStructuredText purposes,
 # XXX somewhat more markup would make the generated documentation better
 # XXX (and more consistent with other muddled modules).
 
@@ -179,8 +179,7 @@ class Command:
         that would apply when the susbt command was executed.
         """
         self.old_env = old_env
-        
-     
+
     def no_op(self):
         """
         Is this is a no-op (just print) operation?
@@ -199,7 +198,234 @@ class Command:
         Run this command without a build tree.
         """
         raise GiveUp("Can't run %s without a build tree."%self.cmd_name)
-        
+
+@command('help', CAT_QUERY)
+class Help(Command):
+    """
+    To get help on commands, use:
+
+      muddle help [<command>]
+
+    specifically:
+
+      muddle help <cmd>          for help on a command
+      muddle help <cmd> <subcmd> for help on a subcommand
+      muddle help all            for help on all commands
+      muddle help _all           is the same as 'help all'
+      muddle help <cmd> all      for help on all <cmd> subcommands
+      muddle help <cmd> _all     is the same as 'help <cmd> all'
+      muddle help categories     shows command names sorted by category
+      muddle help aliases        says which commands have more than one name
+    """
+
+    command_line_help = """\
+    Usage:
+
+      muddle [<options>] <command> [<arg> ...]
+
+    Options include:
+
+      --help, -h, -?      This help text
+      --tree <dir>        Use the muddle build tree at <dir>
+      --just-print, -n    Just print what muddle would have done. For commands
+                          that 'do something', just print out the labels for
+                          which that action would be performed. For commands
+                          that "enquire" (or "find out") something, this switch
+                          is ignored.
+
+    If you don't give --tree, muddle will traverse directories up to the root to
+    try and find a .muddle directory, which signifies the top of the build tree.
+    """
+
+    def requires_build_tree(self):
+        return False
+
+    def with_build_tree(self, builder, current_dir, args):
+        self.print_help(args)
+
+    def without_build_tree(self, muddle_binary, root_path, args):
+        self.print_help(args)
+
+    def print_help(self, args):
+        print self.get_help(args)
+
+    def get_help(self, args):
+        """Return help for args, or a summary of all commands.
+        """
+        if not args:
+            return self.help_list()
+
+        if args[0] in ("all", "_all"):
+            return self.help_all()   # and ignore the rest of the command line
+
+        if args[0] == "aliases":
+            return self.help_aliases()
+
+        if args[0] == "categories":
+            return self.help_categories()
+
+        if len(args) == 1:
+            cmd = args[0]
+            try:
+                v = g_command_dict[cmd]
+                if v is None:
+                    keys = g_subcommand_dict[cmd].keys()
+                    keys.sort()
+                    keys_text = ", ".join(keys)
+                    return utils.wrap("Subcommands of '%s' are: %s"%(cmd,keys_text),
+                                      # I'd like to do this, but it's not in Python 2.6.5
+                                      #break_on_hyphens=False,
+                                      subsequent_indent='              ')
+                else:
+                    return "%s\n%s"%(cmd, v().help())
+            except KeyError:
+                return "There is no muddle command '%s'"%cmd
+        elif len(args) == 2:
+            cmd = args[0]
+            subcmd = args[1]
+            try:
+                sub_dict = g_subcommand_dict[cmd]
+            except KeyError:
+                if cmd in g_command_dict:
+                    return "Muddle command '%s' does not take a subcommand"%cmd
+                else:
+                    return "There is no muddle command '%s %s'"%(cmd, subcmd)
+
+            if subcmd in ("all", "_all"):
+                return self.help_subcmd_all(cmd, sub_dict)
+
+            try:
+                v = sub_dict[subcmd]
+                return "%s %s\n%s"%(cmd, subcmd, v().help())
+            except KeyError:
+                return "There is no muddle command '%s %s'"%(cmd, subcmd)
+        else:
+            return "There is no muddle command '%s'"%' '.join(args)
+        result_array = []
+        for cmd in args:
+            try:
+                v = g_command_dict[cmd]
+                result_array.append("%s\n%s"%(cmd, v().help()))
+            except KeyError:
+                result_array.append("There is no muddle command '%s'\n"%cmd)
+
+        return "\n".join(result_array)
+
+    def help_list(self):
+        """
+        Return a list of all commands
+        """
+        result_array = []
+        result_array.append(textwrap.dedent(Help.command_line_help))
+        result_array.append(textwrap.dedent(Help.__doc__))
+        result_array.append("\n")
+
+        # Use the entire set of command names, including any aliases
+        keys = g_command_dict.keys()
+        keys.sort()
+        keys_text = ", ".join(keys)
+
+        result_array.append(utils.wrap('Commands are: %s'%keys_text,
+                                       # I'd like to do this, but it's not in Python 2.6.5
+                                       #break_on_hyphens=False,
+                                       subsequent_indent='              '))
+
+        # XXX Temporarily
+        result_array.append("\n\n"+utils.wrap("Please note that 'muddle pull' is "
+            "preferred to 'muddle fetch' and muddle update', which are deprecated."))
+        # XXX Temporarily
+
+        return "".join(result_array)
+
+    def help_categories(self):
+        result_array = []
+        result_array.append("Commands by category:\n")
+
+        categories_dict = g_command_categories
+        categories_list = g_command_categories_in_order
+
+        maxlen = len(max(categories_list, key=len)) +1  # +1 for a colon
+        indent = ' '*(maxlen+3)
+
+        for name in categories_list:
+            cmd_list = categories_dict[name]
+            cmd_list.sort()
+            line = "  %-*s %s"%(maxlen, '%s:'%name, ' '.join(cmd_list))
+            result_array.append(utils.wrap(line, subsequent_indent=indent))
+
+        return "\n".join(result_array)
+
+    def help_all(self):
+        """
+        Return help for all commands
+        """
+        result_array = []
+        result_array.append("Commands:\n")
+
+        cmd_list = []
+
+        # First, all the main command names (without any aliases)
+        for name in g_command_names:
+            v = g_command_dict[name]
+            cmd_list.append((name, v()))
+
+        # Then, all the subcommands (ditto)
+        for main, sub in g_subcommand_names:
+            v = g_subcommand_dict[main][sub]
+            cmd_list.append(('%s %s'%(main, sub), v()))
+
+        cmd_list.sort()
+
+        for name, obj in cmd_list:
+            result_array.append("%s\n%s"%(name, v().help()))
+
+        return "\n".join(result_array)
+
+    def help_subcmd_all(self, cmd_name):
+        """
+        Return help for all commands in this dictionary
+        """
+        result_array = []
+        result_array.append("Subcommands for '%s' are:\n"%cmd_name)
+
+        keys = g_command_dict.keys()
+        keys.sort()
+
+        for name in keys:
+            v = g_command_dict[name]
+            result_array.append('%s\n%s'%(name, v().help()))
+
+        return "\n".join(result_array)
+
+    def help_aliases(self):
+        """
+        Return a list of all commands with aliases
+        """
+        result_array = []
+        result_array.append("Commands aliases are:\n")
+
+        aliases = g_command_aliases
+
+        keys = aliases.keys()
+        keys.sort()
+
+        for alias in keys:
+            result_array.append("  %-10s  %s"%(alias, aliases[alias]))
+
+        aliases = g_subcommand_aliases
+        if aliases:
+            result_array.append("\nSubcommand aliases are:\n")
+
+            main_keys = aliases.keys()
+            main_keys.sort()
+            for cmd in main_keys:
+                sub_keys = aliases[cmd].keys()
+                sub_keys.sort()
+                for alias in sub_keys:
+                    result_array.append("  %-20s %s"%("%s %s"%(cmd, alias),
+                                                            "%s %s"%(cmd, aliases[cmd][alias])))
+
+        return "\n".join(result_array)
 
 @command('root', CAT_QUERY)
 class Root(Command):

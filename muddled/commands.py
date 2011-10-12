@@ -3323,8 +3323,8 @@ Try 'muddle help unstamp' for more information."""
 @command('whereami', CAT_QUERY, ['where'])
 class Whereami(Command):
     """
-    :Syntax: whereami
-    :or:     where
+    :Syntax: whereami [-detail]
+    :or:     where [-detail]
 
     Looks at the current directory and tries to identify where it is
     in terms of the enclosing muddle build tree (if any). The result
@@ -3340,12 +3340,34 @@ class Whereami(Command):
     or even::
 
         You are here. Here is not in a muddle build tree.
+
+    unless the '-detail' switch is given, in which case output suitable
+    for parsing is output, of the form:
+
+        (<what>, <label>, <domain>)
+
+    for instance::
+
+        $ muddle where
+        Checkout directory for checkout:screen-4.0.3/*
+        $ muddle where -detail
+        (Checkout, checkout:screen-4.0.3/*, None)
     """
 
     def requires_build_tree(self):
         return False
 
     def with_build_tree(self, builder, current_dir, args):
+
+        detail = False
+        if args:
+            if len(args) == 1 and args[0] == '-detail':
+                detail = True
+            else:
+                print 'Syntax: whereami [-detail]'
+                print '    or: where [-detail]'
+                return
+
         r = builder.find_location_in_tree(current_dir)
         if r is None:
             raise utils.MuddleBug('Unable to determine location in the muddle build tree:\n'
@@ -3353,6 +3375,11 @@ class Whereami(Command):
                                   'Current directory %s'%(builder.invocation.db.root_path,
                                                           current_dir))
         (what, label, domain) = r
+
+        if detail:
+            print '(%s, %s, %s)'%(utils.ReverseDirType[what], label, domain)
+            return
+
         if what is None:
             raise utils.MuddleBug('Unable to determine location in the muddle build tree:\n'
                                   "'Directory type' returned as None")

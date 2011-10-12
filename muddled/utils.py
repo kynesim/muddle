@@ -151,11 +151,16 @@ __directory_types = {'Checkout'  : 'Checkout directory',
                      'DomainRoot': 'Root of subdomain',
                      'MuddleDir' : '.muddle directory',
                      'Versions'  : 'Versions directory',
-                     'Unexpected': 'An unexpectd place',
+                     'Unexpected': 'An unexpected place',
                      }
 
 __directory_type_type = namedtuple('DirType',
                                    ' '.join(__directory_types.keys()))
+
+# Sometimes the reverse is useful
+ReverseDirType = {}
+for key, value in __directory_types.items():
+    ReverseDirType[value] = key
 
 DirType = __directory_type_type(**__directory_types)
 

@@ -3758,41 +3758,55 @@ class Test(Command):
         print 'As checkout args:'
         print label_list_to_string(decode_checkout_arguments(builder, args, current_dir, 'FRED'))
 
+# -----------------------------------------------------------------------------
+# Actions
+# -----------------------------------------------------------------------------
 
-def expand_checkout_label(builder, label, required_tag):
-    """Given an intermediate checkout label, expand it to a set of labels.
-
-    TODO: decide what wildcards we accept, and expand them(?)
+def build_a_kill_b(builder, labels, build_this, kill_this):
     """
-    intermediate_set = set()
-    result_set = set()
+    For every label in labels, build the label formed by replacing
+    tag in label with build_this and then kill the tag in label with
+    kill_this.
 
-    intermediate_set.add(label)
-
-    if required_tag is not None:
-        for label in intermediate_set:
-            if label.tag != required_tag:
-                label = label.copy_with_tag(required_tag)
-            result_set.add(label)
-    else:
-        result_set = intermediate_set
-
-    return result_set
-
-def expand_checkout_package_label(builder, label, required_tag):
-    """Given an intermediate package label, expand it to a set of checkout labels.
+    We have to interleave these operations so an error doesn't
+    lead to too much or too little of a kill.
     """
-    result_set = set()
+    for lbl in labels:
+        try:
+            l_a = lbl.copy_with_tag(build_this)
+            print "Building: %s .. "%(l_a)
+            builder.build_label(l_a)
+        except GiveUp, e:
+            raise GiveUp("Can't build %s - %s"%(l_a, e))
 
-    these_labels = builder.invocation.checkouts_for_package(label)
+        try:
+            l_b = lbl.copy_with_tag(kill_this)
+            print "Killing: %s .. "%(l_b)
+            builder.kill_label(l_b)
+        except GiveUp, e:
+            raise GiveUp("Can't kill %s - %s"%(l_b, e))
 
-    if required_tag:
-        for lbl in these_labels:
-            result_set.add(lbl.copy_with_tag(required_tag))
-    else:
-        result_set = set(these_labels)
+def kill_labels(builder, to_kill):
+    print "Killing %s "%(" ".join(map(str, to_kill)))
 
-    return result_set
+    try:
+        for lbl in to_kill:
+            builder.kill_label(lbl)
+    except GiveUp, e:
+        raise GiveUp("Can't kill %s - %s"%(str(lbl), e))
+
+def build_labels(builder, to_build):
+    print "Building %s "%(" ".join(map(str, to_build)))
+
+    try:
+        for lbl in to_build:
+            builder.build_label(lbl)
+    except GiveUp,e:
+        raise GiveUp("Can't build %s - %s"%(str(lbl), e))
+
+# -----------------------------------------------------------------------------
+# Decode label or partial label arguments for particular purposes
+# -----------------------------------------------------------------------------
 
 def decode_checkout_arguments(builder, arglist, current_dir, required_tag=None):
     """
@@ -3866,158 +3880,6 @@ def decode_checkout_arguments(builder, arglist, current_dir, required_tag=None):
     result_list.sort()
     return result_list
 
-def name_selected_checkouts(verb, checkout_labels):
-    if checkout_labels:
-        print '%s checkouts: %s'%(verb,
-                label_list_to_string(checkout_labels))
-    else:
-        print 'No checkouts selected'
-
-
-def decode_labels(builder, in_args):
-    """
-    Each argument is a label - convert each to a proper label
-    object and then return the resulting list
-    """
-    rv = [ ]
-    for arg in in_args:
-        lbl = Label.from_string(arg)
-        rv.append(lbl)
-
-    return rv
-
-def decode_deployment_arguments(builder, args, current_dir, required_tag):
-    """
-    TBD
-    """
-    return_list = [ ]
-
-    default_domain = builder.get_default_domain()
-
-    if args:
-        for dep in args:
-            if (dep == "_all"):
-                # Everything .. 
-                return_list = all_deployment_labels(builder, required_tag)
-                return_list.sort()
-                return return_list
-            else:
-                lbl = Label.from_fragment(dep,
-                                          default_type=utils.LabelType.Deployment,
-                                          default_role="*",
-                                          default_domain=default_domain)
-                if lbl.type != utils.LabelType.Deployment:
-                    raise GiveUp("Label '%s', from argument '%s' not allowed"
-                            " as a deployment label"%(lbl, dep))
-                if lbl.tag != required_tag:
-                    lbl = lbl.copy_with_tag(required_tag)
-                return_list.append(lbl)
-    else:
-        # Can we guess what to do from where we are?
-        what, label, domain = builder.find_location_in_tree(current_dir)
-        if what == utils.DirType.Deployment:
-            # We're actually inside a deployment - job done
-            result_list.append(label.copy_with_tag(required_tag))
-        else:
-            # The best we can do is to use the default deployments
-            return_list = default_deployment_labels(builder, required_tag)
-
-    result_set = set()
-    for label in return_list:
-        if label.is_definite():
-            result_set.add(label)
-        else:
-            result_set.update(expand_wildcards(builder, label, required_tag))
-
-    return_list = list(result_set)
-    return_list.sort()
-    return return_list
-
-
-def all_deployment_labels(builder, tag):
-    """
-    Return all the deployment labels registered with the ruleset.
-    """
-
-    # Important not to set tag here - if there's a deployment
-    #  which doesn't have the right tag, we want an error, 
-    #  not to silently ignore it.
-    match_lbl = Label(utils.LabelType.Deployment,
-                      "*", "*", "*", domain = builder.get_default_domain())
-    matching = builder.invocation.ruleset.rules_for_target(match_lbl)
-
-    return_set = set()
-    for m in matching:
-        return_set.add(m.target.name)
-
-    return_list = [ ]
-    for r in return_set:
-        lbl = Label(utils.LabelType.Deployment,
-                    r,
-                    "*",
-                    tag)
-        return_list.append(lbl)
-
-    return return_list
-
-def default_deployment_labels(builder, tag):
-    """
-    Return labels tagged with tag for all the default deployments.
-    """
-
-    default_labels = builder.invocation.default_labels
-    return_list = [ ]
-    for d in default_labels:
-        if (d.type == utils.LabelType.Deployment):
-            return_list.append(Label(utils.LabelType.Deployment,
-                               d.name,
-                               d.role,
-                               tag))
-
-    return return_list
-
-def build_a_kill_b(builder, labels, build_this, kill_this):
-    """
-    For every label in labels, build the label formed by replacing
-    tag in label with build_this and then kill the tag in label with
-    kill_this.
-
-    We have to interleave these operations so an error doesn't
-    lead to too much or too little of a kill.
-    """
-    for lbl in labels:
-        try:
-            l_a = lbl.copy_with_tag(build_this)
-            print "Building: %s .. "%(l_a)
-            builder.build_label(l_a)
-        except GiveUp, e:
-            raise GiveUp("Can't build %s - %s"%(l_a, e))
-
-        try:
-            l_b = lbl.copy_with_tag(kill_this)
-            print "Killing: %s .. "%(l_b)
-            builder.kill_label(l_b)
-        except GiveUp, e:
-            raise GiveUp("Can't kill %s - %s"%(l_b, e))
-
-def kill_labels(builder, to_kill):
-    print "Killing %s "%(" ".join(map(str, to_kill)))
-
-    try:
-        for lbl in to_kill:
-            builder.kill_label(lbl)
-    except GiveUp, e:
-        raise GiveUp("Can't kill %s - %s"%(str(lbl), e))
-
-def build_labels(builder, to_build):
-    print "Building %s "%(" ".join(map(str, to_build)))
-
-    try:
-        for lbl in to_build:
-            builder.build_label(lbl)
-    except GiveUp,e:
-        raise GiveUp("Can't build %s - %s"%(str(lbl), e))
-
 def decode_single_package_label(builder, arg, tag):
     """
     Convert a 'package' or 'package{role}' or '(domain)package{role} argument to a label.
@@ -4035,48 +3897,6 @@ def decode_single_package_label(builder, arg, tag):
         raise GiveUp("Label '%s', from argument '%s', is not a valid"
                 " package label"%(label, arg))
     return label
-
-
-def expand_package_label(builder, label, required_tag):
-    """Given an intermediate package label, expand it to a set of labels.
-    """
-    result_set = set()
-    default_roles = builder.invocation.default_roles
-
-    if required_tag is not None and label.tag != required_tag:
-        label = label.copy_with_tag(required_tag)
-
-    if label.role:
-        result_set.add(label)
-    elif default_roles:
-        # Add the default roles
-        for r in default_roles:
-            lbl = label.copy_with_role(r)
-            result_set.add(lbl)
-    else:
-        # Just wildcard for any role
-        lbl = label.copy_with_role('*')
-        result_set.add(lbl)
-
-    return result_set
-
-def expand_package_checkout_label(builder, label, required_tag):
-    """Given an intermediate checkout label, expand it to a set of package labels.
-    """
-
-    intermediate_set = set()
-    intermediate_set.update(builder.invocation.packages_using_checkout(label))
-
-    if required_tag is not None:
-        result_set = set()
-        for lbl in intermediate_set:
-            if lbl.tag != required_tag:
-                lbl = lbl.copy_with_tag(required_tag)
-            result_set.add(lbl)
-    else:
-        result_set = intermediate_set
-
-    return result_set
 
 def decode_package_arguments(builder, arglist, current_dir, required_tag=None):
     """
@@ -4134,6 +3954,197 @@ def decode_package_arguments(builder, arglist, current_dir, required_tag=None):
     result_list = list(result_set)
     result_list.sort()
     return result_list
+
+def decode_deployment_arguments(builder, args, current_dir, required_tag):
+    """
+    TBD
+    """
+    return_list = [ ]
+
+    default_domain = builder.get_default_domain()
+
+    if args:
+        for dep in args:
+            if (dep == "_all"):
+                # Everything .. 
+                return_list = all_deployment_labels(builder, required_tag)
+                return_list.sort()
+                return return_list
+            else:
+                lbl = Label.from_fragment(dep,
+                                          default_type=utils.LabelType.Deployment,
+                                          default_role="*",
+                                          default_domain=default_domain)
+                if lbl.type != utils.LabelType.Deployment:
+                    raise GiveUp("Label '%s', from argument '%s' not allowed"
+                            " as a deployment label"%(lbl, dep))
+                if lbl.tag != required_tag:
+                    lbl = lbl.copy_with_tag(required_tag)
+                return_list.append(lbl)
+    else:
+        # Can we guess what to do from where we are?
+        what, label, domain = builder.find_location_in_tree(current_dir)
+        if what == utils.DirType.Deployment:
+            # We're actually inside a deployment - job done
+            result_list.append(label.copy_with_tag(required_tag))
+        else:
+            # The best we can do is to use the default deployments
+            return_list = default_deployment_labels(builder, required_tag)
+
+    result_set = set()
+    for label in return_list:
+        if label.is_definite():
+            result_set.add(label)
+        else:
+            result_set.update(expand_wildcards(builder, label, required_tag))
+
+    return_list = list(result_set)
+    return_list.sort()
+    return return_list
+
+# -----------------------------------------------------------------------------
+# Support for the above
+# -----------------------------------------------------------------------------
+
+def expand_checkout_label(builder, label, required_tag):
+    """Given an intermediate checkout label, expand it to a set of labels.
+
+    TODO: decide what wildcards we accept, and expand them(?)
+    """
+    intermediate_set = set()
+    result_set = set()
+
+    intermediate_set.add(label)
+
+    if required_tag is not None:
+        for label in intermediate_set:
+            if label.tag != required_tag:
+                label = label.copy_with_tag(required_tag)
+            result_set.add(label)
+    else:
+        result_set = intermediate_set
+
+    return result_set
+
+def expand_checkout_package_label(builder, label, required_tag):
+    """Given an intermediate package label, expand it to a set of checkout labels.
+    """
+    result_set = set()
+
+    these_labels = builder.invocation.checkouts_for_package(label)
+
+    if required_tag:
+        for lbl in these_labels:
+            result_set.add(lbl.copy_with_tag(required_tag))
+    else:
+        result_set = set(these_labels)
+
+    return result_set
+
+def name_selected_checkouts(verb, checkout_labels):
+    if checkout_labels:
+        print '%s checkouts: %s'%(verb,
+                label_list_to_string(checkout_labels))
+    else:
+        print 'No checkouts selected'
+
+
+def decode_labels(builder, in_args):
+    """
+    Each argument is a label - convert each to a proper label
+    object and then return the resulting list
+    """
+    rv = [ ]
+    for arg in in_args:
+        lbl = Label.from_string(arg)
+        rv.append(lbl)
+
+    return rv
+
+
+def all_deployment_labels(builder, tag):
+    """
+    Return all the deployment labels registered with the ruleset.
+    """
+
+    # Important not to set tag here - if there's a deployment
+    #  which doesn't have the right tag, we want an error, 
+    #  not to silently ignore it.
+    match_lbl = Label(utils.LabelType.Deployment,
+                      "*", "*", "*", domain = builder.get_default_domain())
+    matching = builder.invocation.ruleset.rules_for_target(match_lbl)
+
+    return_set = set()
+    for m in matching:
+        return_set.add(m.target.name)
+
+    return_list = [ ]
+    for r in return_set:
+        lbl = Label(utils.LabelType.Deployment,
+                    r,
+                    "*",
+                    tag)
+        return_list.append(lbl)
+
+    return return_list
+
+def default_deployment_labels(builder, tag):
+    """
+    Return labels tagged with tag for all the default deployments.
+    """
+
+    default_labels = builder.invocation.default_labels
+    return_list = [ ]
+    for d in default_labels:
+        if (d.type == utils.LabelType.Deployment):
+            return_list.append(Label(utils.LabelType.Deployment,
+                               d.name,
+                               d.role,
+                               tag))
+
+    return return_list
+
+
+def expand_package_label(builder, label, required_tag):
+    """Given an intermediate package label, expand it to a set of labels.
+    """
+    result_set = set()
+    default_roles = builder.invocation.default_roles
+
+    if required_tag is not None and label.tag != required_tag:
+        label = label.copy_with_tag(required_tag)
+
+    if label.role:
+        result_set.add(label)
+    elif default_roles:
+        # Add the default roles
+        for r in default_roles:
+            lbl = label.copy_with_role(r)
+            result_set.add(lbl)
+    else:
+        # Just wildcard for any role
+        lbl = label.copy_with_role('*')
+        result_set.add(lbl)
+
+    return result_set
+
+def expand_package_checkout_label(builder, label, required_tag):
+    """Given an intermediate checkout label, expand it to a set of package labels.
+    """
+
+    intermediate_set = set()
+    intermediate_set.update(builder.invocation.packages_using_checkout(label))
+
+    if required_tag is not None:
+        result_set = set()
+        for lbl in intermediate_set:
+            if lbl.tag != required_tag:
+                lbl = lbl.copy_with_tag(required_tag)
+            result_set.add(lbl)
+    else:
+        result_set = intermediate_set
+
+    return result_set
 
 def expand_wildcards(builder, label, required_tag=None):
     """

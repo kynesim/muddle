@@ -39,7 +39,7 @@ import textwrap
 import pydoc
 from db import InstructionFile
 from urlparse import urlparse
-from utils import VersionStamp, GiveUp, NotNeeded
+from utils import VersionStamp, GiveUp, Unsupported
 
 # Following Richard's naming conventions...
 # A dictionary of <command name> : <command class>
@@ -2130,7 +2130,7 @@ class Pull(Command):
                 builder.invocation.db.clear_tag(co)
                 # And then build it again
                 builder.build_label(co)
-            except NotNeeded as e:
+            except Unsupported as e:
                 print e
                 not_needed.append(e)
             except GiveUp as e:

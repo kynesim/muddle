@@ -45,12 +45,12 @@ class GiveUp(Exception):
     """
     pass
 
-class NotNeeded(GiveUp):
+class Unsupported(GiveUp):
     """
-    Use this to indicate that we gave up on an action, but nothing went wrong.
+    Use this to indicate that an action is unsupported.
 
     This is used, for instance, when git reports that it will not pull to a
-    shallow clone, which is not an error, but the user should be told about.
+    shallow clone, which is not an error, but the user will want to know.
 
     This is deliberately a subclass of GiveUp, because it *is* telling muddle
     to give up an operation.

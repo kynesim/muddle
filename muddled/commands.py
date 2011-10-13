@@ -204,18 +204,22 @@ class Help(Command):
     """
     To get help on commands, use:
 
-      muddle help [<command>]
+      muddle help [<switch>] [<command>]
 
     specifically:
 
       muddle help <cmd>          for help on a command
       muddle help <cmd> <subcmd> for help on a subcommand
-      muddle help all            for help on all commands
-      muddle help _all           is the same as 'help all'
-      muddle help <cmd> all      for help on all <cmd> subcommands
-      muddle help <cmd> _all     is the same as 'help <cmd> all'
+      muddle help _all           for help on all commands
+      muddle help <cmd> _all     for help on all <cmd> subcommands
       muddle help categories     shows command names sorted by category
       muddle help aliases        says which commands have more than one name
+
+    <switch> may be:
+
+        -p[ager] <pager>    to specify a pager through which the help will be piped.
+                            The default is $PAGER (if set) or else 'more'.
+        -nop[ager]          don't use a pager, just print the help out.
     """
 
     command_line_help = """\
@@ -223,7 +227,7 @@ class Help(Command):
 
       muddle [<options>] <command> [<arg> ...]
 
-    Options include:
+    Available <options> are:
 
       --help, -h, -?      This help text
       --tree <dir>        Use the muddle build tree at <dir>
@@ -247,7 +251,17 @@ class Help(Command):
         self.print_help(args)
 
     def print_help(self, args):
-        print self.get_help(args)
+        pager = os.environ.get('PAGER', 'more')
+        if args:
+            if args[0] in ('-p', '-pager'):
+                pager = args[1]
+                args = args[2:]
+            elif args[0] in ('-nop', '-nopager'):
+                pager = None
+                args = args[1:]
+
+        help_text = self.get_help(args)
+        utils.page_text(pager, help_text)
 
     def get_help(self, args):
         """Return help for args, or a summary of all commands.
@@ -255,7 +269,7 @@ class Help(Command):
         if not args:
             return self.help_list()
 
-        if args[0] in ("all", "_all"):
+        if args[0] == "_all":
             return self.help_all()   # and ignore the rest of the command line
 
         if args[0] == "aliases":
@@ -291,7 +305,7 @@ class Help(Command):
                 else:
                     return "There is no muddle command '%s %s'"%(cmd, subcmd)
 
-            if subcmd in ("all", "_all"):
+            if subcmd == "_all":
                 return self.help_subcmd_all(cmd, sub_dict)
 
             try:

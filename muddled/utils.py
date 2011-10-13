@@ -381,6 +381,38 @@ def current_machine_name():
     """
     return socket.gethostname()
 
+def page_text(progname, text):
+    """
+    Try paging 'text' by piping it through 'progname'.
+
+    Looks for 'progname' on the PATH, and if os.environ['PATH'] doesn't exist,
+    tries looking for it on os.defpath.
+
+    If an executable version of 'progname' can't be found, just prints the
+    text out.
+
+    If 'progname' is None (or an empty string, or otherwise false), then
+    just print 'text'.
+    """
+    if progname:
+        path = os.environ.get('PATH', os.defpath)
+        path = path.split(os.pathsep)
+        for locn in path:
+            locn = normalise_dir(locn)
+            prog = os.path.join(locn, progname)
+            if os.path.exists(prog):
+                try:
+                    proc = subprocess.Popen([prog],
+                                            stdin=subprocess.PIPE,
+                                            stderr=subprocess.STDOUT)
+                    proc.communicate(text)
+                    return
+                except OSError as e:
+                    # We're not allowed to run it, or some other problem,
+                    # so look for another candidate
+                    continue
+    print text
+
 def run_cmd_for_output(cmd_array, env = None, useShell = False, verbose = True):
     """
     Run a command and return a tuple (return value, stdour output, stderr output).

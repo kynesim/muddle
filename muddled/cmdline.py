@@ -100,6 +100,7 @@ def _cmdline(args, current_dir, original_env, muddle_binary):
 
     if builder:
         # There is a build tree...
+        where = None
         if guess_what_to_do:
             # Where are we?
             where = builder.find_location_in_tree(current_dir)
@@ -135,7 +136,7 @@ def _cmdline(args, current_dir, original_env, muddle_binary):
                                                                utils.LabelTag.PostInstalled)
                     args += map(str, labels)
 
-        command.with_build_tree(builder, current_dir, args)
+        command.with_build_tree(builder, current_dir, args, where)
     else:
         # There is no build root here .. 
         if guess_what_to_do:

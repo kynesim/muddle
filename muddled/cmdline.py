@@ -102,11 +102,11 @@ def _cmdline(args, current_dir, original_env, muddle_binary):
         # There is a build tree...
         if guess_what_to_do:
             # Where are we?
-            r = builder.find_location_in_tree(current_dir)
-            if r is None:
+            where = builder.find_location_in_tree(current_dir)
+            if where is None:
                 raise utils.GiveUp("Can't seem to determine where you are in the build tree")
 
-            (what, label, domain) = r
+            (what, label, domain) = where
 
             if (what == utils.DirType.Root or
                 (domain is None and label is None)):

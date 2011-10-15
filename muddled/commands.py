@@ -3598,17 +3598,18 @@ class Whereami(Command):
     def requires_build_tree(self):
         return False
 
-    def with_build_tree(self, builder, current_dir, args):
-
+    def want_detail(self, args):
         detail = False
         if args:
             if len(args) == 1 and args[0] == '-detail':
                 detail = True
             else:
-                print 'Syntax: whereami [-detail]'
-                print '    or: where [-detail]'
-                return
+                raise GiveUp('Syntax: whereami [-detail]\n'
+                             '    or: where [-detail]')
+        return detail
 
+    def with_build_tree(self, builder, current_dir, args):
+        detail = self.want_detail(args)
         r = builder.find_location_in_tree(current_dir)
         if r is None:
             raise utils.MuddleBug('Unable to determine location in the muddle build tree:\n'
@@ -3636,7 +3637,11 @@ class Whereami(Command):
             print rv
 
     def without_build_tree(self, muddle_binary, root_path, args):
-        print "You are here. Here is not in a muddle build tree."
+        detail = self.want_detail(args)
+        if detail:
+            print 'None None None'
+        else:
+            print "You are here. Here is not in a muddle build tree."
 
 @command('doc', CAT_QUERY)
 class Doc(Command):

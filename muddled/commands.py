@@ -208,7 +208,31 @@ class CheckoutCommand(Command):
     # Subclasses may override this if necessary
     required_tag = LabelTag.CheckedOut
 
+    # XXX Generalise this to apply to all Command classes???
+    # Subclasses may override this if necessary
+    # A list of tuples, each tuple representing the allowed forms of a
+    # given switch. The first form given will be the one remembered
+    # XXX and undoubtedly should do something more sophisticated, e.g.,
+    #     with argparse
+    allowed_switches = []
+
     def with_build_tree(self, builder, current_dir, args):
+
+        # XXX Generalise this to apply to all Command classes???
+        switches = []
+        if self.allowed_switches:
+            label_args = []
+            for arg in args:
+                is_label = True
+                for possibilities in self.allowed_switches:
+                    if arg in possibilities:
+                        is_label = False
+                        switches.append(possibilities[0])
+                        break
+                if is_label:
+                    label_args.append(arg)
+            args = label_args
+
         if args:
             # Expand out any labels that need it
             checkouts = self.decode_args(builder, args, current_dir)
@@ -223,11 +247,13 @@ class CheckoutCommand(Command):
         # XXX TODO
         # and if that leaves us with no labels at all, we must give up
 
-        if (self.no_op()):
+        if self.no_op():
             print 'Asked to %s: %s'%(self.cmd_name, label_list_to_string(checkouts))
             return
+        else if not args:
+            print '%s %s'%(self.cmd_name, label_list_to_string(checkouts))
 
-        self.build_labels(checkouts)
+        self.build_these_labels(checkouts, switches)
 
     def decode_args(self, builder, args, current_dir):
         """
@@ -331,7 +357,7 @@ class CheckoutCommand(Command):
             pass
         return result_list
 
-    def build_labels(self, checkouts):
+    def build_these_labels(self, checkouts, switches=[]):
         """
         Do whatever is necessary to each label
         """
@@ -360,11 +386,13 @@ class PackageCommand(Command):
         # XXX TODO
         # and if that leaves us with no labels at all, we must give up
 
-        if (self.no_op()):
+        if self.no_op():
             print 'Asked to %s: %s'%(self.cmd_name, label_list_to_string(packages))
             return
+        else if not args:
+            print '%s %s'%(self.cmd_name, label_list_to_string(checkouts))
 
-        self.build_labels(packages)
+        self.build_these_labels(packages)
 
     def decode_args(self, builder, args, current_dir):
         """
@@ -462,7 +490,7 @@ class PackageCommand(Command):
                                                              self.required_tag))
         return result_list
 
-    def build_labels(self, checkouts):
+    def build_these_labels(self, checkouts):
         """
         Do whatever is necessary to each label
         """
@@ -491,11 +519,13 @@ class DeploymentCommand(Command):
         # XXX TODO
         # and if that leaves us with no labels at all, we must give up
 
-        if (self.no_op()):
+        if self.no_op():
             print 'Asked to %s: %s'%(self.cmd_name, label_list_to_string(packages))
             return
+        else if not args:
+            print '%s %s'%(self.cmd_name, label_list_to_string(checkouts))
 
-        self.build_labels(packages)
+        self.build_these_labels(packages)
 
     def decode_args(self, builder, args, current_dir):
         """
@@ -587,7 +617,7 @@ class DeploymentCommand(Command):
                 return_list.append(d)
         return return_list
 
-    def build_labels(self, deployments):
+    def build_these_labels(self, deployments):
         """
         Do whatever is necessary to each label
         """
@@ -596,7 +626,7 @@ class DeploymentCommand(Command):
 @command('checkout2', CAT_CHECKOUT)
 class Checkout2(CheckoutCommand):
 
-    def build_labels(self, checkouts):
+    def build_these_labels(self, checkouts):
         for co in checkouts:
             print 'Pretending to build label %s'%co
             #builder.build_label(co)
@@ -604,7 +634,7 @@ class Checkout2(CheckoutCommand):
 @command('build2', CAT_PACKAGE)
 class Build2(PackageCommand):
 
-    def build_labels(self, packages):
+    def build_these_labels(self, packages):
         for pkg in packages:
             print 'Pretending to build label %s'%pkg
             #builder.build_label(pkg)
@@ -612,7 +642,7 @@ class Build2(PackageCommand):
 @command('deploy2', CAT_DEPLOYMENT)
 class Build2(DeploymentCommand):
 
-    def build_labels(self, deployments):
+    def build_these_labels(self, deployments):
         for dep in deployments:
             print 'Pretending to build label %s'%dep
             #builder.build_label(pkg)
@@ -3326,8 +3356,8 @@ class Test(Command):
 # =============================================================================
 # Checkout, package and deployment commands in the old implementation
 # =============================================================================
-@command('redeploy', CAT_DEPLOYMENT)
-class Redeploy(Command):
+@command('redeploy.old', CAT_DEPLOYMENT)
+class OldRedeploy(Command):
     """
     :Syntax: redeploy <deployment> [<deployment> ... ]
 
@@ -3355,8 +3385,8 @@ class Redeploy(Command):
                        LabelTag.Deployed)
         build_labels(builder, labels)
 
-@command('cleandeploy', CAT_DEPLOYMENT)
-class Cleandeploy(Command):
+@command('cleandeploy.old', CAT_DEPLOYMENT)
+class OldCleandeploy(Command):
     """
     :Syntax: cleandeploy <deployment> [<deployment> ... ]
 
@@ -3384,8 +3414,8 @@ class Cleandeploy(Command):
 
         build_a_kill_b(builder, labels, LabelTag.Clean, LabelTag.Deployed)
 
-@command('deploy', CAT_DEPLOYMENT)
-class Deploy(Command):
+@command('deploy.old', CAT_DEPLOYMENT)
+class OldDeploy(Command):
     """
     :Syntax: deploy <deployment> [<deployment> ... ]
 
@@ -3407,8 +3437,8 @@ class Deploy(Command):
 
         build_labels(builder, labels)
 
-@command('configure', CAT_PACKAGE)
-class Configure(Command):
+@command('configure.old', CAT_PACKAGE)
+class OldConfigure(Command):
     """
     :Syntax: configure [ <package>{<role>} ... ]
 
@@ -3432,8 +3462,8 @@ class Configure(Command):
                                       LabelTag.Configured)
         build_labels(builder, labels)
 
-@command('reconfigure', CAT_PACKAGE)
-class Reconfigure(Command):
+@command('reconfigure.old', CAT_PACKAGE)
+class OldReconfigure(Command):
     """
     :Syntax: reconfigure [ <package>{<role>} ... ]
 
@@ -3459,8 +3489,8 @@ class Reconfigure(Command):
         kill_labels(builder, to_kill)
         build_labels(builder, labels)
 
-@command('build', CAT_PACKAGE)
-class Build(Command):
+@command('build.old', CAT_PACKAGE)
+class OldBuild(Command):
     """
     :Syntax: build [ <package>{<role>} ... ]
     
@@ -3492,8 +3522,8 @@ class Build(Command):
 
         build_labels(builder, labels)
 
-@command('rebuild', CAT_PACKAGE)
-class Rebuild(Command):
+@command('rebuild.old', CAT_PACKAGE)
+class OldRebuild(Command):
     """
     :Syntax: rebuild [ <package>{<role>} ... ]
 
@@ -3519,8 +3549,8 @@ class Rebuild(Command):
         kill_labels(builder, to_kill)
         build_labels(builder, labels)
 
-@command('reinstall', CAT_PACKAGE)
-class Reinstall(Command):
+@command('reinstall.old', CAT_PACKAGE)
+class OldReinstall(Command):
     """
     :Syntax: reinstall [ <package>{<role>} ... ]
 
@@ -3545,8 +3575,8 @@ class Reinstall(Command):
         kill_labels(builder, to_kill)
         build_labels(builder, labels)
 
-@command('distrebuild', CAT_PACKAGE)
-class Distrebuild(Command):
+@command('distrebuild.old', CAT_PACKAGE)
+class OldDistrebuild(Command):
     """
     :Syntax: distrebuild [ <package>{<role>} ... ]
 
@@ -3568,8 +3598,8 @@ class Distrebuild(Command):
                        LabelTag.PreConfig)
         build_labels(builder, labels)
 
-@command('clean', CAT_PACKAGE)
-class Clean(Command):
+@command('clean.old', CAT_PACKAGE)
+class OldClean(Command):
     """
     :Syntax: clean [ <package>{<role>} ... ]
     
@@ -3591,8 +3621,8 @@ class Clean(Command):
 
         build_a_kill_b(builder, labels, LabelTag.Clean, LabelTag.Built)
 
-@command('distclean', CAT_PACKAGE)
-class DistClean(Command):
+@command('distclean.old', CAT_PACKAGE)
+class OldDistClean(Command):
     """
     :Syntax: distclean [ <package>{<role>} ... ]
 
@@ -3613,8 +3643,8 @@ class DistClean(Command):
 
         build_a_kill_b(builder, labels, LabelTag.DistClean, LabelTag.PreConfig)
 
-@command('commit', CAT_PACKAGE)
-class Commit(Command):
+@command('commit.old', CAT_PACKAGE)
+class OldCommit(Command):
     """
     :Syntax: commit <checkout> [ <checkout> ... ]
 
@@ -3652,8 +3682,8 @@ class Commit(Command):
             builder.kill_label(co)
             builder.build_label(co)
 
-@command('push', CAT_CHECKOUT)
-class Push(Command):
+@command('push.old', CAT_CHECKOUT)
+class OldPush(Command):
     """
     :Syntax: push [-s[top]] <checkout> [ <checkout> ... ]
 
@@ -3715,8 +3745,8 @@ class Push(Command):
                 print str(e).rstrip()
                 print
 
-@command('pull', CAT_CHECKOUT, ['fetch', 'update'])   # we want to settle on one command
-class Pull(Command):
+@command('pull.old', CAT_CHECKOUT, ['fetch.old', 'update.old'])   # we want to settle on one command
+class OldPull(Command):
     """
     :Syntax: pull [-s[top]] <checkout> [ <checkout> ... ]
 
@@ -3795,8 +3825,8 @@ class Pull(Command):
                 print str(e).rstrip()
                 print
 
-@command('merge', CAT_CHECKOUT)
-class Merge(Command):
+@command('merge.old', CAT_CHECKOUT)
+class OldMerge(Command):
     """
     :Syntax: merge [-s[top]] <checkout> [ <checkout> ... ]
 
@@ -3861,8 +3891,8 @@ class Merge(Command):
                 print str(e).rstrip()
                 print
 
-@command('status', CAT_CHECKOUT)
-class Status(Command):
+@command('status.old', CAT_CHECKOUT)
+class OldStatus(Command):
     """
     :Syntax: status [-v] <checkout> [ <checkout> ... ]
 
@@ -3927,8 +3957,8 @@ class Status(Command):
         if not something_needs_doing:
             print 'All checkouts seemed clean'
 
-@command('reparent', CAT_CHECKOUT)
-class Reparent(Command):
+@command('reparent.old', CAT_CHECKOUT)
+class OldReparent(Command):
     """
     :Syntax: reparent [-f[orce]] <checkout> [ <checkout> ... ]
 
@@ -3990,8 +4020,8 @@ class Reparent(Command):
                 continue
             vcs.reparent(force=force, verbose=True)
 
-@command('removed', CAT_CHECKOUT)
-class Removed(Command):
+@command('removed.old', CAT_CHECKOUT)
+class OldRemoved(Command):
     """
     :Syntax: removed <checkout> [ <checkout> ... ]
 
@@ -4019,8 +4049,8 @@ class Removed(Command):
         for c in checkouts:
             builder.kill_label(c)
 
-@command('unimport', CAT_CHECKOUT)
-class Unimport(Command):
+@command('unimport.old', CAT_CHECKOUT)
+class OldUnimport(Command):
     """
     :Syntax: unimport <checkout> [ <checkout> ... ]
 
@@ -4048,8 +4078,8 @@ class Unimport(Command):
         for c in checkouts:
             builder.invocation.db.clear_tag(c)
 
-@command('import', CAT_CHECKOUT)
-class Import(Command):
+@command('import.old', CAT_CHECKOUT)
+class OldImport(Command):
     """
     :Syntax: import <checkout> [ <checkout> ... ]
 
@@ -4089,10 +4119,10 @@ class Import(Command):
         rep = g_command_dict['reparent']() # should be Reparent but go via the dict just in case
         rep.set_options(self.options)
         rep.set_old_env(self.old_env)
-        rep.with_build_tree(builder, current_dir, args, where)
+        rep.with_build_tree(builder, current_dir, args)
 
-@command('changed', CAT_PACKAGE)
-class Changed(Command):
+@command('changed.old', CAT_PACKAGE)
+class OldChanged(Command):
     """
     :Syntax: changed <package> [ <package> ... ]
 
@@ -4121,8 +4151,8 @@ class Changed(Command):
         for l in labels:
             builder.kill_label(l)
 
-@command('uncheckout', CAT_CHECKOUT)
-class UnCheckout(Command):
+@command('uncheckout.old', CAT_CHECKOUT)
+class OldUnCheckout(Command):
     """
     :Syntax: uncheckout <checkout> [ <checkout> ... ]
 
@@ -4159,8 +4189,8 @@ class UnCheckout(Command):
         for co in checkouts:
             builder.kill_label(co)
 
-@command('checkout', CAT_CHECKOUT)
-class Checkout(Command):
+@command('checkout.old', CAT_CHECKOUT)
+class OldCheckout(Command):
     """
     :Syntax: checkout <checkout> [ <checkout> ... ]
 
@@ -4185,6 +4215,665 @@ class Checkout(Command):
             return
 
         for co in checkouts:
+            builder.build_label(co)
+
+
+# =============================================================================
+# Checkout, package and deployment commands in the new implementation
+# =============================================================================
+@command('redeploy', CAT_DEPLOYMENT)
+class Redeploy(DeploymentCommand):
+    """
+    :Syntax: redeploy <deployment> [<deployment> ... ]
+
+    Remove all tags for the given deployments, erase their built directories
+    and redeploy them.
+
+    You can use cleandeploy to just clean the relevant deployments.
+
+    If no deployments are given, we redeploy the default deployment list.
+    If _all is given, we redeploy all deployments.
+    """
+
+    def build_these_labels(self, labels):
+        build_a_kill_b(builder, labels, LabelTag.Clean,
+                       LabelTag.Deployed)
+        build_labels(builder, labels)
+
+@command('cleandeploy', CAT_DEPLOYMENT)
+class Cleandeploy(DeploymentCommand):
+    """
+    :Syntax: cleandeploy <deployment> [<deployment> ... ]
+
+    Remove all tags for the given deployments and erase their built
+    directories.
+
+    You can use cleandeploy to just clean the relevant deployments.
+
+    If no deployments are given, we redeploy the default deployment list.
+    If _all is given, we redeploy all deployments.
+    """
+
+    # XXX Is this really correct?
+    reuired_tag = LabelTag.Clean
+
+    def build_these_labels(self, labels):
+        build_a_kill_b(builder, labels, LabelTag.Clean, LabelTag.Deployed)
+
+@command('deploy', CAT_DEPLOYMENT)
+class Deploy(DeploymentCommand):
+    """
+    :Syntax: deploy <deployment> [<deployment> ... ]
+
+    Build appropriate tags for deploying the given deployments.
+
+    If no deployments are given we will use the default deployment list.
+    If _all is given, we'll use all deployments.
+    """
+
+    def build_these_labels(self, labels):
+        build_labels(builder, labels)
+
+@command('configure', CAT_PACKAGE)
+class Configure(PackageCommand):
+    """
+    :Syntax: configure [ <package>{<role>} ... ]
+
+    Configure a package. If the package name isn't given, we'll use the
+    list of local packages derived from your current directory.
+
+    If you're in a checkout directory, we'll configure every package
+    which uses that checkout.
+
+    _all is a special package meaning configure everything.
+
+    You can specify all packages that depend on a particular checkout
+    with "checkout:name".
+    """
+
+    # XXX Is this really correct?
+    required_tag = LabelTag.Configured
+
+    def build_these_labels(self, labels):
+        build_labels(builder, labels)
+
+@command('reconfigure', CAT_PACKAGE)
+class Reconfigure(PackageCommand):
+    """
+    :Syntax: reconfigure [ <package>{<role>} ... ]
+
+    Just like configure except that we clear any configured/built tags first
+    (and their dependencies).
+    """
+
+    # XXX Is this really correct?
+    required_tag = LabelTag.Configured
+
+    def build_these_labels(self, labels):
+        # OK. Now we have our labels, retag them, and kill them and their
+        # consequents
+        to_kill = depend.retag_label_list(labels, LabelTag.Configured)
+        kill_labels(builder, to_kill)
+        build_labels(builder, labels)
+
+@command('build', CAT_PACKAGE)
+class Build(PackageCommand):
+    """
+    :Syntax: build [ <package>{<role>} ... ]
+
+    Build a package. If the package name isn't given, we'll use the
+    list of local packages derived from your current directory.
+
+    Unqualified or inferred package names are built in every default
+    role (there's a list in the build description).
+
+    If you're in a checkout directory, we'll build every package
+    which uses that checkout.
+
+    _all is a special package meaning build everything.
+
+    You can specify all packages that depend on a particular checkout
+    with "checkout:name".
+    """
+
+    def build_these_labels(self, labels):
+        build_labels(builder, labels)
+
+@command('rebuild', CAT_PACKAGE)
+class Rebuild(PackageCommand):
+    """
+    :Syntax: rebuild [ <package>{<role>} ... ]
+
+    Just like build except that we clear any built tags first 
+    (and their dependencies).
+    """
+
+    def build_these_labels(self, labels):
+        # OK. Now we have our labels, retag them, and kill them and their
+        # consequents
+        to_kill = depend.retag_label_list(labels, LabelTag.Built)
+        kill_labels(builder, to_kill)
+        build_labels(builder, labels)
+
+@command('reinstall', CAT_PACKAGE)
+class Reinstall(PackageCommand):
+    """
+    :Syntax: reinstall [ <package>{<role>} ... ]
+
+    Reinstall the given packages (but don't rebuild them).
+    """
+
+    def build_these_labels(self, labels):
+        # OK. Now we have our labels, retag them, and kill them and their
+        # consequents
+        to_kill = depend.retag_label_list(labels, LabelTag.Installed)
+        kill_labels(builder, to_kill)
+        build_labels(builder, labels)
+
+@command('distrebuild', CAT_PACKAGE)
+class Distrebuild(PackageCommand):
+    """
+    :Syntax: distrebuild [ <package>{<role>} ... ]
+
+    A rebuild that does a distclean before attempting the rebuild.
+    """
+
+    def build_these_labels(self, labels):
+        build_a_kill_b(builder, labels, LabelTag.DistClean, LabelTag.PreConfig)
+        build_labels(builder, labels)
+
+@command('clean', CAT_PACKAGE)
+class Clean(PackageCommand):
+    """
+    :Syntax: clean [ <package>{<role>} ... ]
+
+    Just like build except that we clean packages rather than
+    building them. Subsequently, packages are regarded as having
+    been configured but not build.
+    """
+
+    # XXX Is this correct?
+    required_tag = LabelTag.Built
+
+    def build_these_labels(self, labels):
+        build_a_kill_b(builder, labels, LabelTag.Clean, LabelTag.Built)
+
+@command('distclean', CAT_PACKAGE)
+class DistClean(PackageCommand):
+    """
+    :Syntax: distclean [ <package>{<role>} ... ]
+
+    Just like clean except that we reduce packages to non-preconfigured
+    and invoke 'make distclean'.
+    """
+
+    # XXX Is this correct?
+    required_tag = LabelTag.Built
+
+    def build_these_labels(self, labels):
+        build_a_kill_b(builder, labels, LabelTag.DistClean, LabelTag.PreConfig)
+
+@command('commit', CAT_CHECKOUT)
+class Commit(CheckoutCommand):
+    """
+    :Syntax: commit <checkout> [ <checkout> ... ]
+
+    Commit the specified checkouts to their local repositories.
+
+    For a centralised VCS (e.g., Subversion) where the repository is remote,
+    this will not do anything. See the update command.
+
+    If no checkouts are given, we'll use those implied by your current
+    location.
+
+    Each <checkout> should be the name of a checkout, and muddle will obey
+    the rule associated with "checkout:<checkout>{}/changes_committed" for each.
+
+    The special <checkout> name _all means all checkouts.
+
+    Without a <checkout>, we use the checkout you're in, or the checkouts
+    below the current directory.
+    """
+
+    # XXX Is this correct?
+    required_tag = LabelTag.ChangesCommitted
+
+    def build_these_labels(self, labels, switches):
+        # Forcibly retract all the updated tags.
+        for co in labels:
+            builder.kill_label(co)
+            builder.build_label(co)
+
+@command('push', CAT_CHECKOUT)
+class Push(CheckoutCommand):
+    """
+    :Syntax: push [-s[top]] <checkout> [ <checkout> ... ]
+
+    Push the specified checkouts to their remote repositories.
+
+    This updates the content of the remote repositories to match the local
+    checkout.
+
+    If no checkouts are given, we'll use those implied by your current
+    location.
+
+    Each <checkout> should be the name of a checkout, and muddle will obey
+    the rule associated with "checkout:<checkout>{}/changes_pushed" for each.
+
+    The special <checkout> name _all means all checkouts.
+
+    Without a <checkout>, we use the checkout you're in, or the checkouts
+    below the current directory.
+
+    If '-s' or '-stop' is given, then we'll stop at the first problem,
+    otherwise an attempt will be made to process all the checkouts, and any
+    problems will be re-reported at the end.
+    """
+
+    required_tag = LabelTag.ChangesPushed
+    allowed_switches = [('-s', '-stop')]
+
+    def build_these_labels(self, labels, switches):
+
+        if switches and '-s' in switches:
+            stop_on_problem = True
+        else:
+            stop_on_problem = False
+
+        problems = []
+
+        for co in labels:
+            try:
+                builder.invocation.db.clear_tag(co)
+                builder.build_label(co)
+            except GiveUp as e:
+                if stop_on_problem:
+                    raise
+                else:
+                    print e
+                    problems.append(e)
+
+        if problems:
+            print '\nThe following problems occurred:\n'
+            for e in problems:
+                print str(e).rstrip()
+                print
+
+@command('pull', CAT_CHECKOUT, ['fetch', 'update'])   # we want to settle on one command
+class Pull(CheckoutCommand):
+    """
+    :Syntax: pull [-s[top]] <checkout> [ <checkout> ... ]
+
+    Pull the specified checkouts from their remote repositories. Any problems
+    will be (re)reported at the end.
+
+    For each checkout named, retrieve changes from the corresponding remote
+    repository (as described by the build description) and apply them (to
+    the checkout), but *not* if a merge would be required.
+
+        (For a VCS such as git, this actually means "not if a user-assisted
+        merge would be required - i.e., fast-forwards will be done.)
+
+    If no checkouts are given, we'll use those implied by your current
+    location.
+
+    Each <checkout> should be the name of a checkout, and muddle will obey
+    the rule associated with "checkout:<checkout>{}/fetched" for each.
+
+    The special <checkout> name _all means all checkouts.
+
+    Without a <checkout>, we use the checkout you're in, or the checkouts
+    below the current directory.
+
+    Normally, 'muddle pull' will attempt to pull all the chosen checkouts,
+    re-reporting any problems at the end. If '-s' or '-stop' is given, then
+    it will instead stop at the first problem.
+    """
+
+    required_tag = LabelTag.Fetched
+    allowed_switches = [('-s', '-stop')]
+
+    def build_these_labels(self, checkouts, switches):
+
+        if switches and '-s' in switches:
+            stop_on_problem = True
+        else:
+            stop_on_problem = False
+
+        problems = []
+        not_needed  = []
+
+        for co in labels:
+            try:
+                # First clear the 'fetched' tag
+                builder.invocation.db.clear_tag(co)
+                # And then build it again
+                builder.build_label(co)
+            except Unsupported as e:
+                print e
+                not_needed.append(e)
+            except GiveUp as e:
+                if stop_on_problem:
+                    raise
+                else:
+                    print e
+                    problems.append(e)
+
+        if not_needed:
+            print '\nThe following pulls were not needed:\n'
+            for e in problems:
+                print str(e).rstrip()
+                print
+
+        if problems:
+            print '\nThe following problems occurred:\n'
+            for e in problems:
+                print str(e).rstrip()
+                print
+
+@command('merge', CAT_CHECKOUT)
+class Merge(CheckoutCommand):
+    """
+    :Syntax: merge [-s[top]] <checkout> [ <checkout> ... ]
+
+    Merge the specified checkouts from their remote repositories.
+
+    For each checkout named, retrieve changes from the corresponding remote
+    repository (as described by the build description) and merge them (into
+    the checkout). The merge process is handled in a VCS specific manner,
+    as each checkout is dealt with.
+
+    If no checkouts are given, we'll use those implied by your current
+    location.
+
+    Each <checkout> should be the name of a checkout, and muddle will obey
+    the rule associated with "checkout:<checkout>{}/merged" for each.
+
+    The special <checkout> name _all means all checkouts.
+
+    Without a <checkout>, we use the checkout you're in, or the checkouts
+    below the current directory.
+
+    If '-s' or '-stop' is given, then we'll stop at the first problem,
+    otherwise an attempt will be made to process all the checkouts, and any
+    problems will be re-reported at the end.
+    """
+
+    required_tag = LabelTag.Merged
+    allowed_switches = [('-s', '-stop')]
+
+    def build_these_labels(self, labels, switches):
+
+        if switches and '-s' in switches:
+            stop_on_problem = True
+        else:
+            stop_on_problem = False
+
+        problems = []
+
+        for co in labels:
+            try:
+                # First clear the 'merged' tag
+                builder.invocation.db.clear_tag(co)
+                # And then build it again
+                builder.build_label(co)
+            except GiveUp as e:
+                if stop_on_problem:
+                    raise
+                else:
+                    print e
+                    problems.append(e)
+        if problems:
+            print '\nThe following problems occurred:\n'
+            for e in problems:
+                print str(e).rstrip()
+                print
+
+@command('status', CAT_CHECKOUT)
+class Status(CheckoutCommand):
+    """
+    :Syntax: status [-v] <checkout> [ <checkout> ... ]
+
+    Report on the status of checkouts that need attention.
+
+    If '-v' is given, report each checkout label as it is checked (allowing
+    a sense of progress if there are many bazaar checkouts, for instance).
+
+    Runs the equivalent of ``git status`` or ``bzr status`` on each repository,
+    and tries to only report those which have significant status.
+
+    If no checkouts are given, we'll use those implied by your current
+    location.
+
+    Each <checkout> should be the name of a checkout.
+
+    The special <checkout> name _all means all checkouts.
+
+    Without a <checkout>, we use the checkout you're in, or the checkouts
+    below the current directory.
+
+        Note: For subversion, the (remote) repository is queried,
+        which may be slow.
+
+    Be aware that "muddle status" will report on the currently checked out
+    checkouts. "muddle status _all" will (attempt to) report on *all* the
+    checkouts described by the build, even if they have not yet been checked
+    out. This will fail on the first checkout directory it can't "cd" into
+    (i.e., the first checkout that isn't there yet).
+    """
+
+    required_tag = LabelTag.Fetched
+    allowed_switches = [('-v',)]        # Remember, a list of *tuples*
+
+    def build_these_labels(self, labels, switches):
+
+        if switches and '-v' in switches:
+            verbose = True
+        else:
+            verbose = False
+
+        something_needs_doing = False
+        for co in labels:
+            rule = builder.invocation.ruleset.rule_for_target(co)
+            try:
+                vcs = rule.obj.vcs
+            except AttributeError:
+                print "Rule for label '%s' has no VCS - cannot find its status"%co
+                continue
+            text = vcs.status(verbose)
+            if text:
+                print text
+                something_needs_doing = True
+        if not something_needs_doing:
+            print 'All checkouts seemed clean'
+
+@command('reparent', CAT_CHECKOUT)
+class Reparent(CheckoutCommand):
+    """
+    :Syntax: reparent [-f[orce]] <checkout> [ <checkout> ... ]
+
+    Re-associate the specified checkouts with their remote repositories.
+
+    Some distributed VCSs (notably, Bazaar) can "forget" the remote repository
+    for a checkout. In Bazaar, this typically means not remembering the
+    "parent" repository, and thus not being able to pull. It appears to be
+    possible to end up in this situation if network disconnection happens in an
+    inopportune manner.
+
+    This command attempts to reassociate each checkout to the remote repository
+    as named in the muddle build description. If '-force' is given, then this
+    will be done even if the remote repository is already known, otherwise it
+    will only be done if it is necessary.
+
+        For Bazaar: Reads and (maybe) edits .bzr/branch/branch.conf.
+
+        * If "parent_branch" is unset, sets it.
+        * With '-force', sets "parent_branch" regardless, and also unsets
+          "push_branch".
+
+    If no checkouts are given, we'll use those implied by your current
+    location.
+
+    Each <checkout> should be the name of a checkout.
+
+    The special <checkout> name _all means all checkouts.
+
+    Without a <checkout>, we use the checkout you're in, or the checkouts
+    below the current directory.
+    """
+
+    required_tag = LabelTag.Fetched
+    allowed_switches = [('-f', '-force')]
+
+    def build_these_labels(self, labels, switches):
+
+        if switches and '-f' in switches:
+            force = True
+        else:
+            force = False
+
+        for co in labels:
+            rule = builder.invocation.ruleset.rule_for_target(co)
+            try:
+                vcs = rule.obj.vcs
+            except AttributeError:
+                print "Rule for label '%s' has no VCS - cannot reparent, ignored"%co
+                continue
+            vcs.reparent(force=force, verbose=True)
+
+@command('removed', CAT_CHECKOUT)
+class Removed(CheckoutCommand):
+    """
+    :Syntax: removed <checkout> [ <checkout> ... ]
+
+    Signal to muddle that the given checkouts have been removed and will
+    need to be checked out again before they can be used.
+
+    The special <checkout> name _all means all checkouts.
+
+    Without a <checkout>, we use the checkout you're in, or the checkouts
+    below the current directory.
+    """
+
+    def build_these_labels(self, labels, switches):
+        for c in labels:
+            builder.kill_label(c)
+
+@command('unimport', CAT_CHECKOUT)
+class Unimport(CheckoutCommand):
+    """
+    :Syntax: unimport <checkout> [ <checkout> ... ]
+
+    Assert that the given checkouts haven't been checked out and must therefore
+    be checked out.
+
+    The special <checkout> name _all means all checkouts.
+
+    Without a <checkout>, we use the checkout you're in, or the checkouts
+    below the current directory.
+    """
+
+    def build_these_labels(self, labels, switches):
+        for c in labels:
+            builder.invocation.db.clear_tag(c)
+
+@command('import', CAT_CHECKOUT)
+class Import(CheckoutCommand):
+    """
+    :Syntax: import <checkout> [ <checkout> ... ]
+
+    Assert that the given checkout (which may be the builds checkout) has
+    been checked out. This is mainly used when you've just written a package
+    you plan to commit to the central repository - muddle obviously can't check
+    it out because the repository doesn't exist yet, but you probably want to
+    add it to the build description for testing (and in fact you may want to
+    commit it with muddle push). For convenience in the expected use case, it
+    goes on to prime the relevant VCS module (by way of 'muddle reparent') so
+    it can be pushed once ready; this should be at worst harmless in all cases.
+
+    This command is really just an wrapper to 'muddle assert' with the right
+    magic label names, and to 'muddle reparent'.
+
+    The special <checkout> name _all means all checkouts.
+
+    Without a <checkout>, we use the checkout you're in, or the checkouts
+    below the current directory.
+    """
+
+    def build_these_labels(self, labels, switches):
+        for c in labels:
+            builder.invocation.db.set_tag(c)
+        # issue 143: Call reparent so the VCS is locked and loaded.
+        rep = g_command_dict['reparent']() # should be Reparent but go via the dict just in case
+        rep.set_options(self.options)
+        rep.set_old_env(self.old_env)
+        rep.with_build_tree(builder, current_dir, args)
+
+@command('changed', CAT_PACKAGE)
+class Changed(PackageCommand):
+    """
+    :Syntax: changed <package> [ <package> ... ]
+
+    Mark packages as having been changed so that they will later
+    be rebuilt by anything that needs to. The usual package name
+    guessing logic is used to guess the names of your packages if
+    you don't provide them.
+
+    Note that we don't reconfigure (or indeed clean) packages -
+    we just clear the tags asserting that they've been built.
+
+    You can specify all packages that depend on a particular checkout
+    with "checkout:name".
+    """
+
+    required_tag = LabelTag.Built
+
+    def build_these_labels(self, labels):
+        for l in labels:
+            builder.kill_label(l)
+
+@command('uncheckout', CAT_CHECKOUT)
+class UnCheckout(CheckoutCommand):
+    """
+    :Syntax: uncheckout <checkout> [ <checkout> ... ]
+
+    Tells muddle that the given checkouts no longer exist in the src directory
+    and should be checked out/cloned from version control again.
+
+    The special <checkout> name _all means all checkouts.
+
+    If no <checkouts> are given, we'll use those implied by your current
+    location.
+
+    This does not actually delete the checkout directory. If you try to do::
+
+        muddle unckeckout fred
+        muddle checkout   fred
+
+    then you will probably get an error, as the checkout still exists, and the
+    VCS will detect this. As it says, this is to tell muddle that the checkout
+    has already been removed.
+    """
+
+    def build_these_labels(self, labels, switches):
+        for co in labels:
+            builder.kill_label(co)
+
+@command('checkout', CAT_CHECKOUT)
+class Checkout(CheckoutCommand):
+    """
+    :Syntax: checkout <checkout> [ <checkout> ... ]
+
+    Checks out the given series of checkouts.
+
+    That is, copies (clones/branches) the content of each checkout from its
+    remote repository.
+
+    'checkout _all' means checkout all checkouts.
+    """
+
+    def build_these_labels(self, labels, switches):
+        for co in labels:
             builder.build_label(co)
 
 # -----------------------------------------------------------------------------

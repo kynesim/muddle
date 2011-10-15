@@ -39,7 +39,8 @@ import textwrap
 import pydoc
 from db import InstructionFile
 from urlparse import urlparse
-from utils import VersionStamp, GiveUp, MuddleBug, Unsupported, DirType
+from utils import VersionStamp, GiveUp, MuddleBug, Unsupported, \
+        DirType, LabelTag
 
 # Following Richard's naming conventions...
 # A dictionary of <command name> : <command class>
@@ -205,7 +206,7 @@ class CheckoutCommand(Command):
     """
 
     # Subclasses may override this if necessary
-    required_tag = utils.LabelTag.CheckedOut
+    required_tag = LabelTag.CheckedOut
 
     def with_build_tree(self, builder, current_dir, args):
         if args:
@@ -336,6 +337,106 @@ class CheckoutCommand(Command):
         """
         raise MuddleBug('No action provided for command "%s"'%self.cmd_name)
 
+class PackageCommand(Command):
+    """
+    A Command that takes package arguments. Always requires a build tree.
+    """
+
+    # Subclasses may override this if necessary
+    required_tag = LabelTag.PostInstalled
+
+    def with_build_tree(self, builder, current_dir, args):
+        if args:
+            # Expand out any labels that need it
+            packages = self.decode_args(builder, args, current_dir)
+        else:
+            # Decide what to do based on where we are
+            packages = self.default_args(builder, current_dir)
+
+        # We promised a sorted list
+        packages.sort()
+
+        # Grumble about any labels that don't exist
+        # XXX TODO
+        # and if that leaves us with no labels at all, we must give up
+
+        if (self.no_op()):
+            print 'Asked to %s: %s'%(self.cmd_name, label_list_to_string(packages))
+            return
+
+        self.build_labels(packages)
+
+    def decode_args(self, builder, args, current_dir):
+        """
+        Interpret the 'args' as partial labels, and return a list of packages.
+        """
+        return []
+
+    def default_args(self, builder, current_dir):
+        """
+        Decide on default labels, based on where we are in the build tree.
+        """
+        what, label, domain = builder.find_location_in_tree(current_dir)
+        result_list = []
+
+        return result_list
+
+    def build_labels(self, checkouts):
+        """
+        Do whatever is necessary to each label
+        """
+        raise MuddleBug('No action provided for command "%s"'%self.cmd_name)
+
+class DeploymentCommand(Command):
+    """
+    A Command that takes deployment arguments. Always requires a build tree.
+    """
+
+    # Subclasses may override this if necessary
+    required_tag = LabelTag.Deployed
+
+    def with_build_tree(self, builder, current_dir, args):
+        if args:
+            # Expand out any labels that need it
+            packages = self.decode_args(builder, args, current_dir)
+        else:
+            # Decide what to do based on where we are
+            packages = self.default_args(builder, current_dir)
+
+        # We promised a sorted list
+        packages.sort()
+
+        # Grumble about any labels that don't exist
+        # XXX TODO
+        # and if that leaves us with no labels at all, we must give up
+
+        if (self.no_op()):
+            print 'Asked to %s: %s'%(self.cmd_name, label_list_to_string(packages))
+            return
+
+        self.build_labels(packages)
+
+    def decode_args(self, builder, args, current_dir):
+        """
+        Interpret the 'args' as partial labels, and return a list of deployments.
+        """
+        return []
+
+    def default_args(self, builder, current_dir):
+        """
+        Decide on default labels, based on where we are in the build tree.
+        """
+        what, label, domain = builder.find_location_in_tree(current_dir)
+        result_list = []
+
+        return result_list
+
+    def build_labels(self, deployments):
+        """
+        Do whatever is necessary to each label
+        """
+        raise MuddleBug('No action provided for command "%s"'%self.cmd_name)
+
 @command('checkout2', CAT_CHECKOUT)
 class Checkout2(CheckoutCommand):
 
@@ -343,6 +444,22 @@ class Checkout2(CheckoutCommand):
         for co in checkouts:
             print 'Pretending to build label %s'%co
             #builder.build_label(co)
+
+@command('build2', CAT_PACKAGE)
+class Build2(CheckoutCommand):
+
+    def build_labels(self, packages):
+        for pkg in packages:
+            print 'Pretending to build label %s'%pkg
+            #builder.build_label(pkg)
+
+@command('deploy2', CAT_DEPLOYMENT)
+class Build2(CheckoutCommand):
+
+    def build_labels(self, deployments):
+        for dep in deployments:
+            print 'Pretending to build label %s'%dep
+            #builder.build_label(pkg)
 
 # =============================================================================
 # Actual commands
@@ -1490,7 +1607,7 @@ class QueryUnused(QueryCommand):
         def all_deployables(builder):
             search_label = Label(utils.LabelType.Deployment,
                                  "*", "*",
-                                 utils.LabelTag.Deployed,
+                                 LabelTag.Deployed,
                                  domain="*")
             all_rules = builder.invocation.ruleset.rules_for_target(search_label)
             deployables = set()
@@ -1551,9 +1668,9 @@ class QueryUnused(QueryCommand):
                 num_transient += 1
             elif not l.is_definite():
                 wildcarded.add(l)
-            elif l.tag == utils.LabelTag.Fetched:
+            elif l.tag == LabelTag.Fetched:
                 fetched.add(l)
-            elif l.tag == utils.LabelTag.Merged:
+            elif l.tag == LabelTag.Merged:
                 merged.add(l)
             else:
                 missing.add(l)
@@ -1780,14 +1897,14 @@ class Redeploy(Command):
 
     def with_build_tree(self, builder, current_dir, args):
         labels = decode_deployment_arguments(builder, args, current_dir,
-                                             utils.LabelTag.Deployed)
+                                             LabelTag.Deployed)
 
         if self.no_op():
             print 'Redeploy:', label_list_to_string(labels)
             return
 
-        build_a_kill_b(builder, labels, utils.LabelTag.Clean,
-                       utils.LabelTag.Deployed)
+        build_a_kill_b(builder, labels, LabelTag.Clean,
+                       LabelTag.Deployed)
         build_labels(builder, labels)
 
 @command('cleandeploy', CAT_DEPLOYMENT)
@@ -1809,7 +1926,7 @@ class Cleandeploy(Command):
 
     def with_build_tree(self, builder, current_dir, args):
         labels = decode_deployment_arguments(builder, args, current_dir,
-                                             utils.LabelTag.Clean)
+                                             LabelTag.Clean)
         if (labels is None):
             raise GiveUp("No deployments specified or implied (this may well be a bug).")
 
@@ -1817,7 +1934,7 @@ class Cleandeploy(Command):
             print 'Cleandeploy:', label_list_to_string(labels)
             return
 
-        build_a_kill_b(builder, labels, utils.LabelTag.Clean, utils.LabelTag.Deployed)
+        build_a_kill_b(builder, labels, LabelTag.Clean, LabelTag.Deployed)
 
 @command('deploy', CAT_DEPLOYMENT)
 class Deploy(Command):
@@ -1835,7 +1952,7 @@ class Deploy(Command):
 
     def with_build_tree(self, builder, current_dir, args):
         labels = decode_deployment_arguments(builder, args, current_dir,
-                                             utils.LabelTag.Deployed)
+                                             LabelTag.Deployed)
         if self.no_op():
             print "Deploy: %s"%(label_list_to_string(labels))
             return
@@ -1864,7 +1981,7 @@ class Configure(Command):
 
     def with_build_tree(self, builder, current_dir, args):
         labels = decode_package_arguments(builder, args, current_dir,
-                                      utils.LabelTag.Configured)
+                                      LabelTag.Configured)
         build_labels(builder, labels)
 
 @command('reconfigure', CAT_PACKAGE)
@@ -1881,7 +1998,7 @@ class Reconfigure(Command):
 
     def with_build_tree(self, builder, current_dir, args):
         labels = decode_package_arguments(builder, args, current_dir,
-                                      utils.LabelTag.Configured)
+                                      LabelTag.Configured)
 
         if self.no_op():
             print "Reconfigure: %s"%(label_list_to_string(labels))
@@ -1890,7 +2007,7 @@ class Reconfigure(Command):
         # OK. Now we have our labels, retag them, and kill them and their
         # consequents
         to_kill = depend.retag_label_list(labels,
-                                          utils.LabelTag.Configured)
+                                          LabelTag.Configured)
         kill_labels(builder, to_kill)
         build_labels(builder, labels)
 
@@ -1919,7 +2036,7 @@ class Build(Command):
 
     def with_build_tree(self, builder, current_dir, args):
         labels = decode_package_arguments(builder, args, current_dir,
-                                      utils.LabelTag.PostInstalled)
+                                      LabelTag.PostInstalled)
 
         if self.no_op():
             print "Build: %s"%(label_list_to_string(labels))
@@ -1941,7 +2058,7 @@ class Rebuild(Command):
 
     def with_build_tree(self, builder, current_dir, args):
         labels = decode_package_arguments(builder, args, current_dir,
-                                      utils.LabelTag.PostInstalled)
+                                      LabelTag.PostInstalled)
 
         if self.no_op():
             print "Rebuild: %s"%(label_list_to_string(labels))
@@ -1950,7 +2067,7 @@ class Rebuild(Command):
         # OK. Now we have our labels, retag them, and kill them and their
         # consequents
         to_kill = depend.retag_label_list(labels, 
-                                          utils.LabelTag.Built)
+                                          LabelTag.Built)
         kill_labels(builder, to_kill)
         build_labels(builder, labels)
 
@@ -1967,7 +2084,7 @@ class Reinstall(Command):
 
     def with_build_tree(self, builder, current_dir, args):
         labels = decode_package_arguments(builder, args, current_dir,
-                                      utils.LabelTag.PostInstalled)
+                                      LabelTag.PostInstalled)
 
         if self.no_op():
             print "Reinstall: %s"%(label_list_to_string(labels))
@@ -1976,7 +2093,7 @@ class Reinstall(Command):
         # OK. Now we have our labels, retag them, and kill them and their
         # consequents
         to_kill = depend.retag_label_list(labels, 
-                                          utils.LabelTag.Installed)
+                                          LabelTag.Installed)
         kill_labels(builder, to_kill)
         build_labels(builder, labels)
 
@@ -1993,14 +2110,14 @@ class Distrebuild(Command):
 
     def with_build_tree(self, builder, current_dir, args):
         labels = decode_package_arguments(builder, args, current_dir,
-                                      utils.LabelTag.PostInstalled)
+                                      LabelTag.PostInstalled)
 
         if self.no_op():
             print "Distrebuild: %s"%(label_list_to_string(labels))
             return
 
-        build_a_kill_b(builder, labels, utils.LabelTag.DistClean,
-                       utils.LabelTag.PreConfig)
+        build_a_kill_b(builder, labels, LabelTag.DistClean,
+                       LabelTag.PreConfig)
         build_labels(builder, labels)
 
 @command('clean', CAT_PACKAGE)
@@ -2018,13 +2135,13 @@ class Clean(Command):
 
     def with_build_tree(self, builder, current_dir, args):
         labels = decode_package_arguments(builder, args, current_dir,
-                                      utils.LabelTag.Built)
+                                      LabelTag.Built)
 
         if self.no_op():
             print "Clean: %s"%(label_list_to_string(labels))
             return
 
-        build_a_kill_b(builder, labels, utils.LabelTag.Clean, utils.LabelTag.Built)
+        build_a_kill_b(builder, labels, LabelTag.Clean, LabelTag.Built)
 
 @command('distclean', CAT_PACKAGE)
 class DistClean(Command):
@@ -2040,13 +2157,13 @@ class DistClean(Command):
 
     def with_build_tree(self, builder, current_dir, args):
         labels = decode_package_arguments(builder, args, current_dir,
-                                      utils.LabelTag.Built)
+                                      LabelTag.Built)
 
         if self.no_op():
             print "Distclean: %s"%(label_list_to_string(labels))
             return
 
-        build_a_kill_b(builder, labels, utils.LabelTag.DistClean, utils.LabelTag.PreConfig)
+        build_a_kill_b(builder, labels, LabelTag.DistClean, LabelTag.PreConfig)
 
 @command('instruct', CAT_PACKAGE)
 class Instruct(Command):
@@ -2088,7 +2205,7 @@ class Instruct(Command):
         ifile = None
 
         # Validate this first
-        label = decode_single_package_label(builder, arg, utils.LabelTag.PreConfig)
+        label = decode_single_package_label(builder, arg, LabelTag.PreConfig)
 
         if label.role is None or label.role == '*':
             raise GiveUp("instruct takes precisely one package{role} pair "
@@ -2145,7 +2262,7 @@ class Commit(Command):
 
     def with_build_tree(self, builder, current_dir, args):
         checkouts = decode_checkout_arguments(builder, args, current_dir,
-                                              utils.LabelTag.ChangesCommitted)
+                                              LabelTag.ChangesCommitted)
 
         name_selected_checkouts("Commit", checkouts);
 
@@ -2193,7 +2310,7 @@ class Push(Command):
             stop_on_problem = False
 
         checkouts = decode_checkout_arguments(builder, args, current_dir,
-                                              utils.LabelTag.ChangesPushed)
+                                              LabelTag.ChangesPushed)
 
         name_selected_checkouts("Push", checkouts)
 
@@ -2262,7 +2379,7 @@ class Pull(Command):
             stop_on_problem = False
 
         checkouts = decode_checkout_arguments(builder, args, current_dir,
-                                              utils.LabelTag.Fetched)
+                                              LabelTag.Fetched)
 
         name_selected_checkouts("Fetch", checkouts)
 
@@ -2339,7 +2456,7 @@ class Merge(Command):
             stop_on_problem = False
 
         checkouts = decode_checkout_arguments(builder, args, current_dir,
-                                              utils.LabelTag.Merged)
+                                              LabelTag.Merged)
 
         name_selected_checkouts("Merge", checkouts)
 
@@ -2410,7 +2527,7 @@ class Status(Command):
             verbose = True
 
         checkouts = decode_checkout_arguments(builder, args, current_dir,
-                                              utils.LabelTag.Fetched)
+                                              LabelTag.Fetched)
 
         name_selected_checkouts("Status for", checkouts)
 
@@ -2479,7 +2596,7 @@ class Reparent(Command):
             force = False
 
         checkouts = decode_checkout_arguments(builder, args, current_dir,
-                                              utils.LabelTag.Fetched)
+                                              LabelTag.Fetched)
 
         name_selected_checkouts("Reparent", checkouts)
 
@@ -2514,7 +2631,7 @@ class Removed(Command):
 
     def with_build_tree(self, builder, current_dir, args):
         checkouts = decode_checkout_arguments(builder, args, current_dir,
-                                              utils.LabelTag.CheckedOut)
+                                              LabelTag.CheckedOut)
 
         name_selected_checkouts("Remove", checkouts)
 
@@ -2543,7 +2660,7 @@ class Unimport(Command):
 
     def with_build_tree(self, builder, current_dir, args):
         checkouts = decode_checkout_arguments(builder, args, current_dir,
-                                              utils.LabelTag.CheckedOut)
+                                              LabelTag.CheckedOut)
 
         name_selected_checkouts("Unimport", checkouts)
 
@@ -2581,7 +2698,7 @@ class Import(Command):
 
     def with_build_tree(self, builder, current_dir, args):
         checkouts = decode_checkout_arguments(builder, args, current_dir,
-                                              utils.LabelTag.CheckedOut)
+                                              LabelTag.CheckedOut)
 
         name_selected_checkouts("Import", checkouts)
 
@@ -2670,7 +2787,7 @@ class Changed(Command):
 
     def with_build_tree(self, builder, current_dir, args):
         labels = decode_package_arguments(builder, args, current_dir,
-                                      utils.LabelTag.Built)
+                                      LabelTag.Built)
         if (self.no_op()):
             print "Mark changed: %s"%(label_list_to_string(labels))
             return
@@ -2726,9 +2843,9 @@ class Env(Command):
         name = args[2]
 
         if (mode == "build"):
-            tag = utils.LabelTag.Built
+            tag = LabelTag.Built
         elif (mode == "run"):
-            tag = utils.LabelTag.RuntimeEnv
+            tag = LabelTag.RuntimeEnv
         else:
             raise GiveUp("Mode '%s' is not understood - use build or run."%mode)
 
@@ -2785,7 +2902,7 @@ class UnCheckout(Command):
 
     def with_build_tree(self, builder, current_dir, args):
         checkouts = decode_checkout_arguments(builder, args, current_dir,
-                                              utils.LabelTag.CheckedOut)
+                                              LabelTag.CheckedOut)
 
         name_selected_checkouts("Uncheckout", checkouts)
 
@@ -2813,7 +2930,7 @@ class Checkout(Command):
 
     def with_build_tree(self, builder, current_dir, args):
         checkouts = decode_checkout_arguments(builder, args, current_dir,
-                                              utils.LabelTag.CheckedOut)
+                                              LabelTag.CheckedOut)
 
         name_selected_checkouts("Checkout", checkouts)
 
@@ -3662,7 +3779,7 @@ Try 'muddle help unstamp' for more information."""
 
             # Then need to mimic "muddle checkout" for it
             label = Label(utils.LabelType.Checkout,
-                          name, None, utils.LabelTag.CheckedOut,
+                          name, None, LabelTag.CheckedOut,
                           domain=domain)
             builder.build_label(label, silent=False)
 
@@ -4057,8 +4174,7 @@ def decode_package_arguments(builder, arglist, current_dir, required_tag=None):
     """
 
     if not arglist:
-        rv = builder.find_local_package_labels(current_dir,
-                                               utils.LabelTag.PostInstalled)
+        rv = builder.find_local_package_labels(current_dir, LabelTag.PostInstalled)
         if rv:
             rv.sort()
             return rv
@@ -4137,7 +4253,7 @@ def decode_deployment_arguments(builder, args, current_dir, required_tag):
     else:
         # Can we guess what to do from where we are?
         what, label, domain = builder.find_location_in_tree(current_dir)
-        if what == DirType.Deployment:
+        if what == DirType.Deployed:
             # We're actually inside a deployment - job done
             result_list.append(label.copy_with_tag(required_tag))
         else:

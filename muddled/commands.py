@@ -40,7 +40,7 @@ import pydoc
 from db import InstructionFile
 from urlparse import urlparse
 from utils import VersionStamp, GiveUp, MuddleBug, Unsupported, \
-        DirType, LabelTag
+        DirType, LabelTag, LabelType
 
 # Following Richard's naming conventions...
 # A dictionary of <command name> : <command class>
@@ -255,9 +255,9 @@ class CheckoutCommand(Command):
 
         intermediate_set = set()
         for index, label in enumerate(initial_list):
-            if label.type == utils.LabelType.Checkout:
+            if label.type == LabelType.Checkout:
                 intermediate_set.update(self.expand_checkout_label(builder, label))
-            elif label.type == utils.LabelType.Package:
+            elif label.type == LabelType.Package:
                 intermediate_set.update(self.expand_package_label(builder, label))
             else:
                 raise GiveUp("Cannot cope with label '%s', from input arg '%s'"%(label, args[index]))
@@ -322,7 +322,7 @@ class CheckoutCommand(Command):
             # We're actually inside a checkout - job done
             result_list.append(label.copy_with_tag(self.required_tag))
         elif what in (DirType.Checkout, DirType.Root, DirType.DomainRoot):
-            # We're somewhere that we expect to have checkouts below it
+            # We're somewhere that we expect to have checkouts below
             cos_below = builder.get_all_checkout_labels_below(current_dir)
             for c in cos_below:
                 result_list.append(c.copy_with_tag(self.required_tag))
@@ -370,15 +370,96 @@ class PackageCommand(Command):
         """
         Interpret the 'args' as partial labels, and return a list of packages.
         """
+        result_set = set()
+        default_domain = builder.get_default_domain()
+
+        # Build up an initial list from the arguments given
+        # Make sure we have a one-for-one correspondence between the input
+        # list and the result
+        initial_list = []
+        for word in args:
+            if word == '_all':
+                initial_list.extend(builder.invocation.all_package_labels())
+            else:
+                label = Label.from_fragment(word,
+                                            default_type=LabelType.Package,
+                                            default_role=None,
+                                            default_domain=default_domain)
+                initial_list.append(label)
+        #print 'Initial list:', label_list_to_string(initial_list)
+
+        intermediate_set = set()
+        for index, label in enumerate(initial_list):
+            if label.type == LabelType.Package:
+                intermediate_set.update(self.expand_package_label(builder, label))
+            elif label.type == LabelType.Checkout:
+                intermediate_set.update(self.expand_checkout_label(builder, label))
+            else:
+                raise GiveUp("Cannot cope with label '%s', from input arg '%s'"%(label, args[index]))
+        #print 'Intermediate set', label_list_to_string(intermediate_set)
+
+        result_set = set()
+        for label in intermediate_set:
+            if label.is_definite():
+                result_set.add(label)
+            else:
+                result_set.update(expand_wildcards(builder, label, self.required_tag))
+
+        #print 'Result set', label_list_to_string(result_set)
+        result_list = list(result_set)
         return []
+
+    def expand_package_label(self, builder, label):
+        """Given an intermediate package label, expand it to a set of labels.
+        """
+        result_set = set()
+        default_roles = builder.invocation.default_roles
+
+        # XXX Can our required_tag be None?
+        if self.required_tag is not None and label.tag != self.required_tag:
+            label = label.copy_with_tag(self.required_tag)
+
+        if label.role:
+            result_set.add(label)
+        elif default_roles:
+            # Add the default roles
+            for r in default_roles:
+                lbl = label.copy_with_role(r)
+                result_set.add(lbl)
+        else:
+            # Just wildcard for any role
+            lbl = label.copy_with_role('*')
+            result_set.add(lbl)
+        return result_set
+
+    def expand_checkout_label(self, builder, label):
+        """Given an intermediate checkout label, expand it to a set of package labels.
+        """
+        intermediate_set = set()
+        intermediate_set.update(builder.invocation.packages_using_checkout(label))
+
+        # XXX Can our required_tag be None?
+        if self.required_tag is not None:
+            result_set = set()
+            for lbl in intermediate_set:
+                if lbl.tag != self.required_tag:
+                    lbl = lbl.copy_with_tag(self.required_tag)
+                result_set.add(lbl)
+        else:
+            result_set = intermediate_set
+        return result_set
 
     def default_args(self, builder, current_dir):
         """
         Decide on default labels, based on where we are in the build tree.
         """
-        what, label, domain = builder.find_location_in_tree(current_dir)
+        ##what, label, domain = builder.find_location_in_tree(current_dir)
         result_list = []
 
+        # XXX not dependent on what sort of directory we're in
+
+        result_list.extend(builder.find_local_package_labels(current_dir,
+                                                             self.required_tag))
         return result_list
 
     def build_labels(self, checkouts):
@@ -420,16 +501,91 @@ class DeploymentCommand(Command):
         """
         Interpret the 'args' as partial labels, and return a list of deployments.
         """
-        return []
+        return_list = [ ]
+        default_domain = builder.get_default_domain()
+
+        for dep in args:
+            if (dep == "_all"):
+                # Everything .. 
+                return_list = self.all_deployment_labels(builder, default_domain)
+                return_list.sort()
+                return return_list
+            else:
+                lbl = Label.from_fragment(dep,
+                                          default_type=LabelType.Deployment,
+                                          default_role="*",
+                                          default_domain=default_domain)
+                if lbl.type != LabelType.Deployment:
+                    raise GiveUp("Label '%s', from argument '%s' not allowed"
+                            " as a deployment label"%(lbl, dep))
+                if lbl.tag != self.required_tag:
+                    lbl = lbl.copy_with_tag(self.required_tag)
+                return_list.append(lbl)
+        result_set = set()
+        for label in return_list:
+            if label.is_definite():
+                result_set.add(label)
+            else:
+                result_set.update(expand_wildcards(builder, label, self.required_tag))
+
+        return list(result_set)
+
+    def all_deployment_labels(self, builder, default_domain):
+        """
+        Return all the deployment labels registered with the ruleset.
+        """
+
+        # Important not to set tag here - if there's a deployment
+        #  which doesn't have the right tag, we want an error, 
+        #  not to silently ignore it.
+        match_lbl = Label(LabelType.Deployment, "*", "*", "*", domain=default_domain)
+        matching = builder.invocation.ruleset.rules_for_target(match_lbl)
+
+        return_set = set()
+        for m in matching:
+            return_set.add(m.target.name)
+
+        return_list = [ ]
+        for r in return_set:
+            lbl = Label(LabelType.Deployment, r, "*", self.required_tag)
+            return_list.append(lbl)
+
+        return return_list
 
     def default_args(self, builder, current_dir):
         """
         Decide on default labels, based on where we are in the build tree.
         """
+        # Can we guess what to do from where we are?
         what, label, domain = builder.find_location_in_tree(current_dir)
-        result_list = []
+        if what == DirType.Deployed:
+            # We're actually inside a deployment - job done
+            result_list.append(label.copy_with_tag(self.required_tag))
+        else:
+            # The best we can do is to use the default deployments
+            return_list = self.default_deployment_labels(builder)
 
-        return result_list
+        result_set = set()
+        for label in return_list:
+            if label.is_definite():
+                result_set.add(label)
+            else:
+                result_set.update(expand_wildcards(builder, label, required_tag))
+
+        return list(result_set)
+
+    def default_deployment_labels(self, builder):
+        """
+        Return labels tagged with tag for all the default deployments.
+        """
+
+        return_list = [ ]
+        for d in builder.invocation.default_labels:
+            if d.type == LabelType.Deployment:
+                if self.required_tag and d.tag != self.required_tag:
+                    d = d.copy_with_tag(self.required_tag)
+                return_list.append(d)
+        return return_list
 
     def build_labels(self, deployments):
         """
@@ -446,7 +602,7 @@ class Checkout2(CheckoutCommand):
             #builder.build_label(co)
 
 @command('build2', CAT_PACKAGE)
-class Build2(CheckoutCommand):
+class Build2(PackageCommand):
 
     def build_labels(self, packages):
         for pkg in packages:
@@ -454,7 +610,7 @@ class Build2(CheckoutCommand):
             #builder.build_label(pkg)
 
 @command('deploy2', CAT_DEPLOYMENT)
-class Build2(CheckoutCommand):
+class Build2(DeploymentCommand):
 
     def build_labels(self, deployments):
         for dep in deployments:
@@ -1349,11 +1505,11 @@ class QueryDir(QueryCommand):
         label = self.get_label(builder, args)
 
         dir = None
-        if label.type == utils.LabelType.Checkout:
+        if label.type == LabelType.Checkout:
             dir = builder.invocation.db.get_checkout_path(label)
-        elif label.type == utils.LabelType.Package:
+        elif label.type == LabelType.Package:
             dir = builder.invocation.package_install_path(label)
-        elif label.type == utils.LabelType.Deployment:
+        elif label.type == LabelType.Deployment:
             dir = builder.invocation.deploy_path(label.name,
                     domain=label.domain)
 
@@ -1498,7 +1654,7 @@ class QueryMakeEnv(QueryCommand):
             rule = list(rule_set)[0]
             builder._build_label_env(label, env_store)
             build_obj = rule.obj
-            tmp = Label(utils.LabelType.Checkout, build_obj.co, domain=label.domain)
+            tmp = Label(LabelType.Checkout, build_obj.co, domain=label.domain)
             co_path = builder.invocation.checkout_path(tmp)
             try:
                 build_obj._amend_env(co_path)
@@ -1605,7 +1761,7 @@ class QueryUnused(QueryCommand):
 
     def with_build_tree(self, builder, current_dir, args):
         def all_deployables(builder):
-            search_label = Label(utils.LabelType.Deployment,
+            search_label = Label(LabelType.Deployment,
                                  "*", "*",
                                  LabelTag.Deployed,
                                  domain="*")
@@ -1717,11 +1873,11 @@ class QueryUnused(QueryCommand):
                 d[key] = [l.tag]
 
         for l in missing:
-            if l.type == utils.LabelType.Checkout:
+            if l.type == LabelType.Checkout:
                 add_label(checkouts,l)
-            elif l.type == utils.LabelType.Package:
+            elif l.type == LabelType.Package:
                 add_label(packages,l)
-            elif l.type == utils.LabelType.Deployment:
+            elif l.type == LabelType.Deployment:
                 add_label(deployments,l)
             else:
                 add_label(other,l)
@@ -1824,13 +1980,13 @@ class RunIn(Command):
                     # If it's a wildcard, don't bother.
                     continue
 
-                if (lbl.type == utils.LabelType.Checkout):
+                if (lbl.type == LabelType.Checkout):
                     dir = builder.invocation.checkout_path(lbl)
-                elif (lbl.type == utils.LabelType.Package):
+                elif (lbl.type == LabelType.Package):
                     if (lbl.role == "*"): 
                         continue
                     dir = builder.invocation.package_obj_path(lbl)
-                elif (lbl.type == utils.LabelType.Deployment):
+                elif (lbl.type == LabelType.Deployment):
                     dir = builder.invocation.deploy_path(lbl.name)
                     
                 if (dir in dirs_done):
@@ -1877,293 +2033,6 @@ class BuildLabel(Command):
             return
 
         build_labels(builder, labels)
-
-@command('redeploy', CAT_DEPLOYMENT)
-class Redeploy(Command):
-    """
-    :Syntax: redeploy <deployment> [<deployment> ... ]
-
-    Remove all tags for the given deployments, erase their built directories
-    and redeploy them.
-
-    You can use cleandeploy to just clean the relevant deployments.
-
-    If no deployments are given, we redeploy the default deployment list.
-    If _all is given, we redeploy all deployments.
-    """
-
-    def requires_build_tree(self):
-        return True
-
-    def with_build_tree(self, builder, current_dir, args):
-        labels = decode_deployment_arguments(builder, args, current_dir,
-                                             LabelTag.Deployed)
-
-        if self.no_op():
-            print 'Redeploy:', label_list_to_string(labels)
-            return
-
-        build_a_kill_b(builder, labels, LabelTag.Clean,
-                       LabelTag.Deployed)
-        build_labels(builder, labels)
-
-@command('cleandeploy', CAT_DEPLOYMENT)
-class Cleandeploy(Command):
-    """
-    :Syntax: cleandeploy <deployment> [<deployment> ... ]
-
-    Remove all tags for the given deployments and erase their built
-    directories.
-
-    You can use cleandeploy to just clean the relevant deployments.
-
-    If no deployments are given, we redeploy the default deployment list.
-    If _all is given, we redeploy all deployments.
-    """
-
-    def requires_build_tree(self):
-        return True
-
-    def with_build_tree(self, builder, current_dir, args):
-        labels = decode_deployment_arguments(builder, args, current_dir,
-                                             LabelTag.Clean)
-        if (labels is None):
-            raise GiveUp("No deployments specified or implied (this may well be a bug).")
-
-        if self.no_op():
-            print 'Cleandeploy:', label_list_to_string(labels)
-            return
-
-        build_a_kill_b(builder, labels, LabelTag.Clean, LabelTag.Deployed)
-
-@command('deploy', CAT_DEPLOYMENT)
-class Deploy(Command):
-    """
-    :Syntax: deploy <deployment> [<deployment> ... ]
-
-    Build appropriate tags for deploying the given deployments.
-
-    If no deployments are given we will use the default deployment list.
-    If _all is given, we'll use all deployments.
-    """
-
-    def requires_build_tree(self):
-        return True
-
-    def with_build_tree(self, builder, current_dir, args):
-        labels = decode_deployment_arguments(builder, args, current_dir,
-                                             LabelTag.Deployed)
-        if self.no_op():
-            print "Deploy: %s"%(label_list_to_string(labels))
-            return
-
-        build_labels(builder, labels)
-
-@command('configure', CAT_PACKAGE)
-class Configure(Command):
-    """
-    :Syntax: configure [ <package>{<role>} ... ]
-
-    Configure a package. If the package name isn't given, we'll use the
-    list of local packages derived from your current directory.
-
-    If you're in a checkout directory, we'll configure every package
-    which uses that checkout.
-
-    _all is a special package meaning configure everything.
-
-    You can specify all packages that depend on a particular checkout
-    with "checkout:name".
-    """
-
-    def requires_build_tree(self):
-        return True
-
-    def with_build_tree(self, builder, current_dir, args):
-        labels = decode_package_arguments(builder, args, current_dir,
-                                      LabelTag.Configured)
-        build_labels(builder, labels)
-
-@command('reconfigure', CAT_PACKAGE)
-class Reconfigure(Command):
-    """
-    :Syntax: reconfigure [ <package>{<role>} ... ]
-
-    Just like configure except that we clear any configured/built tags first
-    (and their dependencies).
-    """
-
-    def requires_build_tree(self):
-        return True
-
-    def with_build_tree(self, builder, current_dir, args):
-        labels = decode_package_arguments(builder, args, current_dir,
-                                      LabelTag.Configured)
-
-        if self.no_op():
-            print "Reconfigure: %s"%(label_list_to_string(labels))
-            return
-
-        # OK. Now we have our labels, retag them, and kill them and their
-        # consequents
-        to_kill = depend.retag_label_list(labels,
-                                          LabelTag.Configured)
-        kill_labels(builder, to_kill)
-        build_labels(builder, labels)
-
-@command('build', CAT_PACKAGE)
-class Build(Command):
-    """
-    :Syntax: build [ <package>{<role>} ... ]
-    
-    Build a package. If the package name isn't given, we'll use the
-    list of local packages derived from your current directory.
-
-    Unqualified or inferred package names are built in every default
-    role (there's a list in the build description).
-
-    If you're in a checkout directory, we'll build every package
-    which uses that checkout.
-
-    _all is a special package meaning build everything.
-
-    You can specify all packages that depend on a particular checkout
-    with "checkout:name".
-    """
-
-    def requires_build_tree(self):
-        return True
-
-    def with_build_tree(self, builder, current_dir, args):
-        labels = decode_package_arguments(builder, args, current_dir,
-                                      LabelTag.PostInstalled)
-
-        if self.no_op():
-            print "Build: %s"%(label_list_to_string(labels))
-            return
-
-        build_labels(builder, labels)
-
-@command('rebuild', CAT_PACKAGE)
-class Rebuild(Command):
-    """
-    :Syntax: rebuild [ <package>{<role>} ... ]
-
-    Just like build except that we clear any built tags first 
-    (and their dependencies).
-    """
-
-    def requires_build_tree(self):
-        return True
-
-    def with_build_tree(self, builder, current_dir, args):
-        labels = decode_package_arguments(builder, args, current_dir,
-                                      LabelTag.PostInstalled)
-
-        if self.no_op():
-            print "Rebuild: %s"%(label_list_to_string(labels))
-            return
-
-        # OK. Now we have our labels, retag them, and kill them and their
-        # consequents
-        to_kill = depend.retag_label_list(labels, 
-                                          LabelTag.Built)
-        kill_labels(builder, to_kill)
-        build_labels(builder, labels)
-
-@command('reinstall', CAT_PACKAGE)
-class Reinstall(Command):
-    """
-    :Syntax: reinstall [ <package>{<role>} ... ]
-
-    Reinstall the given packages (but don't rebuild them).
-    """
-
-    def requires_build_tree(self):
-        return True
-
-    def with_build_tree(self, builder, current_dir, args):
-        labels = decode_package_arguments(builder, args, current_dir,
-                                      LabelTag.PostInstalled)
-
-        if self.no_op():
-            print "Reinstall: %s"%(label_list_to_string(labels))
-            return
-
-        # OK. Now we have our labels, retag them, and kill them and their
-        # consequents
-        to_kill = depend.retag_label_list(labels, 
-                                          LabelTag.Installed)
-        kill_labels(builder, to_kill)
-        build_labels(builder, labels)
-
-@command('distrebuild', CAT_PACKAGE)
-class Distrebuild(Command):
-    """
-    :Syntax: distrebuild [ <package>{<role>} ... ]
-
-    A rebuild that does a distclean before attempting the rebuild.
-    """
-
-    def requires_build_tree(self):
-        return True
-
-    def with_build_tree(self, builder, current_dir, args):
-        labels = decode_package_arguments(builder, args, current_dir,
-                                      LabelTag.PostInstalled)
-
-        if self.no_op():
-            print "Distrebuild: %s"%(label_list_to_string(labels))
-            return
-
-        build_a_kill_b(builder, labels, LabelTag.DistClean,
-                       LabelTag.PreConfig)
-        build_labels(builder, labels)
-
-@command('clean', CAT_PACKAGE)
-class Clean(Command):
-    """
-    :Syntax: clean [ <package>{<role>} ... ]
-    
-    Just like build except that we clean packages rather than 
-    building them. Subsequently, packages are regarded as having
-    been configured but not build.
-    """
-
-    def requires_build_tree(self):
-        return True
-
-    def with_build_tree(self, builder, current_dir, args):
-        labels = decode_package_arguments(builder, args, current_dir,
-                                      LabelTag.Built)
-
-        if self.no_op():
-            print "Clean: %s"%(label_list_to_string(labels))
-            return
-
-        build_a_kill_b(builder, labels, LabelTag.Clean, LabelTag.Built)
-
-@command('distclean', CAT_PACKAGE)
-class DistClean(Command):
-    """
-    :Syntax: distclean [ <package>{<role>} ... ]
-
-    Just like clean except that we reduce packages to non-preconfigured
-    and invoke 'make distclean'.
-    """
-
-    def requires_build_tree(self):
-        return True
-
-    def with_build_tree(self, builder, current_dir, args):
-        labels = decode_package_arguments(builder, args, current_dir,
-                                      LabelTag.Built)
-
-        if self.no_op():
-            print "Distclean: %s"%(label_list_to_string(labels))
-            return
-
-        build_a_kill_b(builder, labels, LabelTag.DistClean, LabelTag.PreConfig)
 
 @command('instruct', CAT_PACKAGE)
 class Instruct(Command):
@@ -2235,484 +2104,6 @@ class Instruct(Command):
         # Last, but not least, do the instruction ..
         builder.instruct(label.name, label.role, ifile, domain=label.domain)
 
-@command('commit', CAT_PACKAGE)
-class Commit(Command):
-    """
-    :Syntax: commit <checkout> [ <checkout> ... ]
-
-    Commit the specified checkouts to their local repositories.
-
-    For a centralised VCS (e.g., Subversion) where the repository is remote,
-    this will not do anything. See the update command.
-
-    If no checkouts are given, we'll use those implied by your current
-    location.
-
-    Each <checkout> should be the name of a checkout, and muddle will obey
-    the rule associated with "checkout:<checkout>{}/changes_committed" for each.
-
-    The special <checkout> name _all means all checkouts.
-
-    Without a <checkout>, we use the checkout you're in, or the checkouts
-    below the current directory.
-    """
-
-    def requires_build_tree(self):
-        return True
-
-    def with_build_tree(self, builder, current_dir, args):
-        checkouts = decode_checkout_arguments(builder, args, current_dir,
-                                              LabelTag.ChangesCommitted)
-
-        name_selected_checkouts("Commit", checkouts);
-
-        if self.no_op():
-            return
-
-        # Forcibly retract all the updated tags.
-        for co in checkouts:
-            builder.kill_label(co)
-            builder.build_label(co)
-
-@command('push', CAT_CHECKOUT)
-class Push(Command):
-    """
-    :Syntax: push [-s[top]] <checkout> [ <checkout> ... ]
-
-    Push the specified checkouts to their remote repositories.
-
-    This updates the content of the remote repositories to match the local
-    checkout.
-
-    If no checkouts are given, we'll use those implied by your current
-    location.
-
-    Each <checkout> should be the name of a checkout, and muddle will obey
-    the rule associated with "checkout:<checkout>{}/changes_pushed" for each.
-
-    The special <checkout> name _all means all checkouts.
-
-    Without a <checkout>, we use the checkout you're in, or the checkouts
-    below the current directory.
-
-    If '-s' or '-stop' is given, then we'll stop at the first problem,
-    otherwise an attempt will be made to process all the checkouts, and any
-    problems will be re-reported at the end.
-    """
-
-    def requires_build_tree(self):
-        return True
-
-    def with_build_tree(self, builder, current_dir, args):
-        if len(args) and args[0] in ('-s', '-stop'):
-            stop_on_problem = True
-        else:
-            stop_on_problem = False
-
-        checkouts = decode_checkout_arguments(builder, args, current_dir,
-                                              LabelTag.ChangesPushed)
-
-        name_selected_checkouts("Push", checkouts)
-
-        if self.no_op():
-            return
-
-
-        problems = []
-
-        for co in checkouts:
-            try:
-                builder.invocation.db.clear_tag(co)
-                builder.build_label(co)
-            except GiveUp as e:
-                if stop_on_problem:
-                    raise
-                else:
-                    print e
-                    problems.append(e)
-
-        if problems:
-            print '\nThe following problems occurred:\n'
-            for e in problems:
-                print str(e).rstrip()
-                print
-
-@command('pull', CAT_CHECKOUT, ['fetch', 'update'])   # we want to settle on one command
-class Pull(Command):
-    """
-    :Syntax: pull [-s[top]] <checkout> [ <checkout> ... ]
-
-    Pull the specified checkouts from their remote repositories. Any problems
-    will be (re)reported at the end.
-
-    For each checkout named, retrieve changes from the corresponding remote
-    repository (as described by the build description) and apply them (to
-    the checkout), but *not* if a merge would be required.
-
-        (For a VCS such as git, this actually means "not if a user-assisted
-        merge would be required - i.e., fast-forwards will be done.)
-
-    If no checkouts are given, we'll use those implied by your current
-    location.
-
-    Each <checkout> should be the name of a checkout, and muddle will obey
-    the rule associated with "checkout:<checkout>{}/fetched" for each.
-
-    The special <checkout> name _all means all checkouts.
-
-    Without a <checkout>, we use the checkout you're in, or the checkouts
-    below the current directory.
-
-    Normally, 'muddle pull' will attempt to pull all the chosen checkouts,
-    re-reporting any problems at the end. If '-s' or '-stop' is given, then
-    it will instead stop at the first problem.
-    """
-
-    def requires_build_tree(self):
-        return True
-
-    def with_build_tree(self, builder, current_dir, args):
-
-        if len(args) and args[0] in ('-s', '-stop'):
-            stop_on_problem = True
-        else:
-            stop_on_problem = False
-
-        checkouts = decode_checkout_arguments(builder, args, current_dir,
-                                              LabelTag.Fetched)
-
-        name_selected_checkouts("Fetch", checkouts)
-
-        if self.no_op():
-            return
-
-        problems = []
-        not_needed  = []
-
-        for co in checkouts:
-            try:
-                # First clear the 'fetched' tag
-                builder.invocation.db.clear_tag(co)
-                # And then build it again
-                builder.build_label(co)
-            except Unsupported as e:
-                print e
-                not_needed.append(e)
-            except GiveUp as e:
-                if stop_on_problem:
-                    raise
-                else:
-                    print e
-                    problems.append(e)
-
-        if not_needed:
-            print '\nThe following pulls were not needed:\n'
-            for e in problems:
-                print str(e).rstrip()
-                print
-
-        if problems:
-            print '\nThe following problems occurred:\n'
-            for e in problems:
-                print str(e).rstrip()
-                print
-
-@command('merge', CAT_CHECKOUT)
-class Merge(Command):
-    """
-    :Syntax: merge [-s[top]] <checkout> [ <checkout> ... ]
-
-    Merge the specified checkouts from their remote repositories.
-
-    For each checkout named, retrieve changes from the corresponding remote
-    repository (as described by the build description) and merge them (into
-    the checkout). The merge process is handled in a VCS specific manner,
-    as each checkout is dealt with.
-
-    If no checkouts are given, we'll use those implied by your current
-    location.
-
-    Each <checkout> should be the name of a checkout, and muddle will obey
-    the rule associated with "checkout:<checkout>{}/merged" for each.
-
-    The special <checkout> name _all means all checkouts.
-
-    Without a <checkout>, we use the checkout you're in, or the checkouts
-    below the current directory.
-
-    If '-s' or '-stop' is given, then we'll stop at the first problem,
-    otherwise an attempt will be made to process all the checkouts, and any
-    problems will be re-reported at the end.
-    """
-
-    def requires_build_tree(self):
-        return True
-
-    def with_build_tree(self, builder, current_dir, args):
-
-        if len(args) and args[0] in ('-s', '-stop'):
-            stop_on_problem = True
-        else:
-            stop_on_problem = False
-
-        checkouts = decode_checkout_arguments(builder, args, current_dir,
-                                              LabelTag.Merged)
-
-        name_selected_checkouts("Merge", checkouts)
-
-        if (self.no_op()):
-            return
-
-        problems = []
-
-        for co in checkouts:
-            try:
-                # First clear the 'merged' tag
-                builder.invocation.db.clear_tag(co)
-                # And then build it again
-                builder.build_label(co)
-            except GiveUp as e:
-                if stop_on_problem:
-                    raise
-                else:
-                    print e
-                    problems.append(e)
-        if problems:
-            print '\nThe following problems occurred:\n'
-            for e in problems:
-                print str(e).rstrip()
-                print
-
-@command('status', CAT_CHECKOUT)
-class Status(Command):
-    """
-    :Syntax: status [-v] <checkout> [ <checkout> ... ]
-
-    Report on the status of checkouts that need attention.
-
-    If '-v' is given, report each checkout label as it is checked (allowing
-    a sense of progress if there are many bazaar checkouts, for instance).
-
-    Runs the equivalent of ``git status`` or ``bzr status`` on each repository,
-    and tries to only report those which have significant status.
-
-    If no checkouts are given, we'll use those implied by your current
-    location.
-
-    Each <checkout> should be the name of a checkout.
-
-    The special <checkout> name _all means all checkouts.
-
-    Without a <checkout>, we use the checkout you're in, or the checkouts
-    below the current directory.
-
-        Note: For subversion, the (remote) repository is queried,
-        which may be slow.
-
-    Be aware that "muddle status" will report on the currently checked out
-    checkouts. "muddle status _all" will (attempt to) report on *all* the
-    checkouts described by the build, even if they have not yet been checked
-    out. This will fail on the first checkout directory it can't "cd" into
-    (i.e., the first checkout that isn't there yet).
-    """
-
-    def requires_build_tree(self):
-        return True
-
-    def with_build_tree(self, builder, current_dir, args):
-
-        verbose = False
-        if args and args[0] == '-v':
-            args = args[1:]
-            verbose = True
-
-        checkouts = decode_checkout_arguments(builder, args, current_dir,
-                                              LabelTag.Fetched)
-
-        name_selected_checkouts("Status for", checkouts)
-
-        if self.no_op():
-            return
-
-        something_needs_doing = False
-        for co in checkouts:
-            rule = builder.invocation.ruleset.rule_for_target(co)
-            try:
-                vcs = rule.obj.vcs
-            except AttributeError:
-                print "Rule for label '%s' has no VCS - cannot find its status"%co
-                continue
-            text = vcs.status(verbose)
-            if text:
-                print text
-                something_needs_doing = True
-        if not something_needs_doing:
-            print 'All checkouts seemed clean'
-
-@command('reparent', CAT_CHECKOUT)
-class Reparent(Command):
-    """
-    :Syntax: reparent [-f[orce]] <checkout> [ <checkout> ... ]
-
-    Re-associate the specified checkouts with their remote repositories.
-
-    Some distributed VCSs (notably, Bazaar) can "forget" the remote repository
-    for a checkout. In Bazaar, this typically means not remembering the
-    "parent" repository, and thus not being able to pull. It appears to be
-    possible to end up in this situation if network disconnection happens in an
-    inopportune manner.
-
-    This command attempts to reassociate each checkout to the remote repository
-    as named in the muddle build description. If '-force' is given, then this
-    will be done even if the remote repository is already known, otherwise it
-    will only be done if it is necessary.
-
-        For Bazaar: Reads and (maybe) edits .bzr/branch/branch.conf.
-
-        * If "parent_branch" is unset, sets it.
-        * With '-force', sets "parent_branch" regardless, and also unsets
-          "push_branch".
-
-    If no checkouts are given, we'll use those implied by your current
-    location.
-
-    Each <checkout> should be the name of a checkout.
-
-    The special <checkout> name _all means all checkouts.
-
-    Without a <checkout>, we use the checkout you're in, or the checkouts
-    below the current directory.
-    """
-
-    def requires_build_tree(self):
-        return True
-
-    def with_build_tree(self, builder, current_dir, args):
-
-        if args and args[0] in ('-f', '-force'):
-            args = args[1:]
-            force = True
-        else:
-            force = False
-
-        checkouts = decode_checkout_arguments(builder, args, current_dir,
-                                              LabelTag.Fetched)
-
-        name_selected_checkouts("Reparent", checkouts)
-
-        if (self.no_op()):
-            return
-
-        for co in checkouts:
-            rule = builder.invocation.ruleset.rule_for_target(co)
-            try:
-                vcs = rule.obj.vcs
-            except AttributeError:
-                print "Rule for label '%s' has no VCS - cannot reparent, ignored"%co
-                continue
-            vcs.reparent(force=force, verbose=True)
-
-@command('removed', CAT_CHECKOUT)
-class Removed(Command):
-    """
-    :Syntax: removed <checkout> [ <checkout> ... ]
-
-    Signal to muddle that the given checkouts have been removed and will
-    need to be checked out again before they can be used.
-
-    The special <checkout> name _all means all checkouts.
-
-    Without a <checkout>, we use the checkout you're in, or the checkouts
-    below the current directory.
-    """
-
-    def requires_build_tree(self):
-        return True
-
-    def with_build_tree(self, builder, current_dir, args):
-        checkouts = decode_checkout_arguments(builder, args, current_dir,
-                                              LabelTag.CheckedOut)
-
-        name_selected_checkouts("Remove", checkouts)
-
-        if (self.no_op()):
-            return
-
-        for c in checkouts:
-            builder.kill_label(c)
-
-@command('unimport', CAT_CHECKOUT)
-class Unimport(Command):
-    """
-    :Syntax: unimport <checkout> [ <checkout> ... ]
-
-    Assert that the given checkouts haven't been checked out and must therefore
-    be checked out.
-
-    The special <checkout> name _all means all checkouts.
-
-    Without a <checkout>, we use the checkout you're in, or the checkouts
-    below the current directory.
-    """
-
-    def requires_build_tree(self):
-        return True
-
-    def with_build_tree(self, builder, current_dir, args):
-        checkouts = decode_checkout_arguments(builder, args, current_dir,
-                                              LabelTag.CheckedOut)
-
-        name_selected_checkouts("Unimport", checkouts)
-
-        if (self.no_op()):
-            return
-
-        for c in checkouts:
-            builder.invocation.db.clear_tag(c)
-
-@command('import', CAT_CHECKOUT)
-class Import(Command):
-    """
-    :Syntax: import <checkout> [ <checkout> ... ]
-
-    Assert that the given checkout (which may be the builds checkout) has
-    been checked out. This is mainly used when you've just written a package
-    you plan to commit to the central repository - muddle obviously can't check
-    it out because the repository doesn't exist yet, but you probably want to
-    add it to the build description for testing (and in fact you may want to
-    commit it with muddle push). For convenience in the expected use case, it
-    goes on to prime the relevant VCS module (by way of 'muddle reparent') so
-    it can be pushed once ready; this should be at worst harmless in all cases.
-
-    This command is really just an wrapper to 'muddle assert' with the right
-    magic label names, and to 'muddle reparent'.
-
-    The special <checkout> name _all means all checkouts.
-
-    Without a <checkout>, we use the checkout you're in, or the checkouts
-    below the current directory.
-    """
-
-    def requires_build_tree(self):
-        return True
-
-    def with_build_tree(self, builder, current_dir, args):
-        checkouts = decode_checkout_arguments(builder, args, current_dir,
-                                              LabelTag.CheckedOut)
-
-        name_selected_checkouts("Import", checkouts)
-
-        if (self.no_op()):
-            return
-
-        for c in checkouts:
-            builder.invocation.db.set_tag(c)
-        # issue 143: Call reparent so the VCS is locked and loaded.
-        rep = g_command_dict['reparent']() # should be Reparent but go via the dict just in case
-        rep.set_options(self.options)
-        rep.set_old_env(self.old_env)
-        rep.with_build_tree(builder, current_dir, args, where)
-
 @command('assert', CAT_OTHER)
 class Assert(Command):
     """
@@ -2760,36 +2151,6 @@ class Retract(Command):
         labels = decode_labels(builder, args)
         if (self.no_op()):
             print "Retract: %s"%(label_list_to_string(labels))
-            return
-
-        for l in labels:
-            builder.kill_label(l)
-
-@command('changed', CAT_PACKAGE)
-class Changed(Command):
-    """
-    :Syntax: changed <package> [ <package> ... ]
-
-    Mark packages as having been changed so that they will later
-    be rebuilt by anything that needs to. The usual package name
-    guessing logic is used to guess the names of your packages if
-    you don't provide them.
-    
-    Note that we don't reconfigure (or indeed clean) packages - 
-    we just clear the tags asserting that they've been built.
-
-    You can specify all packages that depend on a particular checkout
-    with "checkout:name".
-    """
-
-    def requires_build_tree(self):
-        return True
-
-    def with_build_tree(self, builder, current_dir, args):
-        labels = decode_package_arguments(builder, args, current_dir,
-                                      LabelTag.Built)
-        if (self.no_op()):
-            print "Mark changed: %s"%(label_list_to_string(labels))
             return
 
         for l in labels:
@@ -2873,72 +2234,6 @@ class Env(Command):
             raise GiveUp("Language must be sh, py, python or c, not %s"%lang)
 
         print script
-
-@command('uncheckout', CAT_CHECKOUT)
-class UnCheckout(Command):
-    """
-    :Syntax: uncheckout <checkout> [ <checkout> ... ]
-
-    Tells muddle that the given checkouts no longer exist in the src directory
-    and should be checked out/cloned from version control again.
-
-    The special <checkout> name _all means all checkouts.
-
-    If no <checkouts> are given, we'll use those implied by your current
-    location.
-
-    This does not actually delete the checkout directory. If you try to do::
-
-        muddle unckeckout fred
-        muddle checkout   fred
-
-    then you will probably get an error, as the checkout still exists, and the
-    VCS will detect this. As it says, this is to tell muddle that the checkout
-    has already been removed.
-    """
-
-    def requires_build_tree(self):
-        return True
-
-    def with_build_tree(self, builder, current_dir, args):
-        checkouts = decode_checkout_arguments(builder, args, current_dir,
-                                              LabelTag.CheckedOut)
-
-        name_selected_checkouts("Uncheckout", checkouts)
-
-        if (self.no_op()):
-            return
-
-        for co in checkouts:
-            builder.kill_label(co)
-
-@command('checkout', CAT_CHECKOUT)
-class Checkout(Command):
-    """
-    :Syntax: checkout <checkout> [ <checkout> ... ]
-
-    Checks out the given series of checkouts.
-
-    That is, copies (clones/branches) the content of each checkout from its
-    remote repository.
-
-    'checkout _all' means checkout all checkouts.
-    """
-
-    def requires_build_tree(self):
-        return True
-
-    def with_build_tree(self, builder, current_dir, args):
-        checkouts = decode_checkout_arguments(builder, args, current_dir,
-                                              LabelTag.CheckedOut)
-
-        name_selected_checkouts("Checkout", checkouts)
-
-        if (self.no_op()):
-            return
-
-        for co in checkouts:
-            builder.build_label(co)
 
 @command('copywithout', CAT_MISC)
 class CopyWithout(Command):
@@ -3767,7 +3062,7 @@ Try 'muddle help unstamp' for more information."""
                 print "Unstamping checkout %s"%name
             # So try registering this as a normal build, in our nascent
             # build system
-            label = Label(utils.LabelType.Checkout, name, domain=domain)
+            label = Label(LabelType.Checkout, name, domain=domain)
             if dir:
                 builder.invocation.db.set_checkout_path(label, os.path.join(dir, co_leaf))
             else:
@@ -3778,7 +3073,7 @@ Try 'muddle help unstamp' for more information."""
             pkg.add_checkout_rules(builder.invocation.ruleset, label, vcs)
 
             # Then need to mimic "muddle checkout" for it
-            label = Label(utils.LabelType.Checkout,
+            label = Label(LabelType.Checkout,
                           name, None, LabelTag.CheckedOut,
                           domain=domain)
             builder.build_label(label, silent=False)
@@ -4005,7 +3300,7 @@ class Test(Command):
         for word in args:
             print 'As package:'
             label = Label.from_fragment(word,
-                    default_type=utils.LabelType.Package,
+                    default_type=LabelType.Package,
                     default_role='*',
                     default_domain=builder.get_default_domain())
             print '  ', label
@@ -4013,7 +3308,7 @@ class Test(Command):
             print
             print 'As checkout:'
             label = Label.from_fragment(word,
-                    default_type=utils.LabelType.Checkout,
+                    default_type=LabelType.Checkout,
                     default_role=None,
                     default_domain=builder.get_default_domain())
             print '  ', label
@@ -4027,6 +3322,870 @@ class Test(Command):
         print
         print 'As checkout args:'
         print label_list_to_string(decode_checkout_arguments(builder, args, current_dir, 'FRED'))
+
+# =============================================================================
+# Checkout, package and deployment commands in the old implementation
+# =============================================================================
+@command('redeploy', CAT_DEPLOYMENT)
+class Redeploy(Command):
+    """
+    :Syntax: redeploy <deployment> [<deployment> ... ]
+
+    Remove all tags for the given deployments, erase their built directories
+    and redeploy them.
+
+    You can use cleandeploy to just clean the relevant deployments.
+
+    If no deployments are given, we redeploy the default deployment list.
+    If _all is given, we redeploy all deployments.
+    """
+
+    def requires_build_tree(self):
+        return True
+
+    def with_build_tree(self, builder, current_dir, args):
+        labels = decode_deployment_arguments(builder, args, current_dir,
+                                             LabelTag.Deployed)
+
+        if self.no_op():
+            print 'Redeploy:', label_list_to_string(labels)
+            return
+
+        build_a_kill_b(builder, labels, LabelTag.Clean,
+                       LabelTag.Deployed)
+        build_labels(builder, labels)
+
+@command('cleandeploy', CAT_DEPLOYMENT)
+class Cleandeploy(Command):
+    """
+    :Syntax: cleandeploy <deployment> [<deployment> ... ]
+
+    Remove all tags for the given deployments and erase their built
+    directories.
+
+    You can use cleandeploy to just clean the relevant deployments.
+
+    If no deployments are given, we redeploy the default deployment list.
+    If _all is given, we redeploy all deployments.
+    """
+
+    def requires_build_tree(self):
+        return True
+
+    def with_build_tree(self, builder, current_dir, args):
+        labels = decode_deployment_arguments(builder, args, current_dir,
+                                             LabelTag.Clean)
+        if (labels is None):
+            raise GiveUp("No deployments specified or implied (this may well be a bug).")
+
+        if self.no_op():
+            print 'Cleandeploy:', label_list_to_string(labels)
+            return
+
+        build_a_kill_b(builder, labels, LabelTag.Clean, LabelTag.Deployed)
+
+@command('deploy', CAT_DEPLOYMENT)
+class Deploy(Command):
+    """
+    :Syntax: deploy <deployment> [<deployment> ... ]
+
+    Build appropriate tags for deploying the given deployments.
+
+    If no deployments are given we will use the default deployment list.
+    If _all is given, we'll use all deployments.
+    """
+
+    def requires_build_tree(self):
+        return True
+
+    def with_build_tree(self, builder, current_dir, args):
+        labels = decode_deployment_arguments(builder, args, current_dir,
+                                             LabelTag.Deployed)
+        if self.no_op():
+            print "Deploy: %s"%(label_list_to_string(labels))
+            return
+
+        build_labels(builder, labels)
+
+@command('configure', CAT_PACKAGE)
+class Configure(Command):
+    """
+    :Syntax: configure [ <package>{<role>} ... ]
+
+    Configure a package. If the package name isn't given, we'll use the
+    list of local packages derived from your current directory.
+
+    If you're in a checkout directory, we'll configure every package
+    which uses that checkout.
+
+    _all is a special package meaning configure everything.
+
+    You can specify all packages that depend on a particular checkout
+    with "checkout:name".
+    """
+
+    def requires_build_tree(self):
+        return True
+
+    def with_build_tree(self, builder, current_dir, args):
+        labels = decode_package_arguments(builder, args, current_dir,
+                                      LabelTag.Configured)
+        build_labels(builder, labels)
+
+@command('reconfigure', CAT_PACKAGE)
+class Reconfigure(Command):
+    """
+    :Syntax: reconfigure [ <package>{<role>} ... ]
+
+    Just like configure except that we clear any configured/built tags first
+    (and their dependencies).
+    """
+
+    def requires_build_tree(self):
+        return True
+
+    def with_build_tree(self, builder, current_dir, args):
+        labels = decode_package_arguments(builder, args, current_dir,
+                                      LabelTag.Configured)
+
+        if self.no_op():
+            print "Reconfigure: %s"%(label_list_to_string(labels))
+            return
+
+        # OK. Now we have our labels, retag them, and kill them and their
+        # consequents
+        to_kill = depend.retag_label_list(labels,
+                                          LabelTag.Configured)
+        kill_labels(builder, to_kill)
+        build_labels(builder, labels)
+
+@command('build', CAT_PACKAGE)
+class Build(Command):
+    """
+    :Syntax: build [ <package>{<role>} ... ]
+    
+    Build a package. If the package name isn't given, we'll use the
+    list of local packages derived from your current directory.
+
+    Unqualified or inferred package names are built in every default
+    role (there's a list in the build description).
+
+    If you're in a checkout directory, we'll build every package
+    which uses that checkout.
+
+    _all is a special package meaning build everything.
+
+    You can specify all packages that depend on a particular checkout
+    with "checkout:name".
+    """
+
+    def requires_build_tree(self):
+        return True
+
+    def with_build_tree(self, builder, current_dir, args):
+        labels = decode_package_arguments(builder, args, current_dir,
+                                      LabelTag.PostInstalled)
+
+        if self.no_op():
+            print "Build: %s"%(label_list_to_string(labels))
+            return
+
+        build_labels(builder, labels)
+
+@command('rebuild', CAT_PACKAGE)
+class Rebuild(Command):
+    """
+    :Syntax: rebuild [ <package>{<role>} ... ]
+
+    Just like build except that we clear any built tags first 
+    (and their dependencies).
+    """
+
+    def requires_build_tree(self):
+        return True
+
+    def with_build_tree(self, builder, current_dir, args):
+        labels = decode_package_arguments(builder, args, current_dir,
+                                      LabelTag.PostInstalled)
+
+        if self.no_op():
+            print "Rebuild: %s"%(label_list_to_string(labels))
+            return
+
+        # OK. Now we have our labels, retag them, and kill them and their
+        # consequents
+        to_kill = depend.retag_label_list(labels, 
+                                          LabelTag.Built)
+        kill_labels(builder, to_kill)
+        build_labels(builder, labels)
+
+@command('reinstall', CAT_PACKAGE)
+class Reinstall(Command):
+    """
+    :Syntax: reinstall [ <package>{<role>} ... ]
+
+    Reinstall the given packages (but don't rebuild them).
+    """
+
+    def requires_build_tree(self):
+        return True
+
+    def with_build_tree(self, builder, current_dir, args):
+        labels = decode_package_arguments(builder, args, current_dir,
+                                      LabelTag.PostInstalled)
+
+        if self.no_op():
+            print "Reinstall: %s"%(label_list_to_string(labels))
+            return
+
+        # OK. Now we have our labels, retag them, and kill them and their
+        # consequents
+        to_kill = depend.retag_label_list(labels, 
+                                          LabelTag.Installed)
+        kill_labels(builder, to_kill)
+        build_labels(builder, labels)
+
+@command('distrebuild', CAT_PACKAGE)
+class Distrebuild(Command):
+    """
+    :Syntax: distrebuild [ <package>{<role>} ... ]
+
+    A rebuild that does a distclean before attempting the rebuild.
+    """
+
+    def requires_build_tree(self):
+        return True
+
+    def with_build_tree(self, builder, current_dir, args):
+        labels = decode_package_arguments(builder, args, current_dir,
+                                      LabelTag.PostInstalled)
+
+        if self.no_op():
+            print "Distrebuild: %s"%(label_list_to_string(labels))
+            return
+
+        build_a_kill_b(builder, labels, LabelTag.DistClean,
+                       LabelTag.PreConfig)
+        build_labels(builder, labels)
+
+@command('clean', CAT_PACKAGE)
+class Clean(Command):
+    """
+    :Syntax: clean [ <package>{<role>} ... ]
+    
+    Just like build except that we clean packages rather than 
+    building them. Subsequently, packages are regarded as having
+    been configured but not build.
+    """
+
+    def requires_build_tree(self):
+        return True
+
+    def with_build_tree(self, builder, current_dir, args):
+        labels = decode_package_arguments(builder, args, current_dir,
+                                      LabelTag.Built)
+
+        if self.no_op():
+            print "Clean: %s"%(label_list_to_string(labels))
+            return
+
+        build_a_kill_b(builder, labels, LabelTag.Clean, LabelTag.Built)
+
+@command('distclean', CAT_PACKAGE)
+class DistClean(Command):
+    """
+    :Syntax: distclean [ <package>{<role>} ... ]
+
+    Just like clean except that we reduce packages to non-preconfigured
+    and invoke 'make distclean'.
+    """
+
+    def requires_build_tree(self):
+        return True
+
+    def with_build_tree(self, builder, current_dir, args):
+        labels = decode_package_arguments(builder, args, current_dir,
+                                      LabelTag.Built)
+
+        if self.no_op():
+            print "Distclean: %s"%(label_list_to_string(labels))
+            return
+
+        build_a_kill_b(builder, labels, LabelTag.DistClean, LabelTag.PreConfig)
+
+@command('commit', CAT_PACKAGE)
+class Commit(Command):
+    """
+    :Syntax: commit <checkout> [ <checkout> ... ]
+
+    Commit the specified checkouts to their local repositories.
+
+    For a centralised VCS (e.g., Subversion) where the repository is remote,
+    this will not do anything. See the update command.
+
+    If no checkouts are given, we'll use those implied by your current
+    location.
+
+    Each <checkout> should be the name of a checkout, and muddle will obey
+    the rule associated with "checkout:<checkout>{}/changes_committed" for each.
+
+    The special <checkout> name _all means all checkouts.
+
+    Without a <checkout>, we use the checkout you're in, or the checkouts
+    below the current directory.
+    """
+
+    def requires_build_tree(self):
+        return True
+
+    def with_build_tree(self, builder, current_dir, args):
+        checkouts = decode_checkout_arguments(builder, args, current_dir,
+                                              LabelTag.ChangesCommitted)
+
+        name_selected_checkouts("Commit", checkouts);
+
+        if self.no_op():
+            return
+
+        # Forcibly retract all the updated tags.
+        for co in checkouts:
+            builder.kill_label(co)
+            builder.build_label(co)
+
+@command('push', CAT_CHECKOUT)
+class Push(Command):
+    """
+    :Syntax: push [-s[top]] <checkout> [ <checkout> ... ]
+
+    Push the specified checkouts to their remote repositories.
+
+    This updates the content of the remote repositories to match the local
+    checkout.
+
+    If no checkouts are given, we'll use those implied by your current
+    location.
+
+    Each <checkout> should be the name of a checkout, and muddle will obey
+    the rule associated with "checkout:<checkout>{}/changes_pushed" for each.
+
+    The special <checkout> name _all means all checkouts.
+
+    Without a <checkout>, we use the checkout you're in, or the checkouts
+    below the current directory.
+
+    If '-s' or '-stop' is given, then we'll stop at the first problem,
+    otherwise an attempt will be made to process all the checkouts, and any
+    problems will be re-reported at the end.
+    """
+
+    def requires_build_tree(self):
+        return True
+
+    def with_build_tree(self, builder, current_dir, args):
+        if len(args) and args[0] in ('-s', '-stop'):
+            stop_on_problem = True
+        else:
+            stop_on_problem = False
+
+        checkouts = decode_checkout_arguments(builder, args, current_dir,
+                                              LabelTag.ChangesPushed)
+
+        name_selected_checkouts("Push", checkouts)
+
+        if self.no_op():
+            return
+
+
+        problems = []
+
+        for co in checkouts:
+            try:
+                builder.invocation.db.clear_tag(co)
+                builder.build_label(co)
+            except GiveUp as e:
+                if stop_on_problem:
+                    raise
+                else:
+                    print e
+                    problems.append(e)
+
+        if problems:
+            print '\nThe following problems occurred:\n'
+            for e in problems:
+                print str(e).rstrip()
+                print
+
+@command('pull', CAT_CHECKOUT, ['fetch', 'update'])   # we want to settle on one command
+class Pull(Command):
+    """
+    :Syntax: pull [-s[top]] <checkout> [ <checkout> ... ]
+
+    Pull the specified checkouts from their remote repositories. Any problems
+    will be (re)reported at the end.
+
+    For each checkout named, retrieve changes from the corresponding remote
+    repository (as described by the build description) and apply them (to
+    the checkout), but *not* if a merge would be required.
+
+        (For a VCS such as git, this actually means "not if a user-assisted
+        merge would be required - i.e., fast-forwards will be done.)
+
+    If no checkouts are given, we'll use those implied by your current
+    location.
+
+    Each <checkout> should be the name of a checkout, and muddle will obey
+    the rule associated with "checkout:<checkout>{}/fetched" for each.
+
+    The special <checkout> name _all means all checkouts.
+
+    Without a <checkout>, we use the checkout you're in, or the checkouts
+    below the current directory.
+
+    Normally, 'muddle pull' will attempt to pull all the chosen checkouts,
+    re-reporting any problems at the end. If '-s' or '-stop' is given, then
+    it will instead stop at the first problem.
+    """
+
+    def requires_build_tree(self):
+        return True
+
+    def with_build_tree(self, builder, current_dir, args):
+
+        if len(args) and args[0] in ('-s', '-stop'):
+            stop_on_problem = True
+        else:
+            stop_on_problem = False
+
+        checkouts = decode_checkout_arguments(builder, args, current_dir,
+                                              LabelTag.Fetched)
+
+        name_selected_checkouts("Fetch", checkouts)
+
+        if self.no_op():
+            return
+
+        problems = []
+        not_needed  = []
+
+        for co in checkouts:
+            try:
+                # First clear the 'fetched' tag
+                builder.invocation.db.clear_tag(co)
+                # And then build it again
+                builder.build_label(co)
+            except Unsupported as e:
+                print e
+                not_needed.append(e)
+            except GiveUp as e:
+                if stop_on_problem:
+                    raise
+                else:
+                    print e
+                    problems.append(e)
+
+        if not_needed:
+            print '\nThe following pulls were not needed:\n'
+            for e in problems:
+                print str(e).rstrip()
+                print
+
+        if problems:
+            print '\nThe following problems occurred:\n'
+            for e in problems:
+                print str(e).rstrip()
+                print
+
+@command('merge', CAT_CHECKOUT)
+class Merge(Command):
+    """
+    :Syntax: merge [-s[top]] <checkout> [ <checkout> ... ]
+
+    Merge the specified checkouts from their remote repositories.
+
+    For each checkout named, retrieve changes from the corresponding remote
+    repository (as described by the build description) and merge them (into
+    the checkout). The merge process is handled in a VCS specific manner,
+    as each checkout is dealt with.
+
+    If no checkouts are given, we'll use those implied by your current
+    location.
+
+    Each <checkout> should be the name of a checkout, and muddle will obey
+    the rule associated with "checkout:<checkout>{}/merged" for each.
+
+    The special <checkout> name _all means all checkouts.
+
+    Without a <checkout>, we use the checkout you're in, or the checkouts
+    below the current directory.
+
+    If '-s' or '-stop' is given, then we'll stop at the first problem,
+    otherwise an attempt will be made to process all the checkouts, and any
+    problems will be re-reported at the end.
+    """
+
+    def requires_build_tree(self):
+        return True
+
+    def with_build_tree(self, builder, current_dir, args):
+
+        if len(args) and args[0] in ('-s', '-stop'):
+            stop_on_problem = True
+        else:
+            stop_on_problem = False
+
+        checkouts = decode_checkout_arguments(builder, args, current_dir,
+                                              LabelTag.Merged)
+
+        name_selected_checkouts("Merge", checkouts)
+
+        if (self.no_op()):
+            return
+
+        problems = []
+
+        for co in checkouts:
+            try:
+                # First clear the 'merged' tag
+                builder.invocation.db.clear_tag(co)
+                # And then build it again
+                builder.build_label(co)
+            except GiveUp as e:
+                if stop_on_problem:
+                    raise
+                else:
+                    print e
+                    problems.append(e)
+        if problems:
+            print '\nThe following problems occurred:\n'
+            for e in problems:
+                print str(e).rstrip()
+                print
+
+@command('status', CAT_CHECKOUT)
+class Status(Command):
+    """
+    :Syntax: status [-v] <checkout> [ <checkout> ... ]
+
+    Report on the status of checkouts that need attention.
+
+    If '-v' is given, report each checkout label as it is checked (allowing
+    a sense of progress if there are many bazaar checkouts, for instance).
+
+    Runs the equivalent of ``git status`` or ``bzr status`` on each repository,
+    and tries to only report those which have significant status.
+
+    If no checkouts are given, we'll use those implied by your current
+    location.
+
+    Each <checkout> should be the name of a checkout.
+
+    The special <checkout> name _all means all checkouts.
+
+    Without a <checkout>, we use the checkout you're in, or the checkouts
+    below the current directory.
+
+        Note: For subversion, the (remote) repository is queried,
+        which may be slow.
+
+    Be aware that "muddle status" will report on the currently checked out
+    checkouts. "muddle status _all" will (attempt to) report on *all* the
+    checkouts described by the build, even if they have not yet been checked
+    out. This will fail on the first checkout directory it can't "cd" into
+    (i.e., the first checkout that isn't there yet).
+    """
+
+    def requires_build_tree(self):
+        return True
+
+    def with_build_tree(self, builder, current_dir, args):
+
+        verbose = False
+        if args and args[0] == '-v':
+            args = args[1:]
+            verbose = True
+
+        checkouts = decode_checkout_arguments(builder, args, current_dir,
+                                              LabelTag.Fetched)
+
+        name_selected_checkouts("Status for", checkouts)
+
+        if self.no_op():
+            return
+
+        something_needs_doing = False
+        for co in checkouts:
+            rule = builder.invocation.ruleset.rule_for_target(co)
+            try:
+                vcs = rule.obj.vcs
+            except AttributeError:
+                print "Rule for label '%s' has no VCS - cannot find its status"%co
+                continue
+            text = vcs.status(verbose)
+            if text:
+                print text
+                something_needs_doing = True
+        if not something_needs_doing:
+            print 'All checkouts seemed clean'
+
+@command('reparent', CAT_CHECKOUT)
+class Reparent(Command):
+    """
+    :Syntax: reparent [-f[orce]] <checkout> [ <checkout> ... ]
+
+    Re-associate the specified checkouts with their remote repositories.
+
+    Some distributed VCSs (notably, Bazaar) can "forget" the remote repository
+    for a checkout. In Bazaar, this typically means not remembering the
+    "parent" repository, and thus not being able to pull. It appears to be
+    possible to end up in this situation if network disconnection happens in an
+    inopportune manner.
+
+    This command attempts to reassociate each checkout to the remote repository
+    as named in the muddle build description. If '-force' is given, then this
+    will be done even if the remote repository is already known, otherwise it
+    will only be done if it is necessary.
+
+        For Bazaar: Reads and (maybe) edits .bzr/branch/branch.conf.
+
+        * If "parent_branch" is unset, sets it.
+        * With '-force', sets "parent_branch" regardless, and also unsets
+          "push_branch".
+
+    If no checkouts are given, we'll use those implied by your current
+    location.
+
+    Each <checkout> should be the name of a checkout.
+
+    The special <checkout> name _all means all checkouts.
+
+    Without a <checkout>, we use the checkout you're in, or the checkouts
+    below the current directory.
+    """
+
+    def requires_build_tree(self):
+        return True
+
+    def with_build_tree(self, builder, current_dir, args):
+
+        if args and args[0] in ('-f', '-force'):
+            args = args[1:]
+            force = True
+        else:
+            force = False
+
+        checkouts = decode_checkout_arguments(builder, args, current_dir,
+                                              LabelTag.Fetched)
+
+        name_selected_checkouts("Reparent", checkouts)
+
+        if (self.no_op()):
+            return
+
+        for co in checkouts:
+            rule = builder.invocation.ruleset.rule_for_target(co)
+            try:
+                vcs = rule.obj.vcs
+            except AttributeError:
+                print "Rule for label '%s' has no VCS - cannot reparent, ignored"%co
+                continue
+            vcs.reparent(force=force, verbose=True)
+
+@command('removed', CAT_CHECKOUT)
+class Removed(Command):
+    """
+    :Syntax: removed <checkout> [ <checkout> ... ]
+
+    Signal to muddle that the given checkouts have been removed and will
+    need to be checked out again before they can be used.
+
+    The special <checkout> name _all means all checkouts.
+
+    Without a <checkout>, we use the checkout you're in, or the checkouts
+    below the current directory.
+    """
+
+    def requires_build_tree(self):
+        return True
+
+    def with_build_tree(self, builder, current_dir, args):
+        checkouts = decode_checkout_arguments(builder, args, current_dir,
+                                              LabelTag.CheckedOut)
+
+        name_selected_checkouts("Remove", checkouts)
+
+        if (self.no_op()):
+            return
+
+        for c in checkouts:
+            builder.kill_label(c)
+
+@command('unimport', CAT_CHECKOUT)
+class Unimport(Command):
+    """
+    :Syntax: unimport <checkout> [ <checkout> ... ]
+
+    Assert that the given checkouts haven't been checked out and must therefore
+    be checked out.
+
+    The special <checkout> name _all means all checkouts.
+
+    Without a <checkout>, we use the checkout you're in, or the checkouts
+    below the current directory.
+    """
+
+    def requires_build_tree(self):
+        return True
+
+    def with_build_tree(self, builder, current_dir, args):
+        checkouts = decode_checkout_arguments(builder, args, current_dir,
+                                              LabelTag.CheckedOut)
+
+        name_selected_checkouts("Unimport", checkouts)
+
+        if (self.no_op()):
+            return
+
+        for c in checkouts:
+            builder.invocation.db.clear_tag(c)
+
+@command('import', CAT_CHECKOUT)
+class Import(Command):
+    """
+    :Syntax: import <checkout> [ <checkout> ... ]
+
+    Assert that the given checkout (which may be the builds checkout) has
+    been checked out. This is mainly used when you've just written a package
+    you plan to commit to the central repository - muddle obviously can't check
+    it out because the repository doesn't exist yet, but you probably want to
+    add it to the build description for testing (and in fact you may want to
+    commit it with muddle push). For convenience in the expected use case, it
+    goes on to prime the relevant VCS module (by way of 'muddle reparent') so
+    it can be pushed once ready; this should be at worst harmless in all cases.
+
+    This command is really just an wrapper to 'muddle assert' with the right
+    magic label names, and to 'muddle reparent'.
+
+    The special <checkout> name _all means all checkouts.
+
+    Without a <checkout>, we use the checkout you're in, or the checkouts
+    below the current directory.
+    """
+
+    def requires_build_tree(self):
+        return True
+
+    def with_build_tree(self, builder, current_dir, args):
+        checkouts = decode_checkout_arguments(builder, args, current_dir,
+                                              LabelTag.CheckedOut)
+
+        name_selected_checkouts("Import", checkouts)
+
+        if (self.no_op()):
+            return
+
+        for c in checkouts:
+            builder.invocation.db.set_tag(c)
+        # issue 143: Call reparent so the VCS is locked and loaded.
+        rep = g_command_dict['reparent']() # should be Reparent but go via the dict just in case
+        rep.set_options(self.options)
+        rep.set_old_env(self.old_env)
+        rep.with_build_tree(builder, current_dir, args, where)
+
+@command('changed', CAT_PACKAGE)
+class Changed(Command):
+    """
+    :Syntax: changed <package> [ <package> ... ]
+
+    Mark packages as having been changed so that they will later
+    be rebuilt by anything that needs to. The usual package name
+    guessing logic is used to guess the names of your packages if
+    you don't provide them.
+    
+    Note that we don't reconfigure (or indeed clean) packages - 
+    we just clear the tags asserting that they've been built.
+
+    You can specify all packages that depend on a particular checkout
+    with "checkout:name".
+    """
+
+    def requires_build_tree(self):
+        return True
+
+    def with_build_tree(self, builder, current_dir, args):
+        labels = decode_package_arguments(builder, args, current_dir,
+                                      LabelTag.Built)
+        if (self.no_op()):
+            print "Mark changed: %s"%(label_list_to_string(labels))
+            return
+
+        for l in labels:
+            builder.kill_label(l)
+
+@command('uncheckout', CAT_CHECKOUT)
+class UnCheckout(Command):
+    """
+    :Syntax: uncheckout <checkout> [ <checkout> ... ]
+
+    Tells muddle that the given checkouts no longer exist in the src directory
+    and should be checked out/cloned from version control again.
+
+    The special <checkout> name _all means all checkouts.
+
+    If no <checkouts> are given, we'll use those implied by your current
+    location.
+
+    This does not actually delete the checkout directory. If you try to do::
+
+        muddle unckeckout fred
+        muddle checkout   fred
+
+    then you will probably get an error, as the checkout still exists, and the
+    VCS will detect this. As it says, this is to tell muddle that the checkout
+    has already been removed.
+    """
+
+    def requires_build_tree(self):
+        return True
+
+    def with_build_tree(self, builder, current_dir, args):
+        checkouts = decode_checkout_arguments(builder, args, current_dir,
+                                              LabelTag.CheckedOut)
+
+        name_selected_checkouts("Uncheckout", checkouts)
+
+        if (self.no_op()):
+            return
+
+        for co in checkouts:
+            builder.kill_label(co)
+
+@command('checkout', CAT_CHECKOUT)
+class Checkout(Command):
+    """
+    :Syntax: checkout <checkout> [ <checkout> ... ]
+
+    Checks out the given series of checkouts.
+
+    That is, copies (clones/branches) the content of each checkout from its
+    remote repository.
+
+    'checkout _all' means checkout all checkouts.
+    """
+
+    def requires_build_tree(self):
+        return True
+
+    def with_build_tree(self, builder, current_dir, args):
+        checkouts = decode_checkout_arguments(builder, args, current_dir,
+                                              LabelTag.CheckedOut)
+
+        name_selected_checkouts("Checkout", checkouts)
+
+        if (self.no_op()):
+            return
+
+        for co in checkouts:
+            builder.build_label(co)
 
 # -----------------------------------------------------------------------------
 # Actions
@@ -4099,7 +4258,7 @@ def decode_checkout_arguments(builder, arglist, current_dir, required_tag=None):
                 initial_list.extend(all_checkouts)
             else:
                 label = Label.from_fragment(word,
-                                            default_type=utils.LabelType.Checkout,
+                                            default_type=LabelType.Checkout,
                                             default_role=None,
                                             default_domain=default_domain)
                 initial_list.append(label)
@@ -4108,9 +4267,9 @@ def decode_checkout_arguments(builder, arglist, current_dir, required_tag=None):
 
         intermediate_set = set()
         for index, label in enumerate(initial_list):
-            if label.type == utils.LabelType.Checkout:
+            if label.type == LabelType.Checkout:
                 intermediate_set.update(expand_checkout_label(builder, label, required_tag))
-            elif label.type == utils.LabelType.Package:
+            elif label.type == LabelType.Package:
                 intermediate_set.update(expand_checkout_package_label(builder, label, required_tag))
             else:
                 raise GiveUp("Cannot cope with label '%s', from input arg '%s'"%(label, arglist[index]))
@@ -4158,12 +4317,12 @@ def decode_single_package_label(builder, arg, tag):
     """
     default_domain = builder.get_default_domain()
     label = Label.from_fragment(arg,
-                                default_type=utils.LabelType.Package,
+                                default_type=LabelType.Package,
                                 default_role=None,
                                 default_domain=default_domain)
     if label.tag != tag:
         label = label.copy_with_tag(tag)
-    if label.type != utils.LabelType.Package:
+    if label.type != LabelType.Package:
         raise GiveUp("Label '%s', from argument '%s', is not a valid"
                 " package label"%(label, arg))
     return label
@@ -4193,7 +4352,7 @@ def decode_package_arguments(builder, arglist, current_dir, required_tag=None):
             initial_list.extend(builder.invocation.all_package_labels())
         else:
             label = Label.from_fragment(word,
-                                        default_type=utils.LabelType.Package,
+                                        default_type=LabelType.Package,
                                         default_role=None,
                                         default_domain=default_domain)
             initial_list.append(label)
@@ -4202,9 +4361,9 @@ def decode_package_arguments(builder, arglist, current_dir, required_tag=None):
 
     intermediate_set = set()
     for index, label in enumerate(initial_list):
-        if label.type == utils.LabelType.Package:
+        if label.type == LabelType.Package:
             intermediate_set.update(expand_package_label(builder, label, required_tag))
-        elif label.type == utils.LabelType.Checkout:
+        elif label.type == LabelType.Checkout:
             intermediate_set.update(expand_package_checkout_label(builder, label, required_tag))
         else:
             raise GiveUp("Cannot cope with label '%s', from input arg '%s'"%(label, arglist[index]))
@@ -4241,10 +4400,10 @@ def decode_deployment_arguments(builder, args, current_dir, required_tag):
                 return return_list
             else:
                 lbl = Label.from_fragment(dep,
-                                          default_type=utils.LabelType.Deployment,
+                                          default_type=LabelType.Deployment,
                                           default_role="*",
                                           default_domain=default_domain)
-                if lbl.type != utils.LabelType.Deployment:
+                if lbl.type != LabelType.Deployment:
                     raise GiveUp("Label '%s', from argument '%s' not allowed"
                             " as a deployment label"%(lbl, dep))
                 if lbl.tag != required_tag:
@@ -4339,7 +4498,7 @@ def all_deployment_labels(builder, tag):
     # Important not to set tag here - if there's a deployment
     #  which doesn't have the right tag, we want an error, 
     #  not to silently ignore it.
-    match_lbl = Label(utils.LabelType.Deployment,
+    match_lbl = Label(LabelType.Deployment,
                       "*", "*", "*", domain = builder.get_default_domain())
     matching = builder.invocation.ruleset.rules_for_target(match_lbl)
 
@@ -4349,7 +4508,7 @@ def all_deployment_labels(builder, tag):
 
     return_list = [ ]
     for r in return_set:
-        lbl = Label(utils.LabelType.Deployment,
+        lbl = Label(LabelType.Deployment,
                     r,
                     "*",
                     tag)
@@ -4365,8 +4524,8 @@ def default_deployment_labels(builder, tag):
     default_labels = builder.invocation.default_labels
     return_list = [ ]
     for d in default_labels:
-        if (d.type == utils.LabelType.Deployment):
-            return_list.append(Label(utils.LabelType.Deployment,
+        if (d.type == LabelType.Deployment):
+            return_list.append(Label(LabelType.Deployment,
                                d.name,
                                d.role,
                                tag))
@@ -4433,11 +4592,11 @@ def expand_wildcards(builder, label, required_tag=None):
 
     # This is perhaps not the most efficient way to do this, but it is simple
     possible_labels = []
-    if label.type == utils.LabelType.Checkout:
+    if label.type == LabelType.Checkout:
         possible_labels = builder.invocation.all_checkout_labels()
-    elif label.type == utils.LabelType.Package:
+    elif label.type == LabelType.Package:
         possible_labels = builder.invocation.all_package_labels()
-    elif label.type == utils.LabelType.Deployment:
+    elif label.type == LabelType.Deployment:
         possible_labels = builder.invocation.all_deployment_labels()
     else:
         raise GiveUp("Cannot expand wildcards in label '%s', which"

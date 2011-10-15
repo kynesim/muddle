@@ -250,7 +250,7 @@ class CheckoutCommand(Command):
         if self.no_op():
             print 'Asked to %s: %s'%(self.cmd_name, label_list_to_string(checkouts))
             return
-        else if not args:
+        elif not args:
             print '%s %s'%(self.cmd_name, label_list_to_string(checkouts))
 
         self.build_these_labels(checkouts, switches)
@@ -389,7 +389,7 @@ class PackageCommand(Command):
         if self.no_op():
             print 'Asked to %s: %s'%(self.cmd_name, label_list_to_string(packages))
             return
-        else if not args:
+        elif not args:
             print '%s %s'%(self.cmd_name, label_list_to_string(checkouts))
 
         self.build_these_labels(packages)
@@ -522,7 +522,7 @@ class DeploymentCommand(Command):
         if self.no_op():
             print 'Asked to %s: %s'%(self.cmd_name, label_list_to_string(packages))
             return
-        else if not args:
+        elif not args:
             print '%s %s'%(self.cmd_name, label_list_to_string(checkouts))
 
         self.build_these_labels(packages)

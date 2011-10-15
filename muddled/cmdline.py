@@ -31,6 +31,28 @@ def find_and_load(specified_root, muddle_binary):
         print "Error trying to find build tree"
         raise
 
+def lookup_command(command_name, args, cmd_dict, subcmd_dict):
+    """
+    Look the command up, and return an instance of it and any remaining args
+    """
+    try:
+        command_class = cmd_dict[command_name]
+    except KeyError:
+        raise utils.GiveUp("There is no muddle command '%s'"%command_name)
+
+    if command_class is None:
+        try:
+            subcommand_name = args[0]
+        except IndexError:
+            raise utils.GiveUp("Command '%s' needs a subcommand"%command_name)
+        args = args[1:]
+        try:
+            command_class = subcmd_dict[command_name][subcommand_name]
+        except KeyError:
+            raise utils.GiveUp("There is no muddle command"
+                                " '%s %s'"%(command_name, subcommand_name))
+    return command_class(), args
+
 def _cmdline(args, current_dir, original_env, muddle_binary):
     """
     The actual command line, with no safety net...
@@ -58,8 +80,7 @@ def _cmdline(args, current_dir, original_env, muddle_binary):
         args = args[1:]
 
     if len(args) < 1:
-        # The command is implicitly 'rebuild' with the default label, or
-        # _all if none was specified.
+        # Make a first guess at a plausible command
         command_name = "rebuild"            # We rely on knowing this exists
         guess_what_to_do = True             # but it's only our best guess
     else:
@@ -71,24 +92,7 @@ def _cmdline(args, current_dir, original_env, muddle_binary):
     cmd_dict = commands.g_command_dict
     subcmd_dict = commands.g_subcommand_dict
 
-    try:
-        command_class = cmd_dict[command_name]
-    except KeyError:
-        raise utils.GiveUp("There is no muddle command '%s'"%command_name)
-
-    if command_class is None:
-        try:
-            subcommand_name = args[0]
-        except IndexError:
-            raise utils.GiveUp("Command '%s' needs a subcommand"%command_name)
-        args = args[1:]
-        try:
-            command_class = subcmd_dict[command_name][subcommand_name]
-        except KeyError:
-            raise utils.GiveUp("There is no muddle command"
-                                " '%s %s'"%(command_name, subcommand_name))
-
-    command = command_class()
+    command, args = lookup_command(command_name, args, cmd_dict, subcmd_dict)
     command.set_options(command_options)
     command.set_old_env(original_env)
 

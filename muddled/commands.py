@@ -39,7 +39,7 @@ import textwrap
 import pydoc
 from db import InstructionFile
 from urlparse import urlparse
-from utils import VersionStamp, GiveUp, Unsupported
+from utils import VersionStamp, GiveUp, MuddleBug, Unsupported, DirType
 
 # Following Richard's naming conventions...
 # A dictionary of <command name> : <command class>
@@ -187,7 +187,7 @@ class Command:
         return ("no_operation" in self.options)
 
 
-    def with_build_tree(self, builder, current_dir, args, where):
+    def with_build_tree(self, builder, current_dir, args):
         """
         Run this command with a build tree.
         """
@@ -199,6 +199,154 @@ class Command:
         """
         raise GiveUp("Can't run %s without a build tree."%self.cmd_name)
 
+class CheckoutCommand(Command):
+    """
+    A Command that takes checkout arguments. Always requires a build tree.
+    """
+
+    # Subclasses may override this if necessary
+    required_tag = utils.LabelTag.CheckedOut
+
+    def with_build_tree(self, builder, current_dir, args):
+        if args:
+            # Expand out any labels that need it
+            checkouts = self.decode_args(builder, args, current_dir)
+        else:
+            # Decide what to do based on where we are
+            checkouts = self.default_args(builder, current_dir)
+
+        # We promised a sorted list
+        checkouts.sort()
+
+        # Grumble about any labels that don't exist
+        # XXX TODO
+        # and if that leaves us with no labels at all, we must give up
+
+        if (self.no_op()):
+            print 'Asked to %s: %s'%(self.cmd_name, label_list_to_string(checkouts))
+            return
+
+        self.build_labels(checkouts)
+
+    def decode_args(self, builder, args, current_dir):
+        """
+        Interpret the 'args' as partial labels, and return a list of checkouts.
+        """
+        default_domain = builder.get_default_domain()
+
+        result_set = set()
+        # Build up an initial list from the arguments given
+        # Make sure we have a one-for-one correspondence between the input
+        # list and the result
+        initial_list = []
+        for word in args:
+            if word == '_all':
+                all_checkouts = builder.invocation.all_checkout_labels()
+                initial_list.extend(all_checkouts)
+            else:
+                label = Label.from_fragment(word,
+                                            default_type=self.required_tag,
+                                            default_role=None,
+                                            default_domain=default_domain)
+                initial_list.append(label)
+
+        #print 'Initial list:', label_list_to_string(initial_list)
+
+        intermediate_set = set()
+        for index, label in enumerate(initial_list):
+            if label.type == utils.LabelType.Checkout:
+                intermediate_set.update(self.expand_checkout_label(builder, label))
+            elif label.type == utils.LabelType.Package:
+                intermediate_set.update(self.expand_package_label(builder, label))
+            else:
+                raise GiveUp("Cannot cope with label '%s', from input arg '%s'"%(label, args[index]))
+
+        #print 'Intermediate set', label_list_to_string(intermediate_set)
+
+        result_set = set()
+        for label in intermediate_set:
+            if label.is_definite():
+                result_set.add(label)
+            else:
+                result_set.update(expand_wildcards(builder, label, self.required_tag))
+
+        #print 'Result set', label_list_to_string(result_set)
+        return list(result_set)
+
+    def expand_checkout_label(self, builder, label):
+        """Given an intermediate checkout label, expand it to a set of labels.
+
+        TODO: decide what wildcards we accept, and expand them(?)
+        """
+        intermediate_set = set()
+        result_set = set()
+
+        intermediate_set.add(label)
+
+        if self.required_tag:
+            for label in intermediate_set:
+                if label.tag != self.required_tag:
+                    label = label.copy_with_tag(self.required_tag)
+                result_set.add(label)
+        else:
+            # XXX Do we really support this?
+            result_set = intermediate_set
+
+        return result_set
+
+    def expand_package_label(self, builder, label):
+        """Given an intermediate package label, expand it to a set of checkout labels.
+        """
+        result_set = set()
+
+        these_labels = builder.invocation.checkouts_for_package(label)
+
+        if self.required_tag:
+            for lbl in these_labels:
+                result_set.add(lbl.copy_with_tag(self.required_tag))
+        else:
+            # XXX Do we really support this?
+            result_set = set(these_labels)
+
+        return result_set
+
+    def default_args(self, builder, current_dir):
+        """
+        Decide on default labels, based on where we are in the build tree.
+        """
+        what, label, domain = builder.find_location_in_tree(current_dir)
+        result_list = []
+
+        if what == DirType.Checkout and label:
+            # We're actually inside a checkout - job done
+            result_list.append(label.copy_with_tag(self.required_tag))
+        elif what in (DirType.Checkout, DirType.Root, DirType.DomainRoot):
+            # We're somewhere that we expect to have checkouts below it
+            cos_below = builder.get_all_checkout_labels_below(current_dir)
+            for c in cos_below:
+                result_list.append(c.copy_with_tag(self.required_tag))
+        else:
+            # Hmm - nothing we can do
+            pass
+        return result_list
+
+    def build_labels(self, checkouts):
+        """
+        Do whatever is necessary to each label
+        """
+        raise MuddleBug('No action provided for command "%s"'%self.cmd_name)
+
+@command('checkout2', CAT_CHECKOUT)
+class Checkout2(CheckoutCommand):
+
+    def build_labels(self, checkouts):
+        for co in checkouts:
+            print 'Pretending to build label %s'%co
+            #builder.build_label(co)
+
+# =============================================================================
+# Actual commands
+# =============================================================================
 @command('help', CAT_QUERY)
 class Help(Command):
     """
@@ -244,7 +392,7 @@ class Help(Command):
     def requires_build_tree(self):
         return False
 
-    def with_build_tree(self, builder, current_dir, args, where):
+    def with_build_tree(self, builder, current_dir, args):
         self.print_help(args)
 
     def without_build_tree(self, muddle_binary, root_path, args):
@@ -452,7 +600,7 @@ class Root(Command):
     def requires_build_tree(self):
         return False
 
-    def with_build_tree(self, builder, current_dir, args, where):
+    def with_build_tree(self, builder, current_dir, args):
         print "%s"%(builder.invocation.db.root_path)
         
     def without_build_tree(self, muddle_binary, root_path, args):
@@ -495,7 +643,7 @@ class Init(Command):
     def requires_build_tree(self):
         return False
 
-    def with_build_tree(self, builder, current_dir, args, where):
+    def with_build_tree(self, builder, current_dir, args):
         raise GiveUp("Can't initialise a build tree " 
                     "when one already exists (%s)"%builder.invocation.db.root_path)
     
@@ -583,7 +731,7 @@ class Bootstrap(Command):
     def requires_build_tree(self):
         return False
 
-    def with_build_tree(self, builder, current_dir, args, where):
+    def with_build_tree(self, builder, current_dir, args):
         if args[0] != '-subdomain':
             raise GiveUp("Can't bootstrap a build tree when one already"
                                " exists (%s)\nTry using '-bootstrap' if you"
@@ -685,7 +833,7 @@ class ListVCS(Command):
     def requires_build_tree(self):
         return False
 
-    def with_build_tree(self, builder, current_dir, args, where):
+    def with_build_tree(self, builder, current_dir, args):
         self.do_command()
 
     def without_build_tree(self, muddle_binary, root_path, args):
@@ -730,7 +878,7 @@ class Depend(Command):
     def without_build_tree(self, muddle_binary, root_path, args):
         raise GiveUp("Cannot run without a build tree")
 
-    def with_build_tree(self, builder, current_dir, args, where):
+    def with_build_tree(self, builder, current_dir, args):
         if len(args) != 1 and len(args) != 2:
             print "Syntax: dependencies [system|user|all][-short] <label to match>"
             print self.__doc__
@@ -813,7 +961,7 @@ class QueryCheckouts(QueryCommand):
     With '-j', print them all on one line, separated by spaces.
     """
 
-    def with_build_tree(self, builder, current_dir, args, where):
+    def with_build_tree(self, builder, current_dir, args):
         switches = self.get_switches(args, ['-j'])
         if switches:
             joined = True
@@ -842,7 +990,7 @@ class QueryCheckoutDirs(QueryCommand):
     to ``src/``)
     """
 
-    def with_build_tree(self, builder, current_dir, args, where):
+    def with_build_tree(self, builder, current_dir, args):
         builder.invocation.db.dump_checkout_paths()
 
 @subcommand('query', 'domains', CAT_QUERY)
@@ -855,7 +1003,7 @@ class QueryDomains(QueryCommand):
     With '-j', print them all on one line, separated by spaces.
     """
 
-    def with_build_tree(self, builder, current_dir, args, where):
+    def with_build_tree(self, builder, current_dir, args):
         switches = self.get_switches(args, ['-j'])
         if switches:
             joined = True
@@ -882,7 +1030,7 @@ class QueryPackages(QueryCommand):
     With '-j', print them all on one line, separated by spaces.
     """
 
-    def with_build_tree(self, builder, current_dir, args, where):
+    def with_build_tree(self, builder, current_dir, args):
         switches = self.get_switches(args, ['-j'])
         if switches:
             joined = True
@@ -909,7 +1057,7 @@ class QueryPackageRoles(QueryCommand):
     With '-j', print them all on one line, separated by spaces.
     """
 
-    def with_build_tree(self, builder, current_dir, args, where):
+    def with_build_tree(self, builder, current_dir, args):
         switches = self.get_switches(args, ['-j'])
         if switches:
             joined = True
@@ -933,7 +1081,7 @@ class QueryDeployments(QueryCommand):
     With '-j', print them all on one line, separated by spaces.
     """
 
-    def with_build_tree(self, builder, current_dir, args, where):
+    def with_build_tree(self, builder, current_dir, args):
         switches = self.get_switches(args, ['-j'])
         if switches:
             joined = True
@@ -957,7 +1105,7 @@ class QueryRoles(QueryCommand):
     With '-j', print them all on one line, separated by spaces.
     """
 
-    def with_build_tree(self, builder, current_dir, args, where):
+    def with_build_tree(self, builder, current_dir, args):
         switches = self.get_switches(args, ['-j'])
         if switches:
             joined = True
@@ -981,7 +1129,7 @@ class QueryDefaultRoles(QueryCommand):
     With '-j', print them all on one line, separated by spaces.
     """
 
-    def with_build_tree(self, builder, current_dir, args, where):
+    def with_build_tree(self, builder, current_dir, args):
         switches = self.get_switches(args, ['-j'])
         if switches:
             joined = True
@@ -1006,7 +1154,7 @@ class QueryDefaultLabels(QueryCommand):
     With '-j', print them all on one line, separated by spaces.
     """
 
-    def with_build_tree(self, builder, current_dir, args, where):
+    def with_build_tree(self, builder, current_dir, args):
         switches = self.get_switches(args, ['-j'])
         if switches:
             joined = True
@@ -1031,7 +1179,7 @@ class QueryRoot(QueryCommand):
     Print the root path and default domain
     """
 
-    def with_build_tree(self, builder, current_dir, args, where):
+    def with_build_tree(self, builder, current_dir, args):
         print "Root: %s"%builder.invocation.db.root_path
         print "Default domain: %s"%builder.get_default_domain()
 
@@ -1047,7 +1195,7 @@ class QueryName(QueryCommand):
         export PROJECT_NAME=$(muddle query name)
     """
 
-    def with_build_tree(self, builder, current_dir, args, where):
+    def with_build_tree(self, builder, current_dir, args):
         print builder.build_name
 
 @subcommand('query', 'needed-by', CAT_QUERY, ['deps'])     # it used to be 'deps'
@@ -1058,7 +1206,7 @@ class QueryDeps(QueryCommand):
     Print what we need to build to build this label.
     """
 
-    def with_build_tree(self, builder, current_dir, args, where):
+    def with_build_tree(self, builder, current_dir, args):
         label = self.get_label(builder, args)
         to_build = depend.needed_to_build(builder.invocation.ruleset, label, useMatch = True)
         if to_build:
@@ -1080,7 +1228,7 @@ class QueryDir(QueryCommand):
     * for deployment labels, the deployment directory
     """
 
-    def with_build_tree(self, builder, current_dir, args, where):
+    def with_build_tree(self, builder, current_dir, args):
         label = self.get_label(builder, args)
 
         dir = None
@@ -1105,7 +1253,7 @@ class QueryEnv(QueryCommand):
     Print the environment in which this label will be run.
     """
 
-    def with_build_tree(self, builder, current_dir, args, where):
+    def with_build_tree(self, builder, current_dir, args):
         label = self.get_label(builder, args)
         the_env = builder.invocation.effective_environment_for(label)
         print "Effective environment for %s .. "%label
@@ -1120,7 +1268,7 @@ class QueryEnvs(QueryCommand):
     resulting environment for this label.
     """
 
-    def with_build_tree(self, builder, current_dir, args, where):
+    def with_build_tree(self, builder, current_dir, args):
         label = self.get_label(builder, args)
         a_list = builder.invocation.list_environments_for(label)
 
@@ -1140,7 +1288,7 @@ class QueryInstDetails(QueryCommand):
     they will be applied.
     """
 
-    def with_build_tree(self, builder, current_dir, args, where):
+    def with_build_tree(self, builder, current_dir, args):
         label = self.get_label(builder, args)
         loaded = builder.load_instructions(label)
         for (l, f, i) in loaded:
@@ -1157,7 +1305,7 @@ class QueryInstructions(QueryCommand):
     in which they will be applied.
     """
 
-    def with_build_tree(self, builder, current_dir, args, where):
+    def with_build_tree(self, builder, current_dir, args):
         label = self.get_label(builder, args)
         result = builder.invocation.db.scan_instructions(label)
         for (l, f) in result:
@@ -1172,7 +1320,7 @@ class QueryMatch(QueryCommand):
     wildcarded, this just reports if the label is known.
     """
 
-    def with_build_tree(self, builder, current_dir, args, where):
+    def with_build_tree(self, builder, current_dir, args):
         label = self.get_label(builder, args)
         wildcard_label = Label("*", "*", "*", "*", domain="*")
         all_rules = builder.invocation.ruleset.rules_for_target(wildcard_label)
@@ -1214,7 +1362,7 @@ class QueryMakeEnv(QueryCommand):
     muddle can tell which directories will be present.
     """
 
-    def with_build_tree(self, builder, current_dir, args, where):
+    def with_build_tree(self, builder, current_dir, args):
         label = self.get_label(builder, args)
         rule_set = builder.invocation.ruleset.rules_for_target(label,
                                                                useTags=True,
@@ -1257,7 +1405,7 @@ class QueryObjdir(QueryCommand):
     object directories for configure options in build Makefiles.
     """
 
-    def with_build_tree(self, builder, current_dir, args, where):
+    def with_build_tree(self, builder, current_dir, args):
         label = self.get_label(builder, args)
         print builder.invocation.package_obj_path(label)
 
@@ -1269,7 +1417,7 @@ class QueryPreciseEnv(QueryCommand):
     Print the environment pertaining to exactly this label (no fuzzy matches)
     """
 
-    def with_build_tree(self, builder, current_dir, args, where):
+    def with_build_tree(self, builder, current_dir, args):
         label = self.get_label(builder, args)
         the_env = builder.invocation.get_environment_for(label)
 
@@ -1288,7 +1436,7 @@ class QueryResults(QueryCommand):
     Print what this label is required to build.
     """
 
-    def with_build_tree(self, builder, current_dir, args, where):
+    def with_build_tree(self, builder, current_dir, args):
         label = self.get_label(builder, args)
         result = depend.required_by(builder.invocation.ruleset, label)
         print "Labels which require %s to build .. "%label
@@ -1303,7 +1451,7 @@ class QueryRules(QueryCommand):
     Print the rules covering building this label.
     """
 
-    def with_build_tree(self, builder, current_dir, args, where):
+    def with_build_tree(self, builder, current_dir, args):
         label = self.get_label(builder, args)
         local_rule = builder.invocation.ruleset.rule_for_target(label)
         if (local_rule is None):
@@ -1320,7 +1468,7 @@ class QueryTargets(QueryCommand):
     Print the targets that would be built by an attempt to build this label.
     """
 
-    def with_build_tree(self, builder, current_dir, args, where):
+    def with_build_tree(self, builder, current_dir, args):
         label = self.get_label(builder, args)
         local_rules = builder.invocation.ruleset.targets_match(label, useMatch = True)
         print "Targets that match %s .. "%(label)
@@ -1338,7 +1486,7 @@ class QueryUnused(QueryCommand):
     just the defaults).  Otherwise, arguments are labels.
     """
 
-    def with_build_tree(self, builder, current_dir, args, where):
+    def with_build_tree(self, builder, current_dir, args):
         def all_deployables(builder):
             search_label = Label(utils.LabelType.Deployment,
                                  "*", "*",
@@ -1511,7 +1659,7 @@ class QueryKernelver(QueryCommand):
         c = (version & 0x0000FF)
         return '%d.%d.%d'%(a,b,c)
 
-    def with_build_tree(self, builder, current_dir, args, where):
+    def with_build_tree(self, builder, current_dir, args):
         label = self.get_label(builder, args)
         print self.kernel_version(builder, label)
 
@@ -1534,7 +1682,7 @@ class RunIn(Command):
     def requires_build_tree(self):
         return True
 
-    def with_build_tree(self, builder, current_dir, args, where):
+    def with_build_tree(self, builder, current_dir, args):
         if (len(args) < 2):
             print "Syntax: runin <label> <command> [ ... ]"
             print self.__doc__
@@ -1604,7 +1752,7 @@ class BuildLabel(Command):
     def requires_build_tree(self):
         return True
 
-    def with_build_tree(self, builder, current_dir, args, where):
+    def with_build_tree(self, builder, current_dir, args):
         labels = decode_labels(builder, args)
 
         if self.no_op():
@@ -1630,7 +1778,7 @@ class Redeploy(Command):
     def requires_build_tree(self):
         return True
 
-    def with_build_tree(self, builder, current_dir, args, where):
+    def with_build_tree(self, builder, current_dir, args):
         labels = decode_deployment_arguments(builder, args, current_dir,
                                              utils.LabelTag.Deployed)
 
@@ -1659,7 +1807,7 @@ class Cleandeploy(Command):
     def requires_build_tree(self):
         return True
 
-    def with_build_tree(self, builder, current_dir, args, where):
+    def with_build_tree(self, builder, current_dir, args):
         labels = decode_deployment_arguments(builder, args, current_dir,
                                              utils.LabelTag.Clean)
         if (labels is None):
@@ -1685,7 +1833,7 @@ class Deploy(Command):
     def requires_build_tree(self):
         return True
 
-    def with_build_tree(self, builder, current_dir, args, where):
+    def with_build_tree(self, builder, current_dir, args):
         labels = decode_deployment_arguments(builder, args, current_dir,
                                              utils.LabelTag.Deployed)
         if self.no_op():
@@ -1714,7 +1862,7 @@ class Configure(Command):
     def requires_build_tree(self):
         return True
 
-    def with_build_tree(self, builder, current_dir, args, where):
+    def with_build_tree(self, builder, current_dir, args):
         labels = decode_package_arguments(builder, args, current_dir,
                                       utils.LabelTag.Configured)
         build_labels(builder, labels)
@@ -1731,7 +1879,7 @@ class Reconfigure(Command):
     def requires_build_tree(self):
         return True
 
-    def with_build_tree(self, builder, current_dir, args, where):
+    def with_build_tree(self, builder, current_dir, args):
         labels = decode_package_arguments(builder, args, current_dir,
                                       utils.LabelTag.Configured)
 
@@ -1769,7 +1917,7 @@ class Build(Command):
     def requires_build_tree(self):
         return True
 
-    def with_build_tree(self, builder, current_dir, args, where):
+    def with_build_tree(self, builder, current_dir, args):
         labels = decode_package_arguments(builder, args, current_dir,
                                       utils.LabelTag.PostInstalled)
 
@@ -1791,7 +1939,7 @@ class Rebuild(Command):
     def requires_build_tree(self):
         return True
 
-    def with_build_tree(self, builder, current_dir, args, where):
+    def with_build_tree(self, builder, current_dir, args):
         labels = decode_package_arguments(builder, args, current_dir,
                                       utils.LabelTag.PostInstalled)
 
@@ -1817,7 +1965,7 @@ class Reinstall(Command):
     def requires_build_tree(self):
         return True
 
-    def with_build_tree(self, builder, current_dir, args, where):
+    def with_build_tree(self, builder, current_dir, args):
         labels = decode_package_arguments(builder, args, current_dir,
                                       utils.LabelTag.PostInstalled)
 
@@ -1843,7 +1991,7 @@ class Distrebuild(Command):
     def requires_build_tree(self):
         return True
 
-    def with_build_tree(self, builder, current_dir, args, where):
+    def with_build_tree(self, builder, current_dir, args):
         labels = decode_package_arguments(builder, args, current_dir,
                                       utils.LabelTag.PostInstalled)
 
@@ -1868,7 +2016,7 @@ class Clean(Command):
     def requires_build_tree(self):
         return True
 
-    def with_build_tree(self, builder, current_dir, args, where):
+    def with_build_tree(self, builder, current_dir, args):
         labels = decode_package_arguments(builder, args, current_dir,
                                       utils.LabelTag.Built)
 
@@ -1890,7 +2038,7 @@ class DistClean(Command):
     def requires_build_tree(self):
         return True
 
-    def with_build_tree(self, builder, current_dir, args, where):
+    def with_build_tree(self, builder, current_dir, args):
         labels = decode_package_arguments(builder, args, current_dir,
                                       utils.LabelTag.Built)
 
@@ -1929,7 +2077,7 @@ class Instruct(Command):
     def requires_build_tree(self):
         return True
 
-    def with_build_tree(self, builder, current_dir, args, where):
+    def with_build_tree(self, builder, current_dir, args):
         if (len(args) != 2 and len(args) != 1):
             print "Syntax: instruct [pkg{role}] <[instruction-file]>"
             print self.__doc__
@@ -1995,7 +2143,7 @@ class Commit(Command):
     def requires_build_tree(self):
         return True
 
-    def with_build_tree(self, builder, current_dir, args, where):
+    def with_build_tree(self, builder, current_dir, args):
         checkouts = decode_checkout_arguments(builder, args, current_dir,
                                               utils.LabelTag.ChangesCommitted)
 
@@ -2038,7 +2186,7 @@ class Push(Command):
     def requires_build_tree(self):
         return True
 
-    def with_build_tree(self, builder, current_dir, args, where):
+    def with_build_tree(self, builder, current_dir, args):
         if len(args) and args[0] in ('-s', '-stop'):
             stop_on_problem = True
         else:
@@ -2106,7 +2254,7 @@ class Pull(Command):
     def requires_build_tree(self):
         return True
 
-    def with_build_tree(self, builder, current_dir, args, where):
+    def with_build_tree(self, builder, current_dir, args):
 
         if len(args) and args[0] in ('-s', '-stop'):
             stop_on_problem = True
@@ -2183,7 +2331,7 @@ class Merge(Command):
     def requires_build_tree(self):
         return True
 
-    def with_build_tree(self, builder, current_dir, args, where):
+    def with_build_tree(self, builder, current_dir, args):
 
         if len(args) and args[0] in ('-s', '-stop'):
             stop_on_problem = True
@@ -2254,7 +2402,7 @@ class Status(Command):
     def requires_build_tree(self):
         return True
 
-    def with_build_tree(self, builder, current_dir, args, where):
+    def with_build_tree(self, builder, current_dir, args):
 
         verbose = False
         if args and args[0] == '-v':
@@ -2322,7 +2470,7 @@ class Reparent(Command):
     def requires_build_tree(self):
         return True
 
-    def with_build_tree(self, builder, current_dir, args, where):
+    def with_build_tree(self, builder, current_dir, args):
 
         if args and args[0] in ('-f', '-force'):
             args = args[1:]
@@ -2364,7 +2512,7 @@ class Removed(Command):
     def requires_build_tree(self):
         return True
 
-    def with_build_tree(self, builder, current_dir, args, where):
+    def with_build_tree(self, builder, current_dir, args):
         checkouts = decode_checkout_arguments(builder, args, current_dir,
                                               utils.LabelTag.CheckedOut)
 
@@ -2393,7 +2541,7 @@ class Unimport(Command):
     def requires_build_tree(self):
         return True
 
-    def with_build_tree(self, builder, current_dir, args, where):
+    def with_build_tree(self, builder, current_dir, args):
         checkouts = decode_checkout_arguments(builder, args, current_dir,
                                               utils.LabelTag.CheckedOut)
 
@@ -2431,7 +2579,7 @@ class Import(Command):
     def requires_build_tree(self):
         return True
 
-    def with_build_tree(self, builder, current_dir, args, where):
+    def with_build_tree(self, builder, current_dir, args):
         checkouts = decode_checkout_arguments(builder, args, current_dir,
                                               utils.LabelTag.CheckedOut)
 
@@ -2459,7 +2607,7 @@ class Assert(Command):
     def requires_build_tree(self):
         return True
 
-    def with_build_tree(self, builder, current_dir, args, where):
+    def with_build_tree(self, builder, current_dir, args):
         if (len(args) < 1):
             print "Syntax: assert [label.. ]"
             print __doc__
@@ -2486,7 +2634,7 @@ class Retract(Command):
     def requires_build_tree(self):
         return True
 
-    def with_build_tree(self, builder, current_dir, args, where):
+    def with_build_tree(self, builder, current_dir, args):
         if len(args) < 1 :
             print "Syntax: retract [label ... ]"
             print __doc__
@@ -2520,7 +2668,7 @@ class Changed(Command):
     def requires_build_tree(self):
         return True
 
-    def with_build_tree(self, builder, current_dir, args, where):
+    def with_build_tree(self, builder, current_dir, args):
         labels = decode_package_arguments(builder, args, current_dir,
                                       utils.LabelTag.Built)
         if (self.no_op()):
@@ -2569,7 +2717,7 @@ class Env(Command):
     def requires_build_tree(self):
         return True
 
-    def with_build_tree(self,builder, current_dir, args, where):
+    def with_build_tree(self,builder, current_dir, args):
         if (len(args) < 3):
             raise GiveUp("Syntax: env [language] [build|run] [name] [label ... ]")
 
@@ -2635,7 +2783,7 @@ class UnCheckout(Command):
     def requires_build_tree(self):
         return True
 
-    def with_build_tree(self, builder, current_dir, args, where):
+    def with_build_tree(self, builder, current_dir, args):
         checkouts = decode_checkout_arguments(builder, args, current_dir,
                                               utils.LabelTag.CheckedOut)
 
@@ -2663,7 +2811,7 @@ class Checkout(Command):
     def requires_build_tree(self):
         return True
 
-    def with_build_tree(self, builder, current_dir, args, where):
+    def with_build_tree(self, builder, current_dir, args):
         checkouts = decode_checkout_arguments(builder, args, current_dir,
                                               utils.LabelTag.CheckedOut)
 
@@ -2697,7 +2845,7 @@ class CopyWithout(Command):
     def requires_build_tree(self):
         return False
 
-    def with_build_tree(self, builder, current_dir, args, where):
+    def with_build_tree(self, builder, current_dir, args):
         self.do_copy(args)
 
     def without_build_tree(self, muddle_binary, root_path, args):
@@ -2739,7 +2887,7 @@ class Retry(Command):
     def requires_build_tree(self):
         return True
 
-    def with_build_tree(self, builder, current_dir, args, where):
+    def with_build_tree(self, builder, current_dir, args):
         labels = decode_labels(builder, args)
         if (self.no_op()):
             print "Retry: %s"%(label_list_to_string(labels))
@@ -2780,7 +2928,7 @@ class Subst(Command):
     def requires_build_tree(self):
         return False
 
-    def with_build_tree(self, builder, current_dir, args, where):
+    def with_build_tree(self, builder, current_dir, args):
         self.do_subst(args)
 
     def without_build_tree(self, muddle_binary, root_path, args):
@@ -2859,7 +3007,7 @@ class StampSave(Command):
     def requires_build_tree(self):
         return True
 
-    def with_build_tree(self, builder, current_dir, args, where):
+    def with_build_tree(self, builder, current_dir, args):
         force = False
         just_use_head = False
         filename = None
@@ -2966,7 +3114,7 @@ class StampVersion(Command):
     def requires_build_tree(self):
         return True
 
-    def with_build_tree(self, builder, current_dir, args, where):
+    def with_build_tree(self, builder, current_dir, args):
         force = False
         while args:
             word = args[0]
@@ -3052,7 +3200,7 @@ class StampDiff(Command):
             raise GiveUp("'stamp diff' needs two stamp files to compare")
         self.compare_stamp_files(args)
 
-    def with_build_tree(self, builder, current_dir, args, where):
+    def with_build_tree(self, builder, current_dir, args):
         if not args:
             raise GiveUp("'stamp diff' needs two stamp files to compare")
         self.compare_stamp_files(args)
@@ -3165,7 +3313,7 @@ class StampPush(Command):
     def requires_build_tree(self):
         return True
 
-    def with_build_tree(self, builder, current_dir, args, where):
+    def with_build_tree(self, builder, current_dir, args):
         if len(args) > 1:
             raise GiveUp("Unexpected argument '%s' for 'stamp push'"%' '.join(args))
 
@@ -3227,7 +3375,7 @@ class StampPull(Command):
     def requires_build_tree(self):
         return True
 
-    def with_build_tree(self, builder, current_dir, args, where):
+    def with_build_tree(self, builder, current_dir, args):
         if len(args) > 1:
             raise GiveUp("Unexpected argument '%s' for 'stamp pull'"%' '.join(args))
 
@@ -3608,7 +3756,7 @@ class Whereami(Command):
                              '    or: where [-detail]')
         return detail
 
-    def with_build_tree(self, builder, current_dir, args, where):
+    def with_build_tree(self, builder, current_dir, args):
         detail = self.want_detail(args)
         r = builder.find_location_in_tree(current_dir)
         if r is None:
@@ -3626,7 +3774,7 @@ class Whereami(Command):
             raise utils.MuddleBug('Unable to determine location in the muddle build tree:\n'
                                   "'Directory type' returned as None")
 
-        if what == utils.DirType.DomainRoot:
+        if what == DirType.DomainRoot:
             print 'root of subdomain %s'%domain
         else:
             rv = "%s"%what
@@ -3666,7 +3814,7 @@ class Doc(Command):
     def requires_build_tree(self):
         return False
 
-    def with_build_tree(self, builder, current_dir, args, where):
+    def with_build_tree(self, builder, current_dir, args):
         self.doc_for(args)
 
     def without_build_tree(self, muddle_binary, root_path, args):
@@ -3867,12 +4015,12 @@ def decode_checkout_arguments(builder, arglist, current_dir, required_tag=None):
         # all checkouts.
         what, label, domain = builder.find_location_in_tree(current_dir)
 
-        if what == utils.DirType.Checkout and label:
+        if what == DirType.Checkout and label:
             # We're actually inside a checkout - job done
             result_list.append(label.copy_with_tag(required_tag))
-        elif what in (utils.DirType.Checkout,
-                      utils.DirType.Root,
-                      utils.DirType.DomainRoot):
+        elif what in (DirType.Checkout,
+                      DirType.Root,
+                      DirType.DomainRoot):
             # We're somewhere that we expect to have checkouts below
             cos_below = builder.get_all_checkout_labels_below(current_dir)
             for c in cos_below:
@@ -3989,7 +4137,7 @@ def decode_deployment_arguments(builder, args, current_dir, required_tag):
     else:
         # Can we guess what to do from where we are?
         what, label, domain = builder.find_location_in_tree(current_dir)
-        if what == utils.DirType.Deployment:
+        if what == DirType.Deployment:
             # We're actually inside a deployment - job done
             result_list.append(label.copy_with_tag(required_tag))
         else:

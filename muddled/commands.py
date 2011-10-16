@@ -253,7 +253,7 @@ class CheckoutCommand(Command):
         elif not args:
             print '%s %s'%(self.cmd_name, label_list_to_string(checkouts))
 
-        self.build_these_labels(checkouts, switches)
+        self.build_these_labels(builder, checkouts, switches)
 
     def decode_args(self, builder, args, current_dir):
         """
@@ -357,7 +357,7 @@ class CheckoutCommand(Command):
             pass
         return result_list
 
-    def build_these_labels(self, checkouts, switches=[]):
+    def build_these_labels(self, builder, checkouts, switches=[]):
         """
         Do whatever is necessary to each label
         """
@@ -392,7 +392,7 @@ class PackageCommand(Command):
         elif not args:
             print '%s %s'%(self.cmd_name, label_list_to_string(checkouts))
 
-        self.build_these_labels(packages)
+        self.build_these_labels(builder, packages)
 
     def decode_args(self, builder, args, current_dir):
         """
@@ -490,7 +490,7 @@ class PackageCommand(Command):
                                                              self.required_tag))
         return result_list
 
-    def build_these_labels(self, checkouts):
+    def build_these_labels(self, builder, checkouts):
         """
         Do whatever is necessary to each label
         """
@@ -525,7 +525,7 @@ class DeploymentCommand(Command):
         elif not args:
             print '%s %s'%(self.cmd_name, label_list_to_string(checkouts))
 
-        self.build_these_labels(packages)
+        self.build_these_labels(builder, packages)
 
     def decode_args(self, builder, args, current_dir):
         """
@@ -617,7 +617,7 @@ class DeploymentCommand(Command):
                 return_list.append(d)
         return return_list
 
-    def build_these_labels(self, deployments):
+    def build_these_labels(self, builder, deployments):
         """
         Do whatever is necessary to each label
         """
@@ -626,7 +626,7 @@ class DeploymentCommand(Command):
 @command('checkout2', CAT_CHECKOUT)
 class Checkout2(CheckoutCommand):
 
-    def build_these_labels(self, checkouts):
+    def build_these_labels(self, builder, checkouts):
         for co in checkouts:
             print 'Pretending to build label %s'%co
             #builder.build_label(co)
@@ -634,7 +634,7 @@ class Checkout2(CheckoutCommand):
 @command('build2', CAT_PACKAGE)
 class Build2(PackageCommand):
 
-    def build_these_labels(self, packages):
+    def build_these_labels(self, builder, packages):
         for pkg in packages:
             print 'Pretending to build label %s'%pkg
             #builder.build_label(pkg)
@@ -642,7 +642,7 @@ class Build2(PackageCommand):
 @command('deploy2', CAT_DEPLOYMENT)
 class Build2(DeploymentCommand):
 
-    def build_these_labels(self, deployments):
+    def build_these_labels(self, builder, deployments):
         for dep in deployments:
             print 'Pretending to build label %s'%dep
             #builder.build_label(pkg)
@@ -3121,10 +3121,10 @@ Try 'muddle help unstamp' for more information."""
         b = mechanics.load_builder(build_root, muddle_binary, default_domain=build_domain)
 
         qr = QueryRoot()
-        qr.with_build_tree(b, current_dir, None, None)
+        qr.with_build_tree(b, current_dir, None)
 
         qc = QueryCheckouts()
-        qc.with_build_tree(b, current_dir, ["checkout:*/*"], None)
+        qc.with_build_tree(b, current_dir, ["checkout:*/*"])
 
         # Check our checkout names match
         s_checkouts = set([name for name, repo, rev, rel, dir,
@@ -4235,7 +4235,7 @@ class Redeploy(DeploymentCommand):
     If _all is given, we redeploy all deployments.
     """
 
-    def build_these_labels(self, labels):
+    def build_these_labels(self, builder, labels):
         build_a_kill_b(builder, labels, LabelTag.Clean,
                        LabelTag.Deployed)
         build_labels(builder, labels)
@@ -4257,7 +4257,7 @@ class Cleandeploy(DeploymentCommand):
     # XXX Is this really correct?
     reuired_tag = LabelTag.Clean
 
-    def build_these_labels(self, labels):
+    def build_these_labels(self, builder, labels):
         build_a_kill_b(builder, labels, LabelTag.Clean, LabelTag.Deployed)
 
 @command('deploy', CAT_DEPLOYMENT)
@@ -4271,7 +4271,7 @@ class Deploy(DeploymentCommand):
     If _all is given, we'll use all deployments.
     """
 
-    def build_these_labels(self, labels):
+    def build_these_labels(self, builder, labels):
         build_labels(builder, labels)
 
 @command('configure', CAT_PACKAGE)
@@ -4294,7 +4294,7 @@ class Configure(PackageCommand):
     # XXX Is this really correct?
     required_tag = LabelTag.Configured
 
-    def build_these_labels(self, labels):
+    def build_these_labels(self, builder, labels):
         build_labels(builder, labels)
 
 @command('reconfigure', CAT_PACKAGE)
@@ -4309,7 +4309,7 @@ class Reconfigure(PackageCommand):
     # XXX Is this really correct?
     required_tag = LabelTag.Configured
 
-    def build_these_labels(self, labels):
+    def build_these_labels(self, builder, labels):
         # OK. Now we have our labels, retag them, and kill them and their
         # consequents
         to_kill = depend.retag_label_list(labels, LabelTag.Configured)
@@ -4336,7 +4336,7 @@ class Build(PackageCommand):
     with "checkout:name".
     """
 
-    def build_these_labels(self, labels):
+    def build_these_labels(self, builder, labels):
         build_labels(builder, labels)
 
 @command('rebuild', CAT_PACKAGE)
@@ -4348,7 +4348,7 @@ class Rebuild(PackageCommand):
     (and their dependencies).
     """
 
-    def build_these_labels(self, labels):
+    def build_these_labels(self, builder, labels):
         # OK. Now we have our labels, retag them, and kill them and their
         # consequents
         to_kill = depend.retag_label_list(labels, LabelTag.Built)
@@ -4363,7 +4363,7 @@ class Reinstall(PackageCommand):
     Reinstall the given packages (but don't rebuild them).
     """
 
-    def build_these_labels(self, labels):
+    def build_these_labels(self, builder, labels):
         # OK. Now we have our labels, retag them, and kill them and their
         # consequents
         to_kill = depend.retag_label_list(labels, LabelTag.Installed)
@@ -4378,7 +4378,7 @@ class Distrebuild(PackageCommand):
     A rebuild that does a distclean before attempting the rebuild.
     """
 
-    def build_these_labels(self, labels):
+    def build_these_labels(self, builder, labels):
         build_a_kill_b(builder, labels, LabelTag.DistClean, LabelTag.PreConfig)
         build_labels(builder, labels)
 
@@ -4395,7 +4395,7 @@ class Clean(PackageCommand):
     # XXX Is this correct?
     required_tag = LabelTag.Built
 
-    def build_these_labels(self, labels):
+    def build_these_labels(self, builder, labels):
         build_a_kill_b(builder, labels, LabelTag.Clean, LabelTag.Built)
 
 @command('distclean', CAT_PACKAGE)
@@ -4410,7 +4410,7 @@ class DistClean(PackageCommand):
     # XXX Is this correct?
     required_tag = LabelTag.Built
 
-    def build_these_labels(self, labels):
+    def build_these_labels(self, builder, labels):
         build_a_kill_b(builder, labels, LabelTag.DistClean, LabelTag.PreConfig)
 
 @command('commit', CAT_CHECKOUT)
@@ -4438,7 +4438,7 @@ class Commit(CheckoutCommand):
     # XXX Is this correct?
     required_tag = LabelTag.ChangesCommitted
 
-    def build_these_labels(self, labels, switches):
+    def build_these_labels(self, builder, labels, switches):
         # Forcibly retract all the updated tags.
         for co in labels:
             builder.kill_label(co)
@@ -4473,7 +4473,7 @@ class Push(CheckoutCommand):
     required_tag = LabelTag.ChangesPushed
     allowed_switches = [('-s', '-stop')]
 
-    def build_these_labels(self, labels, switches):
+    def build_these_labels(self, builder, labels, switches):
 
         if switches and '-s' in switches:
             stop_on_problem = True
@@ -4533,7 +4533,7 @@ class Pull(CheckoutCommand):
     required_tag = LabelTag.Fetched
     allowed_switches = [('-s', '-stop')]
 
-    def build_these_labels(self, checkouts, switches):
+    def build_these_labels(self, builder, checkouts, switches):
 
         if switches and '-s' in switches:
             stop_on_problem = True
@@ -4602,7 +4602,7 @@ class Merge(CheckoutCommand):
     required_tag = LabelTag.Merged
     allowed_switches = [('-s', '-stop')]
 
-    def build_these_labels(self, labels, switches):
+    def build_these_labels(self, builder, labels, switches):
 
         if switches and '-s' in switches:
             stop_on_problem = True
@@ -4665,7 +4665,7 @@ class Status(CheckoutCommand):
     required_tag = LabelTag.Fetched
     allowed_switches = [('-v',)]        # Remember, a list of *tuples*
 
-    def build_these_labels(self, labels, switches):
+    def build_these_labels(self, builder, labels, switches):
 
         if switches and '-v' in switches:
             verbose = True
@@ -4725,7 +4725,7 @@ class Reparent(CheckoutCommand):
     required_tag = LabelTag.Fetched
     allowed_switches = [('-f', '-force')]
 
-    def build_these_labels(self, labels, switches):
+    def build_these_labels(self, builder, labels, switches):
 
         if switches and '-f' in switches:
             force = True
@@ -4755,7 +4755,7 @@ class Removed(CheckoutCommand):
     below the current directory.
     """
 
-    def build_these_labels(self, labels, switches):
+    def build_these_labels(self, builder, labels, switches):
         for c in labels:
             builder.kill_label(c)
 
@@ -4773,7 +4773,7 @@ class Unimport(CheckoutCommand):
     below the current directory.
     """
 
-    def build_these_labels(self, labels, switches):
+    def build_these_labels(self, builder, labels, switches):
         for c in labels:
             builder.invocation.db.clear_tag(c)
 
@@ -4800,7 +4800,7 @@ class Import(CheckoutCommand):
     below the current directory.
     """
 
-    def build_these_labels(self, labels, switches):
+    def build_these_labels(self, builder, labels, switches):
         for c in labels:
             builder.invocation.db.set_tag(c)
         # issue 143: Call reparent so the VCS is locked and loaded.
@@ -4828,7 +4828,7 @@ class Changed(PackageCommand):
 
     required_tag = LabelTag.Built
 
-    def build_these_labels(self, labels):
+    def build_these_labels(self, builder, labels):
         for l in labels:
             builder.kill_label(l)
 
@@ -4855,7 +4855,7 @@ class UnCheckout(CheckoutCommand):
     has already been removed.
     """
 
-    def build_these_labels(self, labels, switches):
+    def build_these_labels(self, builder, labels, switches):
         for co in labels:
             builder.kill_label(co)
 
@@ -4872,7 +4872,7 @@ class Checkout(CheckoutCommand):
     'checkout _all' means checkout all checkouts.
     """
 
-    def build_these_labels(self, labels, switches):
+    def build_these_labels(self, builder, labels, switches):
         for co in labels:
             builder.build_label(co)
 

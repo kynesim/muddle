@@ -215,6 +215,7 @@ class Label(object):
             Label('package', 'busybox', role='rootfs', tag='installed', domain='arm(helloworld)')
             >>> str(_)
             'package:(arm(helloworld))busybox{rootfs}/installed'
+
         """
 
         # Slightly icky, but it's a pain if an illegal label is allowed
@@ -553,6 +554,7 @@ class Label(object):
             >>> l._mark_unswept()
             >>> print l
             a:b{c}/d[D]
+
         """
         self._unswept = True
 
@@ -598,6 +600,7 @@ class Label(object):
             >>> l._change_domain('f')
             >>> print l
             a:(f(e))b{c}/d
+
         """
         if self._unswept:
             if verbose: print 'sweep: %s -> '%str(self),
@@ -658,6 +661,7 @@ class Label(object):
             Traceback (most recent call last):
             ...
             GiveUp: Label domain '(fred((jim(bob))))' starts with zero length domain, '((jim(bob))', i.e. '(('
+
         """
         m = Label.domain_part_re.match(value)
         if m is None or m.end() != len(value):
@@ -736,6 +740,7 @@ class Label(object):
             Traceback (most recent call last):
             ...
             GiveUp: Label string 'package:()busybox/*' is not a valid Label
+
         """
         m = Label.label_string_re.match(label_string)
         if m is None or m.end() != len(label_string):
@@ -1326,6 +1331,7 @@ def depend_chain(obj, label, tags, ruleset):
         package:fred{bob}/initial <- [ ]
         -----
         <BLANKLINE>
+
     """
 
     last = label.copy()

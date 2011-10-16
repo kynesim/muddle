@@ -754,6 +754,7 @@ def split_path_left(in_path):
         ('', 'a/b/c')
         >>> split_path_left('///a/b/c')
         ('', 'a/b/c')
+
     """
 
     if not in_path:
@@ -1008,6 +1009,7 @@ def split_domain(domain_name):
         Traceback (most recent call last):
         ...
         GiveUp: Domain name "a(b(c)(d))" has 'sibling' sub-domains
+
     """
 
     if '(' not in domain_name:
@@ -1041,6 +1043,7 @@ def domain_subpath(domain_name):
         Traceback (most recent call last):
         ...
         GiveUp: Domain name "a(b(c)" has mis-matched parentheses
+
     """
     if domain_name is None:
         return ''
@@ -1381,8 +1384,8 @@ class VersionStamp(Mapping):
     So, for instance:
 
         >>> v = VersionStamp('Somewhere', 'src/builds/01.py', [],
-        ...                  [('fred', 'Somewhere', 3, None, 'fred', None, None),
-        ...                   ('jim',  'Elsewhere', 7, None, 'jim', None, 'sheila')],
+        ...                  [('fred', 'Somewhere', 3, None, 'fred', None, None, None),
+        ...                   ('jim',  'Elsewhere', 7, None, 'jim', None, 'sheila', None)],
         ...                  ['Oops, a problem'])
         >>> print v
         [ROOT]

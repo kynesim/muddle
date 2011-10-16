@@ -482,6 +482,8 @@ class EnvBuilder:
             newValue.append(",".join(i.to_py(env_name)))
             atLeastOne = True
 
+        newValue.append(" ])")
+
         return "".join(newValue)
 
 

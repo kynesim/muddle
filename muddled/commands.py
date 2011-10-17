@@ -379,8 +379,6 @@ class PackageCommand(Command):
             # Decide what to do based on where we are
             labels = self.default_args(builder, current_dir)
 
-        print 'xx', labels
-
         # We promised a sorted list
         labels.sort()
 

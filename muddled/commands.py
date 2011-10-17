@@ -3628,7 +3628,7 @@ class Pull(CheckoutCommand):
     required_tag = LabelTag.Fetched
     allowed_switches = [('-s', '-stop')]
 
-    def build_these_labels(self, builder, checkouts, switches):
+    def build_these_labels(self, builder, labels, switches):
 
         if switches and '-s' in switches:
             stop_on_problem = True

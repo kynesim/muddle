@@ -235,25 +235,25 @@ class CheckoutCommand(Command):
 
         if args:
             # Expand out any labels that need it
-            checkouts = self.decode_args(builder, args, current_dir)
+            labels = self.decode_args(builder, args, current_dir)
         else:
             # Decide what to do based on where we are
-            checkouts = self.default_args(builder, current_dir)
+            labels = self.default_args(builder, current_dir)
 
         # We promised a sorted list
-        checkouts.sort()
+        labels.sort()
 
         # Grumble about any labels that don't exist
         # XXX TODO
         # and if that leaves us with no labels at all, we must give up
 
         if self.no_op():
-            print 'Asked to %s: %s'%(self.cmd_name, label_list_to_string(checkouts))
+            print 'Asked to %s: %s'%(self.cmd_name, label_list_to_string(labels))
             return
         elif not args:
-            print '%s %s'%(self.cmd_name, label_list_to_string(checkouts))
+            print '%s %s'%(self.cmd_name, label_list_to_string(labels))
 
-        self.build_these_labels(builder, checkouts, switches)
+        self.build_these_labels(builder, labels, switches)
 
     def decode_args(self, builder, args, current_dir):
         """
@@ -374,27 +374,27 @@ class PackageCommand(Command):
     def with_build_tree(self, builder, current_dir, args):
         if args:
             # Expand out any labels that need it
-            packages = self.decode_args(builder, args, current_dir)
+            labels = self.decode_args(builder, args, current_dir)
         else:
             # Decide what to do based on where we are
-            packages = self.default_args(builder, current_dir)
+            labels = self.default_args(builder, current_dir)
 
-        print 'xx', packages
+        print 'xx', labels
 
         # We promised a sorted list
-        packages.sort()
+        labels.sort()
 
         # Grumble about any labels that don't exist
         # XXX TODO
         # and if that leaves us with no labels at all, we must give up
 
         if self.no_op():
-            print 'Asked to %s: %s'%(self.cmd_name, label_list_to_string(packages))
+            print 'Asked to %s: %s'%(self.cmd_name, label_list_to_string(labels))
             return
         elif not args:
-            print '%s %s'%(self.cmd_name, label_list_to_string(checkouts))
+            print '%s %s'%(self.cmd_name, label_list_to_string(labels))
 
-        self.build_these_labels(builder, packages)
+        self.build_these_labels(builder, labels)
 
     def decode_args(self, builder, args, current_dir):
         """
@@ -508,25 +508,25 @@ class DeploymentCommand(Command):
     def with_build_tree(self, builder, current_dir, args):
         if args:
             # Expand out any labels that need it
-            packages = self.decode_args(builder, args, current_dir)
+            labels = self.decode_args(builder, args, current_dir)
         else:
             # Decide what to do based on where we are
-            packages = self.default_args(builder, current_dir)
+            labels = self.default_args(builder, current_dir)
 
         # We promised a sorted list
-        packages.sort()
+        labels.sort()
 
         # Grumble about any labels that don't exist
         # XXX TODO
         # and if that leaves us with no labels at all, we must give up
 
         if self.no_op():
-            print 'Asked to %s: %s'%(self.cmd_name, label_list_to_string(packages))
+            print 'Asked to %s: %s'%(self.cmd_name, label_list_to_string(labels))
             return
         elif not args:
-            print '%s %s'%(self.cmd_name, label_list_to_string(checkouts))
+            print '%s %s'%(self.cmd_name, label_list_to_string(labels))
 
-        self.build_these_labels(builder, packages)
+        self.build_these_labels(builder, labels)
 
     def decode_args(self, builder, args, current_dir):
         """

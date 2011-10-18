@@ -272,7 +272,7 @@ class CheckoutCommand(Command):
                 initial_list.extend(all_checkouts)
             else:
                 label = Label.from_fragment(word,
-                                            default_type=self.required_tag,
+                                            default_type=LabelType.Checkout,
                                             default_role=None,
                                             default_domain=default_domain)
                 initial_list.append(label)

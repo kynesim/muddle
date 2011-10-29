@@ -1,5 +1,14 @@
 #! /usr/bin/env python
 """Test domain support, and anything that might be affected by it.
+
+We're working with a structure as follows:
+
+    <toplevel>
+        <subdomain1>
+            <subdomain3>
+        <subdomain2>
+            <subdomain3>
+            <subdomain4>
 """
 
 import os
@@ -42,7 +51,141 @@ distclean:
 .PHONY: all config install clean distclean
 """
 
-SIMPLE_BUILD_DESC = """ \
+TOPLEVEL_BUILD_DESC = """ \
+# A build description that includes two subdomains
+
+import muddled
+import muddled.pkgs.make
+import muddled.deployments.cpio
+import muddled.checkouts.simple
+import muddled.deployments.collect as collect
+from muddled.mechanics import include_domain
+
+def describe_to(builder):
+    # Checkout ..
+    muddled.checkouts.simple.relative(builder, "main_co")
+    muddled.pkgs.make.simple(builder, "main_pkg", "x86", "main_co")
+
+    include_domain(builder,
+                   domain_name = "subdomain1",
+                   domain_repo = "git+file://{repo}/subdomain1",
+                   domain_desc = "builds/01.py")
+
+    include_domain(builder,
+                   domain_name = "subdomain2",
+                   domain_repo = "git+file://{repo}/subdomain2",
+                   domain_desc = "builds/01.py")
+
+    collect.deploy(builder, "everything")
+    collect.copy_from_role_install(builder, "everything",
+                                   role = "x86",
+                                   rel = "", dest = "",
+                                   domain = None)
+    collect.copy_from_role_install(builder, "everything",
+                                   role = "x86",
+                                   rel = "", dest = "usr1",
+                                   domain = "subdomain1")
+    collect.copy_from_role_install(builder, "everything",
+                                   role = "x86",
+                                   rel = "", dest = "usr2",
+                                   domain = "subdomain2")
+    # Because we're collecting stuff from 'install' directories, we need to
+    # be explicit about what we want to do in subsubdomains as well
+    collect.copy_from_role_install(builder, "everything",
+                                   role = "x86",
+                                   rel = "", dest = "usr1",
+                                   domain = "subdomain1(subdomain3)")
+    collect.copy_from_role_install(builder, "everything",
+                                   role = "x86",
+                                   rel = "", dest = "usr2",
+                                   domain = "subdomain2(subdomain3)")
+    collect.copy_from_role_install(builder, "everything",
+                                   role = "x86",
+                                   rel = "", dest = "usr2",
+                                   domain = "subdomain2(subdomain4)")
+
+    builder.invocation.add_default_role("x86")
+    builder.by_default_deploy("everything")
+"""
+
+SUBDOMAIN1_BUILD_DESC = """ \
+# A build description that includes a subdomain
+
+import muddled
+import muddled.pkgs.make
+import muddled.deployments.cpio
+import muddled.checkouts.simple
+import muddled.deployments.collect as collect
+from muddled.mechanics import include_domain
+
+def describe_to(builder):
+    # Checkout ..
+    muddled.checkouts.simple.relative(builder, "main_co")
+    muddled.pkgs.make.simple(builder, "main_pkg", "x86", "main_co")
+
+    include_domain(builder,
+                   domain_name = "subdomain3",
+                   domain_repo = "git+file://{repo}/subdomain3",
+                   domain_desc = "builds/01.py")
+
+    collect.deploy(builder, "everything")
+    collect.copy_from_role_install(builder, "everything",
+                                   role = "x86",
+                                   rel = "", dest = "",
+                                   domain = None)
+    collect.copy_from_role_install(builder, "everything",
+                                   role = "x86",
+                                   rel = "", dest = "usr1",
+                                   domain = "subdomain3")
+
+    builder.invocation.add_default_role("x86")
+    builder.by_default_deploy("everything")
+"""
+
+SUBDOMAIN2_BUILD_DESC = """ \
+# A build description that includes two subdomains
+
+import muddled
+import muddled.pkgs.make
+import muddled.deployments.cpio
+import muddled.checkouts.simple
+import muddled.deployments.collect as collect
+from muddled.mechanics import include_domain
+
+def describe_to(builder):
+    # Checkout ..
+    muddled.checkouts.simple.relative(builder, "main_co")
+    muddled.pkgs.make.simple(builder, "main_pkg", "x86", "main_co")
+
+    include_domain(builder,
+                   domain_name = "subdomain3",
+                   domain_repo = "git+file://{repo}/subdomain3",
+                   domain_desc = "builds/01.py")
+
+    include_domain(builder,
+                   domain_name = "subdomain4",
+                   domain_repo = "git+file://{repo}/subdomain4",
+                   domain_desc = "builds/01.py")
+
+    collect.deploy(builder, "everything")
+    collect.copy_from_role_install(builder, "everything",
+                                   role = "x86",
+                                   rel = "", dest = "",
+                                   domain = None)
+    collect.copy_from_role_install(builder, "everything",
+                                   role = "x86",
+                                   rel = "", dest = "usr1",
+                                   domain = "subdomain3")
+    collect.copy_from_role_install(builder, "everything",
+                                   role = "x86",
+                                   rel = "", dest = "usr1",
+                                   domain = "subdomain4")
+
+    builder.invocation.add_default_role("x86")
+    builder.by_default_deploy("everything")
+"""
+
+SUBDOMAIN3_BUILD_DESC = """ \
 # A simple build description
 
 import muddled
@@ -66,38 +209,28 @@ def describe_to(builder):
     builder.by_default_deploy("main_dep")
 """
 
-MAIN_BUILD_DESC = """ \
-# A build description that includes a subdomain
+SUBDOMAIN4_BUILD_DESC = """ \
+# A simple build description
 
 import muddled
 import muddled.pkgs.make
-import muddled.deployments.cpio
 import muddled.checkouts.simple
-import muddled.deployments.collect as collect
-from muddled.mechanics import include_domain
+import muddled.deployments.filedep
 
 def describe_to(builder):
-    # Checkout ..
+    role = 'x86'
+
     muddled.checkouts.simple.relative(builder, "main_co")
-    muddled.pkgs.make.simple(builder, "main_pkg", "x86", "main_co")
+    muddled.pkgs.make.simple(builder, "main_pkg", role, "main_co")
 
-    include_domain(builder,
-                   domain_name = "subdomain1",
-                   domain_repo = "git+file://{repo}/subdomain1",
-                   domain_desc = "builds/01.py")
+    # The 'main_dep' deployment is built from our single role, and goes
+    # into deploy/main_dep.
+    muddled.deployments.filedep.deploy(builder, "", "main_dep", [role])
 
-    collect.deploy(builder, "everything")
-    collect.copy_from_role_install(builder, "everything",
-                                   role = "x86",
-                                   rel = "", dest = "",
-                                   domain = None)
-    collect.copy_from_role_install(builder, "everything",
-                                   role = "x86",
-                                   rel = "", dest = "usr",
-                                   domain = "subdomain1")
-
-    builder.invocation.add_default_role("x86")
-    builder.by_default_deploy("everything")
+    # If no role is specified, assume this one
+    builder.invocation.add_default_role(role)
+    # muddle at the top level will default to building this deployment
+    builder.by_default_deploy("main_dep")
 """
 
 MAIN_C_SRC = """\
@@ -136,14 +269,49 @@ def make_repos_with_subdomain(root_dir):
     with NewDirectory('repo'):
         with NewDirectory('main'):
             with NewDirectory('builds') as d:
-                make_build_desc(d.where, MAIN_BUILD_DESC.format(repo=repo))
+                make_build_desc(d.where, TOPLEVEL_BUILD_DESC.format(repo=repo))
             with NewDirectory('main_co') as d:
                 make_standard_checkout(d.where, 'main1', 'main')
+            with NewDirectory('first') as d:
+                make_standard_checkout(d.where, 'first', 'first')
+            with NewDirectory('second') as d:
+                make_standard_checkout(d.where, 'second', 'second')
         with NewDirectory('subdomain1'):
             with NewDirectory('builds') as d:
-                make_build_desc(d.where, SIMPLE_BUILD_DESC)
+                make_build_desc(d.where, SUBDOMAIN1_BUILD_DESC.format(repo=repo))
             with NewDirectory('main_co') as d:
                 make_standard_checkout(d.where, 'subdomain1', 'subdomain1')
+            with NewDirectory('first') as d:
+                make_standard_checkout(d.where, 'first', 'first')
+            with NewDirectory('second') as d:
+                make_standard_checkout(d.where, 'second', 'second')
+        with NewDirectory('subdomain2'):
+            with NewDirectory('builds') as d:
+                make_build_desc(d.where, SUBDOMAIN2_BUILD_DESC.format(repo=repo))
+            with NewDirectory('main_co') as d:
+                make_standard_checkout(d.where, 'subdomain2', 'subdomain2')
+            with NewDirectory('first') as d:
+                make_standard_checkout(d.where, 'first', 'first')
+            with NewDirectory('second') as d:
+                make_standard_checkout(d.where, 'second', 'second')
+        with NewDirectory('subdomain3'):
+            with NewDirectory('builds') as d:
+                make_build_desc(d.where, SUBDOMAIN3_BUILD_DESC)
+            with NewDirectory('main_co') as d:
+                make_standard_checkout(d.where, 'subdomain3', 'subdomain3')
+            with NewDirectory('first') as d:
+                make_standard_checkout(d.where, 'first', 'first')
+            with NewDirectory('second') as d:
+                make_standard_checkout(d.where, 'second', 'second')
+        with NewDirectory('subdomain4'):
+            with NewDirectory('builds') as d:
+                make_build_desc(d.where, SUBDOMAIN4_BUILD_DESC)
+            with NewDirectory('main_co') as d:
+                make_standard_checkout(d.where, 'subdomain4', 'subdomain4')
+            with NewDirectory('first') as d:
+                make_standard_checkout(d.where, 'first', 'first')
+            with NewDirectory('second') as d:
+                make_standard_checkout(d.where, 'second', 'second')
 
 def check_repos_out(root_dir):
 
@@ -269,7 +437,7 @@ def build(root_dir):
                      d.join('domains', 'subdomain1', 'obj', 'main_pkg', 'x86', 'subdomain1'),
                      d.join('domains', 'subdomain1', 'install', 'x86', 'subdomain1'),
                      d.join('deploy', 'everything', 'main1'),
-                     d.join('deploy', 'everything', 'usr', 'subdomain1'),
+                     d.join('deploy', 'everything', 'usr1', 'subdomain1'),
                     ])
 
         # The top level build has its own stuff
@@ -307,7 +475,7 @@ def build(root_dir):
             if main1_result != 'Program main1\n':
                 raise GiveUp('Program main1 printed out "{0}"'.format(main1_result))
 
-            subdomain1_result = get_stdout(deploy.join('usr', 'subdomain1'))
+            subdomain1_result = get_stdout(deploy.join('usr1', 'subdomain1'))
             if subdomain1_result != 'Program subdomain1\n':
                 raise GiveUp('Program subdomain1 printed out "{0}"'.format(subdomain1_result))
 

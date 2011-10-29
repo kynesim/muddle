@@ -129,7 +129,7 @@ def _cmdline(args, current_dir, original_env, muddle_binary):
                 # but it makes what we are doing fairly clear...
                 for role in builder.invocation.default_roles:
                     labels = commands.decode_package_arguments(builder,
-                                                               ['_all{%s}'%role],
+                                                               ['*{%s}'%role],
                                                                current_dir,
                                                                utils.LabelTag.PostInstalled)
                     args += map(str, labels)

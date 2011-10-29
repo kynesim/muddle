@@ -83,25 +83,25 @@ def describe_to(builder):
                                    domain = None)
     collect.copy_from_role_install(builder, "everything",
                                    role = "x86",
-                                   rel = "", dest = "usr1",
+                                   rel = "", dest = "sub1",
                                    domain = "subdomain1")
     collect.copy_from_role_install(builder, "everything",
                                    role = "x86",
-                                   rel = "", dest = "usr2",
+                                   rel = "", dest = "sub2",
                                    domain = "subdomain2")
     # Because we're collecting stuff from 'install' directories, we need to
     # be explicit about what we want to do in subsubdomains as well
     collect.copy_from_role_install(builder, "everything",
                                    role = "x86",
-                                   rel = "", dest = "usr1",
+                                   rel = "", dest = "sub1/sub3",
                                    domain = "subdomain1(subdomain3)")
     collect.copy_from_role_install(builder, "everything",
                                    role = "x86",
-                                   rel = "", dest = "usr2",
+                                   rel = "", dest = "sub2/sub3",
                                    domain = "subdomain2(subdomain3)")
     collect.copy_from_role_install(builder, "everything",
                                    role = "x86",
-                                   rel = "", dest = "usr2",
+                                   rel = "", dest = "sub2/sub4",
                                    domain = "subdomain2(subdomain4)")
 
     builder.invocation.add_default_role("x86")
@@ -135,7 +135,7 @@ def describe_to(builder):
                                    domain = None)
     collect.copy_from_role_install(builder, "everything",
                                    role = "x86",
-                                   rel = "", dest = "usr1",
+                                   rel = "", dest = "sub1",
                                    domain = "subdomain3")
 
     builder.invocation.add_default_role("x86")
@@ -174,11 +174,11 @@ def describe_to(builder):
                                    domain = None)
     collect.copy_from_role_install(builder, "everything",
                                    role = "x86",
-                                   rel = "", dest = "usr1",
+                                   rel = "", dest = "sub1",
                                    domain = "subdomain3")
     collect.copy_from_role_install(builder, "everything",
                                    role = "x86",
-                                   rel = "", dest = "usr1",
+                                   rel = "", dest = "sub1",
                                    domain = "subdomain4")
 
     builder.invocation.add_default_role("x86")
@@ -437,7 +437,7 @@ def build(root_dir):
                      d.join('domains', 'subdomain1', 'obj', 'main_pkg', 'x86', 'subdomain1'),
                      d.join('domains', 'subdomain1', 'install', 'x86', 'subdomain1'),
                      d.join('deploy', 'everything', 'main1'),
-                     d.join('deploy', 'everything', 'usr1', 'subdomain1'),
+                     d.join('deploy', 'everything', 'sub1', 'subdomain1'),
                     ])
 
         # The top level build has its own stuff
@@ -475,7 +475,7 @@ def build(root_dir):
             if main1_result != 'Program main1\n':
                 raise GiveUp('Program main1 printed out "{0}"'.format(main1_result))
 
-            subdomain1_result = get_stdout(deploy.join('usr1', 'subdomain1'))
+            subdomain1_result = get_stdout(deploy.join('sub1', 'subdomain1'))
             if subdomain1_result != 'Program subdomain1\n':
                 raise GiveUp('Program subdomain1 printed out "{0}"'.format(subdomain1_result))
 

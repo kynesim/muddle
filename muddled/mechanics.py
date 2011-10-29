@@ -1061,8 +1061,44 @@ class Builder(object):
         # Add anything the rest of the system has put in.
         self.invocation.setup_environment(label, os.environ)
 
+    def build_label(self, label, silent=False):
+        """
+        The fundamental operation of a builder - build this label.
+        """
 
-    def build_label(self, label, useDepends = True, useTags = True, silent = False):
+        # In actual use, this was never called as anything other than
+        # 'build_label(label)', so I've made it do *just* that, for
+        # simplicity of understanding...
+        #
+        # build_label_with_options() is retained as the original code
+        rule_list = depend.needed_to_build(self.invocation.ruleset, label,
+                                           useTags=True, useMatch=True)
+
+        if not rule_list:
+            print "There is no rule to build label %s"%label
+            return
+
+        for r in rule_list:
+            if self.invocation.db.is_tag(r.target):
+                # Don't build stuff that's already built .. 
+                pass
+            else:
+                if not silent:
+                    print "> Building %s"%(r.target)
+
+                # Set up the environment for building this label
+                old_env = os.environ.copy()
+                try:
+                    self._build_label_env(r.target, env_store)
+
+                    if r.obj is not None:
+                        r.obj.build_label(self, r.target)
+                finally:
+                    os.environ = old_env
+
+                self.invocation.db.set_tag(r.target)
+
+    def build_label_with_options(self, label, useDepends = True, useTags = True, silent = False):
         """
         The fundamental operation of a builder - build this label.
 

@@ -332,6 +332,15 @@ class Label(object):
 
         return True
 
+    def is_wildcard(self):
+        """
+        Return True iff this label contains at least one wildcard.
+
+        This is the dual of is_definite(), but is provided so whichever seems
+        more appropriate to the task at hand can be chosen.
+        """
+        return not self.is_definite()
+
     def unifies(self, other):
         """
         Returns True if and only if every field in self is either equal to a
@@ -1447,16 +1456,16 @@ def needed_to_build(ruleset, target, useTags = True, useMatch = False):
 
     # The set of labels we'd like to see asserted.
     targets = set()
-    targets.update(ruleset.targets_match(target, useMatch = useMatch))
+    targets.update(ruleset.targets_match(target, useMatch=useMatch))
 
     done_something = True
     trace = False
 
     while done_something:
         done_something = False
-        
-        if (trace):
-            print "> Loop"
+
+        if trace:
+            print "\n> Loop"
 
         # Remove anything we've already satisfied from our list of targets.
         targets = targets - rule_target_set
@@ -1464,17 +1473,23 @@ def needed_to_build(ruleset, target, useTags = True, useMatch = False):
         # Have we succeeded?
         if len(targets) == 0:
             # Yep!
-            if (trace):
-                print "To build: %s\n Needs: %s\n"%(target, map(str, rule_list))
+            if trace:
+                print
+                print "To build %s we need:"%target
+                for r in rule_list:
+                    print '    %s'%r
+                print
             return rule_list
-        
+
         # In that case, we need to go through all the dependencies of the
         # targets, adding each either to the target list or the rule_list.
         new_targets = set()
 
         for tgt in targets:
+            if trace:
+                print "\nLooking at target %s"%tgt
             rules = ruleset.rules_for_target(tgt, useTags)
-            if (rules is None):
+            if rules is None:
                 raise utils.MuddleBug("No rule found for target %s"%tgt)
 
             # This is slightly icky. Technically, in the presence of wildcard
@@ -1490,33 +1505,43 @@ def needed_to_build(ruleset, target, useTags = True, useMatch = False):
             if len(rules) == 0:
                 raise utils.MuddleBug("Rule list is empty for target %s"%tgt)
 
-
-            if (trace):
-                print "Rules for %s = %s"%(tgt, " ".join(map(str, rules)))
+            if trace:
+                print "Rules for %s:"%tgt
+                for r in rules:
+                    print '    %s'%r
 
             rule = None
-            for rule in rules:            
+            for rule in rules:
+                if trace:
+                    print "Looking at rule %s"%rule
                 for dep in rule.deps:
-                    if not (dep in rule_target_set):
-                        # Not satisfied. We need to satisfy it, so add it
+                    if dep not in rule_target_set:
+                        if trace:
+                            print "  Cannot build %s because it needs %s"%(tgt, dep)
+                            # .. and we can't build this target until we have.
+
+                        # We need to satisfy this dependency, so add it
                         # to targets. The test here is purely so we can 
                         # detect circular dependencies.
-                        if (not (dep in new_targets) and not (dep in targets)):
-                            if (trace):
-                                print "Add new target = %s"%str(dep)
+                        if dep not in new_targets and dep not in targets:
+                            if trace:
+                                print "  Add new target %s"%str(dep)
                             new_targets.add(dep)
                             done_something = True
+                        elif trace:
+                            if dep in targets: print "  ..already in targets"
+                            if dep in new_targets: print "  ..already in new_targets"
 
-                        if (trace):
-                            print "Cannot build %s because of dependency %s"%(tgt, dep)
-                            # .. and we can't build this target until we have.
                         can_build_target = False
-                        
+
             if can_build_target:
                 # All dependencies are already satisfied, so we can ..
-                if (trace):
-                    print "Build rule = %s [ %s ] "%(str(tgt), str(rule))
-                rule_list.append(rule)
+                if trace:
+                    print "Add build rule: target %s"%tgt
+                    for rule in rules:
+                        print "                rule %s"%rule
+                for rule in rules:
+                    rule_list.append(rule)
                 rule_target_set.add(tgt)
                 done_something = True
             else:
@@ -1525,7 +1550,6 @@ def needed_to_build(ruleset, target, useTags = True, useMatch = False):
 
         targets = new_targets
 
-        
     # If we get here, we can never satisfy the remaining set of
     # targets because the graph is circular or incomplete.
     targets = list(targets)

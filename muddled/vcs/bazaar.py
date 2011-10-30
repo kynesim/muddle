@@ -430,6 +430,13 @@ class Bazaar(VersionControlSystem):
                     raise utils.GiveUp("%s: 'bzr missing' says '%s',\n"
                                         "    so cannot determine revision"%(co_leaf,
                                                                             missing[5:]))
+            #elif missing.startswith("cannot import name install_lazy_named_hook"):
+            #    print 'bzr says:'
+            #    lines = missing.split('\n')
+            #    for line in lines:
+            #        print '   ', line
+            #    print 'Assuming this is a problem with bzr itself, and ignoring it'
+            #    print '(This is a horrible hack, until I find a better way round)'
             else:
                 raise utils.GiveUp("%s: 'bzr missing' suggests checkout does"
                                     " not match the remote repository:\n%s"%(co_leaf,

@@ -2082,7 +2082,7 @@ class Instruct(Command):
         ifile = None
 
         # Validate this first
-        label = decode_package_label(builder, arg, LabelTag.PreConfig)
+        label = self.decode_package_label(builder, arg, LabelTag.PreConfig)
 
         if label.role is None or label.role == '*':
             raise GiveUp("instruct takes precisely one package{role} pair "

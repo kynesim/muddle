@@ -587,9 +587,10 @@ class DeploymentCommand(Command):
         """
         # Can we guess what to do from where we are?
         what, label, domain = builder.find_location_in_tree(current_dir)
+        return_list = []
         if what == DirType.Deployed:
             # We're actually inside a deployment - job done
-            result_list.append(label.copy_with_tag(self.required_tag))
+            return_list.append(label.copy_with_tag(self.required_tag))
         else:
             # The best we can do is to use the default deployments
             return_list = self.default_deployment_labels(builder)
@@ -599,7 +600,7 @@ class DeploymentCommand(Command):
             if label.is_definite():
                 result_set.add(label)
             else:
-                result_set.update(expand_wildcards(builder, label, required_tag))
+                result_set.update(expand_wildcards(builder, label, self.required_tag))
 
         return list(result_set)
 
@@ -821,18 +822,18 @@ class Help(Command):
 
         return "\n".join(result_array)
 
-    def help_subcmd_all(self, cmd_name):
+    def help_subcmd_all(self, cmd_name, sub_dict):
         """
         Return help for all commands in this dictionary
         """
         result_array = []
         result_array.append("Subcommands for '%s' are:\n"%cmd_name)
 
-        keys = g_command_dict.keys()
+        keys = sub_dict.keys()
         keys.sort()
 
         for name in keys:
-            v = g_command_dict[name]
+            v = sub_dict[name]
             result_array.append('%s\n%s'%(name, v().help()))
 
         return "\n".join(result_array)
@@ -2261,7 +2262,7 @@ class Env(PackageCommand):
         elif self.lang == "c":
             script = env.get_setvars_script(builder, self.name, env_store.EnvLanguage.C)
         else:
-            raise GiveUp("Language must be sh, py, python or c, not %s"%lang)
+            raise GiveUp("Language must be sh, py, python or c, not %s"%self.lang)
 
         print script
 
@@ -3895,6 +3896,12 @@ class Import(CheckoutCommand):
     below the current directory.
     """
 
+    def with_build_tree(self, builder, current_dir, args):
+        # We need to remember our arguments
+        self.current_dir = current_dir
+        self.args = args
+        super(Import, self).with_build_tree(builder, current_dir, args)
+
     def build_these_labels(self, builder, labels, switches):
         for c in labels:
             builder.invocation.db.set_tag(c)
@@ -3902,7 +3909,7 @@ class Import(CheckoutCommand):
         rep = g_command_dict['reparent']() # should be Reparent but go via the dict just in case
         rep.set_options(self.options)
         rep.set_old_env(self.old_env)
-        rep.with_build_tree(builder, current_dir, args)
+        rep.with_build_tree(builder, self.current_dir, self.args)
 
 @command('changed', CAT_PACKAGE)
 class Changed(PackageCommand):

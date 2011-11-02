@@ -1285,7 +1285,7 @@ class Builder(object):
         root_dir = os.path.normcase(os.path.normpath(root_dir))
 
         if not dir.startswith(root_dir):
-            raise GiveUp("Directory '%s' is not within muddle build tree '%s'"%(
+            raise utils.GiveUp("Directory '%s' is not within muddle build tree '%s'"%(
                 dir, root_dir))
 
         if dir == root_dir:

@@ -337,124 +337,66 @@ def check_repos_out(root_dir):
     with Directory('build') as d:
         muddle(['checkout'])
 
+        check_checkedout_files(d)
+
+def check_checkedout_files(d):
+    """Check we have all the files we should have after checkout
+
+    'd' is the current Directory.
+    """
+    def check_dot_muddle(is_subdomain):
         with Directory('.muddle') as m:
             check_files([m.join('Description'),
                          m.join('RootRepository'),
                          m.join('VersionsRepository')])
-            with Directory(m.join('tags', 'checkout')) as c:
-                check_files([c.join('builds', 'checked_out'),
-                             c.join('first_co', 'checked_out'),
-                             c.join('main_co', 'checked_out'),
-                             c.join('second_co', 'checked_out')])
-        with Directory('src') as s:
-            check_files([s.join('builds', '01.py'),
-                         s.join('main_co', 'Makefile.muddle'),
-                         s.join('main_co', 'main1.c'),
-                         s.join('first_co', 'Makefile.muddle'),
-                         s.join('first_co', 'first.c'),
-                         s.join('second_co', 'Makefile.muddle'),
-                         s.join('second_co', 'second.c') ])
 
-        with Directory(d.join('domains', 'subdomain1', 'src')) as s:
-            check_files([s.join('builds', '01.py'),
-                         s.join('main_co', 'Makefile.muddle'),
-                         s.join('main_co', 'subdomain1.c'),
-                         s.join('first_co', 'Makefile.muddle'),
-                         s.join('first_co', 'first.c'),
-                         s.join('second_co', 'Makefile.muddle'),
-                         s.join('second_co', 'second.c')])
-        with Directory(d.join('domains', 'subdomain1', '.muddle')) as m:
-            check_files([m.join('Description'),
-                         m.join('RootRepository'),
-                         m.join('VersionsRepository'),
-                         m.join('am_subdomain')])
+            if is_subdomain:
+                check_files([m.join('am_subdomain')])
+
             with Directory(m.join('tags', 'checkout')) as c:
                 check_files([c.join('builds', 'checked_out'),
                              c.join('first_co', 'checked_out'),
                              c.join('main_co', 'checked_out'),
                              c.join('second_co', 'checked_out')])
 
-        with Directory(d.join('domains', 'subdomain1', 'domains', 'subdomain3', 'src')) as s:
-            check_files([s.join('builds', '01.py'),
-                         s.join('main_co', 'Makefile.muddle'),
-                         s.join('main_co', 'subdomain3.c'),
-                         s.join('first_co', 'Makefile.muddle'),
-                         s.join('first_co', 'first.c'),
-                         s.join('second_co', 'Makefile.muddle'),
-                         s.join('second_co', 'second.c'),
-                        ])
-        with Directory(d.join('domains', 'subdomain1', 'domains', 'subdomain3', '.muddle')) as m:
-            check_files([m.join('Description'),
-                         m.join('RootRepository'),
-                         m.join('VersionsRepository'),
-                         m.join('am_subdomain')])
-            with Directory(m.join('tags', 'checkout')) as c:
-                check_files([c.join('builds', 'checked_out'),
-                             c.join('first_co', 'checked_out'),
-                             c.join('main_co', 'checked_out'),
-                             c.join('second_co', 'checked_out')])
+    def check_src_files(main_c_file='main1.c'):
+        check_files([s.join('builds', '01.py'),
+                     s.join('main_co', 'Makefile.muddle'),
+                     s.join('main_co', main_c_file),
+                     s.join('first_co', 'Makefile.muddle'),
+                     s.join('first_co', 'first.c'),
+                     s.join('second_co', 'Makefile.muddle'),
+                     s.join('second_co', 'second.c')])
 
-        with Directory(d.join('domains', 'subdomain2', 'src')) as s:
-            check_files([s.join('builds', '01.py'),
-                         s.join('main_co', 'Makefile.muddle'),
-                         s.join('main_co', 'subdomain2.c'),
-                         s.join('first_co', 'Makefile.muddle'),
-                         s.join('first_co', 'first.c'),
-                         s.join('second_co', 'Makefile.muddle'),
-                         s.join('second_co', 'second.c'),
-                        ])
+    check_dot_muddle(is_subdomain=False)
+    with Directory('src') as s:
+        check_src_files('main1.c')
 
-        with Directory(d.join('domains', 'subdomain2', '.muddle')) as m:
-            check_files([m.join('Description'),
-                         m.join('RootRepository'),
-                         m.join('VersionsRepository'),
-                         m.join('am_subdomain'),
-                        ])
-            with Directory(m.join('tags', 'checkout')) as c:
-                check_files([c.join('builds', 'checked_out'),
-                             c.join('first_co', 'checked_out'),
-                             c.join('main_co', 'checked_out'),
-                             c.join('second_co', 'checked_out')])
+    with Directory(d.join('domains', 'subdomain1', 'src')) as s:
+        check_src_files('subdomain1.c')
+    with Directory(d.join('domains', 'subdomain1')):
+        check_dot_muddle(is_subdomain=True)
 
-        with Directory(d.join('domains', 'subdomain2', 'domains', 'subdomain3', 'src')) as s:
-            check_files([s.join('builds', '01.py'),
-                         s.join('main_co', 'Makefile.muddle'),
-                         s.join('main_co', 'subdomain3.c'),
-                         s.join('first_co', 'Makefile.muddle'),
-                         s.join('first_co', 'first.c'),
-                         s.join('second_co', 'Makefile.muddle'),
-                         s.join('second_co', 'second.c'),
-                        ])
-        with Directory(d.join('domains', 'subdomain1', 'domains', 'subdomain3', '.muddle')) as m:
-            check_files([m.join('Description'),
-                         m.join('RootRepository'),
-                         m.join('VersionsRepository'),
-                         m.join('am_subdomain')])
-            with Directory(m.join('tags', 'checkout')) as c:
-                check_files([c.join('builds', 'checked_out'),
-                             c.join('first_co', 'checked_out'),
-                             c.join('main_co', 'checked_out'),
-                             c.join('second_co', 'checked_out')])
+    with Directory(d.join('domains', 'subdomain1', 'domains', 'subdomain3', 'src')) as s:
+        check_src_files('subdomain3.c')
+    with Directory(d.join('domains', 'subdomain1', 'domains', 'subdomain3')):
+        check_dot_muddle(is_subdomain=True)
 
-        with Directory(d.join('domains', 'subdomain2', 'domains', 'subdomain4', 'src')) as s:
-            check_files([s.join('builds', '01.py'),
-                         s.join('main_co', 'Makefile.muddle'),
-                         s.join('main_co', 'subdomain4.c'),
-                         s.join('first_co', 'Makefile.muddle'),
-                         s.join('first_co', 'first.c'),
-                         s.join('second_co', 'Makefile.muddle'),
-                         s.join('second_co', 'second.c'),
-                        ])
-        with Directory(d.join('domains', 'subdomain2', 'domains', 'subdomain4', '.muddle')) as m:
-            check_files([m.join('Description'),
-                         m.join('RootRepository'),
-                         m.join('VersionsRepository'),
-                         m.join('am_subdomain')])
-            with Directory(m.join('tags', 'checkout')) as c:
-                check_files([c.join('builds', 'checked_out'),
-                             c.join('first_co', 'checked_out'),
-                             c.join('main_co', 'checked_out'),
-                             c.join('second_co', 'checked_out')])
+    with Directory(d.join('domains', 'subdomain2', 'src')) as s:
+        check_src_files('subdomain2.c')
+
+    with Directory(d.join('domains', 'subdomain2')):
+        check_dot_muddle(is_subdomain=True)
+
+    with Directory(d.join('domains', 'subdomain2', 'domains', 'subdomain3', 'src')) as s:
+        check_src_files('subdomain3.c')
+    with Directory(d.join('domains', 'subdomain1', 'domains', 'subdomain3')):
+        check_dot_muddle(is_subdomain=True)
+
+    with Directory(d.join('domains', 'subdomain2', 'domains', 'subdomain4', 'src')) as s:
+        check_src_files('subdomain4.c')
+    with Directory(d.join('domains', 'subdomain2', 'domains', 'subdomain4')):
+        check_dot_muddle(is_subdomain=True)
 
 def assert_where_is_buildlabel(path):
     with Directory(path):

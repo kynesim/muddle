@@ -336,10 +336,9 @@ def check_repos_out(root_dir):
 
     with Directory('build') as d:
         muddle(['checkout'])
+        check_checkout_files(d)
 
-        check_checkedout_files(d)
-
-def check_checkedout_files(d):
+def check_checkout_files(d):
     """Check we have all the files we should have after checkout
 
     'd' is the current Directory.
@@ -478,9 +477,9 @@ def check_buildlabel():
         assert_where_is_buildlabel(d.join('deploy'))
         assert_where_is_buildlabel(d.join('deploy', 'everything'))
 
-        with Directory(d.join('domains')) as dom:
-            assert_where_is_buildlabel(d.where)
-            with Directory(dom.join('subdomain1')) as sub:
+        with Directory('domains') as dom:
+            assert_where_is_buildlabel(dom.where)
+            with Directory('subdomain1') as sub:
                 assert_where_is_buildlabel(sub.where)
                 assert_where_is_buildlabel(sub.join('src'))
                 assert_where_is_buildlabel(sub.join('src', 'builds'))
@@ -495,55 +494,162 @@ def check_buildlabel():
 
 def build(root_dir):
 
+    def check_built_tags(t, pkg):
+        check_files([t.join('package', pkg, 'x86-built'),
+                     t.join('package', pkg, 'x86-configured'),
+                     t.join('package', pkg, 'x86-installed'),
+                     t.join('package', pkg, 'x86-postinstalled'),
+                     t.join('package', pkg, 'x86-preconfig')])
+
+    def check_built_and_deployed_tags(d):
+        with Directory(d.join('.muddle', 'tags')) as t:
+            check_built_tags(t, 'main_pkg')
+            check_built_tags(t, 'first_pkg')
+            check_built_tags(t, 'second_pkg')
+            check_files([t.join('deployment', 'everything', 'deployed')])
+
+    def check_files_in(d, files):
+        mapped = map(d.join, files)
+        check_files(mapped)
+
     with Directory('build') as d:
         muddle([])
-        # Things get built in their subdomains, but we're deploying at top level
-        check_files([d.join('obj', 'main_pkg', 'x86', 'main1'),
-                     d.join('install', 'x86', 'main1'),
-                     d.join('domains', 'subdomain1', 'obj', 'main_pkg', 'x86', 'subdomain1'),
-                     d.join('domains', 'subdomain1', 'install', 'x86', 'subdomain1'),
-                     d.join('deploy', 'everything', 'main1'),
-                     d.join('deploy', 'everything', 'sub1', 'subdomain1'),
-                    ])
 
-        # The top level build has its own stuff
-        with Directory(d.join('.muddle', 'tags')) as t:
-            check_files([t.join('checkout', 'builds', 'checked_out'),
-                         t.join('checkout', 'main_co', 'checked_out'),
-                         t.join('package', 'main_pkg', 'x86-built'),
-                         t.join('package', 'main_pkg', 'x86-configured'),
-                         t.join('package', 'main_pkg', 'x86-installed'),
-                         t.join('package', 'main_pkg', 'x86-postinstalled'),
-                         t.join('package', 'main_pkg', 'x86-preconfig'),
-                         t.join('deployment', 'everything', 'deployed'),
-                        ])
+        # Everything we checked out should still be checked out
+        check_checkout_files(d)
 
-        # The subdomain has its stuff
-        with Directory(d.join('domains', 'subdomain1')) as subdomain:
+        # Built and deployed tags
+        check_built_and_deployed_tags(d)
 
-            with Directory(subdomain.join('.muddle')) as m:
-                check_files([m.join('am_subdomain')])
-                with Directory(m.join('tags')) as t:
-                    check_files([t.join('checkout', 'builds', 'checked_out'),
-                                 t.join('checkout', 'main_co', 'checked_out'),
-                                 t.join('package', 'main_pkg', 'x86-built'),
-                                 t.join('package', 'main_pkg', 'x86-configured'),
-                                 t.join('package', 'main_pkg', 'x86-installed'),
-                                 t.join('package', 'main_pkg', 'x86-postinstalled'),
-                                 t.join('package', 'main_pkg', 'x86-preconfig'),
-                                ])
+        # Top level
+        with Directory('deploy'):
+            with Directory('everything') as e:
+                check_files_in(e, ['first', 'second', 'main1'])
+                with Directory('sub1') as s1:
+                    check_files_in(s1, ['first', 'second', 'subdomain1'])
+                    with Directory('sub3') as s3:
+                        check_files_in(s3, ['first', 'second', 'subdomain3'])
+                with Directory('sub2') as s2:
+                    check_files_in(s2, ['first', 'second', 'subdomain2'])
+                    with Directory('sub3') as s3:
+                        check_files_in(s3, ['first', 'second', 'subdomain3'])
+                    with Directory('sub4') as s4:
+                        check_files_in(s4, ['first', 'second', 'subdomain4'])
+        with Directory('obj') as o:
+            check_files([o.join('first_pkg', 'x86', 'first'),
+                         o.join('main_pkg', 'x86', 'main1'),
+                         o.join('second_pkg', 'x86', 'second')])
+        with Directory('install'):
+            with Directory('x86') as x:
+                check_files_in(x, ['first', 'second', 'main1'])
+        with Directory('.muddle'):
+            with Directory('tags') as t:
+                check_files([t.join('package', 'main_pkg', 'x86-built'),
+                             t.join('package', 'main_pkg', 'x86-configured'),
+                             t.join('package', 'main_pkg', 'x86-installed'),
+                             t.join('package', 'main_pkg', 'x86-postinstalled'),
+                             t.join('package', 'main_pkg', 'x86-preconfig'),
+                             t.join('deployment', 'everything', 'deployed'),
+                            ])
 
-            check_nosuch_files([subdomain.join('deployment')])
+        with Directory('domains'):
+            with Directory('subdomain1') as s1:
+                check_built_and_deployed_tags(s1)
+                with Directory('deploy'):
+                    with Directory('everything') as e:
+                        check_files_in(e, ['first', 'second', 'subdomain1'])
+                        with Directory('sub3') as s3:
+                            check_files_in(s3, ['first', 'second', 'subdomain3'])
+                with Directory('obj') as o:
+                    check_files([o.join('first_pkg', 'x86', 'first'),
+                                 o.join('main_pkg', 'x86', 'subdomain1'),
+                                 o.join('second_pkg', 'x86', 'second')])
+                with Directory('install'):
+                    with Directory('x86') as x:
+                        check_files_in(x, ['first', 'second', 'subdomain1'])
+                with Directory('domains'):
+                    with Directory('subdomain3') as s3:
+                        check_built_and_deployed_tags(s3)
+                        with Directory('deploy'):
+                            with Directory('everything') as e:
+                                check_files_in(e, ['first', 'second', 'subdomain3'])
+                        with Directory('obj') as o:
+                            check_files([o.join('first_pkg', 'x86', 'first'),
+                                         o.join('main_pkg', 'x86', 'subdomain3'),
+                                         o.join('second_pkg', 'x86', 'second')])
+                        with Directory('install'):
+                            with Directory('x86') as x:
+                                check_files_in(x, ['first', 'second', 'subdomain3'])
+            with Directory('subdomain2') as s2:
+                check_built_and_deployed_tags(s2)
+                with Directory('deploy'):
+                    with Directory('everything') as e:
+                        check_files_in(e, ['first', 'second', 'subdomain2'])
+                        with Directory('sub3') as s3:
+                            check_files_in(s3, ['first', 'second', 'subdomain3'])
+                        with Directory('sub4') as s4:
+                            check_files_in(s4, ['first', 'second', 'subdomain4'])
+                with Directory('obj') as o:
+                    check_files([o.join('first_pkg', 'x86', 'first'),
+                                 o.join('main_pkg', 'x86', 'subdomain2'),
+                                 o.join('second_pkg', 'x86', 'second')])
+                with Directory('install'):
+                    with Directory('x86') as x:
+                        check_files_in(x, ['first', 'second', 'subdomain2'])
+                with Directory('domains'):
+                    with Directory('subdomain3') as s3:
+                        check_built_and_deployed_tags(s3)
+                        with Directory('deploy'):
+                            with Directory('everything') as e:
+                                check_files_in(e, ['first', 'second', 'subdomain3'])
+                        with Directory('obj') as o:
+                            check_files([o.join('first_pkg', 'x86', 'first'),
+                                         o.join('main_pkg', 'x86', 'subdomain3'),
+                                         o.join('second_pkg', 'x86', 'second')])
+                        with Directory('install'):
+                            with Directory('x86') as x:
+                                check_files_in(x, ['first', 'second', 'subdomain3'])
+                    with Directory('subdomain4') as s4:
+                        check_built_and_deployed_tags(s4)
+                        with Directory('deploy'):
+                            with Directory('everything') as e:
+                                check_files_in(e, ['first', 'second', 'subdomain4'])
+                        with Directory('obj') as o:
+                            check_files([o.join('first_pkg', 'x86', 'first'),
+                                         o.join('main_pkg', 'x86', 'subdomain4'),
+                                         o.join('second_pkg', 'x86', 'second')])
+                        with Directory('install'):
+                            with Directory('x86') as x:
+                                check_files_in(x, ['first', 'second', 'subdomain4'])
 
         # And running the programs gives the expected result
-        with Directory(d.join('deploy', 'everything')) as deploy:
-            main1_result = get_stdout(deploy.join('main1'))
-            if main1_result != 'Program main1\n':
-                raise GiveUp('Program main1 printed out "{0}"'.format(main1_result))
 
-            subdomain1_result = get_stdout(deploy.join('sub1', 'subdomain1'))
-            if subdomain1_result != 'Program subdomain1\n':
-                raise GiveUp('Program subdomain1 printed out "{0}"'.format(subdomain1_result))
+        def check_result(d, path, progname):
+            fullpath = d.join(*path)
+            fullname = d.join(fullpath, progname)
+            result = get_stdout(fullname)
+            if result != 'Program {0}\n'.format(progname):
+                raise GiveUp('Program {0} printed out "{1}"'.format(fullpath, result))
+
+        with Directory(d.join('deploy', 'everything')) as e:
+            check_result(e, [],     'main1')
+            check_result(e, [],     'first')
+            check_result(e, [],     'second')
+            check_result(e, ['sub1'], 'subdomain1')
+            check_result(e, ['sub1'], 'first')
+            check_result(e, ['sub1'], 'second')
+            check_result(e, ['sub2'], 'subdomain2')
+            check_result(e, ['sub2'], 'first')
+            check_result(e, ['sub2'], 'second')
+            check_result(e, ['sub1', 'sub3'], 'subdomain3')
+            check_result(e, ['sub1', 'sub3'], 'first')
+            check_result(e, ['sub1', 'sub3'], 'second')
+            check_result(e, ['sub2', 'sub3'], 'subdomain3')
+            check_result(e, ['sub2', 'sub3'], 'first')
+            check_result(e, ['sub2', 'sub3'], 'second')
+            check_result(e, ['sub2', 'sub4'], 'subdomain4')
+            check_result(e, ['sub2', 'sub4'], 'first')
+            check_result(e, ['sub2', 'sub4'], 'second')
 
 def main(args):
 

@@ -100,7 +100,7 @@ class FileSpec:
         return_set = set()
         
 
-        all_in_root = data_provider.list_files_under(self.root, self.all_regex, 
+        all_in_root = data_provider.list_files_under(self.root, self.all_under, 
                                                      vroot = vroot)
         for f in all_in_root:
             #print "Match f  = %s against spec = %s"%(f, self.spec)
@@ -108,6 +108,8 @@ class FileSpec:
                 # Gotcha
                 #print "Found match = %s"%os.path.join(self.root, f)
                 return_set.add(os.path.join(self.root, f))
+
+        print 'RETURN SET', return_set
 
         # Right. Now, if we're recursive, recurse.
         if self.all_under:

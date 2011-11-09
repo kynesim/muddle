@@ -185,10 +185,11 @@ class CollectDeploymentBuilder(pkg.Action):
 
             instr_list = builder.load_instructions(lbl)
             for (lbl, fn, instrs) in instr_list:
-                print "Applying instructions for role %s, label %s .. "%(lbl.role, lbl)
+                print "Collect deployment: Applying instructions for role %s, label %s .. "%(lbl.role, lbl)
                 for instr in instrs:
                     # Obey this instruction.
                     iname = instr.outer_elem_name()
+                    print 'Instruction:', iname
                     if (iname in app_dict):
                         if prepare:
                             app_dict[iname].prepare(builder, instr, lbl.role, deploy_dir)

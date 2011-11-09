@@ -180,10 +180,11 @@ class FileDeploymentBuilder(pkg.Action):
         
             instr_list = builder.load_instructions(lbl)
             for (lbl, fn, instrs) in instr_list:
-                print "Applying instructions for role %s, label %s .. "%(role, lbl)
+                print "File deployment: Applying instructions for role %s, label %s .. "%(role, lbl)
                 for instr in instrs:
                     # Obey this instruction.
                     iname = instr.outer_elem_name()
+                    print 'Instruction:', iname
                     if (iname in app_dict):
                         app_dict[iname].apply(builder, instr, role, deploy_dir)
                     else:

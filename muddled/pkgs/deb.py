@@ -57,7 +57,7 @@ def rewrite_links(inv, label):
             # Read the link.
             link_target = os.readlink(object_name)
 
-            os.unlink(object_name)
+            os.remove(object_name)
             # Prepend the object dir.
             if (len(link_target) > 0 and 
                 link_target[0] == '/'):

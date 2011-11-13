@@ -224,7 +224,7 @@ class Database(object):
 
         if instr_file is None:
             if os.path.exists(file_name):
-                os.unlink(file_name)
+                os.remove(file_name)
         else:
             instr_file.save_as(file_name)
 
@@ -362,7 +362,7 @@ class Database(object):
             self.local_tags.discard(label)
         else:
             try:
-                os.unlink(self.tag_file_name(label))
+                os.remove(self.tag_file_name(label))
             except:
                 pass
 
@@ -448,7 +448,7 @@ class PathFile(object):
         if (self.value is None):
             if (os.path.exists(self.file_name)):
                 try:
-                    os.unlink(self.file_name)
+                    os.remove(self.file_name)
                 except Exception:
                     pass
         else:

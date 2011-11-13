@@ -51,6 +51,9 @@ distclean:
 .PHONY: all config install clean distclean
 """
 
+# TODO: also run tests where some of the lower level labels (both checkouts
+# and packages, at least) are unified, in various ways.
+
 TOPLEVEL_BUILD_DESC = """ \
 # A build description that includes two subdomains
 
@@ -397,7 +400,26 @@ def check_checkout_files(d):
     with Directory(d.join('domains', 'subdomain2', 'domains', 'subdomain4')):
         check_dot_muddle(is_subdomain=True)
 
-def assert_where_is_buildlabel(path, expect_what, expect_label=None, expect_domain=None):
+def assert_where_is_buildlabel(path, expect_what, expect_label=None, expect_domain=None,
+                               expect_package=None, is_build_desc=False):
+    """Check that we get the expected response for this location
+
+    1. From 'muddle where'
+    2. From 'muddle -n xxx', where 'xxx' depends on where we are, and the
+       "expected result" involves the given label.
+
+    Does *not* do stage 2 if expect_label is None - this is too complex for
+    automated calculation.
+
+    'expect_what', 'expect_domain' and 'expect_package' are what we expect
+    "muddle where -detail" to give us back.
+
+    For 'Checkout' locations, 'expect_package' is what we expect "muddle -n" to
+    give us back (this can't be directly deduced from the "location" label).
+
+    NB: If 'is_build_desc' is true, then we know not to check for the result
+    of "muddle -n", as there is no equivalent package to build.
+    """
     with Directory(path):
         print '1. in directory', path
         where = get_stdout('{muddle} where -detail'.format(muddle=MUDDLE_BINARY), False)
@@ -417,8 +439,13 @@ def assert_where_is_buildlabel(path, expect_what, expect_label=None, expect_doma
         if where_label_str == 'None':
             # There was no label there - nowt to do
             return
+
+        where_label = Label.from_string(where_label_str)
+        expect_label = Label.from_string(expect_label)
+        if expect_package:
+            package_label = Label.from_string(expect_package)
         else:
-            where_label = Label.from_string(where_label_str)
+            package_label = None
 
         if where_label.type == LabelType.Checkout:
             verb = 'checkout'
@@ -434,39 +461,57 @@ def assert_where_is_buildlabel(path, expect_what, expect_label=None, expect_doma
         build1 = get_stdout('{muddle} -n {verb}'.format(muddle=MUDDLE_BINARY,
             verb=verb), False)
         build1 = build1.strip()
-        build1_words = build1.split(' ')
 
         print '4. which said', build1
 
-        if verb != 'checkout':      # Since we've already checked it out...
-            print '5. Trying "muddle -n"'
+        build1_words = build1.split(' ')
+        build1_label_str = build1_words[-1]
+        build1_label = Label.from_string(build1_label_str)
 
-            build2 = get_stdout('{muddle} -n'.format(muddle=MUDDLE_BINARY), False)
-            build2 = build2.strip()
-            build2_words = build2.split(' ')
+        # Remember, the expect_label and where_label are already known to be
+        # the same, so we only need to check against one
+        # Also, we expect the 'where' label to have a wildcarded tag, so let's
+        # not worry about it...
+        if not where_label.match_without_tag(build1_label):
+            raise GiveUp('"muddle where -detail" says "{0}", but "muddle -n {1}" says '
+                         '"{2}"'.format(where, verb, build1))
 
-            print '6. which said', build1
+        if is_build_desc:
+            print 'X. OK (build description)'
+            return
 
-            if build1_words[-1] != build2_words[-1]:
-                raise GiveUp('"muddle" says "{0}, but "muddle {1}" says'
-                             ' "{2}"'.format(build1, verb, build2))
+        print '5. Trying "muddle -n"'
 
-        build_label_str = build1_words[-1]
-        build_label = Label.from_string(build_label_str)
+        build2 = get_stdout('{muddle} -n'.format(muddle=MUDDLE_BINARY), False)
+        build2 = build2.strip()
+        build2_words = build2.split(' ')
 
-        print '7. So comparing', build_label_str, 'and', where_label_str
+        print '6. which said', build2
+
+        build2_label_str = build2_words[-1]
+        build2_label = Label.from_string(build2_label_str)
 
         # We expect the 'where' label to have a wildcarded tag, so let's
         # not worry about it...
-        if not where_label.match_without_tag(build_label):
-            raise GiveUp('"muddle where" says "{0}", but "muddle {1}" says '
-                         '"{2}"'.format(where, verb, build))
+        #if not where_label.match_without_tag(build2_label):
+        #    raise GiveUp('"muddle where -detail" says "{0}", but "muddle -n"'
+        #            ' says "{1}"'.format(where, build2))
 
-        print '8. OK'
+        if verb == 'checkout':
+            if expect_package != build2_label_str:
+                raise GiveUp('"muddle -n" says "{0}, but we expected "{1}"'.format(build2,
+                    expect_package))
+        else:
+            if not build1_label.just_match(build2_label):
+                raise GiveUp('"muddle -n" says "{0}, but "muddle -n {1}" says'
+                             ' "{2}"'.format(build1, verb, build2))
+
+        print '7. OK'
 
 def check_buildlabel():
     """Check 'muddle where' and 'muddle -n buildlabel' agree.
     """
+    # TODO
     # Of course, at top level we have a special case if we give no args
     # - test that later on...
     #
@@ -484,8 +529,10 @@ def check_buildlabel():
     with Directory('build') as d:
         assert_where_is_buildlabel(d.where, 'Root')
         assert_where_is_buildlabel(d.join('src'), 'Checkout')
-        assert_where_is_buildlabel(d.join('src', 'builds'), 'Checkout', 'checkout:builds/*')
-        assert_where_is_buildlabel(d.join('src', 'main_co'), 'Checkout', 'checkout:main_co/*')
+        assert_where_is_buildlabel(d.join('src', 'builds'), 'Checkout', 'checkout:builds/*',
+                is_build_desc=True)
+        assert_where_is_buildlabel(d.join('src', 'main_co'), 'Checkout', 'checkout:main_co/*',
+                expect_package='package:main_pkg{x86}/postinstalled')
 
         assert_where_is_buildlabel(d.join('obj'), 'Object')
         assert_where_is_buildlabel(d.join('obj', 'main_pkg'), 'Object', 'package:main_pkg{*}/*')
@@ -504,9 +551,11 @@ def check_buildlabel():
                 assert_where_is_buildlabel(sub.where, 'DomainRoot', None, 'subdomain1')
                 assert_where_is_buildlabel(sub.join('src'), 'Checkout', None, 'subdomain1')
                 assert_where_is_buildlabel(sub.join('src', 'builds'),
-                        'Checkout', 'checkout:(subdomain1)builds/*', 'subdomain1')
+                        'Checkout', 'checkout:(subdomain1)builds/*', 'subdomain1',
+                        is_build_desc=True)
                 assert_where_is_buildlabel(sub.join('src', 'main_co'),
-                        'Checkout', 'checkout:(subdomain1)main_co/*', 'subdomain1')
+                        'Checkout', 'checkout:(subdomain1)main_co/*', 'subdomain1',
+                        expect_package='package:(subdomain1)main_pkg{x86}/postinstalled')
 
                 assert_where_is_buildlabel(sub.join('obj'), 'Object', None, 'subdomain1')
                 assert_where_is_buildlabel(sub.join('obj', 'main_pkg'),
@@ -536,10 +585,12 @@ def check_buildlabel():
                                 'Checkout', None, 'subdomain1(subdomain3)')
                         assert_where_is_buildlabel(sub.join('src', 'builds'),
                                 'Checkout', 'checkout:(subdomain1(subdomain3))builds/*',
-                                'subdomain1(subdomain3)')
+                                'subdomain1(subdomain3)',
+                                is_build_desc=True)
                         assert_where_is_buildlabel(sub.join('src', 'main_co'),
                                 'Checkout', 'checkout:(subdomain1(subdomain3))main_co/*',
-                                'subdomain1(subdomain3)')
+                                'subdomain1(subdomain3)',
+                                expect_package='package:(subdomain1(subdomain3))main_pkg{x86}/postinstalled')
 
                         assert_where_is_buildlabel(sub.join('obj'),
                                 'Object', None, 'subdomain1(subdomain3)')

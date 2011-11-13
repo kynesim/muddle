@@ -3177,13 +3177,13 @@ class Whereami(Command):
 
         <what> <label> <domain>
 
-    i.e., a space-separated triple of items that don't contain whitespace.
+    i.e., a space-separated triple of items that doesn't contain whitespace.
     For instance::
 
         $ muddle where
         Checkout directory for checkout:screen-4.0.3/*
         $ muddle where -detail
-        (Checkout, checkout:screen-4.0.3/*, None)
+        Checkout checkout:screen-4.0.3/* None
     """
 
     def requires_build_tree(self):
@@ -3210,7 +3210,7 @@ class Whereami(Command):
         (what, label, domain) = r
 
         if detail:
-            print '%s %s %s'%(utils.ReverseDirType[what], label, domain)
+            print '%s %s %s'%(utils.ReverseDirTypeDict[what], label, domain)
             return
 
         if what is None:

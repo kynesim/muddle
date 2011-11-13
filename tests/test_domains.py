@@ -25,7 +25,7 @@ except ImportError:
     sys.path.insert(0, get_parent_file(__file__))
     import muddled.cmdline
 
-from muddled.utils import GiveUp, normalise_dir, LabelType
+from muddled.utils import GiveUp, normalise_dir, LabelType, DirTypeDict
 from muddled.utils import Directory, NewDirectory, TransientDirectory
 from muddled.depend import Label
 
@@ -397,19 +397,28 @@ def check_checkout_files(d):
     with Directory(d.join('domains', 'subdomain2', 'domains', 'subdomain4')):
         check_dot_muddle(is_subdomain=True)
 
-def assert_where_is_buildlabel(path):
+def assert_where_is_buildlabel(path, expect_what, expect_label=None, expect_domain=None):
     with Directory(path):
         print '1. in directory', path
-        where = get_stdout('{muddle} where'.format(muddle=MUDDLE_BINARY), False)
+        where = get_stdout('{muddle} where -detail'.format(muddle=MUDDLE_BINARY), False)
         where = where.strip()
         print '2. "muddle where" says', where
-        words = where.split(' ')
-        try:
-            where_label_str = words[-1]
-            where_label = Label.from_string(where_label_str)
-        except GiveUp:
+        what_str, where_label_str, domain = where.split(' ')
+
+        if what_str != expect_what:
+            raise GiveUp('Expected {0}, got {1}'.format(expect_what, what_str))
+        if where_label_str != str(expect_label):    # to allow for None
+            raise GiveUp('Expected {0}, got {1}'.format(expect_label, where_label_str))
+        if domain != str(expect_domain):            # to allow for None
+            raise GiveUp('Expected {0}, got {1}'.format(expect_domain, domain))
+
+        dir_type = DirTypeDict[what_str]
+
+        if where_label_str == 'None':
             # There was no label there - nowt to do
             return
+        else:
+            where_label = Label.from_string(where_label_str)
 
         if where_label.type == LabelType.Checkout:
             verb = 'checkout'
@@ -460,40 +469,103 @@ def check_buildlabel():
     """
     # Of course, at top level we have a special case if we give no args
     # - test that later on...
+    #
+    # Specifically:
+    #
+    # 1. If we are at Root, build all deployments and all default roles for
+    #    the top-level build
+    # 2. If we are at DomainRoot, but have no subdomain, then ???
+    # 3. If we are at DomainRoot, and know our subdomain, build all deployments
+    #    and default roles for that subdomain(?)
+    #
+    # Also, if we are in deploy/everything, shouldn't our returned label be
+    # deplyoment:everything/*, rather than None?
 
     with Directory('build') as d:
-        assert_where_is_buildlabel(d.where)
-        assert_where_is_buildlabel(d.join('src'))
-        assert_where_is_buildlabel(d.join('src', 'builds'))
-        assert_where_is_buildlabel(d.join('src', 'main_co'))
+        assert_where_is_buildlabel(d.where, 'Root')
+        assert_where_is_buildlabel(d.join('src'), 'Checkout')
+        assert_where_is_buildlabel(d.join('src', 'builds'), 'Checkout', 'checkout:builds/*')
+        assert_where_is_buildlabel(d.join('src', 'main_co'), 'Checkout', 'checkout:main_co/*')
 
-        assert_where_is_buildlabel(d.join('obj'))
-        assert_where_is_buildlabel(d.join('obj', 'main_pkg'))
-        assert_where_is_buildlabel(d.join('obj', 'main_pkg', 'x86'))
+        assert_where_is_buildlabel(d.join('obj'), 'Object')
+        assert_where_is_buildlabel(d.join('obj', 'main_pkg'), 'Object', 'package:main_pkg{*}/*')
+        assert_where_is_buildlabel(d.join('obj', 'main_pkg', 'x86'), 'Object', 'package:main_pkg{x86}/*')
 
-        assert_where_is_buildlabel(d.join('install'))
-        assert_where_is_buildlabel(d.join('install', 'x86'))
+        assert_where_is_buildlabel(d.join('install'), 'Install')
+        assert_where_is_buildlabel(d.join('install', 'x86'), 'Install', 'package:*{x86}/*')
 
-        assert_where_is_buildlabel(d.join('deploy'))
-        assert_where_is_buildlabel(d.join('deploy', 'everything'))
+        assert_where_is_buildlabel(d.join('deploy'), 'Deployed')
+        assert_where_is_buildlabel(d.join('deploy', 'everything'), 'Deployed')
 
+    with Directory('build') as d:
         with Directory('domains') as dom:
-            assert_where_is_buildlabel(dom.where)
+            assert_where_is_buildlabel(dom.where, 'DomainRoot')
             with Directory('subdomain1') as sub:
-                assert_where_is_buildlabel(sub.where)
-                assert_where_is_buildlabel(sub.join('src'))
-                assert_where_is_buildlabel(sub.join('src', 'builds'))
-                assert_where_is_buildlabel(sub.join('src', 'main_co'))
+                assert_where_is_buildlabel(sub.where, 'DomainRoot', None, 'subdomain1')
+                assert_where_is_buildlabel(sub.join('src'), 'Checkout', None, 'subdomain1')
+                assert_where_is_buildlabel(sub.join('src', 'builds'),
+                        'Checkout', 'checkout:(subdomain1)builds/*', 'subdomain1')
+                assert_where_is_buildlabel(sub.join('src', 'main_co'),
+                        'Checkout', 'checkout:(subdomain1)main_co/*', 'subdomain1')
 
-                assert_where_is_buildlabel(sub.join('obj'))
-                assert_where_is_buildlabel(sub.join('obj', 'main_pkg'))
-                assert_where_is_buildlabel(sub.join('obj', 'main_pkg', 'x86'))
+                assert_where_is_buildlabel(sub.join('obj'), 'Object', None, 'subdomain1')
+                assert_where_is_buildlabel(sub.join('obj', 'main_pkg'),
+                        'Object', 'package:(subdomain1)main_pkg{*}/*', 'subdomain1')
+                assert_where_is_buildlabel(sub.join('obj', 'main_pkg', 'x86'),
+                        'Object', 'package:(subdomain1)main_pkg{x86}/*', 'subdomain1')
 
-                assert_where_is_buildlabel(sub.join('install'))
-                assert_where_is_buildlabel(sub.join('install', 'x86'))
+                assert_where_is_buildlabel(sub.join('install'), 'Install', None, 'subdomain1')
+                assert_where_is_buildlabel(sub.join('install', 'x86'),
+                        'Install', 'package:(subdomain1)*{x86}/*', 'subdomain1')
+
+                assert_where_is_buildlabel(sub.join('deploy'), 'Deployed', None, 'subdomain1')
+                assert_where_is_buildlabel(sub.join('deploy', 'everything'),
+                        'Deployed', None, 'subdomain1')
+
+    with Directory('build') as d:
+        with Directory('domains'):
+            with Directory('subdomain1'):
+                with Directory('domains') as dom:
+                    # A domain root within subdomain1 (not subdomain1's domain root)
+                    assert_where_is_buildlabel(dom.where,
+                            'DomainRoot', None, 'subdomain1')
+                    with Directory('subdomain3') as sub:
+                        assert_where_is_buildlabel(sub.where,
+                                'DomainRoot', None, 'subdomain1(subdomain3)')
+                        assert_where_is_buildlabel(sub.join('src'),
+                                'Checkout', None, 'subdomain1(subdomain3)')
+                        assert_where_is_buildlabel(sub.join('src', 'builds'),
+                                'Checkout', 'checkout:(subdomain1(subdomain3))builds/*',
+                                'subdomain1(subdomain3)')
+                        assert_where_is_buildlabel(sub.join('src', 'main_co'),
+                                'Checkout', 'checkout:(subdomain1(subdomain3))main_co/*',
+                                'subdomain1(subdomain3)')
+
+                        assert_where_is_buildlabel(sub.join('obj'),
+                                'Object', None, 'subdomain1(subdomain3)')
+                        assert_where_is_buildlabel(sub.join('obj', 'main_pkg'),
+                                'Object', 'package:(subdomain1(subdomain3))main_pkg{*}/*',
+                                'subdomain1(subdomain3)')
+                        assert_where_is_buildlabel(sub.join('obj', 'main_pkg', 'x86'),
+                                'Object', 'package:(subdomain1(subdomain3))main_pkg{x86}/*',
+                                'subdomain1(subdomain3)')
+
+                        assert_where_is_buildlabel(sub.join('install'),
+                                'Install', None, 'subdomain1(subdomain3)')
+                        assert_where_is_buildlabel(sub.join('install', 'x86'),
+                                'Install', 'package:(subdomain1(subdomain3))*{x86}/*',
+                                'subdomain1(subdomain3)')
+
+                        assert_where_is_buildlabel(sub.join('deploy'),
+                                'Deployed', None, 'subdomain1(subdomain3)')
+                        assert_where_is_buildlabel(sub.join('deploy', 'everything'),
+                                'Deployed', None, 'subdomain1(subdomain3)')
 
 def build(root_dir):
+    with Directory('build') as d:
+        muddle([])
 
+def check_files_after_build(root_dir):
     def check_built_tags(t, pkg):
         check_files([t.join('package', pkg, 'x86-built'),
                      t.join('package', pkg, 'x86-configured'),
@@ -513,8 +585,6 @@ def build(root_dir):
         check_files(mapped)
 
     with Directory('build') as d:
-        muddle([])
-
         # Everything we checked out should still be checked out
         check_checkout_files(d)
 
@@ -552,6 +622,7 @@ def build(root_dir):
                              t.join('deployment', 'everything', 'deployed'),
                             ])
 
+    with Directory('build') as d:
         with Directory('domains'):
             with Directory('subdomain1') as s1:
                 check_built_and_deployed_tags(s1)
@@ -580,6 +651,9 @@ def build(root_dir):
                         with Directory('install'):
                             with Directory('x86') as x:
                                 check_files_in(x, ['first', 'second', 'subdomain3'])
+
+    with Directory('build') as d:
+        with Directory('domains'):
             with Directory('subdomain2') as s2:
                 check_built_and_deployed_tags(s2)
                 with Directory('deploy'):
@@ -622,15 +696,18 @@ def build(root_dir):
                             with Directory('x86') as x:
                                 check_files_in(x, ['first', 'second', 'subdomain4'])
 
-        # And running the programs gives the expected result
+def check_programs_after_build(root_dir):
+    """And running the programs gives the expected result
+    """
 
-        def check_result(d, path, progname):
-            fullpath = d.join(*path)
-            fullname = d.join(fullpath, progname)
-            result = get_stdout(fullname)
-            if result != 'Program {0}\n'.format(progname):
-                raise GiveUp('Program {0} printed out "{1}"'.format(fullpath, result))
+    def check_result(d, path, progname):
+        fullpath = d.join(*path)
+        fullname = d.join(fullpath, progname)
+        result = get_stdout(fullname)
+        if result != 'Program {0}\n'.format(progname):
+            raise GiveUp('Program {0} printed out "{1}"'.format(fullpath, result))
 
+    with Directory('build') as d:
         with Directory(d.join('deploy', 'everything')) as e:
             check_result(e, [],     'main1')
             check_result(e, [],     'first')
@@ -671,6 +748,8 @@ def main(args):
 
         banner('BUILD')
         build(root_dir)
+        check_files_after_build(root_dir)
+        check_programs_after_build(root_dir)
 
         banner('CHECK WHERE AND BUILD AGREE')
         check_buildlabel()

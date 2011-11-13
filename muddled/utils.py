@@ -143,26 +143,25 @@ package_type_to_tag = {
 # And directory types - i.e., what is the purpose of a particular directory?
 # We use a description of the purpose of the directory type as its value,
 # and trust to Python to be kind to us
-__directory_types = {'Checkout'  : 'Checkout directory',
-                     'Object'    : 'Package object directory',
-                     'Deployed'  : 'Deployment directory',
-                     'Install'   : 'Install directory',
-                     'Root'      : 'Root of the build tree',
-                     'DomainRoot': 'Root of subdomain',
-                     'MuddleDir' : '.muddle directory',
-                     'Versions'  : 'Versions directory',
-                     'Unexpected': 'An unexpected place',
-                     }
+DirTypeDict = {'Checkout'  : 'Checkout directory',
+               'Object'    : 'Package object directory',
+               'Deployed'  : 'Deployment directory',
+               'Install'   : 'Install directory',
+               'Root'      : 'Root of the build tree',
+               'DomainRoot': 'Root of subdomain',
+               'MuddleDir' : '.muddle directory',
+               'Versions'  : 'Versions directory',
+               'Unexpected': 'An unexpected place',
+               }
 
-__directory_type_type = namedtuple('DirType',
-                                   ' '.join(__directory_types.keys()))
+__directory_type_type = namedtuple('DirType', ' '.join(DirTypeDict.keys()))
 
 # Sometimes the reverse is useful
-ReverseDirType = {}
-for key, value in __directory_types.items():
-    ReverseDirType[value] = key
+ReverseDirTypeDict = {}
+for key, value in DirTypeDict.items():
+    ReverseDirTypeDict[value] = key
 
-DirType = __directory_type_type(**__directory_types)
+DirType = __directory_type_type(**DirTypeDict)
 
 def string_cmp(a,b):
     """

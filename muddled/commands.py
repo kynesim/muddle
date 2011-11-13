@@ -274,7 +274,8 @@ class CheckoutCommand(Command):
                 label = Label.from_fragment(word,
                                             default_type=LabelType.Checkout,
                                             default_role=None,
-                                            default_domain=default_domain)
+                                            #default_domain=default_domain)
+                                            default_domain=None)
                 initial_list.append(label)
 
         #print 'Initial list:', label_list_to_string(initial_list)
@@ -399,7 +400,8 @@ class PackageCommand(Command):
         Interpret the 'args' as partial labels, and return a list of packages.
         """
         result_set = set()
-        default_domain = builder.get_default_domain()
+        # XXX I don't think this is a good idea
+        #default_domain = builder.get_default_domain()
 
         # Build up an initial list from the arguments given
         # Make sure we have a one-for-one correspondence between the input
@@ -412,7 +414,8 @@ class PackageCommand(Command):
                 label = Label.from_fragment(word,
                                             default_type=LabelType.Package,
                                             default_role=None,
-                                            default_domain=default_domain)
+                                            #default_domain=default_domain)
+                                            default_domain=None)
                 initial_list.append(label)
         #print 'Initial list:', label_list_to_string(initial_list)
 
@@ -543,7 +546,8 @@ class DeploymentCommand(Command):
                 lbl = Label.from_fragment(dep,
                                           default_type=LabelType.Deployment,
                                           default_role="*",
-                                          default_domain=default_domain)
+                                          #default_domain=default_domain)
+                                          default_domain=None)
                 if lbl.type != LabelType.Deployment:
                     raise GiveUp("Label '%s', from argument '%s' not allowed"
                             " as a deployment label"%(lbl, dep))
@@ -1212,10 +1216,11 @@ class QueryCommand(Command):
         except GiveUp as exc:
             raise GiveUp("%s\nIt should contain at least <type>:<name>/<tag>"%exc)
 
-        if label.domain is None:
-            default_domain = builder.get_default_domain()
-            if default_domain:
-                label = label.copy_with_domain(default_domain)
+        # XXX experimental
+        #if label.domain is None:
+        #    default_domain = builder.get_default_domain()
+        #    if default_domain:
+        #        label = label.copy_with_domain(default_domain)
 
         return builder.invocation.apply_unifications(label)
 
@@ -2035,7 +2040,7 @@ class BuildLabel(Command):
         labels = decode_labels(builder, args)
 
         if self.no_op():
-            print 'Build:', label_list_to_string(labels)
+            print 'BuildLabel:', label_list_to_string(labels)
             return
 
         build_labels(builder, labels)
@@ -2119,11 +2124,12 @@ class Instruct(Command):
 
         If role or domain is not specified, use the default (which may be None).
         """
-        default_domain = builder.get_default_domain()
+        #default_domain = builder.get_default_domain()
         label = Label.from_fragment(arg,
                                     default_type=LabelType.Package,
                                     default_role=None,
-                                    default_domain=default_domain)
+                                    #default_domain=default_domain)
+                                    default_domain=None)
         if label.tag != tag:
             label = label.copy_with_tag(tag)
         if label.type != LabelType.Package:
@@ -4055,7 +4061,8 @@ def decode_package_arguments(builder, arglist, current_dir, required_tag=None):
             label = Label.from_fragment(word,
                                         default_type=LabelType.Package,
                                         default_role=None,
-                                        default_domain=default_domain)
+                                        #default_domain=default_domain)
+                                        default_domain=None)
             initial_list.append(label)
 
     #print 'Initial list:', label_list_to_string(initial_list)

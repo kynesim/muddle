@@ -18,9 +18,11 @@ def find_and_load(specified_root, muddle_binary):
     """
     try:
         (build_root, build_domain) = utils.find_root_and_domain(specified_root)
+        print build_root, build_domain
         if build_root:
             builder = mechanics.load_builder(build_root, muddle_binary,
-                                             default_domain = build_domain)
+                                             #default_domain = build_domain)
+                                             default_domain = None) # 'cos it's the toplevel
         else:
             builder = None
         return builder
@@ -106,9 +108,9 @@ def _cmdline(args, current_dir, original_env, muddle_binary):
                 raise utils.GiveUp("Can't seem to determine where you are in the build tree")
 
             (what, label, domain) = where
+            print where
 
-            if (what == utils.DirType.Root or
-                (domain is None and label is None)):
+            if what == utils.DirType.Root: # or (domain is None and label is None):
                 # We're either (1) actually at the root of the entire tree, or
                 # (2) we're not anywhere particularly identifiable but near the
                 # top of the entire tree.
@@ -133,6 +135,34 @@ def _cmdline(args, current_dir, original_env, muddle_binary):
                                                                current_dir,
                                                                utils.LabelTag.PostInstalled)
                     args += map(str, labels)
+
+            elif what == utils.DirType.DomainRoot:
+                domains = []
+                if domain is None:
+                    subdirs = os.listdir(current_dir)
+                    # Make a quick plausibility check
+                    for dir in subdirs:
+                        if os.path.isdir(os.path.join(current_dir, dir, '.muddle')):
+                            domains.append(dir)
+
+                else:
+                    domains.append(domain)
+
+                # We're in domains/<somewhere>, so build everything specific
+                # to (just) this subdomain
+                command_class = cmd_dict["buildlabel"]
+                command = command_class()
+                command.set_options(command_options)
+
+                # Choose all the packages from this domain that are needed by
+                # our build tree. Also, all the deployments that it contributes
+                # to our build tree. It is possible we might end up "over building"
+                # if any of those are not implied by the top-level build defaults,
+                # but that would be somewhate more complex to determine.
+                args = []
+                for name in domains:
+                    args.append('deployment:({domain})*/deployed'.format(domain=name))
+                    args.append('package:({domain})*{{*}}/postinstalled'.format(domain=name))
 
         command.with_build_tree(builder, current_dir, args)
     else:

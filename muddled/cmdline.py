@@ -18,7 +18,6 @@ def find_and_load(specified_root, muddle_binary):
     """
     try:
         (build_root, build_domain) = utils.find_root_and_domain(specified_root)
-        print build_root, build_domain
         if build_root:
             builder = mechanics.load_builder(build_root, muddle_binary,
                                              #default_domain = build_domain)
@@ -108,7 +107,6 @@ def _cmdline(args, current_dir, original_env, muddle_binary):
                 raise utils.GiveUp("Can't seem to determine where you are in the build tree")
 
             (what, label, domain) = where
-            print where
 
             if what == utils.DirType.Root: # or (domain is None and label is None):
                 # We're either (1) actually at the root of the entire tree, or

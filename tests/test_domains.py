@@ -417,7 +417,7 @@ def assert_bare_muddle(path, label_strs):
         print '"muddle -n" said', build
 
         build_words = build.split(' ')
-        if build_words[0] != 'Build:':
+        if build_words[0] != 'BuildLabel:':
             raise GiveUp('Unexpected {0} instead of "Build:" in {1}'.format(build_words[0], build))
         build_labels = map(Label.from_string, build_words[1:])  # Drop the 'Builds:'
         build_labels.sort()

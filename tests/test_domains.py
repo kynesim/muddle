@@ -553,17 +553,25 @@ def check_buildlabel():
     # Specifically:
     #
     # 1. If we are at Root, build all deployments and all default roles for
-    #    the top-level build
-    # 2. If we are at DomainRoot, but have no subdomain, then ???
-    # 3. If we are at DomainRoot, and know our subdomain, build all deployments
-    #    and default roles for that subdomain(?)
+    #    the top-level build. DONE
+    #
+    # 2. If we are at DomainRoot, and know our subdomain, build all deployments
+    #    *in our build tree* within that domain - i.e., deployment:(xxx)/*/deployed
+    #    and also all packages in that domain - i.e., package:(xxx)/*{*}/postinstalled
+    #    (firstly because we don't know what the subdomain's default deployments and
+    #    roles are, but mostly because we don't actually care, as we really only
+    #    want to build those things which our main build needs)
+    #
+    # 3. If we are at DomainRoot, but not yet in a subdomain, then all the things
+    #    we would build for each of those subdomains (see (2) above)
     #
     # Also, if we are in deploy/everything, shouldn't our returned label be
     # deplyoment:everything/*, rather than None?
 
     with Directory('build') as d:
         assert_where_is_buildlabel(d.where, 'Root')
-        # TODO: should build all default deployments and default roles below Root
+        # We want to build the default deployments and the default roles
+        # for this top level build
         assert_bare_muddle(d.where, ['deployment:everything/deployed',
                                      'package:first_pkg{x86}/postinstalled',
                                      'package:main_pkg{x86}/postinstalled',
@@ -597,13 +605,11 @@ def check_buildlabel():
         with Directory('domains') as dom:
             assert_where_is_buildlabel(dom.where, 'DomainRoot')
             # TODO: Arguably, should build all subdomains below here...
-            # (if that's so, then check domains/subdomain2/domains to see if it
-            # picks up that there are TWO subdomains to build)
 
             with Directory('subdomain1') as sub:
                 assert_where_is_buildlabel(sub.where, 'DomainRoot', None, 'subdomain1')
-                # TODO: should build all default deployments and default roles
-                # in subdomain1
+                # TODO: should build all deployments and default roles in subdomain1
+                # that are in the build tree
 
                 assert_where_is_buildlabel(sub.join('src'), 'Checkout', None, 'subdomain1')
                 # TODO: should build all checkouts below here
@@ -636,8 +642,8 @@ def check_buildlabel():
                     # A domain root within subdomain1 (not subdomain1's domain root)
                     assert_where_is_buildlabel(dom.where,
                             'DomainRoot', None, 'subdomain1')
-                    # TODO: should build all default deployments and default roles
-                    # in subdomain3
+                    # TODO: should build all deployments and default roles in subdomain3
+                    # that are in the build tree
                     with Directory('subdomain3') as sub:
                         assert_where_is_buildlabel(sub.where,
                                 'DomainRoot', None, 'subdomain1(subdomain3)')

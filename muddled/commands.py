@@ -3348,7 +3348,7 @@ class Cleandeploy(DeploymentCommand):
     :Syntax: cleandeploy <deployment> [<deployment> ... ]
 
     Remove all tags for the given deployments and erase their built
-    directories.
+    directories. XXX it doesn't delete the 'built' directories???
 
     You can use cleandeploy to just clean the relevant deployments.
 

@@ -572,17 +572,15 @@ class DeploymentCommand(Command):
         #  which doesn't have the right tag, we want an error, 
         #  not to silently ignore it.
         match_lbl = Label(LabelType.Deployment, "*", None, domain="*")
-        print 'Match label', match_lbl
         matching = builder.invocation.ruleset.rules_for_target(match_lbl)
 
-        return_set = set()
+        return_list = []
         for m in matching:
-            return_set.add(m.target.name)
-
-        return_list = [ ]
-        for r in return_set:
-            lbl = Label(LabelType.Deployment, r, None, self.required_tag)
-            return_list.append(lbl)
+            label = m.target
+            if label.tag == self.required_tag:
+                return_list.append(label)
+            else:
+                return_list.append(label.copy_with_tag(self.required_tag))
 
         return return_list
 

@@ -545,7 +545,7 @@ class DeploymentCommand(Command):
             else:
                 lbl = Label.from_fragment(dep,
                                           default_type=LabelType.Deployment,
-                                          default_role="*",
+                                          default_role=None,
                                           #default_domain=default_domain)
                                           default_domain=None)
                 if lbl.type != LabelType.Deployment:
@@ -571,7 +571,8 @@ class DeploymentCommand(Command):
         # Important not to set tag here - if there's a deployment
         #  which doesn't have the right tag, we want an error, 
         #  not to silently ignore it.
-        match_lbl = Label(LabelType.Deployment, "*", "*", "*", domain=default_domain)
+        match_lbl = Label(LabelType.Deployment, "*", None, domain="*")
+        print 'Match label', match_lbl
         matching = builder.invocation.ruleset.rules_for_target(match_lbl)
 
         return_set = set()
@@ -580,7 +581,7 @@ class DeploymentCommand(Command):
 
         return_list = [ ]
         for r in return_set:
-            lbl = Label(LabelType.Deployment, r, "*", self.required_tag)
+            lbl = Label(LabelType.Deployment, r, None, self.required_tag)
             return_list.append(lbl)
 
         return return_list
@@ -1773,9 +1774,7 @@ class QueryUnused(QueryCommand):
     def with_build_tree(self, builder, current_dir, args):
         def all_deployables(builder):
             search_label = Label(LabelType.Deployment,
-                                 "*", "*",
-                                 LabelTag.Deployed,
-                                 domain="*")
+                                 "*", None, LabelTag.Deployed, domain="*")
             all_rules = builder.invocation.ruleset.rules_for_target(search_label)
             deployables = set()
             for r in all_rules:

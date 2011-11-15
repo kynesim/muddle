@@ -3999,15 +3999,15 @@ def build_a_kill_b(builder, labels, build_this, kill_this):
             l_a = lbl.copy_with_tag(build_this)
             print "Building: %s .. "%(l_a)
             builder.build_label(l_a)
-        except GiveUp, e:
-            raise GiveUp("Can't build %s - %s"%(l_a, e))
+        except GiveUp as e:
+            raise GiveUp("Can't build %s: %s"%(l_a, e))
 
         try:
             l_b = lbl.copy_with_tag(kill_this)
             print "Killing: %s .. "%(l_b)
             builder.kill_label(l_b)
-        except GiveUp, e:
-            raise GiveUp("Can't kill %s - %s"%(l_b, e))
+        except GiveUp as e:
+            raise GiveUp("Can't kill %s: %s"%(l_b, e))
 
 def kill_labels(builder, to_kill):
     print "Killing %s "%(" ".join(map(str, to_kill)))

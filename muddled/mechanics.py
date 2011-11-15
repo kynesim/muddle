@@ -3,20 +3,20 @@ Contains the mechanics of muddle.
 """
 
 import os
-import traceback
-import sys
-
-import db
-import depend
-import pkg
-import utils
-import version_control
-import env_store
-import instr
 import re
+import sys
+import traceback
 
-from depend import Label
-from utils import domain_subpath
+import muddled.db as db
+import muddled.depend as depend
+import muddled.pkg as pkg
+import muddled.utils as utils
+import muddled.version_control as version_control
+import muddled.env_store as env_store
+import muddled.instr as instr
+
+from muddled.depend import Label
+from muddled.utils import domain_subpath, GiveUp
 
 class Invocation:
     """
@@ -1075,8 +1075,10 @@ class Builder(object):
                                            useTags=True, useMatch=True)
 
         if not rule_list:
-            print "There is no rule to build label %s"%label
-            return
+            # XXX I think an exception makes more sense
+            #print "There is no rule to build label %s"%label
+            #return
+            raise GiveUp("There is no rule to build label %s"%label)
 
         for r in rule_list:
             if self.invocation.db.is_tag(r.target):
@@ -1113,8 +1115,10 @@ class Builder(object):
                                                                  useMatch = True)
 
         if not rule_list:
-            print "There is no rule to build label %s"%label
-            return
+            # XXX I think an exception makes more sense
+            #print "There is no rule to build label %s"%label
+            #return
+            raise GiveUp("There is no rule to build label %s"%label)
 
         for r in rule_list:
             # Build it.
@@ -1156,7 +1160,7 @@ class Builder(object):
     def build_name(self, name):
         m = self.build_name_re.match(name)
         if m is None or m.end() != len(name):
-            raise utils.GiveUp("Build name '%s' is not allowed"%name)
+            raise GiveUp("Build name '%s' is not allowed"%name)
         self._build_name = name
 
 
@@ -1285,7 +1289,7 @@ class Builder(object):
         root_dir = os.path.normcase(os.path.normpath(root_dir))
 
         if not dir.startswith(root_dir):
-            raise utils.GiveUp("Directory '%s' is not within muddle build tree '%s'"%(
+            raise GiveUp("Directory '%s' is not within muddle build tree '%s'"%(
                 dir, root_dir))
 
         if dir == root_dir:
@@ -1542,8 +1546,8 @@ def _new_sub_domain(root_path, muddle_binary, domain_name, domain_repo, domain_b
     # Check our domain name is legitimate
     try:
         Label._check_part('dummy',domain_name)
-    except utils.GiveUp:
-        raise utils.GiveUp('Domain name "%s" is not valid'%domain_name)
+    except GiveUp:
+        raise GiveUp('Domain name "%s" is not valid'%domain_name)
 
     # So, we're wanting our sub-builds to go into the 'domains/' directory
     domain_root_path = os.path.join(root_path, 'domains', domain_name)

@@ -264,7 +264,7 @@ class Invocation:
         
         Returns a set of strings.
         """
-        lbl = Label(utils.LabelType.Deployment, "*", "*", "*", domain="*")
+        lbl = Label(utils.LabelType.Deployment, "*", None, "*", domain="*")
         all_labels = self.ruleset.rules_for_target(lbl)
         rv = set()
         for cur in all_labels:
@@ -275,7 +275,7 @@ class Invocation:
         """
         Return a set of all the deployment labels in our rule set.
         """
-        lbl = Label(utils.LabelType.Deployment, "*", "*", "*", domain="*")
+        lbl = Label(utils.LabelType.Deployment, "*", None, "*", domain="*")
         all_labels = self.ruleset.rules_for_target(lbl)
         rv = set()
         for cur in all_labels:

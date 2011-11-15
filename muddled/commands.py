@@ -574,15 +574,15 @@ class DeploymentCommand(Command):
         match_lbl = Label(LabelType.Deployment, "*", None, domain="*")
         matching = builder.invocation.ruleset.rules_for_target(match_lbl)
 
-        return_list = []
+        return_set = set()
         for m in matching:
             label = m.target
             if label.tag == self.required_tag:
-                return_list.append(label)
+                return_set.add(label)
             else:
-                return_list.append(label.copy_with_tag(self.required_tag))
+                return_set.add(label.copy_with_tag(self.required_tag))
 
-        return return_list
+        return list(return_set)
 
     def default_args(self, builder, current_dir):
         """

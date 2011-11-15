@@ -34,7 +34,7 @@ def register_cleanup(builder, deployment):
     
     target_lbl = depend.Label(utils.LabelType.Deployment,
                               deployment, 
-                              "*",
+                              None,
                               utils.LabelTag.Clean)
     rule = depend.Rule(target_lbl, CleanDeploymentBuilder())
     builder.invocation.ruleset.add(rule)

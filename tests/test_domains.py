@@ -856,6 +856,95 @@ def check_programs_after_build(root_dir):
             check_result(e, ['sub2', 'sub4'], 'first')
             check_result(e, ['sub2', 'sub4'], 'second')
 
+def check_same_all(root_dir):
+    """Check that 'muddle -n XXX _all is the same everywhere.
+
+    (This is almost certainy checking WAY too many locations - it certainly
+    seems to take forever)
+    """
+
+    def all_same(arg, dirname, fnames):
+        for name in ('.muddle', '.git'):
+            if name in fnames:
+                fnames.remove(name)
+        with Directory(dirname, show_pushd=False):
+            text = get_stdout('{muddle} -n unimport _all'.format(muddle=MUDDLE_BINARY), False)
+            text = text.strip()
+            parts = text.split()
+            parts = parts[3:]    # Ignoring ['Asked', 'to', 'unimport:']
+            expected = ['checkout:builds/checked_out',
+                        'checkout:first_co/checked_out',
+                        'checkout:main_co/checked_out',
+                        'checkout:second_co/checked_out',
+                        'checkout:(subdomain1)builds/checked_out',
+                        'checkout:(subdomain1)first_co/checked_out',
+                        'checkout:(subdomain1)main_co/checked_out',
+                        'checkout:(subdomain1)second_co/checked_out',
+                        'checkout:(subdomain1(subdomain3))builds/checked_out',
+                        'checkout:(subdomain1(subdomain3))first_co/checked_out',
+                        'checkout:(subdomain1(subdomain3))main_co/checked_out',
+                        'checkout:(subdomain1(subdomain3))second_co/checked_out',
+                        'checkout:(subdomain2)builds/checked_out',
+                        'checkout:(subdomain2)first_co/checked_out',
+                        'checkout:(subdomain2)main_co/checked_out',
+                        'checkout:(subdomain2)second_co/checked_out',
+                        'checkout:(subdomain2(subdomain3))builds/checked_out',
+                        'checkout:(subdomain2(subdomain3))first_co/checked_out',
+                        'checkout:(subdomain2(subdomain3))main_co/checked_out',
+                        'checkout:(subdomain2(subdomain3))second_co/checked_out',
+                        'checkout:(subdomain2(subdomain4))builds/checked_out',
+                        'checkout:(subdomain2(subdomain4))first_co/checked_out',
+                        'checkout:(subdomain2(subdomain4))main_co/checked_out',
+                        'checkout:(subdomain2(subdomain4))second_co/checked_out']
+            if parts != expected:
+                print 'Expected', expected
+                print 'Got     ', parts
+                raise GiveUp('"muddle -n unimport _all" gave unexpected results')
+
+            text = get_stdout('{muddle} -n build _all'.format(muddle=MUDDLE_BINARY), False)
+            text = text.strip()
+            parts = text.split()
+            parts = parts[3:]    # Ignoring ['Asked', 'to', 'build:']
+            expected = ['package:first_pkg{x86}/postinstalled',
+                        'package:main_pkg{x86}/postinstalled',
+                        'package:second_pkg{x86}/postinstalled',
+                        'package:(subdomain1)first_pkg{x86}/postinstalled',
+                        'package:(subdomain1)main_pkg{x86}/postinstalled',
+                        'package:(subdomain1)second_pkg{x86}/postinstalled',
+                        'package:(subdomain1(subdomain3))first_pkg{x86}/postinstalled',
+                        'package:(subdomain1(subdomain3))main_pkg{x86}/postinstalled',
+                        'package:(subdomain1(subdomain3))second_pkg{x86}/postinstalled',
+                        'package:(subdomain2)first_pkg{x86}/postinstalled',
+                        'package:(subdomain2)main_pkg{x86}/postinstalled',
+                        'package:(subdomain2)second_pkg{x86}/postinstalled',
+                        'package:(subdomain2(subdomain3))first_pkg{x86}/postinstalled',
+                        'package:(subdomain2(subdomain3))main_pkg{x86}/postinstalled',
+                        'package:(subdomain2(subdomain3))second_pkg{x86}/postinstalled',
+                        'package:(subdomain2(subdomain4))first_pkg{x86}/postinstalled',
+                        'package:(subdomain2(subdomain4))main_pkg{x86}/postinstalled',
+                        'package:(subdomain2(subdomain4))second_pkg{x86}/postinstalled']
+            if parts != expected:
+                print 'Expected', expected
+                print 'Got     ', parts
+                raise GiveUp('"muddle -n build _all" gave unexpected results')
+
+            text = get_stdout('{muddle} -n cleandeploy _all'.format(muddle=MUDDLE_BINARY), False)
+            text = text.strip()
+            parts = text.split()
+            parts = parts[3:]    # Ignoring ['Asked', 'to', 'cleandeploy:']
+            expected = ['deployment:everything/deployed',
+                        'deployment:(subdomain1)everything/deployed',
+                        'deployment:(subdomain1(subdomain3))everything/deployed',
+                        'deployment:(subdomain2)everything/deployed',
+                        'deployment:(subdomain2(subdomain3))everything/deployed',
+                        'deployment:(subdomain2(subdomain4))everything/deployed']
+            if parts != expected:
+                print 'Expected', expected
+                print 'Got     ', parts
+                raise GiveUp('"muddle -n cleandeploy _all" gave unexpected results')
+
+    os.path.walk('build', all_same, None)
+
 def main(args):
 
     if args:
@@ -882,6 +971,9 @@ def main(args):
 
         banner('CHECK WHERE AND BUILD AGREE')
         check_buildlabel()
+
+        banner('CHECK _all IS THE SAME EVERYWHERE')
+        check_same_all(root_dir)
 
 if __name__ == '__main__':
     args = sys.argv[1:]

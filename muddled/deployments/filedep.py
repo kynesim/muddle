@@ -154,7 +154,7 @@ class FileDeploymentBuilder(pkg.Action):
         print "Rerunning muddle to apply instructions .. "
         
         permissions_label = depend.Label(utils.LabelType.Deployment,
-                                         label.name, label.role,
+                                         label.name, None, # XXX label.role,
                                          utils.LabelTag.InstructionsApplied,
                                          domain = label.domain)
 

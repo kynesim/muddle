@@ -243,10 +243,6 @@ class CheckoutCommand(Command):
         # We promised a sorted list
         labels.sort()
 
-        # Grumble about any labels that don't exist
-        # XXX TODO
-        # and if that leaves us with no labels at all, we must give up
-
         if self.no_op():
             print 'Asked to %s: %s'%(self.cmd_name, label_list_to_string(labels))
             return
@@ -266,17 +262,41 @@ class CheckoutCommand(Command):
         # Make sure we have a one-for-one correspondence between the input
         # list and the result
         initial_list = []
+        label_from_fragment = builder.invocation.label_from_fragment
         for word in args:
             if word == '_all':
-                all_checkouts = builder.invocation.all_checkout_labels()
+                all_checkouts = builder.all_checkout_labels()
                 initial_list.extend(all_checkouts)
             else:
-                label = Label.from_fragment(word,
-                                            default_type=LabelType.Checkout,
-                                            default_role=None,
-                                            #default_domain=default_domain)
-                                            default_domain=None)
-                initial_list.append(label)
+                # We are allowed to be given a package fragment, so we might
+                # get multiple labels back, if the user didn't specify a role,
+                # and there are multiple default roles
+                labels = label_from_fragment(word,
+                                             default_type=LabelType.Checkout,
+                                             default_role=None,
+                                             #default_domain=default_domain)
+                                             default_domain=None)
+
+                used_labels = []
+                # We're only interested in any labels that are actually used
+                for label in labels:
+                    if builder.invocation.target_label_exists(label):
+                        used_labels.append(label)
+
+                # But it's an error if none of them were wanted
+                if not used_labels:
+                    if len(labels) == 1:
+                        raise GiveUp("Label %s, from argument '%s', is"
+                                     " not a target"%(labels[0], word))
+                    else:
+                        # XXX This isn't a great error message, but it's OK
+                        # XXX for now, and significantly better than nothing
+                        raise GiveUp("None of the labels %s, from argument '%s', is"
+                                     " a target"%(', '.join(map(str, labels)), word))
+
+                # Don't forget to remember those we do want!
+                for label in used_labels:
+                    initial_list.append(label)
 
         #print 'Initial list:', label_list_to_string(initial_list)
 
@@ -407,16 +427,40 @@ class PackageCommand(Command):
         # Make sure we have a one-for-one correspondence between the input
         # list and the result
         initial_list = []
+        label_from_fragment = builder.invocation.label_from_fragment
         for word in args:
             if word == '_all':
                 initial_list.extend(builder.invocation.all_package_labels())
             else:
-                label = Label.from_fragment(word,
+                # We expect to be given a package fragment, so we might get
+                # multiple labels back, if the user didn't specify a role, and
+                # there are multiple default roles
+                labels = label_from_fragment(word,
                                             default_type=LabelType.Package,
                                             default_role=None,
                                             #default_domain=default_domain)
                                             default_domain=None)
-                initial_list.append(label)
+
+                used_labels = []
+                # We're only interested in any labels that are actually used
+                for label in labels:
+                    if builder.invocation.target_label_exists(label):
+                        used_labels.append(label)
+
+                # But it's an error if none of them were wanted
+                if not used_labels:
+                    if len(labels) == 1:
+                        raise GiveUp("Label %s, from argument '%s', is"
+                                     " not a target"%(labels[0], word))
+                    else:
+                        # XXX This isn't a great error message, but it's OK
+                        # XXX for now, and significantly better than nothing
+                        raise GiveUp("None of the labels %s, from argument '%s', is"
+                                     " a target"%(', '.join(map(str, labels)), word))
+
+                # Don't forget to remember those we do want!
+                for label in used_labels:
+                    initial_list.append(label)
         #print 'Initial list:', label_list_to_string(initial_list)
 
         intermediate_set = set()
@@ -536,24 +580,49 @@ class DeploymentCommand(Command):
         return_list = [ ]
         default_domain = builder.get_default_domain()
 
-        for dep in args:
-            if (dep == "_all"):
+        label_from_fragment = builder.invocation.label_from_fragment
+        for word in args:
+            if word == "_all":
                 # Everything .. 
                 return_list = self.all_deployment_labels(builder, default_domain)
                 return_list.sort()
                 return return_list
             else:
-                lbl = Label.from_fragment(dep,
-                                          default_type=LabelType.Deployment,
-                                          default_role=None,
-                                          #default_domain=default_domain)
-                                          default_domain=None)
-                if lbl.type != LabelType.Deployment:
-                    raise GiveUp("Label '%s', from argument '%s' not allowed"
-                            " as a deployment label"%(lbl, dep))
-                if lbl.tag != self.required_tag:
-                    lbl = lbl.copy_with_tag(self.required_tag)
-                return_list.append(lbl)
+                labels = label_from_fragment(word,
+                                             default_type=LabelType.Deployment,
+                                             default_role=None,
+                                             #default_domain=default_domain)
+                                             default_domain=None)
+
+                # Anything not a deployment is not allowed, so check that first
+                # And we happen to know this can only occur for packages
+                if labels[0].type != LabelType.Deployment:
+                    raise GiveUp("Label '%s', from argument '%s', is not allowed"
+                            " as a deployment label"%(labels[0], word))
+
+                # Thus it is a (real) bug if we got multiple labels, and the
+                # first was *not* a non-deployment
+                if len(labels) != 1:
+                    raise MuddleBug("Unexpectedly got multiple labels from fragment:"
+                            " %s -> %s"%(word, label_list_to_string(labels)))
+
+                label = labels[0]
+
+                # If the user tried to ask for a wildcard tag, adjust it
+                # to what we want - we do this for deployments because there
+                # is really only one sort of tag
+                #
+                # XXX Consider if this is the best way to do things
+                if label.tag == '*':
+                    label = label.copy_with_tag(self.required_tag)
+
+                # Is this label actually used for anything?
+                if not builder.invocation.target_label_exists(label):
+                    raise GiveUp("Label %s, from argument '%s', is"
+                                 " not a target"%(label, word))
+
+                return_list.append(label)
+
         result_set = set()
         for label in return_list:
             if label.is_definite():

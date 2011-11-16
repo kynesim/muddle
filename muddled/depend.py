@@ -777,22 +777,16 @@ class Label(object):
         """
         Given a string containing a label fragment, return a Label.
 
-        The caller indicates the default type and domain, and what tag
-        should be used.
+        The caller indicates the default type, role and domain.
 
         The fragment must contain a <name>, but otherwise *may* contain
         any of:
 
             * <type>: - if this is not given, the default is used
             * (<domain>) - if this is not given, the default is used.
-              Note that "()" means "the top level domain" - this can be
-              useful in command lines when the default domain is a
-              subdomain
             * {<role>} - if this is not given, the default is used.
             * /<tag> - if this is not given, a tag appropriate to the
               <type> is chosen (checked_out, postinstalled or deployed)
-
-        all of which may be "*" (the wildcard character).
 
         Any of the default_xx values may be None.
         """

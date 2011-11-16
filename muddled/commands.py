@@ -265,7 +265,7 @@ class CheckoutCommand(Command):
         label_from_fragment = builder.invocation.label_from_fragment
         for word in args:
             if word == '_all':
-                all_checkouts = builder.all_checkout_labels()
+                all_checkouts = builder.invocation.all_checkout_labels()
                 initial_list.extend(all_checkouts)
             else:
                 # We are allowed to be given a package fragment, so we might

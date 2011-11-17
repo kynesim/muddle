@@ -660,22 +660,24 @@ class Invocation:
         return_list = []
         for label in labels:
             if label.is_wildcard:
-                if label.tag == '*':    # Let's not be that general
-                    tag = utils.package_type_to_tag[label.type]
-                    label = label.copy_with_tag(tag)
                 return_list.extend(self.expand_wildcards(label))
             else:
                 return_list.append(label)
         return return_list
 
-    def expand_wildcards(self, label, wildcard_tag=None):
+    def expand_wildcards(self, label, default_to_obvious_tag=True, wildcard_tag=None):
         """
         Given a label which may contain wildcards, return a set of labels that match.
 
         As per the normal definition of labels, the <type>, <name>, <role> and
         <tag> parts of the label may be wildcarded.
 
-        If required_tag is given, then any labels found that have a '*' for
+        If default_to_obvious_tag is true, then if label has a tag of '*', it
+        will be replaced by the "obvious" (final) tag for this label type,
+        before any searching (for for a checkout: label, /checked_out would
+        be used).
+
+        If required_tag is not None, then any labels found that have a '*' for
         their tag will have it replaced by this value.
         """
 
@@ -683,6 +685,10 @@ class Invocation:
             # There are no wildcards - it matches itself
             # (should we check if it exists?)
             return set([label])
+
+        if default_to_obvious_tag and label.tag == '*':
+            tag = utils.package_type_to_tag[label.type]
+            label = label.copy_with_tag(tag)
 
         # This is perhaps not the most efficient way to do this, but it is simple
         possible_labels = []
@@ -706,7 +712,6 @@ class Invocation:
             actual_labels.add(possible)
 
         return actual_labels
-
 
 class Builder(object):
     """
@@ -1140,10 +1145,8 @@ class Builder(object):
                                            useTags=True, useMatch=True)
 
         if not rule_list:
-            # XXX I think an exception makes more sense
-            #print "There is no rule to build label %s"%label
-            #return
-            raise GiveUp("There is no rule to build label %s"%label)
+            print "There is no rule to build label %s"%label
+            return
 
         for r in rule_list:
             if self.invocation.db.is_tag(r.target):
@@ -1180,10 +1183,8 @@ class Builder(object):
                                                                  useMatch = True)
 
         if not rule_list:
-            # XXX I think an exception makes more sense
-            #print "There is no rule to build label %s"%label
-            #return
-            raise GiveUp("There is no rule to build label %s"%label)
+            print "There is no rule to build label %s"%label
+            return
 
         for r in rule_list:
             # Build it.

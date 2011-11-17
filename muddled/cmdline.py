@@ -13,6 +13,9 @@ import muddled.commands as commands
 import muddled.utils as utils
 import muddled.mechanics as mechanics
 
+from muddled.depend import Label
+from muddled.utils import LabelType, LabelTag, DirType
+
 def find_and_load(specified_root, muddle_binary):
     """Find our .muddle root, and then load our builder, and return it.
     """
@@ -108,7 +111,7 @@ def _cmdline(args, current_dir, original_env, muddle_binary):
 
             (what, label, domain) = where
 
-            if what == utils.DirType.Root: # or (domain is None and label is None):
+            if what == DirType.Root: # or (domain is None and label is None):
                 # We're either (1) actually at the root of the entire tree, or
                 # (2) we're not anywhere particularly identifiable but near the
                 # top of the entire tree.
@@ -128,13 +131,10 @@ def _cmdline(args, current_dir, original_env, muddle_binary):
                 # This is doubtless not the most compact way of doing this,
                 # but it makes what we are doing fairly clear...
                 for role in builder.invocation.default_roles:
-                    labels = commands.decode_package_arguments(builder,
-                                                               ['*{%s}'%role],
-                                                               current_dir,
-                                                               utils.LabelTag.PostInstalled)
-                    args += map(str, labels)
+                    label = Label(LabelType.Package, '*', role, LabelTag.PostInstalled)
+                    args.append(str(label))
 
-            elif what == utils.DirType.DomainRoot:
+            elif what == DirType.DomainRoot:
                 domains = []
                 if domain is None:
                     subdirs = os.listdir(current_dir)

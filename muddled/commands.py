@@ -606,6 +606,8 @@ class DeploymentCommand(Command):
         what, label, domain = builder.find_location_in_tree(current_dir)
         return_list = []
         if what == DirType.Deployed:
+            if label is None:   # XXX This should actually decide for us
+                raise GiveUp('Not sure which deployment you want')
             # We're actually inside a deployment - job done
             return_list.append(label.copy_with_tag(self.required_tag))
         else:
@@ -613,11 +615,13 @@ class DeploymentCommand(Command):
             return_list = self.default_deployment_labels(builder)
 
         result_set = set()
+        expand_wildcards = builder.invocation.expand_wildcards
         for label in return_list:
             if label.is_definite():
                 result_set.add(label)
             else:
-                result_set.update(expand_wildcards(builder, label, self.required_tag))
+                result_set.update(expand_wildcards(builder, label,
+                    default_to_obvious=False, wildcard_tag=self.required_tag))
 
         return list(result_set)
 
@@ -2059,7 +2063,7 @@ class RunIn(Command):
             print self.__doc__
             return
 
-        labels = decode_labels(builder, args[0:1] )
+        labels = self.decode_labels(builder, args[0:1] )
         command = " ".join(args[1:])
         dirs_done = set()
 
@@ -2107,6 +2111,18 @@ class RunIn(Command):
                                         stdout=sys.stdout, stderr=subprocess.STDOUT)
                 else:
                     print "! %s does not exist."%dir
+
+    def decode_labels(self, builder, in_args):
+        """
+        Each argument is a label - convert each to a proper label
+        object and then return the resulting list
+        """
+        rv = [ ]
+        for arg in in_args:
+            lbl = Label.from_string(arg)
+            rv.append(lbl)
+
+        return rv
 
 @command('buildlabel', CAT_ANYLABEL)
 class BuildLabel(AnyLabelCommand):
@@ -4072,162 +4088,5 @@ def build_labels(builder, to_build):
             builder.build_label(lbl)
     except GiveUp,e:
         raise GiveUp("Can't build %s - %s"%(str(lbl), e))
-
-# -----------------------------------------------------------------------------
-# Decode label or partial label arguments for particular purposes
-# -----------------------------------------------------------------------------
-
-def decode_package_arguments(builder, arglist, current_dir, required_tag=None):
-    """
-    TBD
-    """
-
-    if not arglist:
-        rv = builder.find_local_package_labels(current_dir, LabelTag.PostInstalled)
-        if rv:
-            rv.sort()
-            return rv
-        else:
-            raise GiveUp("No packages specified")
-
-    result_set = set()
-    default_domain = builder.get_default_domain()
-
-    # Build up an initial list from the arguments given
-    # Make sure we have a one-for-one correspondence between the input
-    # list and the result
-    initial_list = []
-    for word in arglist:
-        if word == '_all':
-            initial_list.extend(builder.invocation.all_package_labels())
-        else:
-            label = Label.from_fragment(word,
-                                        default_type=LabelType.Package,
-                                        default_role=None,
-                                        #default_domain=default_domain)
-                                        default_domain=None)
-            initial_list.append(label)
-
-    #print 'Initial list:', label_list_to_string(initial_list)
-
-    intermediate_set = set()
-    for index, label in enumerate(initial_list):
-        if label.type == LabelType.Package:
-            intermediate_set.update(expand_package_label(builder, label, required_tag))
-        elif label.type == LabelType.Checkout:
-            intermediate_set.update(expand_package_checkout_label(builder, label, required_tag))
-        else:
-            raise GiveUp("Cannot cope with label '%s', from input arg '%s'"%(label, arglist[index]))
-
-    #print 'Intermediate set', label_list_to_string(intermediate_set)
-
-    result_set = set()
-    for label in intermediate_set:
-        if label.is_definite():
-            result_set.add(label)
-        else:
-            result_set.update(expand_wildcards(builder, label, required_tag))
-
-    #print 'Result set', label_list_to_string(result_set)
-
-    result_list = list(result_set)
-    result_list.sort()
-    return result_list
-
-# -----------------------------------------------------------------------------
-# Support for the above
-# -----------------------------------------------------------------------------
-
-def decode_labels(builder, in_args):
-    """
-    Each argument is a label - convert each to a proper label
-    object and then return the resulting list
-    """
-    rv = [ ]
-    for arg in in_args:
-        lbl = Label.from_string(arg)
-        rv.append(lbl)
-
-    return rv
-
-def expand_package_label(builder, label, required_tag):
-    """Given an intermediate package label, expand it to a set of labels.
-    """
-    result_set = set()
-    default_roles = builder.invocation.default_roles
-
-    if required_tag is not None and label.tag != required_tag:
-        label = label.copy_with_tag(required_tag)
-
-    if label.role:
-        result_set.add(label)
-    elif default_roles:
-        # Add the default roles
-        for r in default_roles:
-            lbl = label.copy_with_role(r)
-            result_set.add(lbl)
-    else:
-        # Just wildcard for any role
-        lbl = label.copy_with_role('*')
-        result_set.add(lbl)
-
-    return result_set
-
-def expand_package_checkout_label(builder, label, required_tag):
-    """Given an intermediate checkout label, expand it to a set of package labels.
-    """
-
-    intermediate_set = set()
-    intermediate_set.update(builder.invocation.packages_using_checkout(label))
-
-    if required_tag is not None:
-        result_set = set()
-        for lbl in intermediate_set:
-            if lbl.tag != required_tag:
-                lbl = lbl.copy_with_tag(required_tag)
-            result_set.add(lbl)
-    else:
-        result_set = intermediate_set
-
-    return result_set
-
-def expand_wildcards(builder, label, required_tag=None):
-    """
-    Given a label which may contain wildcards, return a set of labels that match.
-
-    As per the normal definition of labels, the <type>, <name>, <role> and
-    <tag> parts of the label may be wildcarded.
-
-    If required_tag is given, then any labels found that have a '*' for
-    their tag will have it replaced by this value.
-    """
-
-    if label.is_definite():
-        # There are no wildcards - it matches itself
-        # (should we check if it exists?)
-        return set(label)
-
-    # This is perhaps not the most efficient way to do this, but it is simple
-    possible_labels = []
-    if label.type == LabelType.Checkout:
-        possible_labels = builder.invocation.all_checkout_labels()
-    elif label.type == LabelType.Package:
-        possible_labels = builder.invocation.all_package_labels()
-    elif label.type == LabelType.Deployment:
-        possible_labels = builder.invocation.all_deployment_labels()
-    else:
-        raise GiveUp("Cannot expand wildcards in label '%s', which"
-                " has an unrecognised type"%label)
-
-    actual_labels = set()
-    for possible in possible_labels:
-        wildcardiness = label.match(possible)
-        if wildcardiness is None:                   # They didn't match
-            continue
-        if required_tag is not None and possible.tag == '*':
-            possible = possible.copy_with_tag(required_tag)
-        actual_labels.add(possible)
-
-    return actual_labels
 
 # End file.

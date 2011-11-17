@@ -63,12 +63,12 @@ CAT_INIT='init'
 CAT_CHECKOUT='checkout'
 CAT_PACKAGE='package'
 CAT_DEPLOYMENT='deployment'
+CAT_ANYLABEL='any label'
 CAT_QUERY='query'
 CAT_STAMP='stamp'
 CAT_MISC='misc'
-CAT_OTHER='other'
 g_command_categories_in_order = [CAT_INIT, CAT_CHECKOUT, CAT_PACKAGE,
-        CAT_DEPLOYMENT, CAT_QUERY, CAT_STAMP, CAT_MISC, CAT_OTHER]
+        CAT_DEPLOYMENT, CAT_ANYLABEL, CAT_QUERY, CAT_STAMP, CAT_MISC]
 
 def in_category(command_name, category, for_subcommand=False):
     if category not in g_command_categories_in_order:
@@ -277,6 +277,8 @@ class CheckoutCommand(Command):
                                              #default_domain=default_domain)
                                              default_domain=None)
 
+                # XXX Should we expand any wildcards at this point?
+
                 used_labels = []
                 # We're only interested in any labels that are actually used
                 for label in labels:
@@ -403,10 +405,6 @@ class PackageCommand(Command):
         # We promised a sorted list
         labels.sort()
 
-        # Grumble about any labels that don't exist
-        # XXX TODO
-        # and if that leaves us with no labels at all, we must give up
-
         if self.no_op():
             print 'Asked to %s: %s'%(self.cmd_name, label_list_to_string(labels))
             return
@@ -440,6 +438,8 @@ class PackageCommand(Command):
                                             default_role=None,
                                             #default_domain=default_domain)
                                             default_domain=None)
+
+                # XXX Should we expand any wildcards at this point?
 
                 used_labels = []
                 # We're only interested in any labels that are actually used
@@ -561,10 +561,6 @@ class DeploymentCommand(Command):
         # We promised a sorted list
         labels.sort()
 
-        # Grumble about any labels that don't exist
-        # XXX TODO
-        # and if that leaves us with no labels at all, we must give up
-
         if self.no_op():
             print 'Asked to %s: %s'%(self.cmd_name, label_list_to_string(labels))
             return
@@ -593,6 +589,8 @@ class DeploymentCommand(Command):
                                              default_role=None,
                                              #default_domain=default_domain)
                                              default_domain=None)
+
+                # XXX Should we expand any wildcards at this point?
 
                 # Anything not a deployment is not allowed, so check that first
                 # And we happen to know this can only occur for packages
@@ -690,6 +688,94 @@ class DeploymentCommand(Command):
         return return_list
 
     def build_these_labels(self, builder, deployments):
+        """
+        Do whatever is necessary to each label
+        """
+        raise MuddleBug('No action provided for command "%s"'%self.cmd_name)
+
+class AnyLabelCommand(Command):
+    """
+    A Command that takes any sort of label. Always requires a build tree.
+
+    We don't try to turn one sort of label into another, and we don't alter
+    the order of the labels given. At least one label must be provided.
+    """
+
+    def with_build_tree(self, builder, current_dir, args):
+        if args:
+            # Expand out any labels that need it
+            labels = self.decode_args(builder, args, current_dir)
+        else:
+            raise GiveUp('Nothing to do: no label given')
+
+        # We don't sort the list - we keep it in the order given
+
+        if self.no_op():
+            print 'Asked to %s: %s'%(self.cmd_name, label_list_to_string(labels))
+            return
+        elif not args:
+            print '%s %s'%(self.cmd_name, label_list_to_string(labels))
+
+        self.build_these_labels(builder, labels)
+
+    def decode_args(self, builder, args, current_dir):
+        """
+        Turn the arguments into full labels.
+        """
+        result_set = set()
+
+        # Build up an initial list from the arguments given
+        # Make sure we have a one-for-one correspondence between the input
+        # list and the result
+        initial_list = []
+        label_from_fragment = builder.invocation.label_from_fragment
+        for word in args:
+            if word == '_all':
+                raise GiveUp('Command %s does not allow _all as an argument'%self.cmd_name)
+
+            # We might be given a package: fragment, which may give us multiple
+            # labels back, if the user didn't specify a role, and there are
+            # multiple default roles
+            labels = label_from_fragment(word,
+                                        default_type=LabelType.Package,
+                                        default_role=None,
+                                        default_domain=None)
+
+            # XXX Should we expand any wildcards at this point?
+
+            used_labels = []
+            # We're only interested in any labels that are actually used
+            for label in labels:
+                if builder.invocation.target_label_exists(label):
+                    used_labels.append(label)
+
+            # But it's an error if none of them were wanted
+            if not used_labels:
+                if len(labels) == 1:
+                    raise GiveUp("Label %s, from argument '%s', is"
+                                 " not a target"%(labels[0], word))
+                else:
+                    # XXX This isn't a great error message, but it's OK
+                    # XXX for now, and significantly better than nothing
+                    raise GiveUp("None of the labels %s, from argument '%s', is"
+                                 " a target"%(', '.join(map(str, labels)), word))
+
+            # Don't forget to remember those we do want!
+            for label in used_labels:
+                initial_list.append(label)
+        #print 'Initial list:', label_list_to_string(initial_list)
+
+        result_list = []
+        for label in initial_list:
+            if label.is_definite():
+                result_list.append(label)
+            else:
+                result_list.extend(expand_wildcards(builder, label, self.required_tag))
+
+        #print 'Result list', label_list_to_string(result_list)
+        return result_list
+
+    def build_these_labels(self, builder, checkouts):
         """
         Do whatever is necessary to each label
         """
@@ -2087,28 +2173,19 @@ class RunIn(Command):
                 else:
                     print "! %s does not exist."%dir
 
-@command('buildlabel', CAT_OTHER)
-class BuildLabel(Command):
+@command('buildlabel', CAT_ANYLABEL)
+class BuildLabel(AnyLabelCommand):
     """
     :Syntax: buildlabel <label> [ <label> ... ]
 
     Builds a set of specified labels, without all the defaulting and trying to
     guess what you mean that Build does.
-    
+
     Mainly used internally to build defaults and the privileged half of
     instruction executions.
     """
 
-    def requires_build_tree(self):
-        return True
-
-    def with_build_tree(self, builder, current_dir, args):
-        labels = decode_labels(builder, args)
-
-        if self.no_op():
-            print 'BuildLabel:', label_list_to_string(labels)
-            return
-
+    def build_these_labels(self, builder, labels):
         build_labels(builder, labels)
 
 # It's arguable what category this should go in, but I've not put it in
@@ -2203,55 +2280,28 @@ class Instruct(Command):
                     " package label"%(label, arg))
         return label
 
-@command('assert', CAT_OTHER)
-class Assert(Command):
+@command('assert', CAT_ANYLABEL)
+class Assert(AnyLabelCommand):
     """
     :Syntax: assert <label> [ <label> ... ]
 
     Assert the given labels. Mostly for use by experts and scripts.
     """
 
-    def requires_build_tree(self):
-        return True
-
-    def with_build_tree(self, builder, current_dir, args):
-        if (len(args) < 1):
-            print "Syntax: assert [label.. ]"
-            print __doc__
-            return
-
-        labels = decode_labels(builder, args)
-
-        if self.no_op():
-            print "Assert: %s"%(label_list_to_string(labels))
-            return
-
+    def build_these_labels(self, builder, labels):
         for l in labels:
             builder.invocation.db.set_tag(l)
 
-@command('retract', CAT_OTHER)
-class Retract(Command):
+@command('retract', CAT_ANYLABEL)
+class Retract(AnyLabelCommand):
     """
     :Syntax: retract <label> [ <label> ... ]
 
-    Retract the given labels and their consequents. 
+    Retract the given labels and their consequents.
     Mostly for use by experts and scripts.
     """
 
-    def requires_build_tree(self):
-        return True
-
-    def with_build_tree(self, builder, current_dir, args):
-        if len(args) < 1 :
-            print "Syntax: retract [label ... ]"
-            print __doc__
-            return
-
-        labels = decode_labels(builder, args)
-        if (self.no_op()):
-            print "Retract: %s"%(label_list_to_string(labels))
-            return
-
+    def build_these_labels(self, builder, labels):
         for l in labels:
             builder.kill_label(l)
 
@@ -2390,8 +2440,8 @@ class CopyWithout(Command):
         utils.copy_without(src_dir, dst_dir, without, object_exactly=True,
                 preserve=True, force=force)
 
-@command('retry', CAT_OTHER)
-class Retry(Command):
+@command('retry', CAT_ANYLABEL)
+class Retry(AnyLabelCommand):
     """
     :Syntax: retry <label> [ <label> ... ]
 
@@ -2399,15 +2449,7 @@ class Retry(Command):
     Useful when you're messing about with package rebuild rules.
     """
 
-    def requires_build_tree(self):
-        return True
-
-    def with_build_tree(self, builder, current_dir, args):
-        labels = decode_labels(builder, args)
-        if (self.no_op()):
-            print "Retry: %s"%(label_list_to_string(labels))
-            return
-
+    def build_these_labels(self, builder, labels):
         print "Clear: %s"%(label_list_to_string(labels))
         for l in labels:
             builder.invocation.db.clear_tag(l)

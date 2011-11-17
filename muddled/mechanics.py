@@ -634,29 +634,78 @@ class Invocation:
 
     def label_from_fragment(self, fragment, default_type, default_role,
                             default_domain):
-        """A variant of Label.from_fragment that understands types
+        """A variant of Label.from_fragment that understands types and wildcards
 
-        In particular, it knows that packages have roles, but checkouts
-        and deployments do not.
+        In particular, it knows that:
 
-        Returns a list of labels. For checkouts and deployments, this list
-        will always have length one. For packages, it will be longer if the
-        'fragment' did not include a role, and there is more than one default
-        role.
+        1. packages have roles, but checkouts and deployments do not.
+        2. wildcards expand to their appropriate values
+
+        Returns a list of labels. This method does not check that all of the
+        labels returned actually exist as targets in the dependency tree.
         """
         label = Label.from_fragment(fragment,
                                     default_type=default_type,
                                     default_role=None,
                                     #default_domain=default_domain)
                                     default_domain=None)
+        labels = []
         if label.type == LabelType.Package and label.role is None and self.default_roles:
-            labels = []
             for role in self.default_roles:
                 label = label.copy_with_role(role)
                 labels.append(label)
-            return labels
         else:
-            return [label]
+            labels.append(label)
+
+        return_list = []
+        for label in labels:
+            if label.is_wildcard:
+                if label.tag == '*':    # Let's not be that general
+                    tag = utils.package_type_to_tag[label.type]
+                    label = label.copy_with_tag(tag)
+                return_list.extend(self.expand_wildcards(label))
+            else:
+                return_list.append(label)
+        return return_list
+
+    def expand_wildcards(self, label, wildcard_tag=None):
+        """
+        Given a label which may contain wildcards, return a set of labels that match.
+
+        As per the normal definition of labels, the <type>, <name>, <role> and
+        <tag> parts of the label may be wildcarded.
+
+        If required_tag is given, then any labels found that have a '*' for
+        their tag will have it replaced by this value.
+        """
+
+        if label.is_definite():
+            # There are no wildcards - it matches itself
+            # (should we check if it exists?)
+            return set([label])
+
+        # This is perhaps not the most efficient way to do this, but it is simple
+        possible_labels = []
+        if label.type == LabelType.Checkout:
+            possible_labels = self.all_checkout_labels()
+        elif label.type == LabelType.Package:
+            possible_labels = self.all_package_labels()
+        elif label.type == LabelType.Deployment:
+            possible_labels = self.all_deployment_labels()
+        else:
+            raise GiveUp("Cannot expand wildcards in label '%s', which"
+                    " has an unrecognised type"%label)
+
+        actual_labels = set()
+        for possible in possible_labels:
+            wildcardiness = label.match(possible)
+            if wildcardiness is None:                   # They didn't match
+                continue
+            if wildcard_tag is not None and possible.tag == '*':
+                possible = possible.copy_with_tag(wildcard_tag)
+            actual_labels.add(possible)
+
+        return actual_labels
 
 
 class Builder(object):

@@ -797,6 +797,9 @@ class Label(object):
         type = m.group("type")
         if type is None:
             type = default_type
+        elif type == '*':
+            raise utils.GiveUp("Label type '*' is not allowed,"
+                               " in label fragment '%s'"%fragment)
         name = m.group("name")
         role = m.group("role")
         if role is None:

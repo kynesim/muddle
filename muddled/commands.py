@@ -268,16 +268,11 @@ class CheckoutCommand(Command):
                 all_checkouts = builder.invocation.all_checkout_labels()
                 initial_list.extend(all_checkouts)
             else:
-                # We are allowed to be given a package fragment, so we might
-                # get multiple labels back, if the user didn't specify a role,
-                # and there are multiple default roles
                 labels = label_from_fragment(word,
                                              default_type=LabelType.Checkout,
                                              default_role=None,
                                              #default_domain=default_domain)
                                              default_domain=None)
-
-                # XXX Should we expand any wildcards at this point?
 
                 used_labels = []
                 # We're only interested in any labels that are actually used
@@ -297,28 +292,18 @@ class CheckoutCommand(Command):
                                      " a target"%(', '.join(map(str, labels)), word))
 
                 # Don't forget to remember those we do want!
-                for label in used_labels:
-                    initial_list.append(label)
+                initial_list.extend(used_labels)
 
         #print 'Initial list:', label_list_to_string(initial_list)
 
-        intermediate_set = set()
+        result_set = set()
         for index, label in enumerate(initial_list):
             if label.type == LabelType.Checkout:
-                intermediate_set.update(self.expand_checkout_label(builder, label))
+                result_set.update(self.expand_checkout_label(builder, label))
             elif label.type == LabelType.Package:
-                intermediate_set.update(self.expand_package_label(builder, label))
+                result_set.update(self.expand_package_label(builder, label))
             else:
-                raise GiveUp("Cannot cope with label '%s', from input arg '%s'"%(label, args[index]))
-
-        #print 'Intermediate set', label_list_to_string(intermediate_set)
-
-        result_set = set()
-        for label in intermediate_set:
-            if label.is_definite():
-                result_set.add(label)
-            else:
-                result_set.update(expand_wildcards(builder, label, self.required_tag))
+                raise GiveUp("Cannot cope with label '%s', from arg '%s'"%(label, args[index]))
 
         #print 'Result set', label_list_to_string(result_set)
         return list(result_set)
@@ -430,16 +415,11 @@ class PackageCommand(Command):
             if word == '_all':
                 initial_list.extend(builder.invocation.all_package_labels())
             else:
-                # We expect to be given a package fragment, so we might get
-                # multiple labels back, if the user didn't specify a role, and
-                # there are multiple default roles
                 labels = label_from_fragment(word,
                                             default_type=LabelType.Package,
                                             default_role=None,
                                             #default_domain=default_domain)
                                             default_domain=None)
-
-                # XXX Should we expand any wildcards at this point?
 
                 used_labels = []
                 # We're only interested in any labels that are actually used
@@ -459,26 +439,18 @@ class PackageCommand(Command):
                                      " a target"%(', '.join(map(str, labels)), word))
 
                 # Don't forget to remember those we do want!
-                for label in used_labels:
-                    initial_list.append(label)
+                initial_list.extend(used_labels)
+
         #print 'Initial list:', label_list_to_string(initial_list)
 
-        intermediate_set = set()
+        result_set = set()
         for index, label in enumerate(initial_list):
             if label.type == LabelType.Package:
-                intermediate_set.update(self.expand_package_label(builder, label))
+                result_set.update(self.expand_package_label(builder, label))
             elif label.type == LabelType.Checkout:
-                intermediate_set.update(self.expand_checkout_label(builder, label))
+                result_set.update(self.expand_checkout_label(builder, label))
             else:
-                raise GiveUp("Cannot cope with label '%s', from input arg '%s'"%(label, args[index]))
-        #print 'Intermediate set', label_list_to_string(intermediate_set)
-
-        result_set = set()
-        for label in intermediate_set:
-            if label.is_definite():
-                result_set.add(label)
-            else:
-                result_set.update(expand_wildcards(builder, label, self.required_tag))
+                raise GiveUp("Cannot cope with label '%s', from arg '%s'"%(label, args[index]))
 
         #print 'Result set', label_list_to_string(result_set)
         return list(result_set)
@@ -590,45 +562,20 @@ class DeploymentCommand(Command):
                                              #default_domain=default_domain)
                                              default_domain=None)
 
-                # XXX Should we expand any wildcards at this point?
-
                 # Anything not a deployment is not allowed, so check that first
-                # And we happen to know this can only occur for packages
-                if labels[0].type != LabelType.Deployment:
-                    raise GiveUp("Label '%s', from argument '%s', is not allowed"
-                            " as a deployment label"%(labels[0], word))
+                for label in labels:
+                    if label.type != LabelType.Deployment:
+                        raise GiveUp("Label '%s', from argument '%s', is not allowed"
+                                " as a deployment label"%(label, word))
 
-                # Thus it is a (real) bug if we got multiple labels, and the
-                # first was *not* a non-deployment
-                if len(labels) != 1:
-                    raise MuddleBug("Unexpectedly got multiple labels from fragment:"
-                            " %s -> %s"%(word, label_list_to_string(labels)))
+                    # Is this label actually used for anything?
+                    if not builder.invocation.target_label_exists(label):
+                        raise GiveUp("Label %s, from argument '%s', is"
+                                     " not a target"%(label, word))
 
-                label = labels[0]
+                    return_list.append(label)
 
-                # If the user tried to ask for a wildcard tag, adjust it
-                # to what we want - we do this for deployments because there
-                # is really only one sort of tag
-                #
-                # XXX Consider if this is the best way to do things
-                if label.tag == '*':
-                    label = label.copy_with_tag(self.required_tag)
-
-                # Is this label actually used for anything?
-                if not builder.invocation.target_label_exists(label):
-                    raise GiveUp("Label %s, from argument '%s', is"
-                                 " not a target"%(label, word))
-
-                return_list.append(label)
-
-        result_set = set()
-        for label in return_list:
-            if label.is_definite():
-                result_set.add(label)
-            else:
-                result_set.update(expand_wildcards(builder, label, self.required_tag))
-
-        return list(result_set)
+        return return_list
 
     def all_deployment_labels(self, builder, default_domain):
         """
@@ -727,7 +674,7 @@ class AnyLabelCommand(Command):
         # Build up an initial list from the arguments given
         # Make sure we have a one-for-one correspondence between the input
         # list and the result
-        initial_list = []
+        result_list = []
         label_from_fragment = builder.invocation.label_from_fragment
         for word in args:
             if word == '_all':
@@ -740,8 +687,6 @@ class AnyLabelCommand(Command):
                                         default_type=LabelType.Package,
                                         default_role=None,
                                         default_domain=None)
-
-            # XXX Should we expand any wildcards at this point?
 
             used_labels = []
             # We're only interested in any labels that are actually used
@@ -761,18 +706,8 @@ class AnyLabelCommand(Command):
                                  " a target"%(', '.join(map(str, labels)), word))
 
             # Don't forget to remember those we do want!
-            for label in used_labels:
-                initial_list.append(label)
-        #print 'Initial list:', label_list_to_string(initial_list)
+            result_list.extend(used_labels)
 
-        result_list = []
-        for label in initial_list:
-            if label.is_definite():
-                result_list.append(label)
-            else:
-                result_list.extend(expand_wildcards(builder, label, self.required_tag))
-
-        #print 'Result list', label_list_to_string(result_list)
         return result_list
 
     def build_these_labels(self, builder, checkouts):

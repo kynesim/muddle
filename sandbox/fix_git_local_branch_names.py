@@ -103,7 +103,7 @@ def _do_cmdline(args):
     rr = []
     for r in rules:
         co_dir = builder.invocation.db.get_checkout_path(r.target)
-        if isinstance(r.obj.vcs, muddled.vcs.git.Git):
+        if isinstance(r.action.vcs, muddled.vcs.git.Git):
             if verbose: print "In %s:"%co_dir
             os.chdir(co_dir)
             raw = get_cmd_data("git show-ref --heads", verbose = verbose)
@@ -116,7 +116,7 @@ def _do_cmdline(args):
                     raise GiveUp("Unparseable output from git: %s"%h)
                 heads.add(m.group(1))
  
-            g = r.obj.vcs
+            g = r.action.vcs
             #print "heads is %s"%heads.__str__()
             if g.branch is not None:
                 if g.branch in heads:

@@ -202,10 +202,10 @@ class Profile:
     def use(self, builder):
         pass
 
-def add_checkout_rules(ruleset, co_label, obj):
+def add_checkout_rules(ruleset, co_label, action):
     """
     Add the standard checkout rules to a ruleset for a checkout
-    with name co_label. 'obj' should be an instance of VcsCheckoutBuilder,
+    with name co_label. 'action' should be an instance of VcsCheckoutBuilder,
     which knows how to build a checkout: label, depending on its tag.
     """
 
@@ -218,7 +218,7 @@ def add_checkout_rules(ruleset, co_label, obj):
 
     # And we simply use the VcsCheckoutBuilder (as we assume it to be)
     # to build us
-    co_rule = depend.Rule(co_label, obj)
+    co_rule = depend.Rule(co_label, action)
     ruleset.add(co_rule)
 
     # Fetched is a transient label.
@@ -227,7 +227,7 @@ def add_checkout_rules(ruleset, co_label, obj):
     # enough that "muddle fetch" should check the checkout out if it has not
     # already been done, then we can make it depend upon the checked_out label...
     # Tell its rule that it depends on the checkout being checked out (!)
-    rule = depend.Rule(fetched_label, obj)
+    rule = depend.Rule(fetched_label, action)
     rule.add(co_label)
     ruleset.add(rule)
     #rule = ruleset.rule_for_target(fetched_label, createIfNotPresent=True)
@@ -235,7 +235,7 @@ def add_checkout_rules(ruleset, co_label, obj):
 
     # Merged is very similar, and also depends on the checkout existing
     merged_label = co_label.copy_with_tag(utils.LabelTag.Merged, transient=True)
-    rule = depend.Rule(merged_label, obj)
+    rule = depend.Rule(merged_label, action)
     rule.add(co_label)
     ruleset.add(rule)
     #rule = ruleset.rule_for_target(merged_label, createIfNotPresent=True)
@@ -244,7 +244,7 @@ def add_checkout_rules(ruleset, co_label, obj):
     ## We used to say that UpToDate depended on Pulled.
     ## Our nearest equivalent would be Merged depending on Fetched.
     ## But that's plainly not a useful dependency, so we shall ignore it.
-    #depend.depend_chain(obj, 
+    #depend.depend_chain(action, 
     #                    uptodate_label, 
     #                    [ utils.LabelTag.Fetched ], ruleset)
 
@@ -252,17 +252,17 @@ def add_checkout_rules(ruleset, co_label, obj):
     # the action only doing something if the corresponding checkout has
     # been checked out. Which leaves the rule with no apparent dependencies
     pushed_label = co_label.copy_with_tag(utils.LabelTag.ChangesPushed, transient=True)
-    rule = depend.Rule(pushed_label, obj)
+    rule = depend.Rule(pushed_label, action)
     ruleset.add(rule)
 
     # The same also applies to commit...
     committed_label = co_label.copy_with_tag(utils.LabelTag.ChangesCommitted, transient=True)
-    rule = depend.Rule(committed_label, obj)
+    rule = depend.Rule(committed_label, action)
     ruleset.add(rule)
 
     # Centralised VCSs, in general, want us to do a 'fetch' (update) before
     # doing a 'commit', so we should try to honour that, if necessary
-    if (obj.must_fetch_before_commit()):
+    if (action.must_fetch_before_commit()):
         rule.add(fetched_label)
 
 def package_depends_on_checkout(ruleset, pkg_name, role_name, co_name, action=None):
@@ -320,12 +320,12 @@ def package_depends_on_packages(ruleset, pkg_name, role, tag_name, deps):
 
     
 
-def add_package_rules(ruleset, pkg_name, role_name, obj):
+def add_package_rules(ruleset, pkg_name, role_name, action):
     """
     Add the standard package rules to a ruleset.
     """
     
-    depend.depend_chain(obj,
+    depend.depend_chain(action,
                         depend.Label(utils.LabelType.Package,
                               pkg_name, role_name, 
                               utils.LabelTag.PreConfig),
@@ -340,7 +340,7 @@ def add_package_rules(ruleset, pkg_name, role_name, obj):
     # 
     # (and it avoids inverse rules which would be a bit
     #  urgh)
-    ruleset.add(depend.depend_one(obj, 
+    ruleset.add(depend.depend_one(action, 
 				   depend.Label(utils.LabelType.Package,
 				                pkg_name, role_name, 
 						utils.LabelTag.Clean, 
@@ -454,9 +454,10 @@ def set_checkout_vcs_option(builder, label, **kwargs):
     if label.type is not utils.LabelType.Checkout:
         raise utils.GiveUp('set_checkout_vcs_option called on non-checkout %s'%label)
     for rule in builder.invocation.ruleset.rules_for_target(label):
-        if rule.obj is not None:
-            if not isinstance(rule.obj, muddled.pkg.VcsCheckoutBuilder):
-                raise utils.MuddleBug('rule for checkout %s had a non-builder object of type %s'%(label, rule.obj.__class__.__name__))
-            rule.obj.vcs.add_options(kwargs)
+        if rule.action is not None:
+            if not isinstance(rule.action, muddled.pkg.VcsCheckoutBuilder):
+                raise utils.MuddleBug('rule for checkout %s had a non-builder'
+                        ' object of type %s'%(label, rule.action.__class__.__name__))
+            rule.action.vcs.add_options(kwargs)
 
 # End file.

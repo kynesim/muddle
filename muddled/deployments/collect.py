@@ -252,7 +252,7 @@ def copy_from_checkout(builder, name, checkout, rel, dest,
                              copyExactly = copyExactly,
                              usingRSync = usingRSync)
     rule.add(dep_label)
-    rule.obj.add_assembly(asm)
+    rule.action.add_assembly(asm)
 
 def copy_from_package_obj(builder, name, pkg_name, pkg_role, rel,dest,
                           recursive = True,
@@ -276,7 +276,7 @@ def copy_from_package_obj(builder, name, pkg_name, pkg_role, rel,dest,
                              copyExactly = copyExactly,
                              usingRSync = usingRSync)
     rule.add(dep_label)
-    rule.obj.add_assembly(asm)
+    rule.action.add_assembly(asm)
 
 def copy_from_role_install(builder, name, role, rel, dest,
                            recursive = True,
@@ -339,7 +339,7 @@ def copy_from_role_install(builder, name, role, rel, dest,
                              copyExactly = copyExactly,
                              usingRSync = usingRSync)
     rule.add(dep_label)
-    rule.obj.add_assembly(asm)
+    rule.action.add_assembly(asm)
 
 def copy_from_deployment(builder, name, dep_name, rel, dest,
                          recursive = True,
@@ -362,7 +362,7 @@ def copy_from_deployment(builder, name, dep_name, rel, dest,
                              copyExactly = copyExactly,
                              usingRSync = usingRSync)
     rule.add(dep_label)
-    rule.obj.add_assembly(asm)
+    rule.action.add_assembly(asm)
 
 # And the instruction implementations:
 class CollectApplyChmod(CollectInstructionImplementor):

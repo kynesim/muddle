@@ -1757,11 +1757,11 @@ class QueryMakeEnv(QueryCommand):
             os.environ = {}
             rule = list(rule_set)[0]
             builder._build_label_env(label, env_store)
-            build_obj = rule.obj
-            tmp = Label(LabelType.Checkout, build_obj.co, domain=label.domain)
+            build_action = rule.action
+            tmp = Label(LabelType.Checkout, build_action.co, domain=label.domain)
             co_path = builder.invocation.checkout_path(tmp)
             try:
-                build_obj._amend_env(co_path)
+                build_action._amend_env(co_path)
             except AttributeError:
 		# The kernel builder, for instance, does not have _amend_env
 		# Of course, it also doesn't use any of the make.py classes...
@@ -3837,7 +3837,7 @@ class Status(CheckoutCommand):
         for co in labels:
             rule = builder.invocation.ruleset.rule_for_target(co)
             try:
-                vcs = rule.obj.vcs
+                vcs = rule.action.vcs
             except AttributeError:
                 print "Rule for label '%s' has no VCS - cannot find its status"%co
                 continue
@@ -3896,7 +3896,7 @@ class Reparent(CheckoutCommand):
         for co in labels:
             rule = builder.invocation.ruleset.rule_for_target(co)
             try:
-                vcs = rule.obj.vcs
+                vcs = rule.action.vcs
             except AttributeError:
                 print "Rule for label '%s' has no VCS - cannot reparent, ignored"%co
                 continue

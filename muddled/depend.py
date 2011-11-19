@@ -885,13 +885,13 @@ class Rule:
 
     .. note:: The actual "satisfying" of labels is done in muddled.mechanics.
        For instance, Builder.build_label() "builds" a label in the context
-       of the rest of its environment, and uses 'obj' to "build" the label.
+       of the rest of its environment, and uses 'action' to "build" the label.
     """
 
-    def __init__(self, target_dep, obj):
+    def __init__(self, target_dep, action):
         """
         * `target_dep` is the Label this Rule intends to "make".
-        * `obj` is None or an Action, which will be used to "make" the
+        * `action` is None or an Action, which will be used to "make" the
           `target_dep`.
         """
         self.deps = set()
@@ -900,10 +900,10 @@ class Rule:
                               " as its target")
 
         self.target = target_dep
-        self.obj = obj
-        if (self.obj is not None) and (not isinstance(obj, pkg.Action)):
+        self.action = action
+        if (self.action is not None) and (not isinstance(action, pkg.Action)):
             raise utils.MuddleBug("Attempt to create a rule with an object rule "
-                              "which isn't an action but a %s."%(obj.__class__.__name__))
+                              "which isn't an action but a %s."%(action.__class__.__name__))
 
     def replace_target(self, new_t):
         self.target = new_t
@@ -932,9 +932,9 @@ class Rule:
         If replaceOnDuplicate is true, other_rule get priority - this is the
         target for a unify() and makes the source build instructions go away.
         """
-        if (self.obj is None):
-            self.obj = other_rule.obj
-        elif (other_rule.obj is None):
+        if (self.action is None):
+            self.action = other_rule.action
+        elif (other_rule.action is None):
             pass
         else:
             if complainOnDuplicate:
@@ -943,9 +943,9 @@ class Rule:
                     "remembered to remove a package from one of your domain builds?")
             else:
                 if replaceOnDuplicate:
-                    self.obj = other_rule.obj
+                    self.action = other_rule.action
                 else:
-                    self.obj = pkg.SequentialAction(self.obj, other_rule.obj)
+                    self.action = pkg.SequentialAction(self.action, other_rule.action)
 
         #print "catenate and merge for target = %s"%(self.target)
         self.deps.union(other_rule.deps)
@@ -962,7 +962,7 @@ class Rule:
 
         Adds all the dependency labels from `deps` to this Rule.
 
-        If `deps.obj` is not None, replaces our `obj` with the one from `deps`.
+        If `deps.action` is not None, replaces our `action` with the one from `deps`.
         """
         for i in deps.deps:
             self.add(i)
@@ -971,8 +971,8 @@ class Rule:
         # (which are rules with None as their action object)
         # get correctly overridden by merged rules when they're
         # registered
-        if (deps.obj is not None):
-            self.obj = deps.obj
+        if (deps.action is not None):
+            self.action = deps.action
 
 
     def depend_checkout(self, co_name, tag):
@@ -1002,7 +1002,7 @@ class Rule:
     def __cmp__(self, other):
         # XXX Is this a sensible algorithm?
         # XXX Certainly starting by sorting the target sounds good
-        # XXX (I have some concern over sorting by self.obj, which doesn't
+        # XXX (I have some concern over sorting by self.action, which doesn't
         # XXX show up in the string representation of a Rule)
         if self.target < other.target:
             return -1
@@ -1012,9 +1012,9 @@ class Rule:
             return 1
         elif self.deps < other.deps:
             return -1
-        elif self.obj > other.obj:
+        elif self.action > other.action:
             return 1
-        elif self.obj < other.obj:
+        elif self.action < other.action:
             return -1
         else:
             return 0
@@ -1023,7 +1023,7 @@ class Rule:
         # XXX If we have __cmp__, we need __hash__ to be hashable. Does this
         # XXX implementation make sense? Would it be better to hash on our
         # XXX string representation (for instance)?
-        return hash(self.target) | hash(self.obj)
+        return hash(self.target) | hash(self.action)
 
     def to_string(self, showSystem = True, showUser = True):
         """
@@ -1058,8 +1058,8 @@ class Rule:
         """
         output = [ str(self.target) ]
 
-        if self.obj:
-            output.append('<-%s--'%self.obj.__class__.__name__)
+        if self.action:
+            output.append('<-%s--'%self.action.__class__.__name__)
         else:
             output.append('<-')
 
@@ -1144,7 +1144,7 @@ class RuleSet:
     def wrap_actions(self, generator, label):
         for r in self.map.values():
             if (r.target.match(label)):
-                r.obj = generator.generate(r.obj)
+                r.action = generator.generate(r.action)
             
     def targets_match(self, target, useMatch = True):
         """
@@ -1321,7 +1321,7 @@ class RuleSet:
     def __str__(self):
         return self.to_string()
 
-def depend_chain(obj, label, tags, ruleset):
+def depend_chain(action, label, tags, ruleset):
     """
     Add a chain of dependencies to the given ruleset.
 
@@ -1343,52 +1343,52 @@ def depend_chain(obj, label, tags, ruleset):
     last = label.copy()
 
     # The base .. 
-    r = Rule(last, obj)
+    r = Rule(last, action)
     ruleset.add(r)
 
     for tag in tags:
         next = last.copy_with_tag(tag)
-        r = Rule(next, obj)
+        r = Rule(next, action)
         r.add(last)
         ruleset.add(r)
         last = next
 
     
 
-def depend_none(obj, label):
+def depend_none(action, label):
     """
     Quick rule that makes label depend on nothing.
     """
-    return Rule(label, obj)
+    return Rule(label, action)
 
-def depend_one(obj, label, dep_label):
+def depend_one(action, label, dep_label):
     """
     Quick rule that makes label depend only on dep_label.
     """
-    rv = Rule(label, obj)
+    rv = Rule(label, action)
     rv.add(dep_label)
     return rv
 
 
-def depend_self(obj, label, old_tag):
+def depend_self(action, label, old_tag):
     """
     Make a quick dependency set that depends just on you. Used by some of the
     standard package and checkout classes to quickly build standard dependency
     sets.
     """
-    rv = Rule(label, obj)
+    rv = Rule(label, action)
     dep_label = label.copy_with_tag(old_tag)
 
     rv.add(dep_label)
     return rv
         
 
-def depend_empty(obj, label):
+def depend_empty(action, label):
     """
     Create a dependency set with no prerequisites - simply signals that a 
     tag is available to be built at any time.
     """
-    rv = Rule(label, obj)
+    rv = Rule(label, action)
     return rv
 
 

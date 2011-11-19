@@ -133,12 +133,12 @@ def do_deps(gbuilder, goal):
 	for rule in rules:
 		target = rule.target
 		builder = None
-		if rule.obj:
-			builder = rule.obj.__class__.__name__
+		if rule.action:
+			builder = rule.action.__class__.__name__
 
 		# AptGetBuilders aren't very interesting, condense them.
 		if builder == 'AptGetBuilder':
-			goalnode.displayname = '%s{%s}\\n(AptGetBuilder)' % (rule.obj.name, rule.obj.role)
+			goalnode.displayname = '%s{%s}\\n(AptGetBuilder)' % (rule.action.name, rule.action.role)
 			goalnode.extras = 'shape=oval'
 			goalnode.isAptGet = True
 			continue

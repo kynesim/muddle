@@ -1619,7 +1619,7 @@ class VersionStamp(Mapping):
             try:
                 label = rule.target
                 try:
-                    vcs = rule.obj.vcs
+                    vcs = rule.action.vcs
                 except AttributeError:
                     stamp.problems.append("Rule for label '%s' has no VCS"%(label))
                     if not quiet:

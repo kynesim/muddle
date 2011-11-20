@@ -910,9 +910,25 @@ class Builder(object):
 
     def unify_labels(self, source, target):
         """
-        Given a source and target label, unify them. Free variables (i.e. wildcards in the
-        labels) are untouched - see depend for quite how this works.
+        Unify the 'source' label with/into the 'target' label.
+
+        Given a dependency tree containing rules to build both 'source' and
+        'target', this edits the tree such that the any occurrences of 'source'
+        are replaced by 'target', and dependencies are merged as appropriate.
+
+        Free variables (i.e. wildcards in the labels) are untouched - if you
+        need to understand that, see depend.py for quite how this works.
+
+        Why is it called "unify" rather than "replace"? Mainly because it
+        does more than replacement, as it has to merge the rules/dependencies
+        together. In retrospect, though, some variation on "merge" might have
+        been easier to remember (if also still inaccurate).
         """
+        if not self.invocation.target_label_exists(source):
+            raise GiveUp('Cannot unify source label %s which does not exist'%source)
+        if not self.invocation.target_label_exists(target):
+            raise GiveUp('Cannot unify target label %s which does not exist'%target)
+
         self.invocation.ruleset.unify(source, target)
         self.invocation.unify_environments(source,target)
         self.invocation.note_unification(source, target)

@@ -1249,7 +1249,10 @@ class RuleSet:
                 copied_source = k.copy_and_unify_with(target)
                 new_v.replace_target(copied_source)
                 new_k = copied_source
-                #print "Ruleset: rewrite src = %s, k = %s to %s"%(source,k,copied_source)
+                if False:
+                    print "Ruleset: rewrite src = %s\n" \
+                          "                   k = %s\n" \
+                          "                    to %s"%(source,k,copied_source)
             else:
                 new_k = k
 

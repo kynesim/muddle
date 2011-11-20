@@ -127,6 +127,14 @@ def touch(filename, content=None, verbose=True):
         if content:
             fd.write(content)
 
+def append(filename, content, verbose=True):
+    """Append 'content' to the given file
+    """
+    if verbose:
+        print '++ append to %s'%filename
+    with open(filename, 'a') as fd:
+        fd.write(content)
+
 def check_files(paths, verbose=True):
     """Given a list of paths, check they all exist.
     """

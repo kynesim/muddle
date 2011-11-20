@@ -63,6 +63,7 @@ import muddled.deployments.cpio
 import muddled.checkouts.simple
 import muddled.deployments.collect as collect
 from muddled.mechanics import include_domain
+from muddled.depend import Label
 
 def describe_to(builder):
     role = 'x86'
@@ -114,6 +115,7 @@ import muddled.deployments.cpio
 import muddled.checkouts.simple
 import muddled.deployments.collect as collect
 from muddled.mechanics import include_domain
+from muddled.depend import Label
 
 def describe_to(builder):
     role = 'x86'
@@ -154,6 +156,7 @@ import muddled.deployments.cpio
 import muddled.checkouts.simple
 import muddled.deployments.collect as collect
 from muddled.mechanics import include_domain
+from muddled.depend import Label
 
 def describe_to(builder):
     role = 'x86'
@@ -202,6 +205,7 @@ import muddled
 import muddled.pkgs.make
 import muddled.checkouts.simple
 import muddled.deployments.filedep
+from muddled.depend import Label
 
 def describe_to(builder):
     role = 'x86'
@@ -228,6 +232,7 @@ import muddled
 import muddled.pkgs.make
 import muddled.checkouts.simple
 import muddled.deployments.filedep
+from muddled.depend import Label
 
 def describe_to(builder):
     role = 'x86'
@@ -255,6 +260,50 @@ int main(int argc, char **argv)
     printf("Program {progname}\\n");
     return 0;
 }}
+"""
+
+# Extra build description fragments for testing label unification
+# 1. Simple unification from main to subdomain 1
+#UNIFY_1_MAIN_NORMAL = """\
+#
+#    builder.unify_labels(Label.from_string('package:(subdomain1)second_pkg{x86}/postinstalled
+#                         Label.from_string('package:second_pkg{x86}/postinstalled'))
+#"""
+UNIFY_1_MAIN_NORMAL = """\
+
+    builder.unify_labels(Label.from_string('package:second_pkg{x86}/postinstalled'),
+                         Label.from_string('package:(subdomain1)second_pkg{x86}/postinstalled'))
+"""
+
+# 2. Unification from main through subdomain 1 into subdomain 3
+UNIFY_2_MAIN_TWOJUMP = """\
+
+builder.unify_labels(Label.from_string('checkout:first_co/checked_out'),
+                     Label.from_string('checkout:(subdomain1)first_co/checked_out'))
+"""
+# Remember, in subdomain 1, *its* first_co checkout does not get marked with a
+# domain name
+UNIFY_2_SUB1_TWOJUMP = """\
+    builder.unify_labels(Label.from_string('checkout:(subdomain3)first_co/checked_out'),
+                         Label.from_string('checkout:first_co/checked_out'))
+"""
+
+# 3. Unification from subdomain 2 into subdomain 3 (not matched by subdomain 1)
+UNIFY_3_SUB2_BELOW = """\
+    builder.unify_labels(Label.from_string('checkout:(subdomain3)main_co/checked_out'),
+                         Label.from_string('checkout:main_co/checked_out'))
+"""
+
+# 4. Unification between subdomain 2 and subdomain 4, but backwards
+UNIFY_4_SUB2_BACKWARDS = """\
+    builder.unify_labels(Label.from_string('checkout:first_co/checked_out')
+                         Label.from_string('checkout:(subdomain4)first_co/checked_out'))
+"""
+
+# 5. Unification from main into subdomain 4
+UNIFY_5_MAIN_SKIP = """\
+    builder.unify_labels(Label.from_string('checkout:(subdomain4)main_co/checked_out'),
+                         Label.from_string('checkout:main_co/checked_out'))
 """
 
 def make_build_desc(co_dir, file_content):
@@ -327,19 +376,22 @@ def make_repos_with_subdomain(root_dir):
             with NewDirectory('second_co') as d:
                 make_standard_checkout(d.where, 'second', 'second')
 
-def check_repos_out(root_dir):
+def checkout_build_descriptions(root_dir, d):
 
     repo = os.path.join(root_dir, 'repo')
-    with NewDirectory('build') as d:
-        muddle(['init', 'git+file://{repo}/main'.format(repo=repo), 'builds/01.py'])
+    muddle(['init', 'git+file://{repo}/main'.format(repo=repo), 'builds/01.py'])
 
-        check_files([d.join('src', 'builds', '01.py'),
-                     d.join('domains', 'subdomain1', 'src', 'builds', '01.py'),
-                    ])
+    check_files([d.join('src', 'builds', '01.py'),
+                 d.join('domains', 'subdomain1', 'src', 'builds', '01.py'),
+                 d.join('domains', 'subdomain1', 'domains', 'subdomain3', 'src', 'builds', '01.py'),
+                 d.join('domains', 'subdomain2', 'src', 'builds', '01.py'),
+                 d.join('domains', 'subdomain2', 'domains', 'subdomain3', 'src', 'builds', '01.py'),
+                 d.join('domains', 'subdomain2', 'domains', 'subdomain4', 'src', 'builds', '01.py'),
+                ])
 
-    with Directory('build') as d:
-        muddle(['checkout'])
-        check_checkout_files(d)
+def checkout_all(d):
+    muddle(['checkout'])
+    check_checkout_files(d)
 
 def check_checkout_files(d):
     """Check we have all the files we should have after checkout
@@ -694,11 +746,10 @@ def check_buildlabel():
                     # TODO: Arguably, should build all subdomains below here...
                     # ...in which case it should find subdomain3 and subdomain4
 
-def build(root_dir):
-    with Directory('build') as d:
-        muddle([])
+def build():
+    muddle([])
 
-def check_files_after_build(root_dir):
+def check_files_after_build():
     def check_built_tags(t, pkg):
         check_files([t.join('package', pkg, 'x86-built'),
                      t.join('package', pkg, 'x86-configured'),
@@ -829,7 +880,7 @@ def check_files_after_build(root_dir):
                             with Directory('x86') as x:
                                 check_files_in(x, ['first', 'second', 'subdomain4'])
 
-def check_programs_after_build(root_dir):
+def check_programs_after_build():
     """And running the programs gives the expected result
     """
 
@@ -861,7 +912,7 @@ def check_programs_after_build(root_dir):
             check_result(e, ['sub2', 'sub4'], 'first')
             check_result(e, ['sub2', 'sub4'], 'second')
 
-def check_same_all(root_dir):
+def check_same_all():
     """Check that 'muddle -n XXX _all is the same everywhere.
 
     (well, we don't actually check EVERYWHERE - we prune a bit to save time)
@@ -960,24 +1011,47 @@ def main(args):
     # somewhere in $TMPDIR...
     root_dir = normalise_dir(os.path.join(os.getcwd(), 'transient'))
 
-    with NewDirectory(root_dir):    # XXX Eventually, should be TransientDirectory
+    #with TransientDirectory(root_dir):     # XXX
+    with NewDirectory(root_dir):
         banner('MAKE REPOSITORIES')
         make_repos_with_subdomain(root_dir)
 
-        banner('CHECK REPOSITORIES OUT')
-        check_repos_out(root_dir)
+        with NewDirectory('build') as d:
+            banner('CHECK REPOSITORIES OUT')
+            checkout_build_descriptions(root_dir, d)
+            checkout_all(d)
 
-        banner('BUILD')
-        build(root_dir)
-        if False:       # XXX
-            check_files_after_build(root_dir)
-            check_programs_after_build(root_dir)
+            banner('BUILD')
+            build()
+            if False:       # XXX
+                check_files_after_build()
+                check_programs_after_build()
 
-        banner('CHECK WHERE AND BUILD AGREE')
-        check_buildlabel()
+                banner('CHECK WHERE AND BUILD AGREE')
+                check_buildlabel()
 
-        banner('CHECK _all IS THE SAME EVERYWHERE')
-        check_same_all(root_dir)
+                banner('CHECK _all IS THE SAME EVERYWHERE')
+                check_same_all()
+
+        banner('TESTING LABEL UNIFICATION')
+
+        with NewDirectory('build2') as d:
+            banner('CHECKOUT BUILD DESCRIPTIONS')
+            checkout_build_descriptions(root_dir, d)
+
+            banner('AMEND BUILD DESCRIPTIONS')
+
+            append(d.join('src','builds','01.py'), UNIFY_1_MAIN_NORMAL)
+
+            #append(d.join('src','builds','01.py'), UNIFY_2_MAIN_TWOJUMP)
+            #append(d.join('domains', 'subdomain1', 'src','builds','01.py'), UNIFY_2_SUB1_TWOJUMP)
+
+            #append(d.join('domains', 'subdomain2', 'src','builds','01.py'), UNIFY_3_SUB2_BELOW)
+
+            #append(d.join('domains', 'subdomain2', 'src','builds','01.py'), UNIFY_4_SUB2_BACKWARDS)
+
+            #append(d.join('src','builds','01.py'), UNIFY_5_MAIN_SKIP)
+
 
 if __name__ == '__main__':
     args = sys.argv[1:]

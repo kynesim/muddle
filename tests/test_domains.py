@@ -306,6 +306,11 @@ UNIFY_5_MAIN_SKIP = """\
                          Label.from_string('checkout:main_co/checked_out'))
 """
 
+def muddle_stdout(text):
+    """Expand a format string ('text') containing {muddle} and run it.
+    """
+    return get_stdout(text.format(muddle=MUDDLE_BINARY), False)
+
 def make_build_desc(co_dir, file_content):
     """Take some of the repetition out of making build descriptions.
     """
@@ -1000,6 +1005,36 @@ def check_same_all():
 
     os.path.walk('build', all_same, None)
 
+def test_label_unification(root_dir, d):
+    # Let's start with baby steps...
+
+    # Only checkout subdomain1, which has a single subdomain in it
+    repo = os.path.join(root_dir, 'repo')
+    muddle(['init', 'git+file://{repo}/subdomain1'.format(repo=repo), 'builds/01.py'])
+
+    append(d.join('src', 'builds', '01.py'),
+           """
+    builder.unify_labels(Label.from_string('checkout:second_co/checked_out'),
+                         Label.from_string('checkout:(subdomain3)second_co/checked_out'))
+
+""")
+
+    # Then remove the .pyc file, because Python probably won't realise
+    # that this new 01.py is later than the previous version
+    os.remove(d.join('src', 'builds', '01.pyc'))
+
+    # Check it all workd
+    text = muddle_stdout("{muddle} query needed-by package:second_pkg{{x86}}/preconfig")
+    lines = text.split('\n')
+    if 'checkout:(subdomain3)second_co/checked_out' not in lines:
+        raise GiveUp('Unification [1] failed:\n{0}'.format(text))
+
+    text = muddle_stdout("{muddle} query needed-by 'package:(subdomain3)second_pkg{{x86}}/preconfig'")
+    lines = text.split('\n')
+    if 'checkout:(subdomain3)second_co/checked_out' not in lines:
+        raise GiveUp('Unification [2] failed:\n{0}'.format(text))
+
+
 def main(args):
 
     if args:
@@ -1016,14 +1051,14 @@ def main(args):
         banner('MAKE REPOSITORIES')
         make_repos_with_subdomain(root_dir)
 
-        with NewDirectory('build') as d:
-            banner('CHECK REPOSITORIES OUT')
-            checkout_build_descriptions(root_dir, d)
-            checkout_all(d)
+        if False:
+            with NewDirectory('build') as d:
+                banner('CHECK REPOSITORIES OUT')
+                checkout_build_descriptions(root_dir, d)
+                checkout_all(d)
 
-            banner('BUILD')
-            build()
-            if False:       # XXX
+                banner('BUILD')
+                build()
                 check_files_after_build()
                 check_programs_after_build()
 
@@ -1036,12 +1071,13 @@ def main(args):
         banner('TESTING LABEL UNIFICATION')
 
         with NewDirectory('build2') as d:
-            banner('CHECKOUT BUILD DESCRIPTIONS')
-            checkout_build_descriptions(root_dir, d)
+            test_label_unification(root_dir, d)
+            #banner('CHECKOUT BUILD DESCRIPTIONS')
+            #checkout_build_descriptions(root_dir, d)
 
-            banner('AMEND BUILD DESCRIPTIONS')
+            #banner('AMEND BUILD DESCRIPTIONS')
 
-            append(d.join('src','builds','01.py'), UNIFY_1_MAIN_NORMAL)
+            #append(d.join('src','builds','01.py'), UNIFY_1_MAIN_NORMAL)
 
             #append(d.join('src','builds','01.py'), UNIFY_2_MAIN_TWOJUMP)
             #append(d.join('domains', 'subdomain1', 'src','builds','01.py'), UNIFY_2_SUB1_TWOJUMP)

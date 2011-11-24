@@ -263,48 +263,46 @@ int main(int argc, char **argv)
 """
 
 # Extra build description fragments for testing label unification
-# 1. Simple unification from main to subdomain 1
-#UNIFY_1_MAIN_NORMAL = """\
-#
-#    builder.unify_labels(Label.from_string('package:(subdomain1)second_pkg{x86}/postinstalled
-#                         Label.from_string('package:second_pkg{x86}/postinstalled'))
-#"""
-UNIFY_1_MAIN_NORMAL = """\
+# 1. Unification from main through subdomain 1 into subdomain 3
+UNIFY_1_MAIN_TWOJUMP = """\
 
-    builder.unify_labels(Label.from_string('package:second_pkg{x86}/postinstalled'),
-                         Label.from_string('package:(subdomain1)second_pkg{x86}/postinstalled'))
-"""
-
-# 2. Unification from main through subdomain 1 into subdomain 3
-UNIFY_2_MAIN_TWOJUMP = """\
-
-builder.unify_labels(Label.from_string('checkout:first_co/checked_out'),
-                     Label.from_string('checkout:(subdomain1)first_co/checked_out'))
+    builder.unify_labels(Label.from_string('checkout:first_co/checked_out'),
+                         Label.from_string('checkout:(subdomain1)first_co/checked_out'))
 """
 # Remember, in subdomain 1, *its* first_co checkout does not get marked with a
 # domain name
-UNIFY_2_SUB1_TWOJUMP = """\
+UNIFY_1_SUB1_TWOJUMP = """\
     builder.unify_labels(Label.from_string('checkout:(subdomain3)first_co/checked_out'),
                          Label.from_string('checkout:first_co/checked_out'))
 """
 
-# 3. Unification from subdomain 2 into subdomain 3 (not matched by subdomain 1)
-UNIFY_3_SUB2_BELOW = """\
+# 2. Unification from subdomain 2 into subdomain 3 (not matched by subdomain 1)
+UNIFY_2_SUB2_BELOW = """\
     builder.unify_labels(Label.from_string('checkout:(subdomain3)main_co/checked_out'),
                          Label.from_string('checkout:main_co/checked_out'))
 """
 
-# 4. Unification between subdomain 2 and subdomain 4, but backwards
-UNIFY_4_SUB2_BACKWARDS = """\
+# 3. Unification between subdomain 2 and subdomain 4, but backwards
+UNIFY_3_SUB2_BACKWARDS = """\
     builder.unify_labels(Label.from_string('checkout:first_co/checked_out')
                          Label.from_string('checkout:(subdomain4)first_co/checked_out'))
 """
 
-# 5. Unification from main into subdomain 4
-UNIFY_5_MAIN_SKIP = """\
+# 4. Unification from main into subdomain 4
+UNIFY_4_MAIN_SKIP = """\
     builder.unify_labels(Label.from_string('checkout:(subdomain4)main_co/checked_out'),
                          Label.from_string('checkout:main_co/checked_out'))
 """
+
+# 1. Unifying packages - this is more complicated because the deployments depend
+#    upon things like package:(subdomain1)*{x86}/postinstalled and so we're
+#    dealing with wildcards for the first time
+UNIFY_5_MAIN_PACKAGES = """\
+
+    builder.unify_labels(Label.from_string('package:(subdomain1)second_pkg{x86}/postinstalled'),
+                         Label.from_string('package:second_pkg{x86}/postinstalled'))
+"""
+
 
 def muddle_stdout(text):
     """Expand a format string ('text') containing {muddle} and run it.
@@ -1005,7 +1003,7 @@ def check_same_all():
 
     os.path.walk('build', all_same, None)
 
-def test_label_unification(root_dir, d):
+def test_label_unification_1(root_dir, d):
     # Let's start with baby steps...
 
     # Only checkout subdomain1, which has a single subdomain in it
@@ -1023,7 +1021,7 @@ def test_label_unification(root_dir, d):
     # that this new 01.py is later than the previous version
     os.remove(d.join('src', 'builds', '01.pyc'))
 
-    # Check it all workd
+    # Check it all worked
     text = muddle_stdout("{muddle} query needed-by package:second_pkg{{x86}}/preconfig")
     lines = text.split('\n')
     if 'checkout:(subdomain3)second_co/checked_out' not in lines:
@@ -1034,6 +1032,57 @@ def test_label_unification(root_dir, d):
     if 'checkout:(subdomain3)second_co/checked_out' not in lines:
         raise GiveUp('Unification [2] failed:\n{0}'.format(text))
 
+def test_label_unification(root_dir, d):
+    banner('CHECKOUT BUILD DESCRIPTIONS')
+    checkout_build_descriptions(root_dir, d)
+
+    banner('AMEND BUILD DESCRIPTIONS')
+
+    # Before...
+    text = muddle_stdout("{muddle} query needed-by 'package:first_pkg{{x86}}/preconfig'")
+    lines = text.split('\n')
+    if 'checkout:first_co/checked_out' not in lines:
+        raise GiveUp('Pre UNIFY_1_MAIN_TWOJUMP/1 check failed:\n{0}'.format(text))
+
+    text = muddle_stdout("{muddle} query needed-by 'package:(subdomain1)first_pkg{{x86}}/preconfig'")
+    lines = text.split('\n')
+    if 'checkout:(subdomain1)first_co/checked_out' not in lines:
+        raise GiveUp('Pre UNIFY_1_MAIN_TWOJUMP/2 check failed:\n{0}'.format(text))
+
+    build_description = d.join('src','builds','01.py')
+    append(d.join(build_description), UNIFY_1_MAIN_TWOJUMP)
+    # Then remove the .pyc file, because Python probably won't realise
+    # that this new 01.py is later than the previous version (the mtime
+    # of our modified file is probably within the same second as the mtime
+    # of the original file)
+    os.remove(build_description+'c')
+
+    # After...
+    text = muddle_stdout("{muddle} query needed-by 'package:first_pkg{{x86}}/preconfig'")
+    lines = text.split('\n')
+    if 'checkout:(subdomain1)first_co/checked_out' not in lines or \
+       'checkout:first_co/checked_out' in lines:
+        raise GiveUp('Unification UNIFY_1_MAIN_TWOJUMP/1 failed:\n{0}'.format(text))
+
+    text = muddle_stdout("{muddle} query needed-by 'package:(subdomain1)first_pkg{{x86}}/preconfig'")
+    lines = text.split('\n')
+    if 'checkout:(subdomain1)first_co/checked_out' not in lines:
+        raise GiveUp('Unification check UNIFY_1_MAIN_TWOJUMP/2 failed:\n{0}'.format(text))
+
+    # Then...
+    #build_description = d.join('domains', 'subdomain1', 'src', 'builds','01.py')
+    #append(build_description, UNIFY_1_SUB1_TWOJUMP)
+    #os.remove(build_description+'c')
+
+    #append(d.join('domains', 'subdomain2', 'src','builds','01.py'), UNIFY_2_SUB2_BELOW)
+
+    #append(d.join('domains', 'subdomain2', 'src','builds','01.py'), UNIFY_3_SUB2_BACKWARDS)
+
+    #append(d.join('src','builds','01.py'), UNIFY_4_MAIN_SKIP)
+
+    #build_description = d.join('src','builds','01.py')
+    #append(build_description, UNIFY_5_MAIN_PACKAGES)
+    #os.remove(build_description+'c')
 
 def main(args):
 
@@ -1051,10 +1100,10 @@ def main(args):
         banner('MAKE REPOSITORIES')
         make_repos_with_subdomain(root_dir)
 
-        if False:
-            with NewDirectory('build') as d:
-                banner('CHECK REPOSITORIES OUT')
-                checkout_build_descriptions(root_dir, d)
+        with NewDirectory('build') as d:
+            banner('CHECK REPOSITORIES OUT')
+            checkout_build_descriptions(root_dir, d)
+            if False:
                 checkout_all(d)
 
                 banner('BUILD')
@@ -1069,6 +1118,10 @@ def main(args):
                 check_same_all()
 
         banner('TESTING LABEL UNIFICATION')
+
+        # This one I know works...
+        with TransientDirectory('build2') as d:
+            test_label_unification_1(root_dir, d)
 
         with NewDirectory('build2') as d:
             test_label_unification(root_dir, d)

@@ -1038,6 +1038,7 @@ def test_label_unification(root_dir, d):
 
     banner('AMEND BUILD DESCRIPTIONS')
 
+    # =========================================================================
     # Before...
     text = muddle_stdout("{muddle} query needed-by 'package:first_pkg{{x86}}/preconfig'")
     lines = text.split('\n')
@@ -1069,11 +1070,35 @@ def test_label_unification(root_dir, d):
     if 'checkout:(subdomain1)first_co/checked_out' not in lines:
         raise GiveUp('Unification check UNIFY_1_MAIN_TWOJUMP/2 failed:\n{0}'.format(text))
 
-    # Then...
-    #build_description = d.join('domains', 'subdomain1', 'src', 'builds','01.py')
-    #append(build_description, UNIFY_1_SUB1_TWOJUMP)
-    #os.remove(build_description+'c')
+    # =========================================================================
+    # Before...
+    text = muddle_stdout("{muddle} query needed-by 'package:(subdomain1(subdomain3))first_pkg{{x86}}/preconfig'")
+    lines = text.split('\n')
+    if 'checkout:(subdomain1(subdomain3))first_co/checked_out' not in lines:
+        raise GiveUp('Pre UNIFY_1_SUB1_TWOJUMP check failed:\n{0}'.format(text))
+    build_description = d.join('domains', 'subdomain1', 'src', 'builds','01.py')
+    append(build_description, UNIFY_1_SUB1_TWOJUMP)
+    os.remove(build_description+'c')
 
+    # After...
+    text = muddle_stdout("{muddle} query needed-by 'package:(subdomain1(subdomain3))first_pkg{{x86}}/preconfig'")
+    lines = text.split('\n')
+    if 'checkout:(subdomain1)first_co/checked_out' not in lines or \
+       'checkout:(subdomain1(subdomain3)first_co/checked_out' in lines:
+        raise GiveUp('Post UNIFY_1_SUB1_TWOJUMP failed:\n{0}'.format(text))
+
+    # And our earlier checks should still be true
+    text = muddle_stdout("{muddle} query needed-by 'package:first_pkg{{x86}}/preconfig'")
+    lines = text.split('\n')
+    if 'checkout:(subdomain1)first_co/checked_out' not in lines or \
+       'checkout:first_co/checked_out' in lines:
+        raise GiveUp('Unification UNIFY_1_MAIN_TWOJUMP/1 failed:\n{0}'.format(text))
+
+    text = muddle_stdout("{muddle} query needed-by 'package:(subdomain1)first_pkg{{x86}}/preconfig'")
+    lines = text.split('\n')
+    if 'checkout:(subdomain1)first_co/checked_out' not in lines:
+        raise GiveUp('Unification check UNIFY_1_MAIN_TWOJUMP/2 failed:\n{0}'.format(text))
+    # =========================================================================
     #append(d.join('domains', 'subdomain2', 'src','builds','01.py'), UNIFY_2_SUB2_BELOW)
 
     #append(d.join('domains', 'subdomain2', 'src','builds','01.py'), UNIFY_3_SUB2_BACKWARDS)

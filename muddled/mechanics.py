@@ -284,8 +284,8 @@ class Invocation:
 
     def all_packages_with_roles(self):
         """
-        Return a set of the names of all the packages/roles in our rule set. 
-        
+        Return a set of the names of all the packages/roles in our rule set.
+
         Returns a set of strings.
 
         Note that if '*' is one of the package "names" in the ruleset,
@@ -296,7 +296,10 @@ class Invocation:
             lbl = Label(LabelType.Package, "*", role, "*", domain="*")
             all_labels = self.ruleset.rules_for_target(lbl)
             for cur in all_labels:
-                rv.add('%s{%s}'%(cur.target.name,role))
+                if cur.target.domain:
+                    rv.add('(%s)%s{%s}'%(cur.target.domain, cur.target.name, role))
+                else:
+                    rv.add('%s{%s}'%(cur.target.name,role))
         return rv
 
     def all_roles(self):

@@ -302,6 +302,8 @@ class CheckoutCommand(Command):
                 result_set.update(self.expand_checkout_label(builder, label))
             elif label.type == LabelType.Package:
                 result_set.update(self.expand_package_label(builder, label))
+            elif label.type == LabelType.Deployment:
+                result_set.update(self.expand_deployment_label(builder, label))
             else:
                 raise GiveUp("Cannot cope with label '%s', from arg '%s'"%(label, args[index]))
 
@@ -335,6 +337,22 @@ class CheckoutCommand(Command):
         result_set = set()
 
         these_labels = builder.invocation.checkouts_for_package(label)
+
+        if self.required_tag:
+            for lbl in these_labels:
+                result_set.add(lbl.copy_with_tag(self.required_tag))
+        else:
+            # XXX Do we really support this?
+            result_set = set(these_labels)
+
+        return result_set
+
+    def expand_deployment_label(self, builder, label):
+        """Given an intermediate deployment label, expand it to a set of checkout labels.
+        """
+        result_set = set()
+
+        these_labels = builder.invocation.packages_for_deployment(label)
 
         if self.required_tag:
             for lbl in these_labels:
@@ -449,6 +467,8 @@ class PackageCommand(Command):
                 result_set.update(self.expand_package_label(builder, label))
             elif label.type == LabelType.Checkout:
                 result_set.update(self.expand_checkout_label(builder, label))
+            elif label.type == LabelType.Deployment:
+                result_set.update(self.expand_deployment_label(builder, label))
             else:
                 raise GiveUp("Cannot cope with label '%s', from arg '%s'"%(label, args[index]))
 
@@ -493,6 +513,22 @@ class PackageCommand(Command):
                 result_set.add(lbl)
         else:
             result_set = intermediate_set
+        return result_set
+
+    def expand_deployment_label(self, builder, label):
+        """Given an intermediate deployment label, expand it to a set of package labels.
+        """
+        result_set = set()
+
+        these_labels = builder.invocation.packages_for_deployment(label)
+
+        if self.required_tag:
+            for lbl in these_labels:
+                result_set.add(lbl.copy_with_tag(self.required_tag))
+        else:
+            # XXX Do we really support this?
+            result_set = set(these_labels)
+
         return result_set
 
     def default_args(self, builder, current_dir):

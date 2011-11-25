@@ -554,6 +554,12 @@ class Invocation:
     def checkouts_for_package(self, pkg_label):
         """
         Return a set of the checkouts that the given package depends upon
+
+        This only looks at *direct* dependencies (so if a package depends
+        on something that in turn depends on a checkout that it does not
+        directly depend on, then that indirect checkout will not be returned).
+
+        It does, however, expand wildcards.
         """
         # A normal package/checkout dependency has the package's PreConfig
         # tagged label depend upon the checkouts CheckedOut tagged label.
@@ -568,10 +574,38 @@ class Invocation:
         checkouts = set()
         for rule in rules:
             for lbl in rule.deps:
-                if (lbl.type == LabelType.Checkout):
-                    checkouts.add(lbl)
+                if lbl.type == LabelType.Checkout:
+                    if lbl.is_wildcard():
+                        checkouts.update(self.expand_wildcards(lbl))
+                    else:
+                        checkouts.add(lbl)
 
         return checkouts
+
+    def packages_for_deployment(self, dep_label):
+        """
+        Return a set of the packages that the given deployment depends upon
+
+        This only looks at *direct* dependencies (so if a deployment depends
+        on something that in turn depends on a package that it does not
+        directly depend on, then that indirect package will not be returned).
+
+        It does, however, expand wildcards.
+        """
+        rules = self.ruleset.rules_for_target(dep_label,
+                                              useTags=False,    # ignore the tag
+                                              useMatch=False)   # we don't need wildcarding
+
+        packages = set()
+        for rule in rules:
+            for lbl in rule.deps:
+                if lbl.type == LabelType.Package:
+                    if lbl.is_wildcard():
+                        packages.update(self.expand_wildcards(lbl))
+                    else:
+                        packages.add(lbl)
+
+        return packages
 
     def package_obj_path(self, label):
         """

@@ -299,69 +299,28 @@ class CheckoutCommand(Command):
         result_set = set()
         for index, label in enumerate(initial_list):
             if label.type == LabelType.Checkout:
-                result_set.update(self.expand_checkout_label(builder, label))
-            elif label.type == LabelType.Package:
-                result_set.update(self.expand_package_label(builder, label))
-            elif label.type == LabelType.Deployment:
-                result_set.update(self.expand_deployment_label(builder, label))
+                if self.required_tag and label.tag != self.required_tag:
+                    label = label.copy_with_tag(self.required_tag)
+                result_set.add(label)
+            elif label.type in (LabelType.Package, LabelType.Deployment):
+                # XXX I don't think we need to specify useMatch=True, because we
+                # XXX should already have expanded any wildcards
+                rules = depend.needed_to_build(builder.invocation.ruleset, label)
+                for r in rules:
+                    l = r.target
+                    if l.type == LabelType.Checkout:
+                        # Regardless of the actual dependency, use the required
+                        # tag. I believe this makes sense, as we're asking to
+                        # do a particular command on the checkout, and that
+                        # *means* moving to the required tag
+                        if self.required_tag and l.tag != self.required_tag:
+                            l = l.copy_with_tag(self.required_tag)
+                        result_set.add(l)
             else:
                 raise GiveUp("Cannot cope with label '%s', from arg '%s'"%(label, args[index]))
 
         #print 'Result set', label_list_to_string(result_set)
         return list(result_set)
-
-    def expand_checkout_label(self, builder, label):
-        """Given an intermediate checkout label, expand it to a set of labels.
-
-        TODO: decide what wildcards we accept, and expand them(?)
-        """
-        intermediate_set = set()
-        result_set = set()
-
-        intermediate_set.add(label)
-
-        if self.required_tag:
-            for label in intermediate_set:
-                if label.tag != self.required_tag:
-                    label = label.copy_with_tag(self.required_tag)
-                result_set.add(label)
-        else:
-            # XXX Do we really support this?
-            result_set = intermediate_set
-
-        return result_set
-
-    def expand_package_label(self, builder, label):
-        """Given an intermediate package label, expand it to a set of checkout labels.
-        """
-        result_set = set()
-
-        these_labels = builder.invocation.checkouts_for_package(label)
-
-        if self.required_tag:
-            for lbl in these_labels:
-                result_set.add(lbl.copy_with_tag(self.required_tag))
-        else:
-            # XXX Do we really support this?
-            result_set = set(these_labels)
-
-        return result_set
-
-    def expand_deployment_label(self, builder, label):
-        """Given an intermediate deployment label, expand it to a set of checkout labels.
-        """
-        result_set = set()
-
-        these_labels = builder.invocation.packages_for_deployment(label)
-
-        if self.required_tag:
-            for lbl in these_labels:
-                result_set.add(lbl.copy_with_tag(self.required_tag))
-        else:
-            # XXX Do we really support this?
-            result_set = set(these_labels)
-
-        return result_set
 
     def default_args(self, builder, current_dir):
         """
@@ -464,72 +423,39 @@ class PackageCommand(Command):
         result_set = set()
         for index, label in enumerate(initial_list):
             if label.type == LabelType.Package:
-                result_set.update(self.expand_package_label(builder, label))
+                result_set.add(label)
             elif label.type == LabelType.Checkout:
-                result_set.update(self.expand_checkout_label(builder, label))
-            elif label.type == LabelType.Deployment:
-                result_set.update(self.expand_deployment_label(builder, label))
+                # XXX Should I specify useMatch=False, on the grounds that we
+                # XXX havd already expanded wildcards?
+                required_labels = depend.required_by(builder.invocation.ruleset, label)
+                for l in required_labels:
+                    if l.type == LabelType.Package:
+                        # Regardless of the actual dependency, use the required
+                        # tag. I believe this makes sense, as we're asking to
+                        # do a particular command on the checkout, and that
+                        # *means* moving to the required tag
+                        if self.required_tag and l.tag != self.required_tag:
+                            l = l.copy_with_tag(self.required_tag)
+                        result_set.add(l)
+            elif label.type in (LabelType.Deployment):
+                # XXX I don't think we need to specify useMatch=True, because we
+                # XXX should already have expanded any wildcards
+                rules = depend.needed_to_build(builder.invocation.ruleset, label)
+                for r in rules:
+                    l = r.target
+                    if l.type == LabelType.Package:
+                        # Regardless of the actual dependency, use the required
+                        # tag. I believe this makes sense, as we're asking to
+                        # do a particular command on the checkout, and that
+                        # *means* moving to the required tag
+                        if self.required_tag and l.tag != self.required_tag:
+                            l = l.copy_with_tag(self.required_tag)
+                        result_set.add(l)
             else:
                 raise GiveUp("Cannot cope with label '%s', from arg '%s'"%(label, args[index]))
 
         #print 'Result set', label_list_to_string(result_set)
         return list(result_set)
-
-    def expand_package_label(self, builder, label):
-        """Given an intermediate package label, expand it to a set of labels.
-        """
-        result_set = set()
-        default_roles = builder.invocation.default_roles
-
-        # XXX Can our required_tag be None?
-        if self.required_tag is not None and label.tag != self.required_tag:
-            label = label.copy_with_tag(self.required_tag)
-
-        if label.role:
-            result_set.add(label)
-        elif default_roles:
-            # Add the default roles
-            for r in default_roles:
-                lbl = label.copy_with_role(r)
-                result_set.add(lbl)
-        else:
-            # Just wildcard for any role
-            lbl = label.copy_with_role('*')
-            result_set.add(lbl)
-        return result_set
-
-    def expand_checkout_label(self, builder, label):
-        """Given an intermediate checkout label, expand it to a set of package labels.
-        """
-        intermediate_set = set()
-        intermediate_set.update(builder.invocation.packages_using_checkout(label))
-
-        # XXX Can our required_tag be None?
-        if self.required_tag is not None:
-            result_set = set()
-            for lbl in intermediate_set:
-                if lbl.tag != self.required_tag:
-                    lbl = lbl.copy_with_tag(self.required_tag)
-                result_set.add(lbl)
-        else:
-            result_set = intermediate_set
-        return result_set
-
-    def expand_deployment_label(self, builder, label):
-        """Given an intermediate deployment label, expand it to a set of package labels.
-        """
-        result_set = set()
-
-        these_labels = builder.invocation.packages_for_deployment(label)
-
-        if self.required_tag:
-            for lbl in these_labels:
-                result_set.add(lbl.copy_with_tag(self.required_tag))
-        else:
-            # XXX Do we really support this?
-            result_set = set(these_labels)
-
-        return result_set
 
     def default_args(self, builder, current_dir):
         """
@@ -538,7 +464,8 @@ class PackageCommand(Command):
         ##what, label, domain = builder.find_location_in_tree(current_dir)
         result_list = []
 
-        # XXX not dependent on what sort of directory we're in
+        # XXX Appears to do nothing if we're in RootDir, which is not
+        # XXX how Checkout and DeploymentCommands work...
 
         result_list.extend(builder.find_local_package_labels(current_dir,
                                                              self.required_tag))
@@ -581,7 +508,8 @@ class DeploymentCommand(Command):
         """
         Interpret the 'args' as partial labels, and return a list of deployments.
         """
-        return_list = [ ]
+        #return_list = [ ]
+        initial_list = [ ]
         default_domain = builder.get_default_domain()
 
         label_from_fragment = builder.invocation.label_from_fragment
@@ -598,20 +526,61 @@ class DeploymentCommand(Command):
                                              #default_domain=default_domain)
                                              default_domain=None)
 
-                # Anything not a deployment is not allowed, so check that first
+                used_labels = []
+                # We're only interested in any labels that are actually used
                 for label in labels:
-                    if label.type != LabelType.Deployment:
-                        raise GiveUp("Label '%s', from argument '%s', is not allowed"
-                                " as a deployment label"%(label, word))
+                    if builder.invocation.target_label_exists(label):
+                        used_labels.append(label)
 
-                    # Is this label actually used for anything?
-                    if not builder.invocation.target_label_exists(label):
+                # But it's an error if none of them were wanted
+                if not used_labels:
+                    if len(labels) == 1:
                         raise GiveUp("Label %s, from argument '%s', is"
-                                     " not a target"%(label, word))
+                                     " not a target"%(labels[0], word))
+                    else:
+                        # XXX This isn't a great error message, but it's OK
+                        # XXX for now, and significantly better than nothing
+                        raise GiveUp("None of the labels %s, from argument '%s', is"
+                                     " a target"%(', '.join(map(str, labels)), word))
 
-                    return_list.append(label)
+                # Don't forget to remember those we do want!
+                initial_list.extend(used_labels)
 
-        return return_list
+        #print 'Initial list:', label_list_to_string(initial_list)
+
+        result_set = set()
+        for index, label in enumerate(initial_list):
+            if label.type == LabelType.Checkout:
+                required_labels = depend.required_by(builder.invocation.ruleset, label)
+                for l in required_labels:
+                    if l.type == LabelType.Deployment:
+                        # Regardless of the actual dependency, use the required
+                        # tag. I believe this makes sense, as we're asking to
+                        # do a particular command on the checkout, and that
+                        # *means* moving to the required tag
+                        if self.required_tag and l.tag != self.required_tag:
+                            l = l.copy_with_tag(self.required_tag)
+                        result_set.add(l)
+            elif label.type == LabelType.Package:
+                required_labels = depend.required_by(builder.invocation.ruleset, label)
+                for l in required_labels:
+                    if l.type == LabelType.Deployment:
+                        # Regardless of the actual dependency, use the required
+                        # tag. I believe this makes sense, as we're asking to
+                        # do a particular command on the checkout, and that
+                        # *means* moving to the required tag
+                        if self.required_tag and l.tag != self.required_tag:
+                            l = l.copy_with_tag(self.required_tag)
+                        result_set.add(l)
+            elif label.type == LabelType.Deployment:
+                if self.required_tag and label.tag != self.required_tag:
+                    label = label.copy_with_tag(self.required_tag)
+                result_set.add(label)
+            else:
+                raise GiveUp("Cannot cope with label '%s', from arg '%s'"%(label, args[index]))
+
+        #print 'Result set', label_list_to_string(result_set)
+        return list(result_set)
 
     def all_deployment_labels(self, builder, default_domain):
         """

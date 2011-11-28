@@ -941,7 +941,10 @@ class Builder(object):
                                                       loaded, checked_out))
 
         # .. and load the build description.
-        self.build_label(loaded, silent = True)
+        try:
+            self.build_label(loaded, silent = True)
+        except Exception as e:
+            raise GiveUp('Error in build description\n%s'%traceback.format_exc())
 
         return True
 

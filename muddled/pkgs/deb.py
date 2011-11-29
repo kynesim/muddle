@@ -380,14 +380,4 @@ def deb_prune(h):
     h.erase_target("/usr/share/doc")
     h.erase_target("/usr/share/man")
 
-# TODO: Deprecated...
-# Legacy names for classes
-DebDependable = DebAction
-DebDevDependable = DebDevAction
-
 # End file.
-    
-
-        
-        
-

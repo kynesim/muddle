@@ -1505,10 +1505,6 @@ class BuildDescriptionAction(pkg.Action):
                 print "Error was %s"%str(a)
                 raise utils.MuddleBug("Cannot load build description %s"%setup)
 
-# TODO: Deprecated...
-# A legacy name for this class
-BuildDescriptionDependable = BuildDescriptionAction
-
 def load_builder(root_path, muddle_binary, params = None, 
                  default_domain = None):
     """

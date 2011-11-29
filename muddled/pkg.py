@@ -131,17 +131,6 @@ class VcsCheckoutBuilder(Action):
 
         return True
 
-# TODO: Deprecated...
-# Legacy names for things.
-# Since I've changed Dependable to Action (and so on), but can't guarantee that
-# other code is not using this directly, I'd better provide aliases, at least
-# for the moment.
-Dependable = Action
-SequentialDependable = SequentialAction
-ArchSpecificDependable = ArchSpecificAction
-ArchSpecificDependableGenerator = ArchSpecificActionGenerator
-NoneDependable = NoAction
-
 class PackageBuilder(Action):
     """
     Describes a package.

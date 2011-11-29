@@ -500,7 +500,7 @@ def assert_bare_muddle(path, label_strs):
                             label_list_to_string(labels), label_list_to_string(build_labels)))
 
 def assert_where_is_buildlabel(path, expect_what, expect_label=None, expect_domain=None,
-                               expect_package=None, is_build_desc=False):
+                               expect_package=None, is_build_desc=False, too_complex=False):
     """Check that we get the expected response for this location
 
     1. From 'muddle where'
@@ -516,8 +516,12 @@ def assert_where_is_buildlabel(path, expect_what, expect_label=None, expect_doma
     For 'Checkout' locations, 'expect_package' is what we expect "muddle -n" to
     give us back (this can't be directly deduced from the "location" label).
 
-    NB: If 'is_build_desc' is true, then we know not to check for the result
+    If 'is_build_desc' is true, then we know not to check for the result
     of "muddle -n", as there is no equivalent package to build.
+
+    If 'too_complex' is true, then the "muddle -n" commands (either sort) are
+    going to return something too complex for us (typically, more than one
+    label), so don't do that.
     """
     with Directory(path):
         print '1. in directory', path
@@ -554,6 +558,10 @@ def assert_where_is_buildlabel(path, expect_what, expect_label=None, expect_doma
             verb = 'deploy'
         else:
             raise GiveUp('Unexpected label type in label {0}'.format(where_label))
+
+        if too_complex:
+            print 'C. OK (build description)'
+            return
 
         print '3. Trying "muddle -n {verb}"'.format(verb=verb)
 
@@ -649,19 +657,24 @@ def check_buildlabel(d):
             expect_package='package:main_pkg{x86}/postinstalled')
 
     assert_where_is_buildlabel(d.join('obj'), 'Object')
-    assert_where_is_buildlabel(d.join('obj', 'main_pkg'), 'Object', 'package:main_pkg{*}/*')
+    # obj/main_pkg will give us back two labels, one for each role that main_pkg
+    # is in. We can't express that here, so let's not check it (we do check it
+    # elsewhere)
+    assert_where_is_buildlabel(d.join('obj', 'main_pkg'), 'Object', 'package:main_pkg{*}/*',
+            too_complex=True)
     assert_where_is_buildlabel(d.join('obj', 'main_pkg', 'x86'), 'Object', 'package:main_pkg{x86}/*')
 
     assert_where_is_buildlabel(d.join('install'), 'Install')
     # TODO: what should this do? (??build all packages?? or do as it does
     # now, which is nothing??)
 
-    assert_where_is_buildlabel(d.join('install', 'x86'), 'Install', 'package:*{x86}/*')
+    assert_where_is_buildlabel(d.join('install', 'x86'), 'Install', 'package:*{x86}/*',
+            too_complex=True)
 
     assert_where_is_buildlabel(d.join('deploy'), 'Deployed')
     # TODO: Should build all deployments?
 
-    assert_where_is_buildlabel(d.join('deploy', 'everything'), 'Deployed')
+    assert_where_is_buildlabel(d.join('deploy', 'everything'), 'Deployed', 'deployment:everything/*')
     # TODO: Should find label deployment:everything/deployed, and build it
 
     with Directory('domains') as dom:
@@ -684,18 +697,25 @@ def check_buildlabel(d):
                     expect_package='package:(subdomain1)main_pkg{x86}/postinstalled')
 
             assert_where_is_buildlabel(sub.join('obj'), 'Object', None, 'subdomain1')
+            # This one counts as "too complex" because all of the wildcards get
+            # expanded, so it's more difficult to compare the label
+            # XXX Probably I should fix that
             assert_where_is_buildlabel(sub.join('obj', 'main_pkg'),
-                    'Object', 'package:(subdomain1)main_pkg{*}/*', 'subdomain1')
+                    'Object', 'package:(subdomain1)main_pkg{*}/*', 'subdomain1',
+                    too_complex=True)
             assert_where_is_buildlabel(sub.join('obj', 'main_pkg', 'x86'),
                     'Object', 'package:(subdomain1)main_pkg{x86}/*', 'subdomain1')
 
             assert_where_is_buildlabel(sub.join('install'), 'Install', None, 'subdomain1')
+            # This is similarly "too complex"
+            # XXX same comment...
             assert_where_is_buildlabel(sub.join('install', 'x86'),
-                    'Install', 'package:(subdomain1)*{x86}/*', 'subdomain1')
+                    'Install', 'package:(subdomain1)*{x86}/*', 'subdomain1',
+                    too_complex=True)
 
             assert_where_is_buildlabel(sub.join('deploy'), 'Deployed', None, 'subdomain1')
             assert_where_is_buildlabel(sub.join('deploy', 'everything'),
-                    'Deployed', None, 'subdomain1')
+                    'Deployed', 'deployment:(subdomain1)everything/*', 'subdomain1')
 
     with Directory('domains'):
         with Directory('subdomain1'):
@@ -724,23 +744,26 @@ def check_buildlabel(d):
 
                     assert_where_is_buildlabel(sub.join('obj'),
                             'Object', None, 'subdomain1(subdomain3)')
+                    # XXX another "too complex"
                     assert_where_is_buildlabel(sub.join('obj', 'main_pkg'),
                             'Object', 'package:(subdomain1(subdomain3))main_pkg{*}/*',
-                            'subdomain1(subdomain3)')
+                            'subdomain1(subdomain3)', too_complex=True)
                     assert_where_is_buildlabel(sub.join('obj', 'main_pkg', 'x86'),
                             'Object', 'package:(subdomain1(subdomain3))main_pkg{x86}/*',
                             'subdomain1(subdomain3)')
 
                     assert_where_is_buildlabel(sub.join('install'),
                             'Install', None, 'subdomain1(subdomain3)')
+                    # XXX too many labels back, because of expanding wildcards
                     assert_where_is_buildlabel(sub.join('install', 'x86'),
                             'Install', 'package:(subdomain1(subdomain3))*{x86}/*',
-                            'subdomain1(subdomain3)')
+                            'subdomain1(subdomain3)', too_complex=True)
 
                     assert_where_is_buildlabel(sub.join('deploy'),
                             'Deployed', None, 'subdomain1(subdomain3)')
                     assert_where_is_buildlabel(sub.join('deploy', 'everything'),
-                            'Deployed', None, 'subdomain1(subdomain3)')
+                            'Deployed', 'deployment:(subdomain1(subdomain3))everything/*',
+                            'subdomain1(subdomain3)')
 
     with Directory('domains'):
         with Directory('subdomain2'):
@@ -1261,7 +1284,7 @@ def main(args):
             banner('BUILD')
             build()
 
-            if False:
+            if True:
                 check_files_after_build(d)
                 check_programs_after_build(d)
 

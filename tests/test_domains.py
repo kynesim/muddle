@@ -75,7 +75,7 @@ def describe_to(builder):
     muddled.pkgs.make.medium(builder, "second_pkg", [role], "second_co")
 
     # A package in a different role (which we never actually build)
-    muddled.pkgs.make.simple(builder, "another_pkg", 'arm', "main_co")
+    muddled.pkgs.make.simple(builder, "main_pkg", 'arm', "main_co")
 
     include_domain(builder,
                    domain_name = "subdomain1",
@@ -749,6 +749,106 @@ def check_buildlabel(d):
                 # TODO: Arguably, should build all subdomains below here...
                 # ...in which case it should find subdomain3 and subdomain4
 
+def check_some_specifics():
+
+        def cmd(command, expect_what):
+            where = get_stdout('{muddle} -n {cmd}'.format(muddle=MUDDLE_BINARY,
+                                                          cmd=command), False)
+            where = where.strip()
+            parts = where.split(':')
+            result = ':'.join(parts[1:])    # Drop the "explanation"
+            result = result.strip()         # Space after the colon
+            if result != expect_what:
+                raise GiveUp('Expected {0}, got {1}'.format(expect_what, result))
+
+        # Remember, main_co is used by packages main_pkg{x86} and
+        # main_pkg{arm}, but role 'arm' is not a default role
+
+        cmd('unimport main_co', 'checkout:main_co/checked_out')
+        cmd('unimport package:main_pkg', 'checkout:main_co/checked_out')
+        # Some commands give us what we deserve...
+        cmd('unimport deployment:everything', 'checkout:first_co/checked_out checkout:main_co/checked_out checkout:second_co/checked_out checkout:(subdomain1)first_co/checked_out checkout:(subdomain1)main_co/checked_out checkout:(subdomain1)second_co/checked_out checkout:(subdomain1(subdomain3))first_co/checked_out checkout:(subdomain1(subdomain3))main_co/checked_out checkout:(subdomain1(subdomain3))second_co/checked_out checkout:(subdomain2)first_co/checked_out checkout:(subdomain2)main_co/checked_out checkout:(subdomain2)second_co/checked_out checkout:(subdomain2(subdomain3))first_co/checked_out checkout:(subdomain2(subdomain3))main_co/checked_out checkout:(subdomain2(subdomain3))second_co/checked_out checkout:(subdomain2(subdomain4))first_co/checked_out checkout:(subdomain2(subdomain4))main_co/checked_out checkout:(subdomain2(subdomain4))second_co/checked_out')
+
+        # Note we don't get role {arm}
+        cmd('build checkout:main_co', 'package:main_pkg{x86}/postinstalled')
+        cmd('build main_pkg', 'package:main_pkg{x86}/postinstalled')
+        cmd('build deployment:everything', 'package:first_pkg{x86}/postinstalled package:main_pkg{x86}/postinstalled package:second_pkg{x86}/postinstalled package:(subdomain1)first_pkg{x86}/postinstalled package:(subdomain1)main_pkg{x86}/postinstalled package:(subdomain1)second_pkg{x86}/postinstalled package:(subdomain1(subdomain3))first_pkg{x86}/postinstalled package:(subdomain1(subdomain3))main_pkg{x86}/postinstalled package:(subdomain1(subdomain3))second_pkg{x86}/postinstalled package:(subdomain2)first_pkg{x86}/postinstalled package:(subdomain2)main_pkg{x86}/postinstalled package:(subdomain2)second_pkg{x86}/postinstalled package:(subdomain2(subdomain3))first_pkg{x86}/postinstalled package:(subdomain2(subdomain3))main_pkg{x86}/postinstalled package:(subdomain2(subdomain3))second_pkg{x86}/postinstalled package:(subdomain2(subdomain4))first_pkg{x86}/postinstalled package:(subdomain2(subdomain4))main_pkg{x86}/postinstalled package:(subdomain2(subdomain4))second_pkg{x86}/postinstalled')
+
+        cmd('deploy checkout:main_co', 'deployment:everything/deployed')
+        cmd('deploy package:main_pkg', 'deployment:everything/deployed')
+        cmd('deploy everything', 'deployment:everything/deployed')
+
+        # Check we get the tags we expect
+        cmd('unimport main_co/fetched', 'checkout:main_co/checked_out')
+        cmd('build main_pkg/configured', 'package:main_pkg{x86}/postinstalled')
+        cmd('deploy everything/instructionsapplied', 'deployment:everything/deployed')
+
+        # Check some location defaults
+        # All checkouts below here
+        cmd('unimport', 'checkout:builds/checked_out checkout:first_co/checked_out checkout:main_co/checked_out checkout:second_co/checked_out checkout:(subdomain1)builds/checked_out checkout:(subdomain1)first_co/checked_out checkout:(subdomain1)main_co/checked_out checkout:(subdomain1)second_co/checked_out checkout:(subdomain1(subdomain3))builds/checked_out checkout:(subdomain1(subdomain3))first_co/checked_out checkout:(subdomain1(subdomain3))main_co/checked_out checkout:(subdomain1(subdomain3))second_co/checked_out checkout:(subdomain2)builds/checked_out checkout:(subdomain2)first_co/checked_out checkout:(subdomain2)main_co/checked_out checkout:(subdomain2)second_co/checked_out checkout:(subdomain2(subdomain3))builds/checked_out checkout:(subdomain2(subdomain3))first_co/checked_out checkout:(subdomain2(subdomain3))main_co/checked_out checkout:(subdomain2(subdomain3))second_co/checked_out checkout:(subdomain2(subdomain4))builds/checked_out checkout:(subdomain2(subdomain4))first_co/checked_out checkout:(subdomain2(subdomain4))main_co/checked_out checkout:(subdomain2(subdomain4))second_co/checked_out')
+        #cmd('build', 'package:main_pkg{x86}/postinstalled')
+        # The default deployment (not the same result as a bare "muddle" command)
+        cmd('deploy', 'deployment:everything/deployed')
+
+        with Directory('src'):
+            cmd('unimport', 'checkout:builds/checked_out checkout:first_co/checked_out checkout:main_co/checked_out checkout:second_co/checked_out')
+            # XXX Not yet implemented
+            #cmd('build', 'package:first_pkg{x86}/postinstalled package:main_pkg{arm}/postinstalled package:main_pkg{x86}/postinstalled package:second_pkg{x86}/postinstalled')
+            cmd('deploy', 'deployment:everything/deployed')
+
+            with Directory('main_co'):
+                cmd('unimport', 'checkout:main_co/checked_out')
+                cmd('build', 'package:main_pkg{x86}/postinstalled')
+                cmd('deploy', 'deployment:everything/deployed')
+
+        with Directory('obj'):
+            #cmd('unimport', 'checkout:main_co/checked_out')
+            #cmd('build', 'package:main_pkg{x86}/postinstalled')
+            cmd('deploy', 'deployment:everything/deployed')
+            with Directory('main_pkg'):
+                cmd('unimport', 'checkout:main_co/checked_out')
+                # XXX Should we get all roles, or just the default roles???
+                cmd('build', 'package:main_pkg{arm}/postinstalled package:main_pkg{x86}/postinstalled')
+                cmd('deploy', 'deployment:everything/deployed')
+                with Directory('x86'):
+                    cmd('unimport', 'checkout:main_co/checked_out')
+                    cmd('build', 'package:main_pkg{x86}/postinstalled')
+                    cmd('deploy', 'deployment:everything/deployed')
+
+        with Directory('install'):
+            #cmd('unimport', 'checkout:main_co/checked_out')
+            #cmd('build', 'package:main_pkg{x86}/postinstalled')
+            cmd('deploy', 'deployment:everything/deployed')
+            with Directory('x86'):
+                cmd('unimport', 'checkout:first_co/checked_out checkout:main_co/checked_out checkout:second_co/checked_out')
+                cmd('build', 'package:first_pkg{x86}/postinstalled package:main_pkg{x86}/postinstalled package:second_pkg{x86}/postinstalled')
+                cmd('deploy', 'deployment:everything/deployed')
+
+        with Directory('deploy'):
+            #cmd('unimport', 'checkout:main_co/checked_out')
+            #cmd('build', 'package:main_pkg{x86}/postinstalled')
+            # It says "Not sure which deployment you want", but it should
+            # probably build the default deployments
+            #cmd('deploy', 'deployment:everything/deployed')
+            with Directory('everything'):
+                pass
+                cmd('unimport', 'checkout:first_co/checked_out checkout:main_co/checked_out checkout:second_co/checked_out checkout:(subdomain1)first_co/checked_out checkout:(subdomain1)main_co/checked_out checkout:(subdomain1)second_co/checked_out checkout:(subdomain1(subdomain3))first_co/checked_out checkout:(subdomain1(subdomain3))main_co/checked_out checkout:(subdomain1(subdomain3))second_co/checked_out checkout:(subdomain2)first_co/checked_out checkout:(subdomain2)main_co/checked_out checkout:(subdomain2)second_co/checked_out checkout:(subdomain2(subdomain3))first_co/checked_out checkout:(subdomain2(subdomain3))main_co/checked_out checkout:(subdomain2(subdomain3))second_co/checked_out checkout:(subdomain2(subdomain4))first_co/checked_out checkout:(subdomain2(subdomain4))main_co/checked_out checkout:(subdomain2(subdomain4))second_co/checked_out')
+                cmd('build', 'package:first_pkg{x86}/postinstalled package:main_pkg{x86}/postinstalled package:second_pkg{x86}/postinstalled package:(subdomain1)first_pkg{x86}/postinstalled package:(subdomain1)main_pkg{x86}/postinstalled package:(subdomain1)second_pkg{x86}/postinstalled package:(subdomain1(subdomain3))first_pkg{x86}/postinstalled package:(subdomain1(subdomain3))main_pkg{x86}/postinstalled package:(subdomain1(subdomain3))second_pkg{x86}/postinstalled package:(subdomain2)first_pkg{x86}/postinstalled package:(subdomain2)main_pkg{x86}/postinstalled package:(subdomain2)second_pkg{x86}/postinstalled package:(subdomain2(subdomain3))first_pkg{x86}/postinstalled package:(subdomain2(subdomain3))main_pkg{x86}/postinstalled package:(subdomain2(subdomain3))second_pkg{x86}/postinstalled package:(subdomain2(subdomain4))first_pkg{x86}/postinstalled package:(subdomain2(subdomain4))main_pkg{x86}/postinstalled package:(subdomain2(subdomain4))second_pkg{x86}/postinstalled')
+                cmd('deploy', 'deployment:everything/deployed')
+
+        with Directory(os.path.join('domains', 'subdomain1', 'domains')):
+            # All checkouts below this point
+            cmd('unimport', 'checkout:(subdomain1(subdomain3))builds/checked_out checkout:(subdomain1(subdomain3))first_co/checked_out checkout:(subdomain1(subdomain3))main_co/checked_out checkout:(subdomain1(subdomain3))second_co/checked_out')
+            #cmd('build', 'package:main_pkg{x86}/postinstalled')
+            # It's correct, because it's the default, but is it correct for the right reason?
+            cmd('deploy', 'deployment:everything/deployed')
+            with Directory('subdomain3'):
+                cmd('unimport', 'checkout:(subdomain1(subdomain3))builds/checked_out checkout:(subdomain1(subdomain3))first_co/checked_out checkout:(subdomain1(subdomain3))main_co/checked_out checkout:(subdomain1(subdomain3))second_co/checked_out')
+                #cmd('build', 'package:main_pkg{x86}/postinstalled')
+                # It's correct, because it's the default, but is it correct for the right reason?
+                cmd('deploy', 'deployment:everything/deployed')
+
+
 def build():
     muddle([])
 
@@ -1124,11 +1224,12 @@ def main(args):
         with NewDirectory('build') as d:
             banner('CHECK REPOSITORIES OUT')
             checkout_build_descriptions(root_dir, d)
-            if True:
-                checkout_all(d)
+            checkout_all(d)
 
-                banner('BUILD')
-                build()
+            banner('BUILD')
+            build()
+
+            if False:
                 check_files_after_build(d)
                 check_programs_after_build(d)
 
@@ -1137,6 +1238,9 @@ def main(args):
 
                 banner('CHECK _all IS THE SAME EVERYWHERE')
                 check_same_all()
+
+            banner('CHECK SOME SPECIFICS')
+            check_some_specifics()
 
         banner('TESTING LABEL UNIFICATION')
 

@@ -299,10 +299,15 @@ class CheckoutCommand(Command):
         result_set = set()
         for index, label in enumerate(initial_list):
             if label.type == LabelType.Checkout:
+                # If the user requested a checkout label, then take what
+                # they asked for, but force it to have the tag implied
+                # by this particular command
                 if self.required_tag and label.tag != self.required_tag:
                     label = label.copy_with_tag(self.required_tag)
                 result_set.add(label)
             elif label.type in (LabelType.Package, LabelType.Deployment):
+                # Find all the checkouts needed to build this particular label
+                # (at any depth, i.e., it need not be a direct dependency)
                 # XXX I don't think we need to specify useMatch=True, because we
                 # XXX should already have expanded any wildcards
                 rules = depend.needed_to_build(builder.invocation.ruleset, label)
@@ -327,20 +332,35 @@ class CheckoutCommand(Command):
         Decide on default labels, based on where we are in the build tree.
         """
         what, label, domain = builder.find_location_in_tree(current_dir)
-        result_list = []
+        arg_list = []
 
         if what == DirType.Checkout and label:
             # We're actually inside a checkout - job done
-            result_list.append(label.copy_with_tag(self.required_tag))
+            arg_list.append(label)
         elif what in (DirType.Checkout, DirType.Root, DirType.DomainRoot):
             # We're somewhere that we expect to have checkouts below
-            cos_below = builder.get_all_checkout_labels_below(current_dir)
-            for c in cos_below:
-                result_list.append(c.copy_with_tag(self.required_tag))
+            arg_list.extend(builder.get_all_checkout_labels_below(current_dir))
+        elif what == DirType.Object:
+            if label: # We're actually inside a place that knows its package label
+                arg_list.append(label)
+            else:
+                pass
+        elif what == DirType.Install:
+            if label:
+                arg_list.append(label)
+            else:
+                pass
+        elif what == DirType.Deployed:
+            if label:
+                arg_list.append(label)
+            else:
+                pass
         else:
             # Hmm - nothing we can do
             pass
-        return result_list
+
+        # And just pretend that was what the user asked us to do
+        return self.decode_args(builder, map(str, arg_list), current_dir)
 
     def build_these_labels(self, builder, checkouts, switches=[]):
         """
@@ -423,21 +443,18 @@ class PackageCommand(Command):
         result_set = set()
         for index, label in enumerate(initial_list):
             if label.type == LabelType.Package:
+                # If the user requested a package label, then take what
+                # they asked for, but force it to have the tag implied
+                # by this particular command
+                if self.required_tag and label.tag != self.required_tag:
+                    label = label.copy_with_tag(self.required_tag)
                 result_set.add(label)
             elif label.type == LabelType.Checkout:
-                # XXX Should I specify useMatch=False, on the grounds that we
-                # XXX havd already expanded wildcards?
-                required_labels = depend.required_by(builder.invocation.ruleset, label)
-                for l in required_labels:
-                    if l.type == LabelType.Package:
-                        # Regardless of the actual dependency, use the required
-                        # tag. I believe this makes sense, as we're asking to
-                        # do a particular command on the checkout, and that
-                        # *means* moving to the required tag
-                        if self.required_tag and l.tag != self.required_tag:
-                            l = l.copy_with_tag(self.required_tag)
-                        result_set.add(l)
+                result_set.update(self.packages_from_checkout_label(builder, label))
             elif label.type in (LabelType.Deployment):
+                # If they specified a deployment label, then find all the
+                # packages that depend on this checkout. Here I think we
+                # definitely want any depth of dependency.
                 # XXX I don't think we need to specify useMatch=True, because we
                 # XXX should already have expanded any wildcards
                 rules = depend.needed_to_build(builder.invocation.ruleset, label)
@@ -457,19 +474,70 @@ class PackageCommand(Command):
         #print 'Result set', label_list_to_string(result_set)
         return list(result_set)
 
+    def packages_from_checkout_label(self, builder, label):
+        # If they specified a checkout label, then find all the
+        # packages that depend on this checkout.
+        #
+        #   NB: The documentation actually specifies "all the
+        #   packages in the default roles"
+        #
+        # There's some question about whether we use *all* packages
+        # that depend on this checkout, or just those which depend
+        # on it directly. Of course, in most builds that's going to
+        # be the same thing.
+        # XXX Should I specify useMatch=False, on the grounds that we
+        # XXX have already expanded wildcards?
+        result_set = set()
+        default_roles = builder.invocation.default_roles
+        required_labels = depend.required_by(builder.invocation.ruleset, label)
+        for l in required_labels:
+            if l.type == LabelType.Package and l.role in default_roles:
+                # Regardless of the actual dependency, use the required
+                # tag. I believe this makes sense, as we're asking to
+                # do a particular command on the checkout, and that
+                # *means* moving to the required tag
+                if self.required_tag and l.tag != self.required_tag:
+                    l = l.copy_with_tag(self.required_tag)
+                result_set.add(l)
+        return result_set
+
     def default_args(self, builder, current_dir):
         """
         Decide on default labels, based on where we are in the build tree.
         """
-        ##what, label, domain = builder.find_location_in_tree(current_dir)
-        result_list = []
+        what, label, domain = builder.find_location_in_tree(current_dir)
+        arg_list = []
 
-        # XXX Appears to do nothing if we're in RootDir, which is not
-        # XXX how Checkout and DeploymentCommands work...
+        if what == DirType.Root:
+            pass
+        elif what == DirType.DomainRoot:
+            pass
+        elif what == DirType.Checkout:
+            if label: # We're within a particular checkout directory
+                arg_list.append(label)
+            else:
+                pass
+        elif what == DirType.Object:
+            if label: # We're actually inside a place that knows its package label
+                arg_list.append(label)
+            else:
+                pass
+        elif what == DirType.Install:
+            if label:
+                arg_list.append(label)
+            else:
+                pass
+        elif what == DirType.Deployed:
+            if label:
+                arg_list.append(label)
+            else:
+                pass
+        else:
+            # Hmm - nothing we can do
+            pass
 
-        result_list.extend(builder.find_local_package_labels(current_dir,
-                                                             self.required_tag))
-        return result_list
+        # And just pretend that was what the user asked us to do
+        return self.decode_args(builder, map(str, arg_list), current_dir)
 
     def build_these_labels(self, builder, checkouts):
         """
@@ -550,32 +618,24 @@ class DeploymentCommand(Command):
 
         result_set = set()
         for index, label in enumerate(initial_list):
-            if label.type == LabelType.Checkout:
-                required_labels = depend.required_by(builder.invocation.ruleset, label)
-                for l in required_labels:
-                    if l.type == LabelType.Deployment:
-                        # Regardless of the actual dependency, use the required
-                        # tag. I believe this makes sense, as we're asking to
-                        # do a particular command on the checkout, and that
-                        # *means* moving to the required tag
-                        if self.required_tag and l.tag != self.required_tag:
-                            l = l.copy_with_tag(self.required_tag)
-                        result_set.add(l)
-            elif label.type == LabelType.Package:
-                required_labels = depend.required_by(builder.invocation.ruleset, label)
-                for l in required_labels:
-                    if l.type == LabelType.Deployment:
-                        # Regardless of the actual dependency, use the required
-                        # tag. I believe this makes sense, as we're asking to
-                        # do a particular command on the checkout, and that
-                        # *means* moving to the required tag
-                        if self.required_tag and l.tag != self.required_tag:
-                            l = l.copy_with_tag(self.required_tag)
-                        result_set.add(l)
-            elif label.type == LabelType.Deployment:
+            if label.type == LabelType.Deployment:
+                # If the user requested a deployment label, then take what
+                # they asked for, but force it to have the tag implied
+                # by this particular command
                 if self.required_tag and label.tag != self.required_tag:
                     label = label.copy_with_tag(self.required_tag)
                 result_set.add(label)
+            elif label.type in (LabelType.Checkout, LabelType.Package):
+                required_labels = depend.required_by(builder.invocation.ruleset, label)
+                for l in required_labels:
+                    if l.type == LabelType.Deployment:
+                        # Regardless of the actual dependency, use the required
+                        # tag. I believe this makes sense, as we're asking to
+                        # do a particular command on the checkout, and that
+                        # *means* moving to the required tag
+                        if self.required_tag and l.tag != self.required_tag:
+                            l = l.copy_with_tag(self.required_tag)
+                        result_set.add(l)
             else:
                 raise GiveUp("Cannot cope with label '%s', from arg '%s'"%(label, args[index]))
 
@@ -588,8 +648,8 @@ class DeploymentCommand(Command):
         """
 
         # Important not to set tag here - if there's a deployment
-        #  which doesn't have the right tag, we want an error, 
-        #  not to silently ignore it.
+        # which doesn't have the right tag, we want an error, 
+        # not to silently ignore it.
         match_lbl = Label(LabelType.Deployment, "*", None, domain="*")
         matching = builder.invocation.ruleset.rules_for_target(match_lbl)
 
@@ -628,7 +688,8 @@ class DeploymentCommand(Command):
                 result_set.update(expand_wildcards(builder, label,
                     default_to_obvious=False, wildcard_tag=self.required_tag))
 
-        return list(result_set)
+        # And just pretend that was what the user asked us to do
+        return self.decode_args(builder, map(str, result_set), current_dir)
 
     def default_deployment_labels(self, builder):
         """

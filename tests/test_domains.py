@@ -74,6 +74,9 @@ def describe_to(builder):
     muddled.pkgs.make.medium(builder, "first_pkg", [role], "first_co")
     muddled.pkgs.make.medium(builder, "second_pkg", [role], "second_co")
 
+    # A package in a different role (which we never actually build)
+    muddled.pkgs.make.simple(builder, "another_pkg", 'arm', "main_co")
+
     include_domain(builder,
                    domain_name = "subdomain1",
                    domain_repo = "git+file://{repo}/subdomain1",
@@ -102,6 +105,7 @@ def describe_to(builder):
                                  dest='sub2',
                                  domain='subdomain2')
 
+    # The 'arm' role is *not* a default role
     builder.invocation.add_default_role(role)
     builder.by_default_deploy(deployment)
 """
@@ -603,7 +607,7 @@ def assert_where_is_buildlabel(path, expect_what, expect_label=None, expect_doma
 
         print '7. OK'
 
-def check_buildlabel():
+def check_buildlabel(d):
     """Check 'muddle where' and 'muddle -n buildlabel' agree.
     """
     # TODO
@@ -628,131 +632,127 @@ def check_buildlabel():
     # Also, if we are in deploy/everything, shouldn't our returned label be
     # deplyoment:everything/*, rather than None?
 
-    with Directory('build') as d:
-        assert_where_is_buildlabel(d.where, 'Root')
-        # We want to build the default deployments and the default roles
-        # for this top level build
-        assert_bare_muddle(d.where, ['deployment:everything/deployed',
-                                     'package:first_pkg{x86}/postinstalled',
-                                     'package:main_pkg{x86}/postinstalled',
-                                     'package:second_pkg{x86}/postinstalled'])
+    assert_where_is_buildlabel(d.where, 'Root')
+    # We want to build the default deployments and the default roles
+    # for this top level build
+    assert_bare_muddle(d.where, ['deployment:everything/deployed',
+                                 'package:first_pkg{x86}/postinstalled',
+                                 'package:main_pkg{x86}/postinstalled',
+                                 'package:second_pkg{x86}/postinstalled'])
 
-        assert_where_is_buildlabel(d.join('src'), 'Checkout')
-        # TODO: should build all checkouts below here
+    assert_where_is_buildlabel(d.join('src'), 'Checkout')
+    # TODO: should build all checkouts below here
 
-        assert_where_is_buildlabel(d.join('src', 'builds'), 'Checkout', 'checkout:builds/*',
-                is_build_desc=True)
-        assert_where_is_buildlabel(d.join('src', 'main_co'), 'Checkout', 'checkout:main_co/*',
-                expect_package='package:main_pkg{x86}/postinstalled')
+    assert_where_is_buildlabel(d.join('src', 'builds'), 'Checkout', 'checkout:builds/*',
+            is_build_desc=True)
+    assert_where_is_buildlabel(d.join('src', 'main_co'), 'Checkout', 'checkout:main_co/*',
+            expect_package='package:main_pkg{x86}/postinstalled')
 
-        assert_where_is_buildlabel(d.join('obj'), 'Object')
-        assert_where_is_buildlabel(d.join('obj', 'main_pkg'), 'Object', 'package:main_pkg{*}/*')
-        assert_where_is_buildlabel(d.join('obj', 'main_pkg', 'x86'), 'Object', 'package:main_pkg{x86}/*')
+    assert_where_is_buildlabel(d.join('obj'), 'Object')
+    assert_where_is_buildlabel(d.join('obj', 'main_pkg'), 'Object', 'package:main_pkg{*}/*')
+    assert_where_is_buildlabel(d.join('obj', 'main_pkg', 'x86'), 'Object', 'package:main_pkg{x86}/*')
 
-        assert_where_is_buildlabel(d.join('install'), 'Install')
-        # TODO: what should this do? (??build all packages?? or do as it does
-        # now, which is nothing??)
+    assert_where_is_buildlabel(d.join('install'), 'Install')
+    # TODO: what should this do? (??build all packages?? or do as it does
+    # now, which is nothing??)
 
-        assert_where_is_buildlabel(d.join('install', 'x86'), 'Install', 'package:*{x86}/*')
+    assert_where_is_buildlabel(d.join('install', 'x86'), 'Install', 'package:*{x86}/*')
 
-        assert_where_is_buildlabel(d.join('deploy'), 'Deployed')
-        # TODO: Should build all deployments?
+    assert_where_is_buildlabel(d.join('deploy'), 'Deployed')
+    # TODO: Should build all deployments?
 
-        assert_where_is_buildlabel(d.join('deploy', 'everything'), 'Deployed')
-        # TODO: Should find label deployment:everything/deployed, and build it
+    assert_where_is_buildlabel(d.join('deploy', 'everything'), 'Deployed')
+    # TODO: Should find label deployment:everything/deployed, and build it
 
-    with Directory('build') as d:
-        with Directory('domains') as dom:
-            assert_where_is_buildlabel(dom.where, 'DomainRoot')
-            # TODO: Arguably, should build all subdomains below here...
+    with Directory('domains') as dom:
+        assert_where_is_buildlabel(dom.where, 'DomainRoot')
+        # TODO: Arguably, should build all subdomains below here...
 
-            with Directory('subdomain1') as sub:
-                assert_where_is_buildlabel(sub.where, 'DomainRoot', None, 'subdomain1')
-                # TODO: should build all deployments and default roles in subdomain1
+        with Directory('subdomain1') as sub:
+            assert_where_is_buildlabel(sub.where, 'DomainRoot', None, 'subdomain1')
+            # TODO: should build all deployments and default roles in subdomain1
+            # that are in the build tree
+
+            assert_where_is_buildlabel(sub.join('src'), 'Checkout', None, 'subdomain1')
+            # TODO: should build all checkouts below here
+
+            assert_where_is_buildlabel(sub.join('src', 'builds'),
+                    'Checkout', 'checkout:(subdomain1)builds/*', 'subdomain1',
+                    is_build_desc=True)
+            assert_where_is_buildlabel(sub.join('src', 'main_co'),
+                    'Checkout', 'checkout:(subdomain1)main_co/*', 'subdomain1',
+                    expect_package='package:(subdomain1)main_pkg{x86}/postinstalled')
+
+            assert_where_is_buildlabel(sub.join('obj'), 'Object', None, 'subdomain1')
+            assert_where_is_buildlabel(sub.join('obj', 'main_pkg'),
+                    'Object', 'package:(subdomain1)main_pkg{*}/*', 'subdomain1')
+            assert_where_is_buildlabel(sub.join('obj', 'main_pkg', 'x86'),
+                    'Object', 'package:(subdomain1)main_pkg{x86}/*', 'subdomain1')
+
+            assert_where_is_buildlabel(sub.join('install'), 'Install', None, 'subdomain1')
+            assert_where_is_buildlabel(sub.join('install', 'x86'),
+                    'Install', 'package:(subdomain1)*{x86}/*', 'subdomain1')
+
+            assert_where_is_buildlabel(sub.join('deploy'), 'Deployed', None, 'subdomain1')
+            assert_where_is_buildlabel(sub.join('deploy', 'everything'),
+                    'Deployed', None, 'subdomain1')
+
+    with Directory('domains'):
+        with Directory('subdomain1'):
+            with Directory('domains') as dom:
+                # A domain root within subdomain1 (not subdomain1's domain root)
+                assert_where_is_buildlabel(dom.where,
+                        'DomainRoot', None, 'subdomain1')
+                # TODO: should build all deployments and default roles in subdomain3
                 # that are in the build tree
+                with Directory('subdomain3') as sub:
+                    assert_where_is_buildlabel(sub.where,
+                            'DomainRoot', None, 'subdomain1(subdomain3)')
 
-                assert_where_is_buildlabel(sub.join('src'), 'Checkout', None, 'subdomain1')
-                # TODO: should build all checkouts below here
+                    assert_where_is_buildlabel(sub.join('src'),
+                            'Checkout', None, 'subdomain1(subdomain3)')
+                    # TODO: should build all checkouts below here
 
-                assert_where_is_buildlabel(sub.join('src', 'builds'),
-                        'Checkout', 'checkout:(subdomain1)builds/*', 'subdomain1',
-                        is_build_desc=True)
-                assert_where_is_buildlabel(sub.join('src', 'main_co'),
-                        'Checkout', 'checkout:(subdomain1)main_co/*', 'subdomain1',
-                        expect_package='package:(subdomain1)main_pkg{x86}/postinstalled')
+                    assert_where_is_buildlabel(sub.join('src', 'builds'),
+                            'Checkout', 'checkout:(subdomain1(subdomain3))builds/*',
+                            'subdomain1(subdomain3)',
+                            is_build_desc=True)
+                    assert_where_is_buildlabel(sub.join('src', 'main_co'),
+                            'Checkout', 'checkout:(subdomain1(subdomain3))main_co/*',
+                            'subdomain1(subdomain3)',
+                            expect_package='package:(subdomain1(subdomain3))main_pkg{x86}/postinstalled')
 
-                assert_where_is_buildlabel(sub.join('obj'), 'Object', None, 'subdomain1')
-                assert_where_is_buildlabel(sub.join('obj', 'main_pkg'),
-                        'Object', 'package:(subdomain1)main_pkg{*}/*', 'subdomain1')
-                assert_where_is_buildlabel(sub.join('obj', 'main_pkg', 'x86'),
-                        'Object', 'package:(subdomain1)main_pkg{x86}/*', 'subdomain1')
+                    assert_where_is_buildlabel(sub.join('obj'),
+                            'Object', None, 'subdomain1(subdomain3)')
+                    assert_where_is_buildlabel(sub.join('obj', 'main_pkg'),
+                            'Object', 'package:(subdomain1(subdomain3))main_pkg{*}/*',
+                            'subdomain1(subdomain3)')
+                    assert_where_is_buildlabel(sub.join('obj', 'main_pkg', 'x86'),
+                            'Object', 'package:(subdomain1(subdomain3))main_pkg{x86}/*',
+                            'subdomain1(subdomain3)')
 
-                assert_where_is_buildlabel(sub.join('install'), 'Install', None, 'subdomain1')
-                assert_where_is_buildlabel(sub.join('install', 'x86'),
-                        'Install', 'package:(subdomain1)*{x86}/*', 'subdomain1')
+                    assert_where_is_buildlabel(sub.join('install'),
+                            'Install', None, 'subdomain1(subdomain3)')
+                    assert_where_is_buildlabel(sub.join('install', 'x86'),
+                            'Install', 'package:(subdomain1(subdomain3))*{x86}/*',
+                            'subdomain1(subdomain3)')
 
-                assert_where_is_buildlabel(sub.join('deploy'), 'Deployed', None, 'subdomain1')
-                assert_where_is_buildlabel(sub.join('deploy', 'everything'),
-                        'Deployed', None, 'subdomain1')
+                    assert_where_is_buildlabel(sub.join('deploy'),
+                            'Deployed', None, 'subdomain1(subdomain3)')
+                    assert_where_is_buildlabel(sub.join('deploy', 'everything'),
+                            'Deployed', None, 'subdomain1(subdomain3)')
 
-    with Directory('build') as d:
-        with Directory('domains'):
-            with Directory('subdomain1'):
-                with Directory('domains') as dom:
-                    # A domain root within subdomain1 (not subdomain1's domain root)
-                    assert_where_is_buildlabel(dom.where,
-                            'DomainRoot', None, 'subdomain1')
-                    # TODO: should build all deployments and default roles in subdomain3
-                    # that are in the build tree
-                    with Directory('subdomain3') as sub:
-                        assert_where_is_buildlabel(sub.where,
-                                'DomainRoot', None, 'subdomain1(subdomain3)')
-
-                        assert_where_is_buildlabel(sub.join('src'),
-                                'Checkout', None, 'subdomain1(subdomain3)')
-                        # TODO: should build all checkouts below here
-
-                        assert_where_is_buildlabel(sub.join('src', 'builds'),
-                                'Checkout', 'checkout:(subdomain1(subdomain3))builds/*',
-                                'subdomain1(subdomain3)',
-                                is_build_desc=True)
-                        assert_where_is_buildlabel(sub.join('src', 'main_co'),
-                                'Checkout', 'checkout:(subdomain1(subdomain3))main_co/*',
-                                'subdomain1(subdomain3)',
-                                expect_package='package:(subdomain1(subdomain3))main_pkg{x86}/postinstalled')
-
-                        assert_where_is_buildlabel(sub.join('obj'),
-                                'Object', None, 'subdomain1(subdomain3)')
-                        assert_where_is_buildlabel(sub.join('obj', 'main_pkg'),
-                                'Object', 'package:(subdomain1(subdomain3))main_pkg{*}/*',
-                                'subdomain1(subdomain3)')
-                        assert_where_is_buildlabel(sub.join('obj', 'main_pkg', 'x86'),
-                                'Object', 'package:(subdomain1(subdomain3))main_pkg{x86}/*',
-                                'subdomain1(subdomain3)')
-
-                        assert_where_is_buildlabel(sub.join('install'),
-                                'Install', None, 'subdomain1(subdomain3)')
-                        assert_where_is_buildlabel(sub.join('install', 'x86'),
-                                'Install', 'package:(subdomain1(subdomain3))*{x86}/*',
-                                'subdomain1(subdomain3)')
-
-                        assert_where_is_buildlabel(sub.join('deploy'),
-                                'Deployed', None, 'subdomain1(subdomain3)')
-                        assert_where_is_buildlabel(sub.join('deploy', 'everything'),
-                                'Deployed', None, 'subdomain1(subdomain3)')
-
-    with Directory('build'):
-        with Directory('domains'):
-            with Directory('subdomain2'):
-                with Directory('domains') as dom:
-                    assert_where_is_buildlabel(dom.where, 'DomainRoot', None, 'subdomain2')
-                    # TODO: Arguably, should build all subdomains below here...
-                    # ...in which case it should find subdomain3 and subdomain4
+    with Directory('domains'):
+        with Directory('subdomain2'):
+            with Directory('domains') as dom:
+                assert_where_is_buildlabel(dom.where, 'DomainRoot', None, 'subdomain2')
+                # TODO: Arguably, should build all subdomains below here...
+                # ...in which case it should find subdomain3 and subdomain4
 
 def build():
     muddle([])
 
-def check_files_after_build():
+def check_files_after_build(d):
     def check_built_tags(t, pkg):
         check_files([t.join('package', pkg, 'x86-built'),
                      t.join('package', pkg, 'x86-configured'),
@@ -771,119 +771,116 @@ def check_files_after_build():
         mapped = map(d.join, files)
         check_files(mapped)
 
-    with Directory('build') as d:
-        # Everything we checked out should still be checked out
-        check_checkout_files(d)
+    # Everything we checked out should still be checked out
+    check_checkout_files(d)
 
-        # Built and deployed tags
-        check_built_and_deployed_tags(d)
+    # Built and deployed tags
+    check_built_and_deployed_tags(d)
 
-        # Top level
-        with Directory('deploy'):
-            with Directory('everything') as e:
-                check_files_in(e, ['first', 'second', 'main1'])
-                with Directory('sub1') as s1:
-                    check_files_in(s1, ['first', 'second', 'subdomain1'])
+    # Top level
+    with Directory('deploy'):
+        with Directory('everything') as e:
+            check_files_in(e, ['first', 'second', 'main1'])
+            with Directory('sub1') as s1:
+                check_files_in(s1, ['first', 'second', 'subdomain1'])
+                with Directory('sub3') as s3:
+                    check_files_in(s3, ['first', 'second', 'subdomain3'])
+            with Directory('sub2') as s2:
+                check_files_in(s2, ['first', 'second', 'subdomain2'])
+                with Directory('sub3') as s3:
+                    check_files_in(s3, ['first', 'second', 'subdomain3'])
+                with Directory('sub4') as s4:
+                    check_files_in(s4, ['first', 'second', 'subdomain4'])
+    with Directory('obj') as o:
+        check_files([o.join('first_pkg', 'x86', 'first'),
+                     o.join('main_pkg', 'x86', 'main1'),
+                     o.join('second_pkg', 'x86', 'second')])
+    with Directory('install'):
+        with Directory('x86') as x:
+            check_files_in(x, ['first', 'second', 'main1'])
+    with Directory('.muddle'):
+        with Directory('tags') as t:
+            check_files([t.join('package', 'main_pkg', 'x86-built'),
+                         t.join('package', 'main_pkg', 'x86-configured'),
+                         t.join('package', 'main_pkg', 'x86-installed'),
+                         t.join('package', 'main_pkg', 'x86-postinstalled'),
+                         t.join('package', 'main_pkg', 'x86-preconfig'),
+                         t.join('deployment', 'everything', 'deployed'),
+                        ])
+
+    with Directory('domains'):
+        with Directory('subdomain1') as s1:
+            check_built_and_deployed_tags(s1)
+            with Directory('deploy'):
+                with Directory('everything') as e:
+                    check_files_in(e, ['first', 'second', 'subdomain1'])
                     with Directory('sub3') as s3:
                         check_files_in(s3, ['first', 'second', 'subdomain3'])
-                with Directory('sub2') as s2:
-                    check_files_in(s2, ['first', 'second', 'subdomain2'])
+            with Directory('obj') as o:
+                check_files([o.join('first_pkg', 'x86', 'first'),
+                             o.join('main_pkg', 'x86', 'subdomain1'),
+                             o.join('second_pkg', 'x86', 'second')])
+            with Directory('install'):
+                with Directory('x86') as x:
+                    check_files_in(x, ['first', 'second', 'subdomain1'])
+            with Directory('domains'):
+                with Directory('subdomain3') as s3:
+                    check_built_and_deployed_tags(s3)
+                    with Directory('deploy'):
+                        with Directory('everything') as e:
+                            check_files_in(e, ['first', 'second', 'subdomain3'])
+                    with Directory('obj') as o:
+                        check_files([o.join('first_pkg', 'x86', 'first'),
+                                     o.join('main_pkg', 'x86', 'subdomain3'),
+                                     o.join('second_pkg', 'x86', 'second')])
+                    with Directory('install'):
+                        with Directory('x86') as x:
+                            check_files_in(x, ['first', 'second', 'subdomain3'])
+
+    with Directory('domains'):
+        with Directory('subdomain2') as s2:
+            check_built_and_deployed_tags(s2)
+            with Directory('deploy'):
+                with Directory('everything') as e:
+                    check_files_in(e, ['first', 'second', 'subdomain2'])
                     with Directory('sub3') as s3:
                         check_files_in(s3, ['first', 'second', 'subdomain3'])
                     with Directory('sub4') as s4:
                         check_files_in(s4, ['first', 'second', 'subdomain4'])
-        with Directory('obj') as o:
-            check_files([o.join('first_pkg', 'x86', 'first'),
-                         o.join('main_pkg', 'x86', 'main1'),
-                         o.join('second_pkg', 'x86', 'second')])
-        with Directory('install'):
-            with Directory('x86') as x:
-                check_files_in(x, ['first', 'second', 'main1'])
-        with Directory('.muddle'):
-            with Directory('tags') as t:
-                check_files([t.join('package', 'main_pkg', 'x86-built'),
-                             t.join('package', 'main_pkg', 'x86-configured'),
-                             t.join('package', 'main_pkg', 'x86-installed'),
-                             t.join('package', 'main_pkg', 'x86-postinstalled'),
-                             t.join('package', 'main_pkg', 'x86-preconfig'),
-                             t.join('deployment', 'everything', 'deployed'),
-                            ])
+            with Directory('obj') as o:
+                check_files([o.join('first_pkg', 'x86', 'first'),
+                             o.join('main_pkg', 'x86', 'subdomain2'),
+                             o.join('second_pkg', 'x86', 'second')])
+            with Directory('install'):
+                with Directory('x86') as x:
+                    check_files_in(x, ['first', 'second', 'subdomain2'])
+            with Directory('domains'):
+                with Directory('subdomain3') as s3:
+                    check_built_and_deployed_tags(s3)
+                    with Directory('deploy'):
+                        with Directory('everything') as e:
+                            check_files_in(e, ['first', 'second', 'subdomain3'])
+                    with Directory('obj') as o:
+                        check_files([o.join('first_pkg', 'x86', 'first'),
+                                     o.join('main_pkg', 'x86', 'subdomain3'),
+                                     o.join('second_pkg', 'x86', 'second')])
+                    with Directory('install'):
+                        with Directory('x86') as x:
+                            check_files_in(x, ['first', 'second', 'subdomain3'])
+                with Directory('subdomain4') as s4:
+                    check_built_and_deployed_tags(s4)
+                    with Directory('deploy'):
+                        with Directory('everything') as e:
+                            check_files_in(e, ['first', 'second', 'subdomain4'])
+                    with Directory('obj') as o:
+                        check_files([o.join('first_pkg', 'x86', 'first'),
+                                     o.join('main_pkg', 'x86', 'subdomain4'),
+                                     o.join('second_pkg', 'x86', 'second')])
+                    with Directory('install'):
+                        with Directory('x86') as x:
+                            check_files_in(x, ['first', 'second', 'subdomain4'])
 
-    with Directory('build') as d:
-        with Directory('domains'):
-            with Directory('subdomain1') as s1:
-                check_built_and_deployed_tags(s1)
-                with Directory('deploy'):
-                    with Directory('everything') as e:
-                        check_files_in(e, ['first', 'second', 'subdomain1'])
-                        with Directory('sub3') as s3:
-                            check_files_in(s3, ['first', 'second', 'subdomain3'])
-                with Directory('obj') as o:
-                    check_files([o.join('first_pkg', 'x86', 'first'),
-                                 o.join('main_pkg', 'x86', 'subdomain1'),
-                                 o.join('second_pkg', 'x86', 'second')])
-                with Directory('install'):
-                    with Directory('x86') as x:
-                        check_files_in(x, ['first', 'second', 'subdomain1'])
-                with Directory('domains'):
-                    with Directory('subdomain3') as s3:
-                        check_built_and_deployed_tags(s3)
-                        with Directory('deploy'):
-                            with Directory('everything') as e:
-                                check_files_in(e, ['first', 'second', 'subdomain3'])
-                        with Directory('obj') as o:
-                            check_files([o.join('first_pkg', 'x86', 'first'),
-                                         o.join('main_pkg', 'x86', 'subdomain3'),
-                                         o.join('second_pkg', 'x86', 'second')])
-                        with Directory('install'):
-                            with Directory('x86') as x:
-                                check_files_in(x, ['first', 'second', 'subdomain3'])
-
-    with Directory('build') as d:
-        with Directory('domains'):
-            with Directory('subdomain2') as s2:
-                check_built_and_deployed_tags(s2)
-                with Directory('deploy'):
-                    with Directory('everything') as e:
-                        check_files_in(e, ['first', 'second', 'subdomain2'])
-                        with Directory('sub3') as s3:
-                            check_files_in(s3, ['first', 'second', 'subdomain3'])
-                        with Directory('sub4') as s4:
-                            check_files_in(s4, ['first', 'second', 'subdomain4'])
-                with Directory('obj') as o:
-                    check_files([o.join('first_pkg', 'x86', 'first'),
-                                 o.join('main_pkg', 'x86', 'subdomain2'),
-                                 o.join('second_pkg', 'x86', 'second')])
-                with Directory('install'):
-                    with Directory('x86') as x:
-                        check_files_in(x, ['first', 'second', 'subdomain2'])
-                with Directory('domains'):
-                    with Directory('subdomain3') as s3:
-                        check_built_and_deployed_tags(s3)
-                        with Directory('deploy'):
-                            with Directory('everything') as e:
-                                check_files_in(e, ['first', 'second', 'subdomain3'])
-                        with Directory('obj') as o:
-                            check_files([o.join('first_pkg', 'x86', 'first'),
-                                         o.join('main_pkg', 'x86', 'subdomain3'),
-                                         o.join('second_pkg', 'x86', 'second')])
-                        with Directory('install'):
-                            with Directory('x86') as x:
-                                check_files_in(x, ['first', 'second', 'subdomain3'])
-                    with Directory('subdomain4') as s4:
-                        check_built_and_deployed_tags(s4)
-                        with Directory('deploy'):
-                            with Directory('everything') as e:
-                                check_files_in(e, ['first', 'second', 'subdomain4'])
-                        with Directory('obj') as o:
-                            check_files([o.join('first_pkg', 'x86', 'first'),
-                                         o.join('main_pkg', 'x86', 'subdomain4'),
-                                         o.join('second_pkg', 'x86', 'second')])
-                        with Directory('install'):
-                            with Directory('x86') as x:
-                                check_files_in(x, ['first', 'second', 'subdomain4'])
-
-def check_programs_after_build():
+def check_programs_after_build(d):
     """And running the programs gives the expected result
     """
 
@@ -894,26 +891,25 @@ def check_programs_after_build():
         if result != 'Program {0}\n'.format(progname):
             raise GiveUp('Program {0} printed out "{1}"'.format(fullpath, result))
 
-    with Directory('build') as d:
-        with Directory(d.join('deploy', 'everything')) as e:
-            check_result(e, [],     'main1')
-            check_result(e, [],     'first')
-            check_result(e, [],     'second')
-            check_result(e, ['sub1'], 'subdomain1')
-            check_result(e, ['sub1'], 'first')
-            check_result(e, ['sub1'], 'second')
-            check_result(e, ['sub2'], 'subdomain2')
-            check_result(e, ['sub2'], 'first')
-            check_result(e, ['sub2'], 'second')
-            check_result(e, ['sub1', 'sub3'], 'subdomain3')
-            check_result(e, ['sub1', 'sub3'], 'first')
-            check_result(e, ['sub1', 'sub3'], 'second')
-            check_result(e, ['sub2', 'sub3'], 'subdomain3')
-            check_result(e, ['sub2', 'sub3'], 'first')
-            check_result(e, ['sub2', 'sub3'], 'second')
-            check_result(e, ['sub2', 'sub4'], 'subdomain4')
-            check_result(e, ['sub2', 'sub4'], 'first')
-            check_result(e, ['sub2', 'sub4'], 'second')
+    with Directory(d.join('deploy', 'everything')) as e:
+        check_result(e, [],     'main1')
+        check_result(e, [],     'first')
+        check_result(e, [],     'second')
+        check_result(e, ['sub1'], 'subdomain1')
+        check_result(e, ['sub1'], 'first')
+        check_result(e, ['sub1'], 'second')
+        check_result(e, ['sub2'], 'subdomain2')
+        check_result(e, ['sub2'], 'first')
+        check_result(e, ['sub2'], 'second')
+        check_result(e, ['sub1', 'sub3'], 'subdomain3')
+        check_result(e, ['sub1', 'sub3'], 'first')
+        check_result(e, ['sub1', 'sub3'], 'second')
+        check_result(e, ['sub2', 'sub3'], 'subdomain3')
+        check_result(e, ['sub2', 'sub3'], 'first')
+        check_result(e, ['sub2', 'sub3'], 'second')
+        check_result(e, ['sub2', 'sub4'], 'subdomain4')
+        check_result(e, ['sub2', 'sub4'], 'first')
+        check_result(e, ['sub2', 'sub4'], 'second')
 
 def check_same_all():
     """Check that 'muddle -n XXX _all is the same everywhere.
@@ -1128,16 +1124,16 @@ def main(args):
         with NewDirectory('build') as d:
             banner('CHECK REPOSITORIES OUT')
             checkout_build_descriptions(root_dir, d)
-            if False:
+            if True:
                 checkout_all(d)
 
                 banner('BUILD')
                 build()
-                check_files_after_build()
-                check_programs_after_build()
+                check_files_after_build(d)
+                check_programs_after_build(d)
 
                 banner('CHECK WHERE AND BUILD AGREE')
-                check_buildlabel()
+                check_buildlabel(d)
 
                 banner('CHECK _all IS THE SAME EVERYWHERE')
                 check_same_all()

@@ -1473,7 +1473,7 @@ class Builder(object):
                               domain=domain_name)
             else:
                 label = None
-            result = (utils.DirType.Deployed, None, domain_name)
+            result = (utils.DirType.Deployed, label, domain_name)
 
         elif rest[0] == "domains":
             # We're inside the current domain - this is actually a root

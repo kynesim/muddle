@@ -162,6 +162,16 @@ def _cmdline(args, current_dir, original_env, muddle_binary):
                     args.append('deployment:({domain})*/deployed'.format(domain=name))
                     args.append('package:({domain})*{{*}}/postinstalled'.format(domain=name))
 
+            elif what == DirType.Deployed:
+                # We're in a deploy/ directory, so redeploying sounds sensible
+                command_class = cmd_dict["redeploy"]
+                command = command_class()
+                command.set_options(command_options)
+
+                args = []
+                if label:       # Given a specific deployment, choose it
+                    args.append(str(label))
+
         command.with_build_tree(builder, current_dir, args)
     else:
         # There is no build root here .. 

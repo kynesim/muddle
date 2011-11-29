@@ -1265,28 +1265,6 @@ class Builder(object):
         self._build_name = name
 
 
-    def get_all_checkouts_below(self, dir):
-        """
-        Return all our checkouts have directories at or below 'dir'.
-
-        This is not domain aware. Consider using get_all_checkout_labels_below,
-        which is.
-        """
-        rv = [ ]
-        all_cos = self.invocation.all_checkouts()
-
-        for co in all_cos:
-            tmp = Label(LabelType.Checkout, co)       # TODO *Should* be a label
-            co_dir = self.invocation.checkout_path(tmp)
-            # Is it below dir? If it isn't, os.path.relpath() will
-            # start with .. ..
-            rp = os.path.relpath(co_dir, dir)
-            if (rp[0:2] != ".."):
-                # It's relative
-                rv.append(co)
-
-        return rv
-
     def get_all_checkout_labels_below(self, dir):
         """
         Get the labels of all the checkouts in or below directory 'dir'

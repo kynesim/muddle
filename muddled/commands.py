@@ -339,25 +339,16 @@ class CheckoutCommand(Command):
             arg_list.append(label)
         elif what in (DirType.Checkout, DirType.Root, DirType.DomainRoot):
             # We're somewhere that we expect to have checkouts below
+            # XXX Should we restrict ourselves to the current domain?
             arg_list.extend(builder.get_all_checkout_labels_below(current_dir))
-        elif what == DirType.Object:
-            if label: # We're actually inside a place that knows its package label
-                arg_list.append(label)
-            else:
-                pass
-        elif what == DirType.Install:
-            if label:
-                arg_list.append(label)
-            else:
-                pass
-        elif what == DirType.Deployed:
-            if label:
-                arg_list.append(label)
-            else:
-                pass
+        elif label: # We're actually inside a place that knows its package label
+            arg_list.append(label)
         else:
-            # Hmm - nothing we can do
+            # XXX Arguably we should decide what to do based on our location
             pass
+
+        if not arg_list:
+            raise GiveUp('Not sure which checkout(s) you want')
 
         # And just pretend that was what the user asked us to do
         return self.decode_args(builder, map(str, arg_list), current_dir)
@@ -508,33 +499,16 @@ class PackageCommand(Command):
         what, label, domain = builder.find_location_in_tree(current_dir)
         arg_list = []
 
-        if what == DirType.Root:
-            pass
-        elif what == DirType.DomainRoot:
-            pass
-        elif what == DirType.Checkout:
-            if label: # We're within a particular checkout directory
-                arg_list.append(label)
-            else:
-                pass
-        elif what == DirType.Object:
-            if label: # We're actually inside a place that knows its package label
-                arg_list.append(label)
-            else:
-                pass
-        elif what == DirType.Install:
-            if label:
-                arg_list.append(label)
-            else:
-                pass
-        elif what == DirType.Deployed:
-            if label:
-                arg_list.append(label)
-            else:
-                pass
+        if label:
+            # We're somewhere that knows its label, so can probably work
+            # out what to do
+            arg_list.append(label)
         else:
-            # Hmm - nothing we can do
+            # XXX Arguably we should decide what to do based on our location
             pass
+
+        if not arg_list:
+            raise GiveUp('Not sure which package(s) you want')
 
         # And just pretend that was what the user asked us to do
         return self.decode_args(builder, map(str, arg_list), current_dir)
@@ -669,27 +643,44 @@ class DeploymentCommand(Command):
         """
         # Can we guess what to do from where we are?
         what, label, domain = builder.find_location_in_tree(current_dir)
-        return_list = []
-        if what == DirType.Deployed:
-            if label is None:   # XXX This should actually decide for us
-                raise GiveUp('Not sure which deployment you want')
-            # We're actually inside a deployment - job done
-            return_list.append(label.copy_with_tag(self.required_tag))
-        else:
-            # The best we can do is to use the default deployments
-            return_list = self.default_deployment_labels(builder)
+        arg_list = []
 
-        result_set = set()
-        expand_wildcards = builder.invocation.expand_wildcards
-        for label in return_list:
-            if label.is_definite():
-                result_set.add(label)
+        if True:
+            if label:
+                arg_list.append(label)
             else:
-                result_set.update(expand_wildcards(builder, label,
-                    default_to_obvious=False, wildcard_tag=self.required_tag))
+                # XXX Arguably we should decide what to do based on our
+                # XXX location, but just going for the default deployments
+                # XXX actually seems sensible.
+                # XXX Caveat: is that so sensible inside a subdomain?
+                arg_list = self.default_deployment_labels(builder)
 
-        # And just pretend that was what the user asked us to do
-        return self.decode_args(builder, map(str, result_set), current_dir)
+            if not arg_list:
+                raise GiveUp('Not sure which deployment(s) you want')
+
+            # And just pretend that was what the user asked us to do
+            return self.decode_args(builder, map(str, arg_list), current_dir)
+        else:
+            if what == DirType.Deployed:
+                if label is None:   # XXX This should actually decide for us
+                    raise GiveUp('Not sure which deployment you want')
+                # We're actually inside a deployment - job done
+                arg_list.append(label.copy_with_tag(self.required_tag))
+            else:
+                # The best we can do is to use the default deployments
+                arg_list = self.default_deployment_labels(builder)
+
+            arg_set = set()
+            expand_wildcards = builder.invocation.expand_wildcards
+            for label in arg_list:
+                if label.is_definite():
+                    arg_set.add(label)
+                else:
+                    arg_set.update(expand_wildcards(builder, label,
+                        default_to_obvious=False, wildcard_tag=self.required_tag))
+
+            # And just pretend that was what the user asked us to do
+            return self.decode_args(builder, map(str, arg_set), current_dir)
 
     def default_deployment_labels(self, builder):
         """

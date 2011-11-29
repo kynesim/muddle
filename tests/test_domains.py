@@ -787,7 +787,9 @@ def check_some_specifics():
         # All checkouts below here
         cmd('unimport', 'checkout:builds/checked_out checkout:first_co/checked_out checkout:main_co/checked_out checkout:second_co/checked_out checkout:(subdomain1)builds/checked_out checkout:(subdomain1)first_co/checked_out checkout:(subdomain1)main_co/checked_out checkout:(subdomain1)second_co/checked_out checkout:(subdomain1(subdomain3))builds/checked_out checkout:(subdomain1(subdomain3))first_co/checked_out checkout:(subdomain1(subdomain3))main_co/checked_out checkout:(subdomain1(subdomain3))second_co/checked_out checkout:(subdomain2)builds/checked_out checkout:(subdomain2)first_co/checked_out checkout:(subdomain2)main_co/checked_out checkout:(subdomain2)second_co/checked_out checkout:(subdomain2(subdomain3))builds/checked_out checkout:(subdomain2(subdomain3))first_co/checked_out checkout:(subdomain2(subdomain3))main_co/checked_out checkout:(subdomain2(subdomain3))second_co/checked_out checkout:(subdomain2(subdomain4))builds/checked_out checkout:(subdomain2(subdomain4))first_co/checked_out checkout:(subdomain2(subdomain4))main_co/checked_out checkout:(subdomain2(subdomain4))second_co/checked_out')
         #cmd('build', 'package:main_pkg{x86}/postinstalled')
-        # The default deployment (not the same result as a bare "muddle" command)
+        # The default deployment (not the same result as a bare "muddle"
+        # command, which gives us the default deployment(s) and the default
+        # roles as well)
         cmd('deploy', 'deployment:everything/deployed')
 
         with Directory('src'):
@@ -807,7 +809,10 @@ def check_some_specifics():
             cmd('deploy', 'deployment:everything/deployed')
             with Directory('main_pkg'):
                 cmd('unimport', 'checkout:main_co/checked_out')
-                # XXX Should we get all roles, or just the default roles???
+                # We get all roles for this package, which makes sense if you
+                # look at "muddle where" returning a package:<name>{*}/postinstalled
+                # label in this directory - {*} expands to all roles, not just
+                # the default roles
                 cmd('build', 'package:main_pkg{arm}/postinstalled package:main_pkg{x86}/postinstalled')
                 cmd('deploy', 'deployment:everything/deployed')
                 with Directory('x86'):
@@ -827,11 +832,8 @@ def check_some_specifics():
         with Directory('deploy'):
             #cmd('unimport', 'checkout:main_co/checked_out')
             #cmd('build', 'package:main_pkg{x86}/postinstalled')
-            # It says "Not sure which deployment you want", but it should
-            # probably build the default deployments
-            #cmd('deploy', 'deployment:everything/deployed')
+            cmd('deploy', 'deployment:everything/deployed')
             with Directory('everything'):
-                pass
                 cmd('unimport', 'checkout:first_co/checked_out checkout:main_co/checked_out checkout:second_co/checked_out checkout:(subdomain1)first_co/checked_out checkout:(subdomain1)main_co/checked_out checkout:(subdomain1)second_co/checked_out checkout:(subdomain1(subdomain3))first_co/checked_out checkout:(subdomain1(subdomain3))main_co/checked_out checkout:(subdomain1(subdomain3))second_co/checked_out checkout:(subdomain2)first_co/checked_out checkout:(subdomain2)main_co/checked_out checkout:(subdomain2)second_co/checked_out checkout:(subdomain2(subdomain3))first_co/checked_out checkout:(subdomain2(subdomain3))main_co/checked_out checkout:(subdomain2(subdomain3))second_co/checked_out checkout:(subdomain2(subdomain4))first_co/checked_out checkout:(subdomain2(subdomain4))main_co/checked_out checkout:(subdomain2(subdomain4))second_co/checked_out')
                 cmd('build', 'package:first_pkg{x86}/postinstalled package:main_pkg{x86}/postinstalled package:second_pkg{x86}/postinstalled package:(subdomain1)first_pkg{x86}/postinstalled package:(subdomain1)main_pkg{x86}/postinstalled package:(subdomain1)second_pkg{x86}/postinstalled package:(subdomain1(subdomain3))first_pkg{x86}/postinstalled package:(subdomain1(subdomain3))main_pkg{x86}/postinstalled package:(subdomain1(subdomain3))second_pkg{x86}/postinstalled package:(subdomain2)first_pkg{x86}/postinstalled package:(subdomain2)main_pkg{x86}/postinstalled package:(subdomain2)second_pkg{x86}/postinstalled package:(subdomain2(subdomain3))first_pkg{x86}/postinstalled package:(subdomain2(subdomain3))main_pkg{x86}/postinstalled package:(subdomain2(subdomain3))second_pkg{x86}/postinstalled package:(subdomain2(subdomain4))first_pkg{x86}/postinstalled package:(subdomain2(subdomain4))main_pkg{x86}/postinstalled package:(subdomain2(subdomain4))second_pkg{x86}/postinstalled')
                 cmd('deploy', 'deployment:everything/deployed')
@@ -840,14 +842,14 @@ def check_some_specifics():
             # All checkouts below this point
             cmd('unimport', 'checkout:(subdomain1(subdomain3))builds/checked_out checkout:(subdomain1(subdomain3))first_co/checked_out checkout:(subdomain1(subdomain3))main_co/checked_out checkout:(subdomain1(subdomain3))second_co/checked_out')
             #cmd('build', 'package:main_pkg{x86}/postinstalled')
-            # It's correct, because it's the default, but is it correct for the right reason?
+            # Do we really want the default deployment here, inside a
+            # subdomain, as well?
             cmd('deploy', 'deployment:everything/deployed')
             with Directory('subdomain3'):
                 cmd('unimport', 'checkout:(subdomain1(subdomain3))builds/checked_out checkout:(subdomain1(subdomain3))first_co/checked_out checkout:(subdomain1(subdomain3))main_co/checked_out checkout:(subdomain1(subdomain3))second_co/checked_out')
                 #cmd('build', 'package:main_pkg{x86}/postinstalled')
-                # It's correct, because it's the default, but is it correct for the right reason?
+                # Ditto on deployment/subdomain
                 cmd('deploy', 'deployment:everything/deployed')
-
 
 def build():
     muddle([])

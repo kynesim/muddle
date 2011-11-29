@@ -696,7 +696,7 @@ class Invocation:
 
         return_list = []
         for label in labels:
-            if label.is_wildcard:
+            if label.is_wildcard():
                 return_list.extend(self.expand_wildcards(label))
             else:
                 return_list.append(label)
@@ -727,28 +727,7 @@ class Invocation:
             tag = utils.package_type_to_tag[label.type]
             label = label.copy_with_tag(tag)
 
-        # This is perhaps not the most efficient way to do this, but it is simple
-        possible_labels = []
-        if label.type == LabelType.Checkout:
-            possible_labels = self.all_checkout_labels()
-        elif label.type == LabelType.Package:
-            possible_labels = self.all_package_labels()
-        elif label.type == LabelType.Deployment:
-            possible_labels = self.all_deployment_labels()
-        else:
-            raise GiveUp("Cannot expand wildcards in label '%s', which"
-                    " has an unrecognised type"%label)
-
-        actual_labels = set()
-        for possible in possible_labels:
-            wildcardiness = label.match(possible)
-            if wildcardiness is None:                   # They didn't match
-                continue
-            if wildcard_tag is not None and possible.tag == '*':
-                possible = possible.copy_with_tag(wildcard_tag)
-            actual_labels.add(possible)
-
-        return actual_labels
+        return self.ruleset.targets_match(label)
 
 class Builder(object):
     """

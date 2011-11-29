@@ -11,9 +11,10 @@ It's not pretty ..
 
 """
 
-import utils
 import copy
-import subst
+
+import muddled.utils as utils
+import muddled.subst as subst
 
 class EnvType:
     """
@@ -707,7 +708,7 @@ class Store:
         """
             
         retHdr =  "# setenv code for %s\n"%name +  \
-            "# %s\n"%(utils.iso_time());
+            "# %s\n"%(utils.iso_time())
 
         retText = [ retHdr ]
 
@@ -738,7 +739,7 @@ class Store:
         Returns a string containing the script.
         """
         retHdr = "# setenv script for %s\n"%name + \
-            "# %s\n"%(utils.iso_time());
+            "# %s\n"%(utils.iso_time())
 
         retText = [ retHdr ]
 
@@ -879,8 +880,8 @@ def prepend_expr(astr, var):
     Create an environment expression consisting of a string prepended to a
      variable
      """
-    expr = EnvExpr(EnvExpr.CatType);
-    expr.append_str(astr);
+    expr = EnvExpr(EnvExpr.CatType)
+    expr.append_str(astr)
     expr.append_ref(var)
     return expr
 

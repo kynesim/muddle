@@ -4,17 +4,18 @@ This file will go away in the next major release of muddle - in
 the meantime, it provides a useful library of code for reuse.
 """
 
-import utils
 import os
 
-import checkouts.simple as co_simple
-import checkouts.twolevel as co_twolevel
-import pkgs.make as make
-import pkgs.aptget as aptget
-import pkg
-import depend
+import muddled.utils as utils
+
 import deployments.tools as dep_tools
-import deployment
+import muddled.checkouts.simple as co_simple
+import muddled.checkouts.twolevel as co_twolevel
+import muddled.depend as depend
+import muddled.deployment as deployment
+import muddled.pkg as pkg
+import muddled.pkgs.aptget as aptget
+import muddled.pkgs.make as make
 
 def apt_get_install(builder,
                     pkg_list, 

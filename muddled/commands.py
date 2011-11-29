@@ -16,30 +16,29 @@ case your programs want to run them themselves
 # XXX somewhat more markup would make the generated documentation better
 # XXX (and more consistent with other muddled modules).
 
-from db import Database
-from depend import Label, label_list_to_string
-import depend
-import env_store
-import instr
-import mechanics
-import pkg
-import test
-import time
-import utils
-import version_control
-
 import difflib
 import os
-import xml.dom.minidom
-import subst
+import pydoc
 import subprocess
 import sys
-import urllib
 import textwrap
-import pydoc
-from db import InstructionFile
+import time
+import urllib
+import xml.dom.minidom
 from urlparse import urlparse
-from utils import VersionStamp, GiveUp, MuddleBug, Unsupported, \
+
+import muddled.depend as depend
+import muddled.env_store as env_store
+import muddled.instr as instr
+import muddled.mechanics as mechanics
+import muddled.pkg as pkg
+import muddled.subst as subst
+import muddled.utils as utils
+import muddled.version_control as version_control
+
+from muddled.db import Database, InstructionFile
+from muddled.depend import Label, label_list_to_string
+from muddled.utils import VersionStamp, GiveUp, MuddleBug, Unsupported, \
         DirType, LabelTag, LabelType
 
 # Following Richard's naming conventions...
@@ -374,7 +373,7 @@ class CheckoutCommand(Command):
         # And just pretend that was what the user asked us to do
         return self.decode_args(builder, map(str, arg_list), current_dir)
 
-    def build_these_labels(self, builder, checkouts, switches=[]):
+    def build_these_labels(self, builder, checkouts, switches=None):
         """
         Do whatever is necessary to each label
         """
@@ -666,42 +665,20 @@ class DeploymentCommand(Command):
         what, label, domain = builder.find_location_in_tree(current_dir)
         arg_list = []
 
-        if True:
-            if label:
-                arg_list.append(label)
-            else:
-                # XXX Arguably we should decide what to do based on our
-                # XXX location, but just going for the default deployments
-                # XXX actually seems sensible.
-                # XXX Caveat: is that so sensible inside a subdomain?
-                arg_list = self.default_deployment_labels(builder)
-
-            if not arg_list:
-                raise GiveUp('Not sure which deployment(s) you want')
-
-            # And just pretend that was what the user asked us to do
-            return self.decode_args(builder, map(str, arg_list), current_dir)
+        if label:
+            arg_list.append(label)
         else:
-            if what == DirType.Deployed:
-                if label is None:   # XXX This should actually decide for us
-                    raise GiveUp('Not sure which deployment you want')
-                # We're actually inside a deployment - job done
-                arg_list.append(label.copy_with_tag(self.required_tag))
-            else:
-                # The best we can do is to use the default deployments
-                arg_list = self.default_deployment_labels(builder)
+            # XXX Arguably we should decide what to do based on our
+            # XXX location, but just going for the default deployments
+            # XXX actually seems sensible.
+            # XXX Caveat: is that so sensible inside a subdomain?
+            arg_list = self.default_deployment_labels(builder)
 
-            arg_set = set()
-            expand_wildcards = builder.invocation.expand_wildcards
-            for label in arg_list:
-                if label.is_definite():
-                    arg_set.add(label)
-                else:
-                    arg_set.update(expand_wildcards(builder, label,
-                        default_to_obvious=False, wildcard_tag=self.required_tag))
+        if not arg_list:
+            raise GiveUp('Not sure which deployment(s) you want')
 
-            # And just pretend that was what the user asked us to do
-            return self.decode_args(builder, map(str, arg_set), current_dir)
+        # And just pretend that was what the user asked us to do
+        return self.decode_args(builder, map(str, arg_list), current_dir)
 
     def default_deployment_labels(self, builder):
         """
@@ -751,8 +728,6 @@ class AnyLabelCommand(Command):
         """
         Turn the arguments into full labels.
         """
-        result_set = set()
-
         # Build up an initial list from the arguments given
         # Make sure we have a one-for-one correspondence between the input
         # list and the result

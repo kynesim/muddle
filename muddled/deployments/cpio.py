@@ -11,6 +11,8 @@ cpio in copy-through mode to convert the archive to
 cpio. Ugh.
 """
 
+import types
+import os
 
 import muddled
 import muddled.pkg as pkg
@@ -19,14 +21,14 @@ import muddled.depend as depend
 import muddled.utils as utils
 import muddled.deployment as deployment
 import muddled.cpiofile as cpiofile
-import types
-import os
+
+from muddled.depend import Action
 
 class CpioInstructionImplementor:
     def apply(self, builder, instruction, role, path):
         pass
 
-class CpioDeploymentBuilder(pkg.Action):
+class CpioDeploymentBuilder(Action):
     """
     Builds the specified CPIO deployment.
     """

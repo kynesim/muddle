@@ -2,11 +2,11 @@
 Routines which deal with version control.
 """
 
-import utils
-
 import re
-import pkg
 import os
+
+import muddled.pkg as pkg
+import muddled.utils as utils
 
 branch_and_revision_re = re.compile("([^:]*):(.*)$")
 

@@ -2,52 +2,9 @@
 Routines for manipulating packages and checkouts.
 """
 
-import utils
-import depend
-import muddled.pkg
-
-class Action:
-    """
-    Represents an object you can call to build a tag.
-    """
-
-    def build_label(self, builder, label):
-        """
-        Build the given label. Your dependencies have been satisfied.
-
-        * in_deps -  Is the set whose dependencies have been satisified.
-
-        Returns True on success, False or throw otherwise.
-        """
-        pass
-
-    # It may be necessary to declare the following methods, to enable
-    # sub-domains to work properly:
-    #
-    # _mark_unswept()
-    # _change_domain(new_domain)
-    #
-    #    which are used together to change domains within the Action,
-    #    that are not contained within Labels.
-    #
-    # _inner_labels()
-    #
-    #    which returns a list of those Labels contained "inside" the Action,
-    #    which might not otherwise be moved to the new domain.
-
-
-class SequentialAction:
-    """
-    Invoke two actions in turn
-    """
-
-    def __init__(self, a, b) :
-        self.a = a
-        self.b = b
-
-    def build_label(self, builder, label):
-        self.a.build_label(builder, label)
-        self.b.build_label(builder, label)
+import muddled.utils as utils
+import muddled.depend as depend
+from muddled.depend import Action
 
 class ArchSpecificAction:
     """
@@ -444,7 +401,7 @@ def set_checkout_vcs_option(builder, label, **kwargs):
         raise utils.GiveUp('set_checkout_vcs_option called on non-checkout %s'%label)
     for rule in builder.invocation.ruleset.rules_for_target(label):
         if rule.action is not None:
-            if not isinstance(rule.action, muddled.pkg.VcsCheckoutBuilder):
+            if not isinstance(rule.action, VcsCheckoutBuilder):
                 raise utils.MuddleBug('rule for checkout %s had a non-builder'
                         ' object of type %s'%(label, rule.action.__class__.__name__))
             rule.action.vcs.add_options(kwargs)

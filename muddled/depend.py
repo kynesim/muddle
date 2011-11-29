@@ -5,8 +5,7 @@ Dependency sets and dependency management
 import re
 import copy
 
-import pkg
-import utils
+import muddled.utils as utils
 
 class Label(object):
     """
@@ -861,6 +860,48 @@ def label_from_string(str):
     """
     return Label.from_string(str)
 
+class Action:
+    """
+    Represents an object you can call to "build" a tag.
+    """
+
+    def build_label(self, builder, label):
+        """
+        Build the given label. Your dependencies have been satisfied.
+
+        * in_deps -  Is the set whose dependencies have been satisified.
+
+        Returns True on success, False or throw otherwise.
+        """
+        pass
+
+    # It may be necessary to declare the following methods, to enable
+    # sub-domains to work properly:
+    #
+    # _mark_unswept()
+    # _change_domain(new_domain)
+    #
+    #    which are used together to change domains within the Action,
+    #    that are not contained within Labels.
+    #
+    # _inner_labels()
+    #
+    #    which returns a list of those Labels contained "inside" the Action,
+    #    which might not otherwise be moved to the new domain.
+
+
+class SequentialAction:
+    """
+    Invoke two actions in turn
+    """
+
+    def __init__(self, a, b) :
+        self.a = a
+        self.b = b
+
+    def build_label(self, builder, label):
+        self.a.build_label(builder, label)
+        self.b.build_label(builder, label)
 
 class Rule:
     """
@@ -901,7 +942,7 @@ class Rule:
 
         self.target = target_dep
         self.action = action
-        if (self.action is not None) and (not isinstance(action, pkg.Action)):
+        if (self.action is not None) and (not isinstance(action, Action)):
             raise utils.MuddleBug("Attempt to create a rule with an object rule "
                               "which isn't an action but a %s."%(action.__class__.__name__))
 
@@ -945,7 +986,7 @@ class Rule:
                 if replaceOnDuplicate:
                     self.action = other_rule.action
                 else:
-                    self.action = pkg.SequentialAction(self.action, other_rule.action)
+                    self.action = SequentialAction(self.action, other_rule.action)
 
         #print "catenate and merge for target = %s"%(self.target)
         self.deps.union(other_rule.deps)

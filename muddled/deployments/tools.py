@@ -7,15 +7,18 @@ Instructions are ignored - there's no reason to follow them
 (yet) and it's simpler not to.
 """
 
+import os
+
 import muddled
 import muddled.pkg as pkg
 import muddled.env_store
 import muddled.depend as depend
 import muddled.utils as utils
-import os
 import muddled.deployment as deployment
 
-class ToolsDeploymentBuilder(pkg.Action):
+from muddled.depend import Action
+
+class ToolsDeploymentBuilder(Action):
     """
     Copy the dependent roles into the tools deployment.
     """

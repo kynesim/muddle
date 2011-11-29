@@ -7,12 +7,15 @@ other parts of the system into a directory -
 usually to be processed by some external tool.
 """
 
+import os
+
 import muddled.pkg as pkg
 import muddled.depend as depend
 import muddled.utils as utils
 import muddled.filespec as filespec
 import muddled.deployment as deployment
-import os
+
+from muddled.depend import Action
 
 class CollectInstructionImplementor:
     def prepare(self, builder, instruction, role, path):
@@ -73,7 +76,7 @@ class AssemblyDescriptor:
         else:
             raise utils.GiveUp("Label %s for collection action has unknown kind."%(self.from_label))
 
-class CollectDeploymentBuilder(pkg.Action):
+class CollectDeploymentBuilder(Action):
     """
     Builds the specified collect deployment.
     """

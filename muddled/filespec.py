@@ -5,8 +5,8 @@ purposes of deployment instructions
 
 import re
 import os
-import os.path
-import utils
+
+import muddled.utils as utils
 
 class FileSpecDataProvider:
     """

@@ -15,7 +15,7 @@ import muddled.version_control as version_control
 import muddled.env_store as env_store
 import muddled.instr as instr
 
-from muddled.depend import Label
+from muddled.depend import Label, Action
 from muddled.utils import domain_subpath, GiveUp, LabelType, LabelTag
 
 class Invocation:
@@ -1469,7 +1469,7 @@ class Builder(object):
         return result
 
 
-class BuildDescriptionAction(pkg.Action):
+class BuildDescriptionAction(Action):
     """
     Load the build description.
     """

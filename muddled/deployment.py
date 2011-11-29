@@ -2,12 +2,14 @@
 Common rules for deployments - basically just the clean rules.
 """
 
-import depend
-import utils
-import pkg
-import env_store
+import muddled.depend as depend
+import muddled.env_store as env_store
+import muddled.pkg as pkg
+import muddled.utils as utils
 
-class CleanDeploymentBuilder(pkg.Action):
+from muddled.depend import Action
+
+class CleanDeploymentBuilder(Action):
     def __init__(self):
         pass
         

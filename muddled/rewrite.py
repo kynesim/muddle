@@ -14,10 +14,11 @@ target filesystem.
 
 """
 
-import utils
 import stat
 import os
 import re
+
+import muddled.utils as utils
 
 def parse_line(l):
     """

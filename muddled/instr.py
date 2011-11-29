@@ -2,11 +2,12 @@
 Routines and classes which cope with instructions
 """
 
-import db
 import xml.dom
 import xml.dom.minidom
-import utils
-import filespec
+
+import muddled.db as db
+import muddled.utils as utils
+import muddled.filespec as filespec
 
 class ChangeUserInstruction(db.Instruction):
     """

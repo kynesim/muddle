@@ -5,10 +5,11 @@ There is apparently no standard way to do this from python.
 Ugh.
 """
 
-import utils
-import stat
-import filespec
 import os
+import stat
+
+import muddled.utils as utils
+import muddled.filespec as filespec
 
 class File:
     """

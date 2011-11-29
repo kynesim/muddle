@@ -5,12 +5,15 @@ appropriate instructions.
 """
 
 import os
+
 import muddled.pkg as pkg
 import muddled.env_store
 import muddled.depend as depend
 import muddled.utils as utils
 import muddled.filespec as filespec
 import muddled.deployment as deployment
+
+from muddled.depend import Action
 
 class FileInstructionImplementor:
     def apply(self, builder, instruction, role, path):
@@ -20,7 +23,7 @@ class FileInstructionImplementor:
         pass
 
 
-class FileDeploymentBuilder(pkg.Action):
+class FileDeploymentBuilder(Action):
     """
     Builds the specified file deployment
     """

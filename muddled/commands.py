@@ -203,6 +203,11 @@ class Command(object):
 class CheckoutCommand(Command):
     """
     A Command that takes checkout arguments. Always requires a build tree.
+
+    If no explicit labels are given, then the default is to find all the
+    checkouts below the current directory. If '-l' or '-local' is specified,
+    then only checkouts in the current domain will be used. This does not
+    override labels given explicitly by the user.
     """
 
     # Subclasses may override this if necessary
@@ -214,7 +219,12 @@ class CheckoutCommand(Command):
     # given switch. The first form given will be the one remembered
     # XXX and undoubtedly should do something more sophisticated, e.g.,
     #     with argparse
-    allowed_switches = []
+    # XXX and it is very clumsy that I have to ADD to this in the subclasses
+    #     to get the effect I want - maybe some magic should be introduced
+    #     so that this is not necessary...
+    allowed_switches = [('-l', '-local')]
+
+    this_domain_only = False
 
     def with_build_tree(self, builder, current_dir, args):
 
@@ -232,6 +242,10 @@ class CheckoutCommand(Command):
                 if is_label:
                     label_args.append(arg)
             args = label_args
+
+            if '-l' in switches:
+                self.this_domain_only = True
+                switches.remove('-l')
 
         if args:
             # Expand out any labels that need it
@@ -339,8 +353,15 @@ class CheckoutCommand(Command):
             arg_list.append(label)
         elif what in (DirType.Checkout, DirType.Root, DirType.DomainRoot):
             # We're somewhere that we expect to have checkouts below
-            # XXX Should we restrict ourselves to the current domain?
-            arg_list.extend(builder.get_all_checkout_labels_below(current_dir))
+            checkouts_below = builder.get_all_checkout_labels_below(current_dir)
+            if self.this_domain_only:
+                # Restrict ourselves to checkouts in the current domain
+                for co in checkouts_below:
+                    if co.domain == domain:
+                        arg_list.append(co)
+            else:
+                # Take any checkouts below here
+                arg_list.extend(checkouts_below)
         elif label: # We're actually inside a place that knows its package label
             arg_list.append(label)
         else:
@@ -3689,7 +3710,7 @@ class Push(CheckoutCommand):
     """
 
     required_tag = LabelTag.ChangesPushed
-    allowed_switches = [('-s', '-stop')]
+    allowed_switches = CheckoutCommand.allowed_switches + [('-s', '-stop')]
 
     def build_these_labels(self, builder, labels, switches):
 
@@ -3749,7 +3770,7 @@ class Pull(CheckoutCommand):
     """
 
     required_tag = LabelTag.Fetched
-    allowed_switches = [('-s', '-stop')]
+    allowed_switches = CheckoutCommand.allowed_switches + [('-s', '-stop')]
 
     def build_these_labels(self, builder, labels, switches):
 
@@ -3818,7 +3839,7 @@ class Merge(CheckoutCommand):
     """
 
     required_tag = LabelTag.Merged
-    allowed_switches = [('-s', '-stop')]
+    allowed_switches = CheckoutCommand.allowed_switches + [('-s', '-stop')]
 
     def build_these_labels(self, builder, labels, switches):
 
@@ -3881,7 +3902,8 @@ class Status(CheckoutCommand):
     """
 
     required_tag = LabelTag.Fetched
-    allowed_switches = [('-v',)]        # Remember, a list of *tuples*
+    # Remember, it's a list of *tuples*, so we need the comma after '-v'
+    allowed_switches = CheckoutCommand.allowed_switches + [('-v',)]
 
     def build_these_labels(self, builder, labels, switches):
 
@@ -3941,7 +3963,7 @@ class Reparent(CheckoutCommand):
     """
 
     required_tag = LabelTag.Fetched
-    allowed_switches = [('-f', '-force')]
+    allowed_switches = CheckoutCommand.allowed_switches + [('-f', '-force')]
 
     def build_these_labels(self, builder, labels, switches):
 

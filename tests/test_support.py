@@ -73,6 +73,19 @@ def get_stdout(cmd, verbose=True):
         raise ShellError(cmd, retcode)
     return stdoutdata
 
+def get_stdout2(cmd, verbose=True):
+    """Run a command in the shell, and grab its (standard) output and retcode
+
+    Returns (retcode, stdout)
+    """
+    if verbose:
+        print ">> %s"%cmd
+    p = subprocess.Popen(cmd, shell=True, stdout=subprocess.PIPE,
+                         stderr=subprocess.PIPE)
+    stdoutdata, stderrdata = p.communicate()
+    retcode = p.returncode
+    return retcode, stdoutdata
+
 
 def muddle(args, verbose=True):
     """Pretend to be muddle

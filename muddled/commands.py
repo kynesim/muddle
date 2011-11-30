@@ -3775,7 +3775,7 @@ class Pull(CheckoutCommand):
 
         if not_needed:
             print '\nThe following pulls were not needed:\n'
-            for e in problems:
+            for e in not_needed:
                 print str(e).rstrip()
                 print
 

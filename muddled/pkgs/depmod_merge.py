@@ -78,10 +78,8 @@ def predicate_is_module_db(name):
     
 
 def predicate_is_kernel_module(name):
-    global g_kmodule_re
-    
     b = os.path.basename(name)
-    if (g_kmodule_re.match(b) is not None):
+    if g_kmodule_re.match(b) is not None:
         return name
     else:
         return None

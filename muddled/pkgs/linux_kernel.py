@@ -1,6 +1,10 @@
 """
 Builds a Linux kernel based on a checkout and some data about
 where your config file resides.
+
+XXX DEPRECATION WARNING - this whole module is deprecated. It is not
+XXX portable for cross-compilation, and compared to using a simple
+XXX Makefile.muddle, it is quite hard to understand.
 """
 
 import muddled.pkg as pkg

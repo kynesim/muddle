@@ -124,7 +124,7 @@ def medium(builder, name, roles, script_name, deployments = [ ],
                                     writeSetvarsPy = writeSetvarsPy)
         pkg.add_package_rules(builder.invocation.ruleset, 
                               name, role, the_pkg)
-    setup_default_env(builder, get_env(builder, name, role))
+        setup_default_env(builder, get_env(builder, name, role))
 
 
 def setup_default_env(builder, env_store):

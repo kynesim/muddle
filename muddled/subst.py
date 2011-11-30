@@ -98,7 +98,7 @@ class PushbackInputStream:
     """
     
     def __init__(self, str):
-        self.input = str;
+        self.input = str
         self.idx = 0
         self.pushback_char = -1
         self.line = 1
@@ -118,7 +118,8 @@ class PushbackInputStream:
             res = self.input[i]
 
         if (res == '\n'):
-            self.char = 1; self.line = self.line + 1
+            self.char = 1
+            self.line = self.line + 1
         elif (res != -1):
             self.char = self.char + 1
             
@@ -325,7 +326,7 @@ class TreeNode:
     def echo(self, xml_doc, env, output_list):
         # Just echo your parameters.
         for p in self.params:
-             p.eval(xml_doc, env, output_list)
+            p.eval(xml_doc, env, output_list)
 
 
 
@@ -515,7 +516,7 @@ def parse_instruction(input_stream, node):
             raise utils.GiveUp("Literal instruction @ %s never ends"%(old_report))
 
         skip_whitespace(input_stream)
-        c = input_stream.next();
+        c = input_stream.next()
         if (c != '}'):
             # Rats
             raise utils.GiveUp("Syntax Error - no end to literal instruction @ %s"%

@@ -6,7 +6,6 @@ appropriate instructions.
 
 import os
 
-import muddled.pkg as pkg
 import muddled.env_store
 import muddled.depend as depend
 import muddled.utils as utils

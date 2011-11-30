@@ -4,7 +4,6 @@ Common rules for deployments - basically just the clean rules.
 
 import muddled.depend as depend
 import muddled.env_store as env_store
-import muddled.pkg as pkg
 import muddled.utils as utils
 
 from muddled.depend import Action

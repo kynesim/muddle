@@ -140,7 +140,7 @@ class VersionControlSystem(object):
         We shall default to the distributed answer, and individual
         VCS support can override if necessary.
         """
-        False
+        return False
 
 
 class VersionControlHandler(object):

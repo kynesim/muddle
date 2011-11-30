@@ -74,7 +74,7 @@ def _cmdline(args, current_dir, original_env, muddle_binary):
         elif word == '--tree':
             args = args[1:]
             specified_root = args[0]
-        elif word == '-n' or word == "--just-print":
+        elif word in ('-n', "--just-print"):
             command_options["no_operation"] = True
         elif word[0] == '-':
             raise utils.GiveUp, "Unexpected command line option %s"%word

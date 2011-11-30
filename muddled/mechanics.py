@@ -109,7 +109,7 @@ class Invocation:
         """
         Add (r1,r2) to the list of role pairs that do not share their libraries.
         """
-        self.banned_roles.append((r1,domain1, r2,domain2));
+        self.banned_roles.append((r1,domain1, r2,domain2))
 
     def print_banned_roles(self):
         print "[ "
@@ -397,8 +397,8 @@ class Invocation:
                     if (copied_label in new_env):
                         a_store.merge(new_env[copied_label])
 
-                    a_store.merge(v);
-                    new_env[copied_label] = a_store;
+                    a_store.merge(v)
+                    new_env[copied_label] = a_store
         
         for (k,v) in new_env.items():
             self.env[k] = v

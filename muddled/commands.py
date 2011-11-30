@@ -262,7 +262,7 @@ class CheckoutCommand(Command):
         elif not args:
             print '%s %s'%(self.cmd_name, label_list_to_string(labels))
 
-        self.build_these_labels(builder, labels, switches)
+        self.build_these_labels(builder, labels, switches=None)
 
     def decode_args(self, builder, args, current_dir):
         """
@@ -3652,7 +3652,7 @@ class Commit(CheckoutCommand):
     # XXX Is this correct?
     required_tag = LabelTag.ChangesCommitted
 
-    def build_these_labels(self, builder, labels, switches):
+    def build_these_labels(self, builder, labels, switches=None):
         # Forcibly retract all the updated tags.
         for co in labels:
             builder.kill_label(co)
@@ -3687,7 +3687,7 @@ class Push(CheckoutCommand):
     required_tag = LabelTag.ChangesPushed
     allowed_switches = CheckoutCommand.allowed_switches + [('-s', '-stop')]
 
-    def build_these_labels(self, builder, labels, switches):
+    def build_these_labels(self, builder, labels, switches=None):
 
         if switches and '-s' in switches:
             stop_on_problem = True
@@ -3747,7 +3747,7 @@ class Pull(CheckoutCommand):
     required_tag = LabelTag.Fetched
     allowed_switches = CheckoutCommand.allowed_switches + [('-s', '-stop')]
 
-    def build_these_labels(self, builder, labels, switches):
+    def build_these_labels(self, builder, labels, switches=None):
 
         if switches and '-s' in switches:
             stop_on_problem = True
@@ -3816,7 +3816,7 @@ class Merge(CheckoutCommand):
     required_tag = LabelTag.Merged
     allowed_switches = CheckoutCommand.allowed_switches + [('-s', '-stop')]
 
-    def build_these_labels(self, builder, labels, switches):
+    def build_these_labels(self, builder, labels, switches=None):
 
         if switches and '-s' in switches:
             stop_on_problem = True
@@ -3880,7 +3880,7 @@ class Status(CheckoutCommand):
     # Remember, it's a list of *tuples*, so we need the comma after '-v'
     allowed_switches = CheckoutCommand.allowed_switches + [('-v',)]
 
-    def build_these_labels(self, builder, labels, switches):
+    def build_these_labels(self, builder, labels, switches=None):
 
         if switches and '-v' in switches:
             verbose = True
@@ -3940,7 +3940,7 @@ class Reparent(CheckoutCommand):
     required_tag = LabelTag.Fetched
     allowed_switches = CheckoutCommand.allowed_switches + [('-f', '-force')]
 
-    def build_these_labels(self, builder, labels, switches):
+    def build_these_labels(self, builder, labels, switches=None):
 
         if switches and '-f' in switches:
             force = True
@@ -3970,7 +3970,7 @@ class Removed(CheckoutCommand):
     below the current directory.
     """
 
-    def build_these_labels(self, builder, labels, switches):
+    def build_these_labels(self, builder, labels, switches=None):
         for c in labels:
             builder.kill_label(c)
 
@@ -3988,7 +3988,7 @@ class Unimport(CheckoutCommand):
     below the current directory.
     """
 
-    def build_these_labels(self, builder, labels, switches):
+    def build_these_labels(self, builder, labels, switches=None):
         for c in labels:
             builder.invocation.db.clear_tag(c)
 
@@ -4021,7 +4021,7 @@ class Import(CheckoutCommand):
         self.args = args
         super(Import, self).with_build_tree(builder, current_dir, args)
 
-    def build_these_labels(self, builder, labels, switches):
+    def build_these_labels(self, builder, labels, switches=None):
         for c in labels:
             builder.invocation.db.set_tag(c)
         # issue 143: Call reparent so the VCS is locked and loaded.
@@ -4076,7 +4076,7 @@ class UnCheckout(CheckoutCommand):
     has already been removed.
     """
 
-    def build_these_labels(self, builder, labels, switches):
+    def build_these_labels(self, builder, labels, switches=None):
         for co in labels:
             builder.kill_label(co)
 
@@ -4093,7 +4093,7 @@ class Checkout(CheckoutCommand):
     'checkout _all' means checkout all checkouts.
     """
 
-    def build_these_labels(self, builder, labels, switches):
+    def build_these_labels(self, builder, labels, switches=None):
         for co in labels:
             builder.build_label(co)
 

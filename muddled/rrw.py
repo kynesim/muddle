@@ -8,7 +8,7 @@ import os
 
 import muddled.utils as utils
 
-import deployments.tools as dep_tools
+import muddled.deployments.tools as dep_tools
 import muddled.checkouts.simple as co_simple
 import muddled.checkouts.twolevel as co_twolevel
 import muddled.depend as depend

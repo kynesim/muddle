@@ -183,7 +183,7 @@ class Subversion(VersionControlSystem):
         """
         Subversion recommends doing 'commit' before "fetch" (i.e., pull/update)
         """
-        True
+        return True
 
 # Tell the version control handler about us..
 register_vcs_handler("svn", Subversion())

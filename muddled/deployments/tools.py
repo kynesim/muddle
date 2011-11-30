@@ -10,7 +10,6 @@ Instructions are ignored - there's no reason to follow them
 import os
 
 import muddled
-import muddled.pkg as pkg
 import muddled.env_store
 import muddled.depend as depend
 import muddled.utils as utils

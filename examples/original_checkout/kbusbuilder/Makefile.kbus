@@ -1,7 +1,7 @@
 # A muddle Makefile for kbus.
 # Actually quite easy, since kbus does most of the work for us.
 
-# First, where is kbus itself? 
+# First, where is kbus itself?
 KBUS_SRC=$(shell $(MUDDLE) query dir "checkout:kbus{*}/*")
 all:
 	$(MAKE) -C $(KBUS_SRC) O=$(MUDDLE_OBJ) all

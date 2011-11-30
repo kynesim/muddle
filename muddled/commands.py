@@ -1,5 +1,5 @@
 """
-Muddle commands - these get run more or less directly by 
+Muddle commands - these get run more or less directly by
 the main muddle command and are abstracted out here in
 case your programs want to run them themselves
 """
@@ -577,7 +577,7 @@ class DeploymentCommand(Command):
         label_from_fragment = builder.invocation.label_from_fragment
         for word in args:
             if word == "_all":
-                # Everything .. 
+                # Everything ..
                 return_list = self.all_deployment_labels(builder, default_domain)
                 return_list.sort()
                 return return_list
@@ -642,7 +642,7 @@ class DeploymentCommand(Command):
         """
 
         # Important not to set tag here - if there's a deployment
-        # which doesn't have the right tag, we want an error, 
+        # which doesn't have the right tag, we want an error,
         # not to silently ignore it.
         match_lbl = Label(LabelType.Deployment, "*", None, domain="*")
         matching = builder.invocation.ruleset.rules_for_target(match_lbl)
@@ -1031,7 +1031,7 @@ class Root(Command):
 
     def with_build_tree(self, builder, current_dir, args):
         print "%s"%(builder.invocation.db.root_path)
-        
+
     def without_build_tree(self, muddle_binary, root_path, args):
         print "<uninitialized> %s"%(root_path)
 
@@ -1073,9 +1073,9 @@ class Init(Command):
         return False
 
     def with_build_tree(self, builder, current_dir, args):
-        raise GiveUp("Can't initialise a build tree " 
+        raise GiveUp("Can't initialise a build tree "
                     "when one already exists (%s)"%builder.invocation.db.root_path)
-    
+
     def without_build_tree(self, muddle_binary, root_path, args):
         """
         Initialise a build tree.
@@ -1303,7 +1303,7 @@ class Depend(Command):
 
     def requires_build_tree(self):
         return True
-    
+
     def without_build_tree(self, muddle_binary, root_path, args):
         raise GiveUp("Cannot run without a build tree")
 
@@ -1312,7 +1312,7 @@ class Depend(Command):
             print "Syntax: dependencies [system|user|all][-short] <label to match>"
             print self.__doc__
             return
-        
+
         type = args[0]
         if len(args) == 2:
             label = Label.from_string(args[1])
@@ -1340,8 +1340,8 @@ class Depend(Command):
         else:
             raise GiveUp("Bad dependency type: %s"%(type))
 
-        
-        print builder.invocation.ruleset.to_string(matchLabel = label, 
+
+        print builder.invocation.ruleset.to_string(matchLabel = label,
                                                    showSystem = show_sys, showUser = show_user,
                                                    ignore_empty = ignore_empty)
 
@@ -1652,7 +1652,7 @@ class QueryDir(QueryCommand):
     :Syntax: query dir <label>
 
     Print a directory:
-        
+
     * for checkout labels, the checkout directory
     * for package labels, the install directory
     * for deployment labels, the deployment directory
@@ -2138,12 +2138,12 @@ class RunIn(Command):
                 if (lbl.type == LabelType.Checkout):
                     dir = builder.invocation.checkout_path(lbl)
                 elif (lbl.type == LabelType.Package):
-                    if (lbl.role == "*"): 
+                    if (lbl.role == "*"):
                         continue
                     dir = builder.invocation.package_obj_path(lbl)
                 elif (lbl.type == LabelType.Deployment):
                     dir = builder.invocation.deploy_path(lbl.name)
-                    
+
                 if (dir in dirs_done):
                     continue
 
@@ -2246,7 +2246,7 @@ class Instruct(Command):
             filename = args[1]
 
             if (not os.path.exists(filename)):
-                raise GiveUp("Attempt to register instructions in " 
+                raise GiveUp("Attempt to register instructions in "
                                     "%s: file does not exist"%filename)
 
             # Try loading it.
@@ -3558,7 +3558,7 @@ class Rebuild(PackageCommand):
     """
     :Syntax: rebuild [ <package>{<role>} ... ]
 
-    Just like build except that we clear any built tags first 
+    Just like build except that we clear any built tags first
     (and their dependencies).
     """
 

@@ -11,7 +11,7 @@
   <!-- There's something to be said for making all files be owned by
        root (it makes the system look tidier), but on the other hand
        it involves changing *all* files -->
-  <!-- 
+  <!--
   <chown>
     <filespec>
       <root>/rootfs</root>
@@ -33,7 +33,7 @@
   </chmod>
 
   <!-- Everyone needs access to /tmp -->
-  <chmod> 
+  <chmod>
     <filespec>
       <root>/rootfs</root>
       <spec>tmp</spec>
@@ -45,7 +45,7 @@
   <!-- Frustratingly, this doesn't take a <filespec> (which is always relative -->
   <!-- to $MUDDLE_INSTALL), but an absolute name. So don't start it with '/'   -->
   <!-- if that isn't what one *really* means                                   -->
-  <mknod> 
+  <mknod>
     <name>rootfs/dev/console</name>
     <uid>0</uid>
     <gid>0</gid>

@@ -1,7 +1,7 @@
 """
 Collect deployment.
 
-Principally depending on other deployments, this 
+Principally depending on other deployments, this
 deployment is used to collect elements built by
 other parts of the system into a directory -
 usually to be processed by some external tool.
@@ -30,14 +30,14 @@ class CollectInstructionImplementor:
         pass
 
 class AssemblyDescriptor:
-    def __init__(self, from_label, from_rel, to_name, recursive = True, 
-                 failOnAbsentSource = False, 
+    def __init__(self, from_label, from_rel, to_name, recursive = True,
+                 failOnAbsentSource = False,
                  copyExactly = True,
                  usingRSync = False):
         """
         Construct an assembly descriptor.
 
-        We copy from the directory from_rel in from_label 
+        We copy from the directory from_rel in from_label
         (package, deployment, checkout) to the name to_name under
         the deployment.
 
@@ -58,12 +58,12 @@ class AssemblyDescriptor:
         self.fail_on_absent_source = failOnAbsentSource
         self.copy_exactly = copyExactly
 
-        
+
     def get_source_dir(self, builder):
         if (self.from_label.type == utils.LabelType.Checkout):
             return builder.invocation.checkout_path(self.from_label)
         elif (self.from_label.type == utils.LabelType.Package):
-            if ((self.from_label.name is None) or 
+            if ((self.from_label.name is None) or
                 self.from_label.name == "*"):
                 return builder.invocation.role_install_path(self.from_label.role,
                                                             domain=self.from_label.domain)
@@ -113,7 +113,7 @@ class CollectDeploymentBuilder(Action):
     def deploy(self, builder, label):
         for asm in self.assemblies:
             src = os.path.join(asm.get_source_dir(builder), asm.from_rel)
-            dst = os.path.join(builder.invocation.deploy_path(label.name, domain=label.domain), 
+            dst = os.path.join(builder.invocation.deploy_path(label.name, domain=label.domain),
                                asm.to_name)
 
             if (not os.path.exists(src)):
@@ -157,13 +157,13 @@ class CollectDeploymentBuilder(Action):
                     # Deliberately do not break - we want to check everything for
                     # validity before acquiring privilege.
                     else:
-                        raise utils.GiveUp("Collect deployments don't know about " + 
-                                            "instruction %s"%iname + 
+                        raise utils.GiveUp("Collect deployments don't know about " +
+                                            "instruction %s"%iname +
                                             " found in label %s (filename %s)"%(lbl, fn))
 
 
         print "Rerunning muddle to apply instructions .. "
-        
+
         permissions_label = depend.Label(utils.LabelType.Deployment,
                                          label.name, None, # XXX label.role,
                                          utils.LabelTag.InstructionsApplied,
@@ -171,10 +171,10 @@ class CollectDeploymentBuilder(Action):
 
         if need_root:
             print "I need root to do this - sorry! - running sudo .."
-            utils.run_cmd("sudo %s buildlabel '%s'"%(builder.muddle_binary, 
+            utils.run_cmd("sudo %s buildlabel '%s'"%(builder.muddle_binary,
                                                      permissions_label))
         else:
-            utils.run_cmd("%s buildlabel '%s'"%(builder.muddle_binary, 
+            utils.run_cmd("%s buildlabel '%s'"%(builder.muddle_binary,
                                                 permissions_label))
 
     def apply_instructions(self, builder, label, prepare):
@@ -222,7 +222,7 @@ def deploy(builder, name):
 
     deployment_rule = depend.Rule(dep_label, the_action)
 
-    # We need to clean it as well, annoyingly .. 
+    # We need to clean it as well, annoyingly ..
     deployment.register_cleanup(builder, name)
 
     builder.invocation.ruleset.add(deployment_rule)
@@ -233,24 +233,24 @@ def deploy(builder, name):
                               transient = True)
     iapp_rule = depend.Rule(iapp_label, the_action)
     builder.invocation.ruleset.add(iapp_rule)
-    
 
-def copy_from_checkout(builder, name, checkout, rel, dest, 
-                       recursive = True, 
-                       failOnAbsentSource = False, 
+
+def copy_from_checkout(builder, name, checkout, rel, dest,
+                       recursive = True,
+                       failOnAbsentSource = False,
                        copyExactly = True,
                        domain = None,
                        usingRSync = False):
     rule = deployment.deployment_rule_from_name(builder, name)
-    
+
     dep_label = depend.Label(utils.LabelType.Checkout,
-                             checkout, 
+                             checkout,
                              None,
                              utils.LabelTag.CheckedOut,
                              domain=domain)
 
     asm = AssemblyDescriptor(dep_label, rel, dest, recursive = recursive,
-                             failOnAbsentSource = failOnAbsentSource, 
+                             failOnAbsentSource = failOnAbsentSource,
                              copyExactly = copyExactly,
                              usingRSync = usingRSync)
     rule.add(dep_label)
@@ -268,13 +268,13 @@ def copy_from_package_obj(builder, name, pkg_name, pkg_role, rel,dest,
     """
 
     rule = deployment.deployment_rule_from_name(builder, name)
-    
+
     dep_label = depend.Label(utils.LabelType.Package,
                              pkg_name, pkg_role,
                              utils.LabelTag.Built,
                              domain=domain)
     asm = AssemblyDescriptor(dep_label, rel, dest, recursive = recursive,
-                             failOnAbsentSource = failOnAbsentSource, 
+                             failOnAbsentSource = failOnAbsentSource,
                              copyExactly = copyExactly,
                              usingRSync = usingRSync)
     rule.add(dep_label)
@@ -337,7 +337,7 @@ def copy_from_role_install(builder, name, role, rel, dest,
                              utils.LabelTag.PostInstalled,
                              domain=domain)
     asm = AssemblyDescriptor(dep_label, rel, dest, recursive = recursive,
-                             failOnAbsentSource = failOnAbsentSource, 
+                             failOnAbsentSource = failOnAbsentSource,
                              copyExactly = copyExactly,
                              usingRSync = usingRSync)
     rule.add(dep_label)
@@ -355,12 +355,12 @@ def copy_from_deployment(builder, name, dep_name, rel, dest,
     """
     rule = deployment.deployment_rule_from_name(builder,name)
     dep_label = depend.Label(utils.LabelType.Deployment,
-                             dep_name, 
-                             None, 
+                             dep_name,
+                             None,
                              utils.LabelTag.Deployed,
                              domain=domain)
     asm = AssemblyDescriptor(dep_label, rel, dest, recursive = recursive,
-                             failOnAbsentSource = failOnAbsentSource, 
+                             failOnAbsentSource = failOnAbsentSource,
                              copyExactly = copyExactly,
                              usingRSync = usingRSync)
     rule.add(dep_label)

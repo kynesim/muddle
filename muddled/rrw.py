@@ -18,7 +18,7 @@ import muddled.pkgs.aptget as aptget
 import muddled.pkgs.make as make
 
 def apt_get_install(builder,
-                    pkg_list, 
+                    pkg_list,
                     required_by,
                     pkg_name = "dev_pkgs",
                     role = "dev_pkgs"):
@@ -43,7 +43,7 @@ def apt_get_install(builder,
     aptget.medium(builder, pkg_name, role, pkg_list, required_by)
 
 def setup_tools(builder, roles_that_use_tools = [ "*" ],
-                tools_roles = [ "tools" ] , tools_dep = "tools", 
+                tools_roles = [ "tools" ] , tools_dep = "tools",
                 tools_path_env = "TOOLS_PATH",
                 tools_install = None):
     """
@@ -84,7 +84,7 @@ def setup_tools(builder, roles_that_use_tools = [ "*" ],
             * PATH              - Append $role_deploy/bin
             * PKG_CONFIG_PATH   - Prepend $role_deploy/lib/pkgconfig
             * <role>_TOOLS_PATH  (where <role> is upper-cased) - Prepend
-              $role_deploy/bin 
+              $role_deploy/bin
 
     4. Tell each of the 'tools_roles' that it does not share libraries with
        any other roles.
@@ -103,20 +103,20 @@ def setup_tools(builder, roles_that_use_tools = [ "*" ],
     """
     dep_tools.deploy(builder, tools_dep, roles_that_use_tools, tools_roles)
     deployment.inform_deployment_path(builder, tools_path_env,
-                                      tools_dep, 
+                                      tools_dep,
                                       roles_that_use_tools)
     # Tools roles do not share libraries with anyone else.
     for r in tools_roles:
         builder.roles_do_not_share_libraries(r, "*")
 
 
-def set_gnu_tools(builder, roles, env_prefix, prefix, 
-                  cflags = None, ldflags = None, 
+def set_gnu_tools(builder, roles, env_prefix, prefix,
+                  cflags = None, ldflags = None,
                   asflags = None,
                   archspec = None,
-                  archname = None, 
-                  archroles = [ "*" ], 
-                  domain = None, 
+                  archname = None,
+                  archroles = [ "*" ],
+                  domain = None,
                   dirname = None,
                   cppflags = None,
                   cxxflags = None):
@@ -126,9 +126,9 @@ def set_gnu_tools(builder, roles, env_prefix, prefix,
     like "arm-linux-none-gnueabi-" for ARM)
 
     Environment variables like:
-    
+
       <env_prefix>GCC
-      
+
     end up with values like:
 
       <prefix>gcc
@@ -173,7 +173,7 @@ def set_gnu_tools(builder, roles, env_prefix, prefix,
         set_gnu_tools(builder, ['firmware'], '', ARM_TOOLS_PREFIX)
 
     After this:
-    
+
     * in role 'tools' ${CC} will refer to the version of gcc in
       HOST_TOOLS_PREFIX.
 
@@ -181,9 +181,9 @@ def set_gnu_tools(builder, roles, env_prefix, prefix,
       ARM_TOOLS_PREFIX, and ${HOST_CC} will refer to the "host" gcc in
       HOST_TOOLS_PREFIX.
     """
-    
+
     prefix_list = [ ]
-    if (env_prefix is not None): 
+    if (env_prefix is not None):
         prefix_list.append( (env_prefix, roles) )
 
     if (archname is not None):
@@ -205,7 +205,7 @@ def set_gnu_tools(builder, roles, env_prefix, prefix,
 
         if (archspec is not None):
             binding_list.append(utils.get_prefix_pair(pfx, "ARCHSPEC", "", archspec))
-        
+
 
         if (cflags is not None):
             binding_list.append(utils.get_prefix_pair(pfx, "CFLAGS", "", cflags))
@@ -226,9 +226,9 @@ def set_gnu_tools(builder, roles, env_prefix, prefix,
             binding_list.append(utils.get_prefix_pair(pfx, "COMPILER_TOOLS_DIR", "", dirname))
 
         set_env(builder, croles, binding_list, domain = domain)
-    
 
-def set_global_package_env(builder, name, value, 
+
+def set_global_package_env(builder, name, value,
                                    roles = [ "*" ]):
     """
     Set an environment variable 'name = value' for all of the named roles.
@@ -236,9 +236,9 @@ def set_global_package_env(builder, name, value,
     (The default sets the environment variable globally, i.e., for all roles.)
     """
     for  r in roles:
-        lbl = depend.Label(utils.LabelType.Package, 
-                           "*", 
-                           r, 
+        lbl = depend.Label(utils.LabelType.Package,
+                           "*",
+                           r,
                            "*")
         env = builder.invocation.get_environment_for(lbl)
         env.set(name, value)
@@ -250,8 +250,8 @@ def append_to_path(builder, roles, val):
     """
     for r in roles:
         lbl = depend.Label(utils.LabelType.Package,
-                           "*", 
-                           r, 
+                           "*",
+                           r,
                            "*")
         env = builder.invocation.get_environment_for(lbl)
         env.append("PATH", val)
@@ -276,41 +276,41 @@ def get_domain_param(builder, domain, name):
 def set_env(builder, roles, bindings, domain = None):
     """
     Set environment variable <var> = <value> for every package in the given roles
-    
+
     Bindings is a series of (<var>, <value>) pairs.
     """
     for (x,y) in bindings:
-        pkg.set_env_for_package(builder, "*", roles, 
+        pkg.set_env_for_package(builder, "*", roles,
                                 x,y, domain = domain)
 
-def append_env(builder, roles, bindings, domain = None, 
+def append_env(builder, roles, bindings, domain = None,
                setType = None):
     """
     Set environment variable <var> = <value> for every package in the given roles
-    
+
     Bindings is a series of (<var>, <value>) pairs.
 
-    If setType is specified, we set the type of the environment variable to one 
+    If setType is specified, we set the type of the environment variable to one
      of the types in env_store.py: the most popular of these is EnvType.SimpleValue
      which marks the variable as not a path-type variable.
     """
     for (x,y) in bindings:
-        pkg.append_env_for_package(builder, "*", roles, 
-                                   x,y, domain = domain, 
+        pkg.append_env_for_package(builder, "*", roles,
+                                   x,y, domain = domain,
                                    type = setType)
 
 
-def package_requires(builder, 
+def package_requires(builder,
                      in_pkg, pkg_roles,
                      reqs):
     """
     Register the information that 'in_pkg', built in all of 'pkg_roles',
     require (depends on) 'reqs', which is a list of pairs (<package_name>,
-    <role>) 
+    <role>)
     """
     for (req, req_role) in reqs:
         pkg.depend_across_roles(builder.invocation.ruleset,
-                                in_pkg, pkg_roles, 
+                                in_pkg, pkg_roles,
                                 [ req ] , req_role)
 
 def setup_helpers(builder, helper_name):
@@ -319,15 +319,15 @@ def setup_helpers(builder, helper_name):
     build_with_helper
 
     Basically a wrapper around::
-    
+
       checkouts.simple.relative(builder, helper_name, helper_name)
     """
     co_simple.relative(builder, helper_name, helper_name)
 
-def build_with_helper(builder, helpers, pkg_name, checkout, roles, 
-                      makefileName = None, 
-                      co_dir = None, 
-                      repoRelative = None, 
+def build_with_helper(builder, helpers, pkg_name, checkout, roles,
+                      makefileName = None,
+                      co_dir = None,
+                      repoRelative = None,
                       rev = None):
     """
     Builds a package called 'pkg_name' from a makefile in a helpers checkout
@@ -345,28 +345,28 @@ def build_with_helper(builder, helpers, pkg_name, checkout, roles,
     checkouts.twolevel.relative(). The 'co_dir', 'repoRelative' and 'rev'
     arguments will be used in the obvious ways.
     """
-    
+
     if (makefileName is None):
         makefileName = os.path.join(pkg_name, "Makefile.muddle")
 
-    make.medium(builder, 
-                name = pkg_name, 
-                roles = roles, 
-                checkout = "helpers", 
-                makefileName = makefileName, 
+    make.medium(builder,
+                name = pkg_name,
+                roles = roles,
+                checkout = "helpers",
+                makefileName = makefileName,
                 simpleCheckout = False)
 
-    # Make sure we actually check out .. 
+    # Make sure we actually check out ..
     if (co_dir is None):
         co_simple.relative(builder, checkout, repoRelative, rev)
     else:
         co_twolevel.relative(builder,
-                             co_dir = co_dir, 
+                             co_dir = co_dir,
                              co_name = checkout,
                              repo_relative = repoRelative,
                              rev = rev)
 
-    # Now depend on any additional checkouts .. 
+    # Now depend on any additional checkouts ..
     for r in roles:
         pkg.package_depends_on_checkout(builder.invocation.ruleset,
                                         pkg_name,

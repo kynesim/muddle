@@ -7,7 +7,7 @@ install:
 	(cd $(MUDDLE_OBJ); make install)
 	# Now copy everything over to the install directory ..
 	cp -a $(MUDDLE_OBJ)/_install/* $(MUDDLE_INSTALL)
-	# Link /init in so that initramfs will recognise the existence 
+	# Link /init in so that initramfs will recognise the existence
 	# of our RAMdisc.
 	#ln -fs /sbin/init $(MUDDLE_INSTALL)/init
 	ln -fs /bin/sh $(MUDDLE_INSTALL)/init

@@ -11,7 +11,7 @@ all:
 	# Carefully ignoring modules...
 	$(MAKE_CMD)  uImage
 
-install: 
+install:
 	-mkdir -p $(MUDDLE_INSTALL)/fat32/
 	cp $(MUDDLE_OBJ)/arch/arm/boot/uImage $(MUDDLE_INSTALL)/fat32/
 

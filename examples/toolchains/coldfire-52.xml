@@ -1,6 +1,6 @@
 <?xml version="1.0" ?>
 
-<!-- Sample toolchain descriptor file for 
+<!-- Sample toolchain descriptor file for
      freescale-coldfire-4.4-52-m68k-elf
   -->
 
@@ -18,7 +18,7 @@
       What to?
    -->
  <version>Kynesim Sourcery G++ lite 4.4-52</version>
- 
+
  <!-- Where should bugs go to? (a URL) -->
  <bugurl>https://support.codesourcery.com/GNUToolchain</bugurl>
 
@@ -57,7 +57,7 @@
      <archive>zlib-4.4-52.tar.bz2</archive>
      <dir>zlib-1.2.3</dir>
    </zlib>
-   
+
    <gmp>
      <archive>gmp-4.4-52.tar.bz2</archive>
      <dir>gmp-stable</dir>
@@ -92,6 +92,6 @@
    </gcc>
 
  </sources>
-   
+
 
 </toolchain>

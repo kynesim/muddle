@@ -25,7 +25,7 @@ def parse_line(l):
     Parse the given line, returning (key, value) or (None, None) if it
     wasn't valid
     """
-    
+
     idx = l.find('=')
     if (idx < 0):
         return (None, None)
@@ -86,7 +86,7 @@ def subst_la(builder, current, dir, libPath, includePath, execPrefix):
 
                 outlines.append("dependency_libs='%s'\n"%utils.quote_list(new_elems))
                 done = True
-        
+
         if not done:
             outlines.append(l)
 
@@ -100,7 +100,7 @@ def subst_pc(builder, current, dir, libPath, includePath, execPrefix):
     """
     Substitute a pkgconfig (.pc) file.
     """
-    
+
     if (libPath is None):
         libPath = os.path.join(dir, "lib")
 
@@ -132,7 +132,7 @@ def subst_pc(builder, current, dir, libPath, includePath, execPrefix):
 
         if not done:
             outlines.append(l)
-            
+
     outText = "".join(outlines)
     f = open(current, "w")
     f.write(outText)
@@ -143,10 +143,10 @@ def subst_pc(builder, current, dir, libPath, includePath, execPrefix):
 def fix_up_pkgconfig_and_la(builder, dir,
                             subdir = None,
                             libPath = None,
-                            includePath = None, 
+                            includePath = None,
                             execPrefix = None):
     """
-    Given a directory, dir, in which there may be 
+    Given a directory, dir, in which there may be
     .pc and .la files lurking, identify the .pc and
     .la files and rewrite them.
 
@@ -156,31 +156,31 @@ def fix_up_pkgconfig_and_la(builder, dir,
     includePath, if present, is where the target include
      files are installed (typically dir/include).
 
-    execPrefix is where the package will be installed. 
+    execPrefix is where the package will be installed.
      This is a bit tricky for us, since we're cross-compiling:
      we will actually define it, by default, to be dir, since
      in practice most packages want this (they use it to locate
      tools, not -rpath-link). But you can set it to whatever
      you like :-)
-     
+
     For the moment, we work by rewriting.
 
     in a .la file:
 
     libdir  - gets prefixed with 'dir'
-    
+
 
     in a .pc file:
 
-    prefix -> dir 
+    prefix -> dir
     exec_prefix -> execDir
     libdir -> libPath (if present)
     includedir -> includePath (if present)
     """
 
-    # This is essentially a recursive descent .. 
+    # This is essentially a recursive descent ..
     stack = [ ]
-    
+
     la_re = re.compile(r"(.*)\.la$")
     pc_re = re.compile(r"(.*)\.pc$")
 
@@ -193,7 +193,7 @@ def fix_up_pkgconfig_and_la(builder, dir,
 
     while len(stack) > 0 :
         current = stack.pop()
-        
+
         st_rec = os.lstat(current)
         if (stat.S_ISDIR(st_rec.st_mode)):
             # Bah. Trace it.
@@ -209,13 +209,13 @@ def fix_up_pkgconfig_and_la(builder, dir,
             elif (pc_re.match(current) is not None):
                 print "> Substitute (PC) %s"%current
                 subst_pc(builder, current, dir, libPath, includePath, execPrefix)
-            
+
 
     # OK. All done.
 
-               
 
-    
+
+
 
 
 

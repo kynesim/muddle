@@ -35,7 +35,7 @@ def describe_to(builder):
     #
     # The deployment should eventually be located at target_dir.
 
-    filedep.deploy(builder, 
+    filedep.deploy(builder,
                    '/',
                    'omap',
                    roles)

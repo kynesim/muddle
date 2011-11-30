@@ -20,7 +20,7 @@ install:
 	for i in $(DIRS_TO_BUILD); do \
 		if [ ! -d $(MUDDLE_INSTALL)/$$i ]; then mkdir -p $(MUDDLE_INSTALL)/$$i; fi;\
 	done
-	ln -fs /proc/kcore $(MUDDLE_INSTALL)/lib/udev/devices/core 
+	ln -fs /proc/kcore $(MUDDLE_INSTALL)/lib/udev/devices/core
 	ln -fs /proc/self/fd $(MUDDLE_INSTALL)/lib/udev/devices/fd
 	ln -fs /sbin/MAKEDEV $(MUDDLE_INSTALL)/lib/udev/devices/MAKEDEV
 	ln -fs /sbin/sndstat $(MUDDLE_INSTALL)/lib/udev/devices/sndstat
@@ -28,7 +28,7 @@ install:
 	ln -fs /proc/self/fd/0 $(MUDDLE_INSTALL)/lib/udev/devices/stdin
 	ln -fs /proc/self/fd/1 $(MUDDLE_INSTALL)/lib/udev/devices/stdout
 
-	# Oh, you _guys_ .. 
+	# Oh, you _guys_ ..
 	for i in /var/run /tmp /var/log; do \
 	  if [ ! -d "$(MUDDLE_INSTALL)$$i" ]; then \
 	   mkdir -p "$(MUDDLE_INSTALL)$$i";  \

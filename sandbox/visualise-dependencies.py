@@ -49,7 +49,7 @@ class Node:
 	"""
 
 	all_nodes = {} # dict: key=rawname val=Node
-	@staticmethod 
+	@staticmethod
 	def get(name):
 		return Node.all_nodes[str(name)]
 
@@ -95,7 +95,7 @@ class Edge:
 	"""
 
 	all_edges = {} # dict: key=tuple(From,To) val=Edge
-	@staticmethod 
+	@staticmethod
 	def get(fro,to):
 		return Edge.all_edges[Edge.hashkey_static(fro,to)]
 
@@ -211,9 +211,9 @@ def process(goals):
 			if n.isAptGet:
 				del Node.all_nodes[k]
 
-	# If we have A/preconfig -> A/configured -> A/built -> A/installed 
+	# If we have A/preconfig -> A/configured -> A/built -> A/installed
 	# [ -> A/preinstalled], we can condense them into one.
-	reductio = { 
+	reductio = {
 			'preconfig' : 'configured',
 			'configured' : 'built',
 			'built' : 'installed',
@@ -281,7 +281,7 @@ def process(goals):
 			madeChange = True
 			break
 
-		if not madeChange: 
+		if not madeChange:
 			break
 		# else loop forever
 

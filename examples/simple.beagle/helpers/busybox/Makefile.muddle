@@ -20,7 +20,7 @@ config:
 	# Busybox knows we're building out-of-tree because we configured out-of-tree
 	$(MAKE_CMD)  -C $(SRC_BASE)  O=$(MUDDLE_OBJ)  oldconfig
 
-install: 
+install:
 	-mkdir -p $(ROOTFS)
 	$(MAKE_CMD) -C $(MUDDLE_OBJ) CONFIG_PREFIX=$(ROOTFS) install
 	# Then do our own extra installation

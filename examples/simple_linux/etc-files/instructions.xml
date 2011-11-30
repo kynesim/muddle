@@ -32,7 +32,7 @@
   </filespec>
   <mode>0755</mode>
  </chmod>
-  <mknod> 
+  <mknod>
    <name>/lib/udev/devices/console</name>
    <uid>0</uid>
    <gid>0</gid>
@@ -41,7 +41,7 @@
    <minor>1</minor>
    <mode>0600</mode>
  </mknod>
- <mknod> 
+ <mknod>
    <name>/lib/udev/devices/kmem</name>
    <uid>0</uid>
    <gid>0</gid>
@@ -68,16 +68,16 @@
    <minor>200</minor>
    <mode>0600</mode>
  </mknod>
- <mknod> 
+ <mknod>
   <name>/lib/udev/devices/null</name>
   <uid>0</uid>
   <gid>0</gid>
   <type>char</type>
   <major>1</major>
-  <minor>3</minor> 
+  <minor>3</minor>
   <mode>0600</mode>
  </mknod>
- <chmod> 
+ <chmod>
    <filespec>
      <root>/</root>
      <spec>tmp</spec>

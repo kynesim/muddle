@@ -311,7 +311,7 @@ class VersionControlHandler(object):
         """
         When called with None, get the parent directory of this checkout.
         God knows what happens otherwise.
-        
+
         .. todo:: Needs documenting and rewriting!
 
         .. TODO:: Actually, needs removing...
@@ -630,13 +630,13 @@ def get_vcs_handler(repo):
 def vcs_handler_for(builder, co_label, co_leaf, repo, rev, rest, co_dir=None, branch=None):
     """
     Create a VCS handler for the given url, invocation and checkout name.
-    
+
     Which VCS is determined by interpreting the initial part of the URI's
     protocol.
 
     We then create a handler that will call the appropriate VCS-specific
     mechanisms for any VCS operations on this checkout.
-    
+
     * inv - The invocation for which we're trying to build a handler.
     * co_label - The label for this checkout. This includes the name and domain
       (if any) for the checkout
@@ -713,8 +713,8 @@ def conventional_repo_url(repo, rel, co_dir = None):
 
     # Now, depending on whether we have a co_dir or not, either the
     # first or the first and second elements of rel are the repository
-    # name. 
-    # 
+    # name.
+    #
     # If rel is None, there is no repository name - it's all in repo.
 
     if (rel is None):
@@ -736,7 +736,7 @@ def conventional_repo_url(repo, rel, co_dir = None):
         else:
             # The second component is part of the repo, not the relative
             # path. Need to be a bit careful to do this test right else
-            # otherwise we'll end up misinterpreting things like 
+            # otherwise we'll end up misinterpreting things like
             # 'builds/01.py'
             out_repo = os.path.join(repo_rest, components[0], components[1])
             out_rel = None

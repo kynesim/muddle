@@ -24,7 +24,7 @@ class ArchSpecificAction:
 
 
 class ArchSpecificActionGenerator:
-    
+
     def __init__(self, arch):
         self.arch = arch
 
@@ -35,7 +35,7 @@ class NoAction(Action):
     """
     An action which does nothing - used largely for testing.
     """
-    
+
     def __init__(self):
         pass
 
@@ -59,7 +59,7 @@ class VcsCheckoutBuilder(Action):
 
     def must_fetch_before_commit(self):
         """
-        Must we update in order to commit? Only the VCS handler knows .. 
+        Must we update in order to commit? Only the VCS handler knows ..
         """
         return self.vcs.must_fetch_before_commit()
 
@@ -83,7 +83,7 @@ class VcsCheckoutBuilder(Action):
             else:
                 print "Checkout %s has not been checked out - not pushing"%label.name
         else:
-            raise utils.MuddleBug("Attempt to build unknown tag %s "%target_tag + 
+            raise utils.MuddleBug("Attempt to build unknown tag %s "%target_tag +
                               "in checkout %s."%self.name)
 
         return True
@@ -92,17 +92,17 @@ class PackageBuilder(Action):
     """
     Describes a package.
     """
-    
+
     def __init__(self, name, role):
         """
-        Construct a package. 
+        Construct a package.
 
         self.name
           The name of this package
-         
+
         self.deps
-          The dependency set for this package. The dependency set contains 
-          mappings from role to ( package, role ). A role of '*' indicates 
+          The dependency set for this package. The dependency set contains
+          mappings from role to ( package, role ). A role of '*' indicates
           a wildcard.
         """
 
@@ -124,12 +124,12 @@ class Deployment(Action):
         Whatever's needed to build the relevant tag for this deployment.
         """
         pass
-        
-    
+
+
 
 class Profile:
     """
-    A profile ties together a role, a deployment and an installation 
+    A profile ties together a role, a deployment and an installation
     directory. Profiles aren't actions - they modify the builder.
 
     There are two things you can do to a profile: you can ``assume()`` it,
@@ -190,8 +190,8 @@ def add_checkout_rules(ruleset, co_label, action):
     ## We used to say that UpToDate depended on Pulled.
     ## Our nearest equivalent would be Merged depending on Fetched.
     ## But that's plainly not a useful dependency, so we shall ignore it.
-    #depend.depend_chain(action, 
-    #                    uptodate_label, 
+    #depend.depend_chain(action,
+    #                    uptodate_label,
     #                    [ utils.LabelTag.Fetched ], ruleset)
 
     # We don't really want 'push' to do a 'checkout', so instead we rely on
@@ -225,12 +225,12 @@ def package_depends_on_checkout(ruleset, pkg_name, role_name, co_name, action=No
       are doing something deeply weird.
     """
 
-    checkout = depend.Label(utils.LabelType.Checkout, 
+    checkout = depend.Label(utils.LabelType.Checkout,
                             co_name, None,
                             utils.LabelTag.CheckedOut)
 
-    preconfig = depend.Label(utils.LabelType.Package, 
-		             pkg_name, role_name, 
+    preconfig = depend.Label(utils.LabelType.Package,
+		             pkg_name, role_name,
 			     utils.LabelTag.PreConfig)
 
     new_rule = depend.Rule(preconfig, action)
@@ -239,8 +239,8 @@ def package_depends_on_checkout(ruleset, pkg_name, role_name, co_name, action=No
 
     # We can't distclean a package until we've checked out its checkout
     distclean = depend.Label(utils.LabelType.Package,
-		             pkg_name, role_name, 
-			     utils.LabelTag.DistClean, 
+		             pkg_name, role_name,
+			     utils.LabelTag.DistClean,
 			     transient = True)
     ruleset.add(depend.depend_one(action, distclean, checkout))
 
@@ -260,20 +260,20 @@ def package_depends_on_packages(ruleset, pkg_name, role, tag_name, deps):
     for d in deps:
         dep_label = depend.Label(utils.LabelType.Package,
                                  d,
-                                 role, 
+                                 role,
                                  utils.LabelTag.PostInstalled)
         r.add(dep_label)
 
-    
+
 
 def add_package_rules(ruleset, pkg_name, role_name, action):
     """
     Add the standard package rules to a ruleset.
     """
-    
+
     depend.depend_chain(action,
                         depend.Label(utils.LabelType.Package,
-                              pkg_name, role_name, 
+                              pkg_name, role_name,
                               utils.LabelTag.PreConfig),
                         [ utils.LabelTag.Configured,
                           utils.LabelTag.Built,
@@ -282,14 +282,14 @@ def add_package_rules(ruleset, pkg_name, role_name, action):
                         ruleset)
 
     # "clean" dependes on "preconfig", but is transient,
-    # since you don't want to remember you've done it .. 
-    # 
+    # since you don't want to remember you've done it ..
+    #
     # (and it avoids inverse rules which would be a bit
     #  urgh)
-    ruleset.add(depend.depend_one(action, 
+    ruleset.add(depend.depend_one(action,
 				   depend.Label(utils.LabelType.Package,
-				                pkg_name, role_name, 
-						utils.LabelTag.Clean, 
+				                pkg_name, role_name,
+						utils.LabelTag.Clean,
 						transient = True),
 				   depend.Label(utils.LabelType.Package,
 					        pkg_name, role_name,
@@ -310,7 +310,7 @@ def do_depend(builder, pkg_name, role_names,
     currently using, so ``do_depend(a, ['b', 'c'], [ ('d', None) ])`` leads
     to ``a{b}`` depending on ``d{b}`` and ``a{c}`` depending on ``d{c}``.
     """
-    
+
     ruleset = builder.invocation.ruleset
 
     for role_name in role_names:
@@ -323,20 +323,20 @@ def do_depend(builder, pkg_name, role_names,
                                                        pkg_name, role_name,
                                                        utils.LabelTag.PreConfig),
                                           depend.Label(utils.LabelType.Package,
-                                                       pkg, role, 
+                                                       pkg, role,
                                                        utils.LabelTag.PostInstalled)))
-    
-def depend_across_roles(ruleset, pkg_name, role_names, 
+
+def depend_across_roles(ruleset, pkg_name, role_names,
                         depends_on_pkgs, depends_on_role):
     """
-    Register that pkg_name{role_name}'s preconfig depends on 
+    Register that pkg_name{role_name}'s preconfig depends on
     depends_on_pkg{depends_on_role} having been postinstalled.
     """
     for pkg in depends_on_pkgs:
         for role_name in role_names:
             ruleset.add(depend.depend_one(None,
                                           depend.Label(utils.LabelType.Package,
-                                                       pkg_name, role_name, 
+                                                       pkg_name, role_name,
                                                        utils.LabelTag.PreConfig),
                                           depend.Label(utils.LabelType.Package,
                                                        pkg,
@@ -344,8 +344,8 @@ def depend_across_roles(ruleset, pkg_name, role_names,
                                                        utils.LabelTag.PostInstalled)))
 
 def append_env_for_package(builder, pkg_name, pkg_roles,
-                           name, value, 
-                           domain = None, 
+                           name, value,
+                           domain = None,
                            type = None):
     """
     Set the environment variable name to value in the given
@@ -353,12 +353,12 @@ def append_env_for_package(builder, pkg_name, pkg_roles,
     package behaviour in particular roles in the build
     description.
     """
-    
+
     for r in pkg_roles:
         lbl = depend.Label(utils.LabelType.Package,
-                           pkg_name, 
-                           r, 
-                           "*", 
+                           pkg_name,
+                           r,
+                           "*",
                            domain = domain)
         env = builder.invocation.get_environment_for(lbl)
         env.append(name, value)
@@ -367,7 +367,7 @@ def append_env_for_package(builder, pkg_name, pkg_roles,
 
 
 def set_env_for_package(builder, pkg_name, pkg_roles,
-                        name, value, 
+                        name, value,
                         domain = None):
     """
     Set the environment variable name to value in the given
@@ -375,12 +375,12 @@ def set_env_for_package(builder, pkg_name, pkg_roles,
     package behaviour in particular roles in the build
     description.
     """
-    
+
     for r in pkg_roles:
         lbl = depend.Label(utils.LabelType.Package,
-                           pkg_name, 
-                           r, 
-                           "*", 
+                           pkg_name,
+                           r,
+                           "*",
                            domain = domain)
         env = builder.invocation.get_environment_for(lbl)
         env.set(name, value)
@@ -388,12 +388,12 @@ def set_env_for_package(builder, pkg_name, pkg_roles,
 def set_checkout_vcs_option(builder, label, **kwargs):
     """
     Sets extra VCS options for a checkout (identified by its label).
-    These are set in the relevant VersionControlHandler and passed on 
+    These are set in the relevant VersionControlHandler and passed on
     to the underlying vcs handler.
 
     For example:
       pkg.set_checkout_vcs_option(builder, depend.Label('checkout', 'kernel-source'), shallow_checkout=True)
-    
+
     Note that options are strictly set per-checkout.
     Defaults are set by version_control.default_vcs_options_dict.
     """

@@ -7,7 +7,7 @@ UBOOT_BASE=$(shell $(MUDDLE) query dir "checkout:u-boot{*}/*")
 all:
 	# Nothing to do
 
-install: 
+install:
 	-mkdir -p $(MUDDLE_INSTALL)/fat32/
 	cp $(MLO_BASE)/MLO		$(MUDDLE_INSTALL)/fat32/
 	cp $(UBOOT_BASE)/u-boot.bin   	$(MUDDLE_INSTALL)/fat32/

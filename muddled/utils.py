@@ -375,7 +375,7 @@ def current_user():
 
 def current_machine_name():
     """
-    Return the identity of the current machine - possibly including the 
+    Return the identity of the current machine - possibly including the
     domain name, possibly not
     """
     return socket.gethostname()
@@ -620,7 +620,7 @@ def recursively_remove(a_dir):
 def copy_file_metadata(from_path, to_path):
     """
     Copy file metadata.
-    
+
     If 'to_path' is a link, then it tries to copy whatever it can from
     'from_path', treated as a link.
 
@@ -763,7 +763,7 @@ def split_path_left(in_path):
     # This reduces paths like '///a//b/c' to '/a/b/c', but unfortunately
     # it leaves '//a/b/c' untouched
     in_path = os.path.normpath(in_path)
-    
+
     remains = in_path
     lst = [ ]
 
@@ -788,7 +788,7 @@ def split_path_left(in_path):
             rp = ""
 
     return (lst[0], rp)
-    
+
 
 def print_string_set(ss):
     """
@@ -804,13 +804,13 @@ def c_escape(v):
     """
     Escape sensitive characters in v.
     """
-    
+
     return re.sub(r'([\r\n"\'\\])', r'\\\1', v)
 
 def replace_root_name(base, replacement, filename):
     """
     Given a filename, a base and a replacement, replace base with replacement
-    at the start of filename.    
+    at the start of filename.
     """
     #print "replace_root_name %s, %s, %s"%(base,replacement, filename)
     base_len = len(base)
@@ -841,18 +841,18 @@ def parse_mode(in_mode):
 
 def parse_uid(builder, text_uid):
     """
-    .. todo::  One day, we should do something more intelligent than just assuming 
+    .. todo::  One day, we should do something more intelligent than just assuming
                your uid is numeric
     """
     return int(text_uid)
 
 def parse_gid(builder, text_gid):
     """
-    .. todo::  One day, we should do something more intelligent than just assuming 
+    .. todo::  One day, we should do something more intelligent than just assuming
                your gid is numeric
     """
     return int(text_gid)
-        
+
 
 def xml_elem_with_child(doc, elem_name, child_text):
     """
@@ -939,12 +939,12 @@ def copy_without(src, dst, without=None, object_exactly=True, preserve=False, fo
     _copy_without(src, dst, ignored_names, object_exactly, preserve, force)
 
 def copy_name_list_with_dirs(file_list, old_root, new_root,
-                             object_exactly = True, preserve = False): 
+                             object_exactly = True, preserve = False):
     """
 
     Given file_list, create file_list[new_root/old_root], creating
     any directories you need on the way.
-    
+
     file_list is a list of full path names.
     old_root is the old root directory
     new_root is where we want them copied
@@ -972,18 +972,18 @@ def rel_join(vroot, path):
     If vroot is none, we just return path.
     """
 
-    if (vroot is None): 
+    if (vroot is None):
         return path
 
-    if (len(path) == 0): 
+    if (len(path) == 0):
         return vroot
 
     if path[0] == '/':
         path = path[1:]
-    
+
     return os.path.join(vroot, path)
 
-    
+
 def split_domain(domain_name):
     """
     Given a domain name, return a tuple of the hierarchy of sub-domains.
@@ -1051,7 +1051,7 @@ def domain_subpath(domain_name):
     for thing in split_domain(domain_name):
         parts.append('domains')
         parts.append(thing)
-    
+
     return os.path.join(*parts)
 
 
@@ -1077,7 +1077,7 @@ def unescape_backslashes(str):
     """
     Replace every string '\\X' with X, as if you were a shell
     """
-    
+
     wasBackslash = False
     result = [ ]
     for i in str:
@@ -1106,7 +1106,7 @@ def unquote_list(lst):
     Given a list of objects, potentially enclosed in quotation marks or other
     shell weirdness, return a list of the actual objects.
     """
-    
+
     # OK. First, dispose of any enclosing quotes.
     result = [ ]
     lst = lst.strip()
@@ -1115,7 +1115,7 @@ def unquote_list(lst):
 
     initial = lst.split(' ')
     last = None
-    
+
     for i in initial:
         if (last is not None):
             last = last + i
@@ -1141,7 +1141,7 @@ def find_by_predicate(source_dir, accept_fn, links_are_symbolic = True):
     """
     Given a source directory and an acceptance function
      fn(source_base, file_name) -> result
-    
+
     Obtain a list of [result] if result is not None.
     """
 
@@ -1151,7 +1151,7 @@ def find_by_predicate(source_dir, accept_fn, links_are_symbolic = True):
     if (r is not None):
         result.append(r)
 
-    
+
     if (links_are_symbolic and os.path.islink(source_dir)):
         # Bah
         return result
@@ -1159,14 +1159,14 @@ def find_by_predicate(source_dir, accept_fn, links_are_symbolic = True):
     if (os.path.isdir(source_dir)):
         # We may need to recurse...
         names = os.listdir(source_dir)
-        
+
         for name in names:
             full_name = os.path.join(source_dir, name)
             r = accept_fn(full_name)
             if (r is not None):
                 result.append(r)
 
-            # os.listdir() doesn't return . and .. 
+            # os.listdir() doesn't return . and ..
             if (os.path.isdir(full_name)):
                 result.extend(find_by_predicate(full_name, accept_fn, links_are_symbolic))
 

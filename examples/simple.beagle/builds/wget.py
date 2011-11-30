@@ -48,7 +48,7 @@ class Wget(VersionControlHandler):
 
     def pull(self):
         self.check_out()
-        
+
     def update(self):
         self.check_out()
 

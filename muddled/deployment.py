@@ -11,7 +11,7 @@ from muddled.depend import Action
 class CleanDeploymentBuilder(Action):
     def __init__(self):
         pass
-        
+
     def build_label(self, builder, label):
         if (label.type == utils.LabelType.Deployment and
             (label.tag == utils.LabelTag.Clean or
@@ -23,18 +23,18 @@ class CleanDeploymentBuilder(Action):
             raise utils.GiveUp("Attempt to invoke CleanDeploymentBuilder on "
                                 "unrecognised label %s"%label)
         # And, um, that's it.
-        
+
 
 def register_cleanup(builder, deployment):
     """
     Register the rule you need to clean a deployment.
-    
+
     Cleaning a deployment basically means we remove the directory
-    and its deployed tag. 
+    and its deployed tag.
     """
-    
+
     target_lbl = depend.Label(utils.LabelType.Deployment,
-                              deployment, 
+                              deployment,
                               None,
                               utils.LabelTag.Clean)
     rule = depend.Rule(target_lbl, CleanDeploymentBuilder())
@@ -71,10 +71,10 @@ def role_depends_on_deployment(builder, role, deployment, domain=None):
     """
     Make every package in the given role depend on the given deployment
     """
-    
+
     tgt = depend.Label(utils.LabelType.Package,
                        "*",
-                       role, 
+                       role,
                        utils.LabelTag.PreConfig)
     the_rule = depend.Rule(tgt, None)
     the_rule.add(depend.Label(utils.LabelType.Deployment,
@@ -94,7 +94,7 @@ def deployment_depends_on_roles(builder, deployment, roles, domain=None):
                        deployment,
                        None,
                        utils.LabelTag.Deployed)
-    rule = builder.invocation.ruleset.rule_for_target(tgt, 
+    rule = builder.invocation.ruleset.rule_for_target(tgt,
                                                       createIfNotPresent = True)
     for r in roles:
         lbl = depend.Label(utils.LabelType.Package,
@@ -113,14 +113,14 @@ def deployment_depends_on_deployment(builder, what, depends_on, domain=None):
                        what,
                        None,
                        utils.LabelTag.Deployed)
-    rule = builder.invocation.ruleset.rule_for_target(tgt, 
+    rule = builder.invocation.ruleset.rule_for_target(tgt,
                                                       createIfNotPresent = True)
     rule.add(depend.Label(utils.LabelType.Deployment,
                           depends_on,
                           None,
                           utils.LabelTag.Deployed,
                           domain=domain))
-    
+
 
 def inform_deployment_path(builder, name, deployment, roles, domain=None):
     """
@@ -130,7 +130,7 @@ def inform_deployment_path(builder, name, deployment, roles, domain=None):
     Useful when e.g. some tools need to run other tools and therefore
     want to know where they are at build (rather than run)time.
     """
-    
+
     for role in roles:
         lbl = depend.Label(utils.LabelType.Package,
                            "*",
@@ -140,7 +140,7 @@ def inform_deployment_path(builder, name, deployment, roles, domain=None):
         env = builder.invocation.get_environment_for(lbl)
         env.set_type(name, env_store.EnvType.SimpleValue)
         env.set(name, builder.invocation.deploy_path(deployment))
-    
+
 
 def deployment_rule_from_name(builder, name):
     """
@@ -151,15 +151,15 @@ def deployment_rule_from_name(builder, name):
     rules =  builder.invocation.ruleset.rules_for_target(
         depend.Label(utils.LabelType.Deployment, name, None,
                      utils.LabelTag.Deployed),
-        useTags = True, 
+        useTags = True,
         useMatch = False)
     if (len(rules) != 1):
-        raise utils.GiveUp("Attempt to retrieve rule for deployment %s:"%name + 
+        raise utils.GiveUp("Attempt to retrieve rule for deployment %s:"%name +
                             " returned list had length %d ,not 1.. "%len(rules))
 
     for r in rules:
         return r
-    
+
 def set_env(builder, deployment, name, value):
     """
     Set NAME=VALUE in the environment for this deployment.

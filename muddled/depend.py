@@ -183,7 +183,7 @@ class Label(object):
         Note that label flags (including specifically 'transient' and 'system')
         are not equality-preserving properties of a label - two labels are not
         made unequal just because they have different flags.
-        
+
         (In fact, no two labels should ever have different values for
         transience, for obvious reasons, and the system flag is intended only
         to limit over-reporting of information.)
@@ -263,7 +263,7 @@ class Label(object):
     def copy_and_unify_with(self, target):
         """
         Return a copy of ourserlves, unified with the target.
-    
+
         All the non-wildcard parts of 'target' are copied, to overwrite
         the equivalent parts of the new label.
         """
@@ -906,9 +906,9 @@ class SequentialAction:
 class Rule:
     """
     A rule or "dependency set".
-    
+
     Every Rule has:
-    
+
     * a target Label (its desired result),
     * an optional Action object (to do the work to produce that result),
     * and a set of Labels on which the target depends (which must have been
@@ -965,7 +965,7 @@ class Rule:
         self.deps = new_deps
 
 
-    def catenate_and_merge(self, other_rule, complainOnDuplicate = False, 
+    def catenate_and_merge(self, other_rule, complainOnDuplicate = False,
                            replaceOnDuplicate = True):
         """
         Merge ourselves with the given rule.
@@ -980,7 +980,7 @@ class Rule:
         else:
             if complainOnDuplicate:
                 raise utils.MuddleBug(
-                    ("Duplicate action objects for %s and %s - have you "%(self.target, other_rule.target)) + 
+                    ("Duplicate action objects for %s and %s - have you "%(self.target, other_rule.target)) +
                     "remembered to remove a package from one of your domain builds?")
             else:
                 if replaceOnDuplicate:
@@ -1124,14 +1124,14 @@ class RuleSet:
     A collection of rules that encapsulate how you can get from A to B.
 
     Formally, this is just a mapping of labels to Rules. Duplicate
-    targets are merged - it's assumed that the objects will be 
+    targets are merged - it's assumed that the objects will be
     the same.
 
     CAVEAT: Be aware that new rules (when added) can be merged into existing
     rules.  Since we don't *copy* rules when we add them, this could be a cause
     of unexpected side effects...
     """
-    
+
     def __init__(self):
         self.map = { }
 
@@ -1155,7 +1155,7 @@ class RuleSet:
     def rules_for_target(self, label, useTags = True, useMatch = True):
         """
         Return the set of rules for any target(s) matching the given label.
-    
+
         * If useTags is true, then we should take account of tags when
           matching, otherwise we should ignore them. If useMatch is true,
           then useTags is ignored.
@@ -1186,7 +1186,7 @@ class RuleSet:
         for r in self.map.values():
             if (r.target.match(label)):
                 r.action = generator.generate(r.action)
-            
+
     def targets_match(self, target, useMatch = True):
         """
         Return the set of targets matching the given 'target' label.
@@ -1225,16 +1225,16 @@ class RuleSet:
             self.map[target] = rv
 
         return rv
-        
+
 
     def rules_which_depend_on(self, label, useTags = True, useMatch = True):
         """
         Given a label, return a set of the rules which have it as one of
-        their dependencies. 
-        
-        If there are no rules which have this label as one of their 
+        their dependencies.
+
+        If there are no rules which have this label as one of their
         dependencies, we return the empty set.
-    
+
         * If useTags is true, then we should take account of tags when
           matching, otherwise we should ignore them. If useMatch is true,
           then useTags is ignored.
@@ -1257,8 +1257,8 @@ class RuleSet:
                     if dep.match_without_tag(label):
                         result_set.add(v)
                         break
-                    
-                    
+
+
         return result_set
 
     def merge(self, other_deps):
@@ -1273,13 +1273,13 @@ class RuleSet:
 
     def unify(self, source, target):
         """
-        Merge source into target. 
+        Merge source into target.
 
         This is a pain, and depends heavily on CatenatedObject
         """
-        
+
         new_map = { }
-        
+
 
         # First, collect anything that might be rewritten.
         for (k,v) in self.map.items():
@@ -1302,7 +1302,7 @@ class RuleSet:
                 old_v.catenate_and_merge(new_v)
             else:
                 new_map[new_k] = new_v
-            
+
         # Now, rename everything in the dependencies and copy
         # back ..
         for (k,v) in new_map.items():
@@ -1312,7 +1312,7 @@ class RuleSet:
         self.map = new_map
 
 
-    def to_string(self, matchLabel = None, 
+    def to_string(self, matchLabel = None,
                   showUser = True, showSystem = True, ignore_empty=False):
         """
         Return a string representing this rule set.
@@ -1354,13 +1354,13 @@ class RuleSet:
                 # Ignore items that don't depend on anything
                 continue
             if (matchLabel is None) or (matchLabel.match(i.target) is not None):
-                if ((i.target.system and showSystem) or 
+                if ((i.target.system and showSystem) or
                     ((not i.target.system) and showUser)):
                     str_list.append(i.to_string(showUser = showUser, showSystem = showSystem))
                     str_list.append('\n')
         str_list.append("-----\n")
         return "".join(str_list)
-        
+
 
     def __str__(self):
         return self.to_string()
@@ -1386,7 +1386,7 @@ def depend_chain(action, label, tags, ruleset):
 
     last = label.copy()
 
-    # The base .. 
+    # The base ..
     r = Rule(last, action)
     ruleset.add(r)
 
@@ -1397,7 +1397,7 @@ def depend_chain(action, label, tags, ruleset):
         ruleset.add(r)
         last = next
 
-    
+
 
 def depend_none(action, label):
     """
@@ -1425,11 +1425,11 @@ def depend_self(action, label, old_tag):
 
     rv.add(dep_label)
     return rv
-        
+
 
 def depend_empty(action, label):
     """
-    Create a dependency set with no prerequisites - simply signals that a 
+    Create a dependency set with no prerequisites - simply signals that a
     tag is available to be built at any time.
     """
     rv = Rule(label, action)
@@ -1562,7 +1562,7 @@ def needed_to_build(ruleset, target, useTags = True, useMatch = False):
                             # .. and we can't build this target until we have.
 
                         # We need to satisfy this dependency, so add it
-                        # to targets. The test here is purely so we can 
+                        # to targets. The test here is purely so we can
                         # detect circular dependencies.
                         if dep not in new_targets and dep not in targets:
                             if trace:
@@ -1606,10 +1606,10 @@ def needed_to_build(ruleset, target, useTags = True, useMatch = False):
 def required_by(ruleset, label, useTags = True, useMatch = True):
     """
     Given a ruleset and a label, form the list of labels that (directly or
-    indirectly) depend on label. We deliberately do not give you the 
+    indirectly) depend on label. We deliberately do not give you the
     associated rules since you will want to call needed_to_build() individually
     to ensure that other prerequisites are satisfied.
-    
+
     The order in which we give you the labels gives you a hint as to a
     logical order to rebuild in (i.e. one the user will vaguely understand).
 
@@ -1619,7 +1619,7 @@ def required_by(ruleset, label, useTags = True, useMatch = True):
 
     Returns a set of labels to build.
     """
-    
+
     depends = set()
     return_val = [ ]
 
@@ -1640,7 +1640,7 @@ def required_by(ruleset, label, useTags = True, useMatch = True):
         for dep in depends:
             # Merge in everything that depends on dep
             new_rules = ruleset.rules_which_depend_on(dep, useTags, useMatch = useMatch)
-            
+
             # Each target depends on us ..
             for rule in new_rules:
                 # If we're not already in the depends set, add us ..
@@ -1659,11 +1659,11 @@ def rule_with_least_dependencies(rules):
     """
     Given a (Python) set of rules, find the 'best' one to use.
 
-    This is actually impossible by any rational metric, so you 
+    This is actually impossible by any rational metric, so you
     usually only expect to call this function with a set of
     size 1, in which case our metric really doesn't matter.
 
-    However, in a vague attempt to be somewhat intelligent, 
+    However, in a vague attempt to be somewhat intelligent,
     we return the element with the fewest direct dependencies.
     """
     best_r = None
@@ -1685,5 +1685,5 @@ def rule_target_str(rule):
 # End file.
 
 
-    
+
 

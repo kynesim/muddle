@@ -49,11 +49,11 @@ class Bazaar(VersionControlSystem):
         then various bzr commands ('bzr missing' in particular) do not play
         well with some of the typical Python file names we sometimes have in
         'src/builds' directories.
-        
+
         (Specifically, this is observed with bzr version 2.0.2 on my Ubuntu
         system with my packages installed, so it may or may not happen for
         anyone else, but it still seems safest to avoid it!)
-        
+
         The "solution" (ick, ick) is thus to make sure this doesn't happen...
         - and the simplest way to do that is probably to ignore any PYTHONPATH
         in our local environment when running the command(s)
@@ -367,26 +367,26 @@ class Bazaar(VersionControlSystem):
         'bzr revno' always returns a simple integer (or so I believe)
 
         'bzr version-info' returns several lines, including::
-        
+
               revision-id: <something>
               revno: <xxx>
-        
+
         where <xxx> is the same number as 'bzr revno', and <something>
         will be different depending on whether we're "the same" as the
         far repository.
-        
+
         If the --check-clean flag is used, then there will also be a line
         of the form::
-        
+
               clean: True
-        
+
         indicating whether the source tree contains uncommitted changes
         (although not whether it is matching the far repository).
-        
+
         So ideally we would (1) grumble if not clean, and (2) grumble
         if our revision id was different than after the last
         push/pull/checkout
-        
+
         Well, 'bzr missing' should show unmerged/unpulled revisions
         between two branches, so if it ends "Branches are up to date"
         then that may be useful. Or no output with '-q' if they're OK.

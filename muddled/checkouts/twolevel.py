@@ -60,13 +60,13 @@ def relative(builder, co_dir, co_name, repo_relative = None, rev = None, branch 
                            vcs_handler)
 
 # For historical reasons
-twolevel = relative   
+twolevel = relative
 
 def absolute(builder, co_dir, co_name, repo_url, rev = None, branch = None):
     """
     Check out a twolevel repository from an absolute URL.
     """
-    
+
     rest = os.path.join(co_dir, co_name)
 
     co_label = Label(utils.LabelType.Checkout, co_name, domain=builder.default_domain)

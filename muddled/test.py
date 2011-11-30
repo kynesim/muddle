@@ -45,13 +45,13 @@ def cpio_unit_test():
     f3 = cpiofile.File()
     f3.rename("bar/baz")
     f3.set_contents("Hello, World!\n")
-    
+
     arc = cpiofile.Archive()
-    #arc.add_files([f1, f2, f3])    
+    #arc.add_files([f1, f2, f3])
     arc.add_files([f1])
     arc.render("/tmp/test.cpio", True)
     # Now just make sure that cpio can read the data
-    
+
     rv = utils.run_cmd("cpio -i --to-stdout </tmp/test.cpio")
 
 def env_store_unit_test():
@@ -78,11 +78,11 @@ def env_store_unit_test():
     assert ee.to_sh(True) == '"Fish""$Soup""Wombat"'
 
     assert ee.to_value(env = { "Soup" : "X"}) == "FishXWombat"
-    
+
     lst = ee.to_py(env_var = "env")
-    
+
     assert len(lst) == 3
-    
+
     assert lst[0] == '"Fish"'
     assert lst[1] == 'env["Soup"]'
     assert lst[2] == '"Wombat"'
@@ -93,7 +93,7 @@ def subst_unit_test():
     """
     Substitution unit test.
     """
-    
+
     test_env = { "FISH" : "soup", "WOMBAT" : "herring" }
     result = subst.subst_str("${WOMBAT} is ${FISH}", None, test_env)
     assert result == "herring is soup"
@@ -104,7 +104,7 @@ def filespec_unit_test():
     """
     Filespec unit tests.
     """
-    
+
     lsp = filespec.ListFileSpecDataProvider(["/a/b", "/a/c", "/a/b/c", "/a/b/cee", "/d", "/d/bcee" ])
 
     l_full = lsp.list_files_under("/a", True)
@@ -113,7 +113,7 @@ def filespec_unit_test():
     l_part = lsp.list_files_under("/a", False)
     assert len(l_part) == 2
 
-    # Right .. 
+    # Right ..
     fs1 = filespec.FileSpec("/a", ".*", False, False)
     results = fs1.match(lsp)
     assert len(results) == 2
@@ -158,12 +158,12 @@ def mechanics_unit_test():
     s2.set_type("PATH", env_store.EnvType.Path)
     s2.append("PATH", "b")
     s2.set("FISH", "shark")
-    
+
     in_env = { "FISH" : "x" , "PATH" :  "p" }
     inv.setup_environment(lbl, in_env)
     assert in_env["PATH"] == "p:a:b"
     assert in_env["FISH"] == "shark"
-    
+
 
 
 def depend_unit_test():
@@ -197,7 +197,7 @@ def depend_unit_test():
     assert lx.__cmp__(lx_a) == 0
     assert not lx.transient
     assert not lx.system
-    
+
 
     lx = Label.from_string("*:wombat/*")
     assert lx is not None
@@ -205,7 +205,7 @@ def depend_unit_test():
     assert lx.__cmp__(lx_a) == 0
     assert not lx.transient
     assert not lx.system
-    
+
     lx = Label.from_string(l1.__str__())
     print "l1 str = %s"%l1.__str__()
     assert (lx is not None)
@@ -243,7 +243,7 @@ def depend_unit_test():
     assert l1.match(la1) == -1
     assert (l2.match(la4)) == -1
     assert l1.match(la3) == -2
-    
+
     r1 = depend.Rule(l1, pkg.NoAction())
 
     r2 = depend.Rule(l2, pkg.NoAction())
@@ -254,9 +254,9 @@ def depend_unit_test():
 
     r3.add(l2)
     r4.add(l3); r4.add(l2)
-    
+
     rs = depend.RuleSet()
-    rs.add(r1) 
+    rs.add(r1)
     rs.add(r2)
     rs.add(r3)
     rs.add(r4)
@@ -279,7 +279,7 @@ def utils_unit_test():
     s = utils.c_escape("Test \" \\ One")
 
     assert s == "Test \\\" \\\\ One"
-    
+
     s = utils.pad_to("0123456789", 11)
     assert s == "0123456789 "
 
@@ -310,9 +310,9 @@ def vcs_unit_test():
     """
     repo = "http://www.google.com/"
     (x,y) = version_control.split_vcs_url(repo)
-    
+
     assert version_control.split_vcs_url(repo) == (None, None)
-    
+
     repo = "cVs+pserver://Foo.example.com/usr/cvs/foo"
     (vcs,url) = version_control.split_vcs_url(repo)
     assert vcs == "cvs"
@@ -321,7 +321,7 @@ def vcs_unit_test():
     (repo, file) = version_control.conventional_repo_url(
         "bzr+http://bzr.example.com/my/repo/base",
         "builds/dev/01.py")
-    
+
     assert repo == "http://bzr.example.com/my/repo/base/builds"
     assert file == "dev/01.py"
 
@@ -331,7 +331,7 @@ def vcs_unit_test():
 
     assert repo == "ssh://git.example.com/a/repo/foo"
     assert file == None
-    
+
 
 
 

@@ -1,5 +1,5 @@
 # Makefile for b_co
-# 
+#
 # Common variables for muddle makefiles
 #
 # MUDDLE_OBJ  - Build object files here
@@ -19,7 +19,7 @@ config:
 clean:
 	rm -f $(MUDDLE_OBJ)/hello_world
 
-distclean: clean	
+distclean: clean
 	@echo Distclean is just a clean
 
 

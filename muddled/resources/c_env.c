@@ -19,7 +19,7 @@
 
 char *${prefix}_cat(char *a, char *b)
 {
-  if (!a) 
+  if (!a)
     {
       return b;
     }
@@ -39,7 +39,7 @@ char *${prefix}_cat(char *a, char *b)
       memcpy(rv, a, len_a);
       memcpy(&rv[len_a], b, len_b);
       rv[len_a+len_b] = '\0';
-      
+
       return rv;
     }
 }

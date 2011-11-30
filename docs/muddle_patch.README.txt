@@ -84,12 +84,12 @@ directories. It is not supported to run the program in a sub-domain.
 .. note:: If some part of ``muddle_patch.py read`` fails (for instance, if
    an attempt is made to write a NEW checkout but the target directory already
    exists) then ``muddle_patch.py`` will give up immediately.
-  
+
    The current version of the code does not know how to continue from a
    partial "read", so will typically fail if run again (since the first
    amendment it tries to make will presumably now fail because the relevant
    patch has already been applied).
-  
+
    The simplest thing to do in this case is probably to edit the MANIFEST.txt
    file in the <patch_dir> and comment out (using '#') the lines for those
    checkouts that have already been patched successfully.

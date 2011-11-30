@@ -92,7 +92,7 @@ def _cmdline(args, current_dir, original_env, muddle_binary):
         args = args[1:]
         guess_what_to_do = False
 
-    # First things first, let's look up the command .. 
+    # First things first, let's look up the command ..
     cmd_dict = commands.g_command_dict
     subcmd_dict = commands.g_subcommand_dict
 
@@ -174,7 +174,7 @@ def _cmdline(args, current_dir, original_env, muddle_binary):
 
         command.with_build_tree(builder, current_dir, args)
     else:
-        # There is no build root here .. 
+        # There is no build root here ..
         if guess_what_to_do:
             # Guess that you wanted help.
             print help(cmd_dict, subcmd_dict)

@@ -14,7 +14,7 @@ config:
 	if [ ! -d $(MUDDLE_OBJ_OBJ) ]; then \
  	  mkdir -p $(MUDDLE_OBJ_OBJ); \
 	fi
-	cp -ar -t $(MUDDLE_OBJ_OBJ) * 
+	cp -ar -t $(MUDDLE_OBJ_OBJ) *
 	(cd $(MUDDLE_OBJ_OBJ); CFLAGS=$(CFLAGS) LDFLAGS=$(LDFLAGS) ./configure )
 
 install:

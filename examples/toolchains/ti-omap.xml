@@ -1,8 +1,8 @@
 <?xml version="1.0" ?>
 
-<!-- Sample toolchain descriptor file for 
+<!-- Sample toolchain descriptor file for
      arm-2009q3-67-arm-linux-gnueabi.src.tar.bz2
-     
+
      We build for the thumb2 architecture, Cortex-A8 (armv7-a)
   -->
 
@@ -12,7 +12,7 @@
 
   <!-- How about the target? -->
   <dest-dir>/opt/toolchains/ti-omap-67</dest-dir>
-  
+
   <!-- Patches? -->
   <patch-dir>/opt/kynesim/projects/054/toolchains/arm/ti-omap-patches</patch-dir>
 
@@ -35,7 +35,7 @@
     <arch>armv4t</arch>
     <opts>-march=armv4t</opts>
   </variant0>
-  
+
   <variant1>
     <arch>thumb2</arch>
     <opts>-mthumb -march=armv7-a</opts>
@@ -49,7 +49,7 @@
       <archive>zlib-2009q3-67.tar.bz2</archive>
       <dir>zlib-1.2.3</dir>
     </zlib>
-    
+
     <gmp>
       <archive>gmp-2009q3-67.tar.bz2</archive>
       <dir>gmp-stable</dir>
@@ -59,7 +59,7 @@
       <archive>mpfr-2009q3-67.tar.bz2</archive>
       <dir>mpfr-stable</dir>
     </mpfr>
-    
+
     <ppl>
       <archive>ppl-2009q3-67.tar.bz2</archive>
       <dir>ppl-0.10.2</dir>
@@ -96,11 +96,11 @@
       <dir>glibc_localedef-2.10</dir>
       <options>--little-endian --uint32-align=4</options>
     </glibc-localedef>
-    
+
   </sources>
-  
+
 </toolchain>
 
 <!-- End File -->
 
-    
+

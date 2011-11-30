@@ -12,9 +12,9 @@ from muddled.depend import Label
 def relative(builder, co_name, repo_relative = None, rev = None, branch = None):
     """
     A simple, VCS-controlled, checkout from a given repo_relative
-    name. 
+    name.
 
-    If repo_relative is None (or unspecified), we append the 
+    If repo_relative is None (or unspecified), we append the
     checkout name to the default repository to work out the
     repo URL. Otherwise the normal URL relativisation rules are
     used.

@@ -1,5 +1,5 @@
 """
-Contains code which maintains the muddle database, 
+Contains code which maintains the muddle database,
 held in root/.muddle
 """
 
@@ -18,15 +18,15 @@ class Database(object):
     """
     Represents the muddle database
 
-    Since we expect the user (and code) to edit these files 
+    Since we expect the user (and code) to edit these files
     frequently, we deliberately do not cache their values.
 
     """
-    
+
     def __init__(self, root_path):
         """
         Initialise a muddle database with the given root_path.
-        
+
         * root_path          - The path to the root of the build tree.
         * local_labels       - Transient labels which are asserted.
         * checkout_locations - Maps checkout_label to the directory the
@@ -215,11 +215,11 @@ class Database(object):
         Set the name of a file containing instructions for the deployment
         mechanism.
 
-        * label - 
-        * instr_file - The InstructionFile object to set. 
+        * label -
+        * instr_file - The InstructionFile object to set.
 
         If instr_file is None, we unset the instructions.
-        
+
         """
         file_name = self.instruction_file_name(label)
 
@@ -231,7 +231,7 @@ class Database(object):
 
     def clear_all_instructions(self, domain=None):
         """
-        Clear all instructions - essentially only ever called from 
+        Clear all instructions - essentially only ever called from
         the command line.
         """
         os.removedirs(self.instruction_file_dir(domain))
@@ -239,12 +239,12 @@ class Database(object):
     def scan_instructions(self, lbl):
         """
         Returns a list of pairs (label, filename) indicating the
-        list of instruction files matching lbl. It's up to you to 
+        list of instruction files matching lbl. It's up to you to
         load and sort them (but load_instructions() will help
         with that).
         """
         the_instruction_files = os.walk(self.instruction_file_dir(lbl.domain))
- 
+
         return_list = [ ]
 
         for (path, dirname, files) in the_instruction_files:
@@ -252,18 +252,18 @@ class Database(object):
                 if (f.endswith(".xml")):
                     # Yep
                     # This was of the form 'file/name/role.xml' or _default.xml
-                    # if there was no role, so .. 
+                    # if there was no role, so ..
                     role = f[:-4]
 
                     # dirname is only filled in for directories (?!). We actually want
-                    # the last element of path .. 
+                    # the last element of path ..
                     pkg_name = os.path.basename(path)
 
 
                     #print "Check instructions role = %s name = %s f = %s p = %s"%(role, pkg_name, f, path)
                     if (role == "_default"):
                         role = None
-                        
+
                     test_lbl = depend.Label(utils.LabelType.Package, pkg_name, role,
                                             utils.LabelTag.Temporary,
                                             domain = lbl.domain)
@@ -274,7 +274,7 @@ class Database(object):
 
         return return_list
 
-        
+
     def instruction_file_dir(self, domain=None):
         """
         Return the name of the directory in which we keep the instruction files
@@ -284,33 +284,33 @@ class Database(object):
         else:
             root = self.root_path
         return os.path.join(root, ".muddle", "instructions")
-        
+
     def instruction_file_name(self, label):
         """
         If this label were to be associated with a database file containing
-        the (absolute) filename of an instruction file to use for this 
+        the (absolute) filename of an instruction file to use for this
         package and role, what would it be?
         """
         if (label.type != utils.LabelType.Package):
             raise utils.MuddleBug("Attempt to retrieve instruction file "
                               "name for non-package tag %s"%(str(label)))
 
-        # Otherwise .. 
+        # Otherwise ..
         if label.role is None:
             leaf = "_default.xml"
         else:
             leaf = "%s.xml"%label.role
-            
+
         dir = os.path.join(self.instruction_file_dir(domain=label.domain),
                            label.name)
         utils.ensure_dir(dir)
         return os.path.join(dir, leaf)
-            
-        
+
+
     def tag_file_name(self, label):
         """
-        If this file exists, the given label is asserted. 
-        
+        If this file exists, the given label is asserted.
+
         To make life a bit easier, we group labels.
         """
 
@@ -324,7 +324,7 @@ class Database(object):
         else:
             leaf = "%s-%s"%(label.role, label.tag)
 
-        return os.path.join(root, 
+        return os.path.join(root,
                             ".muddle",
                             "tags",
                             label.type,
@@ -349,7 +349,7 @@ class Database(object):
 
         if (label.transient):
             self.local_tags.add(label)
-        else:        
+        else:
             file_name = self.tag_file_name(label)
             (dir,name) = os.path.split(file_name)
             utils.ensure_dir(dir)
@@ -357,7 +357,7 @@ class Database(object):
             f.write(utils.iso_time())
             f.write("\n")
             f.close()
-        
+
     def clear_tag(self, label):
         if (label.transient):
             self.local_tags.discard(label)
@@ -380,10 +380,10 @@ class Database(object):
 
 
 class PathFile(object):
-    """ 
+    """
     Manipulates a file containing a single path name.
     """
-    
+
     def __init__(self, file_name):
         """
         Create a PathFile object with the given filename.
@@ -410,7 +410,7 @@ class PathFile(object):
         """
         self.value_valid = True
         self.value = val
-        
+
     def from_disc(self):
         """
         Retrieve the current value of the PathFile, directly from disc.
@@ -423,7 +423,7 @@ class PathFile(object):
             f = open(self.file_name, "r")
             val = f.readline()
             f.close()
-            
+
             # Remove the trailing '\n' if it exists.
             if val[-1] == '\n':
                 val = val[:-1]
@@ -442,10 +442,10 @@ class PathFile(object):
         """
         Write the value of the PathFile to disc.
         """
-        
+
         if not self.value_valid:
             return
- 
+
         if (self.value is None):
             if (os.path.exists(self.file_name)):
                 try:
@@ -462,10 +462,10 @@ class PathFile(object):
 class Instruction(object):
     """
     Something stored in an InstructionFile.
-    
+
     Subtypes of this type are mainly defined in the instr.py module.
     """
-    
+
     def to_xml(self, doc):
         """
         Given an XML document, return a node which represents this instruction
@@ -487,23 +487,23 @@ class Instruction(object):
 
     def equal(self, other):
         """
-        Return True iff self and other represent the same instruction. 
+        Return True iff self and other represent the same instruction.
 
         Not __eq__() because we want the python identity to be object identity
         as always.
         """
-        if (self.__class__ == other.__class__): 
+        if (self.__class__ == other.__class__):
             return True
         else:
             return False
-    
-        
+
+
 
 class InstructionFactory(object):
     """
     An instruction factory.
     """
-    
+
     def from_xml(self, xmlNode):
         """
         Given an xmlNode, manufacture an Instruction from it or return
@@ -518,7 +518,7 @@ class InstructionFile(object):
     An XML file containing a sequence of instructions for deployments.
     Each instruction is a subtype of Instruction.
     """
-    
+
     def __init__(self, file_name, factory):
         """
         file_name       Where this file is stored
@@ -527,7 +527,7 @@ class InstructionFile(object):
         self.file_name = file_name
         self.values = None
         self.factory = factory
-        
+
 
     def __iter__(self):
         """
@@ -535,7 +535,7 @@ class InstructionFile(object):
         """
         if (self.values is None):
             self.read()
-        
+
         return self.values.__iter__()
 
     def save_as(self, file_name):
@@ -558,14 +558,14 @@ class InstructionFile(object):
             self.read()
 
         self.values.append(instr)
-    
+
     def clear(self):
         self.values = [ ]
 
     def read(self):
         """
         Read our instructions from disc. The XML file in question looks like::
-        
+
             <?xml version="1.0"?>
             <instructions priority=100>
              <instr-name>
@@ -573,14 +573,14 @@ class InstructionFile(object):
              </instr-name>
             </instructions>
 
-        The priority is used by deployments when deciding in what order to 
+        The priority is used by deployments when deciding in what order to
         apply instructions. Higher priorities get applied last (which is the
         logical way around, if you think about it).
         """
         self.values = [ ]
 
         if (not os.path.exists(self.file_name)):
-            return 
+            return
 
         try:
             top = xml.dom.minidom.parse(self.file_name)
@@ -639,7 +639,7 @@ class InstructionFile(object):
             impl = xml.dom.minidom.getDOMImplementation()
             new_doc = impl.createDocument(None, "instructions", None)
             top = new_doc.documentElement
-            
+
             for i in self.values:
                 elem = i.to_xml(new_doc)
                 top.appendChild(new_doc.createTextNode("\n"))
@@ -657,7 +657,7 @@ class InstructionFile(object):
         Convert to a string. Our preferred string representation is XML.
         """
         return self.get_xml()
-        
+
 
     def equal(self, other):
         """
@@ -677,16 +677,16 @@ class InstructionFile(object):
                 return False
 
         return True
-                    
-                                          
 
-    
+
+
+
 
 class TagFile(object):
     """
     An XML file containing a set of tags (statements).
     """
-    
+
     def __init__(self, file_name):
         self.file_name = file_name
         self.value = None
@@ -707,7 +707,7 @@ class TagFile(object):
         """
         if (self.value is None):
             self.read()
-            
+
         self.value += tag_value
 
     def clear(self, tag_value):
@@ -716,7 +716,7 @@ class TagFile(object):
         """
         if (self.value is None):
             self.read()
-            
+
         self.value -= tag_value
 
     def erase(self):
@@ -728,7 +728,7 @@ class TagFile(object):
     def read(self):
         """
         Read data in from the disc.
-        
+
         The XML file in question looks a bit like::
 
             <?xml version="1.0"?>
@@ -742,13 +742,13 @@ class TagFile(object):
 
         try:
             top = xml.dom.minidom.parse(self.file_name)
-            
+
             # Get the root element
             doc = top.documentElement()
-            
+
             for i in doc.childNodes:
                 if (i.nodeType == i.ELEMENT_NODE):
-                    new_value += i.tagName            
+                    new_value += i.tagName
         except:
             pass
 
@@ -758,20 +758,20 @@ class TagFile(object):
         """
         Commit an XML tagfile back to a file.
         """
-        
+
         if (self.value is None):
             return
 
-        
+
         try:
             impl = xml.dom.minidom.getDOMImplementation()
             new_doc = impl.createDocument(None, "tags", None)
             top = new_doc.documentElement
-            
+
             for i in self.value:
                 this_elem = new_doc.createElement(i)
                 top.appendChild(this_elem)
-                
+
             f = open(self.file_name, "w")
             f.write(top.toxml())
             f.close()
@@ -792,7 +792,7 @@ def load_instruction_helper(x,y):
         return cmp(f1, f2)
     else:
         return rv
-    
+
 
 def load_instructions(in_instructions, a_factory):
     """
@@ -801,12 +801,12 @@ def load_instructions(in_instructions, a_factory):
     that the sort is stable across fs operations), and return a list of triples
     (label,  filename, instructionfile).
 
-    * in_instructions - 
+    * in_instructions -
     * a_factory - An instruction factory - typically instr.factory.
 
     Returns a list of triples (label, filename, instructionfile object)
     """
-    
+
     # First off, just load everything ..
     loaded = [ ]
 

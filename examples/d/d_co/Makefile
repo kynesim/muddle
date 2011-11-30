@@ -15,7 +15,7 @@ config:
 
 clean:
 	rm -f $(MUDDLE_OBJ)/hello_world
-	$(MUDDLE_UNINSTRUCT) 
+	$(MUDDLE_UNINSTRUCT)
 
 distclean: clean
 	@echo Distclean is just a clean

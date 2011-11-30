@@ -1517,7 +1517,11 @@ def load_builder(root_path, muddle_binary, params = None,
     if (not can_load):
         return None
 
-    inv.commit()
+    # We shouldn't have changed the RootRepository, Description or
+    # VersionsRepository file, so there's no particular reason to
+    # write them back out - and if we do, I believe it (occasionally)
+    # goes wrong and leaves a file blank
+    ##inv.commit()  # XXX
     return build
 
 

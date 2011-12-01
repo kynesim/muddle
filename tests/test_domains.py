@@ -397,7 +397,7 @@ def checkout_build_descriptions(root_dir, d):
                 ])
 
 def checkout_all(d):
-    muddle(['checkout'])
+    muddle(['checkout', '_all'])
     check_checkout_files(d)
 
 def check_checkout_files(d):
@@ -774,7 +774,7 @@ def check_buildlabel(d):
 
 def check_some_specifics():
 
-        def cmd(command, expect_what, unsure=False):
+        def cmd(command, expect_what='', unsure=False):
             """Check we get the expected output from our command.
             If 'unsure', then we're expecting the result to be
                 'Not sure which <thing>(s) you want'
@@ -783,13 +783,20 @@ def check_some_specifics():
             retcode, where = get_stdout2('{muddle} -n {cmd}'.format(muddle=MUDDLE_BINARY,
                                                                     cmd=command), True)
             where = where.strip()
-            if retcode:
-                if unsure and where.startswith('Not sure which'):
-                    return
+            if unsure:
+                wanted = 'Not sure what you want to {0}'.format(command)
+                if retcode:
+                    if where.strip() == wanted:
+                        return
+                    else:
+                        raise GiveUp('Wanted "{0}" but got "{1} and'
+                                     ' retcode {2}"'.format(wanted, where, retcode))
                 else:
-                    raise GiveUp('Command failed, got unexpected "{0}"'.format(where))
-            elif unsure:
-                raise GiveUp('Wanted "Not sure which" but got "{0}"'.format(where))
+                    raise GiveUp('Expecting failure and "{0}",'
+                                 ' got "{1}"'.format(wanted, where))
+            elif retcode:
+                raise GiveUp('Command failed with retcode {0},'
+                             ' got unexpected "{1}"'.format(retcode, where))
             parts = where.split(':')
             result = ':'.join(parts[1:])    # Drop the "explanation"
             result = result.strip()         # Space after the colon
@@ -803,12 +810,6 @@ def check_some_specifics():
         cmd('unimport package:main_pkg', 'checkout:main_co/checked_out')
         # Some commands give us what we deserve...
         cmd('unimport deployment:everything', 'checkout:first_co/checked_out checkout:main_co/checked_out checkout:second_co/checked_out checkout:(subdomain1)first_co/checked_out checkout:(subdomain1)main_co/checked_out checkout:(subdomain1)second_co/checked_out checkout:(subdomain1(subdomain3))first_co/checked_out checkout:(subdomain1(subdomain3))main_co/checked_out checkout:(subdomain1(subdomain3))second_co/checked_out checkout:(subdomain2)first_co/checked_out checkout:(subdomain2)main_co/checked_out checkout:(subdomain2)second_co/checked_out checkout:(subdomain2(subdomain3))first_co/checked_out checkout:(subdomain2(subdomain3))main_co/checked_out checkout:(subdomain2(subdomain3))second_co/checked_out checkout:(subdomain2(subdomain4))first_co/checked_out checkout:(subdomain2(subdomain4))main_co/checked_out checkout:(subdomain2(subdomain4))second_co/checked_out')
-
-        # -local doesn't affect explicit labels
-        cmd('unimport -local main_co', 'checkout:main_co/checked_out')
-        cmd('unimport -local package:main_pkg', 'checkout:main_co/checked_out')
-        # Some commands give us what we deserve...
-        cmd('unimport -local deployment:everything', 'checkout:first_co/checked_out checkout:main_co/checked_out checkout:second_co/checked_out checkout:(subdomain1)first_co/checked_out checkout:(subdomain1)main_co/checked_out checkout:(subdomain1)second_co/checked_out checkout:(subdomain1(subdomain3))first_co/checked_out checkout:(subdomain1(subdomain3))main_co/checked_out checkout:(subdomain1(subdomain3))second_co/checked_out checkout:(subdomain2)first_co/checked_out checkout:(subdomain2)main_co/checked_out checkout:(subdomain2)second_co/checked_out checkout:(subdomain2(subdomain3))first_co/checked_out checkout:(subdomain2(subdomain3))main_co/checked_out checkout:(subdomain2(subdomain3))second_co/checked_out checkout:(subdomain2(subdomain4))first_co/checked_out checkout:(subdomain2(subdomain4))main_co/checked_out checkout:(subdomain2(subdomain4))second_co/checked_out')
 
         # Note we don't get role {arm}
         cmd('build checkout:main_co', 'package:main_pkg{x86}/postinstalled')
@@ -825,35 +826,29 @@ def check_some_specifics():
         cmd('deploy everything/instructionsapplied', 'deployment:everything/deployed')
 
         # Check some location defaults
-        # All checkouts below here
-        cmd('unimport', 'checkout:builds/checked_out checkout:first_co/checked_out checkout:main_co/checked_out checkout:second_co/checked_out checkout:(subdomain1)builds/checked_out checkout:(subdomain1)first_co/checked_out checkout:(subdomain1)main_co/checked_out checkout:(subdomain1)second_co/checked_out checkout:(subdomain1(subdomain3))builds/checked_out checkout:(subdomain1(subdomain3))first_co/checked_out checkout:(subdomain1(subdomain3))main_co/checked_out checkout:(subdomain1(subdomain3))second_co/checked_out checkout:(subdomain2)builds/checked_out checkout:(subdomain2)first_co/checked_out checkout:(subdomain2)main_co/checked_out checkout:(subdomain2)second_co/checked_out checkout:(subdomain2(subdomain3))builds/checked_out checkout:(subdomain2(subdomain3))first_co/checked_out checkout:(subdomain2(subdomain3))main_co/checked_out checkout:(subdomain2(subdomain3))second_co/checked_out checkout:(subdomain2(subdomain4))builds/checked_out checkout:(subdomain2(subdomain4))first_co/checked_out checkout:(subdomain2(subdomain4))main_co/checked_out checkout:(subdomain2(subdomain4))second_co/checked_out')
-        cmd('unimport -local', 'checkout:builds/checked_out checkout:first_co/checked_out checkout:main_co/checked_out checkout:second_co/checked_out')
-        cmd('build', '', unsure=True)        # XXX MAYBE
+        cmd('unimport', unsure=True)
+        cmd('build', unsure=True)
         # The default deployment (not the same result as a bare "muddle"
         # command, which gives us the default deployment(s) and the default
         # roles as well)
-        cmd('deploy', 'deployment:everything/deployed')
+        cmd('deploy', unsure=True)
 
         with Directory('src'):
             cmd('unimport', 'checkout:builds/checked_out checkout:first_co/checked_out checkout:main_co/checked_out checkout:second_co/checked_out')
-            cmd('unimport -local', 'checkout:builds/checked_out checkout:first_co/checked_out checkout:main_co/checked_out checkout:second_co/checked_out')
-            cmd('build', '', unsure=True) # XXX MAYBE
+            cmd('build', 'package:first_pkg{x86}/postinstalled package:main_pkg{x86}/postinstalled package:second_pkg{x86}/postinstalled')
             cmd('deploy', 'deployment:everything/deployed')
 
             with Directory('main_co'):
                 cmd('unimport', 'checkout:main_co/checked_out')
-                cmd('unimport -local', 'checkout:main_co/checked_out')
                 cmd('build', 'package:main_pkg{x86}/postinstalled')
                 cmd('deploy', 'deployment:everything/deployed')
 
         with Directory('obj'):
-            cmd('unimport', '', unsure=True)     # XXX MAYBE
-            cmd('unimport -l', '', unsure=True)  # XXX MAYBE
-            cmd('build', '', unsure=True)        # XXX MAYBE
-            cmd('deploy', 'deployment:everything/deployed')
+            cmd('unimport', unsure=True)
+            cmd('build', unsure=True)
+            cmd('deploy', unsure=True)
             with Directory('main_pkg'):
                 cmd('unimport', 'checkout:main_co/checked_out')
-                cmd('unimport -local', 'checkout:main_co/checked_out')
                 # We get all roles for this package, which makes sense if you
                 # look at "muddle where" returning a package:<name>{*}/postinstalled
                 # label in this directory - {*} expands to all roles, not just
@@ -862,47 +857,40 @@ def check_some_specifics():
                 cmd('deploy', 'deployment:everything/deployed')
                 with Directory('x86'):
                     cmd('unimport', 'checkout:main_co/checked_out')
-                    cmd('unimport -local', 'checkout:main_co/checked_out')
                     cmd('build', 'package:main_pkg{x86}/postinstalled')
                     cmd('deploy', 'deployment:everything/deployed')
 
         with Directory('install'):
-            cmd('unimport', '', unsure=True)     # XXX MAYBE
-            cmd('unimport -l', '', unsure=True)  # XXX MAYBE
-            cmd('build', '', unsure=True)        # XXX MAYBE
-            cmd('deploy', 'deployment:everything/deployed')
+            cmd('unimport', unsure=True)
+            cmd('build', unsure=True)
+            cmd('deploy', unsure=True)
             with Directory('x86'):
                 cmd('unimport', 'checkout:first_co/checked_out checkout:main_co/checked_out checkout:second_co/checked_out')
                 cmd('build', 'package:first_pkg{x86}/postinstalled package:main_pkg{x86}/postinstalled package:second_pkg{x86}/postinstalled')
                 cmd('deploy', 'deployment:everything/deployed')
 
         with Directory('deploy'):
-            cmd('unimport', '', unsure=True)     # XXX MAYBE
-            cmd('unimport -l', '', unsure=True)  # XXX MAYBE
-            cmd('build', '', unsure=True)        # XXX MAYBE
-            cmd('deploy', 'deployment:everything/deployed')
+            cmd('unimport', unsure=True)
+            cmd('build', '', unsure=True)
+            cmd('deploy', unsure=True)
             with Directory('everything'):
                 cmd('unimport', 'checkout:first_co/checked_out checkout:main_co/checked_out checkout:second_co/checked_out checkout:(subdomain1)first_co/checked_out checkout:(subdomain1)main_co/checked_out checkout:(subdomain1)second_co/checked_out checkout:(subdomain1(subdomain3))first_co/checked_out checkout:(subdomain1(subdomain3))main_co/checked_out checkout:(subdomain1(subdomain3))second_co/checked_out checkout:(subdomain2)first_co/checked_out checkout:(subdomain2)main_co/checked_out checkout:(subdomain2)second_co/checked_out checkout:(subdomain2(subdomain3))first_co/checked_out checkout:(subdomain2(subdomain3))main_co/checked_out checkout:(subdomain2(subdomain3))second_co/checked_out checkout:(subdomain2(subdomain4))first_co/checked_out checkout:(subdomain2(subdomain4))main_co/checked_out checkout:(subdomain2(subdomain4))second_co/checked_out')
-                cmd('unimport -local', 'checkout:first_co/checked_out checkout:main_co/checked_out checkout:second_co/checked_out checkout:(subdomain1)first_co/checked_out checkout:(subdomain1)main_co/checked_out checkout:(subdomain1)second_co/checked_out checkout:(subdomain1(subdomain3))first_co/checked_out checkout:(subdomain1(subdomain3))main_co/checked_out checkout:(subdomain1(subdomain3))second_co/checked_out checkout:(subdomain2)first_co/checked_out checkout:(subdomain2)main_co/checked_out checkout:(subdomain2)second_co/checked_out checkout:(subdomain2(subdomain3))first_co/checked_out checkout:(subdomain2(subdomain3))main_co/checked_out checkout:(subdomain2(subdomain3))second_co/checked_out checkout:(subdomain2(subdomain4))first_co/checked_out checkout:(subdomain2(subdomain4))main_co/checked_out checkout:(subdomain2(subdomain4))second_co/checked_out')
                 cmd('build', 'package:first_pkg{x86}/postinstalled package:main_pkg{x86}/postinstalled package:second_pkg{x86}/postinstalled package:(subdomain1)first_pkg{x86}/postinstalled package:(subdomain1)main_pkg{x86}/postinstalled package:(subdomain1)second_pkg{x86}/postinstalled package:(subdomain1(subdomain3))first_pkg{x86}/postinstalled package:(subdomain1(subdomain3))main_pkg{x86}/postinstalled package:(subdomain1(subdomain3))second_pkg{x86}/postinstalled package:(subdomain2)first_pkg{x86}/postinstalled package:(subdomain2)main_pkg{x86}/postinstalled package:(subdomain2)second_pkg{x86}/postinstalled package:(subdomain2(subdomain3))first_pkg{x86}/postinstalled package:(subdomain2(subdomain3))main_pkg{x86}/postinstalled package:(subdomain2(subdomain3))second_pkg{x86}/postinstalled package:(subdomain2(subdomain4))first_pkg{x86}/postinstalled package:(subdomain2(subdomain4))main_pkg{x86}/postinstalled package:(subdomain2(subdomain4))second_pkg{x86}/postinstalled')
                 cmd('deploy', 'deployment:everything/deployed')
 
         with Directory('domains'):
-            # All checkouts below this point
-            cmd('unimport', 'checkout:(subdomain1)builds/checked_out checkout:(subdomain1)first_co/checked_out checkout:(subdomain1)main_co/checked_out checkout:(subdomain1)second_co/checked_out checkout:(subdomain1(subdomain3))builds/checked_out checkout:(subdomain1(subdomain3))first_co/checked_out checkout:(subdomain1(subdomain3))main_co/checked_out checkout:(subdomain1(subdomain3))second_co/checked_out checkout:(subdomain2)builds/checked_out checkout:(subdomain2)first_co/checked_out checkout:(subdomain2)main_co/checked_out checkout:(subdomain2)second_co/checked_out checkout:(subdomain2(subdomain3))builds/checked_out checkout:(subdomain2(subdomain3))first_co/checked_out checkout:(subdomain2(subdomain3))main_co/checked_out checkout:(subdomain2(subdomain3))second_co/checked_out checkout:(subdomain2(subdomain4))builds/checked_out checkout:(subdomain2(subdomain4))first_co/checked_out checkout:(subdomain2(subdomain4))main_co/checked_out checkout:(subdomain2(subdomain4))second_co/checked_out')
-            # All checkouts below this point, in this domain
-            cmd('unimport -local', '', unsure=True)     # Since we don't *have* a domain here
-            cmd('build', '', unsure=True)        # XXX MAYBE
-            # Do we really want the default deployment here, inside a
-            # subdomain, as well?
-            cmd('deploy', 'deployment:everything/deployed')
+            cmd('unimport', unsure=True)
+            cmd('build', unsure=True)
+            cmd('deploy', unsure=True)
             with Directory('subdomain1'):
-                # But here we know our domain
-                cmd('unimport', 'checkout:(subdomain1)builds/checked_out checkout:(subdomain1)first_co/checked_out checkout:(subdomain1)main_co/checked_out checkout:(subdomain1)second_co/checked_out checkout:(subdomain1(subdomain3))builds/checked_out checkout:(subdomain1(subdomain3))first_co/checked_out checkout:(subdomain1(subdomain3))main_co/checked_out checkout:(subdomain1(subdomain3))second_co/checked_out')
-                cmd('unimport -local', 'checkout:(subdomain1)builds/checked_out checkout:(subdomain1)first_co/checked_out checkout:(subdomain1)main_co/checked_out checkout:(subdomain1)second_co/checked_out')
-                cmd('build', '', unsure=True)    # XXX MAYBE
-                # Ditto on deployment/subdomain
-                cmd('deploy', 'deployment:everything/deployed')
+                cmd('unimport', unsure=True)
+                cmd('build', unsure=True)
+                cmd('deploy', unsure=True)
+                with Directory('src'):
+                    cmd('unimport', 'checkout:(subdomain1)builds/checked_out checkout:(subdomain1)first_co/checked_out checkout:(subdomain1)main_co/checked_out checkout:(subdomain1)second_co/checked_out')
+                    cmd('build', 'package:(subdomain1)first_pkg{x86}/postinstalled package:(subdomain1)main_pkg{x86}/postinstalled package:(subdomain1)second_pkg{x86}/postinstalled')
+                    # NB: we get all the deployments that use this checkout...
+                    cmd('deploy', 'deployment:everything/deployed deployment:(subdomain1)everything/deployed')
 
 def build():
     muddle([])

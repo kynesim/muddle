@@ -13,6 +13,7 @@ We're working with a structure as follows:
 
 import os
 import shutil
+import string
 import subprocess
 import sys
 import traceback
@@ -313,6 +314,46 @@ def muddle_stdout(text):
     """
     return get_stdout(text.format(muddle=MUDDLE_BINARY), False)
 
+def check_cmd(command, expected='', unsure=False):
+    """Check we get the expected output from 'muddle -n <command>'
+
+    * If 'expected' is given, then it is a string of the expected labels
+      separated by spaces
+    * If 'unsure' is true, then 'expected' is ignored, and we expect
+      the result of the command to be:
+
+        'Not sure what you want to <command>'
+
+      and an error code.
+    """
+    retcode, result = get_stdout2('{muddle} -n {cmd}'.format(muddle=MUDDLE_BINARY,
+                                                             cmd=command), True)
+    result = result.strip()
+    lines = result.split('\n  ')
+
+    if unsure:
+        command_words = command.split(' ')
+        wanted = 'Not sure what you want to {cmd}'.format(cmd=command_words[0])
+        line0 = lines[0].strip()
+        if retcode:
+            if line0 == wanted:
+                return
+            else:
+                raise GiveUp('Wanted "{0}" but got "{1} and'
+                             ' retcode {2}"'.format(wanted, line0, retcode))
+        else:
+            raise GiveUp('Expecting failure and "{0}",'
+                         ' got "{1}"'.format(wanted, line0))
+    elif retcode:
+        raise GiveUp('Command failed with retcode {0},'
+                     ' got unexpected {1}'.format(retcode, result))
+
+    lines = lines[1:]               # Drop the "explanation"
+    #map(string.strip, lines)
+    got = ' '.join(lines)
+    if got != expected:
+        raise GiveUp('Expected "{0}", got "{1}"'.format(expected, got))
+
 def make_build_desc(co_dir, file_content):
     """Take some of the repetition out of making build descriptions.
     """
@@ -475,15 +516,16 @@ def assert_bare_muddle(path, label_strs):
 
         print '"muddle -n" said', build
 
-        want_start = 'Asked to buildlabel: '
+        want_start = 'Asked to buildlabel:'
 
         if not build.startswith(want_start):
             raise GiveUp('Expected string starting with "{0}",'
                          ' got "{1}"'.format(want_start, build))
 
-        build = build[len(want_start):]
-        build_words = build.split(' ')
-        build_labels = map(Label.from_string, build_words)
+        build_lines = build.split('\n')
+        build_lines = build_lines[1:]
+        build_lines = map(string.strip, build_lines)
+        build_labels = map(Label.from_string, build_lines)
         build_labels.sort()
 
         if len(labels) != len(build_labels):
@@ -571,8 +613,11 @@ def assert_where_is_buildlabel(path, expect_what, expect_label=None, expect_doma
 
         print '4. which said', build1
 
-        build1_words = build1.split(' ')
-        build1_label_str = build1_words[-1]
+        build1_lines = build1.split('\n')[1:]
+        map(string.strip, build1_lines)
+        if len(build1_lines) > 1:
+            raise GiveUp('Got too many labels: {0}'.format(' '.join(build1_lines)))
+        build1_label_str = build1_lines[0].strip()
         build1_label = Label.from_string(build1_label_str)
 
         # Remember, the expect_label and where_label are already known to be
@@ -595,22 +640,20 @@ def assert_where_is_buildlabel(path, expect_what, expect_label=None, expect_doma
 
         print '6. which said', build2
 
-        build2_label_str = build2_words[-1]
+        build2_lines = build2.split('\n')[1:]
+        map(string.strip, build2_lines)
+        if len(build2_lines) > 1:
+            raise GiveUp('Got too many labels: {0}'.format(' '.join(build2_lines)))
+        build2_label_str = build2_lines[0].strip()
         build2_label = Label.from_string(build2_label_str)
-
-        # We expect the 'where' label to have a wildcarded tag, so let's
-        # not worry about it...
-        #if not where_label.match_without_tag(build2_label):
-        #    raise GiveUp('"muddle where -detail" says "{0}", but "muddle -n"'
-        #            ' says "{1}"'.format(where, build2))
 
         if verb == 'checkout':
             if expect_package != build2_label_str:
-                raise GiveUp('"muddle -n" says "{0}, but we expected "{1}"'.format(build2,
+                raise GiveUp('"muddle -n" says "{0}", but we expected "{1}"'.format(build2,
                     expect_package))
         else:
             if not build1_label.just_match(build2_label):
-                raise GiveUp('"muddle -n" says "{0}, but "muddle -n {1}" says'
+                raise GiveUp('"muddle -n" says "{0}", but "muddle -n {1}" says'
                              ' "{2}"'.format(build1, verb, build2))
 
         print '7. OK'
@@ -774,123 +817,94 @@ def check_buildlabel(d):
 
 def check_some_specifics():
 
-        def cmd(command, expect_what='', unsure=False):
-            """Check we get the expected output from our command.
-            If 'unsure', then we're expecting the result to be
-                'Not sure which <thing>(s) you want'
-            and an error code.
-            """
-            retcode, where = get_stdout2('{muddle} -n {cmd}'.format(muddle=MUDDLE_BINARY,
-                                                                    cmd=command), True)
-            where = where.strip()
-            if unsure:
-                wanted = 'Not sure what you want to {0}'.format(command)
-                if retcode:
-                    if where.strip() == wanted:
-                        return
-                    else:
-                        raise GiveUp('Wanted "{0}" but got "{1} and'
-                                     ' retcode {2}"'.format(wanted, where, retcode))
-                else:
-                    raise GiveUp('Expecting failure and "{0}",'
-                                 ' got "{1}"'.format(wanted, where))
-            elif retcode:
-                raise GiveUp('Command failed with retcode {0},'
-                             ' got unexpected "{1}"'.format(retcode, where))
-            parts = where.split(':')
-            result = ':'.join(parts[1:])    # Drop the "explanation"
-            result = result.strip()         # Space after the colon
-            if result != expect_what:
-                raise GiveUp('Expected "{0}", got "{1}"'.format(expect_what, result))
-
         # Remember, main_co is used by packages main_pkg{x86} and
         # main_pkg{arm}, but role 'arm' is not a default role
 
-        cmd('unimport main_co', 'checkout:main_co/checked_out')
-        cmd('unimport package:main_pkg', 'checkout:main_co/checked_out')
+        check_cmd('unimport main_co', 'checkout:main_co/checked_out')
+        check_cmd('unimport package:main_pkg', 'checkout:main_co/checked_out')
         # Some commands give us what we deserve...
-        cmd('unimport deployment:everything', 'checkout:first_co/checked_out checkout:main_co/checked_out checkout:second_co/checked_out checkout:(subdomain1)first_co/checked_out checkout:(subdomain1)main_co/checked_out checkout:(subdomain1)second_co/checked_out checkout:(subdomain1(subdomain3))first_co/checked_out checkout:(subdomain1(subdomain3))main_co/checked_out checkout:(subdomain1(subdomain3))second_co/checked_out checkout:(subdomain2)first_co/checked_out checkout:(subdomain2)main_co/checked_out checkout:(subdomain2)second_co/checked_out checkout:(subdomain2(subdomain3))first_co/checked_out checkout:(subdomain2(subdomain3))main_co/checked_out checkout:(subdomain2(subdomain3))second_co/checked_out checkout:(subdomain2(subdomain4))first_co/checked_out checkout:(subdomain2(subdomain4))main_co/checked_out checkout:(subdomain2(subdomain4))second_co/checked_out')
+        check_cmd('unimport deployment:everything', 'checkout:first_co/checked_out checkout:main_co/checked_out checkout:second_co/checked_out checkout:(subdomain1)first_co/checked_out checkout:(subdomain1)main_co/checked_out checkout:(subdomain1)second_co/checked_out checkout:(subdomain1(subdomain3))first_co/checked_out checkout:(subdomain1(subdomain3))main_co/checked_out checkout:(subdomain1(subdomain3))second_co/checked_out checkout:(subdomain2)first_co/checked_out checkout:(subdomain2)main_co/checked_out checkout:(subdomain2)second_co/checked_out checkout:(subdomain2(subdomain3))first_co/checked_out checkout:(subdomain2(subdomain3))main_co/checked_out checkout:(subdomain2(subdomain3))second_co/checked_out checkout:(subdomain2(subdomain4))first_co/checked_out checkout:(subdomain2(subdomain4))main_co/checked_out checkout:(subdomain2(subdomain4))second_co/checked_out')
 
         # Note we don't get role {arm}
-        cmd('build checkout:main_co', 'package:main_pkg{x86}/postinstalled')
-        cmd('build main_pkg', 'package:main_pkg{x86}/postinstalled')
-        cmd('build deployment:everything', 'package:first_pkg{x86}/postinstalled package:main_pkg{x86}/postinstalled package:second_pkg{x86}/postinstalled package:(subdomain1)first_pkg{x86}/postinstalled package:(subdomain1)main_pkg{x86}/postinstalled package:(subdomain1)second_pkg{x86}/postinstalled package:(subdomain1(subdomain3))first_pkg{x86}/postinstalled package:(subdomain1(subdomain3))main_pkg{x86}/postinstalled package:(subdomain1(subdomain3))second_pkg{x86}/postinstalled package:(subdomain2)first_pkg{x86}/postinstalled package:(subdomain2)main_pkg{x86}/postinstalled package:(subdomain2)second_pkg{x86}/postinstalled package:(subdomain2(subdomain3))first_pkg{x86}/postinstalled package:(subdomain2(subdomain3))main_pkg{x86}/postinstalled package:(subdomain2(subdomain3))second_pkg{x86}/postinstalled package:(subdomain2(subdomain4))first_pkg{x86}/postinstalled package:(subdomain2(subdomain4))main_pkg{x86}/postinstalled package:(subdomain2(subdomain4))second_pkg{x86}/postinstalled')
+        check_cmd('build checkout:main_co', 'package:main_pkg{x86}/postinstalled')
+        check_cmd('build main_pkg', 'package:main_pkg{x86}/postinstalled')
+        check_cmd('build deployment:everything', 'package:first_pkg{x86}/postinstalled package:main_pkg{x86}/postinstalled package:second_pkg{x86}/postinstalled package:(subdomain1)first_pkg{x86}/postinstalled package:(subdomain1)main_pkg{x86}/postinstalled package:(subdomain1)second_pkg{x86}/postinstalled package:(subdomain1(subdomain3))first_pkg{x86}/postinstalled package:(subdomain1(subdomain3))main_pkg{x86}/postinstalled package:(subdomain1(subdomain3))second_pkg{x86}/postinstalled package:(subdomain2)first_pkg{x86}/postinstalled package:(subdomain2)main_pkg{x86}/postinstalled package:(subdomain2)second_pkg{x86}/postinstalled package:(subdomain2(subdomain3))first_pkg{x86}/postinstalled package:(subdomain2(subdomain3))main_pkg{x86}/postinstalled package:(subdomain2(subdomain3))second_pkg{x86}/postinstalled package:(subdomain2(subdomain4))first_pkg{x86}/postinstalled package:(subdomain2(subdomain4))main_pkg{x86}/postinstalled package:(subdomain2(subdomain4))second_pkg{x86}/postinstalled')
 
-        cmd('deploy checkout:main_co', 'deployment:everything/deployed')
-        cmd('deploy package:main_pkg', 'deployment:everything/deployed')
-        cmd('deploy everything', 'deployment:everything/deployed')
+        check_cmd('deploy checkout:main_co', 'deployment:everything/deployed')
+        check_cmd('deploy package:main_pkg', 'deployment:everything/deployed')
+        check_cmd('deploy everything', 'deployment:everything/deployed')
 
         # Check we get the tags we expect
-        cmd('unimport main_co/fetched', 'checkout:main_co/checked_out')
-        cmd('build main_pkg/configured', 'package:main_pkg{x86}/postinstalled')
-        cmd('deploy everything/instructionsapplied', 'deployment:everything/deployed')
+        check_cmd('unimport main_co/fetched', 'checkout:main_co/checked_out')
+        check_cmd('build main_pkg/configured', 'package:main_pkg{x86}/postinstalled')
+        check_cmd('deploy everything/instructionsapplied', 'deployment:everything/deployed')
 
         # Check some location defaults
-        cmd('unimport', unsure=True)
-        cmd('build', unsure=True)
+        check_cmd('unimport', unsure=True)
+        check_cmd('build', unsure=True)
         # The default deployment (not the same result as a bare "muddle"
         # command, which gives us the default deployment(s) and the default
         # roles as well)
-        cmd('deploy', unsure=True)
+        check_cmd('deploy', unsure=True)
 
         with Directory('src'):
-            cmd('unimport', 'checkout:builds/checked_out checkout:first_co/checked_out checkout:main_co/checked_out checkout:second_co/checked_out')
-            cmd('build', 'package:first_pkg{x86}/postinstalled package:main_pkg{x86}/postinstalled package:second_pkg{x86}/postinstalled')
-            cmd('deploy', 'deployment:everything/deployed')
+            check_cmd('unimport', 'checkout:builds/checked_out checkout:first_co/checked_out checkout:main_co/checked_out checkout:second_co/checked_out')
+            check_cmd('build', 'package:first_pkg{x86}/postinstalled package:main_pkg{x86}/postinstalled package:second_pkg{x86}/postinstalled')
+            check_cmd('deploy', 'deployment:everything/deployed')
 
             with Directory('main_co'):
-                cmd('unimport', 'checkout:main_co/checked_out')
-                cmd('build', 'package:main_pkg{x86}/postinstalled')
-                cmd('deploy', 'deployment:everything/deployed')
+                check_cmd('unimport', 'checkout:main_co/checked_out')
+                check_cmd('build', 'package:main_pkg{x86}/postinstalled')
+                check_cmd('deploy', 'deployment:everything/deployed')
 
         with Directory('obj'):
-            cmd('unimport', unsure=True)
-            cmd('build', unsure=True)
-            cmd('deploy', unsure=True)
+            check_cmd('unimport', unsure=True)
+            check_cmd('build', unsure=True)
+            check_cmd('deploy', unsure=True)
             with Directory('main_pkg'):
-                cmd('unimport', 'checkout:main_co/checked_out')
+                check_cmd('unimport', 'checkout:main_co/checked_out')
                 # We get all roles for this package, which makes sense if you
                 # look at "muddle where" returning a package:<name>{*}/postinstalled
                 # label in this directory - {*} expands to all roles, not just
                 # the default roles
-                cmd('build', 'package:main_pkg{arm}/postinstalled package:main_pkg{x86}/postinstalled')
-                cmd('deploy', 'deployment:everything/deployed')
+                check_cmd('build', 'package:main_pkg{arm}/postinstalled package:main_pkg{x86}/postinstalled')
+                check_cmd('deploy', 'deployment:everything/deployed')
                 with Directory('x86'):
-                    cmd('unimport', 'checkout:main_co/checked_out')
-                    cmd('build', 'package:main_pkg{x86}/postinstalled')
-                    cmd('deploy', 'deployment:everything/deployed')
+                    check_cmd('unimport', 'checkout:main_co/checked_out')
+                    check_cmd('build', 'package:main_pkg{x86}/postinstalled')
+                    check_cmd('deploy', 'deployment:everything/deployed')
 
         with Directory('install'):
-            cmd('unimport', unsure=True)
-            cmd('build', unsure=True)
-            cmd('deploy', unsure=True)
+            check_cmd('unimport', unsure=True)
+            check_cmd('build', unsure=True)
+            check_cmd('deploy', unsure=True)
             with Directory('x86'):
-                cmd('unimport', 'checkout:first_co/checked_out checkout:main_co/checked_out checkout:second_co/checked_out')
-                cmd('build', 'package:first_pkg{x86}/postinstalled package:main_pkg{x86}/postinstalled package:second_pkg{x86}/postinstalled')
-                cmd('deploy', 'deployment:everything/deployed')
+                check_cmd('unimport', 'checkout:first_co/checked_out checkout:main_co/checked_out checkout:second_co/checked_out')
+                check_cmd('build', 'package:first_pkg{x86}/postinstalled package:main_pkg{x86}/postinstalled package:second_pkg{x86}/postinstalled')
+                check_cmd('deploy', 'deployment:everything/deployed')
 
         with Directory('deploy'):
-            cmd('unimport', unsure=True)
-            cmd('build', '', unsure=True)
-            cmd('deploy', unsure=True)
+            check_cmd('unimport', unsure=True)
+            check_cmd('build', '', unsure=True)
+            check_cmd('deploy', unsure=True)
             with Directory('everything'):
-                cmd('unimport', 'checkout:first_co/checked_out checkout:main_co/checked_out checkout:second_co/checked_out checkout:(subdomain1)first_co/checked_out checkout:(subdomain1)main_co/checked_out checkout:(subdomain1)second_co/checked_out checkout:(subdomain1(subdomain3))first_co/checked_out checkout:(subdomain1(subdomain3))main_co/checked_out checkout:(subdomain1(subdomain3))second_co/checked_out checkout:(subdomain2)first_co/checked_out checkout:(subdomain2)main_co/checked_out checkout:(subdomain2)second_co/checked_out checkout:(subdomain2(subdomain3))first_co/checked_out checkout:(subdomain2(subdomain3))main_co/checked_out checkout:(subdomain2(subdomain3))second_co/checked_out checkout:(subdomain2(subdomain4))first_co/checked_out checkout:(subdomain2(subdomain4))main_co/checked_out checkout:(subdomain2(subdomain4))second_co/checked_out')
-                cmd('build', 'package:first_pkg{x86}/postinstalled package:main_pkg{x86}/postinstalled package:second_pkg{x86}/postinstalled package:(subdomain1)first_pkg{x86}/postinstalled package:(subdomain1)main_pkg{x86}/postinstalled package:(subdomain1)second_pkg{x86}/postinstalled package:(subdomain1(subdomain3))first_pkg{x86}/postinstalled package:(subdomain1(subdomain3))main_pkg{x86}/postinstalled package:(subdomain1(subdomain3))second_pkg{x86}/postinstalled package:(subdomain2)first_pkg{x86}/postinstalled package:(subdomain2)main_pkg{x86}/postinstalled package:(subdomain2)second_pkg{x86}/postinstalled package:(subdomain2(subdomain3))first_pkg{x86}/postinstalled package:(subdomain2(subdomain3))main_pkg{x86}/postinstalled package:(subdomain2(subdomain3))second_pkg{x86}/postinstalled package:(subdomain2(subdomain4))first_pkg{x86}/postinstalled package:(subdomain2(subdomain4))main_pkg{x86}/postinstalled package:(subdomain2(subdomain4))second_pkg{x86}/postinstalled')
-                cmd('deploy', 'deployment:everything/deployed')
+                check_cmd('unimport', 'checkout:first_co/checked_out checkout:main_co/checked_out checkout:second_co/checked_out checkout:(subdomain1)first_co/checked_out checkout:(subdomain1)main_co/checked_out checkout:(subdomain1)second_co/checked_out checkout:(subdomain1(subdomain3))first_co/checked_out checkout:(subdomain1(subdomain3))main_co/checked_out checkout:(subdomain1(subdomain3))second_co/checked_out checkout:(subdomain2)first_co/checked_out checkout:(subdomain2)main_co/checked_out checkout:(subdomain2)second_co/checked_out checkout:(subdomain2(subdomain3))first_co/checked_out checkout:(subdomain2(subdomain3))main_co/checked_out checkout:(subdomain2(subdomain3))second_co/checked_out checkout:(subdomain2(subdomain4))first_co/checked_out checkout:(subdomain2(subdomain4))main_co/checked_out checkout:(subdomain2(subdomain4))second_co/checked_out')
+                check_cmd('build', 'package:first_pkg{x86}/postinstalled package:main_pkg{x86}/postinstalled package:second_pkg{x86}/postinstalled package:(subdomain1)first_pkg{x86}/postinstalled package:(subdomain1)main_pkg{x86}/postinstalled package:(subdomain1)second_pkg{x86}/postinstalled package:(subdomain1(subdomain3))first_pkg{x86}/postinstalled package:(subdomain1(subdomain3))main_pkg{x86}/postinstalled package:(subdomain1(subdomain3))second_pkg{x86}/postinstalled package:(subdomain2)first_pkg{x86}/postinstalled package:(subdomain2)main_pkg{x86}/postinstalled package:(subdomain2)second_pkg{x86}/postinstalled package:(subdomain2(subdomain3))first_pkg{x86}/postinstalled package:(subdomain2(subdomain3))main_pkg{x86}/postinstalled package:(subdomain2(subdomain3))second_pkg{x86}/postinstalled package:(subdomain2(subdomain4))first_pkg{x86}/postinstalled package:(subdomain2(subdomain4))main_pkg{x86}/postinstalled package:(subdomain2(subdomain4))second_pkg{x86}/postinstalled')
+                check_cmd('deploy', 'deployment:everything/deployed')
 
         with Directory('domains'):
-            cmd('unimport', unsure=True)
-            cmd('build', unsure=True)
-            cmd('deploy', unsure=True)
+            check_cmd('unimport', unsure=True)
+            check_cmd('build', unsure=True)
+            check_cmd('deploy', unsure=True)
             with Directory('subdomain1'):
-                cmd('unimport', unsure=True)
-                cmd('build', unsure=True)
-                cmd('deploy', unsure=True)
+                check_cmd('unimport', unsure=True)
+                check_cmd('build', unsure=True)
+                check_cmd('deploy', unsure=True)
                 with Directory('src'):
-                    cmd('unimport', 'checkout:(subdomain1)builds/checked_out checkout:(subdomain1)first_co/checked_out checkout:(subdomain1)main_co/checked_out checkout:(subdomain1)second_co/checked_out')
-                    cmd('build', 'package:(subdomain1)first_pkg{x86}/postinstalled package:(subdomain1)main_pkg{x86}/postinstalled package:(subdomain1)second_pkg{x86}/postinstalled')
+                    check_cmd('unimport', 'checkout:(subdomain1)builds/checked_out checkout:(subdomain1)first_co/checked_out checkout:(subdomain1)main_co/checked_out checkout:(subdomain1)second_co/checked_out')
+                    check_cmd('build', 'package:(subdomain1)first_pkg{x86}/postinstalled package:(subdomain1)main_pkg{x86}/postinstalled package:(subdomain1)second_pkg{x86}/postinstalled')
                     # NB: we get all the deployments that use this checkout...
-                    cmd('deploy', 'deployment:everything/deployed deployment:(subdomain1)everything/deployed')
+                    check_cmd('deploy', 'deployment:everything/deployed deployment:(subdomain1)everything/deployed')
 
 def build():
     muddle([])
@@ -1068,10 +1082,8 @@ def check_same_all():
             if name in fnames:
                 fnames.remove(name)
         with Directory(dirname): #, show_pushd=False):
-            text = get_stdout('{muddle} -n unimport _all'.format(muddle=MUDDLE_BINARY), False)
-            text = text.strip()
-            text = text[len('Asked to unimport: '):]
-            expected = ('checkout:builds/checked_out '
+            check_cmd('unimport _all',
+                       ('checkout:builds/checked_out '
                         'checkout:first_co/checked_out '
                         'checkout:main_co/checked_out '
                         'checkout:second_co/checked_out '
@@ -1094,16 +1106,10 @@ def check_same_all():
                         'checkout:(subdomain2(subdomain4))builds/checked_out '
                         'checkout:(subdomain2(subdomain4))first_co/checked_out '
                         'checkout:(subdomain2(subdomain4))main_co/checked_out '
-                        'checkout:(subdomain2(subdomain4))second_co/checked_out')
-            if text != expected:
-                print 'Expected', expected
-                print 'Got     ', text
-                raise GiveUp('"muddle -n unimport _all" gave unexpected results')
+                        'checkout:(subdomain2(subdomain4))second_co/checked_out'))
 
-            text = get_stdout('{muddle} -n build _all'.format(muddle=MUDDLE_BINARY), False)
-            text = text.strip()
-            text = text[len('Asked to build: '):]
-            expected = ('package:first_pkg{x86}/postinstalled '
+            check_cmd('build _all',
+                       ('package:first_pkg{x86}/postinstalled '
                         'package:main_pkg{x86}/postinstalled '
                         'package:second_pkg{x86}/postinstalled '
                         'package:(subdomain1)first_pkg{x86}/postinstalled '
@@ -1120,25 +1126,15 @@ def check_same_all():
                         'package:(subdomain2(subdomain3))second_pkg{x86}/postinstalled '
                         'package:(subdomain2(subdomain4))first_pkg{x86}/postinstalled '
                         'package:(subdomain2(subdomain4))main_pkg{x86}/postinstalled '
-                        'package:(subdomain2(subdomain4))second_pkg{x86}/postinstalled')
-            if text != expected:
-                print 'Expected', expected
-                print 'Got     ', text
-                raise GiveUp('"muddle -n build _all" gave unexpected results')
+                        'package:(subdomain2(subdomain4))second_pkg{x86}/postinstalled'))
 
-            text = get_stdout('{muddle} -n cleandeploy _all'.format(muddle=MUDDLE_BINARY), False)
-            text = text.strip()
-            text = text[len('Asked to cleandeploy: '):]
-            expected = ('deployment:everything/deployed '
+            check_cmd('cleandeploy _all',
+                       ('deployment:everything/deployed '
                         'deployment:(subdomain1)everything/deployed '
                         'deployment:(subdomain1(subdomain3))everything/deployed '
                         'deployment:(subdomain2)everything/deployed '
                         'deployment:(subdomain2(subdomain3))everything/deployed '
-                        'deployment:(subdomain2(subdomain4))everything/deployed')
-            if text != expected:
-                print 'Expected', expected
-                print 'Got     ', text
-                raise GiveUp('"muddle -n cleandeploy _all" gave unexpected results')
+                        'deployment:(subdomain2(subdomain4))everything/deployed'))
 
     os.path.walk('build', all_same, None)
 

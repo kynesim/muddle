@@ -246,7 +246,8 @@ class CheckoutCommand(Command):
         labels.sort()
 
         if self.no_op():
-            print 'Asked to %s: %s'%(self.cmd_name, label_list_to_string(labels))
+            print 'Asked to %s:\n  %s'%(self.cmd_name,
+                    label_list_to_string(labels, join_with='\n  '))
             return
         elif not args:
             print '%s %s'%(self.cmd_name, label_list_to_string(labels))
@@ -374,7 +375,8 @@ class PackageCommand(Command):
         labels.sort()
 
         if self.no_op():
-            print 'Asked to %s: %s'%(self.cmd_name, label_list_to_string(labels))
+            print 'Asked to %s:\n  %s'%(self.cmd_name,
+                    label_list_to_string(labels, join_with='\n  '))
             return
         elif not args:
             print '%s %s'%(self.cmd_name, label_list_to_string(labels))
@@ -534,7 +536,8 @@ class DeploymentCommand(Command):
         labels.sort()
 
         if self.no_op():
-            print 'Asked to %s: %s'%(self.cmd_name, label_list_to_string(labels))
+            print 'Asked to %s:\n  %s'%(self.cmd_name,
+                    label_list_to_string(labels, join_with='\n  '))
             return
         elif not args:
             print '%s %s'%(self.cmd_name, label_list_to_string(labels))
@@ -692,7 +695,8 @@ class AnyLabelCommand(Command):
         # We don't sort the list - we keep it in the order given
 
         if self.no_op():
-            print 'Asked to %s: %s'%(self.cmd_name, label_list_to_string(labels))
+            print 'Asked to %s:\n  %s'%(self.cmd_name,
+                    label_list_to_string(labels, join_with='\n  '))
             return
         elif not args:
             print '%s %s'%(self.cmd_name, label_list_to_string(labels))
@@ -2410,7 +2414,7 @@ class CopyWithout(Command):
         dst_dir = args[1]
         without = args[2:]
 
-        if (self.no_op()):
+        if self.no_op():
             print "Copy from: %s"%(src_dir)
             print "Copy to  : %s"%(dst_dir)
             print "Excluding: %s"%(" ".join(without))

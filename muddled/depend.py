@@ -1457,8 +1457,8 @@ def rule_list_to_string(rule_list):
     return "".join(str_list)
 
 
-def label_list_to_string(labels):
-    return " ".join(map(str, labels))
+def label_list_to_string(labels, join_with=' '):
+    return join_with.join(map(str, labels))
 
 def retag_label_list(labels, new_tag):
     """

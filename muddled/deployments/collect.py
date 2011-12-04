@@ -31,7 +31,8 @@ class AssemblyDescriptor:
     def __init__(self, from_label, from_rel, to_name, recursive = True, 
                  failOnAbsentSource = False, 
                  copyExactly = True,
-                 usingRSync = False):
+                 usingRSync = False,
+                 obeyInstructions = True):
         """
         Construct an assembly descriptor.
 
@@ -55,6 +56,7 @@ class AssemblyDescriptor:
         self.using_rsync = usingRSync
         self.fail_on_absent_source = failOnAbsentSource
         self.copy_exactly = copyExactly
+        self.obeyInstructions = obeyInstructions
 
         
     def get_source_dir(self, builder):
@@ -140,6 +142,11 @@ class CollectDeploymentBuilder(pkg.Action):
             need_root = False
             for asm in self.assemblies:
                 # there's a from label - does it have instructions?
+
+                # If we're not supposed to obey them anyway, give up.
+                if (asm.obeyInstructions == False):
+                    continue
+
                 lbl = depend.Label(utils.LabelType.Package, '*', asm.from_label.role, '*', domain = asm.from_label.domain)
                 install_dir = builder.invocation.role_install_path(lbl.role, label.domain)
                 instr_list = builder.load_instructions(lbl)
@@ -180,6 +187,9 @@ class CollectDeploymentBuilder(pkg.Action):
 
         for asm in self.assemblies:
             lbl = depend.Label(utils.LabelType.Package, '*', asm.from_label.role, '*', domain = asm.from_label.domain)
+
+            if (asm.obeyInstructions == False):
+                continue
 
             deploy_dir = builder.invocation.deploy_path(label.name, domain = label.domain)
 
@@ -282,7 +292,8 @@ def copy_from_role_install(builder, name, role, rel, dest,
                            failOnAbsentSource = False,
                            copyExactly = True,
                            domain = None,
-                           usingRSync = False):
+                           usingRSync = False,
+                           obeyInstructions = True):
     """
     Add a requirement to copy from the given role's install to the named deployment.
 
@@ -326,6 +337,7 @@ def copy_from_role_install(builder, name, role, rel, dest,
       otherwise the linked file will be copied.
     - If 'usingRSync' is true, copy with rsync - substantially faster than
          cp, if you have rsync. Not very functional if you don't :-)
+    - If 'obeyInstructions' is False, don't obey any applicable instructions.
     """
     rule = deployment.deployment_rule_from_name(builder, name)
     dep_label = depend.Label(utils.LabelType.Package,
@@ -336,7 +348,8 @@ def copy_from_role_install(builder, name, role, rel, dest,
     asm = AssemblyDescriptor(dep_label, rel, dest, recursive = recursive,
                              failOnAbsentSource = failOnAbsentSource, 
                              copyExactly = copyExactly,
-                             usingRSync = usingRSync)
+                             usingRSync = usingRSync,
+                             obeyInstructions = obeyInstructions)
     rule.add(dep_label)
     rule.obj.add_assembly(asm)
 

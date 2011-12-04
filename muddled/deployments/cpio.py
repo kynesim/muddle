@@ -157,9 +157,19 @@ class CpioDeploymentBuilder(pkg.Action):
 
             app_dict = get_instruction_dict()
 
+            # Apply instructions. We actually need an intermediate list here,
+            # because you might have the same role with several different
+            # sources and possibly different bases.
+            to_apply = { }
+            for (src, bt) in self.target_base:
+                if (type(bt) == types.TupleType):
+                    base = bt[2]
+                else:
+                    base = bt
+                to_apply[ ( src, base) ] = (src, bt)
 
-            # Apply instructions .. 
-            for (src,bt) in self.target_base:
+            # Now they are unique .. 
+            for (src,bt) in to_apply.values(): 
                 if (type (bt) == types.TupleType ):
                     base = bt[2]
                 else:

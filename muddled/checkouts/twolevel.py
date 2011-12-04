@@ -44,13 +44,20 @@ def relative(builder, co_dir, co_name, repo_relative = None, rev = None, branch 
     """
     repo = builder.invocation.db.repo.get()
 
+    if (co_dir is None):
+        tree_relative = co_name
+    else:
+        tree_relative = os.path.join(co_dir, co_name)
+
+
     if (repo_relative is None):
-        rest = os.path.join(co_dir, co_name)
+        rest = tree_relative
     else:
         rest = repo_relative
 
     co_label = Label(utils.LabelType.Checkout, co_name, domain=builder.default_domain)
-    builder.invocation.db.set_checkout_path(co_label, os.path.join(co_dir, co_name))
+    builder.invocation.db.set_checkout_path(co_label, 
+                                            tree_relative)
 
     vcs_handler = version_control.vcs_action_for(builder, co_label, repo, rev,
                                                  rest, co_dir=co_dir,

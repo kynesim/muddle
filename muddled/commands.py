@@ -199,16 +199,17 @@ class Command(object):
         """
         raise GiveUp("Can't run %s without a build tree."%self.cmd_name)
 
-class CheckoutCommand(Command):
+class CPDCommand(Command):
     """
-    A Command that takes checkout arguments. Always requires a build tree.
+    A command that takes checkout, package or deployment arguments.
 
-    If no explicit labels are given, then the default is to find all the
-    checkouts below the current directory.
+    This is purely an intermediate class for common code for the
+    classes using it (I coult have done a mixin class instead)
     """
 
-    # Subclasses may override this if necessary
-    required_tag = LabelTag.CheckedOut
+    # Subclasses should override the following as necessary
+    required_tag = None
+    required_type = LabelType.Checkout
 
     # XXX Generalise this to apply to all Command classes???
     # Subclasses may override this if necessary
@@ -218,10 +219,12 @@ class CheckoutCommand(Command):
     #     with argparse
     allowed_switches = []
 
+    # A list of the switches we were given, held as the first element
+    # from one of the 'allowed_switches' tuples
+    switches = []
+
     def with_build_tree(self, builder, current_dir, args):
 
-        # XXX Generalise this to apply to all Command classes???
-        switches = []
         if self.allowed_switches:
             label_args = []
             for arg in args:
@@ -229,7 +232,7 @@ class CheckoutCommand(Command):
                 for possibilities in self.allowed_switches:
                     if arg in possibilities:
                         is_label = False
-                        switches.append(possibilities[0])
+                        self.switches.append(possibilities[0])
                         break
                 if is_label:
                     label_args.append(arg)
@@ -252,13 +255,12 @@ class CheckoutCommand(Command):
         elif not args:
             print '%s %s'%(self.cmd_name, label_list_to_string(labels))
 
-        self.build_these_labels(builder, labels, switches=None)
+        self.build_these_labels(builder, labels)
 
     def decode_args(self, builder, args, current_dir):
         """
-        Interpret the 'args' as partial labels, and return a list of checkouts.
+        Interpret 'args' as partial labels, and return a list of proper labels.
         """
-        default_domain = builder.get_default_domain()
 
         result_set = set()
         # Build up an initial list from the arguments given
@@ -268,14 +270,9 @@ class CheckoutCommand(Command):
         label_from_fragment = builder.invocation.label_from_fragment
         for word in args:
             if word == '_all':
-                all_checkouts = builder.invocation.all_checkout_labels()
-                initial_list.extend(all_checkouts)
+                initial_list.extend(self.interpret_all(builder))
             else:
-                labels = label_from_fragment(word,
-                                             default_type=LabelType.Checkout,
-                                             default_role=None,
-                                             #default_domain=default_domain)
-                                             default_domain=None)
+                labels = label_from_fragment(word, default_type=self.required_type)
 
                 used_labels = []
                 # We're only interested in any labels that are actually used
@@ -299,36 +296,92 @@ class CheckoutCommand(Command):
 
         #print 'Initial list:', label_list_to_string(initial_list)
 
-        result_set = set()
+        # Now take those full labels and turn them into just checkouts,
+        # packages or deployments, according to what we want
+        intermediate_set = self.interpret_labels(builder, args, initial_list)
+
+        #print 'Intermediate set:', label_list_to_string(intermediate_set)
+
+        if self.required_tag:
+            # Regardless of the actual dependency, use the required tag.
+            # I believe this makes sense, as we're asking to do a
+            # particular command on the checkout, and that *means* moving
+            # to the required tag
+            result_set = set()
+            for l in intermediate_set:
+                if l.tag != self.required_tag:
+                    l = l.copy_with_tag(self.required_tag)
+                result_set.add(l)
+        else:
+            result_set = intermediate_set
+
+        #print 'Result set', label_list_to_string(result_set)
+        return list(result_set)
+
+    def default_args(self, builder, current_dir):
+        """
+        Decide on default labels, based on where we are in the build tree.
+        """
+        raise MuddleBug('No "default_args" method provided for command "%s"'%self.cmd_name)
+
+    def interpret_all(self, builder):
+        """Return the result of argument "_all"
+        """
+        raise MuddleBug('No "interpret_all" method provided for command "%s"'%self.cmd_name)
+
+    def interpret_labels(self, builder, args, initial_list):
+        """
+        Turn 'initial_list' into a list of labels of the required type.
+        """
+        raise MuddleBug('No "interpret_labels" method provided for command "%s"'%self.cmd_name)
+
+    def build_these_labels(self, builder, checkouts):
+        """
+        Do whatever is necessary to each label
+        """
+        raise MuddleBug('No "build_these_labels" method provided for command "%s"'%self.cmd_name)
+
+class CheckoutCommand(CPDCommand):
+    """
+    A Command that takes checkout arguments. Always requires a build tree.
+
+    If no explicit labels are given, then the default is to find all the
+    checkouts below the current directory.
+    """
+
+    required_type = LabelType.Checkout
+    # Subclasses should override the following as necessary
+    required_tag = LabelTag.CheckedOut
+
+    def interpret_all(self, builder):
+        """Return the result of argument "_all"
+        """
+        return builder.invocation.all_checkout_labels()
+
+    def interpret_labels(self, builder, args, initial_list):
+        """
+        Turn 'initial_list' into a list of labels of the required type.
+        """
+        intermediate_set = set()
         for index, label in enumerate(initial_list):
             if label.type == LabelType.Checkout:
-                # If the user requested a checkout label, then take what
-                # they asked for, but force it to have the tag implied
-                # by this particular command
-                if self.required_tag and label.tag != self.required_tag:
-                    label = label.copy_with_tag(self.required_tag)
-                result_set.add(label)
-            elif label.type in (LabelType.Package, LabelType.Deployment):
-                # Find all the checkouts needed to build this particular label
-                # (at any depth, i.e., it need not be a direct dependency)
+                intermediate_set.add(label)
+            elif label.type in LabelType.Package:
+                # All the checkouts that are used *directly* by this package
+                intermediate_set.update(builder.invocation.checkouts_for_package(label))
+            elif label.type in LabelType.Deployment:
+                # All the checkouts needed for this particular deployment
                 # XXX I don't think we need to specify useMatch=True, because we
                 # XXX should already have expanded any wildcards
                 rules = depend.needed_to_build(builder.invocation.ruleset, label)
                 for r in rules:
                     l = r.target
                     if l.type == LabelType.Checkout:
-                        # Regardless of the actual dependency, use the required
-                        # tag. I believe this makes sense, as we're asking to
-                        # do a particular command on the checkout, and that
-                        # *means* moving to the required tag
-                        if self.required_tag and l.tag != self.required_tag:
-                            l = l.copy_with_tag(self.required_tag)
-                        result_set.add(l)
+                        intermediate_set.add(l)
             else:
                 raise GiveUp("Cannot cope with label '%s', from arg '%s'"%(label, args[index]))
 
-        #print 'Result set', label_list_to_string(result_set)
-        return list(result_set)
+        return intermediate_set
 
     def default_args(self, builder, current_dir):
         """
@@ -349,96 +402,39 @@ class CheckoutCommand(Command):
         # And just pretend that was what the user asked us to do
         return self.decode_args(builder, map(str, arg_list), current_dir)
 
-    def build_these_labels(self, builder, checkouts, switches=None):
-        """
-        Do whatever is necessary to each label
-        """
-        raise MuddleBug('No action provided for command "%s"'%self.cmd_name)
-
-class PackageCommand(Command):
+class PackageCommand(CPDCommand):
     """
     A Command that takes package arguments. Always requires a build tree.
     """
 
-    # Subclasses may override this if necessary
+    required_type = LabelType.Package
+    # Subclasses should override the following as necessary
     required_tag = LabelTag.PostInstalled
 
-    def with_build_tree(self, builder, current_dir, args):
-        if args:
-            # Expand out any labels that need it
-            labels = self.decode_args(builder, args, current_dir)
-        else:
-            # Decide what to do based on where we are
-            labels = self.default_args(builder, current_dir)
-
-        # We promised a sorted list
-        labels.sort()
-
-        if self.no_op():
-            print 'Asked to %s:\n  %s'%(self.cmd_name,
-                    label_list_to_string(labels, join_with='\n  '))
-            return
-        elif not args:
-            print '%s %s'%(self.cmd_name, label_list_to_string(labels))
-
-        self.build_these_labels(builder, labels)
-
-    def decode_args(self, builder, args, current_dir):
+    def interpret_all(self, builder):
+        """Return the result of argument "_all"
         """
-        Interpret the 'args' as partial labels, and return a list of packages.
+        return builder.invocation.all_package_labels()
+
+    def interpret_labels(self, builder, args, initial_list):
         """
-        result_set = set()
-        # XXX I don't think this is a good idea
-        #default_domain = builder.get_default_domain()
-
-        # Build up an initial list from the arguments given
-        # Make sure we have a one-for-one correspondence between the input
-        # list and the result
-        initial_list = []
-        label_from_fragment = builder.invocation.label_from_fragment
-        for word in args:
-            if word == '_all':
-                initial_list.extend(builder.invocation.all_package_labels())
-            else:
-                labels = label_from_fragment(word,
-                                            default_type=LabelType.Package,
-                                            default_role=None,
-                                            #default_domain=default_domain)
-                                            default_domain=None)
-
-                used_labels = []
-                # We're only interested in any labels that are actually used
-                for label in labels:
-                    if builder.invocation.target_label_exists(label):
-                        used_labels.append(label)
-
-                # But it's an error if none of them were wanted
-                if not used_labels:
-                    if len(labels) == 1:
-                        raise GiveUp("Label %s, from argument '%s', is"
-                                     " not a target"%(labels[0], word))
-                    else:
-                        # XXX This isn't a great error message, but it's OK
-                        # XXX for now, and significantly better than nothing
-                        raise GiveUp("None of the labels %s, from argument '%s', is"
-                                     " a target"%(', '.join(map(str, labels)), word))
-
-                # Don't forget to remember those we do want!
-                initial_list.extend(used_labels)
-
-        #print 'Initial list:', label_list_to_string(initial_list)
-
-        result_set = set()
+        Turn 'initial_list' into a list of labels of the required type.
+        """
+        intermediate_set = set()
+        default_roles = builder.invocation.default_roles
         for index, label in enumerate(initial_list):
             if label.type == LabelType.Package:
-                # If the user requested a package label, then take what
-                # they asked for, but force it to have the tag implied
-                # by this particular command
-                if self.required_tag and label.tag != self.required_tag:
-                    label = label.copy_with_tag(self.required_tag)
-                result_set.add(label)
+                intermediate_set.add(label)
             elif label.type == LabelType.Checkout:
-                result_set.update(self.packages_from_checkout_label(builder, label))
+                # Experience seems to show that it makes more sense to go for
+                # just the *immediate* package dependencies - i.e., the packages
+                # that are actually built from this checkout.
+                # And the documentation says we should only use package labels
+                # with the default roles
+                package_labels = builder.invocation.packages_using_checkout(label)
+                for l in package_labels:
+                    if l.role in default_roles:
+                        intermediate_set.add(l)
             elif label.type in (LabelType.Deployment):
                 # If they specified a deployment label, then find all the
                 # packages that depend on this checkout. Here I think we
@@ -449,45 +445,11 @@ class PackageCommand(Command):
                 for r in rules:
                     l = r.target
                     if l.type == LabelType.Package:
-                        # Regardless of the actual dependency, use the required
-                        # tag. I believe this makes sense, as we're asking to
-                        # do a particular command on the checkout, and that
-                        # *means* moving to the required tag
-                        if self.required_tag and l.tag != self.required_tag:
-                            l = l.copy_with_tag(self.required_tag)
-                        result_set.add(l)
+                        intermediate_set.add(l)
             else:
                 raise GiveUp("Cannot cope with label '%s', from arg '%s'"%(label, args[index]))
 
-        #print 'Result set', label_list_to_string(result_set)
-        return list(result_set)
-
-    def packages_from_checkout_label(self, builder, label):
-        # If they specified a checkout label, then find all the
-        # packages that depend on this checkout.
-        #
-        #   NB: The documentation actually specifies "all the
-        #   packages in the default roles"
-        #
-        # There's some question about whether we use *all* packages
-        # that depend on this checkout, or just those which depend
-        # on it directly. Of course, in most builds that's going to
-        # be the same thing.
-        # XXX Should I specify useMatch=False, on the grounds that we
-        # XXX have already expanded wildcards?
-        result_set = set()
-        default_roles = builder.invocation.default_roles
-        required_labels = depend.required_by(builder.invocation.ruleset, label)
-        for l in required_labels:
-            if l.type == LabelType.Package and l.role in default_roles:
-                # Regardless of the actual dependency, use the required
-                # tag. I believe this makes sense, as we're asking to
-                # do a particular command on the checkout, and that
-                # *means* moving to the required tag
-                if self.required_tag and l.tag != self.required_tag:
-                    l = l.copy_with_tag(self.required_tag)
-                result_set.add(l)
-        return result_set
+        return intermediate_set
 
     def default_args(self, builder, current_dir):
         """
@@ -510,115 +472,18 @@ class PackageCommand(Command):
         # And just pretend that was what the user asked us to do
         return self.decode_args(builder, map(str, arg_list), current_dir)
 
-    def build_these_labels(self, builder, checkouts):
-        """
-        Do whatever is necessary to each label
-        """
-        raise MuddleBug('No action provided for command "%s"'%self.cmd_name)
-
-class DeploymentCommand(Command):
+class DeploymentCommand(CPDCommand):
     """
     A Command that takes deployment arguments. Always requires a build tree.
     """
 
-    # Subclasses may override this if necessary
+    required_type = LabelType.Deployment
+    # Subclasses should override the following as necessary
     required_tag = LabelTag.Deployed
 
-    def with_build_tree(self, builder, current_dir, args):
-        if args:
-            # Expand out any labels that need it
-            labels = self.decode_args(builder, args, current_dir)
-        else:
-            # Decide what to do based on where we are
-            labels = self.default_args(builder, current_dir)
-
-        # We promised a sorted list
-        labels.sort()
-
-        if self.no_op():
-            print 'Asked to %s:\n  %s'%(self.cmd_name,
-                    label_list_to_string(labels, join_with='\n  '))
-            return
-        elif not args:
-            print '%s %s'%(self.cmd_name, label_list_to_string(labels))
-
-        self.build_these_labels(builder, labels)
-
-    def decode_args(self, builder, args, current_dir):
+    def interpret_all(self, builder):
+        """Return all the deployment labels registered with the ruleset.
         """
-        Interpret the 'args' as partial labels, and return a list of deployments.
-        """
-        #return_list = [ ]
-        initial_list = [ ]
-        default_domain = builder.get_default_domain()
-
-        label_from_fragment = builder.invocation.label_from_fragment
-        for word in args:
-            if word == "_all":
-                # Everything ..
-                return_list = self.all_deployment_labels(builder, default_domain)
-                return_list.sort()
-                return return_list
-            else:
-                labels = label_from_fragment(word,
-                                             default_type=LabelType.Deployment,
-                                             default_role=None,
-                                             #default_domain=default_domain)
-                                             default_domain=None)
-
-                used_labels = []
-                # We're only interested in any labels that are actually used
-                for label in labels:
-                    if builder.invocation.target_label_exists(label):
-                        used_labels.append(label)
-
-                # But it's an error if none of them were wanted
-                if not used_labels:
-                    if len(labels) == 1:
-                        raise GiveUp("Label %s, from argument '%s', is"
-                                     " not a target"%(labels[0], word))
-                    else:
-                        # XXX This isn't a great error message, but it's OK
-                        # XXX for now, and significantly better than nothing
-                        raise GiveUp("None of the labels %s, from argument '%s', is"
-                                     " a target"%(', '.join(map(str, labels)), word))
-
-                # Don't forget to remember those we do want!
-                initial_list.extend(used_labels)
-
-        #print 'Initial list:', label_list_to_string(initial_list)
-
-        result_set = set()
-        for index, label in enumerate(initial_list):
-            if label.type == LabelType.Deployment:
-                # If the user requested a deployment label, then take what
-                # they asked for, but force it to have the tag implied
-                # by this particular command
-                if self.required_tag and label.tag != self.required_tag:
-                    label = label.copy_with_tag(self.required_tag)
-                result_set.add(label)
-            elif label.type in (LabelType.Checkout, LabelType.Package):
-                required_labels = depend.required_by(builder.invocation.ruleset, label)
-                for l in required_labels:
-                    if l.type == LabelType.Deployment:
-                        # Regardless of the actual dependency, use the required
-                        # tag. I believe this makes sense, as we're asking to
-                        # do a particular command on the checkout, and that
-                        # *means* moving to the required tag
-                        if self.required_tag and l.tag != self.required_tag:
-                            l = l.copy_with_tag(self.required_tag)
-                        result_set.add(l)
-            else:
-                raise GiveUp("Cannot cope with label '%s', from arg '%s'"%(label, args[index]))
-
-        #print 'Result set', label_list_to_string(result_set)
-        return list(result_set)
-
-    def all_deployment_labels(self, builder, default_domain):
-        """
-        Return all the deployment labels registered with the ruleset.
-        """
-
         # Important not to set tag here - if there's a deployment
         # which doesn't have the right tag, we want an error,
         # not to silently ignore it.
@@ -634,6 +499,26 @@ class DeploymentCommand(Command):
                 return_set.add(label.copy_with_tag(self.required_tag))
 
         return list(return_set)
+        ## Everything ..
+        #return self.all_deployment_labels(builder, default_domain)
+
+    def interpret_labels(self, builder, args, initial_list):
+        """
+        Turn 'initial_list' into a list of labels of the required type.
+        """
+        intermediate_set = set()
+        for index, label in enumerate(initial_list):
+            if label.type == LabelType.Deployment:
+                intermediate_set.add(label)
+            elif label.type in (LabelType.Checkout, LabelType.Package):
+                required_labels = depend.required_by(builder.invocation.ruleset, label)
+                for l in required_labels:
+                    if l.type == LabelType.Deployment:
+                        intermediate_set.add(l)
+            else:
+                raise GiveUp("Cannot cope with label '%s', from arg '%s'"%(label, args[index]))
+
+        return intermediate_set
 
     def default_args(self, builder, current_dir):
         """
@@ -670,12 +555,6 @@ class DeploymentCommand(Command):
                     d = d.copy_with_tag(self.required_tag)
                 return_list.append(d)
         return return_list
-
-    def build_these_labels(self, builder, deployments):
-        """
-        Do whatever is necessary to each label
-        """
-        raise MuddleBug('No action provided for command "%s"'%self.cmd_name)
 
 class AnyLabelCommand(Command):
     """
@@ -716,13 +595,7 @@ class AnyLabelCommand(Command):
             if word == '_all':
                 raise GiveUp('Command %s does not allow _all as an argument'%self.cmd_name)
 
-            # We might be given a package: fragment, which may give us multiple
-            # labels back, if the user didn't specify a role, and there are
-            # multiple default roles
-            labels = label_from_fragment(word,
-                                        default_type=LabelType.Package,
-                                        default_role=None,
-                                        default_domain=None)
+            labels = label_from_fragment(word, default_type=LabelType.Package)
 
             used_labels = []
             # We're only interested in any labels that are actually used
@@ -3631,7 +3504,7 @@ class Commit(CheckoutCommand):
     # XXX Is this correct?
     required_tag = LabelTag.ChangesCommitted
 
-    def build_these_labels(self, builder, labels, switches=None):
+    def build_these_labels(self, builder, labels):
         # Forcibly retract all the updated tags.
         for co in labels:
             builder.kill_label(co)
@@ -3666,9 +3539,9 @@ class Push(CheckoutCommand):
     required_tag = LabelTag.ChangesPushed
     allowed_switches = [('-s', '-stop')]
 
-    def build_these_labels(self, builder, labels, switches=None):
+    def build_these_labels(self, builder, labels):
 
-        if switches and '-s' in switches:
+        if '-s' in self.switches:
             stop_on_problem = True
         else:
             stop_on_problem = False
@@ -3726,9 +3599,9 @@ class Pull(CheckoutCommand):
     required_tag = LabelTag.Fetched
     allowed_switches = [('-s', '-stop')]
 
-    def build_these_labels(self, builder, labels, switches=None):
+    def build_these_labels(self, builder, labels):
 
-        if switches and '-s' in switches:
+        if '-s' in self.switches:
             stop_on_problem = True
         else:
             stop_on_problem = False
@@ -3795,9 +3668,9 @@ class Merge(CheckoutCommand):
     required_tag = LabelTag.Merged
     allowed_switches = [('-s', '-stop')]
 
-    def build_these_labels(self, builder, labels, switches=None):
+    def build_these_labels(self, builder, labels):
 
-        if switches and '-s' in switches:
+        if '-s' in self.switches:
             stop_on_problem = True
         else:
             stop_on_problem = False
@@ -3859,9 +3732,9 @@ class Status(CheckoutCommand):
     # Remember, it's a list of *tuples*, so we need the comma after '-v'
     allowed_switches = [('-v',)]
 
-    def build_these_labels(self, builder, labels, switches=None):
+    def build_these_labels(self, builder, labels):
 
-        if switches and '-v' in switches:
+        if '-v' in self.switches:
             verbose = True
         else:
             verbose = False
@@ -3919,9 +3792,9 @@ class Reparent(CheckoutCommand):
     required_tag = LabelTag.Fetched
     allowed_switches = [('-f', '-force')]
 
-    def build_these_labels(self, builder, labels, switches=None):
+    def build_these_labels(self, builder, labels):
 
-        if switches and '-f' in switches:
+        if '-f' in self.switches:
             force = True
         else:
             force = False
@@ -3949,7 +3822,7 @@ class Removed(CheckoutCommand):
     below the current directory.
     """
 
-    def build_these_labels(self, builder, labels, switches=None):
+    def build_these_labels(self, builder, labels):
         for c in labels:
             builder.kill_label(c)
 
@@ -3967,7 +3840,7 @@ class Unimport(CheckoutCommand):
     below the current directory.
     """
 
-    def build_these_labels(self, builder, labels, switches=None):
+    def build_these_labels(self, builder, labels):
         for c in labels:
             builder.invocation.db.clear_tag(c)
 
@@ -4000,7 +3873,7 @@ class Import(CheckoutCommand):
         self.args = args
         super(Import, self).with_build_tree(builder, current_dir, args)
 
-    def build_these_labels(self, builder, labels, switches=None):
+    def build_these_labels(self, builder, labels):
         for c in labels:
             builder.invocation.db.set_tag(c)
         # issue 143: Call reparent so the VCS is locked and loaded.
@@ -4055,7 +3928,7 @@ class UnCheckout(CheckoutCommand):
     has already been removed.
     """
 
-    def build_these_labels(self, builder, labels, switches=None):
+    def build_these_labels(self, builder, labels):
         for co in labels:
             builder.kill_label(co)
 
@@ -4072,7 +3945,7 @@ class Checkout(CheckoutCommand):
     'checkout _all' means checkout all checkouts.
     """
 
-    def build_these_labels(self, builder, labels, switches=None):
+    def build_these_labels(self, builder, labels):
         for co in labels:
             builder.build_label(co)
 

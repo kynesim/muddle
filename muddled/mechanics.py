@@ -669,8 +669,7 @@ class Invocation:
         """
         self.db.commit()
 
-    def label_from_fragment(self, fragment, default_type, default_role,
-                            default_domain):
+    def label_from_fragment(self, fragment, default_type):
         """A variant of Label.from_fragment that understands types and wildcards
 
         In particular, it knows that:
@@ -684,7 +683,6 @@ class Invocation:
         label = Label.from_fragment(fragment,
                                     default_type=default_type,
                                     default_role=None,
-                                    #default_domain=default_domain)
                                     default_domain=None)
         labels = []
         if label.type == LabelType.Package and label.role is None and self.default_roles:

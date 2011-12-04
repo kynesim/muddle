@@ -152,6 +152,18 @@ class Command(object):
 
     cmd_name = '<Undefined>'
 
+    # Subclasses should override this to specify any switches that
+    # are allowed after the command word.
+    #
+    # Our switches are held as a dictionary whose keys are the allowed
+    # switches, and whose values are the token to put into self.switches
+    # if we encounter that switch
+    allowed_switches = {}
+
+    # A list of the switches we were given, held as the first element
+    # from one of the 'allowed_switches' tuples
+    switches = []
+
     def __init__(self):
         self.options = { }
 
@@ -186,6 +198,30 @@ class Command(object):
         """
         return ("no_operation" in self.options)
 
+    def remove_switches(self, args, allowed_more=True):
+        """Find any switches, remember them, return the remaining arguments.
+
+        Switches are assumed to all come before any labels. We stop with
+        an exception if we encounter something starting with '-' that is not a
+        recognised switch.
+
+        If 'allowed_more' is False, then the command line must end after any
+        switches.
+        """
+        while args:
+            word = args[0]
+            if word[0] == '-':
+                if word in self.allowed_switches:
+                    self.switches.append(self.allowed_switches[word])
+                else:
+                    raise GiveUp('Unexpected switch "%s"'%word)
+            else:
+                break
+            args = args[1:]
+
+        if args and not allowed_more:
+            raise GiveUp('Unexpected trailing arguments "%s"'%' '.join(args))
+        return args
 
     def with_build_tree(self, builder, current_dir, args):
         """
@@ -211,33 +247,9 @@ class CPDCommand(Command):
     required_tag = None
     required_type = LabelType.Checkout
 
-    # XXX Generalise this to apply to all Command classes???
-    # Subclasses may override this if necessary
-    # A list of tuples, each tuple representing the allowed forms of a
-    # given switch. The first form given will be the one remembered
-    # XXX and undoubtedly should do something more sophisticated, e.g.,
-    #     with argparse
-    allowed_switches = []
-
-    # A list of the switches we were given, held as the first element
-    # from one of the 'allowed_switches' tuples
-    switches = []
-
     def with_build_tree(self, builder, current_dir, args):
 
-        if self.allowed_switches:
-            label_args = []
-            for arg in args:
-                is_label = True
-                for possibilities in self.allowed_switches:
-                    if arg in possibilities:
-                        is_label = False
-                        self.switches.append(possibilities[0])
-                        break
-                if is_label:
-                    label_args.append(arg)
-            args = label_args
-
+        args = self.remove_switches(args)
         if args:
             # Expand out any labels that need it
             labels = self.decode_args(builder, args, current_dir)
@@ -1214,24 +1226,7 @@ class QueryCommand(Command):
         except GiveUp as exc:
             raise GiveUp("%s\nIt should contain at least <type>:<name>/<tag>"%exc)
 
-        # XXX experimental
-        #if label.domain is None:
-        #    default_domain = builder.get_default_domain()
-        #    if default_domain:
-        #        label = label.copy_with_domain(default_domain)
-
         return builder.invocation.apply_unifications(label)
-
-    def get_switches(self, args, allowed_switches):
-        """BEWARE: removes any switches found from 'args'
-        """
-        switches = []
-        for arg in args:
-            if arg in allowed_switches:
-                switches.append(arg)
-                args.remove(arg)
-        return switches
-
 
 @subcommand('query', 'checkouts', CAT_QUERY)
 class QueryCheckouts(QueryCommand):
@@ -1243,12 +1238,13 @@ class QueryCheckouts(QueryCommand):
     With '-j', print them all on one line, separated by spaces.
     """
 
+    allowed_switches = {'-j':'join'}
+
     def with_build_tree(self, builder, current_dir, args):
-        switches = self.get_switches(args, ['-j'])
-        if switches:
-            joined = True
-        else:
-            joined = False
+        args = self.remove_switches(args, allowed_more=False)
+
+        joined = ('join' in self.switches)
+
         cos = builder.invocation.all_checkout_labels()
         a_list = list(cos)
         a_list.sort()
@@ -1285,12 +1281,13 @@ class QueryDomains(QueryCommand):
     With '-j', print them all on one line, separated by spaces.
     """
 
+    allowed_switches = {'-j':'join'}
+
     def with_build_tree(self, builder, current_dir, args):
-        switches = self.get_switches(args, ['-j'])
-        if switches:
-            joined = True
-        else:
-            joined = False
+        args = self.remove_switches(args, allowed_more=False)
+
+        joined = ('join' in self.switches)
+
         domains = builder.invocation.all_domains()
         a_list = list(domains)
         a_list.sort()
@@ -1312,12 +1309,13 @@ class QueryPackages(QueryCommand):
     With '-j', print them all on one line, separated by spaces.
     """
 
+    allowed_switches = {'-j':'join'}
+
     def with_build_tree(self, builder, current_dir, args):
         switches = self.get_switches(args, ['-j'])
-        if switches:
-            joined = True
-        else:
-            joined = False
+
+        joined = ('join' in self.switches)
+
         packages = builder.invocation.all_packages()
         a_list = list(packages)
         a_list.sort()
@@ -1339,12 +1337,13 @@ class QueryPackageRoles(QueryCommand):
     With '-j', print them all on one line, separated by spaces.
     """
 
+    allowed_switches = {'-j':'join'}
+
     def with_build_tree(self, builder, current_dir, args):
-        switches = self.get_switches(args, ['-j'])
-        if switches:
-            joined = True
-        else:
-            joined = False
+        args = self.remove_switches(args, allowed_more=False)
+
+        joined = ('join' in self.switches)
+
         packages = builder.invocation.all_packages_with_roles()
         a_list = list(packages)
         a_list.sort()
@@ -1363,12 +1362,13 @@ class QueryDeployments(QueryCommand):
     With '-j', print them all on one line, separated by spaces.
     """
 
+    allowed_switches = {'-j':'join'}
+
     def with_build_tree(self, builder, current_dir, args):
-        switches = self.get_switches(args, ['-j'])
-        if switches:
-            joined = True
-        else:
-            joined = False
+        args = self.remove_switches(args, allowed_more=False)
+
+        joined = ('join' in self.switches)
+
         roles = builder.invocation.all_deployments()
         a_list = list(roles)
         a_list.sort()
@@ -1387,12 +1387,13 @@ class QueryRoles(QueryCommand):
     With '-j', print them all on one line, separated by spaces.
     """
 
+    allowed_switches = {'-j':'join'}
+
     def with_build_tree(self, builder, current_dir, args):
-        switches = self.get_switches(args, ['-j'])
-        if switches:
-            joined = True
-        else:
-            joined = False
+        args = self.remove_switches(args, allowed_more=False)
+
+        joined = ('join' in self.switches)
+
         roles = builder.invocation.all_roles()
         a_list = list(roles)
         a_list.sort()
@@ -1411,12 +1412,12 @@ class QueryDefaultRoles(QueryCommand):
     With '-j', print them all on one line, separated by spaces.
     """
 
+    allowed_switches = {'-j':'join'}
+
     def with_build_tree(self, builder, current_dir, args):
-        switches = self.get_switches(args, ['-j'])
-        if switches:
-            joined = True
-        else:
-            joined = False
+        args = self.remove_switches(args, allowed_more=False)
+
+        joined = ('join' in self.switches)
 
         default_roles = builder.invocation.default_roles
         default_roles.sort()
@@ -1436,12 +1437,12 @@ class QueryDefaultLabels(QueryCommand):
     With '-j', print them all on one line, separated by spaces.
     """
 
+    allowed_switches = {'-j':'join'}
+
     def with_build_tree(self, builder, current_dir, args):
-        switches = self.get_switches(args, ['-j'])
-        if switches:
-            joined = True
-        else:
-            joined = False
+        args = self.remove_switches(args, allowed_more=False)
+
+        joined = ('join' in self.switches)
 
         default_labels = builder.invocation.default_labels
         default_labels.sort()
@@ -3537,11 +3538,11 @@ class Push(CheckoutCommand):
     """
 
     required_tag = LabelTag.ChangesPushed
-    allowed_switches = [('-s', '-stop')]
+    allowed_switches = {'-s': 'stop', '-stop':'stop'}
 
     def build_these_labels(self, builder, labels):
 
-        if '-s' in self.switches:
+        if 'stop' in self.switches:
             stop_on_problem = True
         else:
             stop_on_problem = False
@@ -3597,11 +3598,11 @@ class Pull(CheckoutCommand):
     """
 
     required_tag = LabelTag.Fetched
-    allowed_switches = [('-s', '-stop')]
+    allowed_switches = {'-s': 'stop', '-stop':'stop'}
 
     def build_these_labels(self, builder, labels):
 
-        if '-s' in self.switches:
+        if 'stop' in self.switches:
             stop_on_problem = True
         else:
             stop_on_problem = False
@@ -3666,11 +3667,11 @@ class Merge(CheckoutCommand):
     """
 
     required_tag = LabelTag.Merged
-    allowed_switches = [('-s', '-stop')]
+    allowed_switches = {'-s': 'stop', '-stop':'stop'}
 
     def build_these_labels(self, builder, labels):
 
-        if '-s' in self.switches:
+        if 'stop' in self.switches:
             stop_on_problem = True
         else:
             stop_on_problem = False
@@ -3730,11 +3731,11 @@ class Status(CheckoutCommand):
 
     required_tag = LabelTag.Fetched
     # Remember, it's a list of *tuples*, so we need the comma after '-v'
-    allowed_switches = [('-v',)]
+    allowed_switches = {'-v': 'verbose'}
 
     def build_these_labels(self, builder, labels):
 
-        if '-v' in self.switches:
+        if 'verbose' in self.switches:
             verbose = True
         else:
             verbose = False
@@ -3790,11 +3791,11 @@ class Reparent(CheckoutCommand):
     """
 
     required_tag = LabelTag.Fetched
-    allowed_switches = [('-f', '-force')]
+    allowed_switches = {'-f':'force', '-force':'force'}
 
     def build_these_labels(self, builder, labels):
 
-        if '-f' in self.switches:
+        if 'force' in self.switches:
             force = True
         else:
             force = False

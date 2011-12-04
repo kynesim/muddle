@@ -155,6 +155,13 @@ class Command(object):
     # Subclasses should override this to specify any switches that
     # are allowed after the command word.
     #
+    # This mechanism is VERY primitive, and does not allow ordering
+    # of switches (so it doesn't cope with a switch overriding a previous
+    # switch), or switches with arguments. Perhaps I should be using
+    # whatever switch mechanism Python 2.6 and above support - except
+    # that getopt and optparse are both awful, and Python 2.7's argparse
+    # doesn't seem much better (and, anyway, isn't in Python 2.6)
+    #
     # Our switches are held as a dictionary whose keys are the allowed
     # switches, and whose values are the token to put into self.switches
     # if we encounter that switch

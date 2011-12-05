@@ -608,8 +608,8 @@ class PackageCommand(CPDCommand):
                         found = True
                         intermediate_set.add(l)
                 if not found:
-                    potential_problems.append('Label %s does not depend on any'
-                                              ' packages with default roles'%label)
+                    potential_problems.append('Label %s is not used by any'
+                                              ' packages in the default roles'%label)
             elif label.type in (LabelType.Deployment):
                 # If they specified a deployment label, then find all the
                 # packages that depend on this checkout. Here I think we

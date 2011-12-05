@@ -533,15 +533,15 @@ class CheckoutCommand(CPDCommand):
                 raise GiveUp("Cannot cope with label '%s', from arg '%s'"%(label, args[index]))
 
             if not found:
-                potential_problems.append('Label %s does not depend on any checkouts'%label)
+                potential_problems.append('%s does not depend on any checkouts'%label)
 
         if not intermediate_set:
             text = []
             if len(initial_list) == 1:
-                text.append('Label %s exists, but does not specify'
+                text.append('Label %s exists, but does not give'
                              ' a target for "muddle %s"'%(initial_list[0], self.cmd_name))
             else:
-                text.append('The labels %s exist, but none specifies a'
+                text.append('The labels %s exist, but none gives a'
                             ' target for "muddle %s"'%(label_list_to_string(labels,
                                 join_with=', '), self.cmd_name))
             if potential_problems:
@@ -608,8 +608,8 @@ class PackageCommand(CPDCommand):
                         found = True
                         intermediate_set.add(l)
                 if not found:
-                    potential_problems.append('Label %s is not used by any'
-                                              ' packages in the default roles'%label)
+                    potential_problems.append('None of the packages in the'
+                                              ' default roles use %s'%label)
             elif label.type in (LabelType.Deployment):
                 # If they specified a deployment label, then find all the
                 # packages that depend on this checkout. Here I think we
@@ -624,17 +624,17 @@ class PackageCommand(CPDCommand):
                         found = True
                         intermediate_set.add(l)
                 if not found:
-                    potential_problems.append('Label %s does not depend on any packages'%label)
+                    potential_problems.append('No deployments depend on %s'%label)
             else:
                 raise GiveUp("Cannot cope with label '%s', from arg '%s'"%(label, args[index]))
 
         if not intermediate_set:
             text = []
             if len(initial_list) == 1:
-                text.append('Label %s exists, but does not specify'
+                text.append('Label %s exists, but does not give'
                              ' a target for "muddle %s"'%(initial_list[0], self.cmd_name))
             else:
-                text.append('The labels %s exist, but none specifies a'
+                text.append('The labels %s exist, but none gives a'
                             ' target for "muddle %s"'%(label_list_to_string(labels,
                                 join_with=', '), self.cmd_name))
             if potential_problems:
@@ -717,15 +717,15 @@ class DeploymentCommand(CPDCommand):
                 raise GiveUp("Cannot cope with label '%s', from arg '%s'"%(label, args[index]))
 
             if not found:
-                potential_problems.append('Label %s does not depend on any deployments'%label)
+                potential_problems.append('No deployments depend on %s'%label)
 
         if not intermediate_set:
             text = []
             if len(initial_list) == 1:
-                text.append('Label %s exists, but does not specify'
+                text.append('Label %s exists, but does not give'
                              ' a target for "muddle %s"'%(initial_list[0], self.cmd_name))
             else:
-                text.append('The labels %s exist, but none specifies a'
+                text.append('The labels %s exist, but none gives a'
                             ' target for "muddle %s"'%(label_list_to_string(labels,
                                 join_with=', '), self.cmd_name))
             if potential_problems:

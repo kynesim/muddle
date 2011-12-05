@@ -290,16 +290,21 @@ class Invocation:
 
         Note that if '*' is one of the package "names" in the ruleset,
         then it will be included in the names returned.
+
+        However, any labels with role '*' will be ignored.
         """
         rv = set()
         for role in self.all_roles():
+            if role == '*':
+                continue
             lbl = Label(LabelType.Package, "*", role, "*", domain="*")
-            all_labels = self.ruleset.rules_for_target(lbl)
-            for cur in all_labels:
-                if cur.target.domain:
-                    rv.add('(%s)%s{%s}'%(cur.target.domain, cur.target.name, role))
+            all_rules = self.ruleset.rules_for_target(lbl)
+            for cur in all_rules:
+                lbl = cur.target
+                if lbl.domain:
+                    rv.add('(%s)%s{%s}'%(lbl.domain, lbl.name, role))
                 else:
-                    rv.add('%s{%s}'%(cur.target.name,role))
+                    rv.add('%s{%s}'%(lbl.name,role))
         return rv
 
     def all_roles(self):

@@ -74,14 +74,10 @@ def in_category(command_name, category, for_subcommand=False):
         raise GiveUp("Command %s cannot be added to unexpected"
                      " category %s"%(command_name, category))
 
-    if for_subcommand:
-        if category not in g_command_categories:
-            g_command_categories[category] = [command_name]
+    if category in g_command_categories:
+        g_command_categories[category].add(command_name)
     else:
-        if category in g_command_categories:
-            g_command_categories[category].append(command_name)
-        else:
-            g_command_categories[category] = [command_name]
+        g_command_categories[category] = set([command_name])
 
 def command(command_name, category, aliases=None):
     """A simple decorator to remmember a class by its command name.
@@ -1027,7 +1023,7 @@ class Help(Command):
         indent = ' '*(maxlen+3)
 
         for name in categories_list:
-            cmd_list = categories_dict[name]
+            cmd_list = list(categories_dict[name])
             cmd_list.sort()
             line = "  %-*s %s"%(maxlen, '%s:'%name, ' '.join(cmd_list))
             result_array.append(utils.wrap(line, subsequent_indent=indent))

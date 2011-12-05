@@ -111,25 +111,18 @@ def _cmdline(args, current_dir, original_env, muddle_binary):
 
             (what, label, domain) = where
 
-            if what == DirType.Root: # or (domain is None and label is None):
-                # We're either (1) actually at the root of the entire tree, or
-                # (2) we're not anywhere particularly identifiable but near the
-                # top of the entire tree.
+            if what == DirType.Root:
+                # We're at the very top of the build tree
                 #
                 # As such, our default is to build labels:
                 command_class = cmd_dict["buildlabel"]
                 command = command_class()
                 command.set_options(command_options)
 
-                # and the labels to build are the default labels - this
-                # includes any default deployments
-                args = map(str, builder.invocation.default_labels)
+                # and the labels to build are the default deployments
+                args = map(str, builder.invocation.default_deployment_labels)
 
-                # Default roles will not yet have been turned into labels
-                # - we need to do this lazily so we know we get all the
-                # labels for each role.
-                # This is doubtless not the most compact way of doing this,
-                # but it makes what we are doing fairly clear...
+                # and the default roles
                 for role in builder.invocation.default_roles:
                     label = Label(LabelType.Package, '*', role, LabelTag.PostInstalled)
                     args.append(str(label))

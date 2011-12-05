@@ -185,9 +185,9 @@ def process(goals):
 		raise GiveUp('Not in a muddle build tree')
 
 	if not goals:
-		print '# No goals given: assuming default labels'
-		default_labels = gbuilder.invocation.default_labels
-		goals = map(str, default_labels)
+		print '# No goals given: assuming default deployments'
+		default_deployment_labels = gbuilder.invocation.default_deployment_labels
+		goals = map(str, default_deployment_labels)
 		print '#  %s'%', '.join(goals)
 
 	# Do we care about labelling the edges?

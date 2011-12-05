@@ -36,7 +36,7 @@ class Invocation:
         * self.pkgs       - Map of (package, role) -> package object.
         * self.env        - Map of label to environment
         * self.default_roles - The roles to build when you don't specify any.
-        * self.default_labels - The list of labels to build.
+        * self.default_deployment_labels - The list of labels to build.
         * self.banned_roles - An array of pairs of role1,d1,role2,d2 which aren't allowed
                              to share libraries.
         * self.domain_params - Maps domain names to dictionaries storing
@@ -48,7 +48,7 @@ class Invocation:
         self.ruleset = depend.RuleSet()
         self.env = { }
         self.default_roles = [ ]
-        self.default_labels = [ ]
+        self.default_deployment_labels = [ ]
         self.banned_roles = [ ]
         self.domain_params = { }
         self.unifications = [ ]
@@ -418,20 +418,21 @@ class Invocation:
         already there), True if we did.
         """
 
-        for i in self.default_roles:
-            if i == role:
-                return False
+        if role in self.default_roles:
+            return False
 
         self.default_roles.append(role)
         return True
 
-    def add_default_label(self, label):
+    def add_default_deployment_label(self, label):
         """
         Set the label that's built when you call muddle from the root
         directory
         """
-        self.default_labels.append(label)
+        if label.type != LabelType.Deployment:
+            raise MuddleBug('Attempt to add label %s to default deployments'%label)
 
+        self.default_deployment_labels.append(label)
 
     def list_environments_for(self, label):
         """
@@ -850,9 +851,8 @@ class Builder(object):
         Set your invocation's default label to be to build the
         given deployment
         """
-        label = Label(LabelType.Deployment, deployment, None,
-                             LabelTag.Deployed)
-        self.invocation.add_default_label(label)
+        label = Label(LabelType.Deployment, deployment, None, LabelTag.Deployed)
+        self.invocation.add_default_deployment_label(label)
 
     def by_default_deploy_list(self, deployments):
         """
@@ -860,10 +860,15 @@ class Builder(object):
         """
 
         for d in deployments:
-            dep_label = Label(LabelType.Deployment, d, None,
-                              LabelTag.Deployed)
-            self.invocation.add_default_label(dep_label)
+            dep_label = Label(LabelType.Deployment, d, None, LabelTag.Deployed)
+            self.invocation.add_default_deployment_label(dep_label)
 
+    def add_default_roles(self, roles):
+        """
+        Add the given roles to the list of default roles for this build.
+        """
+        for r in roles:
+            self.invocation.add_default_role(r)
 
     def load_instructions(self, label):
         """
@@ -1671,7 +1676,7 @@ def _new_sub_domain(root_path, muddle_binary, domain_name, domain_repo, domain_b
     # than once.
     labels = []
 
-    for l in domain_builder.invocation.default_labels:
+    for l in domain_builder.invocation.default_deployment_labels:
         labels.append(l)
 
     env = domain_builder.invocation.env

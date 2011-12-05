@@ -769,26 +769,13 @@ class DeploymentCommand(CPDCommand):
             arg_list.extend(builder.get_all_checkout_labels_below(current_dir))
         #else:
         #    # If we're in a "random place" is this a sensible default?
-        #    arg_list = self.default_deployment_labels(builder)
+        #    arg_list = self.builder.invocation.default_deployment_labels
 
         if not arg_list:
             raise GiveUp('Not sure what you want to %s'%self.cmd_name)
 
         # And just pretend that was what the user asked us to do
         return self.decode_args(builder, map(str, arg_list), current_dir)
-
-    def default_deployment_labels(self, builder):
-        """
-        Return labels tagged with tag for all the default deployments.
-        """
-
-        return_list = [ ]
-        for d in builder.invocation.default_labels:
-            if d.type == LabelType.Deployment:
-                if self.required_tag and d.tag != self.required_tag:
-                    d = d.copy_with_tag(self.required_tag)
-                return_list.append(d)
-        return return_list
 
 class AnyLabelCommand(Command):
     """
@@ -1620,11 +1607,8 @@ class QueryDefaultDeployments(QueryCommand):
 
         joined = ('join' in self.switches)
 
-        default_deployments = set()
-        for d in builder.invocation.default_labels:
-            if d.type == LabelType.Deployment:
-                default_deployments.add(d.name)
-        a_list = list(default_deployments)
+        default_deployments = builder.invocation.default_deployment_labels
+        a_list = list(default_deployments)  # Make sure it's a copy
         a_list.sort()
         if joined:
             print '%s'%" ".join(a_list)
@@ -1679,34 +1663,6 @@ class QueryDefaultRoles(QueryCommand):
             print '%s'%" ".join(default_roles)
         else:
             print '%s'%"\n".join(default_roles)
-
-@subcommand('query', 'default-labels', CAT_QUERY)
-class QueryDefaultLabels(QueryCommand):
-    """
-    :Syntax: query default-labels [-j]
-
-    Print the list of default labels to be built. This should actually
-    be a list of default deployments.
-
-    With '-j', print them all on one line, separated by spaces.
-    """
-
-    allowed_switches = {'-j':'join'}
-
-    def with_build_tree(self, builder, current_dir, args):
-        args = self.remove_switches(args, allowed_more=False)
-
-        joined = ('join' in self.switches)
-
-        default_labels = builder.invocation.default_labels
-        default_labels.sort()
-        l = []
-        for label in default_labels:
-            l.append(str(label))
-        if joined:
-            print '%s'%" ".join(l)
-        else:
-            print '%s'%"\n".join(l)
 
 @subcommand('query', 'root', CAT_QUERY)
 class QueryRoot(QueryCommand):
@@ -2043,7 +1999,7 @@ class QueryUnused(QueryCommand):
             print 'Finding labels unused by:'
         else:
             print 'Finding labels unused by the default deployables:'
-            targets = set(builder.invocation.default_labels[:])
+            targets = set(builder.invocation.default_deployment_labels)
 
         targets = list(targets)
         targets.sort()

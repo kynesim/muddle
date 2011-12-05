@@ -29,6 +29,7 @@ except ImportError:
 
 from muddled.cmdline import find_and_load
 from muddled.depend import Label
+from muddled.utils import LabelType
 
 def format_nodename(node):
 	""" Sanitises a nodename so it won't choke graphviz.
@@ -190,16 +191,24 @@ def process(goals):
 		goals = map(str, default_deployment_labels)
 		print '#  %s'%', '.join(goals)
 
+	if not goals:
+		raise GiveUp('No goals given, and no default deployments. Giving up.')
+
 	# Do we care about labelling the edges?
 	hideEdgeLabels = True
 	# Do we care about nodes touching an AptGetBuilder?
 	omitAptGetNodes = True
 
+	full_goals = []
 	for g in goals:
+		labels = gbuilder.invocation.label_from_fragment(g, default_type=LabelType.Package)
+		full_goals.extend(map(str, labels))
+
+	for g in full_goals:
 		Node(g, isGoal=True, extras="shape=parallelogram")
 		# color=green fillcolor=green style=filled...?
 
-	for g in goals:
+	for g in full_goals:
 		do_deps(gbuilder, g)
 
 	# Nodes created by AptGetBuilders aren't very interesting.

@@ -1320,11 +1320,30 @@ class Bootstrap(Command):
 
         print "Done.\n"
 
-@command('dependencies', CAT_QUERY, ['depend', 'depends'])
-class Depend(Command):
+class QueryCommand(Command):
     """
-    :Syntax: depend <what>
-    :or:     depend <what> <label>
+    The base class for 'query' commands
+    """
+
+    def requires_build_tree(self):
+        return True
+
+    def get_label(self, builder, args):
+        if len(args) != 1:
+            raise GiveUp("Command '%s' needs a label"%(self.cmd_name))
+
+        try:
+            label = Label.from_string(args[0])
+        except GiveUp as exc:
+            raise GiveUp("%s\nIt should contain at least <type>:<name>/<tag>"%exc)
+
+        return builder.invocation.apply_unifications(label)
+
+@subcommand('query', 'dependencies', CAT_QUERY, ['depend', 'depends'])
+class Depend(QueryCommand):
+    """
+    :Syntax: query dependencies <what>
+    :or:     query dependencies <what> <label>
 
     Print the current dependency sets. Not specifying a label is the same as
     specifying "_all".
@@ -1343,12 +1362,6 @@ class Depend(Command):
     * user-short   - Print dependencies entered by the build description
     * all-short    - Print all dependencies
     """
-
-    def requires_build_tree(self):
-        return True
-
-    def without_build_tree(self, muddle_binary, root_path, args):
-        raise GiveUp("Cannot run without a build tree")
 
     def with_build_tree(self, builder, current_dir, args):
         if len(args) != 1 and len(args) != 2:
@@ -1387,25 +1400,6 @@ class Depend(Command):
         print builder.invocation.ruleset.to_string(matchLabel = label,
                                                    showSystem = show_sys, showUser = show_user,
                                                    ignore_empty = ignore_empty)
-
-class QueryCommand(Command):
-    """
-    The base class for 'query' commands
-    """
-
-    def requires_build_tree(self):
-        return True
-
-    def get_label(self, builder, args):
-        if len(args) != 1:
-            raise GiveUp("Command '%s' needs a label"%(self.cmd_name))
-
-        try:
-            label = Label.from_string(args[0])
-        except GiveUp as exc:
-            raise GiveUp("%s\nIt should contain at least <type>:<name>/<tag>"%exc)
-
-        return builder.invocation.apply_unifications(label)
 
 @subcommand('query', 'vcs', CAT_QUERY)
 class QueryVCS(QueryCommand):

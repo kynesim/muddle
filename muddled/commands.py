@@ -360,13 +360,17 @@ class CPDCommand(Command):
             all_checkouts = builder.invocation.all_checkouts()
             names = set()
             tags = set()
+            roles = set()
             for l in labels:
                 if l.name != '*':
                     names.add(l.name)
                 if l.tag != '*':
                     tags.add(l.tag)
+                if l.role:
+                    roles.add(l.role)
             names = sorted(names)
             tags = sorted(tags)
+            roles = sorted(roles)
             for n in names:
                 if n not in all_checkouts:
                     lines.append('  Checkout name "%s" is not defined in the build description'%n)
@@ -374,6 +378,8 @@ class CPDCommand(Command):
                 if t not in (LabelTag.CheckedOut, LabelTag.Fetched, LabelTag.Merged,
                              LabelTag.ChangesCommitted, LabelTag.ChangesPushed):
                     lines.append('  Checkout tag "%s" is unexpected'%t)
+            if roles:
+                lines.append('  Checkout labels should not have roles: {%s}'%('}, {'.join(roles)))
         elif first.type == LabelType.Package:
             default_roles = builder.invocation.default_roles
             all_packages = builder.invocation.all_packages()
@@ -440,19 +446,25 @@ class CPDCommand(Command):
             all_deployments = builder.invocation.all_deployments()
             names = set()
             tags = set()
+            roles = set()
             for l in labels:
                 if l.name != '*':
                     names.add(l.name)
                 if l.tag != '*':
                     tags.add(l.tag)
+                if l.role:
+                    roles.add(l.role)
             names = sorted(names)
             tags = sorted(tags)
+            roles = sorted(roles)
             for n in names:
                 if n not in all_deployments:
                     lines.append('  Deployment name "%s" is not defined in the build description'%n)
             for t in tags:
                 if t not in (LabelTag.Deployed, LabelTag.InstructionsApplied):
                     lines.append('  Deployment tag "%s" is unexpected'%t)
+            if roles:
+                lines.append('  Deployment labels should not have roles: {%s}'%('}, {'.join(roles)))
         else:
             raise MuddleBug('Unexpected label type "%s" for unused'
                             ' label "%s"'%(first_type, first))

@@ -1106,24 +1106,6 @@ class Help(Command):
 
         return "\n".join(result_array)
 
-@command('root', CAT_QUERY)
-class Root(Command):
-    """
-    :Syntax: root
-
-    Display the root directory we reckon you're in.
-    """
-
-    def requires_build_tree(self):
-        return False
-
-    def with_build_tree(self, builder, current_dir, args):
-        print "%s"%(builder.invocation.db.root_path)
-
-    def without_build_tree(self, muddle_binary, root_path, args):
-        print "<uninitialized> %s"%(root_path)
-
-
 @command('init', CAT_INIT)
 class Init(Command):
     """
@@ -1683,12 +1665,11 @@ class QueryRoot(QueryCommand):
     """
     :Syntax: query root
 
-    Print the root path and default domain
+    Print the root path
     """
 
     def with_build_tree(self, builder, current_dir, args):
-        print "Root: %s"%builder.invocation.db.root_path
-        print "Default domain: %s"%builder.get_default_domain()
+        print builder.invocation.db.root_path
 
 @subcommand('query', 'name', CAT_QUERY)
 class QueryName(QueryCommand):

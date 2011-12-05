@@ -797,7 +797,7 @@ class Label(object):
         if type is None:
             type = default_type
         elif type == '*':
-            raise utils.GiveUp("Label type '*' is not allowed,"
+            raise utils.GiveUp("Label type '*:' is not allowed,"
                                " in label fragment '%s'"%fragment)
         name = m.group("name")
         role = m.group("role")
@@ -809,7 +809,7 @@ class Label(object):
                 tag = utils.package_type_to_tag[type]
             except KeyError:
                 raise utils.GiveUp("Cannot guess tag for label fragment '%s'"
-                        " (using label type '%s')"%(fragment, type))
+                        " (unrecognised label type '%s:')"%(fragment, type))
         domain = m.group("domain")
         if domain is None:
             domain = default_domain

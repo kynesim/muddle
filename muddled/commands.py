@@ -374,12 +374,12 @@ class CPDCommand(Command):
             for n in names:
                 if n not in all_checkouts:
                     lines.append('  Checkout name "%s" is not defined in the build description'%n)
+            if roles:
+                lines.append('  Checkout labels should not have roles: {%s}'%('}, {'.join(roles)))
             for t in tags:
                 if t not in (LabelTag.CheckedOut, LabelTag.Fetched, LabelTag.Merged,
                              LabelTag.ChangesCommitted, LabelTag.ChangesPushed):
-                    lines.append('  Checkout tag "%s" is unexpected'%t)
-            if roles:
-                lines.append('  Checkout labels should not have roles: {%s}'%('}, {'.join(roles)))
+                    lines.append('  Checkout tag "/%s" is unexpected'%t)
         elif first.type == LabelType.Package:
             default_roles = builder.invocation.default_roles
             all_packages = builder.invocation.all_packages()
@@ -416,10 +416,10 @@ class CPDCommand(Command):
                     found_problem = True
             for r in roles:
                 if r not in all_roles:
-                    lines.append('  Role "%s" is not defined in the build description'%r)
+                    lines.append('  Role {%s} is not defined in the build description'%r)
                     found_problem = True
                 elif r not in default_roles:
-                    lines.append('  Role "%s" is not a default role'%r)
+                    lines.append('  Role {%s} is not a default role'%r)
                     found_problem = True
             if not found_problem:
                 lines.append('  There is no label matching "%s" in any of the default roles'%arg)
@@ -441,7 +441,7 @@ class CPDCommand(Command):
                 if t not in (LabelTag.PreConfig, LabelTag.Configured, LabelTag.Built,
                              LabelTag.Installed, LabelTag.PostInstalled,
                              LabelTag.Clean, LabelTag.DistClean):
-                    lines.append('  Package tag "%s" is unexpected'%t)
+                    lines.append('  Package tag "/%s" is unexpected'%t)
         elif first.type == LabelType.Deployment:
             all_deployments = builder.invocation.all_deployments()
             names = set()
@@ -460,14 +460,13 @@ class CPDCommand(Command):
             for n in names:
                 if n not in all_deployments:
                     lines.append('  Deployment name "%s" is not defined in the build description'%n)
-            for t in tags:
-                if t not in (LabelTag.Deployed, LabelTag.InstructionsApplied):
-                    lines.append('  Deployment tag "%s" is unexpected'%t)
             if roles:
                 lines.append('  Deployment labels should not have roles: {%s}'%('}, {'.join(roles)))
+            for t in tags:
+                if t not in (LabelTag.Deployed, LabelTag.InstructionsApplied):
+                    lines.append('  Deployment tag "/%s" is unexpected'%t)
         else:
-            raise MuddleBug('Unexpected label type "%s" for unused'
-                            ' label "%s"'%(first_type, first))
+            lines.append('  Unexpected label type "%s:" in label "%s"'%(first.type, first))
 
         return '\n'.join(lines)
 

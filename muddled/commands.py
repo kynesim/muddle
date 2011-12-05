@@ -435,8 +435,8 @@ class CPDCommand(Command):
                 if len(actual) == 1:
                     lines.append('  However, label %s is a target'%actual[0])
                 elif len(actual) > 1:
-                    lines.append('  However, labels %s are targets'%label_list_to_string(actual,
-                        join_with=', '))
+                    lines.append('  However, labels\n    %s\n  are targets'%label_list_to_string(actual,
+                        join_with='\n    '))
             for t in tags:
                 if t not in (LabelTag.PreConfig, LabelTag.Configured, LabelTag.Built,
                              LabelTag.Installed, LabelTag.PostInstalled,
@@ -552,9 +552,9 @@ class CheckoutCommand(CPDCommand):
                 text.append('Label %s exists, but does not give'
                              ' a target for "muddle %s"'%(initial_list[0], self.cmd_name))
             else:
-                text.append('The labels %s exist, but none gives a'
+                text.append('The labels\n  %s\nexist, but none gives a'
                             ' target for "muddle %s"'%(label_list_to_string(labels,
-                                join_with=', '), self.cmd_name))
+                                join_with='\n  '), self.cmd_name))
             if potential_problems:
                 text.append('Potential problems are:')
                 for problem in potential_problems:
@@ -619,8 +619,9 @@ class PackageCommand(CPDCommand):
                         found = True
                         intermediate_set.add(l)
                 if not found:
-                    potential_problems.append('None of the packages in the'
+                    potential_problems.append('  None of the packages in the'
                                               ' default roles use %s'%label)
+                    potential_problems.append('  It is used by\n    %s'%label_list_to_string(package_labels, join_with='\n    '))
             elif label.type in (LabelType.Deployment):
                 # If they specified a deployment label, then find all the
                 # packages that depend on this checkout. Here I think we
@@ -635,7 +636,7 @@ class PackageCommand(CPDCommand):
                         found = True
                         intermediate_set.add(l)
                 if not found:
-                    potential_problems.append('No deployments depend on %s'%label)
+                    potential_problems.append('  No deployments depend on %s'%label)
             else:
                 raise GiveUp("Cannot cope with label '%s', from arg '%s'"%(label, args[index]))
 
@@ -645,13 +646,13 @@ class PackageCommand(CPDCommand):
                 text.append('Label %s exists, but does not give'
                              ' a target for "muddle %s"'%(initial_list[0], self.cmd_name))
             else:
-                text.append('The labels %s exist, but none gives a'
+                text.append('The labels\n  %s\nexist, but none gives a'
                             ' target for "muddle %s"'%(label_list_to_string(labels,
-                                join_with=', '), self.cmd_name))
+                                join_with='\n  '), self.cmd_name))
             if potential_problems:
                 text.append('Potential problems are:')
                 for problem in potential_problems:
-                    text.append('  %s'%problem)
+                    text.append('%s'%problem)
             raise GiveUp('\n'.join(text))
 
         return intermediate_set
@@ -736,9 +737,9 @@ class DeploymentCommand(CPDCommand):
                 text.append('Label %s exists, but does not give'
                              ' a target for "muddle %s"'%(initial_list[0], self.cmd_name))
             else:
-                text.append('The labels %s exist, but none gives a'
+                text.append('The labels\n  %s\nexist, but none gives a'
                             ' target for "muddle %s"'%(label_list_to_string(labels,
-                                join_with=', '), self.cmd_name))
+                                join_with='\n  '), self.cmd_name))
             if potential_problems:
                 text.append('Potential problems are:')
                 for problem in potential_problems:

@@ -69,7 +69,7 @@ CAT_MISC='misc'
 g_command_categories_in_order = [CAT_INIT, CAT_CHECKOUT, CAT_PACKAGE,
         CAT_DEPLOYMENT, CAT_ANYLABEL, CAT_QUERY, CAT_STAMP, CAT_MISC]
 
-def in_category(command_name, category, for_subcommand=False):
+def in_category(command_name, category):
     if category not in g_command_categories_in_order:
         raise GiveUp("Command %s cannot be added to unexpected"
                      " category %s"%(command_name, category))
@@ -124,7 +124,7 @@ def subcommand(main_command, sub_command, category, aliases=None):
         if sub_command in sub_dict:
             raise GiveUp("Command '%s %s' is already defined"%(main_command,sub_command))
     g_subcommand_names.append((main_command, sub_command))
-    in_category(main_command, category, True)
+    in_category(main_command, category)
     def rememberer(klass):
         sub_dict[sub_command] = klass
         klass.cmd_name = '%s %s'%(main_command, sub_command)

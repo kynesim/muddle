@@ -1320,33 +1320,6 @@ class Bootstrap(Command):
 
         print "Done.\n"
 
-@command('vcs', CAT_QUERY)
-class ListVCS(Command):
-    """
-    :Syntax: vcs
-
-    List the version control systems supported by this version of muddle,
-    together with their VCS specifiers.
-    """
-
-    def requires_build_tree(self):
-        return False
-
-    def with_build_tree(self, builder, current_dir, args):
-        self.do_command()
-
-    def without_build_tree(self, muddle_binary, root_path, args):
-        self.do_command()
-
-    def do_command(self):
-        str_list = [ ]
-        str_list.append("Available version control systems:\n\n")
-        str_list.append(version_control.list_registered())
-
-        str = "".join(str_list)
-        print str
-        return 0
-
 @command('dependencies', CAT_QUERY, ['depend', 'depends'])
 class Depend(Command):
     """
@@ -1433,6 +1406,33 @@ class QueryCommand(Command):
             raise GiveUp("%s\nIt should contain at least <type>:<name>/<tag>"%exc)
 
         return builder.invocation.apply_unifications(label)
+
+@subcommand('query', 'vcs', CAT_QUERY)
+class QueryVCS(QueryCommand):
+    """
+    :Syntax: query vcs
+
+    List the version control systems supported by this version of muddle,
+    together with their VCS specifiers.
+    """
+
+    def requires_build_tree(self):
+        return False
+
+    def with_build_tree(self, builder, current_dir, args):
+        self.do_command()
+
+    def without_build_tree(self, muddle_binary, root_path, args):
+        self.do_command()
+
+    def do_command(self):
+        str_list = [ ]
+        str_list.append("Available version control systems:\n\n")
+        str_list.append(version_control.list_registered(indent='  '))
+
+        str = "".join(str_list)
+        print str
+        return 0
 
 @subcommand('query', 'checkouts', CAT_QUERY)
 class QueryCheckouts(QueryCommand):

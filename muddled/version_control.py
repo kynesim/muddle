@@ -597,19 +597,23 @@ def register_vcs_handler(scheme, factory):
     """
     vcs_dict[scheme] = factory
 
-def list_registered():
+def list_registered(indent=''):
     """
     Return a list of registered version control systems.
     """
 
     str_list = []
     for (k,v) in vcs_dict.items():
+        if indent:
+            str_list.append(indent)
         str_list.append(utils.pad_to(k, 20))
         desc = v.long_name
         lines = desc.split("\n")
         str_list.append(lines[0])
         str_list.append("\n")
         for i in lines[1:]:
+            if indent:
+                str_list.append(indent)
             str_list.append(utils.pad_to("", 20))
             str_list.append(i)
             str_list.append("\n")

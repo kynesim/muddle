@@ -623,6 +623,8 @@ class PackageCommand(CPDCommand):
                         potential_problems.append('  None of the packages in the'
                                                   ' default roles use %s'%label)
                         # XXX Hmm, this gives a bit too much detail
+                        package_labels = list(package_labels)
+                        package_labels.sort()
                         potential_problems.append('  It is used by\n    %s'%label_list_to_string(package_labels, join_with='\n    '))
                     else:
                         potential_problems.append('  It is not used by any packages')

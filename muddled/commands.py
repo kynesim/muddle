@@ -556,7 +556,7 @@ class CheckoutCommand(CPDCommand):
                             ' target for "muddle %s"'%(label_list_to_string(labels,
                                 join_with='\n  '), self.cmd_name))
             if potential_problems:
-                text.append('Potential problems are:')
+                text.append('Perhaps because:')
                 for problem in potential_problems:
                     text.append('  %s'%problem)
             raise GiveUp('\n'.join(text))
@@ -619,10 +619,13 @@ class PackageCommand(CPDCommand):
                         found = True
                         intermediate_set.add(l)
                 if not found:
-                    potential_problems.append('  None of the packages in the'
-                                              ' default roles use %s'%label)
-                    # XXX Hmm, this gives a bit too much detail
-                    potential_problems.append('  It is used by\n    %s'%label_list_to_string(package_labels, join_with='\n    '))
+                    if package_labels:
+                        potential_problems.append('  None of the packages in the'
+                                                  ' default roles use %s'%label)
+                        # XXX Hmm, this gives a bit too much detail
+                        potential_problems.append('  It is used by\n    %s'%label_list_to_string(package_labels, join_with='\n    '))
+                    else:
+                        potential_problems.append('  It is not used by any packages')
             elif label.type in (LabelType.Deployment):
                 # If they specified a deployment label, then find all the
                 # packages that depend on this checkout. Here I think we
@@ -651,7 +654,7 @@ class PackageCommand(CPDCommand):
                             ' target for "muddle %s"'%(label_list_to_string(labels,
                                 join_with='\n  '), self.cmd_name))
             if potential_problems:
-                text.append('Potential problems are:')
+                text.append('Perhaps because:')
                 for problem in potential_problems:
                     text.append('%s'%problem)
             raise GiveUp('\n'.join(text))
@@ -742,7 +745,7 @@ class DeploymentCommand(CPDCommand):
                             ' target for "muddle %s"'%(label_list_to_string(labels,
                                 join_with='\n  '), self.cmd_name))
             if potential_problems:
-                text.append('Potential problems are:')
+                text.append('Perhaps because:')
                 for problem in potential_problems:
                     text.append('  %s'%problem)
             raise GiveUp('\n'.join(text))

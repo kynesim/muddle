@@ -621,6 +621,7 @@ class PackageCommand(CPDCommand):
                 if not found:
                     potential_problems.append('  None of the packages in the'
                                               ' default roles use %s'%label)
+                    # XXX Hmm, this gives a bit too much detail
                     potential_problems.append('  It is used by\n    %s'%label_list_to_string(package_labels, join_with='\n    '))
             elif label.type in (LabelType.Deployment):
                 # If they specified a deployment label, then find all the
@@ -1597,6 +1598,34 @@ class QueryDeployments(QueryCommand):
         else:
             print '%s'%"\n".join(a_list)
 
+@subcommand('query', 'default-deployments', CAT_QUERY)
+class QueryDefaultDeployments(QueryCommand):
+    """
+    :Syntax: query default-deployments [-j]
+
+    Print a list of the default deployments.
+
+    With '-j', print them all on one line, separated by spaces.
+    """
+
+    allowed_switches = {'-j':'join'}
+
+    def with_build_tree(self, builder, current_dir, args):
+        args = self.remove_switches(args, allowed_more=False)
+
+        joined = ('join' in self.switches)
+
+        default_deployments = set()
+        for d in builder.invocation.default_labels:
+            if d.type == LabelType.Deployment:
+                default_deployments.add(d.name)
+        a_list = list(default_deployments)
+        a_list.sort()
+        if joined:
+            print '%s'%" ".join(a_list)
+        else:
+            print '%s'%"\n".join(a_list)
+
 @subcommand('query', 'roles', CAT_QUERY)
 class QueryRoles(QueryCommand):
     """
@@ -1639,7 +1668,7 @@ class QueryDefaultRoles(QueryCommand):
 
         joined = ('join' in self.switches)
 
-        default_roles = builder.invocation.default_roles
+        default_roles = list(builder.invocation.default_roles) # use a copy!
         default_roles.sort()
         if joined:
             print '%s'%" ".join(default_roles)

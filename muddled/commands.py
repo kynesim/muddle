@@ -3291,7 +3291,7 @@ Try 'muddle help unstamp' for more information."""
         qr.with_build_tree(b, current_dir, None)
 
         qc = QueryCheckouts()
-        qc.with_build_tree(b, current_dir, ["checkout:*/*"])
+        qc.with_build_tree(b, current_dir, [])
 
         # Check our checkout names match
         s_checkouts = set([name for name, repo, rev, rel, dir,

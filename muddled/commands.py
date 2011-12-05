@@ -1324,6 +1324,18 @@ class QueryCommand(Command):
     def requires_build_tree(self):
         return True
 
+    def get_label_from_fragment(self, builder, args):
+        if len(args) != 1:
+            raise GiveUp("Command '%s' needs a label"%(self.cmd_name))
+
+        label = Label.from_fragment(args[0],
+                                    default_type=LabelType.Package)
+
+        if label.type == LabelType.Package and not label.role:
+            raise GiveUp('A package label needs a role, not just %s'%label)
+
+        return builder.invocation.apply_unifications(label)
+
     def get_label(self, builder, args):
         if len(args) != 1:
             raise GiveUp("Command '%s' needs a label"%(self.cmd_name))
@@ -1685,7 +1697,7 @@ class QueryDeps(QueryCommand):
     """
 
     def with_build_tree(self, builder, current_dir, args):
-        label = self.get_label(builder, args)
+        label = self.get_label_from_fragment(builder, args)
         to_build = depend.needed_to_build(builder.invocation.ruleset, label, useMatch = True)
         if to_build:
             print "Build order for %s .. "%label
@@ -1707,7 +1719,7 @@ class QueryDir(QueryCommand):
     """
 
     def with_build_tree(self, builder, current_dir, args):
-        label = self.get_label(builder, args)
+        label = self.get_label_from_fragment(builder, args)
 
         dir = None
         if label.type == LabelType.Checkout:
@@ -1732,7 +1744,7 @@ class QueryEnv(QueryCommand):
     """
 
     def with_build_tree(self, builder, current_dir, args):
-        label = self.get_label(builder, args)
+        label = self.get_label_from_fragment(builder, args)
         the_env = builder.invocation.effective_environment_for(label)
         print "Effective environment for %s .. "%label
         print the_env.get_setvars_script(builder, label, env_store.EnvLanguage.Sh)
@@ -1747,7 +1759,7 @@ class QueryEnvs(QueryCommand):
     """
 
     def with_build_tree(self, builder, current_dir, args):
-        label = self.get_label(builder, args)
+        label = self.get_label_from_fragment(builder, args)
         a_list = builder.invocation.list_environments_for(label)
 
         for (lvl, label, env) in a_list:
@@ -1767,7 +1779,7 @@ class QueryInstDetails(QueryCommand):
     """
 
     def with_build_tree(self, builder, current_dir, args):
-        label = self.get_label(builder, args)
+        label = self.get_label_from_fragment(builder, args)
         loaded = builder.load_instructions(label)
         for (l, f, i) in loaded:
             print " --- Label %s , filename %s --- "%(l, f)
@@ -1784,7 +1796,7 @@ class QueryInstructions(QueryCommand):
     """
 
     def with_build_tree(self, builder, current_dir, args):
-        label = self.get_label(builder, args)
+        label = self.get_label_from_fragment(builder, args)
         result = builder.invocation.db.scan_instructions(label)
         for (l, f) in result:
             print "Label: %s  Filename: %s"%(l,f)
@@ -1799,14 +1811,18 @@ class QueryMatch(QueryCommand):
     """
 
     def with_build_tree(self, builder, current_dir, args):
-        label = self.get_label(builder, args)
+        # XXX Can this be get_label_from_fragment() instead?
+        if False:
+            label = self.get_label(builder, args)
+        else:
+            label = self.get_label_from_fragment(builder, args)
         wildcard_label = Label("*", "*", "*", "*", domain="*")
         all_rules = builder.invocation.ruleset.rules_for_target(wildcard_label)
         all_labels = set()
         for r in all_rules:
             all_labels.add(r.target)
         if label.is_definite():
-            print list(all_labels)[0], '..', list(all_labels)[-1]
+            #print list(all_labels)[0], '..', list(all_labels)[-1]
             if label in all_labels:
                 print 'Label %s exists'%label
             else:
@@ -1841,7 +1857,7 @@ class QueryMakeEnv(QueryCommand):
     """
 
     def with_build_tree(self, builder, current_dir, args):
-        label = self.get_label(builder, args)
+        label = self.get_label_from_fragment(builder, args)
         rule_set = builder.invocation.ruleset.rules_for_target(label,
                                                                useTags=True,
                                                                useMatch=True)
@@ -1884,7 +1900,7 @@ class QueryObjdir(QueryCommand):
     """
 
     def with_build_tree(self, builder, current_dir, args):
-        label = self.get_label(builder, args)
+        label = self.get_label_from_fragment(builder, args)
         print builder.invocation.package_obj_path(label)
 
 @subcommand('query', 'precise-env', CAT_QUERY, ['preciseenv']) # It used to be 'preciseenv'
@@ -1896,7 +1912,7 @@ class QueryPreciseEnv(QueryCommand):
     """
 
     def with_build_tree(self, builder, current_dir, args):
-        label = self.get_label(builder, args)
+        label = self.get_label_from_fragment(builder, args)
         the_env = builder.invocation.get_environment_for(label)
 
         local_store = env_store.Store()
@@ -1915,7 +1931,7 @@ class QueryResults(QueryCommand):
     """
 
     def with_build_tree(self, builder, current_dir, args):
-        label = self.get_label(builder, args)
+        label = self.get_label_from_fragment(builder, args)
         result = depend.required_by(builder.invocation.ruleset, label)
         print "Labels which require %s to build .. "%label
         for lbl in result:
@@ -1930,7 +1946,7 @@ class QueryRules(QueryCommand):
     """
 
     def with_build_tree(self, builder, current_dir, args):
-        label = self.get_label(builder, args)
+        label = self.get_label_from_fragment(builder, args)
         local_rule = builder.invocation.ruleset.rule_for_target(label)
         if (local_rule is None):
             print "No ruleset for %s"%label
@@ -1947,7 +1963,7 @@ class QueryTargets(QueryCommand):
     """
 
     def with_build_tree(self, builder, current_dir, args):
-        label = self.get_label(builder, args)
+        label = self.get_label_from_fragment(builder, args)
         local_rules = builder.invocation.ruleset.targets_match(label, useMatch = True)
         print "Targets that match %s .. "%(label)
         for i in local_rules:
@@ -2136,7 +2152,7 @@ class QueryKernelver(QueryCommand):
         return '%d.%d.%d'%(a,b,c)
 
     def with_build_tree(self, builder, current_dir, args):
-        label = self.get_label(builder, args)
+        label = self.get_label_from_fragment(builder, args)
         print self.kernel_version(builder, label)
 
 

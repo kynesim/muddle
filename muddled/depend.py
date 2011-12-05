@@ -772,7 +772,7 @@ class Label(object):
         return Label(type, name, role=role, tag=tag, transient=transient,
                      system=system, domain=domain)
     @staticmethod
-    def from_fragment(fragment, default_type, default_role, default_domain):
+    def from_fragment(fragment, default_type, default_role=None, default_domain=None):
         """
         Given a string containing a label fragment, return a Label.
 
@@ -812,7 +812,8 @@ class Label(object):
                         " (unrecognised label type '%s:')"%(fragment, type))
         domain = m.group("domain")
         if domain is None:
-            domain = default_domain
+            domain = default_domain     # which may be None as well
+
 
         return Label(type, name, role, tag, domain=domain)
 

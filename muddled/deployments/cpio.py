@@ -132,6 +132,8 @@ class CpioDeploymentBuilder(Action):
                     real_source_path = os.path.join(builder.invocation.role_install_path(l.role,
                                                                                          l.domain),
                                                     bt[0])
+                    # This is bt[1] - the actual destination. base is computed differently
+                    # (bt[2]) for applying instructions.
                     base = bt[1]
                 else:
                     base = bt
@@ -156,11 +158,21 @@ class CpioDeploymentBuilder(Action):
 
             app_dict = get_instruction_dict()
 
+            # Apply instructions. We actually need an intermediate list here,
+            # because you might have the same role with several different
+            # sources and possibly different bases.
+            to_apply = { }
+            for (src, bt) in self.target_base:
+                if (type(bt) == types.TupleType):
+                    base = bt[2]
+                else:
+                    base = bt
+                to_apply[ ( src, base) ] = (src, bt)
 
-            # Apply instructions ..
-            for (src,bt) in self.target_base:
+            # Now they are unique .. 
+            for (src,bt) in to_apply.values(): 
                 if (type (bt) == types.TupleType ):
-                    base = bt[1]
+                    base = bt[2]
                 else:
                     base = bt
 
@@ -396,11 +408,19 @@ class CpioWrapper:
         self.builder = builder
 
 
-    def copy_from_role(self, from_role, from_fragment, to_fragment):
+    def copy_from_role(self, from_role, from_fragment, to_fragment, 
+                       with_base = None):
         """
         Copy the relative path from_fragment in from_role to to_fragment in the CPIO
         deployment given by 'action'
+
+        Use 'with_base' to change the base offset we apply when executing instructions;
+        this is useful when using repeated copy_from_role() invocations to copy
+        a subset of one role to a deployment.
         """
+
+        if (with_base is None):
+            with_base = to_fragment
 
         role_label = depend.Label(utils.LabelType.Package,
                                   "*",
@@ -413,7 +433,7 @@ class CpioWrapper:
                                " which has not yet been created.")
 
         r.add(role_label)
-        self.action.target_base.append( ( role_label, ( from_fragment, to_fragment ) ) )
+        self.action.target_base.append( ( role_label, ( from_fragment, to_fragment, with_base ) ) )
 
     def done(self):
         """

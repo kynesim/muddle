@@ -568,12 +568,6 @@ class CheckoutCommand(CPDCommand):
 
         if label:       # Since we know our label, use it (of whatever type)
             arg_list.append(label)
-        elif what == DirType.Root:
-            # Just like 'muddle' with no arguments, the default deployments
-            # and the default roles
-            arg_list.extend(builder.invocation.default_deployment_labels)
-            for role in builder.invocation.default_roles:
-                arg_list.append(Label(LabelType.Package, '*', role, LabelTag.PostInstalled))
         elif what == DirType.Checkout:
             # We've got checkouts below us - use those
             arg_list.extend(builder.get_all_checkout_labels_below(current_dir))
@@ -676,12 +670,6 @@ class PackageCommand(CPDCommand):
             # We're somewhere that knows its label, so can probably work
             # out what to do
             arg_list.append(label)
-        elif what == DirType.Root:
-            # Just like 'muddle' with no arguments, the default deployments
-            # and the default roles
-            arg_list.extend(builder.invocation.default_deployment_labels)
-            for role in builder.invocation.default_roles:
-                arg_list.append(Label(LabelType.Package, '*', role, LabelTag.PostInstalled))
         elif what == DirType.Checkout:
             # We've got checkouts below us - use those
             arg_list.extend(builder.get_all_checkout_labels_below(current_dir))
@@ -772,11 +760,6 @@ class DeploymentCommand(CPDCommand):
 
         if label:
             arg_list.append(label)
-        elif what == DirType.Root:
-            # We're not quite like 'muddle' with no arguments, since we take
-            # the default deployments but not the default roles (this seems
-            # reasonable as we're being asked to work with deployments)
-            arg_list.extend(builder.invocation.default_deployment_labels)
         elif what == DirType.Checkout:
             # We've got checkouts below us - use those
             arg_list.extend(builder.get_all_checkout_labels_below(current_dir))

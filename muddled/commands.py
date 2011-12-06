@@ -632,19 +632,27 @@ class PackageCommand(CPDCommand):
                         potential_problems.append('  It is not used by any packages')
             elif label.type in (LabelType.Deployment):
                 # If they specified a deployment label, then find all the
-                # packages that depend on this checkout. Here I think we
-                # definitely want any depth of dependency.
-                # XXX I don't think we need to specify useMatch=True, because we
-                # XXX should already have expanded any wildcards
-                rules = depend.needed_to_build(builder.invocation.ruleset, label)
-                found = False
-                for r in rules:
-                    l = r.target
-                    if l.type == LabelType.Package:
-                        found = True
-                        intermediate_set.add(l)
-                if not found:
-                    potential_problems.append('  No deployments depend on %s'%label)
+                # packages that depend on this deployment.
+                if False:
+                    # Here I think we definitely want any depth of dependency.
+                    # XXX I don't think we need to specify useMatch=True, because we
+                    # XXX should already have expanded any wildcards
+                    rules = depend.needed_to_build(builder.invocation.ruleset, label)
+                    found = False
+                    for r in rules:
+                        l = r.target
+                        if l.type == LabelType.Package:
+                            found = True
+                            intermediate_set.add(l)
+                    if not found:
+                        potential_problems.append('  Deployment %s does not use any packages'%label)
+                else:
+                    # Just get the packages we immediately depend on
+                    packages = builder.invocation.packages_for_deployment(label)
+                    if packages:
+                        intermediate_set.update(packages)
+                    else:
+                        potential_problems.append('  Deployment %s does not use any packages'%label)
             else:
                 raise GiveUp("Cannot cope with label '%s', from arg '%s'"%(label, args[index]))
 
@@ -4199,7 +4207,7 @@ def kill_labels(builder, to_kill):
         raise GiveUp("Can't kill %s - %s"%(str(lbl), e))
 
 def build_labels(builder, to_build):
-    print "Building %s "%(" ".join(map(str, to_build)))
+    print "Building %s "%(label_list_to_string(to_build))
 
     try:
         for lbl in to_build:

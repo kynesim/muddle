@@ -125,7 +125,49 @@ class Deployment(Action):
         """
         pass
 
+class NullPackageBuilder(PackageBuilder):
+    """
+    A package that does nothing.
 
+    This can be useful when a build wants to force some checkouts to be
+    present (and checked out), but there is nothing to build in them.
+    Examples include documentation and meta-information that is just
+    being kept in the build tree so that it doesn't get lost.
+
+    Use the 'null_package' function to construct a useful instance.
+    """
+    def build_label(self, builder, label):
+        pass
+
+def null_package(builder, name, role):
+    """
+    Create a Null package, a package that does nothing.
+
+    Uses NullPackageBuilder to construct our package, and then calls
+    add_package_rules() to add the standard rules for a package.
+
+    Returns the new package instance.
+
+    Use like this::
+
+        # We have documentation in this checkout
+        checkouts.simple.relative(builder, co_name='docs')
+
+        # And we'd like it always to be checked out
+        # For this, we use a Null package that doesn't build itself
+        null_pkg = null_package(builder, name='docs', role='meta')
+        pkg.package_depends_on_checkout(builder.invocation.ruleset,
+                                        pkg_name='docs', role_name='meta',
+                                        co_name='docs')
+
+        # And add that to our default roles
+        builder.invocation.add_default_role('meta')
+
+    """
+    this_pkg = NullPackageBuilder(name='meta', role='meta')
+    # Add the standard rules for a package
+    pkg.add_package_rules(builder.invocation.ruleset, name, role, this_pkg)
+    return this_pkg
 
 class Profile:
     """

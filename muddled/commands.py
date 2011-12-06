@@ -267,8 +267,8 @@ class CPDCommand(Command):
             print 'Asked to %s:\n  %s'%(self.cmd_name,
                     label_list_to_string(labels, join_with='\n  '))
             return
-        elif not args:
-            print '%s %s'%(self.cmd_name, label_list_to_string(labels))
+        ##elif not args:
+        ##    print '%s %s'%(self.cmd_name, label_list_to_string(labels))
 
         self.build_these_labels(builder, labels)
 
@@ -3949,10 +3949,14 @@ class Status(CheckoutCommand):
     """
 
     required_tag = LabelTag.Fetched
-    # Remember, it's a list of *tuples*, so we need the comma after '-v'
     allowed_switches = {'-v': 'verbose'}
 
     def build_these_labels(self, builder, labels):
+
+        if len(labels) == 0:
+            raise GiveUp('No checkouts specified - not checking anything')
+        else:
+            print 'Checking %d checkout%s'%(len(labels), '' if len(labels)==1 else 's')
 
         if 'verbose' in self.switches:
             verbose = True
@@ -4207,7 +4211,11 @@ def kill_labels(builder, to_kill):
         raise GiveUp("Can't kill %s - %s"%(str(lbl), e))
 
 def build_labels(builder, to_build):
-    print "Building %s "%(label_list_to_string(to_build))
+    ##print "Building %s "%(label_list_to_string(to_build))
+    if len(to_build) == 1:
+        print "Building %s"%to_build
+    else:
+        print "Building %d labels"%len(to_build)
 
     try:
         for lbl in to_build:

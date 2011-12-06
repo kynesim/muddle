@@ -286,6 +286,13 @@ class CPDCommand(Command):
         for word in args:
             if word == '_all':
                 initial_list.extend(self.interpret_all(builder))
+            elif word == '_default_roles':
+                for role in builder.invocation.default_roles:
+                    label = Label(LabelType.Package, '*', role, LabelTag.PostInstalled)
+                    labels = builder.invocation.expand_wildcards(label)
+                    initial_list.extend(labels)
+            elif word == '_default_deployments':
+                initial_list.extend(builder.invocation.default_deployment_labels)
             else:
                 labels = label_from_fragment(word, default_type=self.required_type)
 
@@ -806,8 +813,8 @@ class AnyLabelCommand(Command):
         result_list = []
         label_from_fragment = builder.invocation.label_from_fragment
         for word in args:
-            if word == '_all':
-                raise GiveUp('Command %s does not allow _all as an argument'%self.cmd_name)
+            if word in ('_all', '_default_roles', '_default_deployments'):
+                raise GiveUp('Command %s does not allow %s as an argument'%(self.cmd_name, word))
 
             labels = label_from_fragment(word, default_type=LabelType.Package)
 

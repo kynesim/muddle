@@ -840,12 +840,9 @@ def check_some_specifics():
         check_cmd('deploy everything/instructionsapplied', 'deployment:everything/deployed')
 
         # Check some location defaults
-        # Root. Checkout and Package get the default deployments and the
-        # default roles.
-        check_cmd('unimport', 'checkout:first_co/checked_out checkout:main_co/checked_out checkout:second_co/checked_out checkout:(subdomain1)first_co/checked_out checkout:(subdomain1)main_co/checked_out checkout:(subdomain1)second_co/checked_out checkout:(subdomain1(subdomain3))first_co/checked_out checkout:(subdomain1(subdomain3))main_co/checked_out checkout:(subdomain1(subdomain3))second_co/checked_out checkout:(subdomain2)first_co/checked_out checkout:(subdomain2)main_co/checked_out checkout:(subdomain2)second_co/checked_out checkout:(subdomain2(subdomain3))first_co/checked_out checkout:(subdomain2(subdomain3))main_co/checked_out checkout:(subdomain2(subdomain3))second_co/checked_out checkout:(subdomain2(subdomain4))first_co/checked_out checkout:(subdomain2(subdomain4))main_co/checked_out checkout:(subdomain2(subdomain4))second_co/checked_out')
-        check_cmd('build', 'package:first_pkg{x86}/postinstalled package:main_pkg{x86}/postinstalled package:second_pkg{x86}/postinstalled package:(subdomain1)first_pkg{x86}/postinstalled package:(subdomain1)main_pkg{x86}/postinstalled package:(subdomain1)second_pkg{x86}/postinstalled package:(subdomain1(subdomain3))first_pkg{x86}/postinstalled package:(subdomain1(subdomain3))main_pkg{x86}/postinstalled package:(subdomain1(subdomain3))second_pkg{x86}/postinstalled package:(subdomain2)first_pkg{x86}/postinstalled package:(subdomain2)main_pkg{x86}/postinstalled package:(subdomain2)second_pkg{x86}/postinstalled package:(subdomain2(subdomain3))first_pkg{x86}/postinstalled package:(subdomain2(subdomain3))main_pkg{x86}/postinstalled package:(subdomain2(subdomain3))second_pkg{x86}/postinstalled package:(subdomain2(subdomain4))first_pkg{x86}/postinstalled package:(subdomain2(subdomain4))main_pkg{x86}/postinstalled package:(subdomain2(subdomain4))second_pkg{x86}/postinstalled')
-        # Deployment just gets the default deployment
-        check_cmd('deploy', 'deployment:everything/deployed')
+        check_cmd('unimport', unsure=True)
+        check_cmd('build', unsure=True)
+        check_cmd('deploy', unsure=True)
 
         with Directory('src'):
             check_cmd('unimport', 'checkout:builds/checked_out checkout:first_co/checked_out checkout:main_co/checked_out checkout:second_co/checked_out')

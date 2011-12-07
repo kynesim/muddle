@@ -286,6 +286,13 @@ class CPDCommand(Command):
         for word in args:
             if word == '_all':
                 initial_list.extend(self.interpret_all(builder))
+            elif word == '_default_roles':
+                for role in builder.invocation.default_roles:
+                    label = Label(LabelType.Package, '*', role, LabelTag.PostInstalled)
+                    labels = builder.invocation.expand_wildcards(label)
+                    initial_list.extend(labels)
+            elif word == '_default_deployments':
+                initial_list.extend(builder.invocation.default_deployment_labels)
             else:
                 labels = label_from_fragment(word, default_type=self.required_type)
 
@@ -568,12 +575,6 @@ class CheckoutCommand(CPDCommand):
 
         if label:       # Since we know our label, use it (of whatever type)
             arg_list.append(label)
-        elif what == DirType.Root:
-            # Just like 'muddle' with no arguments, the default deployments
-            # and the default roles
-            arg_list.extend(builder.invocation.default_deployment_labels)
-            for role in builder.invocation.default_roles:
-                arg_list.append(Label(LabelType.Package, '*', role, LabelTag.PostInstalled))
         elif what == DirType.Checkout:
             # We've got checkouts below us - use those
             arg_list.extend(builder.get_all_checkout_labels_below(current_dir))
@@ -684,12 +685,6 @@ class PackageCommand(CPDCommand):
             # We're somewhere that knows its label, so can probably work
             # out what to do
             arg_list.append(label)
-        elif what == DirType.Root:
-            # Just like 'muddle' with no arguments, the default deployments
-            # and the default roles
-            arg_list.extend(builder.invocation.default_deployment_labels)
-            for role in builder.invocation.default_roles:
-                arg_list.append(Label(LabelType.Package, '*', role, LabelTag.PostInstalled))
         elif what == DirType.Checkout:
             # We've got checkouts below us - use those
             arg_list.extend(builder.get_all_checkout_labels_below(current_dir))
@@ -780,11 +775,6 @@ class DeploymentCommand(CPDCommand):
 
         if label:
             arg_list.append(label)
-        elif what == DirType.Root:
-            # We're not quite like 'muddle' with no arguments, since we take
-            # the default deployments but not the default roles (this seems
-            # reasonable as we're being asked to work with deployments)
-            arg_list.extend(builder.invocation.default_deployment_labels)
         elif what == DirType.Checkout:
             # We've got checkouts below us - use those
             arg_list.extend(builder.get_all_checkout_labels_below(current_dir))
@@ -831,8 +821,8 @@ class AnyLabelCommand(Command):
         result_list = []
         label_from_fragment = builder.invocation.label_from_fragment
         for word in args:
-            if word == '_all':
-                raise GiveUp('Command %s does not allow _all as an argument'%self.cmd_name)
+            if word in ('_all', '_default_roles', '_default_deployments'):
+                raise GiveUp('Command %s does not allow %s as an argument'%(self.cmd_name, word))
 
             labels = label_from_fragment(word, default_type=LabelType.Package)
 

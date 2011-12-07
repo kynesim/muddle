@@ -1143,8 +1143,12 @@ class Builder(object):
             # Find all our depends.
             all_required = depend.required_by(self.invocation.ruleset, r.target,
                                               useMatch = False)
+            all_required = list(all_required)
+            all_required.sort()
 
-            print "Clearing tags: %s %s"%(str(r.target), " ".join(map(str, all_required)))
+            print "Clearing tags for %s"%(str(r.target))
+            for l in all_required:
+                print '  %s'%l
 
             # Kill r.targt
             self.invocation.db.clear_tag(r.target)

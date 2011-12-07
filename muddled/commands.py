@@ -872,6 +872,8 @@ class Help(Command):
       muddle help _all           for help on all commands
       muddle help <cmd> _all     for help on all <cmd> subcommands
       muddle help categories     shows command names sorted by category
+      muddle help labels         for help on using labels
+      muddle help subdomains     for help on subdomains
       muddle help aliases        says which commands have more than one name
 
     <switch> may be:
@@ -882,22 +884,83 @@ class Help(Command):
     """
 
     command_line_help = """\
-    Usage:
+Usage:
 
-      muddle [<options>] <command> [<arg> ...]
+  muddle [<options>] <command> [<arg> ...]
 
-    Available <options> are:
+Available <options> are:
 
-      --help, -h, -?      This help text
-      --tree <dir>        Use the muddle build tree at <dir>
-      --just-print, -n    Just print what muddle would have done. For commands
-                          that 'do something', just print out the labels for
-                          which that action would be performed. For commands
-                          that "enquire" (or "find out") something, this switch
-                          is ignored.
+  --help, -h, -?      This help text
+  --tree <dir>        Use the muddle build tree at <dir>
+  --just-print, -n    Just print what muddle would have done. For commands that
+                      'do something', just print out the labels for which that
+                      action would be performed. For commands that "enquire"
+                      (or "find out") something, this switch is ignored.
 
-    If you don't give --tree, muddle will traverse directories up to the root to
-    try and find a .muddle directory, which signifies the top of the build tree.
+If you don't give --tree, muddle will traverse directories up to the root to
+try and find a .muddle directory, which signifies the top of the build tree.
+"""
+
+    labels_help = """\
+More complete documentation on labels is available in the muddle documentation
+at http://muddle.readthedocs.org/. This is a summary.
+
+(Nearly) everything in muddle is described by a label. A label looks like:
+
+    <type>:<name>{<role>}/<tag>
+
+All label components are made up of the characters [A-Z0-9a-z-_]. <name>,
+<role> and <tag> may also be wildcarded with '*'. Names may not start with
+an underscore.
+
+<type> is one of checkout, package or deployment.
+
+* A checkout is checked out of version control. It lives under 'src/'.
+* A package is built (under 'obj/<name>/<role>') and installed (under
+  'install/<role>).
+* A deployment is deployed (ready for putting onto the target), and is found
+  under 'deploy/<name>'.
+
+Labels of type checkout and deployment do not use roles. Package labels
+always need a role (although muddle will sometimes try to guess one for you).
+
+* For checkouts, <tag> is typically:
+
+  - checked_out - the checkout has been checked out (cloned, branched, etc.).
+    A checkout will be in a directory under the src/ directory, with the
+    directory name given by the <name> from the checkout label.
+
+* For packages, <tag> is typically:
+
+  - preconfig - preconfiguration checks have been made on the package
+  - configured - the package has been configured. This may involve running GNU
+    autotools './configure', and perhaps copying source code if the checkout
+    does not support building out-of-tree.
+  - built - the package has been built (e.g., compiled and linked). The results
+    of building end up in directory obj/<package-name>/<role>
+  - installed - the package has been installed. All packages in a particular
+    <role> install their results to somewhere in install/<role>
+  - postinstalled - the package has been postinstalled. This is often an empty
+    step.
+
+* For deployments, <tag> is typically:
+
+  - deployed - a deployment has been created. This normally involves collecting
+    files from particular install/<role> directories, and placing the result in
+    deploy/<deployment-name>.
+
+(If your build tree contains *subdomains* then there is another label component
+- see "help subdomains" for more information if you need it.)
+
+Some muddle commands only operate on particular types of label. For instance,
+commands in category "checkout" (see 'muddle help categories') only operate
+on checkout: labels.
+
+** Talk about label fragments
+"""
+
+    subdomain_help = """\
+    Help on subdomains - to be written
     """
 
     def requires_build_tree(self):
@@ -936,6 +999,9 @@ class Help(Command):
 
         if args[0] == "categories":
             return self.help_categories()
+
+        if args[0] == "labels":
+            return self.help_labels()
 
         if len(args) == 1:
             cmd = args[0]
@@ -1028,6 +1094,18 @@ class Help(Command):
 
         return "\n".join(result_array)
 
+    def help_labels(self):
+        """
+        Return help on how to use labels
+        """
+        return textwrap.dedent(Help.labels_help)
+
+    def help_subdomains(self):
+        """
+        Return help on how to use subdomains
+        """
+        return textwrap.dedent(Help.subdomains_help)
+
     def help_all(self):
         """
         Return help for all commands
@@ -1106,31 +1184,33 @@ class Init(Command):
     :Syntax: init <repository> <build_description>
 
     Initialise a new build tree with a given repository and build description.
-    We check out the build description but don't actually build.
+    We check out the build description but don't actually build anything.
+    It is traditional to create a new muddle build tree in an empty directory.
 
     For instance::
 
-      $ cd /somewhere/convenient
-      $ muddle init  file+file:///somewhere/else/examples/d  builds/01.py
+      $ mkdir project32
+      $ cd project32
+      $ muddle init  git+file:///somewhere/else/examples/d  builds/01.py
 
-    This initialises a muddle build tree with::
+    This initialises a muddle build tree, creating two new directories:
 
-      file+file:///somewhere/else/examples/d
+    * '.muddle/', which contains the build tree state, and
+    * 'src/', which contains the build description in 'src/builds/01.py'
+      (complex build desscriptions may use multiple Python files, and so
+      other files may have been checked out into 'src/builds/')
 
-    as its repository and a build description of "builds/01.py". The build tree
-    is set up in the current directory. Traditionally, that should have been
-    empty before doing ``muddle init``.
+    You haven't told muddle which actual repository the build description is in
+    - you've only told it where the repository root is and where the build
+    description file is. Muddle assumes that <repository>
+    "git+file:///somewhere/else/examples/d" and <build_description>
+    "builds/01.py" means repository "git+file:///somewhere/else/examples/d/builds"
+    and file "01.py" therein.
 
-    The astute will notice that you haven't told muddle which actual repository
-    the build description is in - you've only told it where the repository root
-    is and where the build description file is.
-
-    Muddle assumes that builds/01.py means repository
-    "file+file:///somewhere/else/examples/d/builds" and file "01.py" therein.
-
-    Note: if you find yourself trying to ``muddle init`` a subdomain, don't.
-    Instead, add the subdomain to the current build description, and check it
-    out that way.
+    Note: if you find yourself trying to 'muddle init' a subdomain, don't.
+    Instead, add the subdomain to the current build description (using a call
+    of 'include_domain()'), and it will automatically get checked out during
+    the 'muddle init' of the top-level build. Or see 'muddle bootstrap -subdomain'.
     """
 
     def requires_build_tree(self):
@@ -1173,6 +1253,7 @@ class Bootstrap(Command):
     :Syntax: bootstrap [-subdomain] <repo> <build_name>
 
     Create a new build tree, from scratch, in the current directory.
+    The current directory should ideally be empty.
 
     * <repo> should be the root URL for the repository which you will be using
       as the default remote location. It is assumed that it will contain a
@@ -1189,7 +1270,7 @@ class Bootstrap(Command):
 
     For instance::
 
-      $ cd /somewhere/convenient
+      $ cd project33
       $ muddle bootstrap git+http://example.com/fred/ build-27
 
     You will end up with a build tree of the form::
@@ -1208,11 +1289,11 @@ class Bootstrap(Command):
     Note that 'src/builds/01.py' will have been *added* to the VCS (locally),
     but will not have been committed (this may change in a future release).
 
-    Also, muddle cannot currently set up the VCS support for Subversion in the
+    Also, muddle cannot currently set up VCS support for Subversion in the
     subdirectories.
 
     If you try to do this in a directory that is itself within an existing
-    build tree (i.e., in some parent directory there is a ``.muddle``
+    build tree (i.e., there's a parent directory somewhere with a ``.muddle``
     directory), then it will normally fail because you are trying to create a
     build within an existing build. If you are actually doing this because you
     are bootstrapping a subdomain, then specify the ``-subdomain`` switch.
@@ -1346,13 +1427,18 @@ class QueryCommand(Command):
         return builder.invocation.apply_unifications(label)
 
 @subcommand('query', 'dependencies', CAT_QUERY, ['depend', 'depends'])
-class Depend(QueryCommand):
+class QueryDepend(QueryCommand):
     """
     :Syntax: query dependencies <what>
     :or:     query dependencies <what> <label>
 
-    Print the current dependency sets. Not specifying a label is the same as
-    specifying "_all".
+    Print the current dependency sets.
+
+    <label> is a label or label fragment (see 'muddle help labels'). The
+    default type is 'package:'.
+
+    If no label is given, then all dependencies in the current build tree will
+    be shown.
 
     In order to show all dependency sets, even those where a given label does
     not actually depend on anything, <what> can be:
@@ -1371,13 +1457,17 @@ class Depend(QueryCommand):
 
     def with_build_tree(self, builder, current_dir, args):
         if len(args) != 1 and len(args) != 2:
-            print "Syntax: dependencies [system|user|all][-short] <label to match>"
+            print "Syntax: dependencies [system|user|all][-short] [<label>]"
             print self.__doc__
             return
 
         type = args[0]
         if len(args) == 2:
-            label = Label.from_string(args[1])
+            # We don't just call self.get_label_from_fragment() because we
+            # don't want to apply unifications
+            label = Label.from_fragment(args[1], default_type=LabelType.Package)
+            if label.type == LabelType.Package and not label.role:
+                raise GiveUp('A package label needs a role, not just %s'%label)
         else:
             label = None
 
@@ -1400,9 +1490,12 @@ class Depend(QueryCommand):
             show_sys = True
             show_user = True
         else:
-            raise GiveUp("Bad dependency type: %s"%(type))
+            raise GiveUp("Bad dependency type: %s\n%s"%(type, self.__doc__))
 
-
+        if label:
+            print 'Dependencies for %s'%label
+        else:
+            print 'All dependencies'
         print builder.invocation.ruleset.to_string(matchLabel = label,
                                                    showSystem = show_sys, showUser = show_user,
                                                    ignore_empty = ignore_empty)
@@ -1439,7 +1532,7 @@ class QueryCheckouts(QueryCommand):
     """
     :Syntax: query checkouts [-j]
 
-    Print a list of known checkouts.
+    Print the names of all the checkouts described in the build description.
 
     With '-j', print them all on one line, separated by spaces.
     """
@@ -1468,10 +1561,9 @@ class QueryCheckouts(QueryCommand):
 @subcommand('query', 'checkout-dirs', CAT_QUERY)
 class QueryCheckoutDirs(QueryCommand):
     """
-    :Syntax: query checkout_dirs
+    :Syntax: query checkout-dirs
 
-    Print a list of the known checkouts and their checkout paths (relative
-    to ``src/``)
+    Print the known checkouts and their checkout paths (relative to 'src/')
     """
 
     def with_build_tree(self, builder, current_dir, args):
@@ -1482,8 +1574,10 @@ class QueryDomains(QueryCommand):
     """
     :Syntax: query domains [-j]
 
-    Print a list of known domains. Does not report the '' (top level) domain,
-    as that is assumed.
+    Print the names of all the subdomains described in the build description
+    (and recursively in the subdomain build descriptions).
+
+    Note that it does not report the '' (top level) domain, as that is assumed.
 
     With '-j', print them all on one line, separated by spaces.
     """
@@ -1510,10 +1604,10 @@ class QueryPackages(QueryCommand):
     """
     :Syntax: query packages [-j]
 
-    Print a list of known packages.
+    Print the names of all the packages described in the build description.
 
-    Note that if there is a rule for "package:*{}/*" (for instance), then '*'
-    will be included in the names returned.
+    Note that if there is a rule for a package with a wildcarded name, like
+    "package:*{x86}/*", then '*' will be included in the names printed.
 
     With '-j', print them all on one line, separated by spaces.
     """
@@ -1536,12 +1630,13 @@ class QueryPackages(QueryCommand):
 @subcommand('query', 'package-roles', CAT_QUERY)
 class QueryPackageRoles(QueryCommand):
     """
-    :Syntax: query packageroles [-j]
+    :Syntax: query package-roles [-j]
 
-    Print a list of known packages (and their roles).
+    Print the names of all the packages, and their roles, as described in the
+    build description.
 
-    Note that if there is a rule for "package:*{}/*" (for instance), then '*'
-    will be included in the names returned.
+    Note that if there is a rule for a package with a wildcarded name, like
+    "package:*{x86}/*", then '*' will be included in the names printed.
 
     With '-j', print them all on one line, separated by spaces.
     """
@@ -1566,7 +1661,7 @@ class QueryDeployments(QueryCommand):
     """
     :Syntax: query deployments [-j]
 
-    Print a list of known deployments.
+    Print the names of all the deployments described in the build description.
 
     With '-j', print them all on one line, separated by spaces.
     """
@@ -1591,7 +1686,8 @@ class QueryDefaultDeployments(QueryCommand):
     """
     :Syntax: query default-deployments [-j]
 
-    Print a list of the default deployments.
+    Print the names of the default deployments described in the build
+    description (as defined using 'builder.by_default_deploy()').
 
     With '-j', print them all on one line, separated by spaces.
     """
@@ -1616,7 +1712,7 @@ class QueryRoles(QueryCommand):
     """
     :Syntax: query roles [-j]
 
-    Print a list of known roles.
+    Print the names of all the roles described in the build description.
 
     With '-j', print them all on one line, separated by spaces.
     """
@@ -1641,7 +1737,10 @@ class QueryDefaultRoles(QueryCommand):
     """
     :Syntax: query default-roles [-j]
 
-    Print the list of default roles to be built.
+    Print the names of the default roles described in the build
+    description (as defined using 'builder.invocation.add_default_role()').
+
+    These are the roles that will be assumed for 'package:' label fragments.
 
     With '-j', print them all on one line, separated by spaces.
     """
@@ -1665,7 +1764,13 @@ class QueryRoot(QueryCommand):
     """
     :Syntax: query root
 
-    Print the root path
+    Print the root path, the path of the directory containing the '.muddle/'
+    directory.
+
+    For a build containing subdomains, this means the root directory of the
+    top-level build.
+
+    The root is where 'muddle where' will print "Root of the build tree".
     """
 
     def with_build_tree(self, builder, current_dir, args):
@@ -1676,22 +1781,32 @@ class QueryName(QueryCommand):
     """
     :Syntax: query name
 
-    Print the build name, as specified in the build description.  This
-    prints just the name, so that one can use it in the shell - for
+    Print the build name, as specified in the build description with::
+
+        builder.build_name = "Project32"
+
+    This prints just the name, so that one can use it in the shell - for
     instance in bash::
 
         export PROJECT_NAME=$(muddle query name)
+
+    or in a Makefile.muddle::
+
+        build_name:=$(shell $(MUDDLE) query name)
     """
 
     def with_build_tree(self, builder, current_dir, args):
         print builder.build_name
 
-@subcommand('query', 'needed-by', CAT_QUERY, ['deps'])     # it used to be 'deps'
-class QueryDeps(QueryCommand):
+@subcommand('query', 'needed-by', CAT_QUERY)     # it used to be 'deps'
+class QueryNeededBy(QueryCommand):
     """
     :Syntax: query needed-by <label>
 
     Print what we need to build to build this label.
+
+    <label> is a label or label fragment (see 'muddle help labels'). The
+    default type is 'package:'.
     """
 
     def with_build_tree(self, builder, current_dir, args):
@@ -1714,6 +1829,13 @@ class QueryDir(QueryCommand):
     * for checkout labels, the checkout directory
     * for package labels, the install directory
     * for deployment labels, the deployment directory
+
+    <label> is a label or label fragment (see 'muddle help labels'). The
+    default type is 'package:'.
+
+    Typically used in a Makefile.muddle, as for instance::
+
+        KBUS_INSTALLDIR:=$(shell $(MUDDLE) query dir package:kbus{*})
     """
 
     def with_build_tree(self, builder, current_dir, args):
@@ -1739,6 +1861,9 @@ class QueryEnv(QueryCommand):
     :Syntax: query env <label>
 
     Print the environment in which this label will be run.
+
+    <label> is a label or label fragment (see 'muddle help labels'). The
+    default type is 'package:'.
     """
 
     def with_build_tree(self, builder, current_dir, args):
@@ -1754,6 +1879,9 @@ class QueryEnvs(QueryCommand):
 
     Print a list of the environments that will be merged to create the
     resulting environment for this label.
+
+    <label> is a label or label fragment (see 'muddle help labels'). The
+    default type is 'package:'.
     """
 
     def with_build_tree(self, builder, current_dir, args):
@@ -1774,6 +1902,9 @@ class QueryInstDetails(QueryCommand):
 
     Print the list of actual instructions for this labe, in the order in which
     they will be applied.
+
+    <label> is a label or label fragment (see 'muddle help labels'). The
+    default type is 'package:'.
     """
 
     def with_build_tree(self, builder, current_dir, args):
@@ -1784,13 +1915,16 @@ class QueryInstDetails(QueryCommand):
             print i.get_xml()
         print "-- Done --"
 
-@subcommand('query', 'inst-files', CAT_QUERY, ['instructions'])    # It used to be 'instructions'
+@subcommand('query', 'inst-files', CAT_QUERY)    # It used to be 'instructions'
 class QueryInstructions(QueryCommand):
     """
     :Syntax: query inst-files <label>
 
     Print the list of currently registered instruction files, in the order
     in which they will be applied.
+
+    <label> is a label or label fragment (see 'muddle help labels'). The
+    default type is 'package:'.
     """
 
     def with_build_tree(self, builder, current_dir, args):
@@ -1806,14 +1940,15 @@ class QueryMatch(QueryCommand):
 
     Print out any labels that match the label given. If the label is not
     wildcarded, this just reports if the label is known.
+
+    <label> is a label or label fragment (see 'muddle help labels'). The
+    default type is 'package:'.
     """
 
     def with_build_tree(self, builder, current_dir, args):
-        # XXX Can this be get_label_from_fragment() instead?
-        if False:
-            label = self.get_label(builder, args)
-        else:
-            label = self.get_label_from_fragment(builder, args)
+        # XXX # Can this be get_label_from_fragment() instead?
+        # XXX # label = self.get_label(builder, args)
+        label = self.get_label_from_fragment(builder, args)
         wildcard_label = Label("*", "*", "*", "*", domain="*")
         all_rules = builder.invocation.ruleset.rules_for_target(wildcard_label)
         all_labels = set()
@@ -1834,12 +1969,16 @@ class QueryMatch(QueryCommand):
             if not found:
                 print 'Label %s does not match any labels'%label
 
-@subcommand('query', 'make-env', CAT_QUERY, ['makeenv'])   # It used to be 'makeenv'
+@subcommand('query', 'make-env', CAT_QUERY)   # It used to be 'makeenv'
 class QueryMakeEnv(QueryCommand):
     """
     :Syntax: query make-env <label>
 
     Print the environment in which "make" will be called for this label.
+
+    <label> is a label or label fragment (see 'muddle help labels'). The
+    default type is 'package:'.
+
     Specifically, print what muddle adds to the environment (so it leaves
     out anything that was already in the environment when muddle was
     called).  Note that various things (lists of directories) only get set
@@ -1893,15 +2032,21 @@ class QueryObjdir(QueryCommand):
     """
     :Syntax: query objdir <label>
 
-    Print the object directory for a label. This is typically used to determine
-    object directories for configure options in build Makefiles.
+    Print the object directory for a label.
+
+    <label> is a label or label fragment (see 'muddle help labels'). The
+    default type is 'package:'.
+
+    Typically used in a Makefile.muddle, as for instance::
+
+        KBUS_OBJDIR:=$(shell $(MUDDLE) query objdir package:kbus{*})
     """
 
     def with_build_tree(self, builder, current_dir, args):
         label = self.get_label_from_fragment(builder, args)
         print builder.invocation.package_obj_path(label)
 
-@subcommand('query', 'precise-env', CAT_QUERY, ['preciseenv']) # It used to be 'preciseenv'
+@subcommand('query', 'precise-env', CAT_QUERY) # It used to be 'preciseenv'
 class QueryPreciseEnv(QueryCommand):
     """
     :Syntax: query precise-env <label>
@@ -1920,12 +2065,15 @@ class QueryPreciseEnv(QueryCommand):
         print "Environment for %s .. "%label
         print local_store.get_setvars_script(builder, label, env_store.EnvLanguage.Sh)
 
-@subcommand('query', 'needs', CAT_QUERY, ['results'])      # It used to be 'results'
+@subcommand('query', 'needs', CAT_QUERY)      # It used to be 'results'
 class QueryResults(QueryCommand):
     """
     :Syntax: query needs <label>
 
     Print what this label is required to build.
+
+    <label> is a label or label fragment (see 'muddle help labels'). The
+    default type is 'package:'.
     """
 
     def with_build_tree(self, builder, current_dir, args):
@@ -1941,6 +2089,9 @@ class QueryRules(QueryCommand):
     :Syntax: query rules <label>
 
     Print the rules covering building this label.
+
+    <label> is a label or label fragment (see 'muddle help labels'). The
+    default type is 'package:'.
     """
 
     def with_build_tree(self, builder, current_dir, args):
@@ -1958,6 +2109,9 @@ class QueryTargets(QueryCommand):
     :Syntax: query targets <label>
 
     Print the targets that would be built by an attempt to build this label.
+
+    <label> is a label or label fragment (see 'muddle help labels'). The
+    default type is 'package:'.
     """
 
     def with_build_tree(self, builder, current_dir, args):
@@ -2121,6 +2275,9 @@ class QueryKernelver(QueryCommand):
 
     Determine the Linux kernel version.
 
+    <label> is a label or label fragment (see 'muddle help labels'). The
+    default type is 'package:'.
+
     <label> should be the package label for the kernel version. This command
     looks in <obj>/obj/include/linux/version.h (where <obj> is the directory
     returned by "muddle query objdir <label>") for the LINUX_VERSION_CODE
@@ -2234,6 +2391,7 @@ class RunIn(Command):
         """
         rv = [ ]
         for arg in in_args:
+            # XXX Label fragments would be better?
             lbl = Label.from_string(arg)
             rv.append(lbl)
 
@@ -2245,10 +2403,11 @@ class BuildLabel(AnyLabelCommand):
     :Syntax: buildlabel <label> [ <label> ... ]
 
     Builds a set of specified labels, without all the defaulting and trying to
-    guess what you mean that Build does.
+    guess what you mean that Build does. Thus each label must be a full label,
+    not a fragment.
 
-    Mainly used internally to build defaults and the privileged half of
-    instruction executions.
+    Mainly used internally to build defaults (e.g., by the 'muddle' command in
+    the root directory) and the privileged half of instruction executions.
     """
 
     def build_these_labels(self, builder, labels):
@@ -3331,34 +3490,39 @@ Try 'muddle help unstamp' for more information."""
             print '...the checkouts present match those in the stamp file.'
             print 'The build looks as if it restored correctly.'
 
-@command('whereami', CAT_QUERY, ['where'])
+@command('where', CAT_QUERY, ['whereami'])
 class Whereami(Command):
     """
-    :Syntax: whereami [-detail]
-    :or:     where [-detail]
+    :Syntax: where [-detail]
+    :or:     whereami [-detail]
 
-    Looks at the current directory and tries to identify where it is
-    in terms of the enclosing muddle build tree (if any). The result
-    is output in the form::
-
-        <type>: <name>[{<role>}]
+    Looks at the current directory and tries to identify where it is within the
+    enclosing muddle build tree. If it can calculate a label corresponding to
+    the location, it will also report that (as <name> and, if appropriate,
+    <role>).
 
     For instance::
 
-        checkout directory: frobozz
-        package object directory: kernel{type1}
+        $ muddle where
+        Root of the build tree
+        $ cd src; muddle where
+        Checkout directory
+        $ cd main_co; muddle where
+        Checkout directory for checkout:main_co/*
+        $ cd ../../obj/main_pkg; muddle where
+        Package object directory for package:main_pkg{*}/*
 
-    or even::
+    If you're not in a muddle build tree, it will say so::
 
         You are here. Here is not in a muddle build tree.
 
-    unless the '-detail' switch is given, in which case output suitable
-    for parsing is output, of the form:
+    If the '-detail' switch is given, output suitable for parsing is output, in
+    the form:
 
         <what> <label> <domain>
 
-    i.e., a space-separated triple of items that doesn't contain whitespace.
-    For instance::
+    i.e., a space-separated triple of items that don't themselves contain
+    whitespace.  For instance::
 
         $ muddle where
         Checkout directory for checkout:screen-4.0.3/*

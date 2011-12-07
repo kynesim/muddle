@@ -4192,7 +4192,10 @@ def build_a_kill_b(builder, labels, build_this, kill_this):
             raise GiveUp("Can't kill %s: %s"%(l_b, e))
 
 def kill_labels(builder, to_kill):
-    print "Killing %s "%(" ".join(map(str, to_kill)))
+    if len(to_build) == 1:
+        print "Killing %s"%to_kill
+    else:
+        print "Killing %d labels"%len(to_kill)
 
     try:
         for lbl in to_kill:
@@ -4201,7 +4204,6 @@ def kill_labels(builder, to_kill):
         raise GiveUp("Can't kill %s - %s"%(str(lbl), e))
 
 def build_labels(builder, to_build):
-    ##print "Building %s "%(label_list_to_string(to_build))
     if len(to_build) == 1:
         print "Building %s"%to_build
     else:

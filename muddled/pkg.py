@@ -166,7 +166,7 @@ def null_package(builder, name, role):
     """
     this_pkg = NullPackageBuilder(name='meta', role='meta')
     # Add the standard rules for a package
-    pkg.add_package_rules(builder.invocation.ruleset, name, role, this_pkg)
+    add_package_rules(builder.invocation.ruleset, name, role, this_pkg)
     return this_pkg
 
 class Profile:

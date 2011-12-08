@@ -915,7 +915,8 @@ an underscore.
 
 <type> is one of checkout, package or deployment.
 
-* A checkout is checked out of version control. It lives under 'src/'.
+* A checkout is checked out of version control. It lives (somewhere) under
+ 'src/'.
 * A package is built (under 'obj/<name>/<role>') and installed (under
   'install/<role>).
 * A deployment is deployed (ready for putting onto the target), and is found

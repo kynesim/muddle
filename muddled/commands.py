@@ -1955,7 +1955,7 @@ class QueryInstDetails(QueryCommand):
         print "-- Done --"
 
 @subcommand('query', 'inst-files', CAT_QUERY)    # It used to be 'instructions'
-class QueryInstructions(QueryCommand):
+class QueryInstFiles(QueryCommand):
     """
     :Syntax: query inst-files <label>
 
@@ -2105,7 +2105,7 @@ class QueryPreciseEnv(QueryCommand):
         print local_store.get_setvars_script(builder, label, env_store.EnvLanguage.Sh)
 
 @subcommand('query', 'needs', CAT_QUERY)      # It used to be 'results'
-class QueryResults(QueryCommand):
+class QueryNeeds(QueryCommand):
     """
     :Syntax: query needs <label>
 
@@ -2441,12 +2441,24 @@ class BuildLabel(AnyLabelCommand):
     """
     :Syntax: buildlabel <label> [ <label> ... ]
 
-    Builds a set of specified labels, without all the defaulting and trying to
-    guess what you mean that Build does. Thus each label must be a full label,
-    not a fragment.
+    Performs the appropriate actions to 'build' each <label>.
 
-    Mainly used internally to build defaults (e.g., by the 'muddle' command in
-    the root directory) and the privileged half of instruction executions.
+    Each <label> is a label fragment, in the normal manner. The <type> defaults
+    to "package:", and the <tag> defaults to the normal default <tag> for that
+    type. Wildcards are expanded.
+
+    <label> may also be "_all", "_default_deployments" or "_default_roles".
+
+    See "muddle help labels" for more help on label fragments and the "_xxx"
+    values.
+
+    Unlikes the checkout, package or deployment specific commands, buildlabel
+    does not try to guess what to do based on which directory the command is
+    given in. At least one <label> must be specified.
+
+    This command is mainly used internally to build defaults (specifically,
+    when you type a bare "muddle" command in the root directory) and the
+    privileged half of instruction executions.
     """
 
     def build_these_labels(self, builder, labels):
@@ -2549,7 +2561,24 @@ class Assert(AnyLabelCommand):
     """
     :Syntax: assert <label> [ <label> ... ]
 
-    Assert the given labels. Mostly for use by experts and scripts.
+    Assert the given labels.
+
+    This sets the tags indicated by the specified label(s), and only those tags.
+
+    This is *not* the same as if muddle had performed the equivalent "muddle
+    buildlabel" command, because setting the "/installed" tag in this way will
+    not also set the "/built" (or any other) tag.
+
+    Thus this is mostly for use by experts and scripts.
+
+    Each <label> is a label fragment, in the normal manner. The <type> defaults
+    to "package:", and the <tag> defaults to the normal default <tag> for that
+    type. Wildcards are expanded.
+
+    <label> may also be "_all", "_default_deployments" or "_default_roles".
+
+    See "muddle help labels" for more help on label fragments and the "_xxx"
+    values.
     """
 
     def build_these_labels(self, builder, labels):
@@ -2562,7 +2591,23 @@ class Retract(AnyLabelCommand):
     :Syntax: retract <label> [ <label> ... ]
 
     Retract the given labels and their consequents.
-    Mostly for use by experts and scripts.
+
+    This unsets the tags specified in the given labels, and also the tags for
+    all labels which each label depended on. For instance, if the label
+    package:fred{x86}/built was given, then package:fred{x86}/configured
+    would also be retracted, as /built (normally) depends on /configured for
+    the same package.
+
+    This command is mostly for use by experts and scripts.
+
+    Each <label> is a label fragment, in the normal manner. The <type> defaults
+    to "package:", and the <tag> defaults to the normal default <tag> for that
+    type. Wildcards are expanded.
+
+    <label> may also be "_all", "_default_deployments" or "_default_roles".
+
+    See "muddle help labels" for more help on label fragments and the "_xxx"
+    values.
     """
 
     def build_these_labels(self, builder, labels):
@@ -2709,8 +2754,23 @@ class Retry(AnyLabelCommand):
     """
     :Syntax: retry <label> [ <label> ... ]
 
-    Removes just the labels in question and then tries to build them.
-    Useful when you're messing about with package rebuild rules.
+    First this unsets the tags implied by the specified label(s), and only
+    those tags. Then it rebuilds the labels.
+
+    Note that unsetting the tags *only* unsets exactly the tags named, and not
+    any others.
+
+    This is sometimes useful when you're messing about with package rebuild
+    rules.
+
+    Each <label> is a label fragment, in the normal manner. The <type> defaults
+    to "package:", and the <tag> defaults to the normal default <tag> for that
+    type. Wildcards are expanded.
+
+    <label> may also be "_all", "_default_deployments" or "_default_roles".
+
+    See "muddle help labels" for more help on label fragments and the "_xxx"
+    values.
     """
 
     def build_these_labels(self, builder, labels):

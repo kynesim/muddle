@@ -3767,11 +3767,11 @@ class Redeploy(DeploymentCommand):
     """
     :Syntax: redeploy [<deployment> ... ]
 
-    Clean the named deployments, remove their '/deployed' tags, and then
-    rebuild (deploy) them.
+    Clean the named deployments (deleting their 'deploy/' directory), remove
+    their '/deployed' tags, and then rebuild (deploy) them.
 
-    This is essentially equivalent to doing "muddle cleandeploy" followed by
-    "muddle deploy".
+    This is exactly equivalent to doing "muddle cleandeploy" for all the
+    labels, followed by "muddle deploy" for them all.
 
     <deployment> should be a label fragment specifying a deployment, or one of
     _all and friends, as for any deployment command. The <type> defaults to
@@ -3783,8 +3783,7 @@ class Redeploy(DeploymentCommand):
     """
 
     def build_these_labels(self, builder, labels):
-        build_a_kill_b(builder, labels, LabelTag.Clean,
-                       LabelTag.Deployed)
+        build_a_kill_b(builder, labels, LabelTag.Clean, LabelTag.Deployed)
         build_labels(builder, labels)
 
 @command('cleandeploy', CAT_DEPLOYMENT)
@@ -3794,7 +3793,10 @@ class Cleandeploy(DeploymentCommand):
 
     Clean the named deployments, and remove their '/deployed' tags.
 
-    Note that this does not delete the 'deploy/' directories for the labels.
+    Note that this also deletes the 'deploy/<deployment>' directory for each
+    deployment named (but it does not delete the overall 'deploy/' directory).
+
+    It also sets the 'clean' tag for each deployment.
 
     <deployment> should be a label fragment specifying a deployment, or one of
     _all and friends, as for any deployment command. The <type> defaults to
@@ -3822,8 +3824,8 @@ class Deploy(DeploymentCommand):
     "deployment", and the <tag> to "/deployed". See "muddle help labels" for
     more information.
 
-    If no deployments are given we will use the default deployment list.
-    If _all is given, we'll use all deployments.
+    If no deployments are named, what we do depends on where we are in the
+    build tree. See "muddle help labels".
     """
 
     def build_these_labels(self, builder, labels):

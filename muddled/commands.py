@@ -951,17 +951,52 @@ always need a role (although muddle will sometimes try to guess one for you).
     deploy/<deployment-name>.
 
 (If your build tree contains *subdomains* then there is another label component
-- see "help subdomains" for more information if you need it.)
+- see "muddle help subdomains" for more information if you need it.)
 
 Some muddle commands only operate on particular types of label. For instance,
 commands in category "checkout" (see 'muddle help categories') only operate
 on checkout: labels.
 
 ** Talk about label fragments
+
+Note: at a Unix shell, typing:
+
+    $ muddle build *
+
+is unlikely to give the required result. The shell will expand the "*" to the
+contents of the current directory, and if at top level of the built tree,
+muddle will then typically complain that there is no package called 'deploy'.
+Instead, escape the "*", for instance:
+
+    $ muddle build '*'
+
 """
 
-    subdomain_help = """\
-    Help on subdomains - to be written
+    subdomains_help = """\
+Your build contains subdomains if 'muddle query domains' prints out subdomain
+names. In this case, you will also have a top-level 'domains/' directory, and
+the top-level build description will contain calls to 'include_domain()'.
+
+In builds with subdomains, labels in the top-level build still look like:
+
+    <type>:<name>{<role>}/<tag>
+
+but labels from the subdomains will contain their domain name:
+
+    <type>:(<domain>)<name>{<role>}/<tag>
+
+For instance:
+
+    * package:busybox{x86}/installed is in the toplevel build
+    * package:(webkit)webkit{x86}/installed is in the 'webkit' subdomain
+    * package:(webkit(x11))xfonts{x11}/installed is in the 'x11' subdomain,
+      which in turn is a subdomain of 'webkit'.
+
+Note that when typing labels containing domain names within Bash, it wil
+be necessary to quote the whole label, otherwise Bash will try to interpret
+the parentheses. So, for instance, use:
+
+    $ muddle build '(x11)xfonts{x11}'
     """
 
     def requires_build_tree(self):
@@ -1003,6 +1038,9 @@ on checkout: labels.
 
         if args[0] == "labels":
             return self.help_labels()
+
+        if args[0] == "subdomains":
+            return self.help_subdomains()
 
         if len(args) == 1:
             cmd = args[0]

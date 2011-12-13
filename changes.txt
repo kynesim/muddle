@@ -1,0 +1,165 @@
+Changes in this new version of muddle
+=====================================
+
+* Much of the the internals of the command line processing has been rewritten,
+  and this should give more robust command handling. It also means that
+  commands of a common "category" (see 'muddle help categories') share much
+  more common code, and thus have better consistency.
+
+* All checkout/package/dependency commands now know how to cope with any
+  type of label. See 'muddle help labels' for details.
+
+* Most commands that that take labels as arguments can now take partial labels
+  (label fragments) instead, which is a lot simpler for a human being. This
+  includes the 'visdep' script in the sandbox. See 'muddle help labels' for
+  more information.
+
+* All checkout/package/dependency commands now know how to cope with any
+  type of label. See 'muddle help labels' for details.
+
+* Removed aliases:
+
+  - 'muddle query deps' - use 'needed-by'
+  - 'muddle query instructions' - use 'inst-files'
+  - 'muddle query makeenv' - use 'make-env'
+  - 'muddle query preciseenv' - use 'precise-env'
+  - 'muddle query results' - use 'needs'
+
+  Note that 'muddle query envs' is still an alias for 'muddle query all-envs',
+  and this is still different than 'muddle query env'.
+
+* Changed commands:
+
+  - 'muddle dependencies' is replaced by 'muddle query dependencies'
+  - 'muddle depends' is replaced by 'muddle query depends' (this is actually
+    the same as the previous item)
+  - 'muddle vcs' is replaced by 'muddle query vcs'
+  - 'muddle root' has gone. Instead use 'muddle query root', which already
+    existed. 'muddle query root' now just reports the root (of the build
+    tree), and not the "default domain", since this concept has essentially
+    gone away.
+  - 'muddle query default-labels' is now the more accurate 'muddle query
+    default-deployments'
+
+* 'muddle pull' is once again preferred over 'muddle fetch' or 'muddle update'
+
+* The 'utils.Directory' classes now set $PWD (as top-level muddle itself does,
+  and for the same reason). They also now have a useful 'join' method (see the
+  classes for its use). A version of these classes has been pulled out to
+  a separate repository on github - see https://github.com/tibs/withdir
+
+* How the muddle command works:
+
+  - "bare" 'muddle':
+
+    - at the top of the buildtree
+    - elsewhere
+
+  - 'muddle <cmd>' with no arguments, for checkout/package/deployment
+    commands:
+
+    - at the top of the buildtree
+    - elsewhere
+
+* Much of the help text has been reworked, and there are new topics:
+
+  - 'muddle help categories'
+  - 'muddle help labels'
+  - 'muddle help subdomains'
+
+* Muddle help text is now paged (much as is done by git), using the pager
+  specified by $PAGER, or else 'more'. There is a command line switch,
+  '--nopager', to rever to the old behaviour.
+
+* What 'muddle where' says has changed in detail, and there is now 'muddle
+  where -detail' for use in scripts.
+
+* When building things, or "killing" things, muddle is significantly less
+  verbose - it doesn't normally report ALL the labels it will affect.
+
+* 'muddle -n' now works for all commands that do something (it used to be very
+  unpredictable about this). It is now a reliable tool, and may be used as
+  such. Also, note that it reports a single label per line, which makes it
+  much easier to read.
+
+* Many minor code tidies have been made.
+
+* There is now more testing! (particularly of the 'muddle -n' commands, and of
+  subdomain handling - necessary because the latter had "bit rotted").
+
+* Various things that were to be deprecated have now been removed. Hopefully
+  no-one will notice.
+
+* Added 'NullPackage' and 'null_package()' to muddled/pkg.py. Their docstrings
+  explain why they might be useful.
+
+* As well as the special '_all' argument, there are now also
+  '_default_deployments' and '_default_roles', which expand to all the default
+  deployment labels and all the package labels in the default roles,
+  respectively. Thus the top-level "bare" 'muddle' command is identical to
+  'muddle buildlabel _default_deployments _default_roles'.
+
+  However, note that '_all' is now treated as a special value for use on the
+  commandline, and not as a "pseudo-wildcard" label name. Thus it is no longer
+  meaningful to ask for 'package:_all{x86}' when one meant 'package:*{x86}'
+  (the former will report that there is no package called '_all{x86}').
+
+* More and hopefully more useful error messages have been introduced. In
+  particular, I've tried to catch occasions where muddle unexpectedly does
+  nothing, and suggest why this might be (liking trying to do 'muddle build'
+  in a checkout directory when the only role for the corresponding package is
+  not one of the default roles - this one has taken me too long to work out in
+  the past). Some of these error reports are more verbose, or not as easy to
+  understand, as they should be, but this is hoped to be an important
+  improvement.
+
+* When a syntax or other error is found in a build description, it is no
+  longer buried in a traceback concerned with how the build description was
+  being imported.
+
+* muddle commands now try harder to catche cases where the user has specified
+  a role for a checkout or deployment label, and grumble.
+
+* Various obscure bugs have been found and fixed by the new tests. Some of
+  them were really *quite* obscure.
+
+* 'muddle query package-roles' will also include domains in the reported
+  names, if appropriate.
+
+* 'Rule' classes now have an 'action' member, instead of an 'obj' member. I
+  believe this to be much cleare, but it is an unannounced incompatible
+  change.
+
+* Internal changes that may be of interest:
+
+  - 'builder.invocation.default_labels' is now
+    'builder.invocation.default_deployment_labels'. Similarly, the method
+    'add_default_label()' becomes 'add_default_deployment_label()'. It also
+    now checks that the label *is* a deployment label.
+
+
+Particular issues fixed:
+
+(marked with XXX if they need verification)
+
+* 4, bugs in description files are not handled elegantly
+* 67, checkout and package inference should know about domains
+* 104, no feedback on undefined label name
+* 112, Python 2.7 (I'm now using that for testing as well)
+* 115, make muddle grumble if a role is given for checkout labels
+* 166, test_checkouts.py broken by fix for issue 161
+* 177, 'muddle checkout package:xxx' should checkout what is needed for
+  package xxx
+* 184, all the muddle commands that take labels should support domains
+* XXX 185, muddle unstamp should check its build against domain/checkout name, not
+  just checkouts name 
+* 186, deprecate use of 'all_packages', use 'all_package_labels' instead
+* 189, make sure all commands do something vaguely sensible for '-n'
+* XXX 194, 'muddle pull' of a toplevel checkout in a subdomain attempts to clone
+* XXX 195, if there's nothing to do, say so
+* 198, muddle should actually honour the DWIM section from the README
+* 199, helpful error behaviour of fetch/pull unexpected (well, ok, this is in
+  master as well)
+* 200, find all targets for deployments
+
+.. vim: set filetype=rst tabstop=8 softtabstop=2 shiftwidth=2 expandtab:

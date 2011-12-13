@@ -960,10 +960,45 @@ commands in category "checkout" (see 'muddle help categories') only operate
 on checkout: labels.
 
 ** Talk about label fragments
+
+Note: at a Unix shell, typing:
+
+    $ muddle build *
+
+is unlikely to give the required result. The shell will expand the "*" to the
+contents of the current directory, and if at top level of the built tree,
+muddle will then typically complain that there is no package called 'deploy'.
+Instead, escape the "*", for instance:
+
+    $ muddle build '*'
+
 """
 
-    subdomain_help = """\
-    Help on subdomains - to be written
+    subdomains_help = """\
+Your build contains subdomains if 'muddle query domains' prints out subdomain
+names. In this case, you will also have a top-level 'domains/' directory, and
+the top-level build description will contain calls to 'include_domain()'.
+
+In builds with subdomains, labels in the top-level build still look like:
+
+    <type>:<name>{<role>}/<tag>
+
+but labels from the subdomains will contain their domain name:
+
+    <type>:(<domain>)<name>{<role>}/<tag>
+
+For instance:
+
+    * package:busybox{x86}/installed is in the toplevel build
+    * package:(webkit)webkit{x86}/installed is in the 'webkit' subdomain
+    * package:(webkit(x11))xfonts{x11}/installed is in the 'x11' subdomain,
+      which in turn is a subdomain of 'webkit'.
+
+Note that when typing labels containing domain names within Bash, it wil
+be necessary to quote the whole label, otherwise Bash will try to interpret
+the parentheses. So, for instance, use:
+
+    $ muddle build '(x11)xfonts{x11}'
     """
 
     def requires_build_tree(self):
@@ -1005,6 +1040,9 @@ on checkout: labels.
 
         if args[0] == "labels":
             return self.help_labels()
+
+        if args[0] == "subdomains":
+            return self.help_subdomains()
 
         if len(args) == 1:
             cmd = args[0]
@@ -1903,7 +1941,7 @@ class QueryInstDetails(QueryCommand):
     """
     :Syntax: query inst-details <label>
 
-    Print the list of actual instructions for this labe, in the order in which
+    Print the list of actual instructions for this label, in the order in which
     they will be applied.
 
     <label> is a label or label fragment (see 'muddle help labels'). The
@@ -1919,7 +1957,7 @@ class QueryInstDetails(QueryCommand):
         print "-- Done --"
 
 @subcommand('query', 'inst-files', CAT_QUERY)    # It used to be 'instructions'
-class QueryInstructions(QueryCommand):
+class QueryInstFiles(QueryCommand):
     """
     :Syntax: query inst-files <label>
 
@@ -2069,7 +2107,7 @@ class QueryPreciseEnv(QueryCommand):
         print local_store.get_setvars_script(builder, label, env_store.EnvLanguage.Sh)
 
 @subcommand('query', 'needs', CAT_QUERY)      # It used to be 'results'
-class QueryResults(QueryCommand):
+class QueryNeeds(QueryCommand):
     """
     :Syntax: query needs <label>
 
@@ -2405,12 +2443,24 @@ class BuildLabel(AnyLabelCommand):
     """
     :Syntax: buildlabel <label> [ <label> ... ]
 
-    Builds a set of specified labels, without all the defaulting and trying to
-    guess what you mean that Build does. Thus each label must be a full label,
-    not a fragment.
+    Performs the appropriate actions to 'build' each <label>.
 
-    Mainly used internally to build defaults (e.g., by the 'muddle' command in
-    the root directory) and the privileged half of instruction executions.
+    Each <label> is a label fragment, in the normal manner. The <type> defaults
+    to "package:", and the <tag> defaults to the normal default <tag> for that
+    type. Wildcards are expanded.
+
+    <label> may also be "_all", "_default_deployments" or "_default_roles".
+
+    See "muddle help labels" for more help on label fragments and the "_xxx"
+    values.
+
+    Unlikes the checkout, package or deployment specific commands, buildlabel
+    does not try to guess what to do based on which directory the command is
+    given in. At least one <label> must be specified.
+
+    This command is mainly used internally to build defaults (specifically,
+    when you type a bare "muddle" command in the root directory) and the
+    privileged half of instruction executions.
     """
 
     def build_these_labels(self, builder, labels):
@@ -2442,7 +2492,8 @@ class Instruct(Command):
     there's no guarantee that the instruction files will ever be rebuilt
     correctly - so it is not a command.
 
-    You can list instruction files and their ordering with the query command.
+    You can list instruction files and their ordering with
+    "muddle query inst-files".
     """
 
     def requires_build_tree(self):
@@ -2513,7 +2564,24 @@ class Assert(AnyLabelCommand):
     """
     :Syntax: assert <label> [ <label> ... ]
 
-    Assert the given labels. Mostly for use by experts and scripts.
+    Assert the given labels.
+
+    This sets the tags indicated by the specified label(s), and only those tags.
+
+    This is *not* the same as if muddle had performed the equivalent "muddle
+    buildlabel" command, because setting the "/installed" tag in this way will
+    not also set the "/built" (or any other) tag.
+
+    Thus this is mostly for use by experts and scripts.
+
+    Each <label> is a label fragment, in the normal manner. The <type> defaults
+    to "package:", and the <tag> defaults to the normal default <tag> for that
+    type. Wildcards are expanded.
+
+    <label> may also be "_all", "_default_deployments" or "_default_roles".
+
+    See "muddle help labels" for more help on label fragments and the "_xxx"
+    values.
     """
 
     def build_these_labels(self, builder, labels):
@@ -2526,7 +2594,23 @@ class Retract(AnyLabelCommand):
     :Syntax: retract <label> [ <label> ... ]
 
     Retract the given labels and their consequents.
-    Mostly for use by experts and scripts.
+
+    This unsets the tags specified in the given labels, and also the tags for
+    all labels which each label depended on. For instance, if the label
+    package:fred{x86}/built was given, then package:fred{x86}/configured
+    would also be retracted, as /built (normally) depends on /configured for
+    the same package.
+
+    This command is mostly for use by experts and scripts.
+
+    Each <label> is a label fragment, in the normal manner. The <type> defaults
+    to "package:", and the <tag> defaults to the normal default <tag> for that
+    type. Wildcards are expanded.
+
+    <label> may also be "_all", "_default_deployments" or "_default_roles".
+
+    See "muddle help labels" for more help on label fragments and the "_xxx"
+    values.
     """
 
     def build_these_labels(self, builder, labels):
@@ -2547,8 +2631,9 @@ class Env(PackageCommand):
     * <name> is used in various ways depending upon the target language.
       It should be a legal name/symbol in the aforesaid target language (for
       instance, in C it will be uppercased and used as part of a macro name).
-    * <label> should be the name of a package, in the normal manner, with or
-      without a role. '_all' means all packages, as usual.
+    * <label> should be a label fragment specifying a package, or one of _all
+      and friends, as for any package command. See "muddle help labels" for
+      more information.
 
     So, for instance::
 
@@ -2673,8 +2758,23 @@ class Retry(AnyLabelCommand):
     """
     :Syntax: retry <label> [ <label> ... ]
 
-    Removes just the labels in question and then tries to build them.
-    Useful when you're messing about with package rebuild rules.
+    First this unsets the tags implied by the specified label(s), and only
+    those tags. Then it rebuilds the labels.
+
+    Note that unsetting the tags *only* unsets exactly the tags named, and not
+    any others.
+
+    This is sometimes useful when you're messing about with package rebuild
+    rules.
+
+    Each <label> is a label fragment, in the normal manner. The <type> defaults
+    to "package:", and the <tag> defaults to the normal default <tag> for that
+    type. Wildcards are expanded.
+
+    <label> may also be "_all", "_default_deployments" or "_default_roles".
+
+    See "muddle help labels" for more help on label fragments and the "_xxx"
+    values.
     """
 
     def build_these_labels(self, builder, labels):
@@ -3662,42 +3762,53 @@ class Doc(Command):
         print 'Cannot find %s'%what
 
 # =============================================================================
-# Checkout, package and deployment commands in the new implementation
+# Checkout, package and deployment commands
 # =============================================================================
 @command('redeploy', CAT_DEPLOYMENT)
 class Redeploy(DeploymentCommand):
     """
-    :Syntax: redeploy <deployment> [<deployment> ... ]
+    :Syntax: redeploy [<deployment> ... ]
 
-    Remove all tags for the given deployments, erase their built directories
-    and redeploy them.
+    Clean the named deployments (deleting their 'deploy/' directory), remove
+    their '/deployed' tags, and then rebuild (deploy) them.
 
-    You can use cleandeploy to just clean the relevant deployments.
+    This is exactly equivalent to doing "muddle cleandeploy" for all the
+    labels, followed by "muddle deploy" for them all.
 
-    If no deployments are given, we redeploy the default deployment list.
-    If _all is given, we redeploy all deployments.
+    <deployment> should be a label fragment specifying a deployment, or one of
+    _all and friends, as for any deployment command. The <type> defaults to
+    "deployment", and the <tag> to "/deployed". See "muddle help labels" for
+    more information.
+
+    If no deployments are named, what we do depends on where we are in the
+    build tree. See "muddle help labels".
     """
 
     def build_these_labels(self, builder, labels):
-        build_a_kill_b(builder, labels, LabelTag.Clean,
-                       LabelTag.Deployed)
+        build_a_kill_b(builder, labels, LabelTag.Clean, LabelTag.Deployed)
         build_labels(builder, labels)
 
 @command('cleandeploy', CAT_DEPLOYMENT)
 class Cleandeploy(DeploymentCommand):
     """
-    :Syntax: cleandeploy <deployment> [<deployment> ... ]
+    :Syntax: cleandeploy [<deployment> ... ]
 
-    Remove all tags for the given deployments and erase their built
-    directories. XXX it doesn't delete the 'built' directories???
+    Clean the named deployments, and remove their '/deployed' tags.
 
-    You can use cleandeploy to just clean the relevant deployments.
+    Note that this also deletes the 'deploy/<deployment>' directory for each
+    deployment named (but it does not delete the overall 'deploy/' directory).
 
-    If no deployments are given, we redeploy the default deployment list.
-    If _all is given, we redeploy all deployments.
+    It also sets the 'clean' tag for each deployment.
+
+    <deployment> should be a label fragment specifying a deployment, or one of
+    _all and friends, as for any deployment command. The <type> defaults to
+    "deployment", and the <tag> to "/clean". See "muddle help labels" for more
+    information.
+
+    If no deployments are named, what we do depends on where we are in the
+    build tree. See "muddle help labels".
     """
 
-    # XXX Is this really correct?
     reuired_tag = LabelTag.Clean
 
     def build_these_labels(self, builder, labels):
@@ -3708,22 +3819,33 @@ class Deploy(DeploymentCommand):
     """
     :Syntax: deploy <deployment> [<deployment> ... ]
 
-    Build appropriate tags for deploying the given deployments.
+    Build (deploy) the named deployments.
 
-    If no deployments are given we will use the default deployment list.
-    If _all is given, we'll use all deployments.
+    <deployment> should be a label fragment specifying a deployment, or one of
+    _all and friends, as for any deployment command. The <type> defaults to
+    "deployment", and the <tag> to "/deployed". See "muddle help labels" for
+    more information.
+
+    If no deployments are named, what we do depends on where we are in the
+    build tree. See "muddle help labels".
     """
 
     def build_these_labels(self, builder, labels):
         build_labels(builder, labels)
 
+# XXX === EDITED HELP TEXT TO HERE === XXX
+
 @command('configure', CAT_PACKAGE)
 class Configure(PackageCommand):
     """
-    :Syntax: configure [ <package>{<role>} ... ]
+    :Syntax: configure [ <package> ... ]
 
     Configure a package. If the package name isn't given, we'll use the
     list of local packages derived from your current directory.
+
+    <package> should be a label fragment specifying a package, or one of
+    _all and friends, as for any package command. See "muddle help labels"
+    for more information.
 
     If you're in a checkout directory, we'll configure every package
     which uses that checkout.
@@ -3744,6 +3866,10 @@ class Configure(PackageCommand):
 class Reconfigure(PackageCommand):
     """
     :Syntax: reconfigure [ <package>{<role>} ... ]
+
+    <package> should be a label fragment specifying a package, or one of
+    _all and friends, as for any package command. See "muddle help labels"
+    for more information.
 
     Just like configure except that we clear any configured/built tags first
     (and their dependencies).
@@ -3767,6 +3893,10 @@ class Build(PackageCommand):
     Build a package. If the package name isn't given, we'll use the
     list of local packages derived from your current directory.
 
+    <package> should be a label fragment specifying a package, or one of
+    _all and friends, as for any package command. See "muddle help labels"
+    for more information.
+
     Unqualified or inferred package names are built in every default
     role (there's a list in the build description).
 
@@ -3789,6 +3919,10 @@ class Rebuild(PackageCommand):
 
     Just like build except that we clear any built tags first
     (and their dependencies).
+
+    <package> should be a label fragment specifying a package, or one of
+    _all and friends, as for any package command. See "muddle help labels"
+    for more information.
     """
 
     def build_these_labels(self, builder, labels):
@@ -3804,6 +3938,10 @@ class Reinstall(PackageCommand):
     :Syntax: reinstall [ <package>{<role>} ... ]
 
     Reinstall the given packages (but don't rebuild them).
+
+    <package> should be a label fragment specifying a package, or one of
+    _all and friends, as for any package command. See "muddle help labels"
+    for more information.
     """
 
     def build_these_labels(self, builder, labels):
@@ -3819,6 +3957,10 @@ class Distrebuild(PackageCommand):
     :Syntax: distrebuild [ <package>{<role>} ... ]
 
     A rebuild that does a distclean before attempting the rebuild.
+
+    <package> should be a label fragment specifying a package, or one of
+    _all and friends, as for any package command. See "muddle help labels"
+    for more information.
     """
 
     def build_these_labels(self, builder, labels):
@@ -3833,6 +3975,10 @@ class Clean(PackageCommand):
     Just like build except that we clean packages rather than
     building them. Subsequently, packages are regarded as having
     been configured but not build.
+
+    <package> should be a label fragment specifying a package, or one of
+    _all and friends, as for any package command. See "muddle help labels"
+    for more information.
     """
 
     # XXX Is this correct?
@@ -3848,6 +3994,10 @@ class DistClean(PackageCommand):
 
     Just like clean except that we reduce packages to non-preconfigured
     and invoke 'make distclean'.
+
+    <package> should be a label fragment specifying a package, or one of
+    _all and friends, as for any package command. See "muddle help labels"
+    for more information.
     """
 
     # XXX Is this correct?
@@ -3862,6 +4012,10 @@ class Commit(CheckoutCommand):
     :Syntax: commit <checkout> [ <checkout> ... ]
 
     Commit the specified checkouts to their local repositories.
+
+    <checkout> should be a label fragment specifying a checkout, or one of
+    _all and friends, as for any checkout command. See "muddle help labels"
+    for more information.
 
     For a centralised VCS (e.g., Subversion) where the repository is remote,
     this will not do anything. See the update command.
@@ -3893,6 +4047,10 @@ class Push(CheckoutCommand):
     :Syntax: push [-s[top]] <checkout> [ <checkout> ... ]
 
     Push the specified checkouts to their remote repositories.
+
+    <checkout> should be a label fragment specifying a checkout, or one of
+    _all and friends, as for any checkout command. See "muddle help labels"
+    for more information.
 
     This updates the content of the remote repositories to match the local
     checkout.
@@ -3949,6 +4107,10 @@ class Pull(CheckoutCommand):
 
     Pull the specified checkouts from their remote repositories. Any problems
     will be (re)reported at the end.
+
+    <checkout> should be a label fragment specifying a checkout, or one of
+    _all and friends, as for any checkout command. See "muddle help labels"
+    for more information.
 
     For each checkout named, retrieve changes from the corresponding remote
     repository (as described by the build description) and apply them (to
@@ -4021,6 +4183,10 @@ class Merge(CheckoutCommand):
 
     Merge the specified checkouts from their remote repositories.
 
+    <checkout> should be a label fragment specifying a checkout, or one of
+    _all and friends, as for any checkout command. See "muddle help labels"
+    for more information.
+
     For each checkout named, retrieve changes from the corresponding remote
     repository (as described by the build description) and merge them (into
     the checkout). The merge process is handled in a VCS specific manner,
@@ -4078,6 +4244,10 @@ class Status(CheckoutCommand):
     :Syntax: status [-v] <checkout> [ <checkout> ... ]
 
     Report on the status of checkouts that need attention.
+
+    <checkout> should be a label fragment specifying a checkout, or one of
+    _all and friends, as for any checkout command. See "muddle help labels"
+    for more information.
 
     If '-v' is given, report each checkout label as it is checked (allowing
     a sense of progress if there are many bazaar checkouts, for instance).
@@ -4142,6 +4312,10 @@ class Reparent(CheckoutCommand):
 
     Re-associate the specified checkouts with their remote repositories.
 
+    <checkout> should be a label fragment specifying a checkout, or one of
+    _all and friends, as for any checkout command. See "muddle help labels"
+    for more information.
+
     Some distributed VCSs (notably, Bazaar) can "forget" the remote repository
     for a checkout. In Bazaar, this typically means not remembering the
     "parent" repository, and thus not being able to pull. It appears to be
@@ -4197,6 +4371,10 @@ class Removed(CheckoutCommand):
     Signal to muddle that the given checkouts have been removed and will
     need to be checked out again before they can be used.
 
+    <checkout> should be a label fragment specifying a checkout, or one of
+    _all and friends, as for any checkout command. See "muddle help labels"
+    for more information.
+
     The special <checkout> name _all means all checkouts.
 
     Without a <checkout>, we use the checkout you're in, or the checkouts
@@ -4239,6 +4417,10 @@ class Import(CheckoutCommand):
     goes on to prime the relevant VCS module (by way of 'muddle reparent') so
     it can be pushed once ready; this should be at worst harmless in all cases.
 
+    <checkout> should be a label fragment specifying a checkout, or one of
+    _all and friends, as for any checkout command. See "muddle help labels"
+    for more information.
+
     This command is really just an wrapper to 'muddle assert' with the right
     magic label names, and to 'muddle reparent'.
 
@@ -4273,6 +4455,10 @@ class Changed(PackageCommand):
     guessing logic is used to guess the names of your packages if
     you don't provide them.
 
+    <package> should be a label fragment specifying a package, or one of
+    _all and friends, as for any package command. See "muddle help labels"
+    for more information.
+
     Note that we don't reconfigure (or indeed clean) packages -
     we just clear the tags asserting that they've been built.
 
@@ -4293,6 +4479,10 @@ class UnCheckout(CheckoutCommand):
 
     Tells muddle that the given checkouts no longer exist in the src directory
     and should be checked out/cloned from version control again.
+
+    <checkout> should be a label fragment specifying a checkout, or one of
+    _all and friends, as for any checkout command. See "muddle help labels"
+    for more information.
 
     The special <checkout> name _all means all checkouts.
 
@@ -4319,6 +4509,10 @@ class Checkout(CheckoutCommand):
     :Syntax: checkout <checkout> [ <checkout> ... ]
 
     Checks out the given series of checkouts.
+
+    <checkout> should be a label fragment specifying a checkout, or one of
+    _all and friends, as for any checkout command. See "muddle help labels"
+    for more information.
 
     That is, copies (clones/branches) the content of each checkout from its
     remote repository.

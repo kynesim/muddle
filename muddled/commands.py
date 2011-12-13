@@ -909,9 +909,12 @@ at http://muddle.readthedocs.org/. This is a summary.
 
     <type>:<name>{<role>}/<tag>
 
-All label components are made up of the characters [A-Z0-9a-z-_]. <name>,
-<role> and <tag> may also be wildcarded with '*'. Names may not start with
-an underscore.
+All label components are made up of the characters [A-Z0-9a-z-_].
+<name>, <role> and <tag> may also be '*' (a wildcard), meaning all values.
+A <name> may not start with an underscore.
+
+  (If your build tree contains *subdomains* then there is another label
+  component - see "help subdomains" for more information if you need it.)
 
 <type> is one of checkout, package or deployment.
 
@@ -925,33 +928,32 @@ an underscore.
 Labels of type checkout and deployment do not use roles. Package labels
 always need a role (although muddle will sometimes try to guess one for you).
 
-* For checkouts, <tag> is typically:
+* For checkouts, <tag> is typically 'checked_out', meaning the checkout has
+  been checked out (cloned, branched, etc.). A checkout will be in a directory
+  under the src/ directory, with the directory name given by the <name> from
+  the checkout label.
 
-  - checked_out - the checkout has been checked out (cloned, branched, etc.).
-    A checkout will be in a directory under the src/ directory, with the
-    directory name given by the <name> from the checkout label.
-
-* For packages, <tag> is typically:
+* For packages, <tag> is typically one of 'preconfig', 'configured', 'built',
+  'installed' or 'postinstalled'.
 
   - preconfig - preconfiguration checks have been made on the package
-  - configured - the package has been configured. This may involve running GNU
+  - configured - the package has been configured. The 'config' target in its
+    muddle Makefile has been run. This may have involved running GNU
     autotools './configure', and perhaps copying source code if the checkout
     does not support building out-of-tree.
-  - built - the package has been built (e.g., compiled and linked). The results
-    of building end up in directory obj/<package-name>/<role>
-  - installed - the package has been installed. All packages in a particular
-    <role> install their results to somewhere in install/<role>
+  - built - the package has been built (e.g., compiled and linked). The 'all'
+    target in its muddle Makefile has been run. The results of building end up
+    in directory obj/<package-name>/<role>
+  - installed - the package has been installed. The 'install' target in its
+    muddle Makefile has been run. All packages in a particular <role> install
+    their results to somewhere in install/<role>
   - postinstalled - the package has been postinstalled. This is often an empty
     step.
 
-* For deployments, <tag> is typically:
-
-  - deployed - a deployment has been created. This normally involves collecting
-    files from particular install/<role> directories, and placing the result in
-    deploy/<deployment-name>.
-
-(If your build tree contains *subdomains* then there is another label component
-- see "help subdomains" for more information if you need it.)
+* For deployments, <tag> is typically 'deployed', meaning a deployment has been
+  created. This normally involves collecting files from particular
+  install/<role> directories, and placing the result in
+  deploy/<deployment-name>.
 
 Some muddle commands only operate on particular types of label. For instance,
 commands in category "checkout" (see 'muddle help categories') only operate
@@ -1791,7 +1793,7 @@ class QueryName(QueryCommand):
 
         export PROJECT_NAME=$(muddle query name)
 
-    or in a Makefile.muddle::
+    or in a muddle Makefile::
 
         build_name:=$(shell $(MUDDLE) query name)
     """
@@ -1834,7 +1836,7 @@ class QueryDir(QueryCommand):
     <label> is a label or label fragment (see 'muddle help labels'). The
     default type is 'package:'.
 
-    Typically used in a Makefile.muddle, as for instance::
+    Typically used in a muddle Makefile, as for instance::
 
         KBUS_INSTALLDIR:=$(shell $(MUDDLE) query dir package:kbus{*})
     """
@@ -2038,7 +2040,7 @@ class QueryObjdir(QueryCommand):
     <label> is a label or label fragment (see 'muddle help labels'). The
     default type is 'package:'.
 
-    Typically used in a Makefile.muddle, as for instance::
+    Typically used in a muddle Makefile, as for instance::
 
         KBUS_OBJDIR:=$(shell $(MUDDLE) query objdir package:kbus{*})
     """
@@ -2620,7 +2622,7 @@ class CopyWithout(Command):
     :Syntax: copywithout [-f[orce]] <src-dir> <dst-dir> [ <without> ... ]
 
     Many VCSs use '.XXX' directories to hold metadata. When installing
-    files in a makefile, it's often useful to have an operation which
+    files in a Makefile, it's often useful to have an operation which
     copies a hierarchy from one place to another without these dotfiles.
 
     This is that operation. We copy everything from the source directory,

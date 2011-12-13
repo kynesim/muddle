@@ -956,7 +956,7 @@ always need a role (although muddle will sometimes try to guess one for you).
   deploy/<deployment-name>.
 
 Some muddle commands only operate on particular types of label. For instance,
-commands in category "checkout" (see 'muddle help categories') only operate
+commands in category "checkout" (see "muddle help categories") only operate
 on checkout: labels.
 
 ** Talk about label fragments
@@ -975,7 +975,7 @@ Instead, escape the "*", for instance:
 """
 
     subdomains_help = """\
-Your build contains subdomains if 'muddle query domains' prints out subdomain
+Your build contains subdomains if "muddle query domains" prints out subdomain
 names. In this case, you will also have a top-level 'domains/' directory, and
 the top-level build description will contain calls to 'include_domain()'.
 
@@ -1111,8 +1111,8 @@ the parentheses. So, for instance, use:
                                        subsequent_indent='              '))
 
         # XXX Temporarily
-        result_array.append("\n\n"+utils.wrap("Please note that 'muddle pull' is "
-            "preferred to 'muddle fetch' and muddle update', which are deprecated."))
+        result_array.append("\n\n"+utils.wrap('Please note that "muddle pull" is '
+            'preferred to "muddle fetch" and "muddle update", which are deprecated.'))
         # XXX Temporarily
 
         return "".join(result_array)
@@ -1248,10 +1248,10 @@ class Init(Command):
     "builds/01.py" means repository "git+file:///somewhere/else/examples/d/builds"
     and file "01.py" therein.
 
-    Note: if you find yourself trying to 'muddle init' a subdomain, don't.
+    Note: if you find yourself trying to "muddle init" a subdomain, don't.
     Instead, add the subdomain to the current build description (using a call
     of 'include_domain()'), and it will automatically get checked out during
-    the 'muddle init' of the top-level build. Or see 'muddle bootstrap -subdomain'.
+    the "muddle init" of the top-level build. Or see "muddle bootstrap -subdomain".
     """
 
     def requires_build_tree(self):
@@ -1475,7 +1475,7 @@ class QueryDepend(QueryCommand):
 
     Print the current dependency sets.
 
-    <label> is a label or label fragment (see 'muddle help labels'). The
+    <label> is a label or label fragment (see "muddle help labels"). The
     default type is 'package:'.
 
     If no label is given, then all dependencies in the current build tree will
@@ -1811,7 +1811,7 @@ class QueryRoot(QueryCommand):
     For a build containing subdomains, this means the root directory of the
     top-level build.
 
-    The root is where 'muddle where' will print "Root of the build tree".
+    The root is where "muddle where" will print "Root of the build tree".
     """
 
     def with_build_tree(self, builder, current_dir, args):
@@ -1846,7 +1846,7 @@ class QueryNeededBy(QueryCommand):
 
     Print what we need to build to build this label.
 
-    <label> is a label or label fragment (see 'muddle help labels'). The
+    <label> is a label or label fragment (see "muddle help labels"). The
     default type is 'package:'.
     """
 
@@ -1871,7 +1871,7 @@ class QueryDir(QueryCommand):
     * for package labels, the install directory
     * for deployment labels, the deployment directory
 
-    <label> is a label or label fragment (see 'muddle help labels'). The
+    <label> is a label or label fragment (see "muddle help labels"). The
     default type is 'package:'.
 
     Typically used in a muddle Makefile, as for instance::
@@ -1903,7 +1903,7 @@ class QueryEnv(QueryCommand):
 
     Print the environment in which this label will be run.
 
-    <label> is a label or label fragment (see 'muddle help labels'). The
+    <label> is a label or label fragment (see "muddle help labels"). The
     default type is 'package:'.
     """
 
@@ -1921,7 +1921,7 @@ class QueryEnvs(QueryCommand):
     Print a list of the environments that will be merged to create the
     resulting environment for this label.
 
-    <label> is a label or label fragment (see 'muddle help labels'). The
+    <label> is a label or label fragment (see "muddle help labels"). The
     default type is 'package:'.
     """
 
@@ -1944,7 +1944,7 @@ class QueryInstDetails(QueryCommand):
     Print the list of actual instructions for this label, in the order in which
     they will be applied.
 
-    <label> is a label or label fragment (see 'muddle help labels'). The
+    <label> is a label or label fragment (see "muddle help labels"). The
     default type is 'package:'.
     """
 
@@ -1964,7 +1964,7 @@ class QueryInstFiles(QueryCommand):
     Print the list of currently registered instruction files, in the order
     in which they will be applied.
 
-    <label> is a label or label fragment (see 'muddle help labels'). The
+    <label> is a label or label fragment (see "muddle help labels"). The
     default type is 'package:'.
     """
 
@@ -1982,7 +1982,7 @@ class QueryMatch(QueryCommand):
     Print out any labels that match the label given. If the label is not
     wildcarded, this just reports if the label is known.
 
-    <label> is a label or label fragment (see 'muddle help labels'). The
+    <label> is a label or label fragment (see "muddle help labels"). The
     default type is 'package:'.
     """
 
@@ -2017,7 +2017,7 @@ class QueryMakeEnv(QueryCommand):
 
     Print the environment in which "make" will be called for this label.
 
-    <label> is a label or label fragment (see 'muddle help labels'). The
+    <label> is a label or label fragment (see "muddle help labels"). The
     default type is 'package:'.
 
     Specifically, print what muddle adds to the environment (so it leaves
@@ -2075,7 +2075,7 @@ class QueryObjdir(QueryCommand):
 
     Print the object directory for a label.
 
-    <label> is a label or label fragment (see 'muddle help labels'). The
+    <label> is a label or label fragment (see "muddle help labels"). The
     default type is 'package:'.
 
     Typically used in a muddle Makefile, as for instance::
@@ -2113,7 +2113,7 @@ class QueryNeeds(QueryCommand):
 
     Print what this label is required to build.
 
-    <label> is a label or label fragment (see 'muddle help labels'). The
+    <label> is a label or label fragment (see "muddle help labels"). The
     default type is 'package:'.
     """
 
@@ -2131,7 +2131,7 @@ class QueryRules(QueryCommand):
 
     Print the rules covering building this label.
 
-    <label> is a label or label fragment (see 'muddle help labels'). The
+    <label> is a label or label fragment (see "muddle help labels"). The
     default type is 'package:'.
     """
 
@@ -2151,7 +2151,7 @@ class QueryTargets(QueryCommand):
 
     Print the targets that would be built by an attempt to build this label.
 
-    <label> is a label or label fragment (see 'muddle help labels'). The
+    <label> is a label or label fragment (see "muddle help labels"). The
     default type is 'package:'.
     """
 
@@ -2316,7 +2316,7 @@ class QueryKernelver(QueryCommand):
 
     Determine the Linux kernel version.
 
-    <label> is a label or label fragment (see 'muddle help labels'). The
+    <label> is a label or label fragment (see "muddle help labels"). The
     default type is 'package:'.
 
     <label> should be the package label for the kernel version. This command
@@ -3219,7 +3219,7 @@ class StampPush(Command):
         versions_dir = os.path.join(db.root_path, "versions")
         if not os.path.exists(versions_dir):
             raise GiveUp("Cannot push 'versions/' directory, as it does not exist.\n"
-                                "Have you done 'muddle stamp version'?")
+                                'Have you done "muddle stamp version"?')
 
         if self.no_op():
             print 'Push versions directory to', versions_url
@@ -3372,7 +3372,7 @@ class UnStamp(Command):
     :or:     unstamp <vcs>+<url>
     :or:     unstamp <vcs>+<repo_url> <version_desc>
 
-Try 'muddle help unstamp' for more information."""
+Try "muddle help unstamp" for more information."""
 
     def requires_build_tree(self):
         return False
@@ -4130,7 +4130,7 @@ class Pull(CheckoutCommand):
     Without a <checkout>, we use the checkout you're in, or the checkouts
     below the current directory.
 
-    Normally, 'muddle pull' will attempt to pull all the chosen checkouts,
+    Normally, "muddle pull" will attempt to pull all the chosen checkouts,
     re-reporting any problems at the end. If '-s' or '-stop' is given, then
     it will instead stop at the first problem.
     """
@@ -4414,15 +4414,15 @@ class Import(CheckoutCommand):
     it out because the repository doesn't exist yet, but you probably want to
     add it to the build description for testing (and in fact you may want to
     commit it with muddle push). For convenience in the expected use case, it
-    goes on to prime the relevant VCS module (by way of 'muddle reparent') so
+    goes on to prime the relevant VCS module (by way of "muddle reparent") so
     it can be pushed once ready; this should be at worst harmless in all cases.
 
     <checkout> should be a label fragment specifying a checkout, or one of
     _all and friends, as for any checkout command. See "muddle help labels"
     for more information.
 
-    This command is really just an wrapper to 'muddle assert' with the right
-    magic label names, and to 'muddle reparent'.
+    This command is really just an wrapper to "muddle assert" with the right
+    magic label names, and to "muddle reparent".
 
     The special <checkout> name _all means all checkouts.
 

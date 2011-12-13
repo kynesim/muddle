@@ -406,7 +406,7 @@ def page_text(progname, text):
                                             stderr=subprocess.STDOUT)
                     proc.communicate(text)
                     return
-                except OSError as e:
+                except OSError:
                     # We're not allowed to run it, or some other problem,
                     # so look for another candidate
                     continue

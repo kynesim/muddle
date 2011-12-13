@@ -556,7 +556,7 @@ class CheckoutCommand(CPDCommand):
                              ' a target for "muddle %s"'%(initial_list[0], self.cmd_name))
             else:
                 text.append('The labels\n  %s\nexist, but none gives a'
-                            ' target for "muddle %s"'%(label_list_to_string(labels,
+                            ' target for "muddle %s"'%(label_list_to_string(initial_list,
                                 join_with='\n  '), self.cmd_name))
             if potential_problems:
                 text.append('Perhaps because:')
@@ -664,7 +664,7 @@ class PackageCommand(CPDCommand):
                              ' a target for "muddle %s"'%(initial_list[0], self.cmd_name))
             else:
                 text.append('The labels\n  %s\nexist, but none gives a'
-                            ' target for "muddle %s"'%(label_list_to_string(labels,
+                            ' target for "muddle %s"'%(label_list_to_string(initial_list,
                                 join_with='\n  '), self.cmd_name))
             if potential_problems:
                 text.append('Perhaps because:')
@@ -755,7 +755,7 @@ class DeploymentCommand(CPDCommand):
                              ' a target for "muddle %s"'%(initial_list[0], self.cmd_name))
             else:
                 text.append('The labels\n  %s\nexist, but none gives a'
-                            ' target for "muddle %s"'%(label_list_to_string(labels,
+                            ' target for "muddle %s"'%(label_list_to_string(initial_list,
                                 join_with='\n  '), self.cmd_name))
             if potential_problems:
                 text.append('Perhaps because:')
@@ -4553,7 +4553,7 @@ def build_a_kill_b(builder, labels, build_this, kill_this):
             raise GiveUp("Can't kill %s: %s"%(l_b, e))
 
 def kill_labels(builder, to_kill):
-    if len(to_build) == 1:
+    if len(to_kill) == 1:
         print "Killing %s"%to_kill
     else:
         print "Killing %d labels"%len(to_kill)

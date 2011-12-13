@@ -31,8 +31,6 @@ class Bazaar(VersionControlSystem):
         """
         Return the -r option(s) to pass to bzr commands, if any
         """
-        option = ""
-
         if revision is None or revision == "HEAD":
             return ""
         else:

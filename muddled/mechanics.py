@@ -16,7 +16,7 @@ import muddled.env_store as env_store
 import muddled.instr as instr
 
 from muddled.depend import Label, Action
-from muddled.utils import domain_subpath, GiveUp, LabelType, LabelTag
+from muddled.utils import domain_subpath, GiveUp, MuddleBug, LabelType, LabelTag
 
 class Invocation:
     """
@@ -930,7 +930,7 @@ class Builder(object):
         # .. and load the build description.
         try:
             self.build_label(loaded, silent = True)
-        except Exception as e:
+        except Exception:
             raise GiveUp('Error in build description\n%s'%traceback.format_exc())
 
         return True
@@ -1407,12 +1407,6 @@ class Builder(object):
             rest.insert(0, cur)
             dir = base
 
-        sub_dir = None
-        if len(rest) > 1:
-            sub_dir = rest[1]
-        else:
-            sub_dir = None
-
         result = None
 
         if rest[0] == "src":
@@ -1515,7 +1509,7 @@ class BuildDescriptionAction(Action):
                 print "No describe_to() attribute in module %s"%setup
                 print "Available attributes: %s"%(dir(setup))
                 print "Error was %s"%str(a)
-                raise utils.MuddleBug("Cannot load build description %s"%setup)
+                raise MuddleBug("Cannot load build description %s"%setup)
 
 def load_builder(root_path, muddle_binary, params = None,
                  default_domain = None):

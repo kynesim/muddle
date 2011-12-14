@@ -3731,11 +3731,11 @@ class Commit(CheckoutCommand):
     "checkout", and the checkout <tag> will be "/changes_committed". See
     "muddle help labels" for more information.
 
-    For a centralised VCS (e.g., Subversion) where the repository is remote,
-    this will not do anything. See the update command.
-
     If no checkouts are named, what we do depends on where we are in the
     build tree. See "muddle help labels".
+
+    For a centralised VCS (e.g., Subversion) where the repository is remote,
+    this will not do anything. See the update command.
     """
 
     # XXX Is this correct?
@@ -3820,7 +3820,7 @@ class Pull(CheckoutCommand):
     the checkout), but *not* if a merge would be required.
 
         (For a VCS such as git, this actually means "not if a user-assisted
-        merge would be required - i.e., fast-forwards will be done.)
+        merge would be required" - i.e., fast-forwards will be done.)
 
     Normally, "muddle pull" will attempt to pull all the chosen checkouts,
     re-reporting any problems at the end. If '-s' or '-stop' is given, then
@@ -4038,13 +4038,14 @@ class Reparent(CheckoutCommand):
                 continue
             vcs.reparent(force=force, verbose=True)
 
-@command('removed', CAT_CHECKOUT)
-class Removed(CheckoutCommand):
+@command('uncheckout', CAT_CHECKOUT)
+class UnCheckout(UnCheckoutCommand):
     """
-    :Syntax: muddle removed [ <checkout> ... ]
+    :Syntax: muddle uncheckout [ <checkout> ... ]
 
-    Signal to muddle that the given checkouts have been removed and will
-    need to be checked out again before they can be used.
+    Tell muddle that the given checkouts no longer exist in the 'src/'
+    directory hierarchy, and will need to be checked out again before they
+    can be used.
 
     <checkout> should be a label fragment specifying a checkout, or one of
     _all and friends, as for any checkout command. The <type> defaults to
@@ -4053,6 +4054,15 @@ class Removed(CheckoutCommand):
 
     If no checkouts are named, what we do depends on where we are in the
     build tree. See "muddle help labels".
+
+    For each label, unset the '/checked_out' tag for that label, and the tags
+    of any labels that depend on it. Note that this will include all the tags
+    for any packages that directly depend on this checkout. However, it will
+    not perform any "clean" or "distclean" actions for those packages.
+
+    Note that muddle itself does not check whether the checkout directory
+    has been deleted or not. Attempting to do "muddle checkout" for a
+    checkout directory that (still) exists will generally fail.
     """
 
     def build_these_labels(self, builder, labels):
@@ -4074,6 +4084,15 @@ class Unimport(CheckoutCommand):
 
     If no checkouts are named, what we do depends on where we are in the
     build tree. See "muddle help labels".
+
+    For each label, unset the '/checked_out' tag for that label.
+
+    This command does not do anything to labels that depend on the given
+    labels - if you want that, see "muddle removed".
+
+    Note that muddle itself does not check whether the checkout directory
+    has been deleted or not. Attempting to do "muddle checkout" for a
+    checkout directory that (still) exists will generally fail.
     """
 
     def build_these_labels(self, builder, labels):
@@ -4085,14 +4104,16 @@ class Import(CheckoutCommand):
     """
     :Syntax: muddle import [ <checkout> ... ]
 
-    Assert that the given checkout (which may be the builds checkout) has
-    been checked out. This is mainly used when you've just written a package
-    you plan to commit to the central repository - muddle obviously can't check
-    it out because the repository doesn't exist yet, but you probably want to
-    add it to the build description for testing (and in fact you may want to
-    commit it with muddle push). For convenience in the expected use case, it
-    goes on to prime the relevant VCS module (by way of "muddle reparent") so
-    it can be pushed once ready; this should be at worst harmless in all cases.
+    Assert that the given checkouts (which may include the builds checkout)
+    have been checked out.
+
+    This is mainly used when you've just written a package you plan to commit
+    to the central repository - muddle obviously can't check it out because the
+    repository doesn't exist yet, but you probably want to add it to the build
+    description for testing (and in fact you may want to commit it with muddle
+    push). For convenience in the expected use case, it goes on to prime the
+    relevant VCS module (by way of "muddle reparent") so it can be pushed once
+    ready; this should be at worst harmless in all cases.
 
     <checkout> should be a label fragment specifying a checkout, or one of
     _all and friends, as for any checkout command. The <type> defaults to
@@ -4102,8 +4123,8 @@ class Import(CheckoutCommand):
     If no checkouts are named, what we do depends on where we are in the
     build tree. See "muddle help labels".
 
-    This command is really just an wrapper to "muddle assert" with the right
-    magic label names, and to "muddle reparent".
+    This command is really just a wrapper to "muddle assert" and "muddle
+    reparent", with the right magic label names.
     """
 
     def with_build_tree(self, builder, current_dir, args):
@@ -4121,42 +4142,13 @@ class Import(CheckoutCommand):
         rep.set_old_env(self.old_env)
         rep.with_build_tree(builder, self.current_dir, self.args)
 
-@command('uncheckout', CAT_CHECKOUT)
-class UnCheckout(CheckoutCommand):
-    """
-    :Syntax: muddle uncheckout [ <checkout> ... ]
-
-    Tells muddle that the given checkouts no longer exist in the src directory
-    and should be checked out/cloned from version control again.
-
-    <checkout> should be a label fragment specifying a checkout, or one of
-    _all and friends, as for any checkout command. The <type> defaults to
-    "checkout", and the checkout <tag> will be "/checked_out". See "muddle help
-    labels" for more information.
-
-    If no checkouts are named, what we do depends on where we are in the
-    build tree. See "muddle help labels".
-
-    This does not actually delete the checkout directory. If you try to do::
-
-        muddle unckeckout fred
-        muddle checkout   fred
-
-    then you will probably get an error, as the checkout still exists, and the
-    VCS will detect this. As it says, this is to tell muddle that the checkout
-    has already been removed.
-    """
-
-    def build_these_labels(self, builder, labels):
-        for co in labels:
-            builder.kill_label(co)
 
 @command('checkout', CAT_CHECKOUT)
 class Checkout(CheckoutCommand):
     """
     :Syntax: muddle checkout [ <checkout> ... ]
 
-    Checks out the given series of checkouts.
+    Checks out the specified checkouts.
 
     <checkout> should be a label fragment specifying a checkout, or one of
     _all and friends, as for any checkout command. The <type> defaults to
@@ -4166,8 +4158,8 @@ class Checkout(CheckoutCommand):
     If no checkouts are named, what we do depends on where we are in the
     build tree. See "muddle help labels".
 
-    That is, copies (clones/branches) the content of each checkout from its
-    remote repository.
+    Copies (clones/branches) the content of each checkout from its remote
+    repository.
     """
 
     def build_these_labels(self, builder, labels):

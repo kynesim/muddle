@@ -28,6 +28,9 @@ Changes in this new version of muddle
   Note that 'muddle query envs' is still an alias for 'muddle query all-envs',
   and this is still different than 'muddle query env'.
 
+  Also, as it turned out, 'muddle uncheckout' and 'muddle removed' did
+  exactly the same thing. 'muddle removed' has thus been removed.
+
 * Changed commands:
 
   - 'muddle dependencies' is replaced by 'muddle query dependencies'

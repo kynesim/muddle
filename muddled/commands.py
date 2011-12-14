@@ -1085,7 +1085,28 @@ How "muddle" commands intepret labels of the "wrong" type
 ---------------------------------------------------------
 For instance: "muddle checkout package:fred"
 
-.. to be written ..
+.. to be finished ..
+
+* checkout command:
+
+  - checkout: -> itself
+  - package: -> all the checkouts used *directly* by this package
+  - deployment: -> all the checkouts needed by this deployment
+    (this can be a bit slow to calculate)
+
+* package command:
+
+  - checkout: -> the packages that depend directly upon this checkout
+    (i.e., those that are "built" from it), but only if they are in one
+    of the default roles.
+  - package: -> itself
+  - deployment: -> all the packages used *directly* by this deployment
+
+* deployment command
+
+  - checkout: -> any deployments that depend upon this checkout (at any depth)
+  - package: -> any deployments that depend upon this package (at any depth)
+  - deployment: -> itself
 
 Unexpected results
 ------------------

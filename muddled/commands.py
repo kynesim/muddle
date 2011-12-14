@@ -1281,7 +1281,7 @@ the parentheses. So, for instance, use:
 @command('init', CAT_INIT)
 class Init(Command):
     """
-    :Syntax: init <repository> <build_description>
+    :Syntax: muddle init <repository> <build_description>
 
     Initialise a new build tree with a given repository and build description.
     We check out the build description but don't actually build anything.
@@ -1350,7 +1350,7 @@ class Init(Command):
 @command('bootstrap', CAT_INIT)
 class Bootstrap(Command):
     """
-    :Syntax: bootstrap [-subdomain] <repo> <build_name>
+    :Syntax: muddle bootstrap [-subdomain] <repo> <build_name>
 
     Create a new build tree, from scratch, in the current directory.
     The current directory should ideally be empty.
@@ -1532,8 +1532,8 @@ class QueryCommand(Command):
 @subcommand('query', 'dependencies', CAT_QUERY, ['depend', 'depends'])
 class QueryDepend(QueryCommand):
     """
-    :Syntax: query dependencies <what>
-    :or:     query dependencies <what> <label>
+    :Syntax: muddle query dependencies <what>
+    :or:     muddle query dependencies <what> <label>
 
     Print the current dependency sets.
 
@@ -1606,7 +1606,7 @@ class QueryDepend(QueryCommand):
 @subcommand('query', 'vcs', CAT_QUERY)
 class QueryVCS(QueryCommand):
     """
-    :Syntax: query vcs
+    :Syntax: muddle query vcs
 
     List the version control systems supported by this version of muddle,
     together with their VCS specifiers.
@@ -1633,7 +1633,7 @@ class QueryVCS(QueryCommand):
 @subcommand('query', 'checkouts', CAT_QUERY)
 class QueryCheckouts(QueryCommand):
     """
-    :Syntax: query checkouts [-j]
+    :Syntax: muddle query checkouts [-j]
 
     Print the names of all the checkouts described in the build description.
 
@@ -1664,7 +1664,7 @@ class QueryCheckouts(QueryCommand):
 @subcommand('query', 'checkout-dirs', CAT_QUERY)
 class QueryCheckoutDirs(QueryCommand):
     """
-    :Syntax: query checkout-dirs
+    :Syntax: muddle query checkout-dirs
 
     Print the known checkouts and their checkout paths (relative to 'src/')
     """
@@ -1675,7 +1675,7 @@ class QueryCheckoutDirs(QueryCommand):
 @subcommand('query', 'domains', CAT_QUERY)
 class QueryDomains(QueryCommand):
     """
-    :Syntax: query domains [-j]
+    :Syntax: muddle query domains [-j]
 
     Print the names of all the subdomains described in the build description
     (and recursively in the subdomain build descriptions).
@@ -1705,7 +1705,7 @@ class QueryDomains(QueryCommand):
 @subcommand('query', 'packages', CAT_QUERY)
 class QueryPackages(QueryCommand):
     """
-    :Syntax: query packages [-j]
+    :Syntax: muddle query packages [-j]
 
     Print the names of all the packages described in the build description.
 
@@ -1733,7 +1733,7 @@ class QueryPackages(QueryCommand):
 @subcommand('query', 'package-roles', CAT_QUERY)
 class QueryPackageRoles(QueryCommand):
     """
-    :Syntax: query package-roles [-j]
+    :Syntax: muddle query package-roles [-j]
 
     Print the names of all the packages, and their roles, as described in the
     build description.
@@ -1762,7 +1762,7 @@ class QueryPackageRoles(QueryCommand):
 @subcommand('query', 'deployments', CAT_QUERY)
 class QueryDeployments(QueryCommand):
     """
-    :Syntax: query deployments [-j]
+    :Syntax: muddle query deployments [-j]
 
     Print the names of all the deployments described in the build description.
 
@@ -1787,7 +1787,7 @@ class QueryDeployments(QueryCommand):
 @subcommand('query', 'default-deployments', CAT_QUERY)
 class QueryDefaultDeployments(QueryCommand):
     """
-    :Syntax: query default-deployments [-j]
+    :Syntax: muddle query default-deployments [-j]
 
     Print the names of the default deployments described in the build
     description (as defined using 'builder.by_default_deploy()').
@@ -1813,7 +1813,7 @@ class QueryDefaultDeployments(QueryCommand):
 @subcommand('query', 'roles', CAT_QUERY)
 class QueryRoles(QueryCommand):
     """
-    :Syntax: query roles [-j]
+    :Syntax: muddle query roles [-j]
 
     Print the names of all the roles described in the build description.
 
@@ -1838,7 +1838,7 @@ class QueryRoles(QueryCommand):
 @subcommand('query', 'default-roles', CAT_QUERY)
 class QueryDefaultRoles(QueryCommand):
     """
-    :Syntax: query default-roles [-j]
+    :Syntax: muddle query default-roles [-j]
 
     Print the names of the default roles described in the build
     description (as defined using 'builder.invocation.add_default_role()').
@@ -1865,7 +1865,7 @@ class QueryDefaultRoles(QueryCommand):
 @subcommand('query', 'root', CAT_QUERY)
 class QueryRoot(QueryCommand):
     """
-    :Syntax: query root
+    :Syntax: muddle query root
 
     Print the root path, the path of the directory containing the '.muddle/'
     directory.
@@ -1882,7 +1882,7 @@ class QueryRoot(QueryCommand):
 @subcommand('query', 'name', CAT_QUERY)
 class QueryName(QueryCommand):
     """
-    :Syntax: query name
+    :Syntax: muddle query name
 
     Print the build name, as specified in the build description with::
 
@@ -1904,7 +1904,7 @@ class QueryName(QueryCommand):
 @subcommand('query', 'needed-by', CAT_QUERY)     # it used to be 'deps'
 class QueryNeededBy(QueryCommand):
     """
-    :Syntax: query needed-by <label>
+    :Syntax: muddle query needed-by <label>
 
     Print what we need to build to build this label.
 
@@ -1925,7 +1925,7 @@ class QueryNeededBy(QueryCommand):
 @subcommand('query', 'dir', CAT_QUERY)
 class QueryDir(QueryCommand):
     """
-    :Syntax: query dir <label>
+    :Syntax: muddle query dir <label>
 
     Print a directory:
 
@@ -1961,7 +1961,7 @@ class QueryDir(QueryCommand):
 @subcommand('query', 'env', CAT_QUERY)
 class QueryEnv(QueryCommand):
     """
-    :Syntax: query env <label>
+    :Syntax: muddle query env <label>
 
     Print the environment in which this label will be run.
 
@@ -1978,7 +1978,7 @@ class QueryEnv(QueryCommand):
 @subcommand('query', 'all-env', CAT_QUERY, ['envs'])       # It used to be 'env'
 class QueryEnvs(QueryCommand):
     """
-    :Syntax: query all-env <label>
+    :Syntax: muddle query all-env <label>
 
     Print a list of the environments that will be merged to create the
     resulting environment for this label.
@@ -2001,7 +2001,7 @@ class QueryEnvs(QueryCommand):
 @subcommand('query', 'inst-details', CAT_QUERY)
 class QueryInstDetails(QueryCommand):
     """
-    :Syntax: query inst-details <label>
+    :Syntax: muddle query inst-details <label>
 
     Print the list of actual instructions for this label, in the order in which
     they will be applied.
@@ -2021,7 +2021,7 @@ class QueryInstDetails(QueryCommand):
 @subcommand('query', 'inst-files', CAT_QUERY)    # It used to be 'instructions'
 class QueryInstFiles(QueryCommand):
     """
-    :Syntax: query inst-files <label>
+    :Syntax: muddle query inst-files <label>
 
     Print the list of currently registered instruction files, in the order
     in which they will be applied.
@@ -2039,7 +2039,7 @@ class QueryInstFiles(QueryCommand):
 @subcommand('query', 'match', CAT_QUERY)
 class QueryMatch(QueryCommand):
     """
-    :Syntax: query match <label>
+    :Syntax: muddle query match <label>
 
     Print out any labels that match the label given. If the label is not
     wildcarded, this just reports if the label is known.
@@ -2075,7 +2075,7 @@ class QueryMatch(QueryCommand):
 @subcommand('query', 'make-env', CAT_QUERY)   # It used to be 'makeenv'
 class QueryMakeEnv(QueryCommand):
     """
-    :Syntax: query make-env <label>
+    :Syntax: muddle query make-env <label>
 
     Print the environment in which "make" will be called for this label.
 
@@ -2133,7 +2133,7 @@ class QueryMakeEnv(QueryCommand):
 @subcommand('query', 'objdir', CAT_QUERY)
 class QueryObjdir(QueryCommand):
     """
-    :Syntax: query objdir <label>
+    :Syntax: muddle query objdir <label>
 
     Print the object directory for a label.
 
@@ -2152,7 +2152,7 @@ class QueryObjdir(QueryCommand):
 @subcommand('query', 'precise-env', CAT_QUERY) # It used to be 'preciseenv'
 class QueryPreciseEnv(QueryCommand):
     """
-    :Syntax: query precise-env <label>
+    :Syntax: muddle query precise-env <label>
 
     Print the environment pertaining to exactly this label (no fuzzy matches)
     """
@@ -2171,7 +2171,7 @@ class QueryPreciseEnv(QueryCommand):
 @subcommand('query', 'needs', CAT_QUERY)      # It used to be 'results'
 class QueryNeeds(QueryCommand):
     """
-    :Syntax: query needs <label>
+    :Syntax: muddle query needs <label>
 
     Print what this label is required to build.
 
@@ -2189,7 +2189,7 @@ class QueryNeeds(QueryCommand):
 @subcommand('query', 'rules', CAT_QUERY, ['rule'])        # It used to be 'rule'
 class QueryRules(QueryCommand):
     """
-    :Syntax: query rules <label>
+    :Syntax: muddle query rules <label>
 
     Print the rules covering building this label.
 
@@ -2209,7 +2209,7 @@ class QueryRules(QueryCommand):
 @subcommand('query', 'targets', CAT_QUERY)
 class QueryTargets(QueryCommand):
     """
-    :Syntax: query targets <label>
+    :Syntax: muddle query targets <label>
 
     Print the targets that would be built by an attempt to build this label.
 
@@ -2227,7 +2227,7 @@ class QueryTargets(QueryCommand):
 @subcommand('query', 'unused', CAT_QUERY)
 class QueryUnused(QueryCommand):
     """
-    :Syntax: query unused [<label> [...]]
+    :Syntax: muddle query unused [<label> [...]]
 
     Report on labels that are defined in the build description, but are not
     "used" by the targets. With no arguments, the targets are the default
@@ -2374,7 +2374,7 @@ class QueryUnused(QueryCommand):
 @subcommand('query', 'kernelver', CAT_QUERY)
 class QueryKernelver(QueryCommand):
     """
-    :Syntax: query kernelver <label>
+    :Syntax: muddle query kernelver <label>
 
     Determine the Linux kernel version.
 
@@ -2416,8 +2416,8 @@ class QueryKernelver(QueryCommand):
 @command('where', CAT_QUERY, ['whereami'])
 class Whereami(Command):
     """
-    :Syntax: where [-detail]
-    :or:     whereami [-detail]
+    :Syntax: muddle where [-detail]
+    :or:     muddle whereami [-detail]
 
     Looks at the current directory and tries to identify where it is within the
     enclosing muddle build tree. If it can calculate a label corresponding to
@@ -2504,7 +2504,7 @@ class Whereami(Command):
 @command('doc', CAT_QUERY)
 class Doc(Command):
     """
-    :Syntax: doc [-d] <name>
+    :Syntax: muddle doc [-d] <name>
 
     Looks up the documentation string for ``muddled.<name>`` and presents
     it, using the pydoc Python help mechanisms. Doesn't put "muddled." on
@@ -2587,7 +2587,7 @@ class Doc(Command):
 @subcommand('stamp', 'save', CAT_STAMP)
 class StampSave(Command):
     """
-    :Syntax: stamp save [-f[orce]|-h[ead]] [<filename>]
+    :Syntax: muddle stamp save [-f[orce]|-h[ead]] [<filename>]
 
     Go through each checkout, and save its remote repository and current
     revision id/number to a file.
@@ -2706,7 +2706,7 @@ class StampSave(Command):
 @subcommand('stamp', 'version', CAT_STAMP)
 class StampVersion(Command):
     """
-    :Syntax: stamp version [-f[orce]]
+    :Syntax: muddle stamp version [-f[orce]]
 
     This is similar to "stamp save", but using a pre-determined stamp filename.
 
@@ -2796,7 +2796,7 @@ class StampVersion(Command):
 @subcommand('stamp', 'diff', CAT_STAMP)
 class StampDiff(Command):
     """
-    :Syntax: stamp diff [-u[nified]|-c[ontext]|-n|-h[tml]] <file1> <file2> [<output_file>]
+    :Syntax: muddle stamp diff [-u[nified]|-c[ontext]|-n|-h[tml]] <file1> <file2> [<output_file>]
 
     Compare two stamp files.
 
@@ -2822,7 +2822,7 @@ class StampDiff(Command):
         return False
 
     def print_syntax(self):
-        print ':Syntax: stamp diff [-u[nified]|-n|-h[tml]] <file1> <file2> [<output_file>]'
+        print ':Syntax: muddle stamp diff [-u[nified]|-n|-h[tml]] <file1> <file2> [<output_file>]'
 
     def without_build_tree(self, muddle_binary, root_path, args):
         if not args:
@@ -2915,7 +2915,7 @@ class StampDiff(Command):
 @subcommand('stamp', 'push', CAT_STAMP)
 class StampPush(Command):
     """
-    :Syntax: stamp push [<repository_url>]
+    :Syntax: muddle stamp push [<repository_url>]
 
     This performs a VCS "push" operation for the "versions/" directory. This
     assumes that the versions repository is defined in
@@ -2980,7 +2980,7 @@ class StampPush(Command):
 @subcommand('stamp', 'pull', CAT_STAMP)
 class StampPull(Command):
     """
-    :Syntax: stamp pull [<repository_url>]
+    :Syntax: muddle stamp pull [<repository_url>]
 
     This performs a VCS "pull" operation for the "versions/" directory. This
     assumes that the versions repository is defined in
@@ -3048,10 +3048,10 @@ class StampPull(Command):
 @command('unstamp', CAT_STAMP)
 class UnStamp(Command):
     """
-    :Syntax: unstamp <file>
-    :or:     unstamp <url>
-    :or:     unstamp <vcs>+<url>
-    :or:     unstamp <vcs>+<repo_url> <version_desc>
+    :Syntax: muddle unstamp <file>
+    :or:     muddle unstamp <url>
+    :or:     muddle unstamp <vcs>+<url>
+    :or:     muddle unstamp <vcs>+<repo_url> <version_desc>
 
     The "unstamp" command reads the contents of a "stamp" file, as produced by
     the "muddle stamp" command, and:
@@ -3111,10 +3111,10 @@ class UnStamp(Command):
 
     def print_syntax(self):
         print """
-    :Syntax: unstamp <file>
-    :or:     unstamp <url>
-    :or:     unstamp <vcs>+<url>
-    :or:     unstamp <vcs>+<repo_url> <version_desc>
+    :Syntax: muddle unstamp <file>
+    :or:     muddle unstamp <url>
+    :or:     muddle unstamp <vcs>+<url>
+    :or:     muddle unstamp <vcs>+<repo_url> <version_desc>
 
 Try "muddle help unstamp" for more information."""
 
@@ -3346,7 +3346,7 @@ Try "muddle help unstamp" for more information."""
 @command('redeploy', CAT_DEPLOYMENT)
 class Redeploy(DeploymentCommand):
     """
-    :Syntax: redeploy [<deployment> ... ]
+    :Syntax: muddle redeploy [<deployment> ... ]
 
     Clean the named deployments (deleting their 'deploy/' directory), remove
     their '/deployed' tags, and then rebuild (deploy) them.
@@ -3370,7 +3370,7 @@ class Redeploy(DeploymentCommand):
 @command('cleandeploy', CAT_DEPLOYMENT)
 class Cleandeploy(DeploymentCommand):
     """
-    :Syntax: cleandeploy [<deployment> ... ]
+    :Syntax: muddle cleandeploy [<deployment> ... ]
 
     Clean the named deployments, and remove their '/deployed' tags.
 
@@ -3396,7 +3396,7 @@ class Cleandeploy(DeploymentCommand):
 @command('deploy', CAT_DEPLOYMENT)
 class Deploy(DeploymentCommand):
     """
-    :Syntax: deploy <deployment> [<deployment> ... ]
+    :Syntax: muddle deploy <deployment> [<deployment> ... ]
 
     Build (deploy) the named deployments.
 
@@ -3421,7 +3421,7 @@ class Deploy(DeploymentCommand):
 @command('configure', CAT_PACKAGE)
 class Configure(PackageCommand):
     """
-    :Syntax: configure [ <package> ... ]
+    :Syntax: muddle configure [ <package> ... ]
 
     Configure packages.
 
@@ -3450,7 +3450,7 @@ class Configure(PackageCommand):
 @command('reconfigure', CAT_PACKAGE)
 class Reconfigure(PackageCommand):
     """
-    :Syntax: reconfigure [ <package> ... ]
+    :Syntax: muddle reconfigure [ <package> ... ]
 
     Reconfigure packages. Just like configure except that we clear any
     '/configured' tags first (and their dependencies).
@@ -3483,7 +3483,7 @@ class Reconfigure(PackageCommand):
 @command('build', CAT_PACKAGE)
 class Build(PackageCommand):
     """
-    :Syntax: build [ <package> ... ]
+    :Syntax: muddle build [ <package> ... ]
 
     Build packages.
 
@@ -3524,7 +3524,7 @@ class Build(PackageCommand):
 @command('rebuild', CAT_PACKAGE)
 class Rebuild(PackageCommand):
     """
-    :Syntax: rebuild [ <package> ... ]
+    :Syntax: muddle rebuild [ <package> ... ]
 
     Rebuild packages. Just like build except that we clear any '/built' tags
     first (and their dependencies).
@@ -3557,7 +3557,7 @@ class Rebuild(PackageCommand):
 @command('reinstall', CAT_PACKAGE)
 class Reinstall(PackageCommand):
     """
-    :Syntax: reinstall [ <package> ... ]
+    :Syntax: muddle reinstall [ <package> ... ]
 
     Reinstall packages (but don't rebuild them).
 
@@ -3589,7 +3589,7 @@ class Reinstall(PackageCommand):
 @command('distrebuild', CAT_PACKAGE)
 class Distrebuild(PackageCommand):
     """
-    :Syntax: distrebuild [ <package> ... ]
+    :Syntax: muddle distrebuild [ <package> ... ]
 
     A rebuild that does a distclean before attempting the rebuild.
 
@@ -3612,7 +3612,7 @@ class Distrebuild(PackageCommand):
 @command('clean', CAT_PACKAGE)
 class Clean(PackageCommand):
     """
-    :Syntax: clean [ <package> ... ]
+    :Syntax: muddle clean [ <package> ... ]
 
     Clean packages. Subsequently, packages are regarded as having been
     configured but not built.
@@ -3643,7 +3643,7 @@ class Clean(PackageCommand):
 @command('distclean', CAT_PACKAGE)
 class DistClean(PackageCommand):
     """
-    :Syntax: distclean [ <package> ... ]
+    :Syntax: muddle distclean [ <package> ... ]
 
     Distclean packages. Subsequently, packages are regarded as not having been
     configured or built.
@@ -3689,7 +3689,7 @@ class DistClean(PackageCommand):
 @command('changed', CAT_PACKAGE)
 class Changed(PackageCommand):
     """
-    :Syntax: changed <package> [ <package> ... ]
+    :Syntax: muddle changed <package> [ <package> ... ]
 
     Mark packages as having been changed so that they will later be rebuilt by
     anything that needs to.
@@ -3722,7 +3722,7 @@ class Changed(PackageCommand):
 @command('commit', CAT_CHECKOUT)
 class Commit(CheckoutCommand):
     """
-    :Syntax: commit [ <checkout> ... ]
+    :Syntax: muddle commit [ <checkout> ... ]
 
     Commit the specified checkouts to their local repositories.
 
@@ -3750,7 +3750,7 @@ class Commit(CheckoutCommand):
 @command('push', CAT_CHECKOUT)
 class Push(CheckoutCommand):
     """
-    :Syntax: push [-s[top]] [ <checkout> ... ]
+    :Syntax: muddle push [-s[top]] [ <checkout> ... ]
 
     Push the specified checkouts to their remote repositories.
 
@@ -3802,7 +3802,7 @@ class Push(CheckoutCommand):
 @command('pull', CAT_CHECKOUT, ['fetch', 'update'])   # we want to settle on one command
 class Pull(CheckoutCommand):
     """
-    :Syntax: pull [-s[top]] [ <checkout> ... ]
+    :Syntax: muddle pull [-s[top]] [ <checkout> ... ]
 
     Pull the specified checkouts from their remote repositories. Any problems
     will be (re)reported at the end.
@@ -3871,7 +3871,7 @@ class Pull(CheckoutCommand):
 @command('merge', CAT_CHECKOUT)
 class Merge(CheckoutCommand):
     """
-    :Syntax: merge [-s[top]] [ <checkout> ... ]
+    :Syntax: muddle merge [-s[top]] [ <checkout> ... ]
 
     Merge the specified checkouts from their remote repositories.
 
@@ -3926,7 +3926,7 @@ class Merge(CheckoutCommand):
 @command('status', CAT_CHECKOUT)
 class Status(CheckoutCommand):
     """
-    :Syntax: status [-v] [ <checkout> ... ]
+    :Syntax: muddle status [-v] [ <checkout> ... ]
 
     Report on the status of checkouts that need attention.
 
@@ -3988,7 +3988,7 @@ class Status(CheckoutCommand):
 @command('reparent', CAT_CHECKOUT)
 class Reparent(CheckoutCommand):
     """
-    :Syntax: reparent [-f[orce]] [ <checkout> ... ]
+    :Syntax: muddle reparent [-f[orce]] [ <checkout> ... ]
 
     Re-associate the specified checkouts with their remote repositories.
 
@@ -4041,7 +4041,7 @@ class Reparent(CheckoutCommand):
 @command('removed', CAT_CHECKOUT)
 class Removed(CheckoutCommand):
     """
-    :Syntax: removed [ <checkout> ... ]
+    :Syntax: muddle removed [ <checkout> ... ]
 
     Signal to muddle that the given checkouts have been removed and will
     need to be checked out again before they can be used.
@@ -4062,7 +4062,7 @@ class Removed(CheckoutCommand):
 @command('unimport', CAT_CHECKOUT)
 class Unimport(CheckoutCommand):
     """
-    :Syntax: unimport [ <checkout> ... ]
+    :Syntax: muddle unimport [ <checkout> ... ]
 
     Assert that the given checkouts haven't been checked out and must therefore
     be checked out.
@@ -4083,7 +4083,7 @@ class Unimport(CheckoutCommand):
 @command('import', CAT_CHECKOUT)
 class Import(CheckoutCommand):
     """
-    :Syntax: import [ <checkout> ... ]
+    :Syntax: muddle import [ <checkout> ... ]
 
     Assert that the given checkout (which may be the builds checkout) has
     been checked out. This is mainly used when you've just written a package
@@ -4124,7 +4124,7 @@ class Import(CheckoutCommand):
 @command('uncheckout', CAT_CHECKOUT)
 class UnCheckout(CheckoutCommand):
     """
-    :Syntax: uncheckout [ <checkout> ... ]
+    :Syntax: muddle uncheckout [ <checkout> ... ]
 
     Tells muddle that the given checkouts no longer exist in the src directory
     and should be checked out/cloned from version control again.
@@ -4154,7 +4154,7 @@ class UnCheckout(CheckoutCommand):
 @command('checkout', CAT_CHECKOUT)
 class Checkout(CheckoutCommand):
     """
-    :Syntax: checkout [ <checkout> ... ]
+    :Syntax: muddle checkout [ <checkout> ... ]
 
     Checks out the given series of checkouts.
 
@@ -4180,7 +4180,7 @@ class Checkout(CheckoutCommand):
 @command('buildlabel', CAT_ANYLABEL)
 class BuildLabel(AnyLabelCommand):
     """
-    :Syntax: buildlabel <label> [ <label> ... ]
+    :Syntax: muddle buildlabel <label> [ <label> ... ]
 
     Performs the appropriate actions to 'build' each <label>.
 
@@ -4208,7 +4208,7 @@ class BuildLabel(AnyLabelCommand):
 @command('assert', CAT_ANYLABEL)
 class Assert(AnyLabelCommand):
     """
-    :Syntax: assert <label> [ <label> ... ]
+    :Syntax: muddle assert <label> [ <label> ... ]
 
     Assert the given labels.
 
@@ -4237,7 +4237,7 @@ class Assert(AnyLabelCommand):
 @command('retract', CAT_ANYLABEL)
 class Retract(AnyLabelCommand):
     """
-    :Syntax: retract <label> [ <label> ... ]
+    :Syntax: muddle retract <label> [ <label> ... ]
 
     Retract the given labels and their consequents.
 
@@ -4266,7 +4266,7 @@ class Retract(AnyLabelCommand):
 @command('retry', CAT_ANYLABEL)
 class Retry(AnyLabelCommand):
     """
-    :Syntax: retry <label> [ <label> ... ]
+    :Syntax: muddle retry <label> [ <label> ... ]
 
     First this unsets the tags implied by the specified label(s), and only
     those tags. Then it rebuilds the labels.
@@ -4305,8 +4305,8 @@ class Retry(AnyLabelCommand):
 @command('instruct', CAT_MISC)
 class Instruct(Command):
     """
-    :Syntax: instruct <package>{<role>} <instruction-file>
-    :or:     instruct (<domain>)<package>{<role>} <instruction-file>
+    :Syntax: muddle instruct <package>{<role>} <instruction-file>
+    :or:     muddle instruct (<domain>)<package>{<role>} <instruction-file>
 
     Sets the instruction file for the given package name and role to
     the file specified in instruction-file. The role must be explicitly
@@ -4395,7 +4395,7 @@ class Instruct(Command):
 @command('runin', CAT_MISC)
 class RunIn(Command):
     """
-    :Syntax: runin <label> <command> [ ... ]
+    :Syntax: muddle runin <label> <command> [ ... ]
 
     Run the command "<command> [ ...]" in the directory corresponding to every
     label matching <label>.
@@ -4481,7 +4481,7 @@ class RunIn(Command):
 @command('env', CAT_MISC)       # We're not *really* a normal package command
 class Env(PackageCommand):
     """
-    :Syntax: env <language> <mode> <name> <label> [ <label> ... ]
+    :Syntax: muddle env <language> <mode> <name> <label> [ <label> ... ]
 
     Produce a setenv script in the requested language listing all the
     runtime environment variables bound to <label> (or the cumulation
@@ -4565,7 +4565,7 @@ class Env(PackageCommand):
 @command('copywithout', CAT_MISC)
 class CopyWithout(Command):
     """
-    :Syntax: copywithout [-f[orce]] <src-dir> <dst-dir> [ <without> ... ]
+    :Syntax: muddle copywithout [-f[orce]] <src-dir> <dst-dir> [ <without> ... ]
 
     Many VCSs use '.XXX' directories to hold metadata. When installing
     files in a Makefile, it's often useful to have an operation which
@@ -4617,7 +4617,7 @@ class CopyWithout(Command):
 @command('subst', CAT_MISC)
 class Subst(Command):
     """
-    :Syntax: subst <src_file> <xml_file> <dst_file>
+    :Syntax: muddle subst <src_file> <xml_file> <dst_file>
 
     Substitute (with "${.. }") <src file> into <dst file> using data from
     the environment or from the given xml file.

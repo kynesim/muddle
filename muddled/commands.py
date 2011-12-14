@@ -3356,8 +3356,8 @@ class Redeploy(DeploymentCommand):
 
     <deployment> should be a label fragment specifying a deployment, or one of
     _all and friends, as for any deployment command. The <type> defaults to
-    "deployment", and the <tag> to "/deployed". See "muddle help labels" for
-    more information.
+    "deployment", and the deployment <tag> will be "/deployed". See "muddle
+    help labels" for more information.
 
     If no deployments are named, what we do depends on where we are in the
     build tree. See "muddle help labels".
@@ -3381,8 +3381,8 @@ class Cleandeploy(DeploymentCommand):
 
     <deployment> should be a label fragment specifying a deployment, or one of
     _all and friends, as for any deployment command. The <type> defaults to
-    "deployment", and the <tag> to "/clean". See "muddle help labels" for more
-    information.
+    "deployment", and the deployment <tag> will be "/clean". See "muddle help
+    labels" for more information.
 
     If no deployments are named, what we do depends on where we are in the
     build tree. See "muddle help labels".
@@ -3402,8 +3402,8 @@ class Deploy(DeploymentCommand):
 
     <deployment> should be a label fragment specifying a deployment, or one of
     _all and friends, as for any deployment command. The <type> defaults to
-    "deployment", and the <tag> to "/deployed". See "muddle help labels" for
-    more information.
+    "deployment", and the deployment <tag> will be "/deployed". See "muddle
+    help labels" for more information.
 
     If no deployments are named, what we do depends on where we are in the
     build tree. See "muddle help labels".
@@ -3423,15 +3423,23 @@ class Configure(PackageCommand):
     """
     :Syntax: configure [ <package> ... ]
 
-    Configure a package.
+    Configure packages.
 
     <package> should be a label fragment specifying a package, or one of
     _all and friends, as for any package command. The <type> defaults to
-    "package", and the <tag> to "/configured". See "muddle help labels" for
-    more information.
+    "package", and the package <tag> will be "/configured". See "muddle help
+    labels" for more information.
 
     If no packages are named, what we do depends on where we are in the
     build tree. See "muddle help labels".
+
+    What is done depends upon the tags set for the package:
+
+    1. If the package has not yet been preconfigured, any preconfigure
+       actions will be done.
+    2. If the package has not yet been configured, then it will be
+       configured. This normally involves performing the actions for
+       the "config" target in the muddle Makefile.
     """
 
     required_tag = LabelTag.Configured
@@ -3444,16 +3452,21 @@ class Reconfigure(PackageCommand):
     """
     :Syntax: reconfigure [ <package> ... ]
 
+    Reconfigure packages. Just like configure except that we clear any
+    '/configured' tags first (and their dependencies).
+
     <package> should be a label fragment specifying a package, or one of
     _all and friends, as for any package command. The <type> defaults to
-    "package", and the <tag> to "/configured". See "muddle help labels" for
-    more information.
+    "package", and the package <tag> will be "/configured". See "muddle help
+    labels" for more information.
 
     If no packages are named, what we do depends on where we are in the
     build tree. See "muddle help labels".
 
-    Just like configure except that we clear any configured/built tags first
-    (and their dependencies).
+    1. For each label, clear its '/configured' tag, and then clear the tags for
+       all the labels that depend on it. Note that this will include the same
+       label with its '/built', '/installed' and '/postinstalled' tags.
+    2. Do "muddle configure" for each label.
     """
 
     required_tag = LabelTag.Configured
@@ -3461,8 +3474,10 @@ class Reconfigure(PackageCommand):
     def build_these_labels(self, builder, labels):
         # OK. Now we have our labels, retag them, and kill them and their
         # consequents
-        to_kill = depend.retag_label_list(labels, LabelTag.Configured)
-        kill_labels(builder, to_kill)
+        # XXX just trust the required_tag?
+        ###to_kill = depend.retag_label_list(labels, LabelTag.Configured)
+        ###kill_labels(builder, to_kill)
+        kill_labels(builder, labels)
         build_labels(builder, labels)
 
 @command('build', CAT_PACKAGE)
@@ -3470,16 +3485,37 @@ class Build(PackageCommand):
     """
     :Syntax: build [ <package> ... ]
 
-    Build a package. If the package name isn't given, we'll use the
-    list of local packages derived from your current directory.
+    Build packages.
 
     <package> should be a label fragment specifying a package, or one of
     _all and friends, as for any package command. The <type> defaults to
-    "package", and the <tag> to "/postinstalled". See "muddle help labels" for
-    more information.
+    "package", and the package <tag> will be "/postinstalled". See "muddle help
+    labels" for more information.
 
     If no packages are named, what we do depends on where we are in the
     build tree. See "muddle help labels".
+
+    What is done depends upon the tags set for the package:
+
+    1. If the package has not yet been preconfigured, any preconfigure
+       actions will be done (for most packages, this is an empty step).
+    2. If the package has not yet been configured, then it will be
+       configured. This normally involves performing the actions for
+       the "config" target in the muddle Makefile.
+    3. If the package has not yet been built, then it will be built.
+       This normally involves performing the actions for the "all" target
+       in the muddle Makefile.
+    4. If the package has not yet been installed, then it will be installed.
+       This normally involves performing the actions for the "install" target
+       in the muddle Makefile.
+    5. If the package has not yet been post-installed, then it will be
+       post-installed (for most packages, this is an empty step).
+
+    Steps 1. and 2. are identical to those in "muddle configure".
+
+    This sequence is why a dependency on a package should normally be made
+    on package:<name>{<role>}/postinstalled - that is the final stage of
+    building any package.
     """
 
     def build_these_labels(self, builder, labels):
@@ -3490,23 +3526,32 @@ class Rebuild(PackageCommand):
     """
     :Syntax: rebuild [ <package> ... ]
 
-    Just like build except that we clear any built tags first
-    (and their dependencies).
+    Rebuild packages. Just like build except that we clear any '/built' tags
+    first (and their dependencies).
 
     <package> should be a label fragment specifying a package, or one of
     _all and friends, as for any package command. The <type> defaults to
-    "package", and the <tag> to "/postinstalled". See "muddle help labels" for
-    more information.
+    "package", and the package <tag> will be "/built". See "muddle help labels"
+    for more information.
 
     If no packages are named, what we do depends on where we are in the
     build tree. See "muddle help labels".
+
+    1. For each label, clear its '/built' tag, and then clear the tags for all
+       the labels that depend on it. Note that this will include the same
+       label with its '/installed' and '/postinstalled' tags.
+    2. Do "muddle build" for each label.
     """
+
+    required_tag = LabelTag.Built
 
     def build_these_labels(self, builder, labels):
         # OK. Now we have our labels, retag them, and kill them and their
         # consequents
-        to_kill = depend.retag_label_list(labels, LabelTag.Built)
-        kill_labels(builder, to_kill)
+        # XXX just trust the required_tag?
+        ###to_kill = depend.retag_label_list(labels, LabelTag.Built)
+        ###kill_labels(builder, to_kill)
+        kill_labels(builder, labels)
         build_labels(builder, labels)
 
 @command('reinstall', CAT_PACKAGE)
@@ -3514,22 +3559,31 @@ class Reinstall(PackageCommand):
     """
     :Syntax: reinstall [ <package> ... ]
 
-    Reinstall the given packages (but don't rebuild them).
+    Reinstall packages (but don't rebuild them).
 
     <package> should be a label fragment specifying a package, or one of
     _all and friends, as for any package command. The <type> defaults to
-    "package", and the <tag> to "/postinstalled". See "muddle help labels" for
-    more information.
+    "package", and the package <tag> will be "/installed". See "muddle help
+    labels" for more information.
 
     If no packages are named, what we do depends on where we are in the
     build tree. See "muddle help labels".
+
+    1. For each label, clear its '/installed' tag, and then clear the tags for
+       all the labels that depend on it. Note that this will include the same
+       label with its '/postinstalled' tag.
+    2. Do "muddle install" for each label.
     """
+
+    required_tag = LabelTag.Installed
 
     def build_these_labels(self, builder, labels):
         # OK. Now we have our labels, retag them, and kill them and their
         # consequents
-        to_kill = depend.retag_label_list(labels, LabelTag.Installed)
-        kill_labels(builder, to_kill)
+        # XXX just trust the required_tag?
+        ###to_kill = depend.retag_label_list(labels, LabelTag.Installed)
+        ###kill_labels(builder, to_kill)
+        kill_labels(builder, labels)
         build_labels(builder, labels)
 
 @command('distrebuild', CAT_PACKAGE)
@@ -3541,11 +3595,14 @@ class Distrebuild(PackageCommand):
 
     <package> should be a label fragment specifying a package, or one of
     _all and friends, as for any package command. The <type> defaults to
-    "package", and the <tag> to "/postinstalled". See "muddle help labels" for
-    more information.
+    "package", and the package <tag> will be "/postinstalled". See "muddle help
+    labels" for more information.
 
     If no packages are named, what we do depends on where we are in the
     build tree. See "muddle help labels".
+
+    1. Do a "muddle distclean" for all the labels
+    2. Do a "muddle build" for all the labels
     """
 
     def build_these_labels(self, builder, labels):
@@ -3557,17 +3614,24 @@ class Clean(PackageCommand):
     """
     :Syntax: clean [ <package> ... ]
 
-    Just like build except that we clean packages rather than
-    building them. Subsequently, packages are regarded as having
-    been configured but not build.
+    Clean packages. Subsequently, packages are regarded as having been
+    configured but not built.
 
     <package> should be a label fragment specifying a package, or one of
     _all and friends, as for any package command. The <type> defaults to
-    "package", and the <tag> to "/built". See "muddle help labels" for
-    more information.
+    "package", and the package <tag> will be "/built". See "muddle help labels"
+    for more information.
 
     If no packages are named, what we do depends on where we are in the
     build tree. See "muddle help labels".
+
+    For each label:
+
+    1. Build the label with its tag set to '/clean'. This normally involves
+       performing the actions for the "clean" target in the muddle Makefile.
+    2. Unset the '/built' tag for the label, and the tags of any labels that
+       depend on it. Note that this will include the same label with its
+       '/installed' and '/postinstalled' tags.
     """
 
     # XXX Is this correct?
@@ -3581,16 +3645,39 @@ class DistClean(PackageCommand):
     """
     :Syntax: distclean [ <package> ... ]
 
-    Just like clean except that we reduce packages to non-preconfigured
-    and invoke 'make distclean'.
+    Distclean packages. Subsequently, packages are regarded as not having been
+    configured or built.
 
     <package> should be a label fragment specifying a package, or one of
     _all and friends, as for any package command. The <type> defaults to
-    "package", and the <tag> to "/built". See "muddle help labels" for
-    more information.
+    "package", and the package <tag> will be "/built". See "muddle help labels"
+    for more information.
 
     If no packages are named, what we do depends on where we are in the
     build tree. See "muddle help labels".
+
+    For each label:
+
+    1. Build the label with its tag set to '/distclean'. This normally involves
+       performing the actions for the "distclean" target in the muddle Makefile.
+    2. Unset the '/preconfig' tag for the label, and the tags of any labels that
+       depend on it. Note that this will include the same label with its
+       '/configured','/built', '/installed' and '/postinstalled' tags.
+
+    Notes:
+
+    * The "distclean" target in the Makefile is independent of the "clean"
+      target - "muddle distclean" does not trigger the "clean" target.
+    * "muddle distclean" itself does not delete the 'obj/' directory,
+      although this is normally sensible. Muddle makefiles are thus
+      recommended to do this themselves - for instance::
+
+          .PHONY: distclean
+          distclean:
+              @rm -rf $(MUDDLE_OBJ)
+
+      It is possible, though, that future versions of muddle might perform
+      this deletion.
     """
 
     # XXX Is this correct?
@@ -3604,21 +3691,23 @@ class Changed(PackageCommand):
     """
     :Syntax: changed <package> [ <package> ... ]
 
-    Mark packages as having been changed so that they will later
-    be rebuilt by anything that needs to. The usual package name
-    guessing logic is used to guess the names of your packages if
-    you don't provide them.
+    Mark packages as having been changed so that they will later be rebuilt by
+    anything that needs to.
 
     <package> should be a label fragment specifying a package, or one of
     _all and friends, as for any package command. The <type> defaults to
-    "package", and the <tag> to "/built". See "muddle help labels" for
-    more information.
-
-    Note that we don't reconfigure (or indeed clean) packages -
-    we just clear the tags asserting that they've been built.
+    "package", and the package <tag> will be "/built". See "muddle help labels"
+    for more information.
 
     If no packages are named, what we do depends on where we are in the
     build tree. See "muddle help labels".
+
+    For each label, unset the '/built' tag for the label, and the tags of any
+    labels that depend on it. Note that this will include the same label with
+    its '/installed' and '/postinstalled' tags.
+
+    Note that we don't reconfigure (or indeed clean) packages - we just clear
+    the tags asserting that they've been built.
     """
 
     required_tag = LabelTag.Built
@@ -3639,8 +3728,8 @@ class Commit(CheckoutCommand):
 
     <checkout> should be a label fragment specifying a checkout, or one of
     _all and friends, as for any checkout command. The <type> defaults to
-    "checkout", and the <tag> to "/changes_committed". See "muddle help labels"
-    for more information.
+    "checkout", and the checkout <tag> will be "/changes_committed". See
+    "muddle help labels" for more information.
 
     For a centralised VCS (e.g., Subversion) where the repository is remote,
     this will not do anything. See the update command.
@@ -3667,8 +3756,8 @@ class Push(CheckoutCommand):
 
     <checkout> should be a label fragment specifying a checkout, or one of
     _all and friends, as for any checkout command. The <type> defaults to
-    "checkout", and the <tag> to "/changes_pushed". See "muddle help labels"
-    for more information.
+    "checkout", and the checkout <tag> will be "/changes_pushed". See "muddle
+    help labels" for more information.
 
     If no checkouts are named, what we do depends on where we are in the
     build tree. See "muddle help labels".
@@ -3720,8 +3809,8 @@ class Pull(CheckoutCommand):
 
     <checkout> should be a label fragment specifying a checkout, or one of
     _all and friends, as for any checkout command. The <type> defaults to
-    "checkout", and the <tag> to "/fetched". See "muddle help labels" for more
-    information.
+    "checkout", and the checkout <tag> will be "/fetched". See "muddle help
+    labels" for more information.
 
     If no checkouts are named, what we do depends on where we are in the
     build tree. See "muddle help labels".
@@ -3788,8 +3877,8 @@ class Merge(CheckoutCommand):
 
     <checkout> should be a label fragment specifying a checkout, or one of
     _all and friends, as for any checkout command. The <type> defaults to
-    "checkout", and the <tag> to "/merged". See "muddle help labels" for more
-    information.
+    "checkout", and the checkout <tag> will be "/merged". See "muddle help
+    labels" for more information.
 
     If no checkouts are named, what we do depends on where we are in the
     build tree. See "muddle help labels".
@@ -3843,8 +3932,8 @@ class Status(CheckoutCommand):
 
     <checkout> should be a label fragment specifying a checkout, or one of
     _all and friends, as for any checkout command. The <type> defaults to
-    "checkout", and the <tag> to "/fetched". See "muddle help labels" for more
-    information.
+    "checkout", and the checkout <tag> will be "/fetched". See "muddle help
+    labels" for more information.
 
     If no checkouts are named, what we do depends on where we are in the
     build tree. See "muddle help labels".
@@ -3905,8 +3994,8 @@ class Reparent(CheckoutCommand):
 
     <checkout> should be a label fragment specifying a checkout, or one of
     _all and friends, as for any checkout command. The <type> defaults to
-    "checkout", and the <tag> to "/fetched". See "muddle help labels" for more
-    information.
+    "checkout", and the checkout <tag> will be "/fetched". See "muddle help
+    labels" for more information.
 
     If no checkouts are named, what we do depends on where we are in the
     build tree. See "muddle help labels".
@@ -3959,8 +4048,8 @@ class Removed(CheckoutCommand):
 
     <checkout> should be a label fragment specifying a checkout, or one of
     _all and friends, as for any checkout command. The <type> defaults to
-    "checkout", and the <tag> to "/checked_out". See "muddle help labels" for
-    more information.
+    "checkout", and the checkout <tag> will be "/checked_out". See "muddle help
+    labels" for more information.
 
     If no checkouts are named, what we do depends on where we are in the
     build tree. See "muddle help labels".
@@ -3980,8 +4069,8 @@ class Unimport(CheckoutCommand):
 
     <checkout> should be a label fragment specifying a checkout, or one of
     _all and friends, as for any checkout command. The <type> defaults to
-    "checkout", and the <tag> to "/checked_out". See "muddle help labels" for
-    more information.
+    "checkout", and the checkout <tag> will be "/checked_out". See "muddle help
+    labels" for more information.
 
     If no checkouts are named, what we do depends on where we are in the
     build tree. See "muddle help labels".
@@ -4007,8 +4096,8 @@ class Import(CheckoutCommand):
 
     <checkout> should be a label fragment specifying a checkout, or one of
     _all and friends, as for any checkout command. The <type> defaults to
-    "checkout", and the <tag> to "/checked_out". See "muddle help labels" for
-    more information.
+    "checkout", and the checkout <tag> will be "/checked_out". See "muddle help
+    labels" for more information.
 
     If no checkouts are named, what we do depends on where we are in the
     build tree. See "muddle help labels".
@@ -4042,8 +4131,8 @@ class UnCheckout(CheckoutCommand):
 
     <checkout> should be a label fragment specifying a checkout, or one of
     _all and friends, as for any checkout command. The <type> defaults to
-    "checkout", and the <tag> to "/checked_out". See "muddle help labels" for
-    more information.
+    "checkout", and the checkout <tag> will be "/checked_out". See "muddle help
+    labels" for more information.
 
     If no checkouts are named, what we do depends on where we are in the
     build tree. See "muddle help labels".
@@ -4071,8 +4160,8 @@ class Checkout(CheckoutCommand):
 
     <checkout> should be a label fragment specifying a checkout, or one of
     _all and friends, as for any checkout command. The <type> defaults to
-    "checkout", and the <tag> to "/checked_out". See "muddle help labels" for
-    more information.
+    "checkout", and the checkout <tag> will be "/checked_out". See "muddle help
+    labels" for more information.
 
     If no checkouts are named, what we do depends on where we are in the
     build tree. See "muddle help labels".

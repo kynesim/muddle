@@ -1015,8 +1015,73 @@ Some muddle commands only operate on particular types of label. For instance,
 commands in category "checkout" (see "muddle help categories") only operate
 on checkout: labels.
 
-** Talk about label fragments
+Label fragments
+---------------
 
+...to be done...
+
+Command says if it defaults to "checkout:", "package:" or "deployment".
+
+Checkout and deployment labels may not have roles.
+
+If a package role is not given, then the label will be expanded into
+package:<name>{<role>} for each <role> in the default roles. Default roles
+are defined in the build description. You can use "muddle query default-roles"
+to find out what they are.
+
+If a tag is not given, then the "end tag" for the particular type of label will
+be used. This is:
+
+* for checkout, '/checked_out'
+* for package, '/postinstalled'
+* for deployment, '/deployed'
+
+Checkout, package and deployment commands typically ignore the label tag
+of any checkout, package or deployment label they are given (whether because
+you gave it exactly, or because it was deduced). Instead, they have a
+requried tag, which is documented in their help text.
+
+Other commands default to the "end tag" for that particular label type.
+
+You can always used "muddle -n <command> <fragment>" to see what labels the
+<command> will actually end up using.
+
+"muddle" with no label arguments
+--------------------------------
+
+...to be finished...
+
+At the very top of the build tree, a bare "muddle" is identical to
+"muddle _all_deployments _all_roles".
+
+Within a 'domains/' directory, a bare "muddle" is identical to "muddle
+buildlabel" with arguments "deployment:(<domain>)*/deployed" and
+"package:(<domain>)*{*}/postinstalled" for each <domain> that has a
+directory (directly within) that 'domains/' directory.
+
+Within a 'domains/<domain>' directory, a bare "muddle" is
+identical to "muddle buildlabel deployment:(<domain>)*/deployed
+package:(<domain>)*{*}/postinstalled".
+
+where <domain> is replaced by the subdomain's name (as given by
+"muddle where" in that directory).
+
+Within a 'deploy/' directory, or its subdirectories, a bare "muddle" is
+identical to "muddle redeploy".
+
+Anywhere else, "muddle" will say "Not sure what you want to build".
+
+"muddle <command>" with no label arguments
+------------------------------------------
+
+...to be finished...
+
+...but broadly, if "muddle where" gives a label, then that label will be
+used as the argument. If it does not, then the current directory may be
+used to deduce an argument.
+
+Unexpected results
+------------------
 Note: at a Unix shell, typing:
 
     $ muddle build *
@@ -3416,8 +3481,6 @@ class Deploy(DeploymentCommand):
 # Package commands
 # -----------------------------------------------------------------------------
 
-# XXX HERE XXX
-
 @command('configure', CAT_PACKAGE)
 class Configure(PackageCommand):
     """
@@ -4039,7 +4102,7 @@ class Reparent(CheckoutCommand):
             vcs.reparent(force=force, verbose=True)
 
 @command('uncheckout', CAT_CHECKOUT)
-class UnCheckout(UnCheckoutCommand):
+class UnCheckout(CheckoutCommand):
     """
     :Syntax: muddle uncheckout [ <checkout> ... ]
 

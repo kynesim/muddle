@@ -1018,9 +1018,10 @@ on checkout: labels.
 Label fragments
 ---------------
 
-...to be done...
+.. to be finished..
 
-Command says if it defaults to "checkout:", "package:" or "deployment".
+Each command says, in its help text, if it defaults to "checkout:", "package:"
+or "deployment".
 
 Checkout and deployment labels may not have roles.
 
@@ -1079,6 +1080,12 @@ Anywhere else, "muddle" will say "Not sure what you want to build".
 ...but broadly, if "muddle where" gives a label, then that label will be
 used as the argument. If it does not, then the current directory may be
 used to deduce an argument.
+
+How "muddle" commands intepret labels of the "wrong" type
+---------------------------------------------------------
+For instance: "muddle checkout package:fred"
+
+.. to be written ..
 
 Unexpected results
 ------------------

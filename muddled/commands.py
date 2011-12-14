@@ -3412,7 +3412,6 @@ class Deploy(DeploymentCommand):
     def build_these_labels(self, builder, labels):
         build_labels(builder, labels)
 
-# XXX === EDITED HELP TEXT TO HERE === XXX
 # -----------------------------------------------------------------------------
 # Package commands
 # -----------------------------------------------------------------------------
@@ -3426,19 +3425,14 @@ class Configure(PackageCommand):
     list of local packages derived from your current directory.
 
     <package> should be a label fragment specifying a package, or one of
-    _all and friends, as for any package command. See "muddle help labels"
-    for more information.
+    _all and friends, as for any package command. The <type> defaults to
+    "package", and the <tag> to "/configured". See "muddle help labels" for
+    more information.
 
     If you're in a checkout directory, we'll configure every package
     which uses that checkout.
-
-    _all is a special package meaning configure everything.
-
-    You can specify all packages that depend on a particular checkout
-    with "checkout:name".
     """
 
-    # XXX Is this really correct?
     required_tag = LabelTag.Configured
 
     def build_these_labels(self, builder, labels):
@@ -3447,17 +3441,17 @@ class Configure(PackageCommand):
 @command('reconfigure', CAT_PACKAGE)
 class Reconfigure(PackageCommand):
     """
-    :Syntax: reconfigure [ <package>{<role>} ... ]
+    :Syntax: reconfigure [ <package> ... ]
 
     <package> should be a label fragment specifying a package, or one of
-    _all and friends, as for any package command. See "muddle help labels"
-    for more information.
+    _all and friends, as for any package command. The <type> defaults to
+    "package", and the <tag> to "/configured". See "muddle help labels" for
+    more information.
 
     Just like configure except that we clear any configured/built tags first
     (and their dependencies).
     """
 
-    # XXX Is this really correct?
     required_tag = LabelTag.Configured
 
     def build_these_labels(self, builder, labels):
@@ -3470,25 +3464,15 @@ class Reconfigure(PackageCommand):
 @command('build', CAT_PACKAGE)
 class Build(PackageCommand):
     """
-    :Syntax: build [ <package>{<role>} ... ]
+    :Syntax: build [ <package> ... ]
 
     Build a package. If the package name isn't given, we'll use the
     list of local packages derived from your current directory.
 
     <package> should be a label fragment specifying a package, or one of
-    _all and friends, as for any package command. See "muddle help labels"
-    for more information.
-
-    Unqualified or inferred package names are built in every default
-    role (there's a list in the build description).
-
-    If you're in a checkout directory, we'll build every package
-    which uses that checkout.
-
-    _all is a special package meaning build everything.
-
-    You can specify all packages that depend on a particular checkout
-    with "checkout:name".
+    _all and friends, as for any package command. The <type> defaults to
+    "package", and the <tag> to "/postinstalled". See "muddle help labels" for
+    more information.
     """
 
     def build_these_labels(self, builder, labels):
@@ -3497,14 +3481,15 @@ class Build(PackageCommand):
 @command('rebuild', CAT_PACKAGE)
 class Rebuild(PackageCommand):
     """
-    :Syntax: rebuild [ <package>{<role>} ... ]
+    :Syntax: rebuild [ <package> ... ]
 
     Just like build except that we clear any built tags first
     (and their dependencies).
 
     <package> should be a label fragment specifying a package, or one of
-    _all and friends, as for any package command. See "muddle help labels"
-    for more information.
+    _all and friends, as for any package command. The <type> defaults to
+    "package", and the <tag> to "/postinstalled". See "muddle help labels" for
+    more information.
     """
 
     def build_these_labels(self, builder, labels):
@@ -3517,13 +3502,14 @@ class Rebuild(PackageCommand):
 @command('reinstall', CAT_PACKAGE)
 class Reinstall(PackageCommand):
     """
-    :Syntax: reinstall [ <package>{<role>} ... ]
+    :Syntax: reinstall [ <package> ... ]
 
     Reinstall the given packages (but don't rebuild them).
 
     <package> should be a label fragment specifying a package, or one of
-    _all and friends, as for any package command. See "muddle help labels"
-    for more information.
+    _all and friends, as for any package command. The <type> defaults to
+    "package", and the <tag> to "/postinstalled". See "muddle help labels" for
+    more information.
     """
 
     def build_these_labels(self, builder, labels):
@@ -3536,13 +3522,14 @@ class Reinstall(PackageCommand):
 @command('distrebuild', CAT_PACKAGE)
 class Distrebuild(PackageCommand):
     """
-    :Syntax: distrebuild [ <package>{<role>} ... ]
+    :Syntax: distrebuild [ <package> ... ]
 
     A rebuild that does a distclean before attempting the rebuild.
 
     <package> should be a label fragment specifying a package, or one of
-    _all and friends, as for any package command. See "muddle help labels"
-    for more information.
+    _all and friends, as for any package command. The <type> defaults to
+    "package", and the <tag> to "/postinstalled". See "muddle help labels" for
+    more information.
     """
 
     def build_these_labels(self, builder, labels):
@@ -3552,15 +3539,16 @@ class Distrebuild(PackageCommand):
 @command('clean', CAT_PACKAGE)
 class Clean(PackageCommand):
     """
-    :Syntax: clean [ <package>{<role>} ... ]
+    :Syntax: clean [ <package> ... ]
 
     Just like build except that we clean packages rather than
     building them. Subsequently, packages are regarded as having
     been configured but not build.
 
     <package> should be a label fragment specifying a package, or one of
-    _all and friends, as for any package command. See "muddle help labels"
-    for more information.
+    _all and friends, as for any package command. The <type> defaults to
+    "package", and the <tag> to "/built". See "muddle help labels" for
+    more information.
     """
 
     # XXX Is this correct?
@@ -3572,14 +3560,15 @@ class Clean(PackageCommand):
 @command('distclean', CAT_PACKAGE)
 class DistClean(PackageCommand):
     """
-    :Syntax: distclean [ <package>{<role>} ... ]
+    :Syntax: distclean [ <package> ... ]
 
     Just like clean except that we reduce packages to non-preconfigured
     and invoke 'make distclean'.
 
     <package> should be a label fragment specifying a package, or one of
-    _all and friends, as for any package command. See "muddle help labels"
-    for more information.
+    _all and friends, as for any package command. The <type> defaults to
+    "package", and the <tag> to "/built". See "muddle help labels" for
+    more information.
     """
 
     # XXX Is this correct?
@@ -3599,14 +3588,12 @@ class Changed(PackageCommand):
     you don't provide them.
 
     <package> should be a label fragment specifying a package, or one of
-    _all and friends, as for any package command. See "muddle help labels"
-    for more information.
+    _all and friends, as for any package command. The <type> defaults to
+    "package", and the <tag> to "/built". See "muddle help labels" for
+    more information.
 
     Note that we don't reconfigure (or indeed clean) packages -
     we just clear the tags asserting that they've been built.
-
-    You can specify all packages that depend on a particular checkout
-    with "checkout:name".
     """
 
     required_tag = LabelTag.Built
@@ -3621,27 +3608,17 @@ class Changed(PackageCommand):
 @command('commit', CAT_CHECKOUT)
 class Commit(CheckoutCommand):
     """
-    :Syntax: commit <checkout> [ <checkout> ... ]
+    :Syntax: commit [ <checkout> ... ]
 
     Commit the specified checkouts to their local repositories.
 
     <checkout> should be a label fragment specifying a checkout, or one of
-    _all and friends, as for any checkout command. See "muddle help labels"
+    _all and friends, as for any checkout command. The <type> defaults to
+    "checkout", and the <tag> to "/changes_committed". See "muddle help labels"
     for more information.
 
     For a centralised VCS (e.g., Subversion) where the repository is remote,
     this will not do anything. See the update command.
-
-    If no checkouts are given, we'll use those implied by your current
-    location.
-
-    Each <checkout> should be the name of a checkout, and muddle will obey
-    the rule associated with "checkout:<checkout>{}/changes_committed" for each.
-
-    The special <checkout> name _all means all checkouts.
-
-    Without a <checkout>, we use the checkout you're in, or the checkouts
-    below the current directory.
     """
 
     # XXX Is this correct?
@@ -3656,27 +3633,17 @@ class Commit(CheckoutCommand):
 @command('push', CAT_CHECKOUT)
 class Push(CheckoutCommand):
     """
-    :Syntax: push [-s[top]] <checkout> [ <checkout> ... ]
+    :Syntax: push [-s[top]] [ <checkout> ... ]
 
     Push the specified checkouts to their remote repositories.
 
     <checkout> should be a label fragment specifying a checkout, or one of
-    _all and friends, as for any checkout command. See "muddle help labels"
+    _all and friends, as for any checkout command. The <type> defaults to
+    "checkout", and the <tag> to "/changes_pushed". See "muddle help labels"
     for more information.
 
     This updates the content of the remote repositories to match the local
     checkout.
-
-    If no checkouts are given, we'll use those implied by your current
-    location.
-
-    Each <checkout> should be the name of a checkout, and muddle will obey
-    the rule associated with "checkout:<checkout>{}/changes_pushed" for each.
-
-    The special <checkout> name _all means all checkouts.
-
-    Without a <checkout>, we use the checkout you're in, or the checkouts
-    below the current directory.
 
     If '-s' or '-stop' is given, then we'll stop at the first problem,
     otherwise an attempt will be made to process all the checkouts, and any
@@ -3715,14 +3682,15 @@ class Push(CheckoutCommand):
 @command('pull', CAT_CHECKOUT, ['fetch', 'update'])   # we want to settle on one command
 class Pull(CheckoutCommand):
     """
-    :Syntax: pull [-s[top]] <checkout> [ <checkout> ... ]
+    :Syntax: pull [-s[top]] [ <checkout> ... ]
 
     Pull the specified checkouts from their remote repositories. Any problems
     will be (re)reported at the end.
 
     <checkout> should be a label fragment specifying a checkout, or one of
-    _all and friends, as for any checkout command. See "muddle help labels"
-    for more information.
+    _all and friends, as for any checkout command. The <type> defaults to
+    "checkout", and the <tag> to "/fetched". See "muddle help labels" for more
+    information.
 
     For each checkout named, retrieve changes from the corresponding remote
     repository (as described by the build description) and apply them (to
@@ -3730,17 +3698,6 @@ class Pull(CheckoutCommand):
 
         (For a VCS such as git, this actually means "not if a user-assisted
         merge would be required - i.e., fast-forwards will be done.)
-
-    If no checkouts are given, we'll use those implied by your current
-    location.
-
-    Each <checkout> should be the name of a checkout, and muddle will obey
-    the rule associated with "checkout:<checkout>{}/fetched" for each.
-
-    The special <checkout> name _all means all checkouts.
-
-    Without a <checkout>, we use the checkout you're in, or the checkouts
-    below the current directory.
 
     Normally, "muddle pull" will attempt to pull all the chosen checkouts,
     re-reporting any problems at the end. If '-s' or '-stop' is given, then
@@ -3791,29 +3748,19 @@ class Pull(CheckoutCommand):
 @command('merge', CAT_CHECKOUT)
 class Merge(CheckoutCommand):
     """
-    :Syntax: merge [-s[top]] <checkout> [ <checkout> ... ]
+    :Syntax: merge [-s[top]] [ <checkout> ... ]
 
     Merge the specified checkouts from their remote repositories.
 
     <checkout> should be a label fragment specifying a checkout, or one of
-    _all and friends, as for any checkout command. See "muddle help labels"
-    for more information.
+    _all and friends, as for any checkout command. The <type> defaults to
+    "checkout", and the <tag> to "/merged". See "muddle help labels" for more
+    information.
 
     For each checkout named, retrieve changes from the corresponding remote
     repository (as described by the build description) and merge them (into
     the checkout). The merge process is handled in a VCS specific manner,
     as each checkout is dealt with.
-
-    If no checkouts are given, we'll use those implied by your current
-    location.
-
-    Each <checkout> should be the name of a checkout, and muddle will obey
-    the rule associated with "checkout:<checkout>{}/merged" for each.
-
-    The special <checkout> name _all means all checkouts.
-
-    Without a <checkout>, we use the checkout you're in, or the checkouts
-    below the current directory.
 
     If '-s' or '-stop' is given, then we'll stop at the first problem,
     otherwise an attempt will be made to process all the checkouts, and any
@@ -3853,29 +3800,20 @@ class Merge(CheckoutCommand):
 @command('status', CAT_CHECKOUT)
 class Status(CheckoutCommand):
     """
-    :Syntax: status [-v] <checkout> [ <checkout> ... ]
+    :Syntax: status [-v] [ <checkout> ... ]
 
     Report on the status of checkouts that need attention.
 
     <checkout> should be a label fragment specifying a checkout, or one of
-    _all and friends, as for any checkout command. See "muddle help labels"
-    for more information.
+    _all and friends, as for any checkout command. The <type> defaults to
+    "checkout", and the <tag> to "/fetched". See "muddle help labels" for more
+    information.
 
     If '-v' is given, report each checkout label as it is checked (allowing
     a sense of progress if there are many bazaar checkouts, for instance).
 
     Runs the equivalent of ``git status`` or ``bzr status`` on each repository,
     and tries to only report those which have significant status.
-
-    If no checkouts are given, we'll use those implied by your current
-    location.
-
-    Each <checkout> should be the name of a checkout.
-
-    The special <checkout> name _all means all checkouts.
-
-    Without a <checkout>, we use the checkout you're in, or the checkouts
-    below the current directory.
 
         Note: For subversion, the (remote) repository is queried,
         which may be slow.
@@ -3887,6 +3825,7 @@ class Status(CheckoutCommand):
     (i.e., the first checkout that isn't there yet).
     """
 
+    # XXX Is this what we want???
     required_tag = LabelTag.Fetched
     allowed_switches = {'-v': 'verbose'}
 
@@ -3920,13 +3859,14 @@ class Status(CheckoutCommand):
 @command('reparent', CAT_CHECKOUT)
 class Reparent(CheckoutCommand):
     """
-    :Syntax: reparent [-f[orce]] <checkout> [ <checkout> ... ]
+    :Syntax: reparent [-f[orce]] [ <checkout> ... ]
 
     Re-associate the specified checkouts with their remote repositories.
 
     <checkout> should be a label fragment specifying a checkout, or one of
-    _all and friends, as for any checkout command. See "muddle help labels"
-    for more information.
+    _all and friends, as for any checkout command. The <type> defaults to
+    "checkout", and the <tag> to "/fetched". See "muddle help labels" for more
+    information.
 
     Some distributed VCSs (notably, Bazaar) can "forget" the remote repository
     for a checkout. In Bazaar, this typically means not remembering the
@@ -3944,18 +3884,9 @@ class Reparent(CheckoutCommand):
         * If "parent_branch" is unset, sets it.
         * With '-force', sets "parent_branch" regardless, and also unsets
           "push_branch".
-
-    If no checkouts are given, we'll use those implied by your current
-    location.
-
-    Each <checkout> should be the name of a checkout.
-
-    The special <checkout> name _all means all checkouts.
-
-    Without a <checkout>, we use the checkout you're in, or the checkouts
-    below the current directory.
     """
 
+    # XXX Is this what we want???
     required_tag = LabelTag.Fetched
     allowed_switches = {'-f':'force', '-force':'force'}
 
@@ -3978,19 +3909,15 @@ class Reparent(CheckoutCommand):
 @command('removed', CAT_CHECKOUT)
 class Removed(CheckoutCommand):
     """
-    :Syntax: removed <checkout> [ <checkout> ... ]
+    :Syntax: removed [ <checkout> ... ]
 
     Signal to muddle that the given checkouts have been removed and will
     need to be checked out again before they can be used.
 
     <checkout> should be a label fragment specifying a checkout, or one of
-    _all and friends, as for any checkout command. See "muddle help labels"
-    for more information.
-
-    The special <checkout> name _all means all checkouts.
-
-    Without a <checkout>, we use the checkout you're in, or the checkouts
-    below the current directory.
+    _all and friends, as for any checkout command. The <type> defaults to
+    "checkout", and the <tag> to "/checked_out". See "muddle help labels" for
+    more information.
     """
 
     def build_these_labels(self, builder, labels):
@@ -4000,15 +3927,15 @@ class Removed(CheckoutCommand):
 @command('unimport', CAT_CHECKOUT)
 class Unimport(CheckoutCommand):
     """
-    :Syntax: unimport <checkout> [ <checkout> ... ]
+    :Syntax: unimport [ <checkout> ... ]
 
     Assert that the given checkouts haven't been checked out and must therefore
     be checked out.
 
-    The special <checkout> name _all means all checkouts.
-
-    Without a <checkout>, we use the checkout you're in, or the checkouts
-    below the current directory.
+    <checkout> should be a label fragment specifying a checkout, or one of
+    _all and friends, as for any checkout command. The <type> defaults to
+    "checkout", and the <tag> to "/checked_out". See "muddle help labels" for
+    more information.
     """
 
     def build_these_labels(self, builder, labels):
@@ -4018,7 +3945,7 @@ class Unimport(CheckoutCommand):
 @command('import', CAT_CHECKOUT)
 class Import(CheckoutCommand):
     """
-    :Syntax: import <checkout> [ <checkout> ... ]
+    :Syntax: import [ <checkout> ... ]
 
     Assert that the given checkout (which may be the builds checkout) has
     been checked out. This is mainly used when you've just written a package
@@ -4030,16 +3957,12 @@ class Import(CheckoutCommand):
     it can be pushed once ready; this should be at worst harmless in all cases.
 
     <checkout> should be a label fragment specifying a checkout, or one of
-    _all and friends, as for any checkout command. See "muddle help labels"
-    for more information.
+    _all and friends, as for any checkout command. The <type> defaults to
+    "checkout", and the <tag> to "/checked_out". See "muddle help labels" for
+    more information.
 
     This command is really just an wrapper to "muddle assert" with the right
     magic label names, and to "muddle reparent".
-
-    The special <checkout> name _all means all checkouts.
-
-    Without a <checkout>, we use the checkout you're in, or the checkouts
-    below the current directory.
     """
 
     def with_build_tree(self, builder, current_dir, args):
@@ -4060,19 +3983,15 @@ class Import(CheckoutCommand):
 @command('uncheckout', CAT_CHECKOUT)
 class UnCheckout(CheckoutCommand):
     """
-    :Syntax: uncheckout <checkout> [ <checkout> ... ]
+    :Syntax: uncheckout [ <checkout> ... ]
 
     Tells muddle that the given checkouts no longer exist in the src directory
     and should be checked out/cloned from version control again.
 
     <checkout> should be a label fragment specifying a checkout, or one of
-    _all and friends, as for any checkout command. See "muddle help labels"
-    for more information.
-
-    The special <checkout> name _all means all checkouts.
-
-    If no <checkouts> are given, we'll use those implied by your current
-    location.
+    _all and friends, as for any checkout command. The <type> defaults to
+    "checkout", and the <tag> to "/checked_out". See "muddle help labels" for
+    more information.
 
     This does not actually delete the checkout directory. If you try to do::
 
@@ -4091,18 +4010,17 @@ class UnCheckout(CheckoutCommand):
 @command('checkout', CAT_CHECKOUT)
 class Checkout(CheckoutCommand):
     """
-    :Syntax: checkout <checkout> [ <checkout> ... ]
+    :Syntax: checkout [ <checkout> ... ]
 
     Checks out the given series of checkouts.
 
     <checkout> should be a label fragment specifying a checkout, or one of
-    _all and friends, as for any checkout command. See "muddle help labels"
-    for more information.
+    _all and friends, as for any checkout command. The <type> defaults to
+    "checkout", and the <tag> to "/checked_out". See "muddle help labels" for
+    more information.
 
     That is, copies (clones/branches) the content of each checkout from its
     remote repository.
-
-    'checkout _all' means checkout all checkouts.
     """
 
     def build_these_labels(self, builder, labels):

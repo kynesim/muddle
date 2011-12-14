@@ -3416,21 +3416,22 @@ class Deploy(DeploymentCommand):
 # Package commands
 # -----------------------------------------------------------------------------
 
+# XXX HERE XXX
+
 @command('configure', CAT_PACKAGE)
 class Configure(PackageCommand):
     """
     :Syntax: configure [ <package> ... ]
 
-    Configure a package. If the package name isn't given, we'll use the
-    list of local packages derived from your current directory.
+    Configure a package.
 
     <package> should be a label fragment specifying a package, or one of
     _all and friends, as for any package command. The <type> defaults to
     "package", and the <tag> to "/configured". See "muddle help labels" for
     more information.
 
-    If you're in a checkout directory, we'll configure every package
-    which uses that checkout.
+    If no packages are named, what we do depends on where we are in the
+    build tree. See "muddle help labels".
     """
 
     required_tag = LabelTag.Configured
@@ -3447,6 +3448,9 @@ class Reconfigure(PackageCommand):
     _all and friends, as for any package command. The <type> defaults to
     "package", and the <tag> to "/configured". See "muddle help labels" for
     more information.
+
+    If no packages are named, what we do depends on where we are in the
+    build tree. See "muddle help labels".
 
     Just like configure except that we clear any configured/built tags first
     (and their dependencies).
@@ -3473,6 +3477,9 @@ class Build(PackageCommand):
     _all and friends, as for any package command. The <type> defaults to
     "package", and the <tag> to "/postinstalled". See "muddle help labels" for
     more information.
+
+    If no packages are named, what we do depends on where we are in the
+    build tree. See "muddle help labels".
     """
 
     def build_these_labels(self, builder, labels):
@@ -3490,6 +3497,9 @@ class Rebuild(PackageCommand):
     _all and friends, as for any package command. The <type> defaults to
     "package", and the <tag> to "/postinstalled". See "muddle help labels" for
     more information.
+
+    If no packages are named, what we do depends on where we are in the
+    build tree. See "muddle help labels".
     """
 
     def build_these_labels(self, builder, labels):
@@ -3510,6 +3520,9 @@ class Reinstall(PackageCommand):
     _all and friends, as for any package command. The <type> defaults to
     "package", and the <tag> to "/postinstalled". See "muddle help labels" for
     more information.
+
+    If no packages are named, what we do depends on where we are in the
+    build tree. See "muddle help labels".
     """
 
     def build_these_labels(self, builder, labels):
@@ -3530,6 +3543,9 @@ class Distrebuild(PackageCommand):
     _all and friends, as for any package command. The <type> defaults to
     "package", and the <tag> to "/postinstalled". See "muddle help labels" for
     more information.
+
+    If no packages are named, what we do depends on where we are in the
+    build tree. See "muddle help labels".
     """
 
     def build_these_labels(self, builder, labels):
@@ -3549,6 +3565,9 @@ class Clean(PackageCommand):
     _all and friends, as for any package command. The <type> defaults to
     "package", and the <tag> to "/built". See "muddle help labels" for
     more information.
+
+    If no packages are named, what we do depends on where we are in the
+    build tree. See "muddle help labels".
     """
 
     # XXX Is this correct?
@@ -3569,6 +3588,9 @@ class DistClean(PackageCommand):
     _all and friends, as for any package command. The <type> defaults to
     "package", and the <tag> to "/built". See "muddle help labels" for
     more information.
+
+    If no packages are named, what we do depends on where we are in the
+    build tree. See "muddle help labels".
     """
 
     # XXX Is this correct?
@@ -3594,6 +3616,9 @@ class Changed(PackageCommand):
 
     Note that we don't reconfigure (or indeed clean) packages -
     we just clear the tags asserting that they've been built.
+
+    If no packages are named, what we do depends on where we are in the
+    build tree. See "muddle help labels".
     """
 
     required_tag = LabelTag.Built
@@ -3619,6 +3644,9 @@ class Commit(CheckoutCommand):
 
     For a centralised VCS (e.g., Subversion) where the repository is remote,
     this will not do anything. See the update command.
+
+    If no checkouts are named, what we do depends on where we are in the
+    build tree. See "muddle help labels".
     """
 
     # XXX Is this correct?
@@ -3641,6 +3669,9 @@ class Push(CheckoutCommand):
     _all and friends, as for any checkout command. The <type> defaults to
     "checkout", and the <tag> to "/changes_pushed". See "muddle help labels"
     for more information.
+
+    If no checkouts are named, what we do depends on where we are in the
+    build tree. See "muddle help labels".
 
     This updates the content of the remote repositories to match the local
     checkout.
@@ -3691,6 +3722,9 @@ class Pull(CheckoutCommand):
     _all and friends, as for any checkout command. The <type> defaults to
     "checkout", and the <tag> to "/fetched". See "muddle help labels" for more
     information.
+
+    If no checkouts are named, what we do depends on where we are in the
+    build tree. See "muddle help labels".
 
     For each checkout named, retrieve changes from the corresponding remote
     repository (as described by the build description) and apply them (to
@@ -3757,6 +3791,9 @@ class Merge(CheckoutCommand):
     "checkout", and the <tag> to "/merged". See "muddle help labels" for more
     information.
 
+    If no checkouts are named, what we do depends on where we are in the
+    build tree. See "muddle help labels".
+
     For each checkout named, retrieve changes from the corresponding remote
     repository (as described by the build description) and merge them (into
     the checkout). The merge process is handled in a VCS specific manner,
@@ -3808,6 +3845,9 @@ class Status(CheckoutCommand):
     _all and friends, as for any checkout command. The <type> defaults to
     "checkout", and the <tag> to "/fetched". See "muddle help labels" for more
     information.
+
+    If no checkouts are named, what we do depends on where we are in the
+    build tree. See "muddle help labels".
 
     If '-v' is given, report each checkout label as it is checked (allowing
     a sense of progress if there are many bazaar checkouts, for instance).
@@ -3868,6 +3908,9 @@ class Reparent(CheckoutCommand):
     "checkout", and the <tag> to "/fetched". See "muddle help labels" for more
     information.
 
+    If no checkouts are named, what we do depends on where we are in the
+    build tree. See "muddle help labels".
+
     Some distributed VCSs (notably, Bazaar) can "forget" the remote repository
     for a checkout. In Bazaar, this typically means not remembering the
     "parent" repository, and thus not being able to pull. It appears to be
@@ -3918,6 +3961,9 @@ class Removed(CheckoutCommand):
     _all and friends, as for any checkout command. The <type> defaults to
     "checkout", and the <tag> to "/checked_out". See "muddle help labels" for
     more information.
+
+    If no checkouts are named, what we do depends on where we are in the
+    build tree. See "muddle help labels".
     """
 
     def build_these_labels(self, builder, labels):
@@ -3936,6 +3982,9 @@ class Unimport(CheckoutCommand):
     _all and friends, as for any checkout command. The <type> defaults to
     "checkout", and the <tag> to "/checked_out". See "muddle help labels" for
     more information.
+
+    If no checkouts are named, what we do depends on where we are in the
+    build tree. See "muddle help labels".
     """
 
     def build_these_labels(self, builder, labels):
@@ -3960,6 +4009,9 @@ class Import(CheckoutCommand):
     _all and friends, as for any checkout command. The <type> defaults to
     "checkout", and the <tag> to "/checked_out". See "muddle help labels" for
     more information.
+
+    If no checkouts are named, what we do depends on where we are in the
+    build tree. See "muddle help labels".
 
     This command is really just an wrapper to "muddle assert" with the right
     magic label names, and to "muddle reparent".
@@ -3993,6 +4045,9 @@ class UnCheckout(CheckoutCommand):
     "checkout", and the <tag> to "/checked_out". See "muddle help labels" for
     more information.
 
+    If no checkouts are named, what we do depends on where we are in the
+    build tree. See "muddle help labels".
+
     This does not actually delete the checkout directory. If you try to do::
 
         muddle unckeckout fred
@@ -4018,6 +4073,9 @@ class Checkout(CheckoutCommand):
     _all and friends, as for any checkout command. The <type> defaults to
     "checkout", and the <tag> to "/checked_out". See "muddle help labels" for
     more information.
+
+    If no checkouts are named, what we do depends on where we are in the
+    build tree. See "muddle help labels".
 
     That is, copies (clones/branches) the content of each checkout from its
     remote repository.

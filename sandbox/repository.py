@@ -1,5 +1,9 @@
+#! /usr/bin/env python
 """A new way of handling repositories
 """
+
+class GiveUp(Exception):
+    pass
 
 class Repository(object):
     """The representation of a single repository.
@@ -8,34 +12,42 @@ class Repository(object):
     For instance:
 
       >>> r = Repository('git+ssh://git@project-server/opt/kynesim/projects/042/git/',
-                         'builds')
+      ...                'builds')
       >>> r.path()
       "ssh://git@project-server/opt/kynesim/projects/042/git/builds"
+      >>> r.base_path
+      'git+ssh://git@project-server/opt/kynesim/projects/042/git/'
+      >>> r.co_name
+      'builds'
+      >>> r.vcs
+      'git'
+      >>> r.repo
+      'ssh://git@project-server/opt/kynesim/projects/042/git/'
 
     Note that it is possible for some project hosts to be treated differently
     - for instance, we have a built-in rule for google code projects:
 
       >>> g1 = Repository('git+https://code.google.com/p/grump', 'default')
       >>> g1.path()
-      "https://code.google.com/p/grump/'
+      'https://code.google.com/p/grump/'
       >>> g2 = Repository('git+https://code.google.com/p/grump', 'wiki')
       >>> g2.path()
-      "https://code.google.com/p/grump.wiki/'
+      'https://code.google.com/p/grump.wiki/'
 
     Sometimes, we need some extra "path" between the repository base path and
     the checkout name. For instance:
 
       >>> r = Repository('git+ssh://git@project-server/opt/kynesim/projects/042/git/',
-                         'busybox-1.18.5', prefix='core')
+      ...                'busybox-1.18.5', prefix='core')
       >>> r.path()
-      "git+ssh://git@project-server/opt/kynesim/projects/042/git/core/busybox-1.18.5'
+      'git+ssh://git@project-server/opt/kynesim/projects/042/git/core/busybox-1.18.5'
 
     Git servers sometimes want us to put '.git' on the end of a checkout name.
     This can be done as follows:
 
         >>> r = Repository('git+git@github.com:tibs', 'withdir', extension='.git')
         >>> r.path()
-        "git@github.com:tibs/withdir.git"
+        'git@github.com:tibs/withdir.git'
 
     (although note that github will cope with or without the '.git' at the end).
 
@@ -45,17 +57,17 @@ class Repository(object):
     are named). So, for instance:
 
       >>> r = Repository('bzr+ssh://bzr@project-server/opt/kynesim/projects/042/bzr/',
-                         'repo42', postfix='fixit_branch')
+      ...                'repo42', postfix='fixit_branch')
       >>> r.path()
-      "ssh://bzr@project-server/opt/kynesim/projects/042/bzr/repo42/fixit_branch"
+      'ssh://bzr@project-server/opt/kynesim/projects/042/bzr/repo42/fixit_branch'
 
     Subversion allows retrieving *part* of a repository, by specifying the
     internal path leading to the entity to be retrieved. So, for instance:
 
       >>> r = Repository('svn+ssh://svn@project-server/opt/kynesim/projects/042/svn/',
-                         'all_our_code', inner_path='core/busybox-1.18.4')
+      ...                'all_our_code', inner_path='core/busybox-1.18.4')
       >>> r.path()
-      "ssh://svn@project-server/opt/kynesim/projects/042/svn/all_our_code/core/busybox-1.18.4')
+      'ssh://svn@project-server/opt/kynesim/projects/042/svn/all_our_code/core/busybox-1.18.4'
 
     Finally, it is possible to specify a revision and branch. These are both
     handled as strings, with no defined interpretation (and are not always
@@ -65,12 +77,39 @@ class Repository(object):
     def __init__(self, base_path, co_name, prefix=None, extension=None, postfix=None,
                  inner_path=None, revision=None, branch=None):
         self.base_path = base_path
-        self.co_name = co_name,
+
+        # Work out our VCS
+        parts = base_path.split('+')
+        if len(parts) == 1 or parts[0] == '':
+            raise GiveUp('Repository base_path must be <vcs>+<url>,'
+                         ' but got "%s"'%base_path)
+
+        self.vcs = parts[0]
+        self.repo = '+'.join(parts[1:])  # we'll hope that made sense
+
+        self.co_name = co_name
         self.prefix = prefix
+        self.extension = extension
         self.postfix = postfix
         self.inner_path = inner_path
         self.revision = revision
         self.branch = branch
+
+    def __repr__(self):
+        parts = [repr(self.base_path), repr(self.co_name)]
+        if self.prefix:
+            parts.append('prefix=%s'%repr(self.prefix))
+        if self.extension:
+            parts.append('extension=%s'%repr(self.extension))
+        if self.postfix:
+            parts.append('postfix=%s'%repr(self.postfix))
+        if self.inner_path:
+            parts.append('inner_path=%s'%repr(self.inner_path))
+        if self.revision:
+            parts.append('revision=%s'%repr(self.revision))
+        if self.branch:
+            parts.append('branch=%s'%repr(self.branch))
+        return 'Repository(%s)'%(', '.join(parts))
 
     def path(self):
         """Return the repository path.
@@ -99,5 +138,11 @@ class Repository(object):
                                             google_code_git_handler)
         """
         raise NotImplementedError
+
+if __name__ == '__main__':
+    import doctest
+    doctest.testmod()
+    r = Repository('git+https://fred', 'jim', branch='99')
+    print r
 
 # vim: set tabstop=8 softtabstop=4 shiftwidth=4 expandtab:

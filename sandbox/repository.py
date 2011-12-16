@@ -74,6 +74,12 @@ class Repository(object):
     relevant to a particular VCS - see the discussion of Bazaar above).
     """
 
+    # A dictionary of specialised path handlers.
+    # Keys are of the form (vcs, starts_with), and values are handler
+    # functions that take a Repository instance as their single argument
+    # and return a value for our 'path' method to return.
+    path_handlers = {}
+
     def __init__(self, base_path, co_name, prefix=None, extension=None, postfix=None,
                  inner_path=None, revision=None, branch=None):
         self.base_path = base_path
@@ -136,13 +142,41 @@ class Repository(object):
 
             Repository.register_path_handle('git', 'https://code.google.com/p/',
                                             google_code_git_handler)
+
+        The handler is associated with both 'vcs' and 'starts_with'. Calling
+        this function again with the same 'vcs' and 'starts_with', but a
+        different 'handler', will silently override the previous entry.
         """
-        raise NotImplementedError
+        # For them moment, it's enough to use the 'starts_with' string as a
+        # discriminator. It is possible that in the future we will need to
+        # add another mechanism that calls a function to look at a Repository
+        # and decide if it needs to use a handler mechanism, but for the
+        # moment let's not do that.
+        Repository.path_handlers[(vcs, starts_with)] = handler
+
+    @staticmethod
+    def get_path_handler(vcs, starts_with):
+        """Retrieve the handler for 'vcs' and 'starts_with'.
+
+        Returns None if there isn't one (which is actually the primary
+        reason for providing this function).
+        """
+        return Repository.path_handlers.get((vcs, starts_with))
+
+def google_code_handler(repo):
+    return 'Fred'
+
+Repository.register_path_handler('git', 'https://code.google.com/p/',
+                                 google_code_handler)
 
 if __name__ == '__main__':
     import doctest
     doctest.testmod()
     r = Repository('git+https://fred', 'jim', branch='99')
     print r
+    h = Repository.get_path_handler('git', 'https://code.google.com/p/')
+    print h
+    h = Repository.get_path_handler('git', 'https://code.google.com/fred')
+    print h
 
 # vim: set tabstop=8 softtabstop=4 shiftwidth=4 expandtab:

@@ -2,6 +2,8 @@
 """A new way of handling repositories
 """
 
+import os
+
 class GiveUp(Exception):
     pass
 
@@ -14,7 +16,7 @@ class Repository(object):
       >>> r = Repository('git+ssh://git@project-server/opt/kynesim/projects/042/git/',
       ...                'builds')
       >>> r.path()
-      "ssh://git@project-server/opt/kynesim/projects/042/git/builds"
+      'ssh://git@project-server/opt/kynesim/projects/042/git/builds'
       >>> r.base_path
       'git+ssh://git@project-server/opt/kynesim/projects/042/git/'
       >>> r.co_name
@@ -40,7 +42,7 @@ class Repository(object):
       >>> r = Repository('git+ssh://git@project-server/opt/kynesim/projects/042/git/',
       ...                'busybox-1.18.5', prefix='core')
       >>> r.path()
-      'git+ssh://git@project-server/opt/kynesim/projects/042/git/core/busybox-1.18.5'
+      'ssh://git@project-server/opt/kynesim/projects/042/git/core/busybox-1.18.5'
 
     Git servers sometimes want us to put '.git' on the end of a checkout name.
     This can be done as follows:
@@ -50,6 +52,7 @@ class Repository(object):
         'git@github.com:tibs/withdir.git'
 
     (although note that github will cope with or without the '.git' at the end).
+    Note that we had to specify the '.' in '.git', it wasn't assumed.
 
     Bazaar, in particular, sometimes wants to add trailing text to the checkout
     name, commonly to indicate a branch (bzr doesn't really support branches as
@@ -68,6 +71,9 @@ class Repository(object):
       ...                'all_our_code', inner_path='core/busybox-1.18.4')
       >>> r.path()
       'ssh://svn@project-server/opt/kynesim/projects/042/svn/all_our_code/core/busybox-1.18.4'
+
+    If you specify more than one of 'extension' and 'inner_path', the result
+    is undefined.
 
     Finally, it is possible to specify a revision and branch. These are both
     handled as strings, with no defined interpretation (and are not always
@@ -122,8 +128,28 @@ class Repository(object):
 
         It is returned in a manner suitable for passing to the appropriate
         command line tool for cloning the repository.
+
+        MAYBE we should calculate this is __init__, and make it a value...
         """
-        raise NotImplementedError
+        for (vcs, starts), v in self.path_handlers.items():
+            if self.vcs == vcs and self.repo.startswith(starts):
+                raise NotImplementedError
+
+        parts = [self.repo]
+        if self.prefix:
+            parts.append(self.prefix)
+        parts.append(self.co_name)
+        if self.postfix:
+            parts.append(self.postfix)
+        # We trust and hope these next two don't clash!
+        if self.inner_path:
+            parts.append(self.inner_path)
+        result = os.path.join(*parts)
+
+        if self.extension:
+            result = '%s%s'%(result, self.extension)
+
+        return result
 
     @staticmethod
     def register_path_handler(vcs, starts_with, handler):

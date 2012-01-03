@@ -3,9 +3,12 @@
 """
 
 import os
+import re
 
 class GiveUp(Exception):
     pass
+
+branch_and_revision_re = re.compile("([^:]*):(.*)$")
 
 class Repository(object):
     """The representation of a single repository.
@@ -102,6 +105,14 @@ class Repository(object):
     Finally, it is possible to specify a revision and branch. These are both
     handled as strings, with no defined interpretation (and are not always
     relevant to a particular VCS - see the discussion of Bazaar above).
+
+    For legacy reasons, a combined form is also supported:
+
+        >>> r = Repository('git+git@github.com:tibs', 'withdir', revision='branch2:rev99')
+        >>> r.branch
+        'branch2'
+        >>> r.revision
+        'rev99'
     """
 
     # A dictionary of specialised path handlers.
@@ -127,8 +138,47 @@ class Repository(object):
         self.prefix = prefix
         self.suffix = suffix
         self.inner_path = inner_path
+
+        if revision:
+            # Subversion, for instance, has revisions that look like numbers.
+            # It is thus very tempting for people to put the revision number
+            # in *as* a number. We could, of course, normalise that into a
+            # string.
+            #
+            # However, git also uses "numbers" as revision identifiers,
+            # although they are SHA1 values, which are (large) hexadecimal
+            # numbers. If someone wrote one of those as a (hex) number, then
+            # we could, of course, transform that as well. But I don't think
+            # git would be happy being given it as a decimal value.
+            #
+            # Anyway, for various reasons which come down to "let's not try to
+            # be too clever", we shall insist on a string-ish type of thing.
+            # Which, of course, we can test by finding out if the next call
+            # falls over at us...
+
+            # Check for the legacy mechanism for specifying a branch
+            # (i.e., as a revision of "<branch>:<revision>")
+            # This will override any branch specified as an argument
+            try:
+                maybe_branch, maybe_revision = self._parse_revision(revision)
+            except TypeError:
+                raise utils.GiveUp('VCS revision value should be a string,'
+                                   ' not %s'%type(revision))
+            if branch and maybe_branch:
+                raise utils.GiveUp('VCS revision value "%s" specifies branch'
+                                   ' "%s", but branch "%s" was specified'
+                                   ' explicitly'%(revision, maybe_branch, branch))
+
+            revision = maybe_revision
+            if maybe_branch:
+                branch = maybe_branch
+
         self.revision = revision
         self.branch = branch
+
+        # TODO: should revision default to HEAD - i.e., if revision is None,
+        #       should we set it to "HEAD"? There is precedent in
+        #       version_control.py and the vcs_handler_for function
 
         # Yes, this is rather horrible...
         if handler == 'guess':
@@ -146,6 +196,26 @@ class Repository(object):
             self.repo_url = handler_fn(self)
         else:
             self.repo_url = self.default_path()
+
+    def _parse_revision(self, revision):
+        """
+        Legacy build descriptions may be passing the branch required as
+        part of the revision, i.e., as '<branch>:<revision>'. So we need
+        to support this, at least for a while.
+
+        Return <branch>, <revision>
+
+        If the given string *does* include a <branch> component, then
+        it overrides any 'branch' argument we may be given.
+        """
+        m = branch_and_revision_re.match(revision)
+        if m:
+            branch = m.group(1)
+            revision = m.group(2)
+            # No need to adjust HEAD - git uses it too.
+            return branch, revision
+        else:
+            return None, revision
 
     def __repr__(self):
         parts = [repr(self.given_path), repr(self.co_name)]

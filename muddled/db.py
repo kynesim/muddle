@@ -27,17 +27,22 @@ class Database(object):
         """
         Initialise a muddle database with the given root_path.
 
+        Useful internal values include:
+
         * root_path          - The path to the root of the build tree.
         * local_labels       - Transient labels which are asserted.
         * checkout_locations - Maps checkout_label to the directory the
           checkout is in, relative to src/ - if there's no mapping, we believe
           it's directly in src.
+        * checkout_repositories - Maps checkout_label to a Repository instance,
+          representing where it is checked out from
 
         NB: the existence of an entry in the checkout_locations dictionary
         does not necessarily imply that such a checkout exists. It may, for
         instance, have gone away during a ``builder.unify()`` operation.
         Thus it is not safe to try to deduce all of the checkout labels
-        from the keys to this dictionary.
+        from the keys to this dictionary. And the same goes for the
+        checkout_repositories dictionary.
         """
         self.root_path = root_path
         utils.ensure_dir(os.path.join(self.root_path, ".muddle"))
@@ -46,6 +51,7 @@ class Database(object):
         self.versions_repo = PathFile(self.db_file_name("VersionsRepository"))
         self.role_env = { }
         self.checkout_locations = { }
+        self.checkout_repositories = { }
 
         self.local_tags = set()
 
@@ -100,7 +106,7 @@ class Database(object):
         This is mainly checkout locations.
         """
         #print 'include domain:', other_domain_name
-        for (co_label,co_dir) in other_builder.invocation.db.checkout_locations.items():
+        for co_label, co_dir in other_builder.invocation.db.checkout_locations.items():
             #print "Including %s -> %s -- %s"%(co_label,co_dir, other_domain_name)
 
             new_label = self.normalise_checkout_label(co_label)
@@ -114,6 +120,13 @@ class Database(object):
 
             self.checkout_locations[new_label] = new_dir
 
+        for co_label, repo in other_builder.invocation.db.checkout_repositories.items():
+
+            new_label = self.normalise_checkout_label(co_label)
+            new_label._mark_unswept()
+            new_label._change_domain(other_domain_name)
+
+            self.checkout_repositories[new_label] = repo
 
     def set_domain_marker(self, domain_name):
         """
@@ -123,7 +136,6 @@ class Database(object):
         which acts as a useful flag that we *are* a (sub)domain.
         """
         utils.mark_as_domain(self.root_path, domain_name)
-
 
     def normalise_checkout_label(self, label):
         """
@@ -150,7 +162,6 @@ class Database(object):
                            domain=label.domain)
         return new
 
-
     def set_checkout_path(self, checkout_label, dir):
         assert checkout_label.type == utils.LabelType.Checkout
         key = self.normalise_checkout_label(checkout_label)
@@ -159,7 +170,6 @@ class Database(object):
 	#print '... dir',dir
 
         self.checkout_locations[key] = os.path.join('src', dir)
-
 
     def dump_checkout_paths(self):
         print "> Checkout paths .. "
@@ -196,6 +206,34 @@ class Database(object):
             raise utils.GiveUp('There is no checkout path registered for label %s'%checkout_label)
 
         return os.path.join(root, rel_dir)
+
+    def set_checkout_repo(self, checkout_label, repo):
+        assert checkout_label.type == utils.LabelType.Checkout
+        key = self.normalise_checkout_label(checkout_label)
+        self.checkout_repositories[key] = repo
+
+    def dump_checkout_repos(self):
+        print "> Checkout repositories .. "
+        keys = self.checkout_repositories.keys()
+        max = 0
+        for label in keys:
+            length = len(str(label))
+            if length > max:
+                max = length
+        keys.sort()
+        for label in keys:
+            print "%-*s -> %s"%(max, label, self.checkout_repositories[label])
+
+    def get_checkout_repo(self, checkout_label):
+        """
+        Returns the Repository instance for this checkout label
+        """
+        assert checkout_label.type == utils.LabelType.Checkout
+        key = self.normalise_checkout_label(checkout_label)
+        try:
+            return self.checkout_repositories[key]
+        except KeyError:
+            raise utils.GiveUp('There is no checkout path registered for label %s'%checkout_label)
 
     def build_desc_file_name(self):
         """

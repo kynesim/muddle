@@ -220,6 +220,39 @@ class Repository(object):
         """
         return Repository.path_handlers.get((vcs, starts_with))
 
+    def copy_with_changes(self, co_name, prefix=None, suffix=None,
+                          inner_path=None, revision=None, branch=None):
+        """Return a new instance based on this one.
+
+        A simple copy is taken, and then any amendments are made to it.
+
+        'co_name' must be given.
+
+        This is expected to be (typically) useful for working out a repository
+        relative to another (for instance, relative to the default, builds,
+        repository). For instance:
+
+            >>> r = Repository('git+ssh://git@project-server/opt/kynesim/projects/042/git/',
+            ...                'builds')
+            >>> r
+            Repository('git+ssh://git@project-server/opt/kynesim/projects/042/git/', 'builds')
+            >>> s = r.copy_with_changes('fred')
+            >>> s
+            Repository('git+ssh://git@project-server/opt/kynesim/projects/042/git/', 'fred')
+            >>> s = r.copy_with_changes('jim', suffix='bob')
+            >>> s
+            Repository('git+ssh://git@project-server/opt/kynesim/projects/042/git/', 'jim', suffix='bob')
+        """
+        # We do it this way, rather than making a copy.copy() and amending
+        # that, so that we correctly trigger any handler actions that might
+        # be necessary - a handler might be looking at any of the values
+        return Repository(self.given_path, co_name,
+                          prefix=(self.prefix if prefix is None else prefix),
+                          suffix=(self.suffix if suffix is None else suffix),
+                          inner_path=(self.inner_path if inner_path is None else inner_path),
+                          revision=(self.revision if revision is None else revision),
+                          branch=(self.branch if branch is None else branch))
+
 def google_code_handler(repo):
     if repo.vcs != 'git':
         raise GiveUp('The code.google.com handler currently only understands'

@@ -243,13 +243,18 @@ def google_code_handler(repo):
 Repository.register_path_handler('git', 'code.google.com', google_code_handler)
 
 if __name__ == '__main__':
+    print 'Running doctests'
     import doctest
-    doctest.testmod()
+    failures, tests = doctest.testmod()
+    print '{failures} failures in {tests} tests'.format(failures=failures, tests=tests)
+    print 'Running other tests'
     r = Repository('git+https://fred', 'jim', branch='99')
     print r
+    assert repr(r) == "Repository('git+https://fred', 'jim', branch='99')"
     h = Repository.get_path_handler('git', 'https://code.google.com/p/')
-    print h
+    assert h is None
     h = Repository.get_path_handler('git', 'https://code.google.com/fred')
-    print h
+    assert h is None
+    print 'OK'
 
 # vim: set tabstop=8 softtabstop=4 shiftwidth=4 expandtab:

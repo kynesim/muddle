@@ -1530,6 +1530,8 @@ class Bootstrap(Command):
         repo = args[0]
         build_name = args[1]
 
+        mechanics.check_build_name(build_name)
+
         build_desc_filename = "01.py"
         build_desc = "builds/%s"%build_desc_filename
         build_dir = os.path.join("src","builds")

@@ -18,6 +18,18 @@ import muddled.instr as instr
 from muddled.depend import Label, Action
 from muddled.utils import domain_subpath, GiveUp, MuddleBug, LabelType, LabelTag
 
+build_name_re = re.compile(r"[A-Za-z0-9_-]+")
+
+def check_build_name(name):
+    """Check a build name for legality.
+
+    Raises a GiveUp exception if the name is not allowed.
+    """
+    m = build_name_re.match(name)
+    if m is None or m.end() != len(name):
+        raise GiveUp("Build name '%s' is not allowed (it may only contain"
+                     " 'A'-'Z', 'a'-'z', '0'-'9', '_' or '-')"%name)
+
 class Invocation:
     """
     An invocation is the central muddle object. It holds the
@@ -1252,8 +1264,6 @@ class Builder(object):
 
                 self.invocation.db.set_tag(r.target)
 
-    build_name_re = re.compile(r"[A-Za-z0-9_-]+")
-
     @property
     def build_name(self):
         """
@@ -1271,9 +1281,7 @@ class Builder(object):
 
     @build_name.setter
     def build_name(self, name):
-        m = self.build_name_re.match(name)
-        if m is None or m.end() != len(name):
-            raise GiveUp("Build name '%s' is not allowed"%name)
+        check_build_name(name)
         self._build_name = name
 
 

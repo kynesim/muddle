@@ -1517,7 +1517,7 @@ class Bootstrap(Command):
         Bootstrap a build tree.
         """
 
-        if args[0] == '-subdomain':
+        if args and args[0] == '-subdomain':
             print 'You are not currently within a build tree. "-subdomain" ignored'
             args = args[1:]
 

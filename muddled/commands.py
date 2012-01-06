@@ -885,7 +885,7 @@ def build_a_kill_b(builder, labels, build_this, kill_this):
 
 def kill_labels(builder, to_kill):
     if len(to_kill) == 1:
-        print "Killing %s"%to_kill
+        print "Killing %s"%to_kill[0]
     else:
         print "Killing %d labels"%len(to_kill)
 
@@ -897,7 +897,7 @@ def kill_labels(builder, to_kill):
 
 def build_labels(builder, to_build):
     if len(to_build) == 1:
-        print "Building %s"%to_build
+        print "Building %s"%to_build[0]
     else:
         print "Building %d labels"%len(to_build)
 

@@ -3567,9 +3567,6 @@ class Reconfigure(PackageCommand):
     def build_these_labels(self, builder, labels):
         # OK. Now we have our labels, retag them, and kill them and their
         # consequents
-        # XXX just trust the required_tag?
-        ###to_kill = depend.retag_label_list(labels, LabelTag.Configured)
-        ###kill_labels(builder, to_kill)
         kill_labels(builder, labels)
         build_labels(builder, labels)
 
@@ -3624,8 +3621,8 @@ class Rebuild(PackageCommand):
 
     <package> should be a label fragment specifying a package, or one of
     _all and friends, as for any package command. The <type> defaults to
-    "package", and the package <tag> will be "/built". See "muddle help labels"
-    for more information.
+    "package", and the package <tag> will be "/postinstalled". See "muddle
+    help labels" for more information.
 
     If no packages are named, what we do depends on where we are in the
     build tree. See "muddle help labels".
@@ -3633,18 +3630,15 @@ class Rebuild(PackageCommand):
     1. For each label, clear its '/built' tag, and then clear the tags for all
        the labels that depend on it. Note that this will include the same
        label with its '/installed' and '/postinstalled' tags.
-    2. Do "muddle build" for each label.
+    2. For each label, build its '/postinstalled' tag (so essentially, do
+       the equivalent of "muddle build").
     """
-
-    required_tag = LabelTag.Built
 
     def build_these_labels(self, builder, labels):
         # OK. Now we have our labels, retag them, and kill them and their
         # consequents
-        # XXX just trust the required_tag?
-        ###to_kill = depend.retag_label_list(labels, LabelTag.Built)
-        ###kill_labels(builder, to_kill)
-        kill_labels(builder, labels)
+        to_kill = depend.retag_label_list(labels, LabelTag.Built)
+        kill_labels(builder, to_kill)
         build_labels(builder, labels)
 
 @command('reinstall', CAT_PACKAGE)
@@ -3656,8 +3650,8 @@ class Reinstall(PackageCommand):
 
     <package> should be a label fragment specifying a package, or one of
     _all and friends, as for any package command. The <type> defaults to
-    "package", and the package <tag> will be "/installed". See "muddle help
-    labels" for more information.
+    "package", and the package <tag> will be "/postinstalled". See "muddle
+    help labels" for more information.
 
     If no packages are named, what we do depends on where we are in the
     build tree. See "muddle help labels".
@@ -3665,18 +3659,15 @@ class Reinstall(PackageCommand):
     1. For each label, clear its '/installed' tag, and then clear the tags for
        all the labels that depend on it. Note that this will include the same
        label with its '/postinstalled' tag.
-    2. Do "muddle install" for each label.
+    2. For each label, build its '/postinstalled' tag (so essentially, do
+       the equivalent of "muddle build").
     """
-
-    required_tag = LabelTag.Installed
 
     def build_these_labels(self, builder, labels):
         # OK. Now we have our labels, retag them, and kill them and their
         # consequents
-        # XXX just trust the required_tag?
-        ###to_kill = depend.retag_label_list(labels, LabelTag.Installed)
-        ###kill_labels(builder, to_kill)
-        kill_labels(builder, labels)
+        to_kill = depend.retag_label_list(labels, LabelTag.Installed)
+        kill_labels(builder, to_kill)
         build_labels(builder, labels)
 
 @command('distrebuild', CAT_PACKAGE)

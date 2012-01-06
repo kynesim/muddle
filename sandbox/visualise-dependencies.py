@@ -202,7 +202,12 @@ def process(goals):
 	full_goals = []
 	for g in goals:
 		labels = gbuilder.invocation.label_from_fragment(g, default_type=LabelType.Package)
-		full_goals.extend(map(str, labels))
+		for label in labels:
+			if gbuilder.invocation.target_label_exists(label):
+				full_goals.append(str(label))
+
+	if not full_goals:
+		raise GiveUp("None of the given goals %s is a target"%(map(str, goals)))
 
 	for g in full_goals:
 		Node(g, isGoal=True, extras="shape=parallelogram")

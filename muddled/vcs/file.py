@@ -17,7 +17,7 @@ class File(VersionControlSystem):
         self.short_name = 'file'
         self.long_name = 'FileSystem'
 
-    def init_directory(self, verbose=True):
+    def init_directory(self, repo, verbose=True):
         """
         If the directory does not appear to have had '<vcs> init' run in it,
         then do so first.
@@ -26,7 +26,7 @@ class File(VersionControlSystem):
         """
         pass
 
-    def add_files(self, files=None, verbose=True):
+    def add_files(self, repo, files=None, verbose=True):
         """
         If files are given, add them, but do not commit.
 
@@ -34,7 +34,7 @@ class File(VersionControlSystem):
         """
         pass
 
-    def checkout(self, repo, co_leaf, options, branch=None, revision=None, verbose=True):
+    def checkout(self, repo, co_leaf, options, verbose=True):
         """
         Clone a given checkout.
 
@@ -42,52 +42,52 @@ class File(VersionControlSystem):
 
         Expected to create a directory called <co_leaf> therein.
         """
-        if revision and revision != 'HEAD':
+        if repo.revision and repo.revision != 'HEAD':
             raise utils.GiveUp("File does not support the 'revision' argument to"
-                               " 'checkout' (revision='%s'"%revision)
-        if branch:
+                               " 'checkout' (revision='%s'"%repo.revision)
+        if repo.branch:
             raise utils.GiveUp("File does not support the 'branch' argument to"
-                               " 'checkout' (branch='%s'"%branch)
-        parsed = urlparse.urlparse(repo)
+                               " 'checkout' (branch='%s'"%repo.branch)
+        parsed = urlparse.urlparse(repo.url)
         source_path = parsed.path
 
         utils.recursively_copy(source_path, co_leaf, preserve=True)
 
-    def fetch(self, repo, options, branch=None, revision=None, verbose=True):
+    def fetch(self, repo, options, verbose=True):
         """
         Will be called in the actual checkout's directory.
 
         Just copies everything again.
         """
-        if revision and revision != 'HEAD':
+        if repo.revision and repo.revision != 'HEAD':
             raise utils.GiveUp("File does not support the 'revision' argument to"
-                               " 'fetch' (revision='%s'"%revision)
-        if branch:
+                               " 'fetch' (revision='%s'"%repo.revision)
+        if repo.branch:
             raise utils.GiveUp("File does not support the 'branch' argument to"
-                               " 'fetch' (branch='%s'"%branch)
+                               " 'fetch' (branch='%s'"%repo.branch)
         self.checkout(repo, os.curdir, verbose=verbose)
 
-    def merge(self, other_repo, options, branch=None, revision=None, verbose=True):
+    def merge(self, other_repo, options, verbose=True):
         """
         Merge 'other_repo' into the local repository and working tree,
 
         Just copies everything again. This is an imperfect sort of "merge".
         """
-        if revision and revision != 'HEAD':
+        if repo.revision and repo.revision != 'HEAD':
             raise utils.GiveUp("File does not support the 'revision' argument to"
-                               " 'merge' (revision='%s'"%revision)
-        if branch:
+                               " 'merge' (revision='%s'"%repo.revision)
+        if repo.branch:
             raise utils.GiveUp("File does not support the 'branch' argument to"
-                               " 'merge' (branch='%s'"%branch)
+                               " 'merge' (branch='%s'"%repo.branch)
         self.checkout(other_repo, os.curdir, verbose=verbose)
 
-    def commit(self, options, verbose=True):
+    def commit(self, repo, options, verbose=True):
         """
         Will be called in the actual checkout's directory.
         """
         pass
 
-    def push(self, repo, options, branch=None, verbose=True):
+    def push(self, repo, options, verbose=True):
         """
         Will be called in the actual checkout's directory.
 
@@ -105,7 +105,7 @@ class File(VersionControlSystem):
     def reparent(self, co_dir, remote_repo, options, force=False, verbose=True):
         pass
 
-    def revision_to_checkout(self, co_leaf, orig_revision, options, force=False, verbose=False):
+    def revision_to_checkout(self, repo, co_leaf, options, force=False, verbose=False):
         """
         Determine a revision id for this checkout, usable to check it out again.
         """

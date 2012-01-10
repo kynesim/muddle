@@ -320,6 +320,18 @@ class Repository(object):
             >>> s = r.copy_with_changes('jim', suffix='bob')
             >>> s
             Repository('git', 'ssh://git@project-server/opt/kynesim/projects/042/git/', 'jim', suffix='bob')
+
+        Thus it does *not* default to using the branch or revision from the
+        original object:
+
+            >>> x = Repository('git', 'ssh://git@project-server/opt/kynesim/projects/042/git/',
+            ...                'builds', revision='123', branch='fred')
+            >>> x
+            Repository('git', 'ssh://git@project-server/opt/kynesim/projects/042/git/', 'builds', revision='123', branch='fred')
+            >>> x.copy_with_changes('jim')
+            Repository('git', 'ssh://git@project-server/opt/kynesim/projects/042/git/', 'jim')
+            >>> x.copy_with_changes('jim', branch='thrim')
+            Repository('git', 'ssh://git@project-server/opt/kynesim/projects/042/git/', 'jim', branch='thrim')
         """
         # We do it this way, rather than making a copy.copy() and amending
         # that, so that we correctly trigger any handler actions that might
@@ -328,8 +340,8 @@ class Repository(object):
                           prefix=(self.prefix if prefix is None else prefix),
                           suffix=(self.suffix if suffix is None else suffix),
                           inner_path=(self.inner_path if inner_path is None else inner_path),
-                          revision=(self.revision if revision is None else revision),
-                          branch=(self.branch if branch is None else branch))
+                          revision=revision,
+                          branch=branch)
 
 def google_code_handler(repo):
     if repo.vcs != 'git':

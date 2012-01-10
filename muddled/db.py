@@ -105,27 +105,34 @@ class Database(object):
 
         This is mainly checkout locations.
         """
+
+        other_db = other_builder.invocation.db
+
+        # Both checkout_xxx dictionaries *should* have identical sets of keys,
+        # but just in case...
+        keys = set()
+        keys.update(other_db.checkout_locations.keys())
+        keys.update(other_db.checkout_repositories.keys())
+
+        # We really only want to transform the key labels once for both
+        # dictionaries
+        new_labels = {}
+        for co_label in keys:
+            new_co_label = self.normalise_checkout_label(co_label)
+            new_co_label._mark_unswept()
+            new_co_label._change_domain(other_domain_name)
+            new_labels[co_label] = new_co_label
+
         #print 'include domain:', other_domain_name
-        for co_label, co_dir in other_builder.invocation.db.checkout_locations.items():
+        for co_label, co_dir in other_db.checkout_locations.items():
             #print "Including %s -> %s -- %s"%(co_label,co_dir, other_domain_name)
-
-            new_label = self.normalise_checkout_label(co_label)
-            new_label._mark_unswept()
-            new_label._change_domain(other_domain_name)
-
-            new_dir = os.path.join(utils.domain_subpath(other_domain_name),
-                                   co_dir)
-
+            new_label = new_labels[co_label]
+            new_dir = os.path.join(utils.domain_subpath(other_domain_name), co_dir)
             #print "          %s -> %s"%(new_label, new_dir)
-
             self.checkout_locations[new_label] = new_dir
 
-        for co_label, repo in other_builder.invocation.db.checkout_repositories.items():
-
-            new_label = self.normalise_checkout_label(co_label)
-            new_label._mark_unswept()
-            new_label._change_domain(other_domain_name)
-
+        for co_label, repo in other_db.checkout_repositories.items():
+            new_label = new_labels[co_label]
             self.checkout_repositories[new_label] = repo
 
     def set_domain_marker(self, domain_name):

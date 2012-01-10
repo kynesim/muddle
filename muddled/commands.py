@@ -634,7 +634,7 @@ class PackageCommand(CPDCommand):
             elif label.type in (LabelType.Deployment):
                 # If they specified a deployment label, then find all the
                 # packages that depend on this deployment.
-                if False:
+                if True:
                     # Here I think we definitely want any depth of dependency.
                     # XXX I don't think we need to specify useMatch=True, because we
                     # XXX should already have expanded any wildcards

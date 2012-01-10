@@ -780,7 +780,10 @@ class Builder(object):
         # for instance). This is most easily taken from the location
         # of *this* module, as we're running it.
         self.muddled_dir = os.path.split(os.path.abspath(__file__))[0]
+
+        # XXX Check the utility of this
         self.default_domain = default_domain
+
         if (domain_params is None):
             self.domain_params = { }
         else:
@@ -795,6 +798,10 @@ class Builder(object):
         build_desc = inv.db.build_desc.get()
         build_fname = os.path.split(build_desc)[1]
         self._build_name = os.path.splitext(build_fname)[0]
+
+        # It's useful to know our build description's Repository
+        # Should this be kept in our Invocation?
+        self.build_desc_repo = None
 
 
     def get_subdomain_parameters(self, domain):
@@ -930,8 +937,10 @@ class Builder(object):
         # descriptions have to be simple top-level repositories at the
         # base_url location, named by their checkout name.
         repo = Repository(vcs, base_url, build_co_name)
-        # Remember it for later on
+        # Remember it for later on - both as a normal checkout
         self.invocation.db.set_checkout_repo(checkout_label, repo)
+        # and also specifically as the "default" repository
+        self.build_desc_repo = repo
 
         vcs_handler = version_control.vcs_handler_for(self,
                                                       checkout_label,

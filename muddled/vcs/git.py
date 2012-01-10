@@ -294,7 +294,7 @@ class Git(VersionControlSystem):
                 text))
         return revision.strip()
 
-    def revision_to_checkout(self, repo, co_leaf, orig_revision, options, force=False, verbose=True):
+    def revision_to_checkout(self, repo, co_leaf, options, force=False, verbose=True):
         """
         Determine a revision id for this checkout, usable to check it out again.
 
@@ -315,6 +315,11 @@ class Git(VersionControlSystem):
 
         # NB: this is actually a broken solution to a broken problem, as
         # our git support is probably not terribly well designed.
+
+        if repo.revision:
+            orig_revision = repo.revision
+        else:
+            orig_revision = 'HEAD'
 
         retcode, text, ignore = utils.get_cmd_data('git status', fail_nonzero=False)
         text = text.strip()

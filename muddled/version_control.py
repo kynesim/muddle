@@ -105,7 +105,7 @@ class VersionControlSystem(object):
             print "Re-associating checkout '%s' with remote repository:" \
                     " %s does not support 'reparent'"%(co_leaf, self.short_name)
 
-    def revision_to_checkout(self, repo, co_leaf, orig_revision, options, force=False, verbose=True):
+    def revision_to_checkout(self, repo, co_leaf, options, force=False, verbose=True):
         """
         TODO: Is 'co_leaf' (used for reporting problems) the best thing to
         pass down? It shouldn't be too long, so the entire directory path

@@ -680,9 +680,6 @@ def vcs_action_for(builder, co_label, repo, rev, rest, co_dir = None, co_leaf = 
 
     return pkg.VcsCheckoutBuilder(co_label.name, handler)
 
-# XXX For legacy reasons
-vcs_dependable_for = vcs_action_for
-
 def split_vcs_url(url):
     """
     Split a URL into a vcs and a repository URL. If there's no VCS

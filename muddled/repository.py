@@ -13,43 +13,41 @@ branch_and_revision_re = re.compile("([^:]*):(.*)$")
 class Repository(object):
     """The representation of a single repository.
 
-    At minimum, a repository is specified by a base path, and a checkout name.
-    For instance:
+    At minimum, a repository is specified by a VCS, a base URL, and a checkout
+    name. For instance:
 
-      >>> r = Repository('git+ssh://git@project-server/opt/kynesim/projects/042/git/',
+      >>> r = Repository('git', 'ssh://git@project-server/opt/kynesim/projects/042/git/',
       ...                'builds')
+      >>> r.given_url
+      'ssh://git@project-server/opt/kynesim/projects/042/git/'
       >>> r.repo_url
       'ssh://git@project-server/opt/kynesim/projects/042/git/builds'
-      >>> r.given_path
-      'git+ssh://git@project-server/opt/kynesim/projects/042/git/'
       >>> r.co_name
       'builds'
       >>> r.vcs
       'git'
-      >>> r.repo
-      'ssh://git@project-server/opt/kynesim/projects/042/git/'
 
     Note that it is possible for some project hosts to be treated differently
     - for instance, we have a built-in rule for google code projects:
 
-      >>> g1 = Repository('git+https://code.google.com/p/grump', 'default')
+      >>> g1 = Repository('git', 'https://code.google.com/p/grump', 'default')
       >>> g1.repo_url
       'https://code.google.com/p/grump'
-      >>> g2 = Repository('git+https://code.google.com/p/grump', 'wiki')
+      >>> g2 = Repository('git', 'https://code.google.com/p/grump', 'wiki')
       >>> g2.repo_url
       'https://code.google.com/p/grump.wiki'
 
     which is detected automatically, and the appropriate handler used. If we
     don't want that, we can explicitly say so:
 
-      >>> g3 = Repository('git+https://code.google.com/p/grump', 'default',
+      >>> g3 = Repository('git', 'https://code.google.com/p/grump', 'default',
       ...                 handler=None)
       >>> g3.repo_url
       'https://code.google.com/p/grump/default'
 
     or we can ask for it explicitly by name:
 
-      >>> g4 = Repository('git+https://code.google.com/p/grump', 'default',
+      >>> g4 = Repository('git', 'https://code.google.com/p/grump', 'default',
       ...                 handler='code.google.com')
       >>> g4.repo_url
       'https://code.google.com/p/grump'
@@ -64,8 +62,10 @@ class Repository(object):
     Sometimes, we need some extra "path" between the repository base path and
     the checkout name. For instance:
 
-      >>> r = Repository('git+ssh://git@project-server/opt/kynesim/projects/042/git/',
+      >>> r = Repository('git', 'ssh://git@project-server/opt/kynesim/projects/042/git/',
       ...                'busybox-1.18.5', prefix='core')
+      >>> r.given_url
+      'ssh://git@project-server/opt/kynesim/projects/042/git/'
       >>> r.repo_url
       'ssh://git@project-server/opt/kynesim/projects/042/git/core/busybox-1.18.5'
 
@@ -74,7 +74,7 @@ class Repository(object):
     such, but instead sometimes uses conventions on how different repositories
     are named). So, for instance:
 
-      >>> r = Repository('bzr+ssh://bzr@project-server/opt/kynesim/projects/042/bzr/',
+      >>> r = Repository('bzr', 'ssh://bzr@project-server/opt/kynesim/projects/042/bzr/',
       ...                'repo42', suffix='/fixit_branch')
       >>> r.repo_url
       'ssh://bzr@project-server/opt/kynesim/projects/042/bzr/repo42/fixit_branch'
@@ -84,7 +84,7 @@ class Repository(object):
     Git servers sometimes want us to put '.git' on the end of a checkout name.
     This can be done using the same mechanism:
 
-        >>> r = Repository('git+git@github.com:tibs', 'withdir', suffix='.git')
+        >>> r = Repository('git', 'git@github.com:tibs', 'withdir', suffix='.git')
         >>> r.repo_url
         'git@github.com:tibs/withdir.git'
 
@@ -94,7 +94,7 @@ class Repository(object):
     Subversion allows retrieving *part* of a repository, by specifying the
     internal path leading to the entity to be retrieved. So, for instance:
 
-      >>> r = Repository('svn+ssh://svn@project-server/opt/kynesim/projects/042/svn/',
+      >>> r = Repository('svn', 'ssh://svn@project-server/opt/kynesim/projects/042/svn/',
       ...                'all_our_code', inner_path='core/busybox-1.18.4')
       >>> r.repo_url
       'ssh://svn@project-server/opt/kynesim/projects/042/svn/all_our_code/core/busybox-1.18.4'
@@ -108,7 +108,7 @@ class Repository(object):
 
     For legacy reasons, a combined form is also supported:
 
-        >>> r = Repository('git+git@github.com:tibs', 'withdir', revision='branch2:rev99')
+        >>> r = Repository('git', 'git@github.com:tibs', 'withdir', revision='branch2:rev99')
         >>> r.branch
         'branch2'
         >>> r.revision
@@ -121,18 +121,10 @@ class Repository(object):
     # and return a value for our 'path' method to return.
     path_handlers = {}
 
-    def __init__(self, given_path, co_name, prefix=None, suffix=None,
+    def __init__(self, vcs, given_url, co_name, prefix=None, suffix=None,
                  inner_path=None, revision=None, branch=None, handler='guess'):
-        self.given_path = given_path
-
-        # Work out our VCS
-        parts = given_path.split('+')
-        if len(parts) == 1 or parts[0] == '':
-            raise GiveUp('Repository given_path must be <vcs>+<url>,'
-                         ' but got "%s"'%given_path)
-
-        self.vcs = parts[0]
-        self.repo = '+'.join(parts[1:])  # we'll hope that made sense
+        self.vcs = vcs
+        self.given_url = given_url
 
         self.co_name = co_name
         self.prefix = prefix
@@ -182,7 +174,7 @@ class Repository(object):
 
         # Yes, this is rather horrible...
         if handler == 'guess':
-            if self.vcs == 'git' and self.repo.startswith('https://code.google.com/p/'):
+            if self.vcs == 'git' and self.given_url.startswith('https://code.google.com/p/'):
                 handler = 'code.google.com'
             else:
                 handler = None
@@ -218,7 +210,7 @@ class Repository(object):
             return None, revision
 
     def __repr__(self):
-        parts = [repr(self.given_path), repr(self.co_name)]
+        parts = [repr(self.vcs), repr(self.given_url), repr(self.co_name)]
         if self.prefix:
             parts.append('prefix=%s'%repr(self.prefix))
         if self.suffix:
@@ -237,7 +229,7 @@ class Repository(object):
         It is returned in a manner suitable for passing to the appropriate
         command line tool for cloning the repository.
         """
-        parts = [self.repo]
+        parts = [self.given_url]
         if self.prefix:
             parts.append(self.prefix)
         parts.append(self.co_name)
@@ -257,7 +249,7 @@ class Repository(object):
 
         * 'vcs' is the short name of the VCS we're interested in, as returned
           by split_vcs_url().
-        * 'starts_with' is what a repository 'given_path' must start with in
+        * 'starts_with' is what a repository 'given_url' must start with in
           order for us to use the handler
         * 'handler' is a function that takes a Repository instance and
           returns a path suitable for putting into the Repository instance's
@@ -302,21 +294,21 @@ class Repository(object):
         relative to another (for instance, relative to the default, builds,
         repository). For instance:
 
-            >>> r = Repository('git+ssh://git@project-server/opt/kynesim/projects/042/git/',
+            >>> r = Repository('git', 'ssh://git@project-server/opt/kynesim/projects/042/git/',
             ...                'builds')
             >>> r
-            Repository('git+ssh://git@project-server/opt/kynesim/projects/042/git/', 'builds')
+            Repository('git', 'ssh://git@project-server/opt/kynesim/projects/042/git/', 'builds')
             >>> s = r.copy_with_changes('fred')
             >>> s
-            Repository('git+ssh://git@project-server/opt/kynesim/projects/042/git/', 'fred')
+            Repository('git', 'ssh://git@project-server/opt/kynesim/projects/042/git/', 'fred')
             >>> s = r.copy_with_changes('jim', suffix='bob')
             >>> s
-            Repository('git+ssh://git@project-server/opt/kynesim/projects/042/git/', 'jim', suffix='bob')
+            Repository('git', 'ssh://git@project-server/opt/kynesim/projects/042/git/', 'jim', suffix='bob')
         """
         # We do it this way, rather than making a copy.copy() and amending
         # that, so that we correctly trigger any handler actions that might
         # be necessary - a handler might be looking at any of the values
-        return Repository(self.given_path, co_name,
+        return Repository(self.vcs, self.given_url, co_name,
                           prefix=(self.prefix if prefix is None else prefix),
                           suffix=(self.suffix if suffix is None else suffix),
                           inner_path=(self.inner_path if inner_path is None else inner_path),
@@ -339,9 +331,9 @@ def google_code_handler(repo):
                      ' inner_path value, in %s'%repo)
 
     if repo.co_name == 'default':
-        return repo.repo
+        return repo.given_url
     else:
-        return '%s.%s'%(repo.repo, repo.co_name)
+        return '%s.%s'%(repo.given_url, repo.co_name)
 
 Repository.register_path_handler('git', 'code.google.com', google_code_handler)
 
@@ -351,9 +343,9 @@ if __name__ == '__main__':
     failures, tests = doctest.testmod()
     print '{failures} failures in {tests} tests'.format(failures=failures, tests=tests)
     print 'Running other tests'
-    r = Repository('git+https://fred', 'jim', branch='99')
+    r = Repository('git', 'https://fred', 'jim', branch='99')
     print r
-    assert repr(r) == "Repository('git+https://fred', 'jim', branch='99')"
+    assert repr(r) == "Repository('git', 'https://fred', 'jim', branch='99')"
     h = Repository.get_path_handler('git', 'https://code.google.com/p/')
     assert h is None
     h = Repository.get_path_handler('git', 'https://code.google.com/fred')

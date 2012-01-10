@@ -17,6 +17,7 @@ import muddled.instr as instr
 
 from muddled.depend import Label, Action
 from muddled.utils import domain_subpath, GiveUp, MuddleBug, LabelType, LabelTag
+from muddled.repository import Repository
 
 build_name_re = re.compile(r"[A-Za-z0-9_-]+")
 
@@ -52,7 +53,7 @@ class Invocation:
         * self.banned_roles - An array of pairs of role1,d1,role2,d2 which aren't allowed
                              to share libraries.
         * self.domain_params - Maps domain names to dictionaries storing
-                              parameters that other domains can retrieve. This
+                               parameters that other domains can retrieve. This
                                is used to communicate values from a build to
                                its subdomains.
         """
@@ -901,47 +902,59 @@ class Builder(object):
         Returns True on success, False on failure.
         """
 
+        # The build description is a bit odd, but we still set it up as a
+        # normal checkout (albeit we check it out ourselves)
 
         co_path = self.invocation.build_co_and_path()
         if (co_path is None):
             return False
 
-        (desc_co, desc_path) = co_path
+        # That gives us the checkout name (assumed the first element of the
+        # path we were given in the .muddled/Description file), and where we
+        # keep our build description therein
+        (build_co_name, build_desc_path) = co_path
 
-        # Essentially, we register the build as a perfectly normal checkout
-        # but add a dependency of loaded on checked_out and then build it ..
+        checkout_label = Label(LabelType.Checkout, build_co_name)
 
-        checkout_label = Label(LabelType.Checkout, desc_co)
+        # Remember its checkout location in the normal manner
+        self.invocation.db.set_checkout_path(checkout_label, build_co_name)
 
-        # Even though the build description is a bit odd, we might as well
-        # remember its checkout location in the normal manner
-        self.invocation.db.set_checkout_path(checkout_label, desc_co)
+        # And we're going to want its Repository later on, to use as the basis
+        # for other (relative) checkouts
+        build_desc = self.invocation.db.build_desc.get()
+        build_repo = self.invocation.db.repo.get()
+        vcs, base_url = split_vcs_url(build_repo)
+
+        # For the moment (and always as default) we just use the simplest
+        # possible interpretation of that as a repository - i.e., build
+        # descriptions have to be simple top-level repositories at the
+        # base_url location, named by their checkout name.
+        repo = Repository(vcs, base_url, build_co_name)
+        # Remember it for later on
+        self.invocation.db.set_checkout_repo(checkout_label, repo)
 
         vcs_handler = version_control.vcs_handler_for(self,
                                                       checkout_label,
-                                                      desc_co,
-                                                      self.invocation.db.repo.get(),
-                                                      "HEAD",
-                                                      desc_co)
+                                                      build_co_name,
+                                                      repo,
+                                                      build_co_name)
 
         # This is a perfectly normal build ..
-        vcs = pkg.VcsCheckoutBuilder(desc_co, vcs_handler)
+        vcs = pkg.VcsCheckoutBuilder(build_co_name, vcs_handler)
         pkg.add_checkout_rules(self.invocation.ruleset, checkout_label, vcs)
 
         # But we want to load it once we've checked it out...
-        checked_out = Label(LabelType.Checkout, desc_co, None,
-                            LabelTag.CheckedOut, system = True)
+        checked_out = Label(LabelType.Checkout, build_co_name, None,
+                            LabelTag.CheckedOut, system=True)
 
-        loaded = checked_out.copy_with_tag(LabelTag.Loaded, system = True, transient = True)
-
+        loaded = checked_out.copy_with_tag(LabelTag.Loaded, system=True, transient=True)
         loader = BuildDescriptionAction(self.invocation.db.build_desc_file_name(),
-                                            desc_co)
-        self.invocation.ruleset.add(depend.depend_one(loader,
-                                                      loaded, checked_out))
+                                        build_co_name)
+        self.invocation.ruleset.add(depend.depend_one(loader, loaded, checked_out))
 
         # .. and load the build description.
         try:
-            self.build_label(loaded, silent = True)
+            self.build_label(loaded, silent=True)
         except Exception:
             raise GiveUp('Error in build description\n%s'%traceback.format_exc())
 

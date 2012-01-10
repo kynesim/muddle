@@ -18,14 +18,30 @@ class Repository(object):
 
       >>> r = Repository('git', 'ssh://git@project-server/opt/kynesim/projects/042/git/',
       ...                'builds')
-      >>> r.given_url
-      'ssh://git@project-server/opt/kynesim/projects/042/git/'
-      >>> r.repo_url
-      'ssh://git@project-server/opt/kynesim/projects/042/git/builds'
-      >>> r.co_name
-      'builds'
+
+    As you might expect, it remembers what you told it:
+
       >>> r.vcs
       'git'
+      >>> r.base_url
+      'ssh://git@project-server/opt/kynesim/projects/042/git/'
+      >>> r.co_name
+      'builds'
+
+    but it also calculates the full URL for accessing the repository:
+
+      >>> r.repo_url
+      'ssh://git@project-server/opt/kynesim/projects/042/git/builds'
+
+    (this is calculated when the object is created because it is expected to
+    be queried many times, and a Repository object is intended to be treated
+    as immutable, even though we don't *enforce* that).
+
+        Why do we split the repository into a base URL and a checkout name?
+        Mainly because we assume that we are going to have more than one
+        repository with the same base URL, so we can use the
+        ``copy_with_changes`` method to construct new instances without
+        having to constantly propagate the base URL explicitly.
 
     Note that it is possible for some project hosts to be treated differently
     - for instance, we have a built-in rule for google code projects:
@@ -64,7 +80,7 @@ class Repository(object):
 
       >>> r = Repository('git', 'ssh://git@project-server/opt/kynesim/projects/042/git/',
       ...                'busybox-1.18.5', prefix='core')
-      >>> r.given_url
+      >>> r.base_url
       'ssh://git@project-server/opt/kynesim/projects/042/git/'
       >>> r.repo_url
       'ssh://git@project-server/opt/kynesim/projects/042/git/core/busybox-1.18.5'
@@ -121,10 +137,10 @@ class Repository(object):
     # and return a value for our 'path' method to return.
     path_handlers = {}
 
-    def __init__(self, vcs, given_url, co_name, prefix=None, suffix=None,
+    def __init__(self, vcs, base_url, co_name, prefix=None, suffix=None,
                  inner_path=None, revision=None, branch=None, handler='guess'):
         self.vcs = vcs
-        self.given_url = given_url
+        self.base_url = base_url
 
         self.co_name = co_name
         self.prefix = prefix
@@ -174,7 +190,7 @@ class Repository(object):
 
         # Yes, this is rather horrible...
         if handler == 'guess':
-            if self.vcs == 'git' and self.given_url.startswith('https://code.google.com/p/'):
+            if self.vcs == 'git' and self.base_url.startswith('https://code.google.com/p/'):
                 handler = 'code.google.com'
             else:
                 handler = None
@@ -210,7 +226,7 @@ class Repository(object):
             return None, revision
 
     def __repr__(self):
-        parts = [repr(self.vcs), repr(self.given_url), repr(self.co_name)]
+        parts = [repr(self.vcs), repr(self.base_url), repr(self.co_name)]
         if self.prefix:
             parts.append('prefix=%s'%repr(self.prefix))
         if self.suffix:
@@ -229,7 +245,7 @@ class Repository(object):
         It is returned in a manner suitable for passing to the appropriate
         command line tool for cloning the repository.
         """
-        parts = [self.given_url]
+        parts = [self.base_url]
         if self.prefix:
             parts.append(self.prefix)
         parts.append(self.co_name)
@@ -249,7 +265,7 @@ class Repository(object):
 
         * 'vcs' is the short name of the VCS we're interested in, as returned
           by split_vcs_url().
-        * 'starts_with' is what a repository 'given_url' must start with in
+        * 'starts_with' is what a repository 'base_url' must start with in
           order for us to use the handler
         * 'handler' is a function that takes a Repository instance and
           returns a path suitable for putting into the Repository instance's
@@ -308,7 +324,7 @@ class Repository(object):
         # We do it this way, rather than making a copy.copy() and amending
         # that, so that we correctly trigger any handler actions that might
         # be necessary - a handler might be looking at any of the values
-        return Repository(self.vcs, self.given_url, co_name,
+        return Repository(self.vcs, self.base_url, co_name,
                           prefix=(self.prefix if prefix is None else prefix),
                           suffix=(self.suffix if suffix is None else suffix),
                           inner_path=(self.inner_path if inner_path is None else inner_path),
@@ -331,9 +347,9 @@ def google_code_handler(repo):
                      ' inner_path value, in %s'%repo)
 
     if repo.co_name == 'default':
-        return repo.given_url
+        return repo.base_url
     else:
-        return '%s.%s'%(repo.given_url, repo.co_name)
+        return '%s.%s'%(repo.base_url, repo.co_name)
 
 Repository.register_path_handler('git', 'code.google.com', google_code_handler)
 

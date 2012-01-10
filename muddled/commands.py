@@ -885,7 +885,7 @@ def build_a_kill_b(builder, labels, build_this, kill_this):
 
 def kill_labels(builder, to_kill):
     if len(to_kill) == 1:
-        print "Killing %s"%to_kill
+        print "Killing %s"%to_kill[0]
     else:
         print "Killing %d labels"%len(to_kill)
 
@@ -897,7 +897,7 @@ def kill_labels(builder, to_kill):
 
 def build_labels(builder, to_build):
     if len(to_build) == 1:
-        print "Building %s"%to_build
+        print "Building %s"%to_build[0]
     else:
         print "Building %d labels"%len(to_build)
 
@@ -1517,7 +1517,7 @@ class Bootstrap(Command):
         Bootstrap a build tree.
         """
 
-        if args[0] == '-subdomain':
+        if args and args[0] == '-subdomain':
             print 'You are not currently within a build tree. "-subdomain" ignored'
             args = args[1:]
 
@@ -1529,6 +1529,8 @@ class Bootstrap(Command):
 
         repo = args[0]
         build_name = args[1]
+
+        mechanics.check_build_name(build_name)
 
         build_desc_filename = "01.py"
         build_desc = "builds/%s"%build_desc_filename
@@ -3565,9 +3567,6 @@ class Reconfigure(PackageCommand):
     def build_these_labels(self, builder, labels):
         # OK. Now we have our labels, retag them, and kill them and their
         # consequents
-        # XXX just trust the required_tag?
-        ###to_kill = depend.retag_label_list(labels, LabelTag.Configured)
-        ###kill_labels(builder, to_kill)
         kill_labels(builder, labels)
         build_labels(builder, labels)
 
@@ -3622,8 +3621,8 @@ class Rebuild(PackageCommand):
 
     <package> should be a label fragment specifying a package, or one of
     _all and friends, as for any package command. The <type> defaults to
-    "package", and the package <tag> will be "/built". See "muddle help labels"
-    for more information.
+    "package", and the package <tag> will be "/postinstalled". See "muddle
+    help labels" for more information.
 
     If no packages are named, what we do depends on where we are in the
     build tree. See "muddle help labels".
@@ -3631,18 +3630,15 @@ class Rebuild(PackageCommand):
     1. For each label, clear its '/built' tag, and then clear the tags for all
        the labels that depend on it. Note that this will include the same
        label with its '/installed' and '/postinstalled' tags.
-    2. Do "muddle build" for each label.
+    2. For each label, build its '/postinstalled' tag (so essentially, do
+       the equivalent of "muddle build").
     """
-
-    required_tag = LabelTag.Built
 
     def build_these_labels(self, builder, labels):
         # OK. Now we have our labels, retag them, and kill them and their
         # consequents
-        # XXX just trust the required_tag?
-        ###to_kill = depend.retag_label_list(labels, LabelTag.Built)
-        ###kill_labels(builder, to_kill)
-        kill_labels(builder, labels)
+        to_kill = depend.retag_label_list(labels, LabelTag.Built)
+        kill_labels(builder, to_kill)
         build_labels(builder, labels)
 
 @command('reinstall', CAT_PACKAGE)
@@ -3654,8 +3650,8 @@ class Reinstall(PackageCommand):
 
     <package> should be a label fragment specifying a package, or one of
     _all and friends, as for any package command. The <type> defaults to
-    "package", and the package <tag> will be "/installed". See "muddle help
-    labels" for more information.
+    "package", and the package <tag> will be "/postinstalled". See "muddle
+    help labels" for more information.
 
     If no packages are named, what we do depends on where we are in the
     build tree. See "muddle help labels".
@@ -3663,18 +3659,15 @@ class Reinstall(PackageCommand):
     1. For each label, clear its '/installed' tag, and then clear the tags for
        all the labels that depend on it. Note that this will include the same
        label with its '/postinstalled' tag.
-    2. Do "muddle install" for each label.
+    2. For each label, build its '/postinstalled' tag (so essentially, do
+       the equivalent of "muddle build").
     """
-
-    required_tag = LabelTag.Installed
 
     def build_these_labels(self, builder, labels):
         # OK. Now we have our labels, retag them, and kill them and their
         # consequents
-        # XXX just trust the required_tag?
-        ###to_kill = depend.retag_label_list(labels, LabelTag.Installed)
-        ###kill_labels(builder, to_kill)
-        kill_labels(builder, labels)
+        to_kill = depend.retag_label_list(labels, LabelTag.Installed)
+        kill_labels(builder, to_kill)
         build_labels(builder, labels)
 
 @command('distrebuild', CAT_PACKAGE)

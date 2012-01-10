@@ -30,7 +30,7 @@ class Repository(object):
 
     but it also calculates the full URL for accessing the repository:
 
-      >>> r.repo_url
+      >>> r.url
       'ssh://git@project-server/opt/kynesim/projects/042/git/builds'
 
     (this is calculated when the object is created because it is expected to
@@ -47,10 +47,10 @@ class Repository(object):
     - for instance, we have a built-in rule for google code projects:
 
       >>> g1 = Repository('git', 'https://code.google.com/p/grump', 'default')
-      >>> g1.repo_url
+      >>> g1.url
       'https://code.google.com/p/grump'
       >>> g2 = Repository('git', 'https://code.google.com/p/grump', 'wiki')
-      >>> g2.repo_url
+      >>> g2.url
       'https://code.google.com/p/grump.wiki'
 
     which is detected automatically, and the appropriate handler used. If we
@@ -58,14 +58,14 @@ class Repository(object):
 
       >>> g3 = Repository('git', 'https://code.google.com/p/grump', 'default',
       ...                 handler=None)
-      >>> g3.repo_url
+      >>> g3.url
       'https://code.google.com/p/grump/default'
 
     or we can ask for it explicitly by name:
 
       >>> g4 = Repository('git', 'https://code.google.com/p/grump', 'default',
       ...                 handler='code.google.com')
-      >>> g4.repo_url
+      >>> g4.url
       'https://code.google.com/p/grump'
 
     The default handler name is actually 'guess', which tries to decide by
@@ -82,7 +82,7 @@ class Repository(object):
       ...                'busybox-1.18.5', prefix='core')
       >>> r.base_url
       'ssh://git@project-server/opt/kynesim/projects/042/git/'
-      >>> r.repo_url
+      >>> r.url
       'ssh://git@project-server/opt/kynesim/projects/042/git/core/busybox-1.18.5'
 
     Bazaar, in particular, sometimes wants to add trailing text to the checkout
@@ -92,7 +92,7 @@ class Repository(object):
 
       >>> r = Repository('bzr', 'ssh://bzr@project-server/opt/kynesim/projects/042/bzr/',
       ...                'repo42', suffix='/fixit_branch')
-      >>> r.repo_url
+      >>> r.url
       'ssh://bzr@project-server/opt/kynesim/projects/042/bzr/repo42/fixit_branch'
 
     Note that we had to specify the '/' in 'suffix', it wasn't assumed.
@@ -101,7 +101,7 @@ class Repository(object):
     This can be done using the same mechanism:
 
         >>> r = Repository('git', 'git@github.com:tibs', 'withdir', suffix='.git')
-        >>> r.repo_url
+        >>> r.url
         'git@github.com:tibs/withdir.git'
 
     (although note that github will cope with or without the '.git' at the end).
@@ -112,7 +112,7 @@ class Repository(object):
 
       >>> r = Repository('svn', 'ssh://svn@project-server/opt/kynesim/projects/042/svn/',
       ...                'all_our_code', inner_path='core/busybox-1.18.4')
-      >>> r.repo_url
+      >>> r.url
       'ssh://svn@project-server/opt/kynesim/projects/042/svn/all_our_code/core/busybox-1.18.4'
 
     If you specify more than one of 'extension' and 'inner_path', the result
@@ -166,7 +166,7 @@ class Repository(object):
 
             # Check for the legacy mechanism for specifying a branch
             # (i.e., as a revision of "<branch>:<revision>")
-            # This will override any branch specified as an argument
+            # This will clash with any branch specified as an argument
             try:
                 maybe_branch, maybe_revision = self._parse_revision(revision)
             except TypeError:
@@ -201,9 +201,9 @@ class Repository(object):
             except KeyError:
                 raise GiveUp('Cannot find %s "%s" handler, for %s'%(self.vcs,
                              handler, self))
-            self.repo_url = handler_fn(self)
+            self.url = handler_fn(self)
         else:
-            self.repo_url = self.default_path()
+            self.url = self.default_path()
 
     def _parse_revision(self, revision):
         """
@@ -269,7 +269,7 @@ class Repository(object):
           order for us to use the handler
         * 'handler' is a function that takes a Repository instance and
           returns a path suitable for putting into the Repository instance's
-          'repo_url' value
+          'url' value
           method.
 
         For instance, the google code handler for git might be registered

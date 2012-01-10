@@ -37,7 +37,7 @@ class Git(VersionControlSystem):
         self.short_name = 'git'
         self.long_name = 'Git'
 
-    def init_directory(self, verbose=True):
+    def init_directory(self, repo, verbose=True):
         """
         If the directory does not appear to have had '<vcs> init' run in it,
         then do so first.
@@ -48,7 +48,7 @@ class Git(VersionControlSystem):
         if not os.path.exists('.git'):
             utils.run_cmd("git init", verbose=verbose)
 
-    def add_files(self, files=None, verbose=True):
+    def add_files(self, repo, files=None, verbose=True):
         """
         If files are given, add them, but do not commit.
 
@@ -57,7 +57,7 @@ class Git(VersionControlSystem):
         if files:
             utils.run_cmd("git add %s"%' '.join(files), verbose=verbose)
 
-    def checkout(self, repo, co_leaf, options, branch=None, revision=None, verbose=True):
+    def checkout(self, repo, co_leaf, options, verbose=True):
         """
         Clone a given checkout.
 
@@ -65,19 +65,20 @@ class Git(VersionControlSystem):
 
         Expected to create a directory called <co_leaf> therein.
         """
-        if branch:
-            args = "-b %s"%branch
+        if repo.branch:
+            args = "-b %s"%repo.branch
         else:
-            args = "-b master"
             # Explicitly use master if no branch specified - don't default
+            args = "-b master"
+
         if options['shallow_checkout']:
             args="%s --depth 1"%args
 
-        utils.run_cmd("git clone %s %s %s"%(args, repo, co_leaf), verbose=verbose)
+        utils.run_cmd("git clone %s %s %s"%(args, repo.url, co_leaf), verbose=verbose)
 
-        if revision:
+        if repo.revision:
             with utils.Directory(co_leaf):
-                utils.run_cmd("git checkout %s"%revision)
+                utils.run_cmd("git checkout %s"%repo.revision)
 
     def _is_it_safe(self):
         """
@@ -105,23 +106,24 @@ class Git(VersionControlSystem):
             if os.path.exists('.git/shallow'):
                 raise utils.Unsupported('Shallow checkouts cannot interact with their upstream repositories.')
 
-    def fetch(self, repo, options, branch=None, revision=None, verbose=True):
+    def fetch(self, repo, options, verbose=True):
         """
         Will be called in the actual checkout's directory.
         """
-        if revision and revision != 'HEAD':
+        if repo.revision and repo.revision != 'HEAD':
             raise utils.GiveUp(\
                 "The build description specifies revision %s for this checkout.\n"
                 "'muddle fetch' does a git fetch and then a fast-forwards merge.\n"
                 "Since git always merges to the currrent HEAD, muddle does not\n"
-                "support 'muddle fetch' for a git checkout with a revision specified."%revision)
+                "support 'muddle fetch' for a git checkout with a revision"
+                " specified."%repo.revision)
 
         # Refuse to pull if there are any local changes or untracked files.
         self._is_it_safe()
 
         self._shallow_not_allowed(options)
 
-        utils.run_cmd("git config remote.origin.url %s"%repo, verbose=verbose)
+        utils.run_cmd("git config remote.origin.url %s"%repo.url, verbose=verbose)
         # Retrieve changes from the remote repository to the local repository
         utils.run_cmd("git fetch origin", verbose=verbose)
         # Merge them into the working tree, but only if this is a fast-forward
@@ -132,17 +134,17 @@ class Git(VersionControlSystem):
         # anywhere locally".)
         # And then merge "fast forward only" - i.e., not if we had to do any
         # thinking
-        if branch is None:
+        if repo.branch is None:
             remote = 'remotes/origin/master'
         else:
-            remote = 'remotes/origin/%s'%branch
+            remote = 'remotes/origin/%s'%repo.branch
         if (git_supports_ff_only()):
             utils.run_cmd("git merge --ff-only %s"%remote, verbose=verbose)
         else:
             utils.run_cmd("git merge --ff %s"%remote, verbose=verbose)
 
 
-    def merge(self, other_repo, options, branch=None, revision=None, verbose=True):
+    def merge(self, other_repo, options, verbose=True):
         """
         Merge 'other_repo' into the local repository and working tree,
 
@@ -155,28 +157,29 @@ class Git(VersionControlSystem):
         or at least not for muddle purposes. In that case we're better off just
         giving up, and letting the user sort it out directly.
         """
-        if revision and revision != 'HEAD':
+        if repo.revision and repo.revision != 'HEAD':
             raise utils.GiveUp(\
                    "The build description specifies revision %s for this checkout.\n"
                    "Since git always merges to the currrent HEAD, muddle does not\n"
-                   "support 'muddle merge' for a git checkout with a revision specified."%revision)
+                   "support 'muddle merge' for a git checkout with a revision"
+                   " specified."%repo.revision)
 
         # Refuse to pull if there are any local changes or untracked files.
         self._is_it_safe()
 
         self._shallow_not_allowed(options)
 
-        utils.run_cmd("git config remote.origin.url %s"%other_repo, verbose=verbose)
+        utils.run_cmd("git config remote.origin.url %s"%other_repo.url, verbose=verbose)
         # Retrieve changes from the remote repository to the local repository
         utils.run_cmd("git fetch origin", verbose=verbose)
         # And merge them (all) into the current working tree
-        if branch is None:
+        if repo.branch is None:
             remote = 'remotes/origin/master'
         else:
-            remote = 'remotes/origin/%s'%branch
+            remote = 'remotes/origin/%s'%repo.branch
         utils.run_cmd("git merge %s"%remote, verbose=verbose)
 
-    def commit(self, options, verbose=True):
+    def commit(self, repo, options, verbose=True):
         """
         Will be called in the actual checkout's directory.
 
@@ -185,30 +188,28 @@ class Git(VersionControlSystem):
         """
         utils.run_cmd("git commit -a", verbose=verbose)
 
-    def push(self, repo, options, branch=None, verbose=True):
+    def push(self, repo, options, verbose=True):
         """
         Will be called in the actual checkout's directory.
         """
         self._shallow_not_allowed(options)
-        if branch:
-            effective_branch = branch
+        if repo.branch:
+            effective_branch = repo.branch
         else:
-            effective_branch = "master"
             # Explicitly push master if nothing else is specified.
             # This is so that the user sees what we're doing, instead of
             # being potentially confused by git's config hiding non-default
             # behaviour.
+            effective_branch = "master"
 
         # TODO: issue 143: This is no longer believed necessary now that git
         # reparent does git remote rm+git remote add:
-        #utils.run_cmd("git config remote.origin.url %s"%repo, verbose=verbose)
+        #utils.run_cmd("git config remote.origin.url %s"%repo.url, verbose=verbose)
         utils.run_cmd("git push origin %s"%effective_branch, verbose=verbose)
 
-    def status(self, repo, options, branch=None):
+    def status(self, repo, options):
         """
         Will be called in the actual checkout's directory.
-
-        'branch' is ignnored - we assume you are in the correct branch.
 
         Return status text or None if there is no interesting status.
         """
@@ -293,7 +294,7 @@ class Git(VersionControlSystem):
                 text))
         return revision.strip()
 
-    def revision_to_checkout(self, co_leaf, orig_revision, options, force=False, verbose=True):
+    def revision_to_checkout(self, repo, co_leaf, orig_revision, options, force=False, verbose=True):
         """
         Determine a revision id for this checkout, usable to check it out again.
 

@@ -214,7 +214,7 @@ class VersionControlHandler(object):
         #
         # TODO XXX CHECK THIS XXX TODO
         return utils.CheckoutTuple(self.checkout_label.name,
-                                   '%s+%s'%(self.repo.vcs, self.repo.repo_url),
+                                   '%s+%s'%(self.repo.vcs, self.repo.url),
                                    self.repo.revision if self.repo.revision else 'HEAD',
                                    self.repo.inner_path, # was self.relative,
                                    self.checkout_dir,

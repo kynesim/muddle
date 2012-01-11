@@ -1767,6 +1767,17 @@ class QueryCheckoutDirs(QueryCommand):
     def with_build_tree(self, builder, current_dir, args):
         builder.invocation.db.dump_checkout_paths()
 
+@subcommand('query', 'checkout-repos', CAT_QUERY)
+class QueryCheckoutRepos(QueryCommand):
+    """
+    :Syntax: muddle query checkout-repos
+
+    Print the known checkouts and their checkout repositories
+    """
+
+    def with_build_tree(self, builder, current_dir, args):
+        builder.invocation.db.dump_checkout_repos()
+
 @subcommand('query', 'domains', CAT_QUERY)
 class QueryDomains(QueryCommand):
     """

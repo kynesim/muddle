@@ -17,7 +17,7 @@ import muddled.instr as instr
 from muddled.depend import Label, Action
 from muddled.utils import domain_subpath, GiveUp, MuddleBug, LabelType, LabelTag
 from muddled.repository import Repository
-from muddled.version_control import vcs_handler_for, split_vcs_url
+from muddled.version_control import split_vcs_url, checkout_from_repo
 
 build_name_re = re.compile(r"[A-Za-z0-9_-]+")
 
@@ -918,13 +918,8 @@ class Builder(object):
 
         # That gives us the checkout name (assumed the first element of the
         # path we were given in the .muddled/Description file), and where we
-        # keep our build description therein
+        # keep our build description therein (which we aren't interested in)
         (build_co_name, build_desc_path) = co_path
-
-        checkout_label = Label(LabelType.Checkout, build_co_name)
-
-        # Remember its checkout location in the normal manner
-        self.invocation.db.set_checkout_path(checkout_label, build_co_name)
 
         # And we're going to want its Repository later on, to use as the basis
         # for other (relative) checkouts
@@ -937,19 +932,13 @@ class Builder(object):
         # descriptions have to be simple top-level repositories at the
         # base_url location, named by their checkout name.
         repo = Repository(vcs, base_url, build_co_name)
-        # Remember it for later on - both as a normal checkout
-        self.invocation.db.set_checkout_repo(checkout_label, repo)
-        # and also specifically as the "default" repository
+        # Remember this specifically as the "default" repository
         self.build_desc_repo = repo
 
-        vcs_handler = vcs_handler_for(self, checkout_label, build_co_name,
-                                      repo, build_co_name)
+        # But is it also a perfectly normal build ..
+        checkout_from_repo(self, build_co_name, repo)
 
-        # This is a perfectly normal build ..
-        vcs = pkg.VcsCheckoutBuilder(build_co_name, vcs_handler)
-        pkg.add_checkout_rules(self.invocation.ruleset, checkout_label, vcs)
-
-        # But we want to load it once we've checked it out...
+        # Although we want to load it once we've checked it out...
         checked_out = Label(LabelType.Checkout, build_co_name, None,
                             LabelTag.CheckedOut, system=True)
 

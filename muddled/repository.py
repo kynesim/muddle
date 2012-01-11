@@ -3,6 +3,7 @@
 """
 
 import os
+import posixpath
 import re
 
 class GiveUp(Exception):
@@ -85,6 +86,18 @@ class Repository(object):
       >>> r.url
       'ssh://git@project-server/opt/kynesim/projects/042/git/core/busybox-1.18.5'
 
+    By default, that prefix is added in as a pseudo-file-path - i.e., with '/'
+    before and after it. If that's the wrong thing to do, then specifying
+    'use_prefix_as_is=True' will cause the 'prefix' to be used as-is (does
+    anyone actually support this sort of thing?):
+
+      >>> r = Repository('git', 'http://example.com',
+      ...                'busybox-1.18.5', prefix='?repo=', prefix_as_is=True)
+      >>> r.base_url
+      'http://example.com'
+      >>> r.url
+      'http://example.com?repo=busybox-1.18.5'
+
     Bazaar, in particular, sometimes wants to add trailing text to the checkout
     name, commonly to indicate a branch (bzr doesn't really support branches as
     such, but instead sometimes uses conventions on how different repositories
@@ -115,8 +128,7 @@ class Repository(object):
       >>> r.url
       'ssh://svn@project-server/opt/kynesim/projects/042/svn/all_our_code/core/busybox-1.18.4'
 
-    If you specify more than one of 'extension' and 'inner_path', the result
-    is undefined.
+    If you specify both 'extension' and 'inner_path', the result is undefined.
 
     Finally, it is possible to specify a revision and branch. These are both
     handled as strings, with no defined interpretation (and are not always
@@ -137,13 +149,15 @@ class Repository(object):
     # and return a value for our 'path' method to return.
     path_handlers = {}
 
-    def __init__(self, vcs, base_url, co_name, prefix=None, suffix=None,
-                 inner_path=None, revision=None, branch=None, handler='guess'):
+    def __init__(self, vcs, base_url, co_name, prefix=None, prefix_as_is=False,
+                 suffix=None, inner_path=None, revision=None, branch=None,
+                 handler='guess'):
         self.vcs = vcs
         self.base_url = base_url
 
         self.co_name = co_name
         self.prefix = prefix
+        self.prefix_as_is = prefix_as_is
         self.suffix = suffix
         self.inner_path = inner_path
 
@@ -245,14 +259,23 @@ class Repository(object):
         It is returned in a manner suitable for passing to the appropriate
         command line tool for cloning the repository.
         """
-        parts = [self.base_url]
-        if self.prefix:
-            parts.append(self.prefix)
-        parts.append(self.co_name)
+        parts = []
+        if self.prefix_as_is:
+            parts.append('%s%s%s'%(self.base_url, self.prefix, self.co_name))
+        else:
+            parts.append(self.base_url)
+            if self.prefix:
+                parts.append(self.prefix)
+            parts.append(self.co_name)
+
         # We trust and hope that inner_path doesn't clash with suffix...
         if self.inner_path:
             parts.append(self.inner_path)
-        result = os.path.join(*parts)
+
+        # We use posixpath.join so that we guarantee to use '/' as our
+        # path separator. This is more sophisticated than just using
+        # '/'.join, as it should deduplicate '//' when joining
+        result = posixpath.join(*parts)
 
         if self.suffix:
             result = '%s%s'%(result, self.suffix)

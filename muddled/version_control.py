@@ -8,6 +8,8 @@ import os
 import muddled.pkg as pkg
 import muddled.utils as utils
 
+from muddled.depend import Label
+
 branch_and_revision_re = re.compile("([^:]*):(.*)$")
 
 class VersionControlSystem(object):

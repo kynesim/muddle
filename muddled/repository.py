@@ -254,6 +254,9 @@ class Repository(object):
             parts.append('branch=%s'%repr(self.branch))
         return 'Repository(%s)'%(', '.join(parts))
 
+    def __str__(self):
+        return self.url
+
     def default_path(self):
         """Return the default repository path, calculated from all the parts.
 

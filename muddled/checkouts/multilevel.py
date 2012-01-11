@@ -4,9 +4,10 @@ have a lot of deep internal checkouts.
 """
 
 import muddled.pkg as pkg
-import muddled.version_control as version_control
 import muddled.utils as utils
+
 from muddled.depend import Label
+from muddled.version_control import vcs_action_for, split_vcs_url
 
 import os
 
@@ -43,7 +44,7 @@ def relative(builder, co_dir, co_name, repo_relative = None, rev = None,
     #print '... co_dir',co_dir
     #print '... co_leaf',co_leaf
 
-    vcs_handler = version_control.vcs_action_for(builder, co_label, real_repo,
+    vcs_handler = vcs_action_for(builder, co_label, real_repo,
                                                  rev, None,
                                                  co_dir = co_dir_dir,
                                                  co_leaf = co_dir_leaf,
@@ -52,21 +53,33 @@ def relative(builder, co_dir, co_name, repo_relative = None, rev = None,
                            co_label,
                            vcs_handler)
 
-def absolute(builder, co_dir, co_name, repo_url, rev = None, branch = None):
+def absolute(builder, co_dir, co_name, repo_url, rev=None, branch=None):
     """
     Check out a multilevel repository from an absolute URL.
+
+    <repo_url> must be of the form <vcs>+<url>, where <vcs> is one of the
+    support version control systems (e.g., 'git', 'svn').
+
+    <rev> may be a revision (specified as a string). "HEAD" (or its equivalent)
+    is assumed by default.
+
+    <branch> may be a branch. "master" (or its equivalent) is assumed by
+    default.
+
+    The repository <repo_url>/<co_name> will be checked out into
+    src/<co_dir>/<co_name>.
     """
-    rest = os.path.join(co_dir, co_name)
+    co_path = os.path.join(co_dir, co_name)
 
     co_label = Label(utils.LabelType.Checkout, co_name, domain=builder.default_domain)
-    builder.invocation.db.set_checkout_path(co_label, rest)
+    builder.invocation.db.set_checkout_path(co_label, co_path)
 
-    vcs_handler = version_control.vcs_action_for(builder, co_label, repo_url,
-                                                 rev, None,
-                                                 co_dir = co_dir,
-                                                 branch = branch)
-    pkg.add_checkout_rules(builder.invocation.ruleset,
-                           co_label,
-                           vcs_handler)
+    vcs, base_url = split_vcs_url(repo_url)
+
+    repo = Repository(vcs, base_url, co_name, revision=rev, branch=branch)
+    builder.invocation.db.set_checkout_repo(co_label, repo)
+
+    vcs_handler = vcs_action_for(builder, co_label, repo, co_dir=co_dir,
+    pkg.add_checkout_rules(builder.invocation.ruleset, co_label, vcs_handler)
 
 # End file.

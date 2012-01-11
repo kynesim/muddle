@@ -607,6 +607,9 @@ def conventional_repo_url(repo, rel, co_dir = None):
     lacks the VCS specifier.
 
     If an invalid URL is given, we will return None.
+
+    XXX This function is deprecated, as we do not use it any more. It will
+    be removed in a later version of muddle.
     """
     split = split_vcs_url(repo)
     if (split is None):

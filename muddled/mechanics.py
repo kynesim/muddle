@@ -11,13 +11,13 @@ import muddled.db as db
 import muddled.depend as depend
 import muddled.pkg as pkg
 import muddled.utils as utils
-import muddled.version_control as version_control
 import muddled.env_store as env_store
 import muddled.instr as instr
 
 from muddled.depend import Label, Action
 from muddled.utils import domain_subpath, GiveUp, MuddleBug, LabelType, LabelTag
 from muddled.repository import Repository
+from muddled.version_control import vcs_handler_for, split_vcs_url
 
 build_name_re = re.compile(r"[A-Za-z0-9_-]+")
 
@@ -942,11 +942,8 @@ class Builder(object):
         # and also specifically as the "default" repository
         self.build_desc_repo = repo
 
-        vcs_handler = version_control.vcs_handler_for(self,
-                                                      checkout_label,
-                                                      build_co_name,
-                                                      repo,
-                                                      build_co_name)
+        vcs_handler = vcs_handler_for(self, checkout_label, build_co_name,
+                                      repo, build_co_name)
 
         # This is a perfectly normal build ..
         vcs = pkg.VcsCheckoutBuilder(build_co_name, vcs_handler)

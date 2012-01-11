@@ -285,11 +285,13 @@ class Repository(object):
         return result
 
     @staticmethod
-    def from_url(vcs, repo_url):
+    def from_url(vcs, repo_url, revision=None, branch=None):
         """Construct a Repository instance from a URL.
 
         - 'vcs' is the version control system ('git', 'svn', etc.)
         - 'repo_url' is the complete URL used to access the repository
+        - 'revision' and 'branch' are the revision and branch to use,
+          just as for the normal constructor.
 
         We make a good guess as to the 'checkout name', assuming it is
         the last component of the path in the URL.
@@ -298,6 +300,9 @@ class Repository(object):
 
             >>> Repository.from_url('git', 'http://example.com/fred/jim.git?branch=a')
             Repository('git', 'http://example.com', 'jim.git', prefix='fred', suffix='?branch=a')
+
+        Note that this way of creating a Repository instance does not invoke
+        any path handler.
         """
         scheme, netloc, path, params, query, fragment = urlparse(repo_url)
         base_url = urlunparse((scheme, netloc, '', '', '', ''))
@@ -309,7 +314,8 @@ class Repository(object):
         suffix = urlunparse(('', '', '', params, query, fragment))
 
         return Repository(vcs, base_url, co_name,
-                          prefix=prefix, suffix=suffix, handler=None)
+                          prefix=prefix, suffix=suffix,
+                          revision=revision, branch=branch, handler=None)
 
     @staticmethod
     def register_path_handler(vcs, starts_with, handler):

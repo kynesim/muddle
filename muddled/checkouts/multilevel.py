@@ -3,6 +3,7 @@ Multi-level checkouts. Required for embedding things like android, which
 have a lot of deep internal checkouts.
 """
 
+import posixpath
 from urlparse import urljoin
 
 import muddled.pkg as pkg
@@ -42,7 +43,9 @@ def relative(builder, co_dir, co_name, repo_relative = None, rev = None,
     For the moment, <repo_relative> is ignored.
     """
     base_repo = builder.build_desc_repo
-    repo_url = urljoin(base_repo.base_url, co_dir)
+
+    # urljoin doesn't work well with the sort of path fragment we tend to have
+    repo_url = posixpath.join(base_repo.base_url, co_dir)
     repo = Repository.from_url(base_repo.vcs, repo_url,
                                revision=rev, branch=branch)
 
@@ -50,7 +53,7 @@ def relative(builder, co_dir, co_name, repo_relative = None, rev = None,
     # from the rest of the checkout path relative to src/
     co_dir_dir, co_dir_leaf = os.path.split(co_dir)
 
-    co_label = Label(LabelType.Checkout, co_name, domain=builder.default_domain)
+    co_label = Label(utils.LabelType.Checkout, co_name, domain=builder.default_domain)
     checkout_from_repo(builder, co_label, repo, co_dir=co_dir_dir, co_leaf=co_dir_leaf)
 
 def absolute(builder, co_dir, co_name, repo_url, rev=None, branch=None):
@@ -78,7 +81,7 @@ def absolute(builder, co_dir, co_name, repo_url, rev=None, branch=None):
     # from the rest of the checkout path relative to src/
     co_dir_dir, co_dir_leaf = os.path.split(co_dir)
 
-    co_label = Label(LabelType.Checkout, co_name, domain=builder.default_domain)
+    co_label = Label(utils.LabelType.Checkout, co_name, domain=builder.default_domain)
     checkout_from_repo(builder, co_label, repo, co_dir=co_dir_dir, co_leaf=co_dir_leaf)
 
 # End file.

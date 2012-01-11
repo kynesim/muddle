@@ -1355,7 +1355,7 @@ class VersionStamp(Mapping):
             * repo - the actual repository of the checkout
             * rev - the revision of the checkout
             * rel - the relative directory of the checkout
-              (this needs explaning more!)
+              (the 'prefix' from the Repository instance)
             * dir - the directory in ``src`` where the checkout goes
             * domain - which domain the checkout is in, or None. This
               is the domain as given within '(' and ')' in a label, so
@@ -1367,7 +1367,8 @@ class VersionStamp(Mapping):
               (e.g., "master" in git).
 
           These are essentially the exact arguments that would have been given
-          to the VCS initialisation, or to ``muddled.version_control.vcs_handler_for()``
+          to the old VCS initialisation mechanism, and should be enough to
+          enable us to recreate a checkout exactly.
 
         * 'problems' is a list of problems in determining the stamp
           information. This will be of zero length if the stamp if accurate,
@@ -1383,8 +1384,8 @@ class VersionStamp(Mapping):
     So, for instance:
 
         >>> v = VersionStamp('Somewhere', 'src/builds/01.py', [],
-        ...                  [('fred', 'Somewhere', 3, None, 'fred', None, None, None),
-        ...                   ('jim',  'Elsewhere', 7, None, 'jim', None, 'sheila', None)],
+        ...                  [('fred', 'vcs+Somewhere', 3, None, 'fred', None, None, None),
+        ...                   ('jim',  'vcs+Elsewhere', 7, None, 'jim', None, 'sheila', None)],
         ...                  ['Oops, a problem'])
         >>> print v
         [ROOT]
@@ -1394,14 +1395,14 @@ class VersionStamp(Mapping):
         [CHECKOUT fred]
         directory = fred
         name = fred
-        repository = Somewhere
+        repository = vcs+Somewhere
         revision = 3
         <BLANKLINE>
         [CHECKOUT jim]
         co_leaf = sheila
         directory = jim
         name = jim
-        repository = Elsewhere
+        repository = vcs+Elsewhere
         revision = 7
         <BLANKLINE>
         [PROBLEMS]
@@ -1644,15 +1645,25 @@ class VersionStamp(Mapping):
 
                 # Our tuple is made up of:
                 # 
-                # - the repository URL (nb: this is the *full* URL for the repository)
+                # - the repository base URL (nb: this is the VCS + URL form)
                 # - the directory within src/ that contains our checkout
                 # - the revision checked out
-                # - None - this was the relative path within the repository, for use
-                #   in Subversion and so on, but this should now be represented as
-                #   part of the repository URL
+                # - the repository path relative to the base URL, the Repository prefix
                 # - the checkout leaf directory (if not the same as the checkout name)
                 # - the branch checked out
-                revisions[label] = (vcs.repo.url, vcs.checkout_dir, rev, None, vcs.checkout_leaf, vcs.repo.branch)
+                #
+                # XXX For the new Repository mechanism, we also need to add:
+                #
+                # - inner_path
+                # - prefix_as_is
+                # - suffix
+                # - handler
+                revisions[label] = ('%s+%s'%(vcs.repo.vcs, vcs.repo.base_url),
+                                    vcs.checkout_dir,
+                                    rev,
+                                    vcs.repo.prefix,
+                                    vcs.checkout_leaf,
+                                    vcs.repo.branch)
             except GiveUp as exc:
                 print exc
                 stamp.problems.append(str(exc))

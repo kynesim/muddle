@@ -3389,11 +3389,11 @@ Try "muddle help unstamp" for more information."""
             # build system
             vcs, base_url = split_vcs_url(vcs_repo_url)
 
-            repo = Repository(vcs, base_url, name, inner_path=relative,
+            repo = Repository(vcs, base_url, co_leaf, prefix=relative,
                               revision=revision, branch=branch)
 
             label = Label(LabelType.Checkout, name, domain=domain)
-            checkout_from_repo(builder, label, repo, co_dir, co_leaf, domain)
+            checkout_from_repo(builder, label, repo, co_dir, co_leaf)
 
 
             # XXX BROKEN XXX

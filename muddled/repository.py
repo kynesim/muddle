@@ -5,6 +5,7 @@
 import os
 import posixpath
 import re
+from urlparse import urlparse, urljoin, urlunparse
 
 class GiveUp(Exception):
     pass
@@ -275,12 +276,40 @@ class Repository(object):
         # We use posixpath.join so that we guarantee to use '/' as our
         # path separator. This is more sophisticated than just using
         # '/'.join, as it should deduplicate '//' when joining
+        # XXX We maybe should be using urljoin here...
         result = posixpath.join(*parts)
 
         if self.suffix:
             result = '%s%s'%(result, self.suffix)
 
         return result
+
+    @staticmethod
+    def from_url(vcs, repo_url):
+        """Construct a Repository instance from a URL.
+
+        - 'vcs' is the version control system ('git', 'svn', etc.)
+        - 'repo_url' is the complete URL used to access the repository
+
+        We make a good guess as to the 'checkout name', assuming it is
+        the last component of the path in the URL.
+
+        Thus:
+
+            >>> Repository.from_url('git', 'http://example.com/fred/jim.git?branch=a')
+            Repository('git', 'http://example.com', 'jim.git', prefix='fred', suffix='?branch=a')
+        """
+        scheme, netloc, path, params, query, fragment = urlparse(repo_url)
+        base_url = urlunparse((scheme, netloc, '', '', '', ''))
+        if path.startswith('/'):    # urlparse puts a '/' at the start of 'path'
+            path = path[1:]         # lost it...
+        words = posixpath.split(path)
+        co_name = words[-1]
+        prefix = posixpath.join(*words[:-1])
+        suffix = urlunparse(('', '', '', params, query, fragment))
+
+        return Repository(vcs, base_url, co_name,
+                          prefix=prefix, suffix=suffix, handler=None)
 
     @staticmethod
     def register_path_handler(vcs, starts_with, handler):

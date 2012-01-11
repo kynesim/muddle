@@ -596,6 +596,40 @@ def split_vcs_url(url):
 
     return (m.group(1).lower(), "%s:%s"%(m.group(2),m.group(3)))
 
+def checkout_from_repo(builder, co_name, repo, co_dir=None, co_leaf=None):
+    """Declare that checkout 'co_name' comes from Repository 'repo'
+
+    We will take the repository described in 'repo' and check it out into:
+
+    * src/<co_name> or
+    * src/<co_dir>/<co_name> or
+    * src/<co_dir>/<co_leaf> or
+    * src/<co_leaf>
+
+    depending on whether <co_dir> and/or <co_leaf> are given. We will assign
+    the label checkout:<co_name>/checked_out to this directory/repository
+    combination.
+    """
+    co_label = Label(utils.LabelType.Checkout, co_name, domain=builder.default_domain)
+
+    if co_dir:
+        if co_leaf:
+            co_path = os.path.join(co_dir, co_leaf)
+        else:
+            co_path = os.path.join(co_dir, co_name)
+    else:
+        if co_leaf:
+            co_path = co_leaf
+        else:
+            co_path = co_name
+
+    builder.invocation.db.set_checkout_path(co_label, co_path)
+    builder.invocation.db.set_checkout_repo(co_label, repo)
+
+    vcs_handler = vcs_action_for(builder, co_label, repo, co_dir=co_dir, co_leaf=co_leaf)
+    pkg.add_checkout_rules(builder.invocation.ruleset, co_label, vcs_handler)
+
+
 def conventional_repo_url(repo, rel, co_dir = None):
     """
     Many VCSs adopt the convention that the first element of the relative

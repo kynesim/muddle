@@ -40,6 +40,8 @@ from muddled.db import Database, InstructionFile
 from muddled.depend import Label, label_list_to_string
 from muddled.utils import VersionStamp, GiveUp, MuddleBug, Unsupported, \
         DirType, LabelTag, LabelType
+from muddled.version_control import split_vcs_url, checkout_from_repo
+from muddled.repository import Repository
 
 # Following Richard's naming conventions...
 # A dictionary of <command name> : <command class>
@@ -3378,22 +3380,34 @@ Try "muddle help unstamp" for more information."""
             domain_builder.invocation.mark_domain(domain_name)
 
         checkouts.sort()
-        for name, repo, rev, rel, dir, domain, co_leaf, branch in checkouts:
+        for name, vcs_repo_url, revision, relative, co_dir, domain, co_leaf, branch in checkouts:
             if domain:
                 print "Unstamping checkout (%s)%s"%(domain,name)
             else:
                 print "Unstamping checkout %s"%name
             # So try registering this as a normal build, in our nascent
             # build system
+            vcs, base_url = split_vcs_url(vcs_repo_url)
+
+            repo = Repository(vcs, base_url, name, inner_path=relative,
+                              revision=revision, branch=branch)
+
             label = Label(LabelType.Checkout, name, domain=domain)
-            if dir:
-                builder.invocation.db.set_checkout_path(label, os.path.join(dir, co_leaf))
-            else:
-                builder.invocation.db.set_checkout_path(label, co_leaf)
-            vcs_handler = version_control.vcs_handler_for(builder, label, co_leaf,  repo,
-                                                          rev, rel, dir, branch)
-            vcs = pkg.VcsCheckoutBuilder(name, vcs_handler)
-            pkg.add_checkout_rules(builder.invocation.ruleset, label, vcs)
+            checkout_from_repo(builder, label, repo, co_dir, co_leaf, domain)
+
+
+            # XXX BROKEN XXX
+            # ------------------------------------------
+            if False:
+                if dir:
+                    builder.invocation.db.set_checkout_path(label, os.path.join(dir, co_leaf))
+                else:
+                    builder.invocation.db.set_checkout_path(label, co_leaf)
+                vcs_handler = version_control.vcs_handler_for(builder, label, co_leaf,  repo,
+                                                              rev, rel, dir, branch)
+                vcs = pkg.VcsCheckoutBuilder(name, vcs_handler)
+                pkg.add_checkout_rules(builder.invocation.ruleset, label, vcs)
+            # ------------------------------------------
 
             # Then need to mimic "muddle checkout" for it
             label = Label(LabelType.Checkout,

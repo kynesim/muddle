@@ -5,6 +5,7 @@
 import os
 import posixpath
 import re
+
 from urlparse import urlparse, urljoin, urlunparse
 
 class GiveUp(Exception):
@@ -124,7 +125,7 @@ class Repository(object):
     Subversion allows retrieving *part* of a repository, by specifying the
     internal path leading to the entity to be retrieved. So, for instance:
 
-      >>> r = Repository('svn', 'ssh://svn@project-server/opt/kynesim/projects/042/svn/',
+      >>> r = Repository('svn', 'ssh://svn@project-server/opt/kynesim/projects/042/svn',
       ...                'all_our_code', inner_path='core/busybox-1.18.4')
       >>> r.url
       'ssh://svn@project-server/opt/kynesim/projects/042/svn/all_our_code/core/busybox-1.18.4'
@@ -276,11 +277,16 @@ class Repository(object):
         if self.inner_path:
             parts.append(self.inner_path)
 
-        # We use posixpath.join so that we guarantee to use '/' as our
-        # path separator. This is more sophisticated than just using
-        # '/'.join, as it should deduplicate '//' when joining
-        # XXX We maybe should be using urljoin here...
+        # So now we have the start of our URL plus some path parts to go
+        # after it. Join the path parts with posixpath.join so that
+        # it will cope with parts starting with '/' correctly
         result = posixpath.join(*parts)
+
+        if False:
+            print 'xxxxxxxxxxxxxxxxxxxxxxxxxx'
+            print self.base_url
+            print parts
+            print result
 
         if self.suffix:
             result = '%s%s'%(result, self.suffix)
@@ -301,23 +307,30 @@ class Repository(object):
 
         Thus:
 
-            >>> Repository.from_url('git', 'http://example.com/fred/jim.git?branch=a')
-            Repository('git', 'http://example.com', 'jim.git', prefix='fred', suffix='?branch=a')
+            >>> r = Repository.from_url('git', 'http://example.com/fred/jim.git?branch=a')
+            >>> r
+            Repository('git', 'http://example.com/fred', 'jim.git', suffix='?branch=a')
+            >>> r.url
+            'http://example.com/fred/jim.git?branch=a'
+
+        and even:
+
+            >>> f = Repository.from_url('file', 'file:///home/tibs/versions')
+            >>> f
+            Repository('file', 'file:///home/tibs', 'versions')
+            >>> f.url
+            'file:///home/tibs/versions'
 
         Note that this way of creating a Repository instance does not invoke
         any path handler.
         """
         scheme, netloc, path, params, query, fragment = urlparse(repo_url)
-        base_url = urlunparse((scheme, netloc, '', '', '', ''))
-        if path.startswith('/'):    # urlparse puts a '/' at the start of 'path'
-            path = path[1:]         # lost it...
         words = posixpath.split(path)
         co_name = words[-1]
-        prefix = posixpath.join(*words[:-1])
+        other_stuff = posixpath.join(*words[:-1])
+        base_url = urlunparse((scheme, netloc, other_stuff, '', '', ''))
         suffix = urlunparse(('', '', '', params, query, fragment))
-
-        return Repository(vcs, base_url, co_name,
-                          prefix=prefix, suffix=suffix,
+        return Repository(vcs, base_url, co_name, suffix=suffix,
                           revision=revision, branch=branch, handler=None)
 
     @staticmethod

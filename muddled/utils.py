@@ -1641,7 +1641,18 @@ class VersionStamp(Mapping):
                     rev = "HEAD"
                 else:
                     rev = vcs.revision_to_checkout(force=force, verbose=True)
-                revisions[label] = (vcs.repo_as_given, vcs.checkout_dir, rev, vcs.relative, vcs.checkout_leaf, vcs.branch)
+
+                # Our tuple is made up of:
+                # 
+                # - the repository URL (nb: this is the *full* URL for the repository)
+                # - the directory within src/ that contains our checkout
+                # - the revision checked out
+                # - None - this was the relative path within the repository, for use
+                #   in Subversion and so on, but this should now be represented as
+                #   part of the repository URL
+                # - the checkout leaf directory (if not the same as the checkout name)
+                # - the branch checked out
+                revisions[label] = (vcs.repo.url, vcs.checkout_dir, rev, None, vcs.checkout_leaf, vcs.repo.branch)
             except GiveUp as exc:
                 print exc
                 stamp.problems.append(str(exc))

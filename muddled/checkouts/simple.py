@@ -45,7 +45,8 @@ def relative(builder, co_name, repo_relative=None, rev=None, branch=None):
     else:
         repo = base_repo.copy_with_changes(co_name, revision=rev, branch=branch)
 
-    checkout_from_repo(builder, co_name, repo)
+    co_label = Label(LabelType.Checkout, co_name, domain=builder.default_domain)
+    checkout_from_repo(builder, co_label, repo)
 
 def absolute(builder, co_name, repo_url, rev=None, branch=None):
     """
@@ -65,6 +66,7 @@ def absolute(builder, co_name, repo_url, rev=None, branch=None):
 
     vcs, base_url = split_vcs_url(repo_url)
     repo = Repository.from_url(vcs, base_url, revision=rev, branch=branch)
-    checkout_from_repo(builder, co_name, repo)
+    co_label = Label(LabelType.Checkout, co_name, domain=builder.default_domain)
+    checkout_from_repo(builder, co_label, repo)
 
 # End file.

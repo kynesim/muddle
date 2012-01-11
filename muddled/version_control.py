@@ -9,6 +9,7 @@ import muddled.pkg as pkg
 import muddled.utils as utils
 
 from muddled.depend import Label
+from repository import Repository
 
 branch_and_revision_re = re.compile("([^:]*):(.*)$")
 
@@ -26,7 +27,7 @@ class VersionControlSystem(object):
         self.short_name = 'NoName'
         self.long_name = 'No VCS name'
 
-    def init_directory(self, repo, files=None, verbose=True):
+    def init_directory(self, files=None, verbose=True):
         """
         If the directory does not appear to have had '<vcs> init' run in it,
         then do so first.
@@ -35,7 +36,7 @@ class VersionControlSystem(object):
         """
         pass
 
-    def add_files(self, repo, files=None, verbose=True):
+    def add_files(self, files=None, verbose=True):
         """
         If files are given, add them, but do not commit.
 
@@ -159,7 +160,7 @@ class VersionControlHandler(object):
 
       TODO: Explain this rather better
 
-    * self.repository is the Repository we're interested in.
+    * self.repo is the Repository we're interested in.
     """
 
     def __init__(self, builder, vcs_handler, co_label, co_leaf, repo,
@@ -211,10 +212,10 @@ class VersionControlHandler(object):
         return self.vcs_handler.long_name
 
     def checkout_tuple(self):
-        # This is used for stamp files - stick with what we returned before
-        # we changed to using Repository objects
+        # This is used for stamp files
         #
-        # TODO XXX CHECK THIS XXX TODO
+        # XXX Note that 'inner_path' should now be part of the URL
+        # XXX - this definitely needs thinking about
         return utils.CheckoutTuple(self.checkout_label.name,
                                    '%s+%s'%(self.repo.vcs, self.repo.url),
                                    self.repo.revision if self.repo.revision else 'HEAD',
@@ -598,32 +599,30 @@ def split_vcs_url(url):
 
     return (m.group(1).lower(), "%s:%s"%(m.group(2),m.group(3)))
 
-def checkout_from_repo(builder, co_name, repo, co_dir=None, co_leaf=None):
-    """Declare that checkout 'co_name' comes from Repository 'repo'
+def checkout_from_repo(builder, co_label, repo, co_dir=None, co_leaf=None):
+    """Declare that the checkout for 'co_label' comes from Repository 'repo'
 
     We will take the repository described in 'repo' and check it out into:
 
-    * src/<co_name> or
-    * src/<co_dir>/<co_name> or
+    * src/<co_label>.name or
+    * src/<co_dir>/<co_label>.name or
     * src/<co_dir>/<co_leaf> or
     * src/<co_leaf>
 
     depending on whether <co_dir> and/or <co_leaf> are given. We will assign
-    the label checkout:<co_name>/checked_out to this directory/repository
-    combination.
+    the label <co_label> to this directory/repository combination.
     """
-    co_label = Label(utils.LabelType.Checkout, co_name, domain=builder.default_domain)
 
     if co_dir:
         if co_leaf:
             co_path = os.path.join(co_dir, co_leaf)
         else:
-            co_path = os.path.join(co_dir, co_name)
+            co_path = os.path.join(co_dir, co_label.name)
     else:
         if co_leaf:
             co_path = co_leaf
         else:
-            co_path = co_name
+            co_path = co_label.name
 
     builder.invocation.db.set_checkout_path(co_label, co_path)
     builder.invocation.db.set_checkout_repo(co_label, repo)
@@ -744,8 +743,9 @@ def vcs_get_directory(url, directory=None):
     handler.
     """
     vcs_handler, plain_url = get_vcs_handler_from_string(url)
+    repo = Repository.from_url(vcs_handler.short_name, plain_url)
     options = default_vcs_options_dict()
-    return vcs_handler.checkout(plain_url, directory, options)
+    return vcs_handler.checkout(repo, directory, options)
 
 def vcs_push_directory(url):
     """
@@ -758,8 +758,9 @@ def vcs_push_directory(url):
     handler.
     """
     vcs_handler, plain_url = get_vcs_handler_from_string(url)
+    repo = Repository.from_url(vcs_handler.short_name, plain_url)
     options = default_vcs_options_dict()
-    vcs_handler.push(plain_url, options)
+    vcs_handler.push(repo, options)
 
 def vcs_fetch_directory(url):
     """
@@ -772,8 +773,9 @@ def vcs_fetch_directory(url):
     handler.
     """
     vcs_handler, plain_url = get_vcs_handler_from_string(url)
+    repo = Repository.from_url(vcs_handler.short_name, plain_url)
     options = default_vcs_options_dict()
-    vcs_handler.fetch(plain_url, options)
+    vcs_handler.fetch(repo, options)
 
 def vcs_init_directory(scheme, files=None):
     """

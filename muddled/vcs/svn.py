@@ -14,7 +14,7 @@ class Subversion(VersionControlSystem):
         self.short_name = 'svn'
         self.long_name = 'Subversion'
 
-    def init_directory(self, repo, verbose=True):
+    def init_directory(self, verbose=True):
         """
         If the directory does not appear to have had '<vcs> init' run in it,
         then do so first.
@@ -23,7 +23,7 @@ class Subversion(VersionControlSystem):
         """
         print 'Muddle svn support does not know how to "init" a directory'
 
-    def add_files(self, repo, files=None, verbose=True):
+    def add_files(self, files=None, verbose=True):
         """
         If files are given, add them, but do not commit.
 

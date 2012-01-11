@@ -935,12 +935,16 @@ class Builder(object):
         # Remember this specifically as the "default" repository
         self.build_desc_repo = repo
 
+        co_label = Label(LabelType.Checkout, build_co_name, None,
+                         LabelTag.CheckedOut, domain=self.default_domain)
+
         # But is it also a perfectly normal build ..
-        checkout_from_repo(self, build_co_name, repo)
+        checkout_from_repo(self, co_label, repo)
 
         # Although we want to load it once we've checked it out...
         checked_out = Label(LabelType.Checkout, build_co_name, None,
-                            LabelTag.CheckedOut, system=True)
+                            LabelTag.CheckedOut, domain=self.default_domain,
+                            system=True)
 
         loaded = checked_out.copy_with_tag(LabelTag.Loaded, system=True, transient=True)
         loader = BuildDescriptionAction(self.invocation.db.build_desc_file_name(),

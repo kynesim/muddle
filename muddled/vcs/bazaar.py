@@ -61,7 +61,7 @@ class Bazaar(VersionControlSystem):
             del env['PYTHONPATH']
         return env
 
-    def init_directory(self, repo, verbose=True):
+    def init_directory(self, verbose=True):
         """
         If the directory does not appear to have had '<vcs> init' run in it,
         then do so first.
@@ -72,7 +72,7 @@ class Bazaar(VersionControlSystem):
         if not os.path.exists('.bzr'):
             utils.run_cmd("bzr init", env=self._derive_env(), verbose=verbose)
 
-    def add_files(self, repo, files=None, verbose=True):
+    def add_files(self, files=None, verbose=True):
         """
         If files are given, add them, but do not commit.
 

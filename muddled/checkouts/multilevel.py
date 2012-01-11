@@ -50,7 +50,8 @@ def relative(builder, co_dir, co_name, repo_relative = None, rev = None,
     # from the rest of the checkout path relative to src/
     co_dir_dir, co_dir_leaf = os.path.split(co_dir)
 
-    checkout_from_repo(builder, co_name, repo, co_dir=co_dir_dir, co_leaf=co_dir_leaf)
+    co_label = Label(LabelType.Checkout, co_name, domain=builder.default_domain)
+    checkout_from_repo(builder, co_label, repo, co_dir=co_dir_dir, co_leaf=co_dir_leaf)
 
 def absolute(builder, co_dir, co_name, repo_url, rev=None, branch=None):
     """
@@ -77,6 +78,7 @@ def absolute(builder, co_dir, co_name, repo_url, rev=None, branch=None):
     # from the rest of the checkout path relative to src/
     co_dir_dir, co_dir_leaf = os.path.split(co_dir)
 
-    checkout_from_repo(builder, co_name, repo, co_dir=co_dir_dir, co_leaf=co_dir_leaf)
+    co_label = Label(LabelType.Checkout, co_name, domain=builder.default_domain)
+    checkout_from_repo(builder, co_label, repo, co_dir=co_dir_dir, co_leaf=co_dir_leaf)
 
 # End file.

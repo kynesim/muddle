@@ -167,11 +167,11 @@ def _cmdline(args, current_dir, original_env, muddle_binary):
 
         command.with_build_tree(builder, current_dir, args)
     else:
-        # There is no build root here ..
+        # There is no build tree here ..
         if guess_what_to_do:
             # Guess that you wanted help.
-            print help(cmd_dict, subcmd_dict)
-            return
+            command_class = cmd_dict["help"]
+            command = command_class()
 
         if command.requires_build_tree():
             raise utils.GiveUp("Command %s requires a build tree."%(command_name))

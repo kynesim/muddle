@@ -28,7 +28,7 @@ class Repository(object):
       'git'
       >>> r.base_url
       'ssh://git@project-server/opt/kynesim/projects/042/git/'
-      >>> r.co_name
+      >>> r.repo_name
       'builds'
 
     but it also calculates the full URL for accessing the repository:
@@ -151,13 +151,13 @@ class Repository(object):
     # and return a value for our 'path' method to return.
     path_handlers = {}
 
-    def __init__(self, vcs, base_url, co_name, prefix=None, prefix_as_is=False,
+    def __init__(self, vcs, base_url, repo_name, prefix=None, prefix_as_is=False,
                  suffix=None, inner_path=None, revision=None, branch=None,
                  handler='guess'):
         self.vcs = vcs
         self.base_url = base_url
 
-        self.co_name = co_name
+        self.repo_name = repo_name
         self.prefix = prefix
         self.prefix_as_is = prefix_as_is
         self.suffix = suffix
@@ -242,7 +242,7 @@ class Repository(object):
             return None, revision
 
     def __repr__(self):
-        parts = [repr(self.vcs), repr(self.base_url), repr(self.co_name)]
+        parts = [repr(self.vcs), repr(self.base_url), repr(self.repo_name)]
         if self.prefix:
             parts.append('prefix=%s'%repr(self.prefix))
         if self.suffix:
@@ -266,12 +266,12 @@ class Repository(object):
         """
         parts = []
         if self.prefix_as_is:
-            parts.append('%s%s%s'%(self.base_url, self.prefix, self.co_name))
+            parts.append('%s%s%s'%(self.base_url, self.prefix, self.repo_name))
         else:
             parts.append(self.base_url)
             if self.prefix:
                 parts.append(self.prefix)
-            parts.append(self.co_name)
+            parts.append(self.repo_name)
 
         # We trust and hope that inner_path doesn't clash with suffix...
         if self.inner_path:
@@ -320,11 +320,11 @@ class Repository(object):
         """
         scheme, netloc, path, params, query, fragment = urlparse(repo_url)
         words = posixpath.split(path)
-        co_name = words[-1]
+        repo_name = words[-1]
         other_stuff = posixpath.join(*words[:-1])
         base_url = urlunparse((scheme, netloc, other_stuff, '', '', ''))
         suffix = urlunparse(('', '', '', params, query, fragment))
-        return Repository(vcs, base_url, co_name, suffix=suffix,
+        return Repository(vcs, base_url, repo_name, suffix=suffix,
                           revision=revision, branch=branch, handler=None)
 
     @staticmethod
@@ -366,13 +366,13 @@ class Repository(object):
         """
         return Repository.path_handlers.get((vcs, starts_with))
 
-    def copy_with_changes(self, co_name, prefix=None, suffix=None,
+    def copy_with_changes(self, repo_name, prefix=None, suffix=None,
                           inner_path=None, revision=None, branch=None):
         """Return a new instance based on this one.
 
         A simple copy is taken, and then any amendments are made to it.
 
-        'co_name' must be given.
+        'repo_name' must be given.
 
         This is expected to be (typically) useful for working out a repository
         relative to another (for instance, relative to the default, builds,
@@ -404,7 +404,7 @@ class Repository(object):
         # We do it this way, rather than making a copy.copy() and amending
         # that, so that we correctly trigger any handler actions that might
         # be necessary - a handler might be looking at any of the values
-        return Repository(self.vcs, self.base_url, co_name,
+        return Repository(self.vcs, self.base_url, repo_name,
                           prefix=(self.prefix if prefix is None else prefix),
                           suffix=(self.suffix if suffix is None else suffix),
                           inner_path=(self.inner_path if inner_path is None else inner_path),
@@ -429,14 +429,14 @@ def google_code_handler(repo):
         raise GiveUp('The code.google.com handler does not support the'
                      ' inner_path value, in %r'%repo)
 
-    if repo.co_name == 'default':
+    if repo.repo_name == 'default':
         return repo.base_url
     else:
-        # If we're going to put '.<co_name>' on the end, we don't want a
+        # If we're going to put '.<repo_name>' on the end, we don't want a
         # trailing '/'
         if repo.base_url[-1] == '/':
             repo.base_url = repo.base_url[:-1]
-        return '%s.%s'%(repo.base_url, repo.co_name)
+        return '%s.%s'%(repo.base_url, repo.repo_name)
 
 Repository.register_path_handler('git', 'code.google.com', google_code_handler)
 

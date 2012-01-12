@@ -1663,9 +1663,9 @@ class VersionStamp(Mapping):
                 # - suffix
                 # - handler
                 if vcs.repo.prefix:
-                    relative = os.path.join(vcs.repo.prefix, vcs.repo.co_name)
+                    relative = os.path.join(vcs.repo.prefix, vcs.repo.repo_name)
                 else:
-                    relative = vcs.repo.co_name
+                    relative = vcs.repo.repo_name
                 revisions[label] = ('%s+%s'%(vcs.repo.vcs, vcs.repo.base_url),
                                     vcs.checkout_dir,
                                     rev,

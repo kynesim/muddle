@@ -3411,12 +3411,12 @@ Try "muddle help unstamp" for more information."""
                 # including the checkout name/leaf
                 parts = posixpath.split(relative)
                 if parts[-1] == co_leaf:
-                    repo_co_name = co_leaf
+                    repo_name = co_leaf
                     prefix = posixpath.join(*parts[:-1])
                 else:
-                    repo_co_name = parts[-1]
+                    repo_name = parts[-1]
                     prefix = posixpath.join(*parts[:-1])
-                repo = Repository(vcs, base_url, repo_co_name, prefix=prefix,
+                repo = Repository(vcs, base_url, repo_name, prefix=prefix,
                                   revision=revision, branch=branch)
             else:
                 repo = Repository.from_url(vcs, base_url,

@@ -1219,7 +1219,10 @@ the parentheses. So, for instance, use:
                 args = args[1:]
 
         help_text = self.get_help(args)
-        utils.page_text(pager, help_text)
+        try:
+            utils.page_text(pager, help_text)
+        except IOError: # For instance, a pipe error due to "q" at the prompt
+            pass
 
     def get_help(self, args):
         """Return help for args, or a summary of all commands.

@@ -1648,9 +1648,13 @@ class VersionStamp(Mapping):
                 # - the repository base URL (nb: this is the VCS + URL form)
                 # - the directory within src/ that contains our checkout
                 # - the revision checked out
-                # - the repository path relative to the base URL, the Repository prefix
+                # - the repository path relative to the base URL, including the
+                #   leaf name
                 # - the checkout leaf directory (if not the same as the checkout name)
                 # - the branch checked out
+                #
+                # (this is an attempt to reconstruct what previous versions of
+                # muddle, before the use of Repository, would have done.)
                 #
                 # XXX For the new Repository mechanism, we also need to add:
                 #
@@ -1658,10 +1662,14 @@ class VersionStamp(Mapping):
                 # - prefix_as_is
                 # - suffix
                 # - handler
+                if vcs.repo.prefix:
+                    relative = os.path.join(vcs.repo.prefix, vcs.repo.co_name)
+                else:
+                    relative = vcs.repo.co_name
                 revisions[label] = ('%s+%s'%(vcs.repo.vcs, vcs.repo.base_url),
                                     vcs.checkout_dir,
                                     rev,
-                                    vcs.repo.prefix,
+                                    relative,
                                     vcs.checkout_leaf,
                                     vcs.repo.branch)
             except GiveUp as exc:

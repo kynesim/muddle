@@ -923,9 +923,12 @@ class Builder(object):
 
         # And we're going to want its Repository later on, to use as the basis
         # for other (relative) checkouts
-        build_desc = self.invocation.db.build_desc.get()
         build_repo = self.invocation.db.repo.get()
         vcs, base_url = split_vcs_url(build_repo)
+
+        if not vcs:
+            raise GiveUp('Build description URL must be of the form <vcs>+<url>, not'
+                         '\n  "%s"'%build_repo)
 
         # For the moment (and always as default) we just use the simplest
         # possible interpretation of that as a repository - i.e., build

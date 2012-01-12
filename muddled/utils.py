@@ -1389,8 +1389,8 @@ class VersionStamp(Mapping):
         ...                  ['Oops, a problem'])
         >>> print v
         [ROOT]
-        description = src/builds/01.py
         repository = Somewhere
+        description = src/builds/01.py
         <BLANKLINE>
         [CHECKOUT fred]
         directory = fred
@@ -1408,7 +1408,7 @@ class VersionStamp(Mapping):
         [PROBLEMS]
         problem1 = Oops, a problem
         >>> v['jim']
-        CheckoutTuple(name='jim', repo='Elsewhere', rev=7, rel=None, dir='jim', domain=None, co_leaf='sheila', branch=None)
+        CheckoutTuple(name='jim', repo='vcs+Elsewhere', rev=7, rel=None, dir='jim', domain=None, co_leaf='sheila', branch=None)
 
     Note that this is *not* intended to be a mutable class, so please do not
     change any of its internals directly. In particular, if you *did* change

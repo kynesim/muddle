@@ -229,7 +229,7 @@ class Database(object):
                 max = length
         keys.sort()
         for label in keys:
-            print "%-*s -> %s"%(max, label, self.checkout_repositories[label])
+            print "%-*s -> %r"%(max, label, self.checkout_repositories[label])
 
     def get_checkout_repo(self, checkout_label):
         """

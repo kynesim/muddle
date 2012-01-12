@@ -51,7 +51,7 @@ class Subversion(VersionControlSystem):
         """
         if repo.branch:
             raise utils.GiveUp("Subversion does not support branch"
-                               " in 'checkout' (branch='%s')"%branch)
+                               " in 'checkout' (branch='%s')"%repo.branch)
         utils.run_cmd("svn checkout %s %s %s"%(self._r_option(repo.revision),
                                                repo.url, co_leaf), verbose=verbose)
 
@@ -66,9 +66,9 @@ class Subversion(VersionControlSystem):
 
           ("svn help status" would call those columns 1, 2 and 7)
         """
-        if branch:
+        if repo.branch:
             raise utils.GiveUp("Subversion does not support branch"
-                               " in 'fetch' (branch='%s')"%branch)
+                               " in 'fetch' (branch='%s')"%repo.branch)
         retcode, text, ignore = utils.get_cmd_data("svn status")
         for line in text:
             if 'C' in (line[0], line[1], line[6]):
@@ -86,10 +86,10 @@ class Subversion(VersionControlSystem):
 
         Will be called in the actual checkout's directory.
         """
-        if branch:
+        if other_repo.branch:
             raise utils.GiveUp("Subversion does not support branch"
-                               " in 'merge' (branch='%s')"%branch)
-        utils.run_cmd("svn update %s"%(self._r_option(repo.revision)), verbose=verbose)
+                               " in 'merge' (branch='%s')"%other_repo.branch)
+        utils.run_cmd("svn update %s"%(self._r_option(other_repo.revision)), verbose=verbose)
 
     def commit(self, repo, options, verbose=True):
         """

@@ -1,71 +1,39 @@
-Changes in this new version of muddle
-=====================================
+Changes in version 2.3 of muddle
+================================
 
-NB: SVN revision 638 (back when muddle was stored in subversion) had tag 2_2,
-so this will be muddle version 2.3.
+I took a branch of muddle out in September 2011 to write tests for domain
+support, which had "bit rotted" through disuse. As it turned out, my need for
+domain support went away again, and instead I started to use the branch for
+rewriting the help texts for each command. Of course, in order to do that, I
+had to understand exactly what each command did, which led to rewriting the
+main command structure so that this was *consistent*, and hopefully also
+*predictable*, and thus easier to document. So it all took rather longer than
+planned.
+
+Meanwhile, another project recently necessitated adding support for git
+repositories on Google Code, which in turn required rewriting the internal
+repository and checkout support. So that also got folded in.
+
+This version of muddle is now stable enough to merge back into the mainline.
+I've been using it for real development work throughout its development, and
+there are more tests than there used to be (although still not enough
+subdomain tests!). However, clearly, if you come across a bug or infelicity
+that I've introduced, do let me know (preferably by raising an issue at
+http://code.google.com/p/muddle/issues/list, but otherwise by email to
+tibs@kynesim.co.uk).
+
+Since there's a large amount of sudden change, much of it to significant
+internal structure, I'm giving this new version of muddle a version tag,
+and calling it version 2.3 (SVN revision 638 (back when muddle was stored in
+subversion) had tag 2_2). The tag "end_of_2.2" can be used to retrieve muddle
+before these changes were merged in.
+
+The main changes are:
 
 * Much of the the internals of the command line processing has been rewritten,
   and this should give more robust command handling. It also means that
   commands of a common "category" (see 'muddle help categories') share much
   more common code, and thus have better consistency.
-
-* All checkout/package/dependency commands now know how to cope with any
-  type of label. See 'muddle help labels' for details.
-
-* Most commands that that take labels as arguments can now take partial labels
-  (label fragments) instead, which is a lot simpler for a human being. This
-  includes the 'visdep' script in the sandbox. See 'muddle help labels' for
-  more information.
-
-* All checkout/package/dependency commands now know how to cope with any
-  type of label. See 'muddle help labels' for details.
-
-* Removed aliases:
-
-  - 'muddle query deps' - use 'needed-by'
-  - 'muddle query instructions' - use 'inst-files'
-  - 'muddle query makeenv' - use 'make-env'
-  - 'muddle query preciseenv' - use 'precise-env'
-  - 'muddle query results' - use 'needs'
-
-  Note that 'muddle query envs' is still an alias for 'muddle query all-envs',
-  and this is still different than 'muddle query env'.
-
-  Also, as it turned out, 'muddle uncheckout' and 'muddle removed' did
-  exactly the same thing. 'muddle removed' has thus been removed.
-
-* Changed commands:
-
-  - 'muddle dependencies' is replaced by 'muddle query dependencies'
-  - 'muddle depends' is replaced by 'muddle query depends' (this is actually
-    the same as the previous item)
-  - 'muddle vcs' is replaced by 'muddle query vcs'
-  - 'muddle root' has gone. Instead use 'muddle query root', which already
-    existed. 'muddle query root' now just reports the root (of the build
-    tree), and not the "default domain", since this concept has essentially
-    gone away.
-  - 'muddle query default-labels' is now the more accurate 'muddle query
-    default-deployments'
-
-* 'muddle pull' is once again preferred over 'muddle fetch' or 'muddle update'
-
-* The 'utils.Directory' classes now set $PWD (as top-level muddle itself does,
-  and for the same reason). They also now have a useful 'join' method (see the
-  classes for its use). A version of these classes has been pulled out to
-  a separate repository on github - see https://github.com/tibs/withdir
-
-* How the muddle command works:
-
-  - "bare" 'muddle':
-
-    - at the top of the buildtree
-    - elsewhere
-
-  - 'muddle <cmd>' with no arguments, for checkout/package/deployment
-    commands:
-
-    - at the top of the buildtree
-    - elsewhere
 
 * Much of the help text has been reworked, and there are new topics:
 
@@ -73,31 +41,31 @@ so this will be muddle version 2.3.
   - 'muddle help labels'
   - 'muddle help subdomains'
 
-* Muddle help text is now paged (much as is done by git), using the pager
+  Also, help text is now paged (much as is done by git), using the pager
   specified by $PAGER, or else 'more'. There is a command line switch,
   '--nopager', to rever to the old behaviour.
 
-* What 'muddle where' says has changed in detail, and there is now 'muddle
-  where -detail' for use in scripts.
+* An attempt has been made to make the "bare" muddle command (i.e., 'muddle'
+  with no arguments) follow the DWIM (Do What I Mean) principles described
+  in the documentation. See 'muddle help labels' for more information on
+  how this works.
 
-* When building things, or "killing" things, muddle is significantly less
-  verbose - it doesn't normally report ALL the labels it will affect.
+* Similarly, muddle checkout/package/dependency commands with no label
+  arguments (e.g., 'muddle build') now try to decide consistently what to do.
+  Again, see 'muddle help labels'.
+
+* All checkout/package/dependency commands now know how to cope with any
+  type of label. See 'muddle help labels' for details.
+
+* Most commands that take labels as arguments can now take partial labels
+  (label fragments) instead, which is a lot simpler for a human being. This
+  includes the 'visdep' script in the sandbox. See 'muddle help labels' for
+  more information.
 
 * 'muddle -n' now works for all commands that do something (it used to be very
   unpredictable about this). It is now a reliable tool, and may be used as
   such. Also, note that it reports a single label per line, which makes it
   much easier to read.
-
-* Many minor code tidies have been made.
-
-* There is now more testing! (particularly of the 'muddle -n' commands, and of
-  subdomain handling - necessary because the latter had "bit rotted").
-
-* Various things that were to be deprecated have now been removed. Hopefully
-  no-one will notice.
-
-* Added 'NullPackage' and 'null_package()' to muddled/pkg.py. Their docstrings
-  explain why they might be useful.
 
 * As well as the special '_all' argument, there are now also
   '_default_deployments' and '_default_roles', which expand to all the default
@@ -110,6 +78,12 @@ so this will be muddle version 2.3.
   meaningful to ask for ``package:_all{x86}`` when one meant
   ``package:*{x86}`` (the former will report that there is no package called
   ``_all{x86}``).
+
+* What 'muddle where' says has changed in detail, and there is now 'muddle
+  where -detail' for use in scripts.
+
+* When building things, or "killing" things, muddle is significantly less
+  verbose - it doesn't normally report ALL the labels it will affect.
 
 * More and hopefully more useful error messages have been introduced. In
   particular, I've tried to catch occasions where muddle unexpectedly does
@@ -124,17 +98,61 @@ so this will be muddle version 2.3.
   longer buried in a traceback concerned with how the build description was
   being imported.
 
-* muddle commands now try harder to catche cases where the user has specified
+* muddle commands now try harder to catch cases where the user has specified
   a role for a checkout or deployment label, and grumble.
 
-* Various obscure bugs have been found and fixed by the new tests. Some of
-  them were really *quite* obscure.
+* Various command aliases have been removed:
+
+  - 'muddle query deps' - use 'needed-by'
+  - 'muddle query instructions' - use 'inst-files'
+  - 'muddle query makeenv' - use 'make-env'
+  - 'muddle query preciseenv' - use 'precise-env'
+  - 'muddle query results' - use 'needs'
+
+  Note that 'muddle query envs' is still an alias for 'muddle query all-envs',
+  and this is still different than 'muddle query env'.
+
+  Also, as it turned out, 'muddle uncheckout' and 'muddle removed' did
+  exactly the same thing. 'muddle removed' has thus been removed.
+
+* Some commands have been changed:
+
+  - 'muddle dependencies' is replaced by 'muddle query dependencies'
+  - 'muddle depends' is replaced by 'muddle query depends' (this is actually
+    the same as the previous item)
+  - 'muddle vcs' is replaced by 'muddle query vcs'
+  - 'muddle root' has gone. Instead use 'muddle query root', which already
+    existed. 'muddle query root' now just reports the root (of the build
+    tree), and not the "default domain", since this concept has essentially
+    gone away.
+  - 'muddle query default-labels' is now the more accurate 'muddle query
+    default-deployments'
 
 * 'muddle query package-roles' will also include domains in the reported
   names, if appropriate.
 
+* 'muddle pull' is once again preferred over 'muddle fetch' or 'muddle
+  update', but the other variants are still there.
+
+* The 'utils.Directory' classes now set $PWD (as top-level muddle itself does,
+  and for the same reason). They also now have a useful 'join' method (see the
+  classes for its use). A version of these classes has been pulled out to
+  a separate repository on github - see https://github.com/tibs/withdir
+
+* There is now more testing! (particularly of the 'muddle -n' commands, and of
+  subdomain handling - necessary because the latter had "bit rotted").
+
+* Various obscure bugs have been found and fixed by the new tests. Some of
+  them were really *quite* obscure.
+
+* Various things that were to be deprecated have now been removed. Hopefully
+  no-one will notice.
+
+* 'NullPackage' and 'null_package()' have been added to muddled/pkg.py. Their
+  docstrings explain why they might be useful.
+
 * 'Rule' classes now have an 'action' member, instead of an 'obj' member. I
-  believe this to be much cleare, but it is an unannounced incompatible
+  believe this to be much clearer, but it is an unannounced incompatible
   change.
 
 * Repository handling has been rewritten, separating out the concerns of
@@ -178,10 +196,12 @@ so this will be muddle version 2.3.
 * Internal changes that may be of interest:
 
   - 'builder.invocation.default_labels' is now
-    'builder.invocation.default_deployment_labels'. Similarly, the method
-    'add_default_label()' becomes 'add_default_deployment_label()'. It also
+    'builder.invocation.default_deployment_labels'.
+  - Similarly, the method 'add_default_label()' becomes
+    'add_default_deployment_label()'. It also
     now checks that the label *is* a deployment label.
 
+Also, of course, many minor code tidies have been made.
 
 Particular issues fixed
 -----------------------

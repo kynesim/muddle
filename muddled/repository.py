@@ -282,12 +282,6 @@ class Repository(object):
         # it will cope with parts starting with '/' correctly
         result = posixpath.join(*parts)
 
-        if False:
-            print 'xxxxxxxxxxxxxxxxxxxxxxxxxx'
-            print self.base_url
-            print parts
-            print result
-
         if self.suffix:
             result = '%s%s'%(result, self.suffix)
 
@@ -418,23 +412,30 @@ class Repository(object):
                           branch=branch)
 
 def google_code_handler(repo):
+
+    # Note that error messages must use %r for the 'repo' representation,
+    # because %s uses repo.url, which isn't set up until we've returned(!)
     if repo.vcs != 'git':
         raise GiveUp('The code.google.com handler currently only understands'
-                     ' git, not %s, in %s'%(vcs, repo))
+                     ' git, not %s, in %r'%(vcs, repo))
 
     if repo.prefix:
         raise GiveUp('The code.google.com handler does not support the'
-                     ' prefix value, in %s'%repo)
+                     ' prefix value, in %r'%repo)
     if repo.suffix:
         raise GiveUp('The code.google.com handler does not support the'
-                     ' suffix value, in %s'%repo)
+                     ' suffix value, in %r'%repo)
     if repo.inner_path:
         raise GiveUp('The code.google.com handler does not support the'
-                     ' inner_path value, in %s'%repo)
+                     ' inner_path value, in %r'%repo)
 
     if repo.co_name == 'default':
         return repo.base_url
     else:
+        # If we're going to put '.<co_name>' on the end, we don't want a
+        # trailing '/'
+        if repo.base_url[-1] == '/':
+            repo.base_url = repo.base_url[:-1]
         return '%s.%s'%(repo.base_url, repo.co_name)
 
 Repository.register_path_handler('git', 'code.google.com', google_code_handler)

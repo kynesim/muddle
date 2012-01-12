@@ -18,6 +18,7 @@ case your programs want to run them themselves
 
 import difflib
 import os
+import posixpath
 import pydoc
 import subprocess
 import sys
@@ -3405,25 +3406,24 @@ Try "muddle help unstamp" for more information."""
             # build system
             vcs, base_url = split_vcs_url(vcs_repo_url)
 
-            repo = Repository(vcs, base_url, co_leaf, prefix=relative,
-                              revision=revision, branch=branch)
+            if relative:
+                # 'relative' is the full path to the checkout (with src/),
+                # including the checkout name/leaf
+                parts = posixpath.split(relative)
+                if parts[-1] == co_leaf:
+                    repo_co_name = co_leaf
+                    prefix = posixpath.join(*parts[:-1])
+                else:
+                    repo_co_name = parts[-1]
+                    prefix = posixpath.join(*parts[:-1])
+                repo = Repository(vcs, base_url, repo_co_name, prefix=prefix,
+                                  revision=revision, branch=branch)
+            else:
+                repo = Repository.from_url(vcs, base_url,
+                                           revision=revision, branch=branch)
 
             label = Label(LabelType.Checkout, name, domain=domain)
             checkout_from_repo(builder, label, repo, co_dir, co_leaf)
-
-
-            # XXX BROKEN XXX
-            # ------------------------------------------
-            if False:
-                if dir:
-                    builder.invocation.db.set_checkout_path(label, os.path.join(dir, co_leaf))
-                else:
-                    builder.invocation.db.set_checkout_path(label, co_leaf)
-                vcs_handler = version_control.vcs_handler_for(builder, label, co_leaf,  repo,
-                                                              rev, rel, dir, branch)
-                vcs = pkg.VcsCheckoutBuilder(name, vcs_handler)
-                pkg.add_checkout_rules(builder.invocation.ruleset, label, vcs)
-            # ------------------------------------------
 
             # Then need to mimic "muddle checkout" for it
             label = Label(LabelType.Checkout,

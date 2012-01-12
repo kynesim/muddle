@@ -962,7 +962,8 @@ try and find a .muddle directory, which signifies the top of the build tree.
 
     labels_help = """\
 More complete documentation on labels is available in the muddle documentation
-at http://muddle.readthedocs.org/. This is a summary.
+at http://muddle.readthedocs.org/. Information on the label class itself can
+be obtained with "muddle doc depend.Label". This is a summary.
 
 (Nearly) everything in muddle is described by a label. A label looks like:
 
@@ -1020,8 +1021,11 @@ on checkout: labels.
 
 Label fragments
 ---------------
-
-.. to be finished..
+Typing all of a label on the command line can be onerous. Muddle thus allows
+appropriate fragments of a label to be used, according to the particular
+command. In general, the aim is to require the label name, have a sensible
+default for the label type and tag, and (for packages) try all the default
+roles if none is specified.
 
 Each command says, in its help text, if it defaults to "checkout:", "package:"
 or "deployment".
@@ -1052,52 +1056,77 @@ You can always used "muddle -n <command> <fragment>" to see what labels the
 
 "muddle" with no label arguments
 --------------------------------
+Muddle tries quite hard to do the sensible thing if you type it without any
+arguments, depending on the current directory. Specifically, for commands
+that "build" a label (whether checkout, package or deployment):
 
-...to be finished...
+* at the very top of the build tree, "muddle _default_deployments _default_roles"
+* within a 'src/' directory, or within a non-checkout subdirectory inside
+  'src'/,  "muddle rebuild" for each checkout that is below the current
+  directory (i.e., rebuild all packages using the checkouts below the
+  current directory).
+* within a checkout directory, "muddle rebuild" for the package(s) that use
+  that checkout.
+* within an 'obj/' directory, no defined action
+* within an 'obj/<package>' directory, "muddle rebuild" for the named
+  <package> in each of the default roles.
+* within an 'obj/<package>/<role>' directory (or one of its subdirectories),
+  "muddle rebuild package:<package>{<role>}".
+* within an 'install/' directory, no defined action.
+* within an 'install/<role>' directory (or one of its subdirectories),
+  "muddle build package:*{<role>}".
+* within a 'deploy/' directory, no defined action.
+* within a 'deploy/<deployment>' directory, "muddle redeploy <deployment>".
 
-At the very top of the build tree, a bare "muddle" is identical to
-"muddle _all_deployments _all_roles".
+If you have subdomains (see "muddle help subdomains"), then:
 
-Within a 'domains/' directory, a bare "muddle" is identical to "muddle
-buildlabel" with arguments "deployment:(<domain>)*/deployed" and
-"package:(<domain>)*{*}/postinstalled" for each <domain> that has a
-directory (directly within) that 'domains/' directory.
+* within a 'domains/' directory, "muddle buildlabel" with arguments
+  "deployment:(<domain>)*/deployed" and "package:(<domain>)*{*}/postinstalled"
+  for each <domain> that has a directory (directly within) that 'domains/'
+  directory.
+* within a 'domains/<domain>' directory, "muddle buildlabel" with arguments
+  "deployment:(<domain>)*/deployed" and "package:(<domain>)*{*}/postinstalled".
 
-Within a 'domains/<domain>' directory, a bare "muddle" is
-identical to "muddle buildlabel deployment:(<domain>)*/deployed
-package:(<domain>)*{*}/postinstalled".
-
-where <domain> is replaced by the subdomain's name (as given by
-"muddle where" in that directory).
-
-Within a 'deploy/' directory, or its subdirectories, a bare "muddle" is
-identical to "muddle redeploy".
+where <domain> is replaced by the subdomain's name (as given by "muddle where"
+in that directory).
 
 Anywhere else, "muddle" will say "Not sure what you want to build".
 
 "muddle <command>" with no label arguments
 ------------------------------------------
+Again, muddle tries to decide what to do based on the current directory.
 
-...to be finished...
+For any command that "builds" a label (whether checkout, package or
+deployment):
 
-...but broadly, if "muddle where" gives a label, then that label will be
-used as the argument. If it does not, then the current directory may be
-used to deduce an argument.
+* if "muddle where" gives a label, then that label will be used as the
+  argument.
+* if the current directory is within 'src/', then all the checkouts below
+  the current directory will be found, and a checkout: label constructed
+  for each, and those will be used as the arguments.
+
+Otherwise, muddle will say "Not sure what you want to build".
 
 How "muddle" commands intepret labels of the "wrong" type
 ---------------------------------------------------------
-For instance: "muddle checkout package:fred"
+Most muddle commands that want label arguments actually want labels of a
+particular type. For instance, "muddle checkout" wants to operate on one
+or more checkout: labels.
 
-.. to be finished ..
+Sometimes, however, it is more convenient to specify a label of a different
+type. For instance: "muddle checkout package:fred", to checkout the checkouts
+needed by package "fred".
 
-* checkout command:
+Labels of particular types are intrepreted as follows:
+
+* in a checkout command:
 
   - checkout: -> itself
   - package: -> all the checkouts used *directly* by this package
   - deployment: -> all the checkouts needed by this deployment
     (this can be a bit slow to calculate)
 
-* package command:
+* in a package command:
 
   - checkout: -> the packages that depend directly upon this checkout
     (i.e., those that are "built" from it), but only if they are in one
@@ -1105,11 +1134,28 @@ For instance: "muddle checkout package:fred"
   - package: -> itself
   - deployment: -> all the packages used *directly* by this deployment
 
-* deployment command
+* in a deployment command
 
   - checkout: -> any deployments that depend upon this checkout (at any depth)
   - package: -> any deployments that depend upon this package (at any depth)
   - deployment: -> itself
+
+_all and friends
+----------------
+There are some special command line arguments that represent a set of labels.
+
+* _all represents all target labels
+* _default_roles represents package labels for all of the default roles, as
+  given in the build description. Specifically, package:*{<role>}/postinstalled
+  for each such <role>. You can find out what the default roles are with
+  "muddle query default-roles".
+* _default_deployments represents deployment labels for each of the default
+  deployments, as given in the build description. You can find out what the
+  default deployments are with "muddle query default-deployments".
+
+The help for particular commands will indicate if these values can be used,
+but they are generally valid for all commands that "build" checkout, package
+or deployment labels.
 
 Unexpected results
 ------------------

@@ -1,6 +1,9 @@
 Changes in this new version of muddle
 =====================================
 
+NB: SVN revision 638 (back when muddle was stored in subversion) had tag 2_2,
+so this will be muddle version 2.3.
+
 * Much of the the internals of the command line processing has been rewritten,
   and this should give more robust command handling. It also means that
   commands of a common "category" (see 'muddle help categories') share much
@@ -104,8 +107,9 @@ Changes in this new version of muddle
 
   However, note that '_all' is now treated as a special value for use on the
   commandline, and not as a "pseudo-wildcard" label name. Thus it is no longer
-  meaningful to ask for 'package:_all{x86}' when one meant 'package:*{x86}'
-  (the former will report that there is no package called '_all{x86}').
+  meaningful to ask for ``package:_all{x86}`` when one meant
+  ``package:*{x86}`` (the former will report that there is no package called
+  ``_all{x86}``).
 
 * More and hopefully more useful error messages have been introduced. In
   particular, I've tried to catch occasions where muddle unexpectedly does
@@ -133,6 +137,44 @@ Changes in this new version of muddle
   believe this to be much cleare, but it is an unannounced incompatible
   change.
 
+* Repository handling has been rewritten, separating out the concerns of
+  naming a (remote) repository and naming (the location of) a checkout.
+
+  In particular, and importantly, it now understands how to use git
+  repositories at google code, where the repository name is appended
+  to the "main" URL with a dot, rather than a "/".
+
+  The old commands for setting things up (checkouts.twolevel and so on)
+  are still there, but one can now do::
+
+    from muddled.repository import Repository
+    from muddled.version_control import checkout_from_repo
+
+    repo = Repository('git', 'https://example.com/', 'useful-stuff',
+                      branch='very-useful')
+    checkout_from_repo(builder, 'useful-stuff', repo)
+
+  althogh there's actually more to it than that - in particular, one can
+  specify a different <co_dir> and <co_leaf> to checkout_from_repo, giving
+  one full control over where the repository is actually checked out::
+
+    checkout_from_repo(builder, 'useful-stuff', repo, co_dir='jim',
+                       co_leaf='fred')
+
+  checks the repository out into 'src/jim/fred', but still using the label
+  'checkout:useful-stuff/checked_out'. I'd claim this is significantly
+  easier to understand than the twoleve/multilevel functions.
+
+  See the documentation for Repository via "muddle doc repository.Repository",
+  or in its source file.
+
+  There is now thus a new command "muddle query checkout-repos" to report
+  on the repositories. See its help for details.
+
+  This new mechanism is believed to understand muddle stamp files generated
+  by previous versions of muddle, and to be able to produce muddle stamp
+  files that previous versions of muddle should understand.
+
 * Internal changes that may be of interest:
 
   - 'builder.invocation.default_labels' is now
@@ -141,28 +183,36 @@ Changes in this new version of muddle
     now checks that the label *is* a deployment label.
 
 
-Particular issues fixed:
+Particular issues fixed
+-----------------------
 
-(marked with XXX if they need verification)
-
-* 4, bugs in description files are not handled elegantly
-* 67, checkout and package inference should know about domains
-* 104, no feedback on undefined label name
-* 112, Python 2.7 (I'm now using that for testing as well)
-* 115, make muddle grumble if a role is given for checkout labels
-* 166, test_checkouts.py broken by fix for issue 161
-* 177, 'muddle checkout package:xxx' should checkout what is needed for
-  package xxx
-* 184, all the muddle commands that take labels should support domains
-* XXX 185, muddle unstamp should check its build against domain/checkout name, not
-  just checkouts name 
-* 186, deprecate use of 'all_packages', use 'all_package_labels' instead
-* 189, make sure all commands do something vaguely sensible for '-n'
-* XXX 194, 'muddle pull' of a toplevel checkout in a subdomain attempts to clone
-* XXX 195, if there's nothing to do, say so
-* 198, muddle should actually honour the DWIM section from the README
-* 199, helpful error behaviour of fetch/pull unexpected (well, ok, this is in
-  master as well)
-* 200, find all targets for deployments
+* Fixes issue 4. Bugs in description files are not handled elegantly
+* Fixes issue 67. Checkout and package inference should know about domains
+* Fixes issue 104. No feedback on undefined label name
+* Fixes issue 112. Python 2.7 (I'm now using that for testing as well)
+* Fixes issue 126. Provide coherent branch support in the VCS plugins
+* Fixes issue 166. test_checkouts.py broken by fix for issue 161
+* Fixes issue 175. Repository name should be independent of local checkout name
+* Fixes issue 177. 'muddle checkout package:xxx' should checkout what is
+  needed for package xxx
+* Fixes issue 179. revisit the implementation of the
+  simple/twolevel/multilevel checkout code
+* Fixes issue 184. All the muddle commands that take labels should support
+  domains
+* Fixes issue 185. Muddle unstamp should check its build against
+  domain/checkout name, not just checkouts name 
+* Fixes issue 186. Deprecate use of 'all_packages', use 'all_package_labels'
+  instead
+* Fixes issue 189. Make sure all commands do something vaguely sensible for '-n'
+* Fixes issue 194. 'muddle pull' of a toplevel checkout in a subdomain
+  attempts to clone
+* Fixes issue 195. If there's nothing to do, say so
+* Fixes issue 198. Muddle should actually honour the DWIM section from the
+  README
+* Fixes issue 199. Helpful error behaviour of fetch/pull unexpected (well, ok,
+  this is in master as well)
+* Fixes issue 200. Find all targets for deployments
+* Fixes issue 207. Muddle assumes too much about how RootRepository and
+  Description are joined
 
 .. vim: set filetype=rst tabstop=8 softtabstop=2 shiftwidth=2 expandtab:

@@ -1772,13 +1772,29 @@ class QueryCheckoutDirs(QueryCommand):
 @subcommand('query', 'checkout-repos', CAT_QUERY)
 class QueryCheckoutRepos(QueryCommand):
     """
-    :Syntax: muddle query checkout-repos
+    :Syntax: muddle query checkout-repos [-u[rl]]
 
     Print the known checkouts and their checkout repositories
+
+    With '-u' or '-url', print the repository URL. Otherwise, print the
+    full spec of the Repository instance that represents the repository.
+
+    So, for instance, the standard printout produces lines of the form::
+
+        checkout:kernel/* -> Repository('git', 'ssh://git@server/project99/src', 'kernel', prefix='linuxbase', branch='linux-3.2.0')
+
+    but with '-u' one would instead see::
+
+        checkout:kernel/* -> ssh://git@server/project99/src/linuxbase/kernel
     """
 
+    allowed_switches = {'-u':'url', '-url':'url'}
+
     def with_build_tree(self, builder, current_dir, args):
-        builder.invocation.db.dump_checkout_repos()
+        args = self.remove_switches(args, allowed_more=False)
+
+        just_url = ('url' in self.switches)
+        builder.invocation.db.dump_checkout_repos(just_url=just_url)
 
 @subcommand('query', 'domains', CAT_QUERY)
 class QueryDomains(QueryCommand):

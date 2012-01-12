@@ -219,7 +219,14 @@ class Database(object):
         key = self.normalise_checkout_label(checkout_label)
         self.checkout_repositories[key] = repo
 
-    def dump_checkout_repos(self):
+    def dump_checkout_repos(self, just_url=False):
+        """
+        Report on the repositories associated with our checkouts.
+
+        If 'just_url' is true, then report the repository URL, otherwise
+        report the full Repository definition (which shows branch and revision
+        as well).
+        """
         print "> Checkout repositories .. "
         keys = self.checkout_repositories.keys()
         max = 0
@@ -228,8 +235,12 @@ class Database(object):
             if length > max:
                 max = length
         keys.sort()
-        for label in keys:
-            print "%-*s -> %r"%(max, label, self.checkout_repositories[label])
+        if just_url:
+            for label in keys:
+                print "%-*s -> %s"%(max, label, self.checkout_repositories[label])
+        else:
+            for label in keys:
+                print "%-*s -> %r"%(max, label, self.checkout_repositories[label])
 
     def get_checkout_repo(self, checkout_label):
         """

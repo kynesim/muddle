@@ -233,6 +233,9 @@ def test_svn_revisions_build():
             # But if we remove the restriction on revision number
             with Directory('builds'):
                 touch('01.py', CHECKOUT_BUILD_SVN_NO_REVISIONS)
+                # Then remove the .pyc file, because Python probably won't realise
+                # that this new 01.py is later than the previous version
+                os.remove('01.pyc')
 
             with Directory('checkout1'):
                 muddle(['fetch'])

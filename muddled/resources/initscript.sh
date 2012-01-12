@@ -20,7 +20,7 @@ if [ -e $TARGET_INSTALL_LOCATION/bin/setvars ]; then
 fi
 
 case "$1" in
-    start) 
+    start)
 	VERB="Starting"
 	;;
     end)
@@ -55,7 +55,7 @@ for i in `cd $INITRD_PATH; ls`; do
     else
 	echo "   ... [ OK ]"
     fi
-    
+
 done
 
 exit $RC

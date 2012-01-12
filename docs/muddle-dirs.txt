@@ -60,7 +60,7 @@ Notation in this chapter
   ``{role}``, and "normal" builds do not use ``(domain)``.
 
 * In this document I use the command ``m3`` instead of ``muddle``.
- 
+
   The simple reason for this is that when I made the examples I was using a
   development branch of muddle, and using ``m3`` to distinguish it from the
   "normal" ``muddle``. Since then, that branch has been merged back into the
@@ -117,12 +117,12 @@ and then use the muddle ``init`` command:
 
     $ m3 init svn+http://muddle.googlecode.com/svn/trunk/muddle/examples/cpio builds/01.py
     > Make directory /home/tibs/sw/m3/example/.muddle
-    Initialised build tree in /home/tibs/sw/m3/example 
+    Initialised build tree in /home/tibs/sw/m3/example
     Repository: svn+http://muddle.googlecode.com/svn/trunk/muddle/examples/cpio
     Build description: builds/01.py
 
 
-    Checking out build description .. 
+    Checking out build description ..
 
     > Make directory /home/tibs/sw/m3/example/src
     > svn checkout  http://muddle.googlecode.com/svn/trunk/muddle/examples/cpio/builds builds
@@ -180,7 +180,7 @@ The ``Description`` file
 
   .. sourcecode:: console
 
-    $ cat .muddle/Description 
+    $ cat .muddle/Description
     builds/01.py
 
 which should be recognisable from the ``init`` command. It tells muddle where
@@ -196,7 +196,7 @@ The ``RootRepository`` file
 
   .. sourcecode:: console
 
-    $ cat .muddle/RootRepository 
+    $ cat .muddle/RootRepository
     svn+http://muddle.googlecode.com/svn/trunk/muddle/examples/cpio
 
 Again, this should be recognisable from the ``init`` command. This specifies
@@ -231,7 +231,7 @@ a timestamp:
 
   .. sourcecode:: console
 
-    $ cat .muddle/tags/checkout/builds/checked_out 
+    $ cat .muddle/tags/checkout/builds/checked_out
     2010-09-28 11:14:34
 
 but this content is never actually used for anything, and if you do add a tag
@@ -302,7 +302,7 @@ This example build has a fairly simple build description, in ``src/builds/01.py`
         # Checkout ..
         muddled.checkouts.simple.relative(builder, "cpio_co")
         muddled.pkgs.make.simple(builder, "pkg_cpio", "x86", "cpio_co")
-        muddled.deployments.cpio.deploy(builder, "my_archive.cpio", 
+        muddled.deployments.cpio.deploy(builder, "my_archive.cpio",
                                         {"x86": "/"},
                                         "cpio_dep", [ "x86" ])
 
@@ -426,7 +426,7 @@ using the ``query deps`` command:
   .. sourcecode:: console
 
     $ m3 query deps deployment:cpio_dep/deployed
-    Build order for deployment:cpio_dep/deployed .. 
+    Build order for deployment:cpio_dep/deployed ..
     checkout:cpio_co/checked_out
     package:pkg_cpio{x86}/preconfig
     package:pkg_cpio{x86}/configured
@@ -499,13 +499,13 @@ such it also has a single makefile, ``src/cpio_co/Makefile``:
 
   .. sourcecode:: makefile
 
-    # Makefile for cpio_co 
+    # Makefile for cpio_co
     #
     # Just dumps some compiled C into the right place.
 
     INSTALL=install
 
-    all: 
+    all:
             $(CC) -o $(MUDDLE_OBJ)/hello_world hello_world.c
 
     install:
@@ -513,10 +513,10 @@ such it also has a single makefile, ``src/cpio_co/Makefile``:
             $(INSTALL) -m 0755 $(MUDDLE_OBJ)/hello_world $(MUDDLE_INSTALL)/bin/hello_world
             $(INSTALL) -m 0644 hello_world.c $(MUDDLE_INSTALL)/hello_world.c
 
-    config: 
+    config:
             @echo Nothing to do
 
-    clean: 
+    clean:
             rm -f $(MUDDLE_OBJ)/hello_world
 
     distclean: clean
@@ -535,18 +535,18 @@ makefile targets as follows:
   ==============  ===============
   Target tag      Makefile target
   ==============  ===============
-  /preconfig      <none>         
-  /configured     config         
-  /built          all            
-  /installed      install        
-  /postinstalled  <none>         
+  /preconfig      <none>
+  /configured     config
+  /built          all
+  /installed      install
+  /postinstalled  <none>
   ==============  ===============
 
   ==============  ===============
   Target tag      Makefile target
   ==============  ===============
-  /clean          clean          
-  /distclean      distclean      
+  /clean          clean
+  /distclean      distclean
   ==============  ===============
 
 It can be useful to think of a package as "progressing" from ``/preconfig``
@@ -577,7 +577,7 @@ If one tries to build a package that doesn't exist, one will be told so:
   .. sourcecode:: console
 
     $ m3 build cpio
-    Building package:cpio{x86}/postinstalled 
+    Building package:cpio{x86}/postinstalled
     There is no rule to build label package:cpio{x86}/postinstalled
 
 It's simple to find out what packages there are:
@@ -592,7 +592,7 @@ So let's build it:
   .. sourcecode:: console
 
     $ m3 build pkg_cpio
-    Building package:pkg_cpio{x86}/postinstalled 
+    Building package:pkg_cpio{x86}/postinstalled
     > Building package:pkg_cpio{x86}/preconfig
     > Make directory /home/tibs/sw/m3/example/obj/pkg_cpio/x86
     > Make directory /home/tibs/sw/m3/example/install/x86
@@ -690,7 +690,7 @@ with the ``makeenv`` query:
     MUDDLE=/home/tibs/sw/m3/muddle3_labels/muddle/muddled/__main__.py
     MUDDLE_INCLUDE_DIRS=
     MUDDLE_INSTALL=/home/tibs/sw/m3/example/install/x86
-    MUDDLE_INSTRUCT=/home/tibs/sw/m3/muddle3_labels/muddle/muddled/__main__.py instruct pkg_cpio{x86} 
+    MUDDLE_INSTRUCT=/home/tibs/sw/m3/muddle3_labels/muddle/muddled/__main__.py instruct pkg_cpio{x86}
     MUDDLE_KIND=package
     MUDDLE_LABEL=package:pkg_cpio{x86}/built
     MUDDLE_LD_LIBRARY_PATH=
@@ -707,7 +707,7 @@ with the ``makeenv`` query:
     MUDDLE_SRC=/home/tibs/sw/m3/example/src/cpio_co
     MUDDLE_TAG=built
     MUDDLE_TARGET_LOCATION=/
-    MUDDLE_UNINSTRUCT=/home/tibs/sw/m3/muddle3_labels/muddle/muddled/__main__.py instruct pkg_cpio{x86} 
+    MUDDLE_UNINSTRUCT=/home/tibs/sw/m3/muddle3_labels/muddle/muddled/__main__.py instruct pkg_cpio{x86}
 
 Builds specifying cross-compilation toolchains and other options may have much
 longer environments passed down.
@@ -735,10 +735,10 @@ specify its name.
   .. sourcecode:: console
 
     $ m3 deploy
-    Building deployment:cpio_dep/deployed 
+    Building deployment:cpio_dep/deployed
     > Building deployment:cpio_dep/deployed
     > Make directory /home/tibs/sw/m3/example/deploy/cpio_dep
-    Collecting package:*{x86}/*  for deployment to / .. 
+    Collecting package:*{x86}/*  for deployment to / ..
     h = ---Roots---
     / -> [ / (fs /home/tibs/sw/m3/example/install/x86) mode = 40755 uid = 7007 gid = 7007 kids = /bin /hello_world.c]
     ---Map---
@@ -749,13 +749,13 @@ specify its name.
     ---
 
     base = /
-    Scanning instructions for role x86, domain None .. 
-    > Writing /home/tibs/sw/m3/example/deploy/cpio_dep/my_archive.cpio .. 
-    > Packing / .. 
-    > Packing /bin .. 
-    > Packing /bin/hello_world .. 
-    > Packing /hello_world.c .. 
-    > Packing TRAILER!!! .. 
+    Scanning instructions for role x86, domain None ..
+    > Writing /home/tibs/sw/m3/example/deploy/cpio_dep/my_archive.cpio ..
+    > Packing / ..
+    > Packing /bin ..
+    > Packing /bin/hello_world ..
+    > Packing /hello_world.c ..
+    > Packing TRAILER!!! ..
     > Make directory /home/tibs/sw/m3/example/.muddle/tags/deployment/cpio_dep
 
 That leaves us with a new ``deploy/`` directory:
@@ -788,9 +788,9 @@ muddle provides a convenience command to rebuild a package:
   .. sourcecode:: console
 
     $ m3 rebuild pkg_cpio
-    Killing package:pkg_cpio{x86}/built 
+    Killing package:pkg_cpio{x86}/built
     Clearing tags: package:pkg_cpio{x86}/built package:pkg_cpio{x86}/installed package:pkg_cpio{x86}/postinstalled package:pkg_cpio{x86}/built
-    Building package:pkg_cpio{x86}/postinstalled 
+    Building package:pkg_cpio{x86}/postinstalled
     > Building package:pkg_cpio{x86}/built
     > make  -f Makefile
     cc -o /home/tibs/sw/m3/example/obj/pkg_cpio/x86/hello_world hello_world.c
@@ -812,14 +812,14 @@ conflation of the ``distclean`` and ``build`` commands:
   .. sourcecode:: console
 
     $ m3 distrebuild pkg_cpio
-    Building: package:pkg_cpio{x86}/distclean .. 
+    Building: package:pkg_cpio{x86}/distclean ..
     > Building package:pkg_cpio{x86}/distclean[T]
     > make  -f Makefile distclean
     rm -f /home/tibs/sw/m3/example/obj/pkg_cpio/x86/hello_world
     Distclean is just a clean
-    Killing: package:pkg_cpio{x86}/preconfig .. 
+    Killing: package:pkg_cpio{x86}/preconfig ..
     Clearing tags: package:pkg_cpio{x86}/preconfig package:pkg_cpio{x86}/configured package:pkg_cpio{x86}/preconfig package:pkg_cpio{x86}/installed package:pkg_cpio{x86}/postinstalled package:pkg_cpio{x86}/built
-    Building package:pkg_cpio{x86}/postinstalled 
+    Building package:pkg_cpio{x86}/postinstalled
     > Building package:pkg_cpio{x86}/preconfig
     > Building package:pkg_cpio{x86}/configured
     > make  -f Makefile config
@@ -846,7 +846,7 @@ the tag files in the ``.muddle/`` directories:
 
     $ rm .muddle/tags/package/pkg_cpio/*
     $ m3 build pkg_cpio
-    Building package:pkg_cpio{x86}/postinstalled 
+    Building package:pkg_cpio{x86}/postinstalled
     > Building package:pkg_cpio{x86}/preconfig
     > Building package:pkg_cpio{x86}/configured
     > make  -f Makefile config
@@ -868,7 +868,7 @@ You can even do things like:
 
   .. sourcecode:: console
 
-    $ rm .muddle/tags/checkout/builds/checked_out 
+    $ rm .muddle/tags/checkout/builds/checked_out
     $ m3 checkout _all
     > svn checkout  http://muddle.googlecode.com/svn/trunk/muddle/examples/cpio/builds builds
     Checked out revision 459.
@@ -913,7 +913,7 @@ Once we're back to the stage just after ``init``, we can just do:
   .. sourcecode:: console
 
     $ m3
-    Building deployment:cpio_dep/deployed 
+    Building deployment:cpio_dep/deployed
     > Building package:pkg_cpio{x86}/preconfig
     ...
     > Building package:pkg_cpio{x86}/configured
@@ -925,7 +925,7 @@ Once we're back to the stage just after ``init``, we can just do:
     > Building package:pkg_cpio{x86}/postinstalled
     > Building deployment:cpio_dep/deployed
     ...
-    > Writing /home/tibs/sw/m3/example/deploy/cpio_dep/my_archive.cpio .. 
+    > Writing /home/tibs/sw/m3/example/deploy/cpio_dep/my_archive.cpio ..
     ...
     > Make directory /home/tibs/sw/m3/example/.muddle/tags/deployment/cpio_dep
 
@@ -944,9 +944,9 @@ and go into a particular checkout directory:
 
     $ pushd src/cpio_co
     $ m3
-    Killing package:pkg_cpio{x86}/built 
+    Killing package:pkg_cpio{x86}/built
     Clearing tags: package:pkg_cpio{x86}/built package:pkg_cpio{x86}/installed package:pkg_cpio{x86}/postinstalled package:pkg_cpio{x86}/built
-    Building package:pkg_cpio{x86}/* 
+    Building package:pkg_cpio{x86}/*
     > Building package:pkg_cpio{x86}/distclean[T]
     > Make directory /home/tibs/sw/m3/example/obj/pkg_cpio/x86
     > Make directory /home/tibs/sw/m3/example/install/x86
@@ -1056,7 +1056,7 @@ and:
   .. sourcecode:: console
 
     $ m3 query deps deployment:cpio_dep/deployed
-    Build order for deployment:cpio_dep/deployed .. 
+    Build order for deployment:cpio_dep/deployed ..
     checkout:fred/checked_out
     checkout:cpio_co/checked_out
     package:pkg_cpio{x86}/preconfig
@@ -1075,7 +1075,7 @@ However, if we were to try to build:
   .. sourcecode:: console
 
     $ m3
-    Building deployment:cpio_dep/deployed 
+    Building deployment:cpio_dep/deployed
     > Building checkout:fred/checked_out
     > svn checkout  http://muddle.googlecode.com/svn/trunk/muddle/examples/cpio/fred fred
     svn: URL 'http://muddle.googlecode.com/svn/trunk/muddle/examples/cpio/fred' doesn't exist
@@ -1097,7 +1097,7 @@ could just do:
 
   .. sourcecode:: console
 
-    $ mkdir .muddle/tags/checkout/fred 
+    $ mkdir .muddle/tags/checkout/fred
     $ touch .muddle/tags/checkout/fred/checked_out
 
 However, that's a bit clumsy to type, so muddle provides a convenient command
@@ -1106,14 +1106,14 @@ label syntax):
 
   .. sourcecode:: console
 
-    $ m3 assert checkout:fred/checked_out 
+    $ m3 assert checkout:fred/checked_out
     > Make directory /home/tibs/sw/m3/example3/.muddle/tags/checkout/fred
 
 and now the tag file is present:
 
   .. sourcecode:: console
 
-    $ ls .muddle/tags/checkout/fred 
+    $ ls .muddle/tags/checkout/fred
     checked_out
 
 and we can then do:
@@ -1121,7 +1121,7 @@ and we can then do:
   .. sourcecode:: console
 
     $ m3
-    Building deployment:cpio_dep/deployed 
+    Building deployment:cpio_dep/deployed
     > Building package:fred{x86}/preconfig
     > Make directory /home/tibs/sw/m3/example3/obj/fred/x86
     > Make directory /home/tibs/sw/m3/example3/.muddle/tags/package/fred
@@ -1138,7 +1138,7 @@ and we can then do:
     install -m 0644 bye_world.c /home/tibs/sw/m3/example3/install/x86/bye_world.c
     > Building deployment:cpio_dep/deployed
     > Make directory /home/tibs/sw/m3/example3/deploy/cpio_dep
-    Collecting package:*{x86}/*  for deployment to / .. 
+    Collecting package:*{x86}/*  for deployment to / ..
     h = ---Roots---
     / -> [ / (fs /home/tibs/sw/m3/example3/install/x86) mode = 40755 uid = 7007 gid = 7007 kids = /bin /hello_world.c /bye_world.c]
     ---Map---
@@ -1151,15 +1151,15 @@ and we can then do:
     ---
 
     base = /
-    Scanning instructions for role x86, domain None .. 
-    > Writing /home/tibs/sw/m3/example3/deploy/cpio_dep/my_archive.cpio .. 
-    > Packing / .. 
-    > Packing /bin .. 
-    > Packing /bin/bye_world .. 
-    > Packing /bin/hello_world .. 
-    > Packing /hello_world.c .. 
-    > Packing /bye_world.c .. 
-    > Packing TRAILER!!! .. 
+    Scanning instructions for role x86, domain None ..
+    > Writing /home/tibs/sw/m3/example3/deploy/cpio_dep/my_archive.cpio ..
+    > Packing / ..
+    > Packing /bin ..
+    > Packing /bin/bye_world ..
+    > Packing /bin/hello_world ..
+    > Packing /hello_world.c ..
+    > Packing /bye_world.c ..
+    > Packing TRAILER!!! ..
     > Make directory /home/tibs/sw/m3/example3/.muddle/tags/deployment/cpio_dep
 
 This just leaves actually adding the new package to revision control
@@ -1367,12 +1367,12 @@ and start with the same build that we used before:
 
     $ m3 init svn+http://muddle.googlecode.com/svn/trunk/muddle/examples/cpio builds/01.py
     > Make directory /home/tibs/sw/m3/example2/.muddle
-    Initialised build tree in /home/tibs/sw/m3/example2 
+    Initialised build tree in /home/tibs/sw/m3/example2
     Repository: svn+http://muddle.googlecode.com/svn/trunk/muddle/examples/cpio
     Build description: builds/01.py
 
 
-    Checking out build description .. 
+    Checking out build description ..
 
     > Make directory /home/tibs/sw/m3/example2/src
     > svn checkout  http://muddle.googlecode.com/svn/trunk/muddle/examples/cpio/builds builds
@@ -1483,12 +1483,12 @@ If we *now* do a "checkout _all":
 
     $ m3 checkout _all
     > Make directory /home/tibs/sw/m3/example3/domains/b/.muddle
-    Initialised build tree in /home/tibs/sw/m3/example3/domains/b 
+    Initialised build tree in /home/tibs/sw/m3/example3/domains/b
     Repository: svn+http://muddle.googlecode.com/svn/trunk/muddle/examples/b
     Build description: builds/01.py
 
 
-    Checking out build description .. 
+    Checking out build description ..
 
     > Make directory /home/tibs/sw/m3/example3/domains/b/src
     > svn checkout  http://muddle.googlecode.com/svn/trunk/muddle/examples/b/builds builds
@@ -1554,7 +1554,7 @@ If we then do:
   .. sourcecode:: console
 
     $ m3 build _all
-    Building package:(b)pkg_b{x86}/postinstalled package:pkg_cpio{x86}/postinstalled 
+    Building package:(b)pkg_b{x86}/postinstalled package:pkg_cpio{x86}/postinstalled
     > Building checkout:(b)b_co/checked_out
     > svn checkout  http://muddle.googlecode.com/svn/trunk/muddle/examples/b/b_co b_co
     A    b_co/hello_world.c
@@ -1731,7 +1731,7 @@ and our deployment has the expected build order:
   .. sourcecode:: console
 
     $ m3 query deps deployment:everything/deployed
-    Build order for deployment:everything/deployed .. 
+    Build order for deployment:everything/deployed ..
     checkout:cpio_co/checked_out
     checkout:(b)b_co/checked_out
     package:(b)pkg_b{x86}/preconfig
@@ -1751,7 +1751,7 @@ Which means that when we deploy:
   .. sourcecode:: console
 
     $ m3 deploy
-    Building deployment:everything/deployed 
+    Building deployment:everything/deployed
     > Building deployment:everything/deployed
     > Make directory /home/tibs/sw/m3/example3/deploy/everything
     Copying /home/tibs/sw/m3/example3/install/x86/ to /home/tibs/sw/m3/example3/deploy/everything/

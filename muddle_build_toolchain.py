@@ -1,13 +1,13 @@
 #! /usr/bin/env python
 
-""" 
+"""
 muddle_build_toolchain.py
 
-This script invokes a bunch of commands to build a toolchain from a 
+This script invokes a bunch of commands to build a toolchain from a
 CodeSourcery source package.
 
 It is not formally a part of muddle because you normally want to
-build toolchains separately from your build, under controlled 
+build toolchains separately from your build, under controlled
 conditions.
 
 muddle_build_toolchain.py relies on a configuration file, like
@@ -20,7 +20,7 @@ Patches are from whole package directories so given:
 binutils-notworking
 binutils-working
 
-do 
+do
 
 diff -urN binutils-notworking binutils-working > my.patch
 
@@ -39,7 +39,7 @@ import xml.dom.minidom
 import muddled
 import muddled.xmlconfig as xmlconfig
 
-# Should we run just the stage specified, or from the stage 
+# Should we run just the stage specified, or from the stage
 # specified?
 gStageExact = False
 
@@ -53,7 +53,7 @@ def unpack_bz2(srcdir,filename,tmpdir):
         raise GiveUp("Cannot change directory to %s"%tmpdir)
 
     full_filename = os.path.join(srcdir,filename)
-    
+
     rv = run_command("bzip2 -dc %s | tar  xvf - "%full_filename)
     if rv:
         raise GiveUp("Can't unpack %s - %d"%(filename, rv))
@@ -66,7 +66,7 @@ def query_archive(config, pkg):
 
 def query_dir(config,pkg):
     return config.query_string("/toolchain/sources/%s/dir"%pkg)
-    
+
 def restore_env(saved):
     os.environ = saved
 
@@ -216,7 +216,7 @@ def do_glibc_build(config, src_dir,install_baremetal,host_tools, \
                        glibc_src_base, glibc_build_base, \
                        variant, cflags, current_stage, specd_start, \
                        doc_dir):
-    """Build glibc itself - args are the same as do_glibc_headers    
+    """Build glibc itself - args are the same as do_glibc_headers
     doc_dir Documentation dir into which we'll copy the generated docs.
     """
 
@@ -226,7 +226,7 @@ def do_glibc_build(config, src_dir,install_baremetal,host_tools, \
     # just reuse what's already there.csdac
     glibc_src_dir = os.path.join(glibc_src_base, variant)
     glibc_build_dir = os.path.join(glibc_build_base, variant)
-    
+
     target = config.query_string("/toolchain/bare-metal-target")
 
     if (run_stage(current_stage, specd_start)):
@@ -266,7 +266,7 @@ def do_glibc_build(config, src_dir,install_baremetal,host_tools, \
                                         variant)
 
     current_stage = current_stage + 1
-    
+
     # 068/184 et seq.
     if (run_stage(current_stage, specd_start)):
         do_make(glibc_build_dir, "-j4", "all")
@@ -293,7 +293,7 @@ def do_glibc_build(config, src_dir,install_baremetal,host_tools, \
                       "libutil_pic"):
             do_unlink(os.path.join(libc_install_dir, "usr", "lib", i + ".a"))
             do_unlink(os.path.join(libc_install_dir, "usr", "lib", i + ".map"))
-    
+
         tgt_bindir = os.path.join(libc_install_dir, "usr", "lib", "bin")
         make_dir(tgt_bindir)
 
@@ -310,17 +310,17 @@ def do_glibc_build(config, src_dir,install_baremetal,host_tools, \
         for i in ("iconvconfig", "nscd", "rpcinfo", "zdump", "zic"):
             move_file(os.path.join(libc_install_dir, "usr", "sbin", i), \
                           os.path.join(tgt_bindir, i))
-    
+
     current_stage = current_stage + 1
     return current_stage
-        
-                         
+
+
 def do_glibc_headers(config, src_dir, install_baremetal, host_tools, \
                          pkgversion, bugurl, \
                          first_build, header_dir, \
                          variant_dir, cflags, current_stage, specd_start):
     """Builds a glibc and installs headers and crt0 etc.
-    
+
     first_build is where the glibc goes (typically tmp_host_dir/glibc-first)
     header_dir  is where headers will be installed (host_obj/glibc-headers-x)
     variant_dir the variant directory - default/ armv4t etc.
@@ -329,7 +329,7 @@ def do_glibc_headers(config, src_dir, install_baremetal, host_tools, \
     start_stage Stage to start at.
 
     Returns the next stage.
-    
+
     """
 
     glibc_first_dir = first_build
@@ -339,7 +339,7 @@ def do_glibc_headers(config, src_dir, install_baremetal, host_tools, \
     old_env = os.environ
 
     bare_metal_target = config.query_string("/toolchain/bare-metal-target")
-    
+
     # [054/184]
     # Let's go for glibc0.
     if (run_stage(current_stage, specd_start)):
@@ -371,7 +371,7 @@ def do_glibc_headers(config, src_dir, install_baremetal, host_tools, \
         set_env("RANLIB", \
                     os.path.join(host_tools, "bin",\
                                      "%s-ranlib"%bare_metal_target))
-        
+
         make_dir(glibc_header_dir)
         make_dir(glibc_header_default)
 
@@ -388,7 +388,7 @@ def do_glibc_headers(config, src_dir, install_baremetal, host_tools, \
                          "--enable-kernel=2.6.14 " + \
                          "--with-pkgversion=%s "%pkgversion + \
                          "--with-bugurl=%s "%bugurl)
-        
+
 
     # Work out the install dir .
     if (variant_dir == "default"):
@@ -398,7 +398,7 @@ def do_glibc_headers(config, src_dir, install_baremetal, host_tools, \
                                         variant_dir)
 
     current_stage = current_stage + 1
-        
+
     if (run_stage(current_stage, specd_start)):
         do_make(glibc_header_default, \
                     "install_root=%s "%install_root + \
@@ -420,7 +420,7 @@ def do_glibc_headers(config, src_dir, install_baremetal, host_tools, \
                            os.path.join(install_root, \
                                             "usr", "lib", \
                                             "libc.so")))
-    
+
     current_stage = current_stage + 1
     os.environ = old_env
 
@@ -453,7 +453,7 @@ def build_newlib(config, build_stage, spec_stage):
     tmp_host_dir = os.path.join(tmp_dir, "host")
     gcc_final_dir = os.path.join( tmp_host_dir, "gcc-final")
     src_dir = config.query_string("/toolchain/src-dir")
-    unpacked_gcc = os.path.join(tmp_host_dir, query_dir(config, "gcc"))    
+    unpacked_gcc = os.path.join(tmp_host_dir, query_dir(config, "gcc"))
     bare_metal_target = config.query_string("/toolchain/bare-metal-target")
     pkgversion =  config.query_string("/toolchain/version")
     bugurl = config.query_string("/toolchain/bugurl")
@@ -467,8 +467,8 @@ def build_newlib(config, build_stage, spec_stage):
 
     default_arch = config.query_string("/toolchain/arch")
     default_opts = config.query_string("/toolchain/opts")
-    
-    
+
+
 
 
 def build_glibc(config, build_stage, stage):
@@ -477,19 +477,19 @@ def build_glibc(config, build_stage, stage):
     """
 
 
-    doc_target = config.query_string("/toolchain/doc-target")    
-    tmp_dir = "/tmp/muddle-toolchain-tmp"    
+    doc_target = config.query_string("/toolchain/doc-target")
+    tmp_dir = "/tmp/muddle-toolchain-tmp"
     tmp_host_dir = os.path.join(tmp_dir, "host")
     gcc_final_dir = os.path.join( tmp_host_dir, "gcc-final")
     src_dir = config.query_string("/toolchain/src-dir")
-    unpacked_gcc = os.path.join(tmp_host_dir, query_dir(config, "gcc"))    
+    unpacked_gcc = os.path.join(tmp_host_dir, query_dir(config, "gcc"))
     bare_metal_target = config.query_string("/toolchain/bare-metal-target")
     pkgversion =  config.query_string("/toolchain/version")
     bugurl = config.query_string("/toolchain/bugurl")
     host_arch = config.query_string("/toolchain/host-arch");
 
     dest_dir = config.query_string("/toolchain/dest-dir")
-    dest_dir_none = os.path.join(dest_dir, 
+    dest_dir_none = os.path.join(dest_dir,
                                      config.query_string("/toolchain/bare-metal-target"),
                                      "libc")
     support_tools = os.path.join(dest_dir, "support-tools")
@@ -502,7 +502,7 @@ def build_glibc(config, build_stage, stage):
 
     default_arch = config.query_string("/toolchain/arch")
     default_opts = config.query_string("/toolchain/opts")
-    
+
     variants = config.query_hashlist("/toolchain/variant", [ "arch", "opts"])
     doc_dir = os.path.join(host_tools, "share", "doc", doc_target)
 
@@ -522,9 +522,9 @@ def build_glibc(config, build_stage, stage):
                               "share/doc/%s/man"%(doc_target)),\
              os.path.join(host_tools,\
                               "share"))
-    
 
-    
+
+
     # Task [046/184]
     linux_srcdir = os.path.join(tmp_host_dir,
                                 query_dir(config, "linux"))
@@ -537,7 +537,7 @@ def build_glibc(config, build_stage, stage):
         make_dir(os.path.join(install_baremetal,"libc/usr/include"))
         make_dir(os.path.join(install_baremetal,"libc/usr/include/bits"))
         make_dir(os.path.join(install_baremetal,"libc/usr/include/gnu"))
-        
+
         unpack_bz2(src_dir, query_archive(config,"linux"), tmp_host_dir)
 
         clean_dir(linux_tmp_hdrdir)
@@ -548,7 +548,7 @@ def build_glibc(config, build_stage, stage):
                          "headers_install")%\
                     (os.path.join(host_tools,"bin/%s-"%bare_metal_target),\
                          linux_tmp_hdrdir))
-        
+
         for i in ("linux", "asm", "asm-generic", "mtd", "rdma", \
                       "sound", "video"):
             copy_dir_into(os.path.join(linux_tmp_hdrdir, "include", i),\
@@ -573,7 +573,7 @@ def build_glibc(config, build_stage, stage):
     if (run_stage(build_stage,stage)):
         clean_dir(gcc_first_dir)
         make_dir(gcc_first_dir)
-        
+
         # Make sure we don't use stdlib for the first gcc.
         specs= "%{funwind-tables|fno-unwind-tables|mabi=*|ffreestanding|nostdlib:;:-funwind-tables} %{O2:%{!fno-remove-local-statics: -fremove-local-statics}} %{O*:%{O|O0|O1|O2|Os:;:%{!fno-remove-local-statics: -fremove-local-statics}}}"
         stdcxx="-static-libgcc -Wl,-Bstatic,-lstdc++,-Bdynamic -lm"
@@ -627,7 +627,7 @@ def build_glibc(config, build_stage, stage):
                     ("LD_FLAGS_FOR_TARGET=--sysroot=%s "%libc_sysroot) +\
                     ("CPPFLAGS_FOR_TARGET=--sysroot=%s "%libc_sysroot) +\
                     ("build_tooldir=%s"%install_baremetal), "all")
-        
+
         do_make(gcc_first_dir, \
                     tools_install_options, "install")
 
@@ -639,7 +639,7 @@ def build_glibc(config, build_stage, stage):
 
     glibc_first_dir = os.path.join(tmp_host_dir, "glibc-first")
     glibc_header_dir = os.path.join(host_obj, "glibc-headers-x")
-    
+
     # [054/184]
     # We build three glibcs - default/, armv4t/ and thumb2/
     #os.environ = saved2_env
@@ -669,7 +669,7 @@ def build_glibc(config, build_stage, stage):
                                            opts,\
                                            build_stage, \
                                            stage)
-    
+
     gcc_second_dir = os.path.join(tmp_host_dir, "gcc-second")
     print "Building our second gcc at stage %d, in %s"%(build_stage,gcc_second_dir)
 
@@ -677,13 +677,13 @@ def build_glibc(config, build_stage, stage):
     if run_stage(build_stage, stage):
         clean_dir(gcc_second_dir)
         make_dir(gcc_second_dir)
-        
+
         saved_env = os.environ
 
         set_env("CC_FOR_BUILD", "gcc")
         set_env("CC", "gcc")
         set_env("AR", "ar")
-        set_env("RANLIB", "ranlib")    
+        set_env("RANLIB", "ranlib")
         append_env("PATH", os.path.join(tmp_host_dir, "bin"))
         append_env("LD_LIBRARY_PATH", os.path.join(tmp_host_dir, "lib"))
 
@@ -715,21 +715,21 @@ def build_glibc(config, build_stage, stage):
                              "--enable-poison-system-directories " +\
                              ("--with-build-time-tools=%s"% \
                                   os.path.join(install_baremetal, "bin")))
-        do_make(gcc_second_dir, 
+        do_make(gcc_second_dir,
                 ("LDFLAGS_FOR_TARGET=--sysroot=%s "%(os.path.join(install_baremetal, "libc"))) +
-                ("CPPFLAGS_FOR_TARGET=--sysroot=%s "%(os.path.join(install_baremetal, "libc"))) + 
+                ("CPPFLAGS_FOR_TARGET=--sysroot=%s "%(os.path.join(install_baremetal, "libc"))) +
                 ("build_tooldir=--sysroot=%s"%install_baremetal), "all")
-        
-        do_make(gcc_second_dir, 
+
+        do_make(gcc_second_dir,
                 tools_install_options,
                 "install")
-        
+
         clean_dir(os.path.join(host_tools, "include"))
         do_unlink(os.path.join(host_tools, "lib/libiberty.a"))
         do_unlink(os.path.join(host_tools, "bin/%s-gccbug"%bare_metal_target))
 
         os.environ = saved_env;
-        
+
     glibc_second_src = os.path.join(tmp_host_dir, "glibc-first")
     glibc_second_build = os.path.join(tmp_host_dir, "glibc-second-build")
 
@@ -749,7 +749,7 @@ def build_glibc(config, build_stage, stage):
     for i in variants:
         arch = var["arch"]
         opts = var["opts"]
-        
+
         print "Second stage glibc for %s @ %d"%(arch, build_stage)
         build_stage = do_glibc_build(config, src_dir, install_baremetal, \
                                          host_tools,\
@@ -758,10 +758,10 @@ def build_glibc(config, build_stage, stage):
                                          glibc_second_build, \
                                          arch, opts, build_stage,stage, \
                                          doc_dir)
-    
+
     print "Building locale definitions @ %d"%build_stage
 
-    locale_build_dir = os.path.join(tmp_host_dir, 
+    locale_build_dir = os.path.join(tmp_host_dir,
                                     query_dir(config, "glibc-localedef"))
     locale_install_dir = os.path.join(locale_build_dir, "install_test_locales")
     locale_little4_dir = os.path.join(locale_install_dir, "little4")
@@ -777,11 +777,11 @@ def build_glibc(config, build_stage, stage):
         set_env("CC_FOR_BUILD", "gcc")
         set_env("CC", "gcc")
         set_env("AR", "ar")
-        set_env("RANLIB", "ranlib")    
+        set_env("RANLIB", "ranlib")
         append_env("PATH", os.path.join(tmp_host_dir, "bin"))
         append_env("LD_LIBRARY_PATH", os.path.join(tmp_host_dir, "lib"))
 
-        
+
         print "local build dir is %s"%locale_build_dir
         print "glibc_second_src is %s"%(os.path.join(glibc_second_src, "default"))
         do_configure(locale_build_dir, \
@@ -811,7 +811,7 @@ def build_glibc(config, build_stage, stage):
         set_env("I18NPATH", os.path.join(glibc_second_src, "localedata"))
         set_env("GCONV_PATH", "iconvdata")
 #        do_localedef(locale_build_dir, locale_test_dir, "de_DE", "ISO-8859-1", "de_DE.ISO-8859-1")
-                     
+
         for lang in ["de_DE", "en_US", "da_DK", "sv_SE", "fr_FR", "nb_NO", "nn_NO"]:
             do_localedef( locale_build_dir, locale_test_dir, lang, "ISO-8859-1", lang+".ISO-8859-1" )
         for lang in ["de_DE", "en_US", "ja_JP", "tr_TR", "cs_CZ", "fa_IR", "fr_FR"]:
@@ -837,7 +837,7 @@ def build_glibc(config, build_stage, stage):
         for var in variants:
             arch = var["arch"]
             opts = var["opts"]
-            
+
             print "Relocating locales for variant %s"%(arch)
             locale_definitions_base_dir=os.path.join(locale_little4_dir,"usr","lib","locale")
             dir_list=build_dir_list(locale_definitions_base_dir)
@@ -849,14 +849,14 @@ def build_glibc(config, build_stage, stage):
                     locale_definitions_target_dir=os.path.join(host_tools,
                                                                bare_metal_target,"libc",
                                                                arch,"usr","lib","locale",name)
-                
+
                     print locale_definitions_target_dir
                     print os.path.join(locale_definitions_base_dir, name)
-                
+
                     make_dir(locale_definitions_target_dir)
                 #get a list of all files in the directory
                     file_list=build_file_list(os.path.join(locale_definitions_base_dir, name))
-                    
+
                 #link files
                     for filename in file_list:
                         src_file=os.path.join( locale_definitions_base_dir,name, filename )
@@ -867,20 +867,20 @@ def build_glibc(config, build_stage, stage):
                         #do_unlink(target_file)
                             os.system("rm -f %s"%target_file)
                             os.link(src_file, target_file)
-                    
+
                 #do the same for the subdirectory LC_MESSAGES
                     locale_definitions_target_dir=os.path.join(host_tools,
-                                                              bare_metal_target, 
+                                                              bare_metal_target,
                                                                "libc",arch,
                                                                "usr","lib","locale",
                                                                name,"LC_MESSAGES")
                     make_dir(locale_definitions_target_dir)
                 #get a list of all files in the directory
-                    file_list=build_file_list(os.path.join(locale_definitions_base_dir, 
+                    file_list=build_file_list(os.path.join(locale_definitions_base_dir,
                                                            name, "LC_MESSAGES"))
                 #link files
                     for filename in file_list:
-                        src_file=os.path.join( locale_definitions_base_dir,name, 
+                        src_file=os.path.join( locale_definitions_base_dir,name,
                                                "LC_MESSAGES", filename )
                         target_file=os.path.join(locale_definitions_target_dir, filename)
                         try:
@@ -903,15 +903,15 @@ def build_glibc(config, build_stage, stage):
                                                                    "usr","lib","locale",
                                                                    "test",testname)
                         make_dir(locale_definitions_target_dir)
-                    
+
                         print locale_definitions_target_dir
                         print os.path.join(locale_definitions_base_dir, "test", testname)
-                    
+
                     #get directory contents
                         file_list=build_file_list(os.path.join(locale_definitions_base_dir, "test", testname))
                     #link files
                         for filename in file_list:
-                            src_file=os.path.join( locale_definitions_base_dir, "test", 
+                            src_file=os.path.join( locale_definitions_base_dir, "test",
                                                    testname, filename )
                             target_file=os.path.join(locale_definitions_target_dir, filename)
                             try:
@@ -927,7 +927,7 @@ def build_glibc(config, build_stage, stage):
                                                                    "test",testname,"LC_MESSAGES")
                         make_dir(locale_definitions_target_dir)
                     #get directory contents
-                        file_list=build_file_list(os.path.join(locale_definitions_base_dir, 
+                        file_list=build_file_list(os.path.join(locale_definitions_base_dir,
                                                                "test", testname, "LC_MESSAGES"))
                     #link files
                         for filename in file_list:
@@ -976,14 +976,14 @@ def build_glibc(config, build_stage, stage):
                              ("--with-build-time-tools=%s"% \
                                   os.path.join(install_baremetal, "bin")))
         #[081/184]: the final gcc build
-        do_make(gcc_final_dir, 
+        do_make(gcc_final_dir,
                 ("LDFLAGS_FOR_TARGET=--sysroot=%s "%(os.path.join(install_baremetal, "libc"))) +
-                ("CPPFLAGS_FOR_TARGET=--sysroot=%s "%(os.path.join(install_baremetal, "libc"))) + 
+                ("CPPFLAGS_FOR_TARGET=--sysroot=%s "%(os.path.join(install_baremetal, "libc"))) +
                 ("build_tooldir=--sysroot=%s"%install_baremetal), "all")
-        
+
         #[082/184]: install the final gcc build
         do_make(gcc_final_dir, tools_install_options, "install")
-        
+
         #[083/184]: postinstall the final gcc build
         clean_dir(os.path.join(host_tools, "include"))
         do_unlink(os.path.join(host_tools, "lib/libiberty.a"))
@@ -991,13 +991,13 @@ def build_glibc(config, build_stage, stage):
             arch = var["arch"]
             do_unlink(os.path.join(host_tools, "lib/%s/libiberty.a"%arch))
         do_unlink(os.path.join(host_tools, "bin/%s-gccbug"%bare_metal_target))
-        
-                                            
+
+
 
     build_stage = build_stage + 1
 
     return build_stage
-    
+
 
 def build_none(config, build_stage, stage):
     """
@@ -1009,7 +1009,7 @@ def build_none(config, build_stage, stage):
     tmp_host_dir = os.path.join(tmp_dir, "host")
     gcc_final_dir = os.path.join( tmp_host_dir, "gcc-final")
     src_dir = config.query_string("/toolchain/src-dir")
-    unpacked_gcc = os.path.join(tmp_host_dir, query_dir(config, "gcc"))    
+    unpacked_gcc = os.path.join(tmp_host_dir, query_dir(config, "gcc"))
     if (config.exists("/toolchain/bare-metal-target")):
         bare_metal_target = config.query_string("/toolchain/bare-metal-target")
     else:
@@ -1031,7 +1031,7 @@ def build_none(config, build_stage, stage):
 
     default_arch = config.query_string("/toolchain/arch")
     default_opts = config.query_string("/toolchain/opts")
-    
+
     tools_install_options = \
         ("prefix=%s exec_prefix=%s libdir=%s" +\
         " htmldir=%s pdfdir=%s infodir=%s mandir=%s datadir=%s")%\
@@ -1048,7 +1048,7 @@ def build_none(config, build_stage, stage):
                               "share/doc/%s/man"%(doc_target)),\
              os.path.join(host_tools,\
                               "share"))
-    
+
 
     # Just build a compiler. Any compiler.
     if ((bare_metal_target is not None) and run_stage(build_stage,stage)):
@@ -1082,7 +1082,7 @@ def build_none(config, build_stage, stage):
         do_make(gcc_final_dir, tools_install_options, "all")
         do_make(gcc_final_dir, tools_install_options, "install")
 
-    build_stage = build_stage + 1    
+    build_stage = build_stage + 1
     # And I think we're done.
 
     return build_stage
@@ -1094,12 +1094,12 @@ def build_newlib(config, build_stage, stage):
     """
 
     doc_target = config.query_string("/toolchain/doc-target")
-    tmp_dir = "/tmp/muddle-toolchain-tmp"    
+    tmp_dir = "/tmp/muddle-toolchain-tmp"
     tmp_host_dir = os.path.join(tmp_dir, "host")
     gcc_first_dir = os.path.join(tmp_host_dir, "gcc-first")
     gcc_final_dir = os.path.join( tmp_host_dir, "gcc-final")
     src_dir = config.query_string("/toolchain/src-dir")
-    unpacked_gcc = os.path.join(tmp_host_dir, query_dir(config, "gcc"))    
+    unpacked_gcc = os.path.join(tmp_host_dir, query_dir(config, "gcc"))
     bare_metal_target = config.query_string("/toolchain/bare-metal-target")
     pkgversion =  config.query_string("/toolchain/version")
     bugurl = config.query_string("/toolchain/bugurl")
@@ -1116,7 +1116,7 @@ def build_newlib(config, build_stage, stage):
     default_arch = config.query_string("/toolchain/arch")
     default_opts = config.query_string("/toolchain/opts")
     support_tools = os.path.join(dest_dir, "support-tools")
-    
+
     tools_install_options = \
         ("prefix=%s exec_prefix=%s libdir=%s" +\
         " htmldir=%s pdfdir=%s infodir=%s mandir=%s datadir=%s")%\
@@ -1133,12 +1133,12 @@ def build_newlib(config, build_stage, stage):
                               "share/doc/%s/man"%(doc_target)),\
              os.path.join(host_tools,\
                               "share"))
-    
-    
+
+
     # Make sure the system include directories include, even if they are empty
     make_dir(os.path.join(install_baremetal, "usr", "include"))
     make_dir(os.path.join(install_baremetal, "usr", "lib"))
-        
+
     # Build a stage one gcc
     if (run_stage(build_stage, stage)):
 
@@ -1177,7 +1177,7 @@ def build_newlib(config, build_stage, stage):
         do_make(gcc_first_dir, tools_install_options, "install")
 
     build_stage = build_stage + 1
-    newlib_build_dir = os.path.join(tmp_host_dir, 
+    newlib_build_dir = os.path.join(tmp_host_dir,
                                     "newlib-first")
 
 
@@ -1205,7 +1205,7 @@ def build_newlib(config, build_stage, stage):
 
         do_make(newlib_build_dir, "CFLAGS_FOR_TARGET=\"%s\""%newlib_opts, "all")
         do_make(newlib_build_dir, "", "install")
-        
+
     build_stage = build_stage + 1
 
     doc_dir = os.path.join(host_tools, "share", "doc", doc_target)
@@ -1220,7 +1220,7 @@ def build_newlib(config, build_stage, stage):
         cmd = "ln -fs . %s"%(usr_path)
         run_command(cmd)
         sys.exit(1)
-        
+
     build_stage = build_stage + 1
 
     # @todo
@@ -1235,27 +1235,27 @@ def build_newlib(config, build_stage, stage):
         html_dir = os.path.join(doc_dir, "html")
         make_dir(html_dir)
 
-        copy_file(os.path.join(newlib_build_dir, 
-                               bare_metal_target, 
+        copy_file(os.path.join(newlib_build_dir,
+                               bare_metal_target,
                                "newlib", "libc", "libc.pdf"),
                   os.path.join(pdf_dir, "libc.pdf"))
 
-        copy_file(os.path.join(newlib_build_dir, 
-                               bare_metal_target, 
+        copy_file(os.path.join(newlib_build_dir,
+                               bare_metal_target,
                                "newlib", "libm", "libm.pdf"),
                   os.path.join(pdf_dir, "libm.pdf"))
-        
+
         clean_dir(os.path.join(html_dir, "libc.html"))
         clean_dir(os.path.join(html_dir, "libm.html"))
-        
-        copy_dir_into(os.path.join(newlib_build_dir, bare_metal_target, 
+
+        copy_dir_into(os.path.join(newlib_build_dir, bare_metal_target,
                                    "newlib", "libc", "libc.html"),
                       os.path.join(html_dir, "libc"))
 
-        copy_dir_into(os.path.join(newlib_build_dir, bare_metal_target, 
+        copy_dir_into(os.path.join(newlib_build_dir, bare_metal_target,
                                    "newlib", "libc", "libm.html"),
                       os.path.join(html_dir, "libm"))
-        
+
     build_stage = build_stage + 1
 
     # Build the final gcc ..
@@ -1294,7 +1294,7 @@ def build_newlib(config, build_stage, stage):
         # Turns out that --with-build-sysroot is useless in recent versions of
         #  gcc (it in fact doesn't do what it says on the tin)
         # "--with-build-sysroot=%s "%install_baremetal +\
-            
+
 
         do_make(gcc_final_dir, tools_install_options, "all")
         do_make(gcc_final_dir, tools_install_options, "install")
@@ -1338,12 +1338,12 @@ def main(args):
     host_arch = config.query_string("/toolchain/host-arch");
 
     tmp_host_dir = os.path.join(tmp_dir, "host")
-    
+
     pkgversion =  config.query_string("/toolchain/version")
     bugurl = config.query_string("/toolchain/bugurl")
 
     bare_metal_target = config.query_string("/toolchain/bare-metal-target")
-    
+
     # A little lookup table for translating script references to ours:
     #
     # Them -> Us
@@ -1352,12 +1352,12 @@ def main(args):
     # /scratch/julian/lite-respin/linux/obj     -> host_obj
     # /opt/codesourcery -> dest_dir
     # the GMP/MFPR /etc. utility builds -> support_tools
-    
 
-    dest_dir_none = os.path.join(dest_dir, 
+
+    dest_dir_none = os.path.join(dest_dir,
                                      config.query_string("/toolchain/bare-metal-target"),
                                      "libc")
-    
+
 
 
     if len(args) == 2:
@@ -1388,7 +1388,7 @@ def main(args):
     set_env("CC_FOR_BUILD", "gcc")
     set_env("CC", "gcc")
     set_env("AR", "ar rc")
-    set_env("RANLIB", "ranlib")    
+    set_env("RANLIB", "ranlib")
     append_env("PATH", os.path.join(tmp_host_dir, "bin"))
     append_env("LD_LIBRARY_PATH", os.path.join(tmp_host_dir, "lib"))
 
@@ -1414,7 +1414,7 @@ def main(args):
 #                           "--target=i686-pc-linux-gnu " +\
 
         build_gnu(tmp_host_dir, query_dir(config, "gmp"), \
-                      (("--build=%s --host=%s "%(host_arch,host_arch)) + 
+                      (("--build=%s --host=%s "%(host_arch,host_arch)) +
                            "--prefix=%s " +\
                            "--disable-shared --enable-cxx " +\
                            "--disable-nls")%support_tools, "-j 4")
@@ -1422,19 +1422,19 @@ def main(args):
 
     build_stage = build_stage + 1
     os.environ = saved2_env
-    
+
     # Task [037/184] et seq.
     if (run_stage(build_stage,stage)):
         clean_build_dir(tmp_host_dir, query_dir(config, "mpfr"))
         unpack_bz2(src_dir, query_archive(config, "mpfr"), tmp_host_dir)
         patch(config, tmp_host_dir,query_dir(config, "mpfr"), patch_dir, "mpfr")
         build_gnu(tmp_host_dir,  query_dir(config, "mpfr"), \
-                      (("--build=%s --host=%s "%(host_arch,host_arch)) + 
+                      (("--build=%s --host=%s "%(host_arch,host_arch)) +
                            ("--target=%s "%(bare_metal_target)) + \
                            "--prefix=%s --disable-shared " +\
                            "--disable-nls --with-gmp=%s")%\
                       (support_tools, support_tools), "")
-        
+
 
     build_stage = build_stage + 1
 
@@ -1443,13 +1443,13 @@ def main(args):
         unpack_bz2(src_dir, query_archive(config, "ppl"), tmp_host_dir)
         patch(config, tmp_host_dir,query_dir(config, "ppl"), patch_dir, "ppl")
         build_gnu(tmp_host_dir,  query_dir(config, "ppl"), \
-                      (("--build=%s --host=%s "%(host_arch,host_arch)) + 
+                      (("--build=%s --host=%s "%(host_arch,host_arch)) +
                            ("--target=%s "%(bare_metal_target)) +\
                            "--prefix=%s --disable-shared " +\
                            "--disable-nls --with-gmp=%s")%\
                       (support_tools, support_tools), "")
-        
-        
+
+
     #bootstrap_binutils =  "binutils-arm-none-linux-gnueabi-i686-pc-linux-gnu"
     bootstrap_binutils = "binutils-%s-%s"%(config.query_string("/toolchain/bare-metal-target"),host_arch)
     sysroot = os.path.join(host_tools, "libc")
@@ -1461,7 +1461,7 @@ def main(args):
     prepend_env("PATH", os.path.join(host_tools, "bin"))
 
     binutils_dir = os.path.join(tmp_host_dir, bootstrap_binutils)
-    
+
     doc_target = config.query_string("/toolchain/doc-target")
     doc_dir = os.path.join(host_tools, "share", "doc", doc_target)
 
@@ -1481,7 +1481,7 @@ def main(args):
                               "share/doc/%s/man"%(doc_target)),\
              os.path.join(host_tools,\
                               "share"))
-    
+
     # Task [041/184] et seq
     if (run_stage(build_stage,stage)):
         clean_build_dir(tmp_host_dir, query_dir(config, "binutils"))
@@ -1492,7 +1492,7 @@ def main(args):
         patch(config, tmp_host_dir, bootstrap_binutils, \
                   patch_dir, "binutils")
 
-        do_configure(binutils_dir, 
+        do_configure(binutils_dir,
                      (("--build=%s --host=%s "%(host_arch,host_arch)) + \
                            "--target=%s "%(config.query_string("/toolchain/bare-metal-target")) +\
                            "--prefix=%s "%(dest_dir) +\
@@ -1511,7 +1511,7 @@ def main(args):
         # Remove an (old?) verison of libiberty..
         clean_dir(os.path.join(host_tools, "lib"))
 
-        # Replace some directories .. 
+        # Replace some directories ..
         binutils_objdir = os.path.join(host_obj, \
              "host-%s"%(bootstrap_binutils))
 
@@ -1529,20 +1529,20 @@ def main(args):
                   os.path.join(binutils_objdir, "usr/include"))
         copy_file(os.path.join(binutils_dir, "opcodes/.libs/libopcodes.a"),
                   os.path.join(binutils_objdir, "usr/lib"))
-        
-    unpacked_gcc = os.path.join(tmp_host_dir, query_dir(config, "gcc"))    
+
+    unpacked_gcc = os.path.join(tmp_host_dir, query_dir(config, "gcc"))
     gcc_final_dir = os.path.join( tmp_host_dir, "gcc-final")
     install_baremetal = os.path.join(host_tools, \
                                        bare_metal_target)
     build_stage = build_stage + 1
-    
+
     lib_to_use = config.query_string("/toolchain/with-lib")
 
     if (run_stage(build_stage, stage)):
         # Tools build - we probably want to build gcc at _some_ point :-)
         unpack_bz2(src_dir, query_archive(config, "gcc"), tmp_host_dir)
-        patch(config, tmp_host_dir,query_dir(config, "gcc"), patch_dir, "gcc")            
-    
+        patch(config, tmp_host_dir,query_dir(config, "gcc"), patch_dir, "gcc")
+
     build_stage = build_stage + 1
 
 
@@ -1557,7 +1557,7 @@ def main(args):
 
     if (lib_to_use == "none"):
         build_stage = build_none(config, build_stage, stage)
-        
+
         print "This is not a glibc build, so we're done."
         sys.exit(0)
 
@@ -1571,8 +1571,8 @@ def main(args):
         sys.exit(0)
     else:
         raise GiveUp("Invalid library build specified - %s"%(lib_to_use))
-        
-    
+
+
 #    if (run_stage(stage, build_stage)):
         #stage 32
 
@@ -1585,4 +1585,4 @@ if __name__ == "__main__":
 
 # End file.
 
-        
+

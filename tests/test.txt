@@ -25,12 +25,12 @@ which means we can then do:
     A    builds/01.py
     Checked out revision 405.
     > Make directory /home/tibs/sw/m3/muddle3_labels/muddle/tests/muddle_test1/.muddle
-    Initialised build tree in /home/tibs/sw/m3/muddle3_labels/muddle/tests/muddle_test1 
+    Initialised build tree in /home/tibs/sw/m3/muddle3_labels/muddle/tests/muddle_test1
     Repository: svn+http://muddle.googlecode.com/svn/trunk/muddle/examples/gnu_package
     Build description: builds/01.py
     <BLANKLINE>
     <BLANKLINE>
-    Checking out build description .. 
+    Checking out build description ..
     <BLANKLINE>
     > Make directory /home/tibs/sw/m3/muddle3_labels/muddle/tests/muddle_test1/src
     > svn checkout  http://muddle.googlecode.com/svn/trunk/muddle/examples/gnu_package/builds builds

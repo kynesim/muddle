@@ -5,14 +5,14 @@ purposes of deployment instructions
 
 import re
 import os
-import os.path
-import utils
+
+import muddled.utils as utils
 
 class FileSpecDataProvider:
     """
     Provides data to a filespec so it can decide what it matches.
     """
-    
+
     def list_files_under(self, dir, recursively = False, vroot = None):
         """
         Return a list of the files under dir. If dir is not a directory,
@@ -21,13 +21,13 @@ class FileSpecDataProvider:
         The files are returned without 'dir', so::
 
             list_files_under("/fred/wombat", False)
-            
+
         gives::
-            
+
             [ "a", "b", "c" ]
 
         *not*::
-            
+
             [ "/fred/wombat/a" .. ]
         """
         raise utils.MuddleBug("Cannot call FileSpecDataProvider.list_files_under() - "
@@ -38,7 +38,7 @@ class FileSpec:
     """
     Represents a (possibly recursive) file specification. Filespecs are
     essentially python regular expressions with a recursion flag.
-    
+
     Matching for these objects is slightly special, since they need
     to apply to objects in the filesystem. Filespecs contain a root,
     which bounds the spec, a specifier, which is a regular expression
@@ -56,14 +56,14 @@ class FileSpec:
     def __init__(self, root, spec, allUnder = False, allRegex = False):
         self.root = root
         self.spec = spec
-        # Add a synthetic $ or we'll get a lot of odd prefix matches. 
+        # Add a synthetic $ or we'll get a lot of odd prefix matches.
         self.spec_re = re.compile("%s$"%spec)
         self.all_under = allUnder
         self.all_regex = allRegex
 
     def equal(self, other):
         if (self is None) and (other is None):
-            return True # Um .. I suppose .. 
+            return True # Um .. I suppose ..
 
         if (other is None) or (self is None):
             return False
@@ -71,7 +71,7 @@ class FileSpec:
         if (self.__class__ != other.__class__):
             return False
 
-        if (self.root != other.root or self.spec != other.spec or 
+        if (self.root != other.root or self.spec != other.spec or
             self.all_under != other.all_under or self.all_regex != other.all_regex):
             return False
 
@@ -85,22 +85,22 @@ class FileSpec:
 
         Since we have no idea what the root path of the data provider
         might be, you probably need to stitch together the filenames
-        yourself. 
+        yourself.
 
         ``FSFileSpecDataProvider.abs_match()`` is probably your friend -
         if you're using the filesystem to provide data for a filespec,
         call it, not us.
 
-        vroot is a 'virtual root' - the data provider transparently 
+        vroot is a 'virtual root' - the data provider transparently
         returns the subset of files that would be present if 'vroot'
         in the data provider were the root. It is used by remappings
         in the cpio deployment, among others.
         """
         # OK. Find everything under root .
         return_set = set()
-        
 
-        all_in_root = data_provider.list_files_under(self.root, self.all_regex, 
+
+        all_in_root = data_provider.list_files_under(self.root, self.all_under,
                                                      vroot = vroot)
         for f in all_in_root:
             #print "Match f  = %s against spec = %s"%(f, self.spec)
@@ -109,13 +109,15 @@ class FileSpec:
                 #print "Found match = %s"%os.path.join(self.root, f)
                 return_set.add(os.path.join(self.root, f))
 
+        print 'RETURN SET', return_set
+
         # Right. Now, if we're recursive, recurse.
         if self.all_under:
             extras = set()
 
             def maybe_add_and_recurse(i):
                 #print "i = %s"%i
-                under = data_provider.list_files_under(i, True, 
+                under = data_provider.list_files_under(i, True,
                                                        vroot = vroot)
                 for u in under:
                     #print "u = %s"%u
@@ -132,14 +134,14 @@ class FileSpec:
         #print "Return return_set len = %d "%(len(return_set))
         return return_set
 
-        
-        
+
+
     def clone_from_xml(self, xmlNode):
         """
         Clone a filespec from some XML like::
 
             <filespec>
-             <root>..</root> 
+             <root>..</root>
              <spec> ..</spec>
              <all-under />
              <all-regex />
@@ -179,7 +181,7 @@ class FileSpec:
         """
         return (inXmlNode.nodeType == inXmlNode.ELEMENT_NODE and
                 inXmlNode.nodeName == "filespec")
-    
+
     def to_xml(self, doc):
         """
         Create some XML from this filespec.
@@ -201,21 +203,21 @@ class FileSpec:
         if (self.all_regex):
             regex_node = doc.createElement("all-regex")
             ext_node.appendChild(regex_node)
-            
+
         return ext_node
-        
+
 
 class ListFileSpecDataProvider:
     """
     A FileSpecDataProvider that uses a file list. Used to test the
     FileSpec matching code.
     """
-    
+
     def __init__(self, file_list):
         self.file_list = file_list
 
     def list_files_under(self, dir, recursively = False, vroot = None):
-        # _really_ simple-minded .. 
+        # _really_ simple-minded ..
         result = [ ]
         for f in self.file_list:
             if (f.startswith(dir)):
@@ -244,7 +246,7 @@ class FSFileSpecDataProvider:
 
     def list_files_under(self, dir, recursively = False, vroot = None):
         # dir is relative to base_dir, so ..
-        
+
         # Don't absolutise a path needlessly.
         if (dir[0] == '/'):
             dir = dir[1:]
@@ -253,10 +255,10 @@ class FSFileSpecDataProvider:
 
         #print "base_dir = %s dir = %s abs_path = %s"%(self.base_dir, dir, abs_path)
 
-        # Read all the files in this directory .. 
+        # Read all the files in this directory ..
         if (not os.path.isdir(abs_path)):
             return [ ]
-        
+
         lst = os.listdir(abs_path)
         result = [ ]
         for elem in lst:
@@ -266,7 +268,7 @@ class FSFileSpecDataProvider:
             # NB: Take care not to follow links, lest we end up in a loop
             if (recursively and os.path.isdir(abs_elem) and not os.path.islink(abs_elem)):
                 result.extend(
-                    map(lambda v: os.path.join(elem, v), 
+                    map(lambda v: os.path.join(elem, v),
                         self.list_files_under(os.path.join(dir, elem), True)))
 
         return result
@@ -277,10 +279,10 @@ class FSFileSpecDataProvider:
         of actual absolute filenames on which to operate
         """
         files = filespec.match(self)
-        
+
         rv = [ ]
         for f in files:
-            # Avoid accidental absolutisation .. 
+            # Avoid accidental absolutisation ..
             if (f[0] == '/'):
                 f = f[1:]
             rv.append(os.path.join(self.base_dir, f))
@@ -293,7 +295,7 @@ class FSFileSpecDataProvider:
 proto = FileSpec("/", "/")
 
 # End file.
-    
+
 
 
 

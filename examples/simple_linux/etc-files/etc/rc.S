@@ -10,12 +10,12 @@ mount proc /proc -t proc -o nodev,noexec,nosuid
 # tmpfs - this is the only RAMdisc we'll ever need (um, we hope).
 #
 # May want to split off other fs's into tmpfs later for security
-# reasons, but we can do that later. Since root is more or less 
+# reasons, but we can do that later. Since root is more or less
 # the only useron the system it's not wholly important :-)
 mount -o remount,rw /
 
 mount sys /sys -t sysfs -o nodev,noexec,nosuid
-#mount /fusectl /sys/fs/fuse/connections -t fusefs 
+#mount /fusectl /sys/fs/fuse/connections -t fusefs
 
 
 #### Start udev ####
@@ -26,7 +26,7 @@ echo "" >/proc/sys/kernel/hotplug
 # Set the hostname
 hostname `cat /etc/hostname`
 
-echo Starting udevd .. 
+echo Starting udevd ..
 if start-stop-daemon --start --quiet --exec /sbin/udevd -- --daemon; then
     echo Started udevd ..
 else

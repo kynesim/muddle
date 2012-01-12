@@ -1,7 +1,7 @@
 """
 cpio deployment.
 
-Most commonly used to create Linux ramdisks, this 
+Most commonly used to create Linux ramdisks, this
 deployment creates a CPIO archive from the relevant
 install directory and applies the relevant instructions.
 
@@ -11,28 +11,29 @@ cpio in copy-through mode to convert the archive to
 cpio. Ugh.
 """
 
+import types
+import os
 
 import muddled
-import muddled.pkg as pkg
 import muddled.env_store
 import muddled.depend as depend
 import muddled.utils as utils
 import muddled.deployment as deployment
 import muddled.cpiofile as cpiofile
-import types
-import os
+
+from muddled.depend import Action
 
 class CpioInstructionImplementor:
     def apply(self, builder, instruction, role, path):
         pass
 
-class CpioDeploymentBuilder(pkg.Action):
+class CpioDeploymentBuilder(Action):
     """
     Builds the specified CPIO deployment.
     """
-    
-    def __init__(self, target_file, target_base, 
-                 compressionMethod = None, 
+
+    def __init__(self, target_file, target_base,
+                 compressionMethod = None,
                  pruneFunc = None):
         """
         * 'target_file' is the CPIO file to construct.
@@ -59,7 +60,7 @@ class CpioDeploymentBuilder(pkg.Action):
         result = result + ",compression=%s"%self.compression_method
         result = result + ",prune=%s}"%self.prune_function
         return result
-        
+
 
     def _inner_labels(self):
         """
@@ -73,7 +74,7 @@ class CpioDeploymentBuilder(pkg.Action):
         is important that the labels get "moved" in one sweep, so that they
         don't accidentally get moved more than once.
         """
-        labels = [] 
+        labels = []
         for i in self.target_base:
             labels.append(i[0])
 
@@ -82,13 +83,13 @@ class CpioDeploymentBuilder(pkg.Action):
     def attach_env(self, builder):
         """
         Attaches an environment containing:
-        
+
           MUDDLE_TARGET_LOCATION - the location in the target filesystem where
           this deployment will end up.
 
         to every package label in this role.
         """
-        
+
         for (l,bl) in self.target_base:
             if (type ( bl ) == types.TupleType ):
                 target_loc = bl[1]
@@ -98,32 +99,32 @@ class CpioDeploymentBuilder(pkg.Action):
             lbl = depend.Label(utils.LabelType.Package,
                                "*",
                                l.role,
-                               "*", 
+                               "*",
                                domain = l.domain)
             env = builder.invocation.get_environment_for(lbl)
-        
+
             env.set_type("MUDDLE_TARGET_LOCATION", muddled.env_store.EnvType.SimpleValue)
             env.set("MUDDLE_TARGET_LOCATION", target_loc)
-    
+
 
 
     def build_label(self,builder, label):
         """
         Actually cpio everything up, following instructions appropriately.
         """
-        
+
         if (label.tag == utils.LabelTag.Deployed):
             # Collect all the relevant files ..
-            deploy_dir = builder.invocation.deploy_path(label.name, 
+            deploy_dir = builder.invocation.deploy_path(label.name,
                                                         domain = label.domain)
             deploy_file = os.path.join(deploy_dir,
                                        self.target_file)
 
             utils.ensure_dir(os.path.dirname(deploy_file))
 
-            
+
             the_hierarchy = cpiofile.Hierarchy({ }, { })
-            
+
 
 
             for (l,bt) in self.target_base:
@@ -148,7 +149,7 @@ class CpioDeploymentBuilder(pkg.Action):
                                                base)
                 the_hierarchy.merge(m)
 
-            # Normalise the hierarchy .. 
+            # Normalise the hierarchy ..
             the_hierarchy.normalise()
             print "h = %s"%the_hierarchy
 
@@ -181,9 +182,10 @@ class CpioDeploymentBuilder(pkg.Action):
                 print "Scanning instructions for role %s, domain %s .. "%(src.role, src.domain)
                 instr_list = builder.load_instructions(lbl)
                 for (lbl, fn, instrs) in instr_list:
-                    print "Applying instructions for role %s, label %s .. "%(src.role, lbl)
+                    print "CPIO deployment: Applying instructions for role %s, label %s .. "%(src.role, lbl)
                     for instr in instrs:
                         iname = instr.outer_elem_name()
+                        print 'Instruction:', iname
                         if (iname in app_dict):
                             app_dict[iname].apply(builder, instr, lbl.role,
                                                   base,
@@ -194,14 +196,14 @@ class CpioDeploymentBuilder(pkg.Action):
             # .. and write the file.
             print "> Writing %s .. "%deploy_file
             the_hierarchy.render(deploy_file, True)
-            
+
             if (self.compression_method is not None):
                 if (self.compression_method == "gzip"):
                     utils.run_cmd("gzip -f %s"%deploy_file)
                 elif (self.compression_method == "bzip2"):
                     utils.run_cmd("bzip2 -f %s"%deploy_file)
                 else:
-                    raise utils.GiveUp("Invalid compression method %s"%self.compression_method + 
+                    raise utils.GiveUp("Invalid compression method %s"%self.compression_method +
                                         "specified for cpio deployment. Pick gzip or bzip2.")
 
         else:
@@ -213,11 +215,11 @@ class CIApplyChmod(CpioInstructionImplementor):
 
         (clrb, bits) = utils.parse_mode(instr.new_mode)
 
-        
 
-        files = dp.abs_match(instr.filespec, 
+
+        files = dp.abs_match(instr.filespec,
                              vroot = target_base)
-        
+
 
         for f in files:
             # For now ..
@@ -262,11 +264,11 @@ class CIApplyMknod(CpioInstructionImplementor):
 
         print "target_base = %s for role %s"%(target_base, role)
         real_path = utils.rel_join(target_base, instr.file_name)
-        
+
         cpio_file.key_name = real_path
         print "put_target_file %s"%real_path
         hierarchy.put_target_file(real_path, cpio_file)
-        
+
 
 def get_instruction_dict():
     """
@@ -279,14 +281,14 @@ def get_instruction_dict():
     app_dict["mknod"] = CIApplyMknod()
     return app_dict
 
-def deploy_labels(builder, target_file, target_base, name,  
-           compressionMethod = None, 
+def deploy_labels(builder, target_file, target_base, name,
+           compressionMethod = None,
            pruneFunc = None, target_labels_order = None):
     """
     Set up a cpio deployment
 
     @todo  This is (probably) fatally broken - we won't deploy packages
-             correctly at all, but I have no time to fix it properly - 
+             correctly at all, but I have no time to fix it properly -
              rrw 2010-01-27
 
 
@@ -295,7 +297,7 @@ def deploy_labels(builder, target_file, target_base, name,
       or '.bz2' suffix.
     * target_base - Where should we expect to unpack the CPIO file to - this
       is a dictionary mapping labels to target locations. If the target location
-      is a tuple (s,d), it maps a source to a destination. 
+      is a tuple (s,d), it maps a source to a destination.
     * compressionMethod - The compression method to use, if any - gzip -> gzip,
       bzip2 -> bzip2.
     * pruneFunc - If not None, this a function to be called like
@@ -312,23 +314,23 @@ def deploy_labels(builder, target_file, target_base, name,
         for t in target_labels_order:
             if (t in strike_out):
                 raise utils.MuddleBug("Duplicate label %s in attempt to order cpio deployment"%t)
-                                  
+
             if (t in target_base):
                 out_target_base.append( (t, target_base[t]) )
                 strike_out[t] = target_base[t]
-    
+
     # Now add everything not specified in the target_order
     for (k,v) in target_base.items():
         if (k not in strike_out):
             # Wasn't in the order - append it.
             out_target_base.append( (k,v) )
-            
 
 
-    the_action = CpioDeploymentBuilder(target_file, 
-                                           out_target_base, compressionMethod, 
+
+    the_action = CpioDeploymentBuilder(target_file,
+                                           out_target_base, compressionMethod,
                                            pruneFunc = pruneFunc)
-    
+
     dep_label = depend.Label(utils.LabelType.Deployment,
                              name, None,
                              utils.LabelTag.Deployed,
@@ -336,7 +338,7 @@ def deploy_labels(builder, target_file, target_base, name,
 
     deployment_rule = depend.Rule(dep_label, the_action)
 
-    # Now do the dependency thing .. 
+    # Now do the dependency thing ..
     for ( ltuple, base )  in out_target_base:
         if (type ( ltuple ) == types.TupleType ):
             real_lbl = ltuple[0]
@@ -349,13 +351,13 @@ def deploy_labels(builder, target_file, target_base, name,
                                   utils.LabelTag.PostInstalled,
                                   domain = real_lbl.domain)
         deployment_rule.add(role_label)
-                
+
 
     #print "Add to deployment %s .. "%(deployment_rule)
     builder.invocation.ruleset.add(deployment_rule)
 
     the_action.attach_env(builder)
-    
+
     # Cleanup is generic
     deployment.register_cleanup(builder, name)
 
@@ -369,28 +371,28 @@ def deploy(builder, target_file, target_base, name, target_roles_order,
     """
     Legacy entry point for cpio: target_order is a list of roles in order they are to be copied,
     target_base the list of role -> path mappings
-    
+
     If target_order's target is a pair (src, dst) only that (src,dst) will be copied, so
     ( "foo", ("/a/b", "/c/d") )
 
     Copies install/foo/a/b to deploy/XXX/c/d .
-    
+
     """
     proper_target_base = { }
     for (r,base) in target_base.items():
         lbl = depend.Label(utils.LabelType.Package,
                            "*",
-                           r, 
+                           r,
                            "*",
                            domain = builder.default_domain)
         proper_target_base[lbl] = base
-        
+
 
     label_order = [ ]
     for r in target_roles_order:
         lbl = depend.Label(utils.LabelType.Package,
                            "*",
-                           r, 
+                           r,
                            "*",
                            domain = builder.default_domain)
         label_order.append(lbl)
@@ -416,7 +418,7 @@ class CpioWrapper:
         this is useful when using repeated copy_from_role() invocations to copy
         a subset of one role to a deployment.
         """
-        
+
         if (with_base is None):
             with_base = to_fragment
 
@@ -429,10 +431,10 @@ class CpioWrapper:
         if (r is None):
             raise utils.GiveUp("Cannot copy from a deployment (%s) "%self.label +
                                " which has not yet been created.")
-        
+
         r.add(role_label)
         self.action.target_base.append( ( role_label, ( from_fragment, to_fragment, with_base ) ) )
-        
+
     def done(self):
         """
         Call this once you've added all the roles you want; it attaches
@@ -442,17 +444,17 @@ class CpioWrapper:
 
 
 
-def create(builder, target_file, name, compressionMethod = None, 
+def create(builder, target_file, name, compressionMethod = None,
            pruneFunc = None):
     """
     Create a CPIO deployment with the given name and return it.
     """
-    
+
     the_action = CpioDeploymentBuilder(target_file,
                                            [ ],
                                            compressionMethod,
                                            pruneFunc)
-    
+
     dep_label = depend.Label(utils.LabelType.Deployment, name, None,
                              utils.LabelTag.Deployed,
                              domain = builder.default_domain)
@@ -466,9 +468,9 @@ def create(builder, target_file, name, compressionMethod = None,
 
 
 
-           
+
 
 # End file.
 
 
-        
+

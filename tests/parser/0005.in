@@ -1,6 +1,6 @@
 How about some escaping?
 
-$${I wonder if this works?} 
+$${I wonder if this works?}
 And this should be literal: $$
 How about \${ ?
 And really adventurously: ${fn:echoargs("a\"b", c\,d)}

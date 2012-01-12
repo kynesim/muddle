@@ -2,11 +2,14 @@
 Routines which deal with version control.
 """
 
-import utils
-
 import re
-import pkg
 import os
+
+import muddled.pkg as pkg
+import muddled.utils as utils
+
+from muddled.depend import Label
+from repository import Repository
 
 branch_and_revision_re = re.compile("([^:]*):(.*)$")
 
@@ -24,7 +27,7 @@ class VersionControlSystem(object):
         self.short_name = 'NoName'
         self.long_name = 'No VCS name'
 
-    def init_directory(self, repo, files=None, verbose=True):
+    def init_directory(self, files=None, verbose=True):
         """
         If the directory does not appear to have had '<vcs> init' run in it,
         then do so first.
@@ -41,7 +44,7 @@ class VersionControlSystem(object):
         """
         pass
 
-    def checkout(self, repo, co_leaf, options, branch=None, revision=None, verbose=True):
+    def checkout(self, repo, co_leaf, options, verbose=True):
         """
         Checkout (clone) a given checkout.
 
@@ -53,7 +56,7 @@ class VersionControlSystem(object):
         """
         pass
 
-    def fetch(self, repo, options, branch=None, revision=None, verbose=True):
+    def fetch(self, repo, options, verbose=True):
         """
         Will be called in the actual checkout's directory.
 
@@ -61,7 +64,7 @@ class VersionControlSystem(object):
         """
         pass
 
-    def merge(self, other_repo, options, branch=None, revision=None, verbose=True):
+    def merge(self, other_repo, options, verbose=True):
         """
         Will be called in the actual checkout's directory.
 
@@ -69,7 +72,7 @@ class VersionControlSystem(object):
         """
         pass
 
-    def commit(self, options, verbose=True):
+    def commit(self, repo, options, verbose=True):
         """
         Will be called in the actual checkout's directory.
 
@@ -85,7 +88,7 @@ class VersionControlSystem(object):
         """
         pass
 
-    def status(self, repo, options, branch=None):
+    def status(self, repo, options):
         """
         Will be called in the actual checkout's directory.
 
@@ -105,7 +108,7 @@ class VersionControlSystem(object):
             print "Re-associating checkout '%s' with remote repository:" \
                     " %s does not support 'reparent'"%(co_leaf, self.short_name)
 
-    def revision_to_checkout(self, co_leaf, orig_revision, options, force=False, verbose=True):
+    def revision_to_checkout(self, repo, co_leaf, options, force=False, verbose=True):
         """
         TODO: Is 'co_leaf' (used for reporting problems) the best thing to
         pass down? It shouldn't be too long, so the entire directory path
@@ -140,7 +143,7 @@ class VersionControlSystem(object):
         We shall default to the distributed answer, and individual
         VCS support can override if necessary.
         """
-        False
+        return False
 
 
 class VersionControlHandler(object):
@@ -157,84 +160,32 @@ class VersionControlHandler(object):
 
       TODO: Explain this rather better
 
-    * self.repository is the repository we're interested in. Its syntax is
-      VCS-dependent.
-    * self.revision is the revision to check out.
-      Passing None means to use the head of tree. For historical reasons, the
-      special name HEAD means also head of the main tree. Anything else is VCS
-      specific.
-
-    The repository is stored in its full form - with its VCS tag, though this will
-    almost never be used.
+    * self.repo is the Repository we're interested in.
     """
 
     def __init__(self, builder, vcs_handler, co_label, co_leaf, repo,
-                 rev=None, rel=None, co_dir=None, branch=None, addoptions=None):
+                 co_dir=None, addoptions=None):
         """
         * 'builder' is the builder for this build
         * 'vcs_handler' knows how to do VCS operations for this checkout
         * 'co_label' is the checkout's label
         * 'co_leaf' is the name of the directory for the checkout;
            this is the *final* directory name, so if the checkout is in
-          'src/fred/jim/wombat', then the checkout name is 'wombat'
-        * 'repo' is the repository URL
-        * 'rev' is the revision (if any - None means head of tree)
-        * for systems like SVN, it is possible to have a relative path within
-          the repository, and only checkout the specified portion of the whole
+          'src/fred/jim/wombat', then the checkout leaf name is 'wombat'
+        * 'repo' is the Repository instance describing where this checkout
+          comes from
         * 'co_dir' is the location of the 'co_leaf' directory (within 'src'),
           so if the checkout is in 'src/fred/jim/wombat', then the checkout
           directory is 'fred/jim'. If the 'co_leaf' directory is at the "top
           level" within 'src', then this should be None or ''.
-        * 'branch' is the branch to checkout, or None for "master", "trunk" or
-          whatever else the main branch would be.
         """
         self.builder = builder
         self.vcs_handler = vcs_handler
         self.checkout_label = co_label
-        self.checkout_leaf = co_leaf
-        self.checkout_dir = co_dir
-        self.repo_as_given = repo
-        self.relative = rel
-        if rev:
-            # Subversion, for instance, has revisions that look like numbers.
-            # It is thus very tempting for people to put the revision number
-            # in *as* a number. We could, of course, normalise that into a
-            # string.
-            #
-            # However, git also uses "numbers" as revision identifiers,
-            # although they are SHA1 values, which are (large) hexadecimal
-            # numbers. If someone wrote one of those as a (hex) number, then
-            # we could, of course, transform that as well. But I don't think
-            # git would be happy being given it as a decimal value.
-            #
-            # Anyway, for various reasons which come down to "let's not try to
-            # be too clever", we shall insist on a string-ish type of thing.
-            # Which, of course, we can test by finding out if the next call
-            # falls over at us...
+        self.repo = repo
 
-            # Check for the legacy mechanism for specifying a branch
-            # (i.e., as a revision of "<branch>:<revision>")
-            # This will override any branch specified as an argument
-            try:
-                branch, self.revision = self._parse_revision(branch, rev)
-            except TypeError:
-                raise utils.GiveUp('VCS revision value should be a string, not %s'%type(rev))
-        else:
-            self.revision = None
-        self.branch = branch
-
-        # TODO: instead of making the caller register the checkout directory
-        #       for this label separately, do it for them...
-        #       (but always remember that, at this stage, we probably don't
-        #       yet know if we're in a subdomain or not)
-
-
-        # Sort out what our repository URL actually is
-        pair = conventional_repo_url(repo, rel, co_dir=co_dir)
-        if pair is None:
-            raise utils.MuddleBug("Cannot extract repository URL from %s,"
-                              " relative %s, checkout dir %s"%(repo, rel, co_dir))
-        self.actual_repo, self.name_in_repo = pair
+        self.checkout_dir = co_dir          # should we get this from the db?
+        self.checkout_leaf = co_leaf        # should we calculate this as needed?
 
         self._options = default_vcs_options_dict()
         self.add_options(addoptions)
@@ -246,36 +197,12 @@ class VersionControlHandler(object):
         labels = [self.checkout_label]
         return labels
 
-    def _parse_revision(self, branch, revision):
-        """
-        Legacy build descriptions may be passing the branch required as
-        part of the revision, i.e., as '<branch>:<revision>'. So we need
-        to support this, at least for a while.
-
-        Return <branch>, <revision>
-
-        If the given string *does* include a <branch> component, then
-        it overrides any 'branch' argument we may be given.
-        """
-        m = branch_and_revision_re.match(revision)
-        if m:
-            branch = m.group(1)
-            revision = m.group(2)
-            # No need to adjust HEAD - git uses it too.
-        return branch, revision
-
     def __str__(self):
         words = ['VCS %s for %s'%(self.short_name(), self.checkout_label)]
         if self.checkout_dir:
             words.append('dir=%s'%self.checkout_dir)
         words.append('leaf=%s'%self.checkout_leaf)
-        words.append('repo=%s'%self.repo_as_given)
-        if self.relative:
-            words.append('rel=%s'%self.relative)
-        if self.branch:
-            words.append('branch=%s'%self.branch)
-        if self.revision:
-            words.append('rev=%s'%self.revision)
+        words.append('repo=%s'%self.repo)
         return ' '.join(words)
 
     def short_name(self):
@@ -285,14 +212,18 @@ class VersionControlHandler(object):
         return self.vcs_handler.long_name
 
     def checkout_tuple(self):
+        # This is used for stamp files
+        #
+        # XXX Note that 'inner_path' should now be part of the URL
+        # XXX - this definitely needs thinking about
         return utils.CheckoutTuple(self.checkout_label.name,
-                                   self.repo_as_given,
-                                   self.revision,
-                                   self.relative,
+                                   '%s+%s'%(self.repo.vcs, self.repo.url),
+                                   self.repo.revision if self.repo.revision else 'HEAD',
+                                   self.repo.inner_path, # was self.relative,
                                    self.checkout_dir,
                                    self.checkout_label.domain,
                                    self.checkout_leaf,
-                                   self.branch)
+                                   self.repo.branch)
 
     def get_my_absolute_checkout_path(self):
         """
@@ -305,22 +236,7 @@ class VersionControlHandler(object):
 
         This may be None.
         """
-        return self.revision
-
-    def get_checkout_path(self, co_label):
-        """
-        When called with None, get the parent directory of this checkout.
-        God knows what happens otherwise.
-        
-        .. todo:: Needs documenting and rewriting!
-
-        .. TODO:: Actually, needs removing...
-        """
-
-        if co_label:
-            return self.builder.invocation.checkout_path(co_label)
-        else:
-            return self.builder.invocation.checkout_path(None)
+        return self.repo.revision
 
     def src_rel_dir(self):
         """For exceptions, we want the directory relative to the root
@@ -341,11 +257,6 @@ class VersionControlHandler(object):
 
         return src_rel_dir
 
-    def check_out(self):
-        """A synonym for old time's sake.
-        """
-        self.checkout()
-
     def checkout(self, verbose=True):
         """
         Check this checkout out of version control.
@@ -363,9 +274,8 @@ class VersionControlHandler(object):
 
         with utils.Directory(parent_dir):
             try:
-                self.vcs_handler.checkout(self.actual_repo, self.checkout_leaf,
-                                          self._options,
-                                          self.branch, self.revision, verbose)
+                self.vcs_handler.checkout(self.repo, self.checkout_leaf,
+                                          self._options, verbose)
             except utils.MuddleBug as err:
                 raise utils.MuddleBug('Error checking out %s in %s:\n%s'%(self.checkout_label,
                                       parent_dir, err))
@@ -381,11 +291,13 @@ class VersionControlHandler(object):
         """
         with utils.Directory(self.get_my_absolute_checkout_path()):
             try:
-                self.vcs_handler.fetch(self.actual_repo, self._options,
-                                       self.branch, self.revision, verbose)
+                self.vcs_handler.fetch(self.repo, self._options, verbose)
             except utils.MuddleBug as err:
                 raise utils.MuddleBug('Error fetching %s in %s:\n%s'%(self.checkout_label,
                                   self.src_rel_dir(), err))
+            except utils.Unsupported as err:
+                raise utils.Unsupported('Not fetching %s in %s:\n%s'%(self.checkout_label,
+                                     self.src_rel_dir(), err))
             except utils.GiveUp as err:
                 raise utils.GiveUp('Failure fetching %s in %s:\n%s'%(self.checkout_label,
                                     self.src_rel_dir(), err))
@@ -397,11 +309,13 @@ class VersionControlHandler(object):
         """
         with utils.Directory(self.get_my_absolute_checkout_path()):
             try:
-                self.vcs_handler.merge(self.actual_repo, self._options,
-                                       self.branch, self.revision, verbose)
+                self.vcs_handler.merge(self.repo, self._options, verbose)
             except utils.MuddleBug as err:
                 raise utils.MuddleBug('Error merging %s in %s:\n%s'%(self.checkout_label,
                                   self.src_rel_dir(), err))
+            except utils.Unsupported as err:
+                raise utils.Unsupported('Not merging %s in %s:\n%s'%(self.checkout_label,
+                                      self.src_rel_dir(), err))
             except utils.GiveUp as err:
                 raise utils.GiveUp('Failure merging %s in %s:\n%s'%(self.checkout_label,
                                     self.src_rel_dir(), err))
@@ -415,11 +329,11 @@ class VersionControlHandler(object):
         """
         with utils.Directory(self.get_my_absolute_checkout_path()):
             try:
-                self.vcs_handler.commit(self._options, verbose)
+                self.vcs_handler.commit(self.repo, self._options, verbose)
             except utils.MuddleBug as err:
                 raise utils.MuddleBug('Error commiting %s in %s:\n%s'%(self.checkout_label,
                                   self.src_rel_dir(), err))
-            except utils.GiveUp as err:
+            except (utils.GiveUp, utils.Unsupported) as err:
                 raise utils.GiveUp('Failure commiting %s in %s:\n%s'%(self.checkout_label,
                                     self.src_rel_dir(), err))
 
@@ -434,12 +348,11 @@ class VersionControlHandler(object):
         """
         with utils.Directory(self.get_my_absolute_checkout_path()):
             try:
-                self.vcs_handler.push(self.actual_repo, self._options,
-                                      self.branch, verbose)
+                self.vcs_handler.push(self.repo, self._options, verbose)
             except utils.MuddleBug as err:
                 raise utils.MuddleBug('Error pushing %s in %s:\n%s'%(self.checkout_label,
                                   self.src_rel_dir(), err))
-            except utils.GiveUp as err:
+            except (utils.GiveUp, utils.Unsupported) as err:
                 raise utils.GiveUp('Failure pushing %s in %s:\n%s'%(self.checkout_label,
                                     self.src_rel_dir(), err))
 
@@ -468,8 +381,7 @@ class VersionControlHandler(object):
             print '>>', self.checkout_label
         with utils.Directory(self.get_my_absolute_checkout_path(), show_pushd=False):
             try:
-                status_text = self.vcs_handler.status(self.actual_repo,
-                        self._options, self.branch)
+                status_text = self.vcs_handler.status(self.repo, self._options)
                 if status_text:
                     full_text = '%s status for %s in %s:\n%s'%(self.short_name(),
                                                  self.checkout_label,
@@ -501,8 +413,7 @@ class VersionControlHandler(object):
         actual_dir = self.get_my_absolute_checkout_path()
         with utils.Directory(actual_dir):
             self.vcs_handler.reparent(actual_dir, # or self.checkout_leaf
-                                      self.actual_repo, self._options,
-                                      force, verbose)
+                                      self.repo, self._options, force, verbose)
 
     def revision_to_checkout(self, force=False, verbose=False):
         """
@@ -531,8 +442,8 @@ class VersionControlHandler(object):
         case it will return the string '0'.
         """
         with utils.Directory(self.get_my_absolute_checkout_path()):
-            return self.vcs_handler.revision_to_checkout(self.checkout_leaf,
-                                                         self.revision,
+            return self.vcs_handler.revision_to_checkout(self.repo,
+                                                         self.checkout_leaf,
                                                          self._options,
                                                          force, verbose)
 
@@ -591,46 +502,59 @@ def register_vcs_handler(scheme, factory):
     """
     vcs_dict[scheme] = factory
 
-def list_registered():
+def list_registered(indent=''):
     """
     Return a list of registered version control systems.
     """
 
     str_list = []
     for (k,v) in vcs_dict.items():
+        if indent:
+            str_list.append(indent)
         str_list.append(utils.pad_to(k, 20))
         desc = v.long_name
         lines = desc.split("\n")
         str_list.append(lines[0])
         str_list.append("\n")
         for i in lines[1:]:
+            if indent:
+                str_list.append(indent)
             str_list.append(utils.pad_to("", 20))
             str_list.append(i)
             str_list.append("\n")
 
     return "".join(str_list)
 
-def get_vcs_handler(repo):
-    vcs, url_rest = split_vcs_url(repo)
-    if not vcs:
-        raise utils.MuddleBug("Improperly formatted repository spec %s"%repo)
-
-    vcs_handler = vcs_dict.get(vcs, None)
-    if not vcs_handler:
+def get_vcs_handler(vcs):
+    """Given a VCS short name, return a VCS handler.
+    """
+    try:
+        return vcs_dict[vcs]
+    except KeyError:
         raise utils.MuddleBug("No VCS handler registered for VCS type %s"%vcs)
+
+def get_vcs_handler_from_string(repo_str):
+    """Given a <vcs>+<url> string, return a VCS handler and <url>.
+    """
+    vcs, url_rest = split_vcs_url(repo_str)
+    if not vcs:
+        raise utils.MuddleBug("Improperly formatted repository spec %s,"
+                              " should be <vcs>+<url>"%repo_str)
+
+    vcs_handler = get_vcs_handler(vcs)
 
     return vcs_handler, url_rest
 
-def vcs_handler_for(builder, co_label, co_leaf, repo, rev, rest, co_dir=None, branch=None):
+def vcs_handler_for(builder, co_label, co_leaf, repo, co_dir=None):
     """
     Create a VCS handler for the given url, invocation and checkout name.
-    
+
     Which VCS is determined by interpreting the initial part of the URI's
     protocol.
 
     We then create a handler that will call the appropriate VCS-specific
     mechanisms for any VCS operations on this checkout.
-    
+
     * inv - The invocation for which we're trying to build a handler.
     * co_label - The label for this checkout. This includes the name and domain
       (if any) for the checkout
@@ -638,40 +562,28 @@ def vcs_handler_for(builder, co_label, co_leaf, repo, rev, rest, co_dir=None, br
       element of the checkout's directory name. In many/most cases it will be
       the same as the checkout name (in the label), but particularly in
       multilevel checkouts it may be different.
-    * repo - Repository URL
-    * rev - Revision (None for HEAD)
-    * rest - Part after the repository URL - typically the CVS module name or
-      whatever.
+    * repo - the Repository instance
     * co_dir - Directory relative to the 'src/' directory in which the
       checkout 'leaf' directory resides. Thus None or '' for simple checkouts.
-    * branch - The branch for this checkout, if it is not the "main"/"default"
-      branch.
     """
 
-    vcs_handler, plain_url = get_vcs_handler(repo)
-
-    if (rev is None):
-        rev = "HEAD"
+    vcs_handler = get_vcs_handler(repo.vcs)
 
     return VersionControlHandler(builder, vcs_handler,
-                                 co_label, co_leaf, repo, rev, rest, co_dir, branch)
+                                 co_label, co_leaf, repo, co_dir)
 
-def vcs_action_for(builder, co_label, repo, rev, rest, co_dir = None, co_leaf = None,
-                   branch = None):
+def vcs_action_for(builder, co_label, repo, co_dir = None, co_leaf = None):
     """
     Create a VCS action for the given co_leaf, repo, etc.
     """
     if co_leaf is None:
         co_leaf = co_label.name
 
-    handler = vcs_handler_for(builder, co_label, co_leaf, repo, rev, rest, co_dir, branch)
+    handler = vcs_handler_for(builder, co_label, co_leaf, repo, co_dir)
     if (handler is None):
         raise utils.GiveUp("Cannot build a VCS handler for %s rel = %s"%(repo, rev))
 
     return pkg.VcsCheckoutBuilder(co_label.name, handler)
-
-# XXX For legacy reasons
-vcs_dependable_for = vcs_action_for
 
 def split_vcs_url(url):
     """
@@ -687,6 +599,38 @@ def split_vcs_url(url):
 
     return (m.group(1).lower(), "%s:%s"%(m.group(2),m.group(3)))
 
+def checkout_from_repo(builder, co_label, repo, co_dir=None, co_leaf=None):
+    """Declare that the checkout for 'co_label' comes from Repository 'repo'
+
+    We will take the repository described in 'repo' and check it out into:
+
+    * src/<co_label>.name or
+    * src/<co_dir>/<co_label>.name or
+    * src/<co_dir>/<co_leaf> or
+    * src/<co_leaf>
+
+    depending on whether <co_dir> and/or <co_leaf> are given. We will assign
+    the label <co_label> to this directory/repository combination.
+    """
+
+    if co_dir:
+        if co_leaf:
+            co_path = os.path.join(co_dir, co_leaf)
+        else:
+            co_path = os.path.join(co_dir, co_label.name)
+    else:
+        if co_leaf:
+            co_path = co_leaf
+        else:
+            co_path = co_label.name
+
+    builder.invocation.db.set_checkout_path(co_label, co_path)
+    builder.invocation.db.set_checkout_repo(co_label, repo)
+
+    vcs_handler = vcs_action_for(builder, co_label, repo, co_dir=co_dir, co_leaf=co_leaf)
+    pkg.add_checkout_rules(builder.invocation.ruleset, co_label, vcs_handler)
+
+
 def conventional_repo_url(repo, rel, co_dir = None):
     """
     Many VCSs adopt the convention that the first element of the relative
@@ -698,6 +642,9 @@ def conventional_repo_url(repo, rel, co_dir = None):
     lacks the VCS specifier.
 
     If an invalid URL is given, we will return None.
+
+    XXX This function is deprecated, as we do not use it any more. It will
+    be removed in a later version of muddle.
     """
     split = split_vcs_url(repo)
     if (split is None):
@@ -707,8 +654,8 @@ def conventional_repo_url(repo, rel, co_dir = None):
 
     # Now, depending on whether we have a co_dir or not, either the
     # first or the first and second elements of rel are the repository
-    # name. 
-    # 
+    # name.
+    #
     # If rel is None, there is no repository name - it's all in repo.
 
     if (rel is None):
@@ -730,7 +677,7 @@ def conventional_repo_url(repo, rel, co_dir = None):
         else:
             # The second component is part of the repo, not the relative
             # path. Need to be a bit careful to do this test right else
-            # otherwise we'll end up misinterpreting things like 
+            # otherwise we'll end up misinterpreting things like
             # 'builds/01.py'
             out_repo = os.path.join(repo_rest, components[0], components[1])
             out_rel = None
@@ -758,7 +705,7 @@ def vcs_get_file_data(url):
     Raises KeyError if the scheme is not one we have a registered file getter
     for.
     """
-    vcs_handler, plain_url = get_vcs_handler(url)
+    vcs_handler, plain_url = get_vcs_handler_from_string(url)
     return vcs_handler.get_file_content(plain_url)
 
 # This is a dictionary of VCS name to function-to-clone/push/pull-a-directory
@@ -795,9 +742,10 @@ def vcs_get_directory(url, directory=None):
     Raises KeyError if the scheme is not one for which we have a registered
     handler.
     """
-    vcs_handler, plain_url = get_vcs_handler(url)
+    vcs_handler, plain_url = get_vcs_handler_from_string(url)
+    repo = Repository.from_url(vcs_handler.short_name, plain_url)
     options = default_vcs_options_dict()
-    return vcs_handler.checkout(plain_url, directory, options)
+    return vcs_handler.checkout(repo, directory, options)
 
 def vcs_push_directory(url):
     """
@@ -809,9 +757,10 @@ def vcs_push_directory(url):
     Raises KeyError if the scheme is not one for which we have a registered
     handler.
     """
-    vcs_handler, plain_url = get_vcs_handler(url)
+    vcs_handler, plain_url = get_vcs_handler_from_string(url)
+    repo = Repository.from_url(vcs_handler.short_name, plain_url)
     options = default_vcs_options_dict()
-    vcs_handler.push(plain_url, options)
+    vcs_handler.push(repo, options)
 
 def vcs_fetch_directory(url):
     """
@@ -823,9 +772,10 @@ def vcs_fetch_directory(url):
     Raises KeyError if the scheme is not one for which we have a registered
     handler.
     """
-    vcs_handler, plain_url = get_vcs_handler(url)
+    vcs_handler, plain_url = get_vcs_handler_from_string(url)
+    repo = Repository.from_url(vcs_handler.short_name, plain_url)
     options = default_vcs_options_dict()
-    vcs_handler.fetch(plain_url, options)
+    vcs_handler.fetch(repo, options)
 
 def vcs_init_directory(scheme, files=None):
     """

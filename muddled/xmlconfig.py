@@ -1,6 +1,6 @@
 """
 A utility module which allows you to read XML files and
-then query them as XPath-like paths. 
+then query them as XPath-like paths.
 
 Call readXml() to read an XML file and return an xmlConfig
 object which you can then pass queries like:
@@ -10,7 +10,7 @@ object which you can then pass queries like:
 This is essentially a (restricted) XPath query with an
 implicit ::text() appended.
 
-This file is hereby placed in the public domain - 
+This file is hereby placed in the public domain -
  Richard Watts, <rrw@kynesim.co.uk> 2009-10-23.
 
 (as this is about the third time I have had to write
@@ -20,7 +20,7 @@ This file is hereby placed in the public domain -
 import xml.dom
 import xml.dom.minidom
 
-class ConfigError(Exception): 
+class ConfigError(Exception):
     pass
 
 class Config:
@@ -38,7 +38,7 @@ class Config:
         """
         Collect all the text in an XML node
         """
-        if (node is None): 
+        if (node is None):
             return None
 
         elems = []
@@ -50,25 +50,25 @@ class Config:
         result = "".join(elems)
         if (len(result) > 0 and result[-1] == '\n'):
             result = result[:-1]
-        
+
         return result
 
     def query(self, keys):
         """
-        Perform a query on this list of keys and return 
+        Perform a query on this list of keys and return
         the node which matches (and which you can then
         call text() on)
         """
         result = self.doc
-        
+
         for i in keys:
             next = None
-            
+
             for j in result.childNodes:
                 if (j.nodeType == j.ELEMENT_NODE) and (j.nodeName == i):
                     next = j
                     break
-            
+
             # End of the line :-(
             if (next is None):
                 return None
@@ -114,7 +114,7 @@ class Config:
         """
         Given an XPath-like expression a/b/c.., return the
         text in the final node interpreted as an integer.
-        
+
         If the node doesn't exist, throw.
         """
         return int(self.query_string(key))
@@ -122,7 +122,7 @@ class Config:
     def query_bool(self,key):
         """
         Given an XPath-like expression, return a boolean
-        value based on a text value of 'true' (True) 
+        value based on a text value of 'true' (True)
         or anything else (False)
 
         If the node doesn't exist, throw.
@@ -150,7 +150,7 @@ class Config:
                 i = i + 1
             else:
                 break
-            
+
         return result
 
     def query_hashlist(self, key, subkeys):
@@ -176,15 +176,15 @@ class Config:
                 break
 
         return result
-        
+
 
 
 # End file.
 
-        
-    
-                
-    
 
-       
-  
+
+
+
+
+
+

@@ -1,23 +1,11 @@
 """
 Main command line support for the muddle program.
 
-Usage:
+See:
 
-  muddle [<options>] <command> [<arg> ...]
+  muddle help
 
-Options include:
-
-  --help, -h, -?      This help text
-  --tree <dir>        Use the muddle build tree at <dir>
-  --just-print, -n    Just print what muddle would have done. This is currently
-                      only partially supported - please do not trust it.
-
-If you don't give --tree, muddle will traverse directories up to the root to
-try and find a .muddle directory, which signifies the top of the build tree.
-
-To get help on commands, use:
-
-  muddle help [<command>]
+for help on how to use it.
 """
 import os
 
@@ -25,174 +13,8 @@ import muddled.commands as commands
 import muddled.utils as utils
 import muddled.mechanics as mechanics
 
-def help_list(cmd_dict):
-    """
-    Return a list of all commands
-    """
-    result_array = [ __doc__, "\n" ]
-
-    # Use the entire set of command names, including any aliases
-    keys = cmd_dict.keys()
-    keys.sort()
-    keys_text = ", ".join(keys)
-
-    result_array.append(utils.wrap('Commands are: %s'%keys_text,
-                                   # I'd like to do this, but it's not in Python 2.6.5
-                                   #break_on_hyphens=False,
-                                   subsequent_indent='              '))
-
-    result_array.append("\n\nUse:\n")
-    result_array.append("\n  muddle help <cmd>          for help on a command")
-    result_array.append("\n  muddle help <cmd> <subcmd> for help on a subcommand")
-    result_array.append("\n  muddle help all            for help on all commands")
-    result_array.append("\n  muddle help _all           is the same as 'help all'")
-    result_array.append("\n  muddle help <cmd> all      for help on all <cmd> subcommands")
-    result_array.append("\n  muddle help <cmd> _all     is the same as 'help <cmd> all'")
-    result_array.append("\n  muddle help aliases        says which commands have more than one name")
-    result_array.append("\n")
-
-    # Temporarily
-    result_array.append("\nPlease note that 'muddle pull' and 'muddle update' are deprecated.")
-    result_array.append("\nUse 'fetch' or 'merge', as appropriate, instead.")
-    # Temporarily
-
-    return "".join(result_array)
-
-
-def help_all(cmd_dict, subcmd_dict):
-    """
-    Return help for all commands
-    """
-    result_array = []
-    result_array.append("Commands:\n")
-
-    cmd_list = []
-
-    # First, all the main command names (without any aliases)
-    for name in commands.g_command_names:
-        v = cmd_dict[name]
-        cmd_list.append((name, v()))
-
-    # Then, all the subcommands (ditto)
-    for main, sub in commands.g_subcommand_names:
-        v = subcmd_dict[main][sub]
-        cmd_list.append(('%s %s'%(main, sub), v()))
-
-    cmd_list.sort()
-
-    for name, obj in cmd_list:
-        result_array.append("%s\n%s"%(name, v().help()))
-
-    return "\n".join(result_array)
-
-def help_subcmd_all(cmd_name, cmd_dict):
-    """
-    Return help for all commands in this dictionary
-    """
-    result_array = []
-    result_array.append("Subcommands for '%s' are:\n"%cmd_name)
-
-    keys = cmd_dict.keys()
-    keys.sort()
-
-    for name in keys:
-        v = cmd_dict[name]
-        result_array.append('%s\n%s'%(name, v().help()))
-
-    return "\n".join(result_array)
-
-def help_aliases():
-    """
-    Return a list of all commands with aliases
-    """
-    result_array = []
-    result_array.append("Commands aliases are:\n")
-
-    aliases = commands.g_command_aliases
-
-    keys = aliases.keys()
-    keys.sort()
-
-    for alias in keys:
-        result_array.append("  %-10s  %s"%(alias, aliases[alias]))
-
-    aliases = commands.g_subcommand_aliases
-    if aliases:
-        result_array.append("\nSubcommand aliases are:\n")
-
-        main_keys = aliases.keys()
-        main_keys.sort()
-        for cmd in main_keys:
-            sub_keys = aliases[cmd].keys()
-            sub_keys.sort()
-            for alias in sub_keys:
-                result_array.append("  %-20s %s"%("%s %s"%(cmd, alias),
-                                                        "%s %s"%(cmd, aliases[cmd][alias])))
-
-    return "\n".join(result_array)
-
-def help(cmd_dict, subcmd_dict, about=None):
-    """
-    Return the help message for 'about'.
-
-    If 'about' is None or empty, return summary of all commands.
-    """
-
-    if not about:
-        return help_list(cmd_dict)
-
-    if about[0] in ("all", "_all"):
-        return help_all(cmd_dict, subcmd_dict)   # and ignore the rest of the command line
-
-    if about[0] == "aliases":
-        return help_aliases()
-
-    if len(about) == 1:
-        cmd = about[0]
-        try:
-            v = cmd_dict[cmd]
-            if v is None:
-                keys = subcmd_dict[cmd].keys()
-                keys.sort()
-                keys_text = ", ".join(keys)
-                return utils.wrap("Subcommands of '%s' are: %s"%(cmd,keys_text),
-                                  # I'd like to do this, but it's not in Python 2.6.5
-                                  #break_on_hyphens=False,
-                                  subsequent_indent='              ')
-            else:
-                return "%s\n%s"%(cmd, v().help())
-        except KeyError:
-            return "There is no muddle command '%s'"%cmd
-    elif len(about) == 2:
-        cmd = about[0]
-        subcmd = about[1]
-        try:
-            sub_dict = subcmd_dict[cmd]
-        except KeyError:
-            if cmd in cmd_dict:
-                return "Muddle command '%s' does not take a subcommand"%cmd
-            else:
-                return "There is no muddle command '%s %s'"%(cmd, subcmd)
-
-        if subcmd in ("all", "_all"):
-            return help_subcmd_all(cmd, sub_dict)
-
-        try:
-            v = sub_dict[subcmd]
-            return "%s %s\n%s"%(cmd, subcmd, v().help())
-        except KeyError:
-            return "There is no muddle command '%s %s'"%(cmd, subcmd)
-    else:
-        return "There is no muddle command '%s'"%' '.join(about)
-    result_array = []
-    for cmd in about:
-        try:
-            v = cmd_dict[cmd]
-            result_array.append("%s\n%s"%(cmd, v().help()))
-        except KeyError:
-            result_array.append("There is no muddle command '%s'\n"%cmd)
-
-    return "\n".join(result_array)
+from muddled.depend import Label
+from muddled.utils import LabelType, LabelTag, DirType
 
 def find_and_load(specified_root, muddle_binary):
     """Find our .muddle root, and then load our builder, and return it.
@@ -201,7 +23,8 @@ def find_and_load(specified_root, muddle_binary):
         (build_root, build_domain) = utils.find_root_and_domain(specified_root)
         if build_root:
             builder = mechanics.load_builder(build_root, muddle_binary,
-                                             default_domain = build_domain)
+                                             #default_domain = build_domain)
+                                             default_domain = None) # 'cos it's the toplevel
         else:
             builder = None
         return builder
@@ -212,52 +35,10 @@ def find_and_load(specified_root, muddle_binary):
         print "Error trying to find build tree"
         raise
 
-def _cmdline(args, current_dir, original_env, muddle_binary):
+def lookup_command(command_name, args, cmd_dict, subcmd_dict):
     """
-    The actual command line, with no safety net...
+    Look the command up, and return an instance of it and any remaining args
     """
-
-    command = None
-    command_options = { }
-    specified_root = current_dir
-
-    while args:
-        word = args[0]
-        if word in ('-h', '-help', '--help', '-?'):
-            print __doc__
-            return
-        elif word == '--tree':
-            args = args[1:]
-            specified_root = args[0]
-        elif word == '-n' or word == "--just-print":
-            command_options["no_operation"] = True
-        elif word[0] == '-':
-            raise utils.GiveUp, "Unexpected command line option %s"%word
-        else:
-            break
-
-        args = args[1:]
-
-    if len(args) < 1:
-        # The command is implicitly 'rebuild' with the default label, or
-        # _all if none was specified.
-        command_name = "rebuild"            # We rely on knowing this exists
-        guess_what_to_do = True             # but it's only our best guess
-    else:
-        command_name = args[0]
-        args = args[1:]
-        guess_what_to_do = False
-
-    # First things first, let's look up the command .. 
-    cmd_dict = commands.g_command_dict
-    subcmd_dict = commands.g_subcommand_dict
-
-    # The help command needs to be provided here because the 
-    # command module doesn't have the necessary information
-    if (command_name == "help"):
-        print help(cmd_dict, subcmd_dict, args)
-        return
-
     try:
         command_class = cmd_dict[command_name]
     except KeyError:
@@ -274,57 +55,123 @@ def _cmdline(args, current_dir, original_env, muddle_binary):
         except KeyError:
             raise utils.GiveUp("There is no muddle command"
                                 " '%s %s'"%(command_name, subcommand_name))
+    return command_class(), args
 
-    command = command_class()
+def _cmdline(args, current_dir, original_env, muddle_binary):
+    """
+    The actual command line, with no safety net...
+    """
+
+    command = None
+    command_options = { }
+    specified_root = current_dir
+
+    while args:
+        word = args[0]
+        if word in ('-h', '-help', '--help', '-?'):
+            args = ['help']      # Ignore any other command words
+            break
+        elif word == '--tree':
+            args = args[1:]
+            specified_root = args[0]
+        elif word in ('-n', "--just-print"):
+            command_options["no_operation"] = True
+        elif word[0] == '-':
+            raise utils.GiveUp, "Unexpected command line option %s"%word
+        else:
+            break
+
+        args = args[1:]
+
+    if len(args) < 1:
+        # Make a first guess at a plausible command
+        command_name = "rebuild"            # We rely on knowing this exists
+        guess_what_to_do = True             # but it's only our best guess
+    else:
+        command_name = args[0]
+        args = args[1:]
+        guess_what_to_do = False
+
+    # First things first, let's look up the command ..
+    cmd_dict = commands.g_command_dict
+    subcmd_dict = commands.g_subcommand_dict
+
+    command, args = lookup_command(command_name, args, cmd_dict, subcmd_dict)
     command.set_options(command_options)
     command.set_old_env(original_env)
 
     builder = find_and_load(specified_root, muddle_binary)
-
     if builder:
         # There is a build tree...
         if guess_what_to_do:
             # Where are we?
-            r = builder.find_location_in_tree(current_dir)
-            if r is None:
+            where = builder.find_location_in_tree(current_dir)
+            if where is None:
                 raise utils.GiveUp("Can't seem to determine where you are in the build tree")
 
-            (what, label, domain) = r
+            (what, label, domain) = where
 
-            if (what == utils.DirType.Root or
-                (domain is None and label is None)):
-                # We're either (1) actually at the root of the entire tree, or
-                # (2) we're not anywhere particularly identifiable but near the
-                # top of the entire tree.
+            if what == DirType.Root:
+                # We're at the very top of the build tree
                 #
                 # As such, our default is to build labels:
                 command_class = cmd_dict["buildlabel"]
                 command = command_class()
                 command.set_options(command_options)
 
-                # and the labels to build are the default labels - this
-                # includes any default deployments
-                args = map(str, builder.invocation.default_labels)
+                # and the labels to build are the default deployments
+                args = map(str, builder.invocation.default_deployment_labels)
 
-                # Default roles will not yet have been turned into labels
-                # - we need to do this lazily so we know we get all the
-                # labels for each role.
-                # This is doubtless not the most compact way of doing this,
-                # but it makes what we are doing fairly clear...
+                # and the default roles
                 for role in builder.invocation.default_roles:
-                    labels = commands.labels_from_pkg_args(builder,
-                                                           ['_all{%s}'%role],
-                                                           current_dir,
-                                                           utils.LabelTag.PostInstalled)
-                    args += map(str, labels)
+                    label = Label(LabelType.Package, '*', role, LabelTag.PostInstalled)
+                    args.append(str(label))
+
+            elif what == DirType.DomainRoot:
+                domains = []
+                if domain is None:
+                    subdirs = os.listdir(current_dir)
+                    # Make a quick plausibility check
+                    for dir in subdirs:
+                        if os.path.isdir(os.path.join(current_dir, dir, '.muddle')):
+                            domains.append(dir)
+
+                else:
+                    domains.append(domain)
+
+                # We're in domains/<somewhere>, so build everything specific
+                # to (just) this subdomain
+                command_class = cmd_dict["buildlabel"]
+                command = command_class()
+                command.set_options(command_options)
+
+                # Choose all the packages from this domain that are needed by
+                # our build tree. Also, all the deployments that it contributes
+                # to our build tree. It is possible we might end up "over building"
+                # if any of those are not implied by the top-level build defaults,
+                # but that would be somewhate more complex to determine.
+                args = []
+                for name in domains:
+                    args.append('deployment:({domain})*/deployed'.format(domain=name))
+                    args.append('package:({domain})*{{*}}/postinstalled'.format(domain=name))
+
+            elif what == DirType.Deployed:
+                # We're in a deploy/ directory, so redeploying sounds sensible
+                command_class = cmd_dict["redeploy"]
+                command = command_class()
+                command.set_options(command_options)
+
+                args = []
+                if label:       # Given a specific deployment, choose it
+                    args.append(str(label))
 
         command.with_build_tree(builder, current_dir, args)
     else:
-        # There is no build root here .. 
+        # There is no build tree here ..
         if guess_what_to_do:
             # Guess that you wanted help.
-            print help(cmd_dict, subcmd_dict)
-            return
+            command_class = cmd_dict["help"]
+            command = command_class()
 
         if command.requires_build_tree():
             raise utils.GiveUp("Command %s requires a build tree."%(command_name))

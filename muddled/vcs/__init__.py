@@ -2,8 +2,9 @@
 VCS objects for the version control systems supported by muddle
 """
 
-import bazaar
-import file
-import git
-import svn
+# Import things here so that they can register their VCS functionality
+import muddled.vcs.bazaar
+import muddled.vcs.file
+import muddled.vcs.git
+import muddled.vcs.svn
 

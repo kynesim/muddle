@@ -14,7 +14,7 @@ class VersionBuilder(PackageBuilder):
     Write a version number file
     """
 
-    def __init__(self, name, role, 
+    def __init__(self, name, role,
                  filename,
                  swname = None,
                  version = None,
@@ -79,7 +79,7 @@ class VersionBuilder(PackageBuilder):
         f.write("</version>\n")
         f.close()
 
-        
+
     def build_label(self, builder, label):
         """
         Build the version.xml file.
@@ -95,7 +95,7 @@ class VersionBuilder(PackageBuilder):
             self.erase_version_file(builder)
 
 
-def simple(builder, name, roles, 
+def simple(builder, name, roles,
            filename = "/version.xml",
            swname = None,
            version = None,
@@ -109,9 +109,9 @@ def simple(builder, name, roles,
                                  swname, version, build, withDate, withUser, withMachine)
         pkg.add_package_rules(builder.invocation.ruleset,
                               name, r, the_pkg)
-    
+
 
 
 # End File.
-                
-    
+
+

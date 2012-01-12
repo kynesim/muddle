@@ -24,12 +24,12 @@ class MakeBuilder(PackageBuilder):
     object directory, since any other strategy (e.g. convolutions
     involving cp) will lead to dependency-based disaster.
     """
-    
-    def __init__(self, name, role, co, config = True, 
-                 perRoleMakefiles = False, 
+
+    def __init__(self, name, role, co, config = True,
+                 perRoleMakefiles = False,
                  makefileName = DEFAULT_MAKEFILE_NAME,
-                 rewriteAutoconf = False, 
-                 usesAutoconf = False, 
+                 rewriteAutoconf = False,
+                 usesAutoconf = False,
                  execRelPath = None):
         """
         Constructor for the make package.
@@ -54,7 +54,7 @@ class MakeBuilder(PackageBuilder):
         tmp = Label(utils.LabelType.Checkout, self.co, domain=label.domain)
         if not os.path.exists(inv.checkout_path(tmp)):
             raise utils.MuddleBug("Path %s for checkout %s does not exist, building %s"%
-                              (inv.checkout_path(tmp), self.co, 
+                              (inv.checkout_path(tmp), self.co,
                                label))
 
         tmp = Label(utils.LabelType.Package, self.name, self.role, domain=label.domain)
@@ -134,19 +134,19 @@ class MakeBuilder(PackageBuilder):
             else:
                 raise utils.MuddleBug("Invalid tag specified for "
                                   "MakePackage building %s"%(label))
-        
+
 
 def simple(builder, name, role, checkout, rev=None, branch=None,
-	   simpleCheckout = False, config = True, 
-           perRoleMakefiles = False, 
+	   simpleCheckout = False, config = True,
+           perRoleMakefiles = False,
            makefileName = DEFAULT_MAKEFILE_NAME,
            usesAutoconf = False,
-           rewriteAutoconf = False, 
+           rewriteAutoconf = False,
            execRelPath = None):
     """
-    Build a package controlled by make, called name with role role 
+    Build a package controlled by make, called name with role role
     from the sources in checkout checkout.
-    
+
     * simpleCheckout - If True, register the checkout too.
     * config         - If True, we have make config. If false, we don't.
     * perRoleMakefiles - If True, we run 'make -f Makefile.<rolename>' instead
@@ -154,8 +154,8 @@ def simple(builder, name, role, checkout, rev=None, branch=None,
     * usesAutoconf    - If True, this package is given access to .la and .pc
                           files from things it depends on.
     * rewriteAutoconf  - If True, we will rewrite .la and .pc files in the
-      output directory so that packages which use autoconf continue to 
-      depend correctly. Intended for use with the MUDDLE_PKGCONFIG_DIRS 
+      output directory so that packages which use autoconf continue to
+      depend correctly. Intended for use with the MUDDLE_PKGCONFIG_DIRS
       environment variable.
     * execRelPath    - Where, relative to the object directory, do we find
                         binaries for this package?
@@ -163,14 +163,14 @@ def simple(builder, name, role, checkout, rev=None, branch=None,
     if (simpleCheckout):
         simple_checkouts.relative(builder, checkout, rev=rev, branch=branch)
 
-    the_pkg = MakeBuilder(name, role, checkout, config = config, 
+    the_pkg = MakeBuilder(name, role, checkout, config = config,
                           perRoleMakefiles = perRoleMakefiles,
                           makefileName = makefileName,
                           usesAutoconf = usesAutoconf,
                           rewriteAutoconf = rewriteAutoconf,
                           execRelPath = execRelPath)
     # Add the standard dependencies ..
-    pkg.add_package_rules(builder.invocation.ruleset, 
+    pkg.add_package_rules(builder.invocation.ruleset,
                           name, role, the_pkg)
     # .. and make us depend on the checkout.
     pkg.package_depends_on_checkout(builder.invocation.ruleset,
@@ -179,15 +179,15 @@ def simple(builder, name, role, checkout, rev=None, branch=None,
 
 def medium(builder, name, roles, checkout, rev=None, branch=None,
 	   deps = None, dep_tag = utils.LabelTag.PreConfig,
-           simpleCheckout = True, config = True, perRoleMakefiles = False, 
+           simpleCheckout = True, config = True, perRoleMakefiles = False,
            makefileName = DEFAULT_MAKEFILE_NAME,
            usesAutoconf = False,
-           rewriteAutoconf = False, 
+           rewriteAutoconf = False,
            execRelPath = None):
     """
     Build a package controlled by make, in the given roles with the
     given dependencies in each role.
-    
+
     * simpleCheckout - If True, register the checkout as simple checkout too.
     * dep_tag        - The tag to depend on being installed before you'll build.
     * perRoleMakefiles - If True, we run 'make -f Makefile.<rolename>' instead
@@ -198,39 +198,39 @@ def medium(builder, name, roles, checkout, rev=None, branch=None,
 
     if deps is None:
         deps = []
- 
+
     for r in roles:
-        simple(builder, name, r, checkout, config = config, 
+        simple(builder, name, r, checkout, config = config,
                perRoleMakefiles = perRoleMakefiles,
                makefileName = makefileName,
                usesAutoconf = usesAutoconf,
-               rewriteAutoconf = rewriteAutoconf, 
+               rewriteAutoconf = rewriteAutoconf,
                execRelPath = execRelPath)
         pkg.package_depends_on_packages(builder.invocation.ruleset,
-                                       name, r, dep_tag, 
+                                       name, r, dep_tag,
                                        deps)
         ###attach_env(builder, name, r, checkout)
 
-def twolevel(builder, name, roles, 
+def twolevel(builder, name, roles,
              co_dir = None, co_name = None, rev=None, branch=None,
              deps = None, dep_tag = utils.LabelTag.PreConfig,
-             simpleCheckout = True, config = True, perRoleMakefiles = False, 
+             simpleCheckout = True, config = True, perRoleMakefiles = False,
              makefileName = DEFAULT_MAKEFILE_NAME,
-             repo_relative=None, 
+             repo_relative=None,
              usesAutoconf = False,
-             rewriteAutoconf = False, 
+             rewriteAutoconf = False,
              execRelPath = None):
     """
     Build a package controlled by make, in the given roles with the
     given dependencies in each role.
-    
+
     * simpleCheckout - If True, register the checkout as simple checkout too.
     * dep_tag        - The tag to depend on being installed before you'll build.
     * perRoleMakefiles - If True, we run 'make -f Makefile.<rolename>' instead
       of just make.
     """
 
-    if (co_name is None): 
+    if (co_name is None):
         co_name = name
 
     if (simpleCheckout):
@@ -243,14 +243,14 @@ def twolevel(builder, name, roles,
 
 
     for r in roles:
-        simple(builder, name, r, co_name, config = config, 
+        simple(builder, name, r, co_name, config = config,
                perRoleMakefiles = perRoleMakefiles,
                makefileName = makefileName,
                usesAutoconf = usesAutoconf,
-               rewriteAutoconf = rewriteAutoconf, 
+               rewriteAutoconf = rewriteAutoconf,
                execRelPath = execRelPath)
         pkg.package_depends_on_packages(builder.invocation.ruleset,
-                                       name, r, dep_tag, 
+                                       name, r, dep_tag,
                                        deps)
         ###attach_env(builder, name, r, co_name)
 
@@ -261,7 +261,7 @@ def multilevel(builder, name, roles,
                makefileName = DEFAULT_MAKEFILE_NAME,
                repo_relative=None,
                usesAutoconf = False,
-               rewriteAutoconf = False, 
+               rewriteAutoconf = False,
                execRelPath = None):
     """
     Build a package controlled by make, in the given roles with the
@@ -290,7 +290,7 @@ def multilevel(builder, name, roles,
                perRoleMakefiles = perRoleMakefiles,
                makefileName = makefileName,
                usesAutoconf = usesAutoconf,
-               rewriteAutoconf = rewriteAutoconf, 
+               rewriteAutoconf = rewriteAutoconf,
                execRelPath = execRelPath)
         pkg.package_depends_on_packages(builder.invocation.ruleset,
                                        name, r, dep_tag,
@@ -299,21 +299,21 @@ def multilevel(builder, name, roles,
 
 
 
-                                       
 
-def single(builder, name, role, deps = None, 
-           usesAutoconf = False, 
-           rewriteAutoconf = False, 
+
+def single(builder, name, role, deps = None,
+           usesAutoconf = False,
+           rewriteAutoconf = False,
            execRelPath = None):
     """
     A simple make package with a single checkout named after the package and
     a single role.
     """
-    medium(builder, name, [ role ], name, deps, 
+    medium(builder, name, [ role ], name, deps,
            usesAutoconf = usesAutoconf,
-           rewriteAutoconf = rewriteAutoconf, 
+           rewriteAutoconf = rewriteAutoconf,
            execRelPath = execRelPath)
-    
+
 def attach_env(builder, name, role, checkout, domain=None):
     """
     Write the environment which attaches MUDDLE_SRC to makefiles.

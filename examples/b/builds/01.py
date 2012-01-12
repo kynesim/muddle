@@ -1,6 +1,6 @@
 #! /usr/bin/env python
 #
-# Build description for the second example. We now have a 
+# Build description for the second example. We now have a
 # package which is built from a checkout.
 
 import muddled

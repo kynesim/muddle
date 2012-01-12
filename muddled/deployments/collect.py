@@ -1,18 +1,20 @@
 """
 Collect deployment.
 
-Principally depending on other deployments, this 
+Principally depending on other deployments, this
 deployment is used to collect elements built by
 other parts of the system into a directory -
 usually to be processed by some external tool.
 """
 
-import muddled.pkg as pkg
+import os
+
 import muddled.depend as depend
 import muddled.utils as utils
 import muddled.filespec as filespec
 import muddled.deployment as deployment
-import os
+
+from muddled.depend import Action, Label
 
 class CollectInstructionImplementor:
     def prepare(self, builder, instruction, role, path):
@@ -28,15 +30,15 @@ class CollectInstructionImplementor:
         pass
 
 class AssemblyDescriptor:
-    def __init__(self, from_label, from_rel, to_name, recursive = True, 
-                 failOnAbsentSource = False, 
+    def __init__(self, from_label, from_rel, to_name, recursive = True,
+                 failOnAbsentSource = False,
                  copyExactly = True,
                  usingRSync = False,
                  obeyInstructions = True):
         """
         Construct an assembly descriptor.
 
-        We copy from the directory from_rel in from_label 
+        We copy from the directory from_rel in from_label
         (package, deployment, checkout) to the name to_name under
         the deployment.
 
@@ -58,12 +60,12 @@ class AssemblyDescriptor:
         self.copy_exactly = copyExactly
         self.obeyInstructions = obeyInstructions
 
-        
+
     def get_source_dir(self, builder):
         if (self.from_label.type == utils.LabelType.Checkout):
             return builder.invocation.checkout_path(self.from_label)
         elif (self.from_label.type == utils.LabelType.Package):
-            if ((self.from_label.name is None) or 
+            if ((self.from_label.name is None) or
                 self.from_label.name == "*"):
                 return builder.invocation.role_install_path(self.from_label.role,
                                                             domain=self.from_label.domain)
@@ -75,7 +77,7 @@ class AssemblyDescriptor:
         else:
             raise utils.GiveUp("Label %s for collection action has unknown kind."%(self.from_label))
 
-class CollectDeploymentBuilder(pkg.Action):
+class CollectDeploymentBuilder(Action):
     """
     Builds the specified collect deployment.
     """
@@ -111,94 +113,97 @@ class CollectDeploymentBuilder(pkg.Action):
             raise utils.GiveUp("Attempt to build a deployment with an unexpected tag in label %s"%(label))
 
     def deploy(self, builder, label):
-            for asm in self.assemblies:
-                src = os.path.join(asm.get_source_dir(builder), asm.from_rel)
-                dst = os.path.join(builder.invocation.deploy_path(label.name, domain=label.domain), 
-                                   asm.to_name)
+        for asm in self.assemblies:
+            src = os.path.join(asm.get_source_dir(builder), asm.from_rel)
+            dst = os.path.join(builder.invocation.deploy_path(label.name, domain=label.domain),
+                               asm.to_name)
 
-                if (not os.path.exists(src)):
-                    if (asm.fail_on_absent_source):
-                        raise utils.GiveUp("Deployment %s: source object %s does not exist."%(label.name, src))
-                    # Else no one cares :-)
-                else:
-                    if (asm.using_rsync):
-                        # Use rsync for speed
-                        try:
-                            os.makedirs(dst)
-                        except OSError:
-                            pass
-
-                        xdst = dst
-                        if xdst[-1] != "/":
-                            xdst = xdst + "/"
-
-                        utils.run_cmd("rsync -avz \"%s/.\" \"%s\""%(src,xdst))
-                    elif (asm.recursive):
-                        utils.recursively_copy(src, dst, object_exactly = asm.copy_exactly)
-                    else:
-                        utils.copy_file(src, dst, object_exactly = asm.copy_exactly)
-
-            # Sort out and run the instructions. This may need root.
-            need_root = False
-            for asm in self.assemblies:
-                # there's a from label - does it have instructions?
-
-                # If we're not supposed to obey them anyway, give up.
-                if (asm.obeyInstructions == False):
-                    continue
-
-                lbl = depend.Label(utils.LabelType.Package, '*', asm.from_label.role, '*', domain = asm.from_label.domain)
-                install_dir = builder.invocation.role_install_path(lbl.role, label.domain)
-                instr_list = builder.load_instructions(lbl)
-                app_dict = get_instruction_dict()
-
-                for (lbl, fn, instr_file) in instr_list:
-                    # Obey this instruction?
-                    for instr in instr_file:
-                        iname = instr.outer_elem_name()
-                        if (iname in app_dict):
-                            if (app_dict[iname].needs_privilege(builder, instr, lbl.role, install_dir)):
-                                need_root = True
-                        # Deliberately do not break - we want to check everything for
-                        # validity before acquiring privilege.
-                        else:
-                            raise utils.GiveUp("Collect deployments don't know about " + 
-                                                "instruction %s"%iname + 
-                                                " found in label %s (filename %s)"%(lbl, fn))
-
-
-            print "Rerunning muddle to apply instructions .. "
-            
-            permissions_label = depend.Label(utils.LabelType.Deployment,
-                                             label.name, label.role,
-                                             utils.LabelTag.InstructionsApplied,
-                                             domain = label.domain)
-
-            if need_root:
-                print "I need root to do this - sorry! - running sudo .."
-                utils.run_cmd("sudo %s buildlabel '%s'"%(builder.muddle_binary, 
-                                                         permissions_label))
+            if (not os.path.exists(src)):
+                if (asm.fail_on_absent_source):
+                    raise utils.GiveUp("Deployment %s: source object %s does not exist."%(label.name, src))
+                # Else no one cares :-)
             else:
-                utils.run_cmd("%s buildlabel '%s'"%(builder.muddle_binary, 
-                                                    permissions_label))
+                if (asm.using_rsync):
+                    # Use rsync for speed
+                    try:
+                        os.makedirs(dst)
+                    except OSError:
+                        pass
+
+                    xdst = dst
+                    if xdst[-1] != "/":
+                        xdst = xdst + "/"
+
+                    utils.run_cmd("rsync -avz \"%s/.\" \"%s\""%(src,xdst))
+                elif (asm.recursive):
+                    utils.recursively_copy(src, dst, object_exactly = asm.copy_exactly)
+                else:
+                    utils.copy_file(src, dst, object_exactly = asm.copy_exactly)
+
+        # Sort out and run the instructions. This may need root.
+        need_root = False
+        for asm in self.assemblies:
+            # there's a from label - does it have instructions?
+
+            # If we're not supposed to obey them anyway, give up.
+            if not asm.obeyInstructions:
+                continue
+
+            lbl = Label(utils.LabelType.Package, '*', asm.from_label.role,
+                        '*', domain=asm.from_label.domain)
+            install_dir = builder.invocation.role_install_path(lbl.role, label.domain)
+            instr_list = builder.load_instructions(lbl)
+            app_dict = get_instruction_dict()
+
+            for (lbl, fn, instr_file) in instr_list:
+                # Obey this instruction?
+                for instr in instr_file:
+                    iname = instr.outer_elem_name()
+                    if (iname in app_dict):
+                        if (app_dict[iname].needs_privilege(builder, instr, lbl.role, install_dir)):
+                            need_root = True
+                    # Deliberately do not break - we want to check everything for
+                    # validity before acquiring privilege.
+                    else:
+                        raise utils.GiveUp("Collect deployments don't know about " +
+                                            "instruction %s"%iname +
+                                            " found in label %s (filename %s)"%(lbl, fn))
+
+
+        print "Rerunning muddle to apply instructions .. "
+
+        permissions_label = Label(utils.LabelType.Deployment,
+                                  label.name, None, # XXX label.role,
+                                  utils.LabelTag.InstructionsApplied,
+                                  domain = label.domain)
+
+        if need_root:
+            print "I need root to do this - sorry! - running sudo .."
+            utils.run_cmd("sudo %s buildlabel '%s'"%(builder.muddle_binary,
+                                                     permissions_label))
+        else:
+            utils.run_cmd("%s buildlabel '%s'"%(builder.muddle_binary,
+                                                permissions_label))
 
     def apply_instructions(self, builder, label, prepare):
         app_dict = get_instruction_dict()
 
         for asm in self.assemblies:
-            lbl = depend.Label(utils.LabelType.Package, '*', asm.from_label.role, '*', domain = asm.from_label.domain)
+            lbl = Label(utils.LabelType.Package, '*', asm.from_label.role,
+                        '*', domain = asm.from_label.domain)
 
-            if (asm.obeyInstructions == False):
+            if not asm.obeyInstructions:
                 continue
 
             deploy_dir = builder.invocation.deploy_path(label.name, domain = label.domain)
 
             instr_list = builder.load_instructions(lbl)
             for (lbl, fn, instrs) in instr_list:
-                print "Applying instructions for role %s, label %s .. "%(lbl.role, lbl)
+                print "Collect deployment: Applying instructions for role %s, label %s .. "%(lbl.role, lbl)
                 for instr in instrs:
                     # Obey this instruction.
                     iname = instr.outer_elem_name()
+                    print 'Instruction:', iname
                     if (iname in app_dict):
                         if prepare:
                             app_dict[iname].prepare(builder, instr, lbl.role, deploy_dir)
@@ -223,45 +228,41 @@ def deploy(builder, name):
     """
     the_action = CollectDeploymentBuilder()
 
-    dep_label = depend.Label(utils.LabelType.Deployment,
-                             name, None,
-                             utils.LabelTag.Deployed)
+    dep_label = Label(utils.LabelType.Deployment,
+                      name, None, utils.LabelTag.Deployed)
 
     deployment_rule = depend.Rule(dep_label, the_action)
 
-    # We need to clean it as well, annoyingly .. 
+    # We need to clean it as well, annoyingly ..
     deployment.register_cleanup(builder, name)
 
     builder.invocation.ruleset.add(deployment_rule)
 
     # InstructionsApplied is a standalone rule, invoked by the deployment
-    iapp_label = depend.Label(utils.LabelType.Deployment, name, None,
-                              utils.LabelTag.InstructionsApplied,
-                              transient = True)
+    iapp_label = Label(utils.LabelType.Deployment, name, None,
+                       utils.LabelTag.InstructionsApplied,
+                       transient = True)
     iapp_rule = depend.Rule(iapp_label, the_action)
     builder.invocation.ruleset.add(iapp_rule)
-    
 
-def copy_from_checkout(builder, name, checkout, rel, dest, 
-                       recursive = True, 
-                       failOnAbsentSource = False, 
+
+def copy_from_checkout(builder, name, checkout, rel, dest,
+                       recursive = True,
+                       failOnAbsentSource = False,
                        copyExactly = True,
                        domain = None,
                        usingRSync = False):
     rule = deployment.deployment_rule_from_name(builder, name)
-    
-    dep_label = depend.Label(utils.LabelType.Checkout,
-                             checkout, 
-                             None,
-                             utils.LabelTag.CheckedOut,
-                             domain=domain)
+
+    dep_label = Label(utils.LabelType.Checkout,
+                      checkout, None, utils.LabelTag.CheckedOut, domain=domain)
 
     asm = AssemblyDescriptor(dep_label, rel, dest, recursive = recursive,
-                             failOnAbsentSource = failOnAbsentSource, 
+                             failOnAbsentSource = failOnAbsentSource,
                              copyExactly = copyExactly,
                              usingRSync = usingRSync)
     rule.add(dep_label)
-    rule.obj.add_assembly(asm)
+    rule.action.add_assembly(asm)
 
 def copy_from_package_obj(builder, name, pkg_name, pkg_role, rel,dest,
                           recursive = True,
@@ -275,17 +276,15 @@ def copy_from_package_obj(builder, name, pkg_name, pkg_role, rel,dest,
     """
 
     rule = deployment.deployment_rule_from_name(builder, name)
-    
-    dep_label = depend.Label(utils.LabelType.Package,
-                             pkg_name, pkg_role,
-                             utils.LabelTag.Built,
-                             domain=domain)
+
+    dep_label = Label(utils.LabelType.Package,
+                      pkg_name, pkg_role, utils.LabelTag.Built, domain=domain)
     asm = AssemblyDescriptor(dep_label, rel, dest, recursive = recursive,
-                             failOnAbsentSource = failOnAbsentSource, 
+                             failOnAbsentSource = failOnAbsentSource,
                              copyExactly = copyExactly,
                              usingRSync = usingRSync)
     rule.add(dep_label)
-    rule.obj.add_assembly(asm)
+    rule.action.add_assembly(asm)
 
 def copy_from_role_install(builder, name, role, rel, dest,
                            recursive = True,
@@ -340,18 +339,15 @@ def copy_from_role_install(builder, name, role, rel, dest,
     - If 'obeyInstructions' is False, don't obey any applicable instructions.
     """
     rule = deployment.deployment_rule_from_name(builder, name)
-    dep_label = depend.Label(utils.LabelType.Package,
-                             "*",
-                             role,
-                             utils.LabelTag.PostInstalled,
-                             domain=domain)
+    dep_label = Label(utils.LabelType.Package,
+                      "*", role, utils.LabelTag.PostInstalled, domain=domain)
     asm = AssemblyDescriptor(dep_label, rel, dest, recursive = recursive,
-                             failOnAbsentSource = failOnAbsentSource, 
+                             failOnAbsentSource = failOnAbsentSource,
                              copyExactly = copyExactly,
                              usingRSync = usingRSync,
                              obeyInstructions = obeyInstructions)
     rule.add(dep_label)
-    rule.obj.add_assembly(asm)
+    rule.action.add_assembly(asm)
 
 def copy_from_deployment(builder, name, dep_name, rel, dest,
                          recursive = True,
@@ -364,17 +360,14 @@ def copy_from_deployment(builder, name, dep_name, rel, dest,
                  cp
     """
     rule = deployment.deployment_rule_from_name(builder,name)
-    dep_label = depend.Label(utils.LabelType.Deployment,
-                             dep_name, 
-                             None, 
-                             utils.LabelTag.Deployed,
-                             domain=domain)
+    dep_label = Label(utils.LabelType.Deployment,
+                      dep_name, None, utils.LabelTag.Deployed, domain=domain)
     asm = AssemblyDescriptor(dep_label, rel, dest, recursive = recursive,
-                             failOnAbsentSource = failOnAbsentSource, 
+                             failOnAbsentSource = failOnAbsentSource,
                              copyExactly = copyExactly,
                              usingRSync = usingRSync)
     rule.add(dep_label)
-    rule.obj.add_assembly(asm)
+    rule.action.add_assembly(asm)
 
 # And the instruction implementations:
 class CollectApplyChmod(CollectInstructionImplementor):

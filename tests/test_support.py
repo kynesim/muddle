@@ -19,7 +19,7 @@ def get_parent_dir(this_file=None):
     """
     if this_file is None:
         this_file = __file__
-    this_file = os.path.abspath(__file__)
+    this_file = os.path.abspath(this_file)
     this_dir = os.path.split(this_file)[0]
     parent_dir = os.path.split(this_dir)[0]
     return parent_dir
@@ -35,8 +35,11 @@ except ImportError:
 
 from muddled.utils import GiveUp, MuddleBug
 
-# This file can act as if it were the muddle binary itself
-MUDDLE_BINARY = os.path.abspath(__file__)
+# We know (strongly assume!) that there should be a 'muddle' available
+# in the same directory as the 'muddled' package - we shall use that as
+# the muddle program
+MUDDLE_BINARY_DIR = os.path.abspath(get_parent_dir(muddled.cmdline.__file__))
+MUDDLE_BINARY = os.path.join(MUDDLE_BINARY_DIR, 'muddle')
 
 # Make up for not necessarily having a PYTHONPATH that helps
 # Assume the location of muddle_patch.py relative to ourselves
@@ -70,6 +73,19 @@ def get_stdout(cmd, verbose=True):
         raise ShellError(cmd, retcode)
     return stdoutdata
 
+def get_stdout2(cmd, verbose=True):
+    """Run a command in the shell, and grab its (standard) output and retcode
+
+    Returns (retcode, stdout)
+    """
+    if verbose:
+        print ">> %s"%cmd
+    p = subprocess.Popen(cmd, shell=True, stdout=subprocess.PIPE,
+                         stderr=subprocess.PIPE)
+    stdoutdata, stderrdata = p.communicate()
+    retcode = p.returncode
+    return retcode, stdoutdata
+
 
 def muddle(args, verbose=True):
     """Pretend to be muddle
@@ -80,8 +96,8 @@ def muddle(args, verbose=True):
     if verbose:
         print '++ muddle %s'%(' '.join(args))
     # In order to cope with soft links in directory structures, muddle
-    # tries to use the current PWD as set by the shell. Which, of course,
-    # isn't done by the Directory classes. So we need to do it by hand.
+    # tries to use the current PWD as set by the shell. Since we don't
+    # know what called us, we need to do it by hand.
     old_pwd = os.environ.get('PWD', None)
     try:
         os.environ['PWD'] = os.getcwd()
@@ -123,6 +139,14 @@ def touch(filename, content=None, verbose=True):
     with open(filename, 'w') as fd:
         if content:
             fd.write(content)
+
+def append(filename, content, verbose=True):
+    """Append 'content' to the given file
+    """
+    if verbose:
+        print '++ append to %s'%filename
+    with open(filename, 'a') as fd:
+        fd.write(content)
 
 def check_files(paths, verbose=True):
     """Given a list of paths, check they all exist.

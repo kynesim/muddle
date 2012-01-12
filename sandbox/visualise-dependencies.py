@@ -29,6 +29,7 @@ except ImportError:
 
 from muddled.cmdline import find_and_load
 from muddled.depend import Label
+from muddled.utils import LabelType
 
 def format_nodename(node):
 	""" Sanitises a nodename so it won't choke graphviz.
@@ -49,7 +50,7 @@ class Node:
 	"""
 
 	all_nodes = {} # dict: key=rawname val=Node
-	@staticmethod 
+	@staticmethod
 	def get(name):
 		return Node.all_nodes[str(name)]
 
@@ -95,7 +96,7 @@ class Edge:
 	"""
 
 	all_edges = {} # dict: key=tuple(From,To) val=Edge
-	@staticmethod 
+	@staticmethod
 	def get(fro,to):
 		return Edge.all_edges[Edge.hashkey_static(fro,to)]
 
@@ -133,12 +134,12 @@ def do_deps(gbuilder, goal):
 	for rule in rules:
 		target = rule.target
 		builder = None
-		if rule.obj:
-			builder = rule.obj.__class__.__name__
+		if rule.action:
+			builder = rule.action.__class__.__name__
 
 		# AptGetBuilders aren't very interesting, condense them.
 		if builder == 'AptGetBuilder':
-			goalnode.displayname = '%s{%s}\\n(AptGetBuilder)' % (rule.obj.name, rule.obj.role)
+			goalnode.displayname = '%s{%s}\\n(AptGetBuilder)' % (rule.action.name, rule.action.role)
 			goalnode.extras = 'shape=oval'
 			goalnode.isAptGet = True
 			continue
@@ -185,21 +186,34 @@ def process(goals):
 		raise GiveUp('Not in a muddle build tree')
 
 	if not goals:
-		print '# No goals given: assuming default labels'
-		default_labels = gbuilder.invocation.default_labels
-		goals = map(str, default_labels)
+		print '# No goals given: assuming default deployments'
+		default_deployment_labels = gbuilder.invocation.default_deployment_labels
+		goals = map(str, default_deployment_labels)
 		print '#  %s'%', '.join(goals)
+
+	if not goals:
+		raise GiveUp('No goals given, and no default deployments. Giving up.')
 
 	# Do we care about labelling the edges?
 	hideEdgeLabels = True
 	# Do we care about nodes touching an AptGetBuilder?
 	omitAptGetNodes = True
 
+	full_goals = []
 	for g in goals:
+		labels = gbuilder.invocation.label_from_fragment(g, default_type=LabelType.Package)
+		for label in labels:
+			if gbuilder.invocation.target_label_exists(label):
+				full_goals.append(str(label))
+
+	if not full_goals:
+		raise GiveUp("None of the given goals %s is a target"%(map(str, goals)))
+
+	for g in full_goals:
 		Node(g, isGoal=True, extras="shape=parallelogram")
 		# color=green fillcolor=green style=filled...?
 
-	for g in goals:
+	for g in full_goals:
 		do_deps(gbuilder, g)
 
 	# Nodes created by AptGetBuilders aren't very interesting.
@@ -211,9 +225,9 @@ def process(goals):
 			if n.isAptGet:
 				del Node.all_nodes[k]
 
-	# If we have A/preconfig -> A/configured -> A/built -> A/installed 
+	# If we have A/preconfig -> A/configured -> A/built -> A/installed
 	# [ -> A/preinstalled], we can condense them into one.
-	reductio = { 
+	reductio = {
 			'preconfig' : 'configured',
 			'configured' : 'built',
 			'built' : 'installed',
@@ -281,7 +295,7 @@ def process(goals):
 			madeChange = True
 			break
 
-		if not madeChange: 
+		if not madeChange:
 			break
 		# else loop forever
 

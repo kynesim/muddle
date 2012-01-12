@@ -58,7 +58,7 @@ def split_query(query):
     """
     Split a query into a series of keys suitable to be passed to query_result().
     """
-    
+
     result = query.split("/")
     if (result[0] == ''):
         # Absolute path - lop off the initial empty string
@@ -96,9 +96,9 @@ class PushbackInputStream:
     A pushback input stream based on a string. Used in our recursive descent
     parser
     """
-    
+
     def __init__(self, str):
-        self.input = str;
+        self.input = str
         self.idx = 0
         self.pushback_char = -1
         self.line = 1
@@ -118,10 +118,11 @@ class PushbackInputStream:
             res = self.input[i]
 
         if (res == '\n'):
-            self.char = 1; self.line = self.line + 1
+            self.char = 1
+            self.line = self.line + 1
         elif (res != -1):
             self.char = self.char + 1
-            
+
         if (g_trace_parser):
             if res < 0:
                 print "next(%d,%d) = -1"%(self.line,self.char)
@@ -144,7 +145,7 @@ class PushbackInputStream:
     def report(self):
         return "line %d, char %d"%(self.line, self.char)
 
-        
+
 class TreeNode:
     """
     A TreeNode contains itself, followed by all its children, so this is
@@ -180,7 +181,7 @@ class TreeNode:
         self.instr_type = "val"
         self.function = ""
         self.expr = v
-    
+
     def set_fn(self, fn_name, params, rest):
         """
         fn_name is the name of the function
@@ -203,9 +204,9 @@ class TreeNode:
                 for p in self.params:
                     param_str.append("%s "%p)
                 param_str.append(" ]")
-                
 
-                buf.append("{ FnInstr: %s Params: [ %s ] "%(self.function, 
+
+                buf.append("{ FnInstr: %s Params: [ %s ] "%(self.function,
                                                             "".join(param_str)))
             else:
                 buf.append("{ UnknownInstr type = %s "%(self.instr_type))
@@ -227,7 +228,7 @@ class TreeNode:
         output in output_list - a list of strings.
         """
         if (self.type == TreeNode.StringType):
-            # Easy enough .. 
+            # Easy enough ..
             output_list.append(self.string)
             for c in self.children:
                 c.eval(xml_doc, env, output_list)
@@ -238,7 +239,7 @@ class TreeNode:
             # Evaluate some sort of function.
             if (g_trace_parser):
                 print "Eval instr: %s"%(self.instr_type)
-            
+
             if (self.instr_type == "val"):
                 self.val(xml_doc, env, output_list)
             elif (self.instr_type == "fn"):
@@ -253,7 +254,7 @@ class TreeNode:
             else:
                 # Evaluates to nothing.
                 pass
-    
+
     def eval_str(self, xml_doc, env):
         """
         Evaluate this node and return the result as a string
@@ -320,12 +321,12 @@ class TreeNode:
                 self.append_children(xml_doc, env, output_list)
         else:
             if (key_value != value):
-                self.append_children(xml_doc, env, output_list)                
+                self.append_children(xml_doc, env, output_list)
 
     def echo(self, xml_doc, env, output_list):
         # Just echo your parameters.
         for p in self.params:
-             p.eval(xml_doc, env, output_list)
+            p.eval(xml_doc, env, output_list)
 
 
 
@@ -333,10 +334,10 @@ def parse_document(input_stream, node, end_chars, has_escapes):
     """
     Parse a document into a tree node.
     Ends with end_char (which may be -1)
-    
+
     Leaves the input stream positioned at end_char.
     """
-    
+
     # States:
     #
     #   0 - Parsing text.
@@ -348,7 +349,7 @@ def parse_document(input_stream, node, end_chars, has_escapes):
 
     while True:
         c = input_stream.next()
-        
+
 
         if (g_trace_parser):
             print "parse_document(): c = %s cur_str = [ %s ] state = %d"%(c,",".join(cur_str), state)
@@ -364,13 +365,13 @@ def parse_document(input_stream, node, end_chars, has_escapes):
             cur_node = TreeNode(TreeNode.StringType)
             cur_node.set_string("".join(cur_str))
             node.append_child(cur_node)
-            # Push back .. 
+            # Push back ..
             input_stream.push_back(c)
             cur_str = [ ]
             if (g_trace_parser):
                 print "parse_document(): terminating character %s detected. Ending."%(c)
             return
-        
+
         if (state == 0):
             if (c == '$'):
                 state = 1
@@ -381,7 +382,7 @@ def parse_document(input_stream, node, end_chars, has_escapes):
                 cur_str.append(c)
         elif (state == 1):
             if (c == '$'):
-                # Got '$$' 
+                # Got '$$'
                 state = 2
             elif (c == '{'):
                 # Start of an instruction.
@@ -445,7 +446,7 @@ def flatten_literal_node(in_node):
 
     if (g_trace_parser):
         print "Flatten: %s  Gives '%s'\n"%(in_node, "".join(lst))
-        
+
     return "".join(lst)
 
 def parse_literal(input_stream, echars):
@@ -455,14 +456,14 @@ def parse_literal(input_stream, echars):
     dummy = TreeNode(TreeNode.ContainerType)
     parse_document(input_stream, dummy, echars, True)
     return flatten_literal_node(dummy)
-    
-            
+
+
 def parse_param(input_stream, node, echars):
     """
     Parse a parameter: may be quoted (in which case ends at ") else ends at echars
     """
     skip_whitespace(input_stream)
-    
+
     if (input_stream.peek() == '\"'):
         input_stream.next(); # Skip the quote.
         e2chars = set([ '"' ])
@@ -481,13 +482,13 @@ def parse_param(input_stream, node, echars):
         parse_document(input_stream, node, echars, True)
 
 def parse_instruction(input_stream, node):
-                     
+
     """
     An instruction ends at }, and contains:
-    
+
     fn:<name>(<args>, .. ) rest}
 
-    or 
+    or
 
     <stuff>}
     """
@@ -497,7 +498,7 @@ def parse_instruction(input_stream, node):
 
     skip_whitespace(input_stream)
 
-    # This is an instruction node, so .. 
+    # This is an instruction node, so ..
     if (input_stream.peek() == '"'):
         if (g_trace_parser):
             print "parse_instruction(): quoted literal detected"
@@ -505,7 +506,7 @@ def parse_instruction(input_stream, node):
         # Consume that last peek'd character...
         input_stream.next()
         skip_whitespace(input_stream)
-        # Quoted string. So we know .. 
+        # Quoted string. So we know ..
         result = TreeNode(TreeNode.InstructionType)
         container = TreeNode(TreeNode.ContainerType)
         echars = set([ '"' ])
@@ -515,7 +516,7 @@ def parse_instruction(input_stream, node):
             raise utils.GiveUp("Literal instruction @ %s never ends"%(old_report))
 
         skip_whitespace(input_stream)
-        c = input_stream.next();
+        c = input_stream.next()
         if (c != '}'):
             # Rats
             raise utils.GiveUp("Syntax Error - no end to literal instruction @ %s"%
@@ -528,7 +529,7 @@ def parse_instruction(input_stream, node):
 
         return
 
-    # Otherwise .. 
+    # Otherwise ..
     dummy = TreeNode(TreeNode.ContainerType)
     result = TreeNode(TreeNode.InstructionType)
 
@@ -569,7 +570,7 @@ def parse_instruction(input_stream, node):
         # .. BUT! We haven't pushed '}' back so ..
         input_stream.push_back(c)
 
-                        
+
     # In many ways, it is worth adding our result to the parse tree.
     if (g_trace_parser):
         print "parse_instruction(): ends (2)"
@@ -577,7 +578,7 @@ def parse_instruction(input_stream, node):
 
 
 
-                 
+
 def subst_str(in_str, xml_doc, env):
     """
     Substitute ``${...}`` in in_str with the appropriate objects - if XML
@@ -585,7 +586,7 @@ def subst_str(in_str, xml_doc, env):
 
     Unescape ``$${...}`` in case someone actually wanted `${...}`` in the
     output.
-    
+
     Functions can be called with:
     ${fn:NAME(ARGS) REST}
 
@@ -600,7 +601,7 @@ def subst_str(in_str, xml_doc, env):
 
     output_list = []
     top_node.eval(xml_doc, env, output_list)
-    
+
     return "".join(output_list)
 
 
@@ -612,7 +613,7 @@ def subst_str_old(in_str, xml_doc, env):
 
     Unescape ``$${...}`` in case someone actually wanted `${...}`` in the
     output.
-    
+
     Functions can be called with:
     ${fn:NAME(ARGS) REST}
 
@@ -620,7 +621,7 @@ def subst_str_old(in_str, xml_doc, env):
                  val(query)  - just looks up query.
 
     """
-    
+
     the_re = re.compile(r"(\$)?\$\{([^\}]+)\}")
     fn_re = re.compile(r'fn:([^()]+)\(([^\)]+)\)(.*)$')
 
@@ -628,7 +629,7 @@ def subst_str_old(in_str, xml_doc, env):
 
     for i in range(0, len(interm)/3):
         base_idx = 3*i
-        
+
         k = interm[base_idx+2]
 
         if (interm[base_idx+1] == '$'):
@@ -668,38 +669,38 @@ def subst_str_old(in_str, xml_doc, env):
 
             else:
                 v = query_string_value(xml_doc, env,k)
-    
+
             if (v is None):
                 interm[base_idx+2] = ""
             else:
                 interm[base_idx+2] = v
 
         interm[base_idx+1] = ""
-        
+
 
     return "".join(interm)
 
 def subst_file(in_file, out_file, xml_doc, env):
-    
+
     f_in = open(in_file, "r")
     f_out = open(out_file, "w")
-    
+
     contents = f_in.read()
     out = subst_str(contents, xml_doc, env)
     f_out.write(out)
-    
+
 #    lines = ""
 #    while True:
 #        in_line = f_in.readline()
 #        if (in_line == ""):
 #            break
-#        
+#
 #        out_line = subst_str(in_line, xml_doc, env)
 #        f_out.write(out_line)
 
 
-    
+
 
 # End File.
 
-    
+

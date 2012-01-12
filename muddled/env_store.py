@@ -3,17 +3,18 @@ An environment store holds a set of instructions for manipulating
 a set of environment variables
 
 Sometimes we need to generate these for C. This is particularly evil
-because C neither has good environment variable lookup nor good 
-string handling support. 
+because C neither has good environment variable lookup nor good
+string handling support.
 
-See the boilerplate in ``resources/c_env.c`` for how we handle this. 
-It's not pretty .. 
+See the boilerplate in ``resources/c_env.c`` for how we handle this.
+It's not pretty ..
 
 """
 
-import utils
 import copy
-import subst
+
+import muddled.utils as utils
+import muddled.subst as subst
 
 class EnvType:
     """
@@ -22,7 +23,7 @@ class EnvType:
     :SimpleValue: is just a value (the default)
     :Path:        colon-separated path
     """
-    
+
     SimpleValue = 0
     Path = 1
 
@@ -63,10 +64,10 @@ class EnvExpr:
     An environment variable expression. This allows us to symbolically
     represent things like catenating one variable value with another.
     """
-    
+
     # A string
     StringType = "String"
-    
+
     # A variable reference
     RefType = "Ref"
 
@@ -89,8 +90,8 @@ class EnvExpr:
         if other is None:
             return
 
-        if ((self.type == EnvExpr.StringType or 
-             self.type == EnvExpr.RefType) and 
+        if ((self.type == EnvExpr.StringType or
+             self.type == EnvExpr.RefType) and
             type(other) == type(str())):
             self.values.append(other)
         elif (self.type == EnvExpr.CatType and
@@ -98,8 +99,8 @@ class EnvExpr:
             self.values.append(other)
         else:
             raise utils.MuddleBug("Attempt to append"
-                              " %s (type %s) to an EnvExpr of type %s"%(other, 
-                                                                        type(other), 
+                              " %s (type %s) to an EnvExpr of type %s"%(other,
+                                                                        type(other),
                                                                         self.type))
 
     def to_sh(self, doQuote):
@@ -112,7 +113,7 @@ class EnvExpr:
 
     def to_py(self, env_var):
         """
-        Return a list of expressions you can put into a 
+        Return a list of expressions you can put into a
         literal python list after ``"".join()`` to write the
         correct value for this variable.
         """
@@ -131,7 +132,7 @@ class EnvExpr:
         """
         Returns a list of strings you can join together to make C code
         for constructing the value of this expression
-        
+
         * var    - The name of the C variable we're creating.
         * prefix - The name of the prefix to prepend to function calls.
         """
@@ -147,16 +148,16 @@ class EnvExpr:
         elif (self.type == EnvExpr.RefType):
             for v in self.values:
                 str_list.append(
-                    " %s = %s_cat(%s, %s_lookup(\"%s\", handle));\n"%(var, 
+                    " %s = %s_cat(%s, %s_lookup(\"%s\", handle));\n"%(var,
                                                                      prefix,
-                                                                     var, 
-                                                                     prefix, 
+                                                                     var,
+                                                                     prefix,
                                                                      utils.c_escape(v)))
         else:
             for v in self.values:
                 str_list.extend(v.to_c(var, prefix))
-                        
-                                
+
+
         return str_list
 
 
@@ -201,12 +202,12 @@ class EnvExpr:
             return True
         if (p is None) or (q is None):
             return False
-        
+
         if (p.type != q.type):
             return False
-        
+
         # Values must match. Exactly - I don't want to collapse lists
-        #  at this point .. 
+        #  at this point ..
         if (len(p.values) != len(q.values)):
             return False
 
@@ -221,17 +222,17 @@ class EnvExpr:
 
         # If we get there, they're the same, as far as we can tell.
         return True
-            
-        
-        
-       
+
+
+
+
 
 
 class EnvBuilder:
     """
     Represents a way of building an environment variable
     value from a series of instructions.
-    
+
     * prepend_list     - List of paths to prepend to the value
     * retain_old_value - Retain the old value?
     * append_list      - List of things to append to the old value.
@@ -255,7 +256,7 @@ class EnvBuilder:
 
     def copy(self):
         return copy.deepcopy(self)
-        
+
 
     def __str__(self):
         return self.get_sh("$VAR", True)
@@ -286,7 +287,7 @@ class EnvBuilder:
         if (len(self.prepend_list) == 0 and
             len(self.append_list) == 0):
             return True
-        
+
         return False
 
     def erase(self):
@@ -353,7 +354,7 @@ class EnvBuilder:
     def ensure_appended_expr(self, val):
         """
         Make sure val is appended to the value or append it.
-        
+
         Returns True if we added the value, False if it was already there
           """
         self.erased = False
@@ -362,7 +363,7 @@ class EnvBuilder:
             if val.same_as(self.append_list[i]):
                 del self.append_list[i:i+1]
                 break
-        
+
         # Wasn't there.. (or isn't now, anyway)
         self.append_list.append(val)
         return True
@@ -382,7 +383,7 @@ class EnvBuilder:
 
     def set_external(self, external = True):
         self.external = external
-        
+
     def get(self, inOldValue, language):
         if language == EnvLanguage.Value:
             return self.get_value(inOldValue)
@@ -409,7 +410,7 @@ class EnvBuilder:
         val_array = [ ]
 
         val_array.extend(map(lambda x: x.to_value(env), self.prepend_list))
-        if (inOldValue is not None) and self.retain_old_value: 
+        if (inOldValue is not None) and self.retain_old_value:
             val_array.append(inOldValue)
         val_array.extend(map(lambda x: x.to_value(env), self.append_list))
 
@@ -417,7 +418,7 @@ class EnvBuilder:
             return "".join(val_array)
         else:
             return ":".join(val_array)
-    
+
 
     def get_c(self, var, prefix, variable_name):
         """
@@ -437,7 +438,7 @@ class EnvBuilder:
             str_array.extend(i.to_c(var, prefix))
 
         if self.retain_old_value and (variable_name is not None):
-            str_array.append(" %s = %s_cat(%s, %s_lookup(\"%s\", handle));\n"%(var, 
+            str_array.append(" %s = %s_cat(%s, %s_lookup(\"%s\", handle));\n"%(var,
                                                                              prefix,
                                                                              var,
                                                                              prefix,
@@ -447,7 +448,7 @@ class EnvBuilder:
 
         return "".join(str_array)
 
-        
+
 
     def get_py(self, inOldValue, env_name = "os.environ"):
         """
@@ -482,13 +483,15 @@ class EnvBuilder:
             newValue.append(",".join(i.to_py(env_name)))
             atLeastOne = True
 
+        newValue.append(" ])")
+
         return "".join(newValue)
 
 
     def get_sh(self, inOldValue, doQuote):
         """
         The old value of this variable was inOldValue; what is its new value?
-        
+
         * doQuote - if doQuote is true, we'll use shell quoting. We never quote
           inOldValue since it's probably $PATH or something else that shouldn't
           be quoted.
@@ -521,7 +524,7 @@ class EnvBuilder:
 
     def dependencies(self):
         """
-        Return a set of the environment variables that this value depends on. 
+        Return a set of the environment variables that this value depends on.
         """
         if self.external:
             return set()
@@ -532,7 +535,7 @@ class EnvBuilder:
 
         for p in self.append_list:
             p.augment_dependency_set(result_set)
-            
+
         return result_set
 
 
@@ -541,7 +544,7 @@ class Store:
     Maintains a store of environment variables and allows us to apply them
     to any given environment dictionary.
     """
-    
+
     def __init__(self):
         self.vars = { }
 
@@ -551,7 +554,7 @@ class Store:
 
         for (k,v) in self.vars.items():
             new_store.vars[k] = v.copy()
-            
+
         return new_store
 
     def empty(self, name):
@@ -566,7 +569,7 @@ class Store:
         else:
             return True
 
-    
+
     def builder_for_name(self, name):
         """
         Return a builder for the given variable, inventing one if
@@ -648,13 +651,13 @@ class Store:
         Explicitly erase a variable.
         """
         self.builder_for_name(name).erase()
-        
+
 
     def op(self, name, mode, value):
         """
         Perform mode (an EnvMode) on name with value.
         """
-    
+
         var = self.builder_for_name(name)
 
         if mode == EnvMode.Append:
@@ -695,17 +698,17 @@ class Store:
                 old_value = in_env.get(k, None)
                 in_env[k] = v.get_value(old_value)
 
-            
+
     def get_setvars_py(self, name):
         """
         Write some statements that will set the relevant environment
         variables in python.
-        
+
         Returns a string containing the relevant python code.
         """
-            
+
         retHdr =  "# setenv code for %s\n"%name +  \
-            "# %s\n"%(utils.iso_time());
+            "# %s\n"%(utils.iso_time())
 
         retText = [ retHdr ]
 
@@ -723,9 +726,9 @@ class Store:
                 retText.append("os.environ[\"%s\"]="%k)
                 retText.append(v.get("os.environ[%s]"%k, EnvLanguage.Python))
                 retText.append("\n")
-            
+
         retText.append("\n# End code\n")
-        
+
         return "".join(retText)
 
 
@@ -736,7 +739,7 @@ class Store:
         Returns a string containing the script.
         """
         retHdr = "# setenv script for %s\n"%name + \
-            "# %s\n"%(utils.iso_time());
+            "# %s\n"%(utils.iso_time())
 
         retText = [ retHdr ]
 
@@ -753,17 +756,17 @@ class Store:
                 retText.append("export %s="%k)
                 retText.append(v.get("$%s"%k, EnvLanguage.Sh))
                 retText.append("\n")
-            
+
         retText.append("\n# End file.\n")
-        
+
         return "".join(retText)
 
     def get_c_subst_var(self, prefix):
         """
-        Returns the block of C to use as a substitute for ``body_impl`` in 
+        Returns the block of C to use as a substitute for ``body_impl`` in
         ``resources/c_env.c``
         """
-        
+
         sorted_items = self.dependency_sort()
         rlist = [ ]
         doneOne = False
@@ -773,15 +776,15 @@ class Store:
             else:
                 doneOne = True
 
-            rlist.append("if (!strcmp(\"%s\", name))\n"%utils.c_escape(k) + 
-                         "{ \n" + 
+            rlist.append("if (!strcmp(\"%s\", name))\n"%utils.c_escape(k) +
+                         "{ \n" +
                          " char *rv = NULL;\n")
             rlist.extend(v.get_c("rv", prefix, k))
             rlist.append("}\n")
-    
+
         if (doneOne):
             rlist.append("else\n")
-        
+
         rlist.append("return %s_UNKNOWN_ENV_VALUE(handle, name);\n"%(prefix.upper()))
         return "".join(rlist)
 
@@ -790,7 +793,7 @@ class Store:
         dict["prefix"] = prefix
         dict["ucprefix"] = prefix.upper()
         dict["body_impl"] = self.get_c_subst_var(prefix)
-        
+
         rsrc = builder.resource_body("c_env.c")
         return subst.subst_str(rsrc, None, dict)
 
@@ -799,8 +802,8 @@ class Store:
         """
         Sort self.vars.items() in as close to dependency order as you can.
         """
-        
-        # deps maps environment variables to a set of the variables they 
+
+        # deps maps environment variables to a set of the variables they
         # (directly) depend on.
         deps = { }
         remain = set()
@@ -811,7 +814,7 @@ class Store:
 
         done = set()
         out_list = [ ]
-        
+
         while len(remain) > 0:
             # Take out anything we can
             new_remain = set()
@@ -838,9 +841,9 @@ class Store:
             # If we didn't do anything, we've reached the end
             # of the line.
             if (not did_something):
-                raise utils.GiveUp("Cannot produce a consistent environment ordering:\n" + 
-                                    ("Issued: %s\n"%(" ".join(map(str, out_list)))) + 
-                                    ("Remain: %s\n"%utils.print_string_set(remain)) + 
+                raise utils.GiveUp("Cannot produce a consistent environment ordering:\n" +
+                                    ("Issued: %s\n"%(" ".join(map(str, out_list)))) +
+                                    ("Remain: %s\n"%utils.print_string_set(remain)) +
                                     ("Deps: %s\n"%(print_deps(deps))))
 
         # Form the value list ..
@@ -849,8 +852,8 @@ class Store:
             rv.append((k, self.vars[k]))
 
         return rv
-                                    
-            
+
+
 def print_deps(deps):
     """
     Given a dictionary mapping environment variable names to sets of
@@ -877,8 +880,8 @@ def prepend_expr(astr, var):
     Create an environment expression consisting of a string prepended to a
      variable
      """
-    expr = EnvExpr(EnvExpr.CatType);
-    expr.append_str(astr);
+    expr = EnvExpr(EnvExpr.CatType)
+    expr.append_str(astr)
     expr.append_ref(var)
     return expr
 
@@ -902,22 +905,22 @@ def append_expr(var, str):
 def add_install_dir_env(env, var_name):
     """
     Add an install directory, whose base is held in var_name, to:
-        
+
     * PATH
     * LD_LIBRARY_PATH
     * PKG_CONFIG_PATH
     """
-    
+
     env.set_type("LD_LIBRARY_PATH", EnvType.Path)
     env.set_type("PATH", EnvType.Path)
     env.set_type("PKG_CONFIG_PATH", EnvType.Path)
-    env.prepend_expr("LD_LIBRARY_PATH", 
+    env.prepend_expr("LD_LIBRARY_PATH",
                      append_expr(var_name, "/lib"))
-    env.prepend_expr("PKG_CONFIG_PATH", 
+    env.prepend_expr("PKG_CONFIG_PATH",
                     append_expr(var_name, "/lib/pkgconfig"))
-    env.prepend_expr("PATH", 
+    env.prepend_expr("PATH",
                      append_expr(var_name, "/bin"))
 
 
-    
+
 # End file.

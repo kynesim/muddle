@@ -27,7 +27,7 @@ class AptGetBuilder(pkg.PackageBuilder):
                                    stderr = subprocess.PIPE)
         (stdout_data, stderr_data) = process.communicate()
         process.wait()
-        # Now split the output into lines .. 
+        # Now split the output into lines ..
         lines = stdout_data.splitlines()
         for l in lines:
             fields = l.split()
@@ -68,9 +68,9 @@ def simple(builder, name, role, apt_pkgs):
     """
     Construct an apt-get package in the given role with the given apt_pkgs.
     """
-    
+
     the_pkg = AptGetBuilder(name, role, apt_pkgs)
-    pkg.add_package_rules(builder.invocation.ruleset, 
+    pkg.add_package_rules(builder.invocation.ruleset,
                           name, role, the_pkg)
 
 
@@ -79,9 +79,9 @@ def depends_on_aptget(builder, name, role, pkg, pkg_role):
     Make a package dependant on a particular apt-builder.
 
     * pkg - The package we want to add a dependency to. '*' is a good thing to
-      add here .. 
+      add here ..
     """
-    
+
     tgt_label = depend.Label(utils.LabelType.Package,
                              pkg,  pkg_role,
                              utils.LabelTag.PreConfig)
@@ -106,4 +106,4 @@ def medium(builder, name, role, apt_pkgs, roles):
 
 
 # End file.
-                    
+

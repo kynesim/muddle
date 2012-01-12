@@ -3,20 +3,33 @@ Contains the mechanics of muddle.
 """
 
 import os
-import traceback
-import sys
-
-import db
-import depend
-import pkg
-import utils
-import version_control
-import env_store
-import instr
 import re
+import sys
+import traceback
 
-from depend import Label
-from utils import domain_subpath
+import muddled.db as db
+import muddled.depend as depend
+import muddled.pkg as pkg
+import muddled.utils as utils
+import muddled.env_store as env_store
+import muddled.instr as instr
+
+from muddled.depend import Label, Action
+from muddled.utils import domain_subpath, GiveUp, MuddleBug, LabelType, LabelTag
+from muddled.repository import Repository
+from muddled.version_control import split_vcs_url, checkout_from_repo
+
+build_name_re = re.compile(r"[A-Za-z0-9_-]+")
+
+def check_build_name(name):
+    """Check a build name for legality.
+
+    Raises a GiveUp exception if the name is not allowed.
+    """
+    m = build_name_re.match(name)
+    if m is None or m.end() != len(name):
+        raise GiveUp("Build name '%s' is not allowed (it may only contain"
+                     " 'A'-'Z', 'a'-'z', '0'-'9', '_' or '-')"%name)
 
 class Invocation:
     """
@@ -24,10 +37,10 @@ class Invocation:
     database the builder uses to perform actions on behalf
     of the user.
     """
-    
+
     def __init__(self, root_path):
         """
-        Construct a fresh invocation with a muddle db at 
+        Construct a fresh invocation with a muddle db at
         the given root_path.
 
 
@@ -36,11 +49,11 @@ class Invocation:
         * self.pkgs       - Map of (package, role) -> package object.
         * self.env        - Map of label to environment
         * self.default_roles - The roles to build when you don't specify any.
-        * self.default_labels - The list of labels to build.
+        * self.default_deployment_labels - The list of labels to build.
         * self.banned_roles - An array of pairs of role1,d1,role2,d2 which aren't allowed
                              to share libraries.
-        * self.domain_params - Maps domain names to dictionaries storing 
-                              parameters that other domains can retrieve. This
+        * self.domain_params - Maps domain names to dictionaries storing
+                               parameters that other domains can retrieve. This
                                is used to communicate values from a build to
                                its subdomains.
         """
@@ -48,11 +61,11 @@ class Invocation:
         self.ruleset = depend.RuleSet()
         self.env = { }
         self.default_roles = [ ]
-        self.default_labels = [ ]
+        self.default_deployment_labels = [ ]
         self.banned_roles = [ ]
         self.domain_params = { }
         self.unifications = [ ]
-    
+
     def note_unification(self, source, target):
         self.unifications.append( (source, target) )
 
@@ -94,7 +107,7 @@ class Invocation:
             if (d1 == None):
                 d1 = domain_name
 
-            # This is a bit of a hack - it ensures that just because r1 in d1 
+            # This is a bit of a hack - it ensures that just because r1 in d1
             # doesn't share with r2 in d1, it also doesn't share with r2 in d2 -
             # preventing accidental sharing leakage. Ugh.
             #
@@ -103,13 +116,13 @@ class Invocation:
                 d2 = "*"
 
             self.banned_roles.append((a,d1,b,d2))
-        
+
 
     def roles_do_not_share_libraries(self,r1, r2, domain1 = None, domain2 = None):
         """
         Add (r1,r2) to the list of role pairs that do not share their libraries.
         """
-        self.banned_roles.append((r1,domain1, r2,domain2));
+        self.banned_roles.append((r1,domain1, r2,domain2))
 
     def print_banned_roles(self):
         print "[ "
@@ -148,7 +161,7 @@ class Invocation:
                 d2 = domain2
 
             (c,d3,d,d4) = i
-            if (c == "*"): 
+            if (c == "*"):
                 c = r2
             if (d == "*"):
                 d = r1
@@ -159,13 +172,13 @@ class Invocation:
             if (d4 == "*"):
                 d4 = domain2
 
-            if ((a==r1 and b==r2 and d1 == domain1 and d2 == domain2) or 
+            if ((a==r1 and b==r2 and d1 == domain1 and d2 == domain2) or
                 (c==r2 and d==r1 and d3 == domain1 and d4 == domain2)):
                 return False
 
         #print "role_combination_acceptable: %s, %s -> True"%(r1,r2)
         return True
-     
+
     def get_domain_parameters(self, domain):
         if (domain not in self.domain_params):
             self.domain_params[domain] = { }
@@ -182,14 +195,14 @@ class Invocation:
 
     def all_checkouts(self):
         """
-        Return a set of the names of all the checkouts in our rule set. 
+        Return a set of the names of all the checkouts in our rule set.
 
         Returns a set of strings.
 
         This is not domain aware. Consider using all_checkout_labels(),
         which is.
         """
-        lbl = Label(utils.LabelType.Checkout, "*", "*", "*", domain="*")
+        lbl = Label(LabelType.Checkout, "*", domain="*")
         all_rules = self.ruleset.rules_for_target(lbl)
         rv = set()
         for cur in all_rules:
@@ -198,9 +211,9 @@ class Invocation:
 
     def all_checkout_labels(self):
         """
-        Return a set of the labels of all the checkouts in our rule set. 
+        Return a set of the labels of all the checkouts in our rule set.
         """
-        lbl = Label(utils.LabelType.Checkout, "*", "*", "*", domain="*")
+        lbl = Label(LabelType.Checkout, "*", domain="*")
         all_rules = self.ruleset.rules_for_target(lbl)
         all_labels = set()
         already_got = set()
@@ -209,7 +222,7 @@ class Invocation:
             tup = (lbl.domain, lbl.name)
             if tup not in already_got:
                 already_got.add(tup)
-                all_labels.add(Label(utils.LabelType.Checkout,
+                all_labels.add(Label(LabelType.Checkout,
                                      lbl.name, tag='*', domain=lbl.domain))
         return all_labels
 
@@ -220,7 +233,7 @@ class Invocation:
         Returns a set of strings. The 'None' domain (the unnamed, top-level
         domain) is returned as the empty string, "".
         """
-        lbl = Label(utils.LabelType.Package, "*", "*", "*", domain="*")
+        lbl = Label(LabelType.Package, "*", "*", "*", domain="*")
         all_labels = self.ruleset.rules_for_target(lbl)
         rv = set()
         for cur in all_labels:
@@ -233,57 +246,87 @@ class Invocation:
 
     def all_packages(self):
         """
-        Return a set of the names of all the packages in our rule set. 
-        
+        Return a set of the names of all the packages in our rule set.
+
         Returns a set of strings.
 
         Note that if '*' is one of the package "names" in the ruleset,
         then it will be included in the names returned.
         """
-        lbl = Label(utils.LabelType.Package, "*", "*", "*", domain="*")
+        lbl = Label(LabelType.Package, "*", "*", "*", domain="*")
         all_labels = self.ruleset.rules_for_target(lbl)
         rv = set()
         for cur in all_labels:
             rv.add(cur.target.name)
+        return rv
+
+    def all_package_labels(self):
+        """
+        Return a set of the labels of all the packages in our rule set.
+        """
+        lbl = Label(LabelType.Package, "*", "*", "*", domain="*")
+        all_rules = self.ruleset.rules_for_target(lbl)
+        rv = set()
+        for rule in all_rules:
+            rv.add(rule.target)
         return rv
 
     def all_deployments(self):
         """
-        Return a set of the names of all the deployments in our rule set. 
-        
+        Return a set of the names of all the deployments in our rule set.
+
         Returns a set of strings.
         """
-        lbl = Label(utils.LabelType.Deployment, "*", "*", "*", domain="*")
+        lbl = Label(LabelType.Deployment, "*", None, "*", domain="*")
         all_labels = self.ruleset.rules_for_target(lbl)
         rv = set()
         for cur in all_labels:
             rv.add(cur.target.name)
         return rv
 
+    def all_deployment_labels(self):
+        """
+        Return a set of all the deployment labels in our rule set.
+        """
+        lbl = Label(LabelType.Deployment, "*", None, "*", domain="*")
+        all_labels = self.ruleset.rules_for_target(lbl)
+        rv = set()
+        for cur in all_labels:
+            rv.add(cur.target)
+        return rv
+
     def all_packages_with_roles(self):
         """
-        Return a set of the names of all the packages/roles in our rule set. 
-        
+        Return a set of the names of all the packages/roles in our rule set.
+
         Returns a set of strings.
 
         Note that if '*' is one of the package "names" in the ruleset,
         then it will be included in the names returned.
+
+        However, any labels with role '*' will be ignored.
         """
         rv = set()
         for role in self.all_roles():
-            lbl = Label(utils.LabelType.Package, "*", role, "*", domain="*")
-            all_labels = self.ruleset.rules_for_target(lbl)
-            for cur in all_labels:
-                rv.add('%s{%s}'%(cur.target.name,role))
+            if role == '*':
+                continue
+            lbl = Label(LabelType.Package, "*", role, "*", domain="*")
+            all_rules = self.ruleset.rules_for_target(lbl)
+            for cur in all_rules:
+                lbl = cur.target
+                if lbl.domain:
+                    rv.add('(%s)%s{%s}'%(lbl.domain, lbl.name, role))
+                else:
+                    rv.add('%s{%s}'%(lbl.name,role))
         return rv
 
     def all_roles(self):
         """
-        Return a set of the names of all the roles in our rule set. 
-        
+        Return a set of the names of all the roles in our rule set.
+
         Returns a set of strings.
         """
-        lbl = Label(utils.LabelType.Package, "*", "*", "*", domain="*")
+        lbl = Label(LabelType.Package, "*", "*", "*", domain="*")
         all_labels = self.ruleset.rules_for_target(lbl)
         rv = set()
         for cur in all_labels:
@@ -302,22 +345,33 @@ class Invocation:
         Returns a set of labels, thus allowing one to know the domain of
         each checkout as well as its name.
         """
-        lbl = Label(utils.LabelType.Checkout, "*", "*",
-                    utils.LabelTag.CheckedOut, domain="*")
+        lbl = Label(LabelType.Checkout, "*", None,
+                    LabelTag.CheckedOut, domain="*")
         all_rules = self.ruleset.rules_for_target(lbl)
         rv = set()
         rv.update(all_rules)
         return rv
 
-    def has_checkout_called(self, checkout):
+    def target_label_exists(self, label):
         """
-        Return True if this checkout exists, False if it doesn't.
+        Return True if this label is a target.
+
+        If it is not, then we are not going to be able to build it.
+
+        Note that this method does not understand wildcards, so the match
+        must be exact.
         """
-        lbl = Label(utils.LabelType.Checkout, checkout, "*", "*",
-                    domain="*")
-        all_labels = self.ruleset.rules_for_target(lbl)
-        return (len(all_labels) > 0)
-        
+        return label in self.ruleset.map.keys()
+
+    def checkout_label_exists(self, label):
+        """
+        Return True if this checkout label is in any rules (i.e., is used).
+
+        Note that this method does not understand wildcards, so the match
+        must be exact.
+        """
+        all_labels = self.ruleset.rules_for_target(label)
+        return len(all_labels) > 0
 
     def labels_for_role(self, kind,  role, tag, domain=None):
         """
@@ -341,8 +395,8 @@ class Invocation:
         """
         Given a source label and a target label, find all the environments
         which might apply to source and make them also apply to target.
-        
-        This is (slightly) easier than one might imagine .. 
+
+        This is (slightly) easier than one might imagine ..
         """
 
         new_env = {}
@@ -353,7 +407,7 @@ class Invocation:
                 # add it if it isn't also the one we just matched.
                 copied_label = k.copy_and_unify_with(target)
                 if (k.match(copied_label) is None):
-                    # The altered version didn't match .. 
+                    # The altered version didn't match ..
                     a_store = env_store.Store()
 
                     if (copied_label in self.env):
@@ -361,12 +415,12 @@ class Invocation:
                     if (copied_label in new_env):
                         a_store.merge(new_env[copied_label])
 
-                    a_store.merge(v);
-                    new_env[copied_label] = a_store;
-        
+                    a_store.merge(v)
+                    new_env[copied_label] = a_store
+
         for (k,v) in new_env.items():
             self.env[k] = v
-        
+
 
     def add_default_role(self, role):
         """
@@ -377,20 +431,21 @@ class Invocation:
         already there), True if we did.
         """
 
-        for i in self.default_roles:
-            if i == role:
-                return False
-            
+        if role in self.default_roles:
+            return False
+
         self.default_roles.append(role)
         return True
 
-    def add_default_label(self, label):
+    def add_default_deployment_label(self, label):
         """
         Set the label that's built when you call muddle from the root
         directory
         """
-        self.default_labels.append(label)
-      
+        if label.type != LabelType.Deployment:
+            raise MuddleBug('Attempt to add label %s to default deployments'%label)
+
+        self.default_deployment_labels.append(label)
 
     def list_environments_for(self, label):
         """
@@ -400,13 +455,13 @@ class Invocation:
         Returns a list of triples (match level, label, environment), in order.
         """
         to_apply = [ ]
-        
+
         for (k,v) in self.env.items():
             m = k.match(label)
             if (m is not None):
                 # We matched!
                 to_apply.append((m, k, v))
-        
+
         if len(to_apply) == 0:
             # Nothing to do.
             return [ ]
@@ -422,10 +477,10 @@ class Invocation:
                 return 1
             else:
                 return 0
-            
+
         to_apply.sort(bespoke_cmp)
         return to_apply
-        
+
 
     def get_environment_for(self, label):
         """
@@ -438,8 +493,8 @@ class Invocation:
             store = env_store.Store()
             self.env[label] = store
             return store
-      
-    
+
+
     def effective_environment_for(self, label):
         """
         Return an environment which embodies the settings that should be
@@ -454,11 +509,11 @@ class Invocation:
             a_store.merge(env)
 
         return a_store
-        
+
 
     def setup_environment(self, label, src_env):
         """
-        Modify src_env to reflect the environments which apply to label, 
+        Modify src_env to reflect the environments which apply to label,
         in match order.
         """
         # Form a list of pairs (prio, env) ..
@@ -468,7 +523,7 @@ class Invocation:
             env.apply(src_env)
 
         # Done.
-        
+
 
     def build_co_and_path(self):
         """
@@ -476,11 +531,11 @@ class Invocation:
         """
         build_desc = self.db.build_desc.get()
 
-        if (build_desc is None): 
+        if (build_desc is None):
             return None
 
-        # Split off the first         
-        
+        # Split off the first
+
         (co,path) = utils.split_path_left(build_desc)
         return (co, path)
 
@@ -489,14 +544,14 @@ class Invocation:
 
     def checkout_path(self, label):
         """
-        Return the path in which the given checkout resides. 
+        Return the path in which the given checkout resides.
         If 'label' is None, returns the root checkout path
 
         TODO: No-one uses (I hope) the "None" variant of this call.
         Deprecate it, extirpate it, please...
         """
         if label:
-            assert label.type == utils.LabelType.Checkout
+            assert label.type == LabelType.Checkout
             return self.db.get_checkout_path(label)
         else:
             return self.db.get_checkout_path(None)
@@ -510,7 +565,7 @@ class Invocation:
         pkgs = set()
 
         for rule in direct_deps:
-            if (rule.target.type == utils.LabelType.Package):
+            if (rule.target.type == LabelType.Package):
                 pkgs.add(rule.target)
 
         return pkgs
@@ -518,6 +573,12 @@ class Invocation:
     def checkouts_for_package(self, pkg_label):
         """
         Return a set of the checkouts that the given package depends upon
+
+        This only looks at *direct* dependencies (so if a package depends
+        on something that in turn depends on a checkout that it does not
+        directly depend on, then that indirect checkout will not be returned).
+
+        It does, however, expand wildcards.
         """
         # A normal package/checkout dependency has the package's PreConfig
         # tagged label depend upon the checkouts CheckedOut tagged label.
@@ -532,16 +593,44 @@ class Invocation:
         checkouts = set()
         for rule in rules:
             for lbl in rule.deps:
-                if (lbl.type == utils.LabelType.Checkout):
-                    checkouts.add(lbl)
+                if lbl.type == LabelType.Checkout:
+                    if lbl.is_wildcard():
+                        checkouts.update(self.expand_wildcards(lbl))
+                    else:
+                        checkouts.add(lbl)
 
         return checkouts
+
+    def packages_for_deployment(self, dep_label):
+        """
+        Return a set of the packages that the given deployment depends upon
+
+        This only looks at *direct* dependencies (so if a deployment depends
+        on something that in turn depends on a package that it does not
+        directly depend on, then that indirect package will not be returned).
+
+        It does, however, expand wildcards.
+        """
+        rules = self.ruleset.rules_for_target(dep_label,
+                                              useTags=False,    # ignore the tag
+                                              useMatch=False)   # we don't need wildcarding
+
+        packages = set()
+        for rule in rules:
+            for lbl in rule.deps:
+                if lbl.type == LabelType.Package:
+                    if lbl.is_wildcard():
+                        packages.update(self.expand_wildcards(lbl))
+                    else:
+                        packages.add(lbl)
+
+        return packages
 
     def package_obj_path(self, label):
         """
         Where should the package with this label build its object files?
         """
-        assert label.type == utils.LabelType.Package
+        assert label.type == LabelType.Package
         if label.domain:
             p = os.path.join(self.db.root_path, domain_subpath(label.domain), "obj")
         else:
@@ -556,7 +645,7 @@ class Invocation:
         """
         Where should pkg install itself, by default?
         """
-        assert label.type == utils.LabelType.Package
+        assert label.type == LabelType.Package
         # Actually, which package it is doesn't matter
         if label.role == '*':
             return self.role_install_path(None, label.domain)
@@ -579,7 +668,7 @@ class Invocation:
     def deploy_path(self, deploy, domain=None):
         """
         Where should deployment deploy deploy to?
-        
+
         This is slightly tricky, but it turns out that the deployment name is
         what we want.
         """
@@ -589,30 +678,86 @@ class Invocation:
             p = os.path.join(self.db.root_path, "deploy")
         if (deploy is not None):
             p = os.path.join(p, deploy)
-            
+
         return p
-        
+
 
     def commit(self):
         """
         Commit persistent invocation state to disc.
         """
         self.db.commit()
-    
 
+    def label_from_fragment(self, fragment, default_type):
+        """A variant of Label.from_fragment that understands types and wildcards
+
+        In particular, it knows that:
+
+        1. packages have roles, but checkouts and deployments do not.
+        2. wildcards expand to their appropriate values
+
+        Returns a list of labels. This method does not check that all of the
+        labels returned actually exist as targets in the dependency tree.
+        """
+        label = Label.from_fragment(fragment,
+                                    default_type=default_type,
+                                    default_role=None,
+                                    default_domain=None)
+        labels = []
+        if label.type == LabelType.Package and label.role is None and self.default_roles:
+            for role in self.default_roles:
+                label = label.copy_with_role(role)
+                labels.append(label)
+        else:
+            labels.append(label)
+
+        return_list = []
+        for label in labels:
+            if label.is_wildcard():
+                return_list.extend(self.expand_wildcards(label))
+            else:
+                return_list.append(label)
+        return return_list
+
+    def expand_wildcards(self, label, default_to_obvious_tag=True, wildcard_tag=None):
+        """
+        Given a label which may contain wildcards, return a set of labels that match.
+
+        As per the normal definition of labels, the <type>, <name>, <role> and
+        <tag> parts of the label may be wildcarded.
+
+        If default_to_obvious_tag is true, then if label has a tag of '*', it
+        will be replaced by the "obvious" (final) tag for this label type,
+        before any searching (for for a checkout: label, /checked_out would
+        be used).
+
+        If required_tag is not None, then any labels found that have a '*' for
+        their tag will have it replaced by this value.
+        """
+
+        if label.is_definite():
+            # There are no wildcards - it matches itself
+            # (should we check if it exists?)
+            return set([label])
+
+        if default_to_obvious_tag and label.tag == '*':
+            tag = utils.package_type_to_tag[label.type]
+            label = label.copy_with_tag(tag)
+
+        return self.ruleset.targets_match(label)
 
 class Builder(object):
     """
     A builder performs actions on an Invocation.
     """
 
-    def __init__(self, inv, muddle_binary, domain_params = None, 
+    def __init__(self, inv, muddle_binary, domain_params = None,
                  default_domain = None):
         """
         domain_params is the set of domain parameters in effect when
         this builder is loaded. It's used to communicate values down
         to sub-domains.
-        
+
         Note that you MUST NOT set domain_params null unless you are
          the top-level domain - it MUST come from the enclosing
          domain's invocation or modifications made by the subdomain's
@@ -635,7 +780,10 @@ class Builder(object):
         # for instance). This is most easily taken from the location
         # of *this* module, as we're running it.
         self.muddled_dir = os.path.split(os.path.abspath(__file__))[0]
+
+        # XXX Check the utility of this
         self.default_domain = default_domain
+
         if (domain_params is None):
             self.domain_params = { }
         else:
@@ -651,6 +799,10 @@ class Builder(object):
         build_fname = os.path.split(build_desc)[1]
         self._build_name = os.path.splitext(build_fname)[0]
 
+        # It's useful to know our build description's Repository
+        # Should this be kept in our Invocation?
+        self.build_desc_repo = None
+
 
     def get_subdomain_parameters(self, domain):
         return self.invocation.get_domain_parameters(domain)
@@ -661,7 +813,7 @@ class Builder(object):
 
     def get_parameter(self, name):
         """
-        Returns the given domain parameter, or None if it 
+        Returns the given domain parameter, or None if it
         wasn't defined.
         """
         return self.domain_params.get(name)
@@ -671,17 +823,17 @@ class Builder(object):
         Set a domain parameter: Danger Will Robinson! This is a
          very odd thing to do - domain parameters are typically
          set by their enclosing domains. Setting your own is an
-         odd idea and liable to get you into trouble. It is, 
+         odd idea and liable to get you into trouble. It is,
          however, the only way of communicating values back from
          a domain to its parent (and you shouldn't really be doing
          that either!)
         """
         self.domain_params[name] = value
-        
+
 
     def roles_do_not_share_libraries(self, a, b):
         """
-        Assert that roles a and b do not share libraries: either a or b may be 
+        Assert that roles a and b do not share libraries: either a or b may be
         * to mean wildcard
         """
         self.invocation.roles_do_not_share_libraries(a,b)
@@ -707,32 +859,36 @@ class Builder(object):
         * instruction_file - A db.InstructionFile object to save.
         """
         self.invocation.db.set_instructions(
-            Label(utils.LabelType.Package, pkg, role,
-                  utils.LabelTag.Temporary, domain=domain),
+            Label(LabelType.Package, pkg, role,
+                  LabelTag.Temporary, domain=domain),
             instruction_file)
 
     def uninstruct_all(self):
         self.invocation.db.clear_all_instructions()
-        
+
     def by_default_deploy(self, deployment):
         """
-        Set your invocation's default label to be to build the 
+        Set your invocation's default label to be to build the
         given deployment
         """
-        label = Label(utils.LabelType.Deployment, deployment, None,
-                             utils.LabelTag.Deployed)
-        self.invocation.add_default_label(label)
+        label = Label(LabelType.Deployment, deployment, None, LabelTag.Deployed)
+        self.invocation.add_default_deployment_label(label)
 
     def by_default_deploy_list(self, deployments):
         """
-        Now we've got a list of default labels, we can just add them .. 
+        Now we've got a list of default labels, we can just add them ..
         """
 
         for d in deployments:
-            dep_label = Label(utils.LabelType.Deployment, d, None,
-                              utils.LabelTag.Deployed)
-            self.invocation.add_default_label(dep_label)
-            
+            dep_label = Label(LabelType.Deployment, d, None, LabelTag.Deployed)
+            self.invocation.add_default_deployment_label(dep_label)
+
+    def add_default_roles(self, roles):
+        """
+        Add the given roles to the list of default roles for this build.
+        """
+        for r in roles:
+            self.invocation.add_default_role(r)
 
     def load_instructions(self, label):
         """
@@ -753,54 +909,80 @@ class Builder(object):
         Returns True on success, False on failure.
         """
 
-        
+        # The build description is a bit odd, but we still set it up as a
+        # normal checkout (albeit we check it out ourselves)
+
         co_path = self.invocation.build_co_and_path()
         if (co_path is None):
             return False
 
-        (desc_co, desc_path) = co_path
+        # That gives us the checkout name (assumed the first element of the
+        # path we were given in the .muddled/Description file), and where we
+        # keep our build description therein (which we aren't interested in)
+        (build_co_name, build_desc_path) = co_path
 
-        # Essentially, we register the build as a perfectly normal checkout
-        # but add a dependency of loaded on checked_out and then build it .. 
+        # And we're going to want its Repository later on, to use as the basis
+        # for other (relative) checkouts
+        build_repo = self.invocation.db.repo.get()
+        vcs, base_url = split_vcs_url(build_repo)
 
-        checkout_label = Label(utils.LabelType.Checkout, desc_co)
+        if not vcs:
+            raise GiveUp('Build description URL must be of the form <vcs>+<url>, not'
+                         '\n  "%s"'%build_repo)
 
-        # Even though the build description is a bit odd, we might as well
-        # remember its checkout location in the normal manner
-        self.invocation.db.set_checkout_path(checkout_label, desc_co)
+        # For the moment (and always as default) we just use the simplest
+        # possible interpretation of that as a repository - i.e., build
+        # descriptions have to be simple top-level repositories at the
+        # base_url location, named by their checkout name.
+        repo = Repository(vcs, base_url, build_co_name)
+        # Remember this specifically as the "default" repository
+        self.build_desc_repo = repo
 
-        vcs_handler = version_control.vcs_handler_for(self,
-                                                      checkout_label,
-                                                      desc_co,
-                                                      self.invocation.db.repo.get(), 
-                                                      "HEAD",
-                                                      desc_co)
-        
-        # This is a perfectly normal build .. 
-        vcs = pkg.VcsCheckoutBuilder(desc_co, vcs_handler)
-        pkg.add_checkout_rules(self.invocation.ruleset, checkout_label, vcs)
+        co_label = Label(LabelType.Checkout, build_co_name, None,
+                         LabelTag.CheckedOut, domain=self.default_domain)
 
-        # But we want to load it once we've checked it out...
-        checked_out = Label(utils.LabelType.Checkout, desc_co, None,
-                            utils.LabelTag.CheckedOut, system = True)
+        # But is it also a perfectly normal build ..
+        checkout_from_repo(self, co_label, repo)
 
-        loaded = checked_out.copy_with_tag(utils.LabelTag.Loaded, system = True, transient = True)
+        # Although we want to load it once we've checked it out...
+        checked_out = Label(LabelType.Checkout, build_co_name, None,
+                            LabelTag.CheckedOut, domain=self.default_domain,
+                            system=True)
 
-        loader = BuildDescriptionAction(self.invocation.db.build_desc_file_name(), 
-                                            desc_co)
-        self.invocation.ruleset.add(depend.depend_one(loader, 
-                                                      loaded, checked_out))
+        loaded = checked_out.copy_with_tag(LabelTag.Loaded, system=True, transient=True)
+        loader = BuildDescriptionAction(self.invocation.db.build_desc_file_name(),
+                                        build_co_name)
+        self.invocation.ruleset.add(depend.depend_one(loader, loaded, checked_out))
 
         # .. and load the build description.
-        self.build_label(loaded, silent = True)
+        try:
+            self.build_label(loaded, silent=True)
+        except Exception:
+            raise GiveUp('Error in build description\n%s'%traceback.format_exc())
 
         return True
 
     def unify_labels(self, source, target):
         """
-        Given a source and target label, unify them. Free variables (i.e. wildcards in the
-        labels) are untouched - see depend for quite how this works.
+        Unify the 'source' label with/into the 'target' label.
+
+        Given a dependency tree containing rules to build both 'source' and
+        'target', this edits the tree such that the any occurrences of 'source'
+        are replaced by 'target', and dependencies are merged as appropriate.
+
+        Free variables (i.e. wildcards in the labels) are untouched - if you
+        need to understand that, see depend.py for quite how this works.
+
+        Why is it called "unify" rather than "replace"? Mainly because it
+        does more than replacement, as it has to merge the rules/dependencies
+        together. In retrospect, though, some variation on "merge" might have
+        been easier to remember (if also still inaccurate).
         """
+        if not self.invocation.target_label_exists(source):
+            raise GiveUp('Cannot unify source label %s which does not exist'%source)
+        if not self.invocation.target_label_exists(target):
+            raise GiveUp('Cannot unify target label %s which does not exist'%target)
+
         self.invocation.ruleset.unify(source, target)
         self.invocation.unify_environments(source,target)
         self.invocation.note_unification(source, target)
@@ -815,11 +997,11 @@ class Builder(object):
         return_set = set()
         rules = depend.needed_to_build(self.invocation.ruleset, label)
         for r in rules:
-            # Exclude wildcards .. 
-            if (r.target.type == utils.LabelType.Package and
-                r.target.name is not None and r.target.name != "*" and 
+            # Exclude wildcards ..
+            if (r.target.type == LabelType.Package and
+                r.target.name is not None and r.target.name != "*" and
                 ((r.target.role is None) or r.target.role != "*") and
-                (self.invocation.role_combination_acceptable_for_lib(label.role, r.target.role, 
+                (self.invocation.role_combination_acceptable_for_lib(label.role, r.target.role,
                                                                      label.domain, r.target.domain))):
 
                 # And don't depend on yourself.
@@ -833,7 +1015,7 @@ class Builder(object):
     def set_default_variables(self, label, store):
         """
         Set some global variables used throughout muddle.
-        
+
         ``MUDDLE_ROOT``
             Absolute path where the build tree starts.
         ``MUDDLE_LABEL``
@@ -889,16 +1071,16 @@ class Builder(object):
             store.set("MUDDLE_DOMAIN",label.domain)
 
         store.set("MUDDLE_TAG", label.tag)
-        if (label.type == utils.LabelType.Checkout):
+        if (label.type == LabelType.Checkout):
             store.set("MUDDLE_OBJ", self.invocation.checkout_path(label))
-        elif (label.type == utils.LabelType.Package):
+        elif (label.type == LabelType.Package):
             obj_dir = self.invocation.package_obj_path(label)
             store.set("MUDDLE_OBJ", obj_dir)
             store.set("MUDDLE_OBJ_LIB", os.path.join(obj_dir, "lib"))
             store.set("MUDDLE_OBJ_INCLUDE", os.path.join(obj_dir, "include"))
             store.set("MUDDLE_OBJ_OBJ", os.path.join(obj_dir, "obj"))
 
-            # include and library dirs are slightly interesting .. 
+            # include and library dirs are slightly interesting ..
             dep_dirs = self.get_dependent_package_dirs(label)
             inc_dirs = [ ]
             lib_dirs = [ ]
@@ -918,7 +1100,7 @@ class Builder(object):
                 if (os.path.exists(pkg_dir) and os.path.isdir(pkg_dir)):
                     pkg_dirs.append(pkg_dir)
 
-                # Yes, I know, but some debian packages do .. 
+                # Yes, I know, but some debian packages do ..
                 pkg_dir = os.path.join(d, "share/pkgconfig")
                 if (os.path.exists(pkg_dir) and os.path.isdir(pkg_dir)):
                     pkg_dirs.append(pkg_dir)
@@ -930,14 +1112,14 @@ class Builder(object):
                 ksource_dir = os.path.join(d, "kernelsource")
                 if (os.path.exists(ksource_dir) and os.path.isdir(ksource_dir)):
                     set_ksource_dir = ksource_dir
-                    
-            store.set("MUDDLE_INCLUDE_DIRS", 
-                      " ".join(map(lambda x:utils.maybe_shell_quote(x, True), 
+
+            store.set("MUDDLE_INCLUDE_DIRS",
+                      " ".join(map(lambda x:utils.maybe_shell_quote(x, True),
                                    inc_dirs)))
-            store.set("MUDDLE_LIB_DIRS", 
-                      " ".join(map(lambda x:utils.maybe_shell_quote(x, True), 
+            store.set("MUDDLE_LIB_DIRS",
+                      " ".join(map(lambda x:utils.maybe_shell_quote(x, True),
                                    lib_dirs)))
-            store.set("MUDDLE_LD_LIBRARY_PATH", 
+            store.set("MUDDLE_LD_LIBRARY_PATH",
                       ":".join(lib_dirs))
             # pkg-config takes ':' separated paths and wraps single quotes around
             # each element thereof. Therefore we must not quote the individual path
@@ -945,19 +1127,19 @@ class Builder(object):
             # all will go wrong when pkg-config tries to open something like
             # '"/somewhere/lib"'). Of course, this will cause difficulty if any of
             # the directories contain a colon in their name...
-            store.set("MUDDLE_PKGCONFIG_DIRS", 
+            store.set("MUDDLE_PKGCONFIG_DIRS",
                       ":".join(pkg_dirs))
-            store.set("MUDDLE_PKGCONFIG_DIRS_AS_PATH", 
+            store.set("MUDDLE_PKGCONFIG_DIRS_AS_PATH",
                       ":".join(pkg_dirs))
 
             #print "> pkg_dirs = %s"%(" ".join(pkg_dirs))
 
             if set_kernel_dir is not None:
-                store.set("MUDDLE_KERNEL_DIR", 
+                store.set("MUDDLE_KERNEL_DIR",
                           set_kernel_dir)
 
             if set_ksource_dir is not None:
-                store.set("MUDDLE_KERNEL_SOURCE_DIR", 
+                store.set("MUDDLE_KERNEL_SOURCE_DIR",
                           set_ksource_dir)
 
             store.set("MUDDLE_INSTALL", self.invocation.package_install_path(label))
@@ -970,30 +1152,34 @@ class Builder(object):
                     self.muddle_binary, label.name,
                     label.role))
 
-        elif (label.type == utils.LabelType.Deployment):
+        elif (label.type == LabelType.Deployment):
             store.set("MUDDLE_DEPLOY_FROM", self.invocation.role_install_path(label.role))
             store.set("MUDDLE_DEPLOY_TO", self.invocation.deploy_path(label.name))
-        
+
 
     def kill_label(self, label, useTags = True, useMatch = True):
         """
         Kill everything that matches the given label and all its consequents.
         """
-        
+
         # First, find all the labels that match this one.
-        all_rules = self.invocation.ruleset.rules_for_target(label, useTags = useTags, 
+        all_rules = self.invocation.ruleset.rules_for_target(label, useTags = useTags,
                                                              useMatch = True)
 
         for r in all_rules:
             # Find all our depends.
-            all_required = depend.required_by(self.invocation.ruleset, r.target, 
+            all_required = depend.required_by(self.invocation.ruleset, r.target,
                                               useMatch = False)
-            
-            print "Clearing tags: %s %s"%(str(r.target), " ".join(map(str, all_required)))
+            all_required = list(all_required)
+            all_required.sort()
+
+            print "Clearing tags for %s"%(str(r.target))
+            for l in all_required:
+                print '  %s'%l
 
             # Kill r.targt
             self.invocation.db.clear_tag(r.target)
-            
+
             for r in all_required:
                 self.invocation.db.clear_tag(r)
 
@@ -1019,8 +1205,44 @@ class Builder(object):
         # Add anything the rest of the system has put in.
         self.invocation.setup_environment(label, os.environ)
 
+    def build_label(self, label, silent=False):
+        """
+        The fundamental operation of a builder - build this label.
+        """
 
-    def build_label(self, label, useDepends = True, useTags = True, silent = False):
+        # In actual use, this was never called as anything other than
+        # 'build_label(label)', so I've made it do *just* that, for
+        # simplicity of understanding...
+        #
+        # build_label_with_options() is retained as the original code
+        rule_list = depend.needed_to_build(self.invocation.ruleset, label,
+                                           useTags=True, useMatch=True)
+
+        if not rule_list:
+            print "There is no rule to build label %s"%label
+            return
+
+        for r in rule_list:
+            if self.invocation.db.is_tag(r.target):
+                # Don't build stuff that's already built ..
+                pass
+            else:
+                if not silent:
+                    print "> Building %s"%(r.target)
+
+                # Set up the environment for building this label
+                old_env = os.environ.copy()
+                try:
+                    self._build_label_env(r.target, env_store)
+
+                    if r.action is not None:
+                        r.action.build_label(self, r.target)
+                finally:
+                    os.environ = old_env
+
+                self.invocation.db.set_tag(r.target)
+
+    def build_label_with_options(self, label, useDepends = True, useTags = True, silent = False):
         """
         The fundamental operation of a builder - build this label.
 
@@ -1028,10 +1250,10 @@ class Builder(object):
         """
 
         if useDepends:
-            rule_list = depend.needed_to_build(self.invocation.ruleset, label, useTags = useTags, 
+            rule_list = depend.needed_to_build(self.invocation.ruleset, label, useTags = useTags,
                                                useMatch = True)
         else:
-            rule_list = self.invocation.ruleset.rules_for_target(label, useTags = useTags, 
+            rule_list = self.invocation.ruleset.rules_for_target(label, useTags = useTags,
                                                                  useMatch = True)
 
         if not rule_list:
@@ -1041,7 +1263,7 @@ class Builder(object):
         for r in rule_list:
             # Build it.
             if (not self.invocation.db.is_tag(r.target)):
-                # Don't build stuff that's already built .. 
+                # Don't build stuff that's already built ..
                 if (not silent):
                     print "> Building %s"%(r.target)
 
@@ -1050,14 +1272,12 @@ class Builder(object):
                 try:
                     self._build_label_env(r.target, env_store)
 
-                    if (r.obj is not None):
-                        r.obj.build_label(self, r.target)
+                    if (r.action is not None):
+                        r.action.build_label(self, r.target)
                 finally:
                     os.environ = old_env
 
                 self.invocation.db.set_tag(r.target)
-
-    build_name_re = re.compile(r"[A-Za-z0-9_-]+")
 
     @property
     def build_name(self):
@@ -1076,33 +1296,9 @@ class Builder(object):
 
     @build_name.setter
     def build_name(self, name):
-        m = self.build_name_re.match(name)
-        if m is None or m.end() != len(name):
-            raise utils.GiveUp("Build name '%s' is not allowed"%name)
+        check_build_name(name)
         self._build_name = name
 
-
-    def get_all_checkouts_below(self, dir):
-        """
-        Return all our checkouts have directories at or below 'dir'.
-
-        This is not domain aware. Consider using get_all_checkout_labels_below,
-        which is.
-        """
-        rv = [ ]
-        all_cos = self.invocation.all_checkouts()
-
-        for co in all_cos:
-            tmp = Label(utils.LabelType.Checkout, co)       # TODO *Should* be a label
-            co_dir = self.invocation.checkout_path(tmp)
-            # Is it below dir? If it isn't, os.path.relpath() will
-            # start with .. ..
-            rp = os.path.relpath(co_dir, dir)
-            if (rp[0:2] != ".."):
-                # It's relative
-                rv.append(co)
-
-        return rv
 
     def get_all_checkout_labels_below(self, dir):
         """
@@ -1129,7 +1325,7 @@ class Builder(object):
     def find_local_package_labels(self, dir, tag):
         """
         This is slightly horrible because if you're in a source checkout
-        (as you normally will be), there could be several packages. 
+        (as you normally will be), there could be several packages.
 
         Returns a list of the package labels involved. Uses the given tag
         for the labels.
@@ -1149,7 +1345,7 @@ class Builder(object):
 
         what, label, domain = tloc
 
-        if (what == utils.DirType.Checkout):
+        if what == utils.DirType.Checkout:
             packages = set()
             if label:
                 co_labels = [label]
@@ -1160,9 +1356,14 @@ class Builder(object):
                 for p in inv.packages_using_checkout(co):
                     packages.add(p.copy_with_tag(tag))
             return list(packages)
-        elif (what == utils.DirType.Object):
+        elif what == utils.DirType.Object:
             if label is None:
-                label = Label(utils.LabelType.Package, '*', '*', tag=tag,
+                label = Label(LabelType.Package, '*', '*', tag=tag,
+                              domain=domain)
+            return [label]
+        elif what == utils.DirType.Install:
+            if label is None:
+                label = Label(LabelType.Package, '*', '*', tag=tag,
                               domain=domain)
             return [label]
         else:
@@ -1221,19 +1422,13 @@ class Builder(object):
         else:
             our_root = root_dir
 
-        # Dir is (hopefully) a bit like 
+        # Dir is (hopefully) a bit like
         # root / X , so we walk up it  ...
         rest = []
         while dir != our_root:
             base, cur = os.path.split(dir)
             rest.insert(0, cur)
             dir = base
-
-        sub_dir = None
-        if len(rest) > 1:
-            sub_dir = rest[1]
-        else:
-            sub_dir = None
 
         result = None
 
@@ -1260,10 +1455,10 @@ class Builder(object):
         elif rest[0] == "obj":
             # We know it goes obj/<package>/<role>
             if len(rest) > 2:
-                label = Label(utils.LabelType.Package, name=rest[1],
+                label = Label(LabelType.Package, name=rest[1],
                               role=rest[2], domain=domain_name)
             elif len(rest) == 2:
-                label = Label(utils.LabelType.Package, name=rest[1],
+                label = Label(LabelType.Package, name=rest[1],
                               role='*', domain=domain_name)
             else:
                 label = None
@@ -1272,7 +1467,7 @@ class Builder(object):
         elif rest[0] == "install":
             # We know it goes install/<role>
             if len(rest) > 1:
-                label = Label(utils.LabelType.Package, name='*',
+                label = Label(LabelType.Package, name='*',
                               role=rest[1], domain=domain_name)
             else:
                 label = None
@@ -1281,11 +1476,11 @@ class Builder(object):
         elif rest[0] == "deploy":
             # We know it goes deploy/<deployment>
             if len(rest) > 1:
-                label = Label(utils.LabelType.Deployment, name=rest[1],
+                label = Label(LabelType.Deployment, name=rest[1],
                               domain=domain_name)
             else:
                 label = None
-            result = (utils.DirType.Deployed, None, domain_name)
+            result = (utils.DirType.Deployed, label, domain_name)
 
         elif rest[0] == "domains":
             # We're inside the current domain - this is actually a root
@@ -1303,7 +1498,7 @@ class Builder(object):
         return result
 
 
-class BuildDescriptionAction(pkg.Action):
+class BuildDescriptionAction(Action):
     """
     Load the build description.
     """
@@ -1323,7 +1518,7 @@ class BuildDescriptionAction(pkg.Action):
         try:
             old_path = sys.path
             # TODO: should we use a domain?
-            tmp = Label(utils.LabelType.Checkout, self.build_co)
+            tmp = Label(LabelType.Checkout, self.build_co)
             sys.path.insert(0, builder.invocation.checkout_path(tmp))
             setup = utils.dynamic_load(desc)
             setup.describe_to(builder)
@@ -1337,13 +1532,9 @@ class BuildDescriptionAction(pkg.Action):
                 print "No describe_to() attribute in module %s"%setup
                 print "Available attributes: %s"%(dir(setup))
                 print "Error was %s"%str(a)
-                raise utils.MuddleBug("Cannot load build description %s"%setup)
+                raise MuddleBug("Cannot load build description %s"%setup)
 
-# TODO: Deprecated...
-# A legacy name for this class
-BuildDescriptionDependable = BuildDescriptionAction
-
-def load_builder(root_path, muddle_binary, params = None, 
+def load_builder(root_path, muddle_binary, params = None,
                  default_domain = None):
     """
     Load a builder from the given root path.
@@ -1355,7 +1546,11 @@ def load_builder(root_path, muddle_binary, params = None,
     if (not can_load):
         return None
 
-    inv.commit()
+    # We shouldn't have changed the RootRepository, Description or
+    # VersionsRepository file, so there's no particular reason to
+    # write them back out - and if we do, I believe it (occasionally)
+    # goes wrong and leaves a file blank
+    ##inv.commit()  # XXX
     return build
 
 
@@ -1386,7 +1581,7 @@ def minimal_build_tree(muddle_binary, root_path, repo_location, build_desc, vers
 # Following is an initial implementation of sub-build or domain inclusion
 # Treat it with caution...
 
-def _init_without_build_tree(muddle_binary, root_path, repo_location, build_desc, 
+def _init_without_build_tree(muddle_binary, root_path, repo_location, build_desc,
                              domain_params):
     """
     This a more-or-less copy of the code from muddle.command.Init's
@@ -1440,7 +1635,7 @@ def _init_without_build_tree(muddle_binary, root_path, repo_location, build_desc
     return load_builder(root_path, muddle_binary, domain_params)
 
 
-def _new_sub_domain(root_path, muddle_binary, domain_name, domain_repo, domain_build_desc, 
+def _new_sub_domain(root_path, muddle_binary, domain_name, domain_repo, domain_build_desc,
                     parent_domain):
     """
     * 'muddle_binary' is the full path to the ``muddle`` script (for use in
@@ -1459,13 +1654,13 @@ def _new_sub_domain(root_path, muddle_binary, domain_name, domain_repo, domain_b
     # Check our domain name is legitimate
     try:
         Label._check_part('dummy',domain_name)
-    except utils.GiveUp:
-        raise utils.GiveUp('Domain name "%s" is not valid'%domain_name)
+    except GiveUp:
+        raise GiveUp('Domain name "%s" is not valid'%domain_name)
 
     # So, we're wanting our sub-builds to go into the 'domains/' directory
     domain_root_path = os.path.join(root_path, 'domains', domain_name)
 
-    # Extract the domain parameters .. 
+    # Extract the domain parameters ..
     domain_params = parent_domain.invocation.get_domain_parameters(domain_name)
 
     # Did we already retrieve it, earlier on?
@@ -1479,12 +1674,12 @@ def _new_sub_domain(root_path, muddle_binary, domain_name, domain_repo, domain_b
     if os.path.exists(domain_root_path) and \
        os.path.exists(os.path.join(domain_root_path,'.muddle')):
         domain_builder = load_builder(domain_root_path,
-                                      muddle_binary, 
+                                      muddle_binary,
                                       domain_params)
     else:
         os.makedirs(domain_root_path)
         domain_builder = _init_without_build_tree(muddle_binary, domain_root_path,
-                                                  domain_repo, domain_build_desc, 
+                                                  domain_repo, domain_build_desc,
                                                   domain_params)
 
     # Then we need to tell all of the labels in that build that they're
@@ -1502,7 +1697,7 @@ def _new_sub_domain(root_path, muddle_binary, domain_name, domain_repo, domain_b
     # than once.
     labels = []
 
-    for l in domain_builder.invocation.default_labels:
+    for l in domain_builder.invocation.default_deployment_labels:
         labels.append(l)
 
     env = domain_builder.invocation.env
@@ -1525,14 +1720,14 @@ def _new_sub_domain(root_path, muddle_binary, domain_name, domain_repo, domain_b
         labels.append(rule.target)
         for l in rule.deps:
             labels.append(l)
-        if rule.obj is not None:
-            if hasattr(rule.obj, '_inner_labels'):
-                labels.extend(rule.obj._inner_labels())
-            if hasattr(rule.obj, 'vcs'):
+        if rule.action is not None:
+            if hasattr(rule.action, '_inner_labels'):
+                labels.extend(rule.action._inner_labels())
+            if hasattr(rule.action, 'vcs'):
                 # This relies WAY too much on knowledge of the inside of a
                 # version control handler - TODO is to fix it!!!
-                labels.append(rule.obj.vcs.checkout_label)
-                vcs_handlers.append(rule.obj.vcs)
+                labels.append(rule.action.vcs.checkout_label)
+                vcs_handlers.append(rule.action.vcs)
 
     # Then, mark them all as "unchanged" (because we can't guarantee we won't
     # have the same label more than once, and it's easier to do this than to
@@ -1552,12 +1747,12 @@ def _new_sub_domain(root_path, muddle_binary, domain_name, domain_repo, domain_b
     # (we'll assume that they do if they appear to have the appropriate magic
     # method names)
     for rule in rules:
-        if rule.obj is not None and hasattr(rule.obj, '_mark_unswept'):
-            rule.obj._mark_unswept()
+        if rule.action is not None and hasattr(rule.action, '_mark_unswept'):
+            rule.action._mark_unswept()
 
     for rule in rules:
-        if rule.obj is not None and hasattr(rule.obj, '_change_domain'):
-            rule.obj._change_domain(domain_name)
+        if rule.action is not None and hasattr(rule.action, '_change_domain'):
+            rule.action._change_domain(domain_name)
 
     # Now mark the builder as a domain.
     domain_builder.invocation.mark_domain(domain_name)

@@ -31,8 +31,6 @@ class Bazaar(VersionControlSystem):
         """
         Return the -r option(s) to pass to bzr commands, if any
         """
-        option = ""
-
         if revision is None or revision == "HEAD":
             return ""
         else:
@@ -49,11 +47,11 @@ class Bazaar(VersionControlSystem):
         then various bzr commands ('bzr missing' in particular) do not play
         well with some of the typical Python file names we sometimes have in
         'src/builds' directories.
-        
+
         (Specifically, this is observed with bzr version 2.0.2 on my Ubuntu
         system with my packages installed, so it may or may not happen for
         anyone else, but it still seems safest to avoid it!)
-        
+
         The "solution" (ick, ick) is thus to make sure this doesn't happen...
         - and the simplest way to do that is probably to ignore any PYTHONPATH
         in our local environment when running the command(s)
@@ -83,27 +81,26 @@ class Bazaar(VersionControlSystem):
         if files:
             utils.run_cmd("bzr add %s"%' '.join(files))
 
-    def checkout(self, repo, co_leaf, options, branch=None, revision=None, verbose=True):
+    def checkout(self, repo, co_leaf, options, verbose=True):
         """
         Checkout (clone) a given checkout.
 
         Will be called in the parent directory of the checkout.
 
         Expected to create a directory called <co_leaf> therein.
-
-        So far as I can see, we have no use for the 'branch' option.
         """
         # Remember that 'bzr checkout' does something different - it produces
         # a checkout that is "bound" to the remote repository, so that doing
         # 'bzr commit' will behave like SVN, and commit/push to the remote
         # repository. We don't want that behaviour.
 
-        if branch:
-            effective_repo = os.path.join(repo, branch)
+        # XXX TODO XXX This should not be needed with the new Repository mechanism
+        if repo.branch:
+            effective_repo = os.path.join(repo.url, repo.branch)
         else:
-            effective_repo = repo
+            effective_repo = repo.url
 
-        utils.run_cmd("bzr branch %s %s %s"%(self._r_option(revision),
+        utils.run_cmd("bzr branch %s %s %s"%(self._r_option(repo.revision),
                                              self._normalised_repo(effective_repo),
                                              co_leaf),
                       env=self._derive_env(), verbose=verbose)
@@ -118,18 +115,20 @@ class Bazaar(VersionControlSystem):
         if not ok:
             raise utils.GiveUp("There are uncommitted changes")
 
-    def fetch(self, repo, options, branch=None, revision=None, verbose=True):
+    def fetch(self, repo, options, verbose=True):
         """
         Fetch changes, but don't do a merge.
 
         Will be called in the actual checkout's directory.
         """
-        if branch:
-            effective_repo = os.path.join(repo, branch)
-        else:
-            effective_repo = repo
 
-        rspec = self._r_option(revision)
+        # XXX TODO XXX This should not be needed with the new Repository mechanism
+        if repo.branch:
+            effective_repo = os.path.join(repo.url, repo.branch)
+        else:
+            effective_repo = repo.url
+
+        rspec = self._r_option(repo.revision)
 
         # Refuse to pull if there are any local changes
         env = self._derive_env()
@@ -138,7 +137,7 @@ class Bazaar(VersionControlSystem):
         utils.run_cmd("bzr pull %s %s"%(rspec, self._normalised_repo(effective_repo)),
                       env=env, verbose=verbose)
 
-    def merge(self, other_repo, options, branch=None, revision=None, verbose=True):
+    def merge(self, other_repo, options, verbose=True):
         """
         Merge 'other_repo' into the local repository and working tree,
 
@@ -147,21 +146,23 @@ class Bazaar(VersionControlSystem):
 
         Will be called in the actual checkout's directory.
         """
-        if branch:
-            effective_other_repo = os.path.join(other_repo, branch)
+
+        # XXX TODO XXX This should not be needed with the new Repository mechanism
+        if repo.branch:
+            effective_repo = os.path.join(repo.url, repo.branch)
         else:
-            effective_other_repo = other_repo
+            effective_repo = repo.url
 
         # Refuse to pull if there are any local changes
         env = self._derive_env()
         self._is_it_safe(env)
 
-        rspec = self._r_option(revision)
+        rspec = self._r_option(repo.revision)
 
         utils.run_cmd("bzr merge %s %s"%(rspec, self._normalised_repo(effective_other_repo)),
                       env=env, verbose=verbose)
 
-    def commit(self, options, verbose=True):
+    def commit(self, repo, options, verbose=True):
         """
         Will be called in the actual checkout's directory.
         """
@@ -170,14 +171,17 @@ class Bazaar(VersionControlSystem):
         utils.run_cmd("bzr commit", allowFailure=True,
                       env=self._derive_env(), verbose=verbose)
 
-    def push(self, repo, options, branch=None, verbose=True):
+    def push(self, repo, options, verbose=True):
         """
         Will be called in the actual checkout's directory.
         """
-        if branch:
-            effective_repo = os.path.join(repo, branch)
+
+        # XXX TODO XXX This should not be needed with the new Repository mechanism
+        if repo.branch:
+            effective_repo = os.path.join(repo.url, repo.branch)
         else:
-            effective_repo = repo
+            effective_repo = repo.url
+
         utils.run_cmd("bzr push %s"%self._normalised_repo(effective_repo),
                       env=self._derive_env(), verbose=verbose)
 
@@ -189,10 +193,11 @@ class Bazaar(VersionControlSystem):
         """
         env = self._derive_env()
 
-        if branch:
-            effective_repo = os.path.join(repo, branch)
+        # XXX TODO XXX This should not be needed with the new Repository mechanism
+        if repo.branch:
+            effective_repo = os.path.join(repo.url, repo.branch)
         else:
-            effective_repo = repo
+            effective_repo = repo.url
 
         # --quiet means only report warnings and errors
         cmd = 'bzr status --quiet -r branch:%s'%self._normalised_repo(effective_repo),
@@ -251,7 +256,7 @@ class Bazaar(VersionControlSystem):
         this_dir = os.curdir
         this_file = os.path.join(this_dir, '.bzr', 'branch', 'branch.conf')
 
-        remote_repo = self._normalised_repo(remote_repo)
+        remote_repo = self._normalised_repo(remote_repo.url)
 
         # It would be nice if Bazaar used the ConfigParser for the branch.conf
         # files, but it doesn't - they lack a [section] name. Thus we will have
@@ -351,14 +356,13 @@ class Bazaar(VersionControlSystem):
                                                       fail_nonzero=False)
         return missing, cmd
 
-    def revision_to_checkout(self, co_leaf, orig_revision, options, force=False, verbose=True):
+    def revision_to_checkout(self, repo, co_leaf, options, force=False, verbose=True):
         """
         Determine a revision id for this checkout, usable to check it out again.
 
         * 'co_leaf' should be the name of this checkout directory, for use
           in messages reporting what we are doing. Note that we are called
           already *in* that directory, though.
-        * 'orig_revision' is the original revision (from the build description)
 
         If 'force' is true, then if we can't get one from bzr, and it seems
         "reasonable" to do so, use the original revision from the muddle
@@ -367,26 +371,26 @@ class Bazaar(VersionControlSystem):
         'bzr revno' always returns a simple integer (or so I believe)
 
         'bzr version-info' returns several lines, including::
-        
+
               revision-id: <something>
               revno: <xxx>
-        
+
         where <xxx> is the same number as 'bzr revno', and <something>
         will be different depending on whether we're "the same" as the
         far repository.
-        
+
         If the --check-clean flag is used, then there will also be a line
         of the form::
-        
+
               clean: True
-        
+
         indicating whether the source tree contains uncommitted changes
         (although not whether it is matching the far repository).
-        
+
         So ideally we would (1) grumble if not clean, and (2) grumble
         if our revision id was different than after the last
         push/pull/checkout
-        
+
         Well, 'bzr missing' should show unmerged/unpulled revisions
         between two branches, so if it ends "Branches are up to date"
         then that may be useful. Or no output with '-q' if they're OK.
@@ -395,6 +399,11 @@ class Bazaar(VersionControlSystem):
         """
 
         env = self._derive_env()
+
+        if repo.revision:
+            orig_revision = repo.revision
+        else:
+            orig_revision = 'HEAD'
 
         # So, have we checked everything in?
         ok, cmd, txt = self._all_checked_in(env)

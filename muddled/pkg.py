@@ -2,52 +2,9 @@
 Routines for manipulating packages and checkouts.
 """
 
-import utils
-import depend
-import muddled.pkg
-
-class Action:
-    """
-    Represents an object you can call to build a tag.
-    """
-
-    def build_label(self, builder, label):
-        """
-        Build the given label. Your dependencies have been satisfied.
-
-        * in_deps -  Is the set whose dependencies have been satisified.
-
-        Returns True on success, False or throw otherwise.
-        """
-        pass
-
-    # It may be necessary to declare the following methods, to enable
-    # sub-domains to work properly:
-    #
-    # _mark_unswept()
-    # _change_domain(new_domain)
-    #
-    #    which are used together to change domains within the Action,
-    #    that are not contained within Labels.
-    #
-    # _inner_labels()
-    #
-    #    which returns a list of those Labels contained "inside" the Action,
-    #    which might not otherwise be moved to the new domain.
-
-
-class SequentialAction:
-    """
-    Invoke two actions in turn
-    """
-
-    def __init__(self, a, b) :
-        self.a = a
-        self.b = b
-
-    def build_label(self, builder, label):
-        self.a.build_label(builder, label)
-        self.b.build_label(builder, label)
+import muddled.utils as utils
+import muddled.depend as depend
+from muddled.depend import Action
 
 class ArchSpecificAction:
     """
@@ -67,7 +24,7 @@ class ArchSpecificAction:
 
 
 class ArchSpecificActionGenerator:
-    
+
     def __init__(self, arch):
         self.arch = arch
 
@@ -78,7 +35,7 @@ class NoAction(Action):
     """
     An action which does nothing - used largely for testing.
     """
-    
+
     def __init__(self):
         pass
 
@@ -102,7 +59,7 @@ class VcsCheckoutBuilder(Action):
 
     def must_fetch_before_commit(self):
         """
-        Must we update in order to commit? Only the VCS handler knows .. 
+        Must we update in order to commit? Only the VCS handler knows ..
         """
         return self.vcs.must_fetch_before_commit()
 
@@ -126,37 +83,26 @@ class VcsCheckoutBuilder(Action):
             else:
                 print "Checkout %s has not been checked out - not pushing"%label.name
         else:
-            raise utils.MuddleBug("Attempt to build unknown tag %s "%target_tag + 
+            raise utils.MuddleBug("Attempt to build unknown tag %s "%target_tag +
                               "in checkout %s."%self.name)
 
         return True
-
-# TODO: Deprecated...
-# Legacy names for things.
-# Since I've changed Dependable to Action (and so on), but can't guarantee that
-# other code is not using this directly, I'd better provide aliases, at least
-# for the moment.
-Dependable = Action
-SequentialDependable = SequentialAction
-ArchSpecificDependable = ArchSpecificAction
-ArchSpecificDependableGenerator = ArchSpecificActionGenerator
-NoneDependable = NoAction
 
 class PackageBuilder(Action):
     """
     Describes a package.
     """
-    
+
     def __init__(self, name, role):
         """
-        Construct a package. 
+        Construct a package.
 
         self.name
           The name of this package
-         
+
         self.deps
-          The dependency set for this package. The dependency set contains 
-          mappings from role to ( package, role ). A role of '*' indicates 
+          The dependency set for this package. The dependency set contains
+          mappings from role to ( package, role ). A role of '*' indicates
           a wildcard.
         """
 
@@ -178,12 +124,54 @@ class Deployment(Action):
         Whatever's needed to build the relevant tag for this deployment.
         """
         pass
-        
-    
+
+class NullPackageBuilder(PackageBuilder):
+    """
+    A package that does nothing.
+
+    This can be useful when a build wants to force some checkouts to be
+    present (and checked out), but there is nothing to build in them.
+    Examples include documentation and meta-information that is just
+    being kept in the build tree so that it doesn't get lost.
+
+    Use the 'null_package' function to construct a useful instance.
+    """
+    def build_label(self, builder, label):
+        pass
+
+def null_package(builder, name, role):
+    """
+    Create a Null package, a package that does nothing.
+
+    Uses NullPackageBuilder to construct our package, and then calls
+    add_package_rules() to add the standard rules for a package.
+
+    Returns the new package instance.
+
+    Use like this::
+
+        # We have documentation in this checkout
+        checkouts.simple.relative(builder, co_name='docs')
+
+        # And we'd like it always to be checked out
+        # For this, we use a Null package that doesn't build itself
+        null_pkg = null_package(builder, name='docs', role='meta')
+        pkg.package_depends_on_checkout(builder.invocation.ruleset,
+                                        pkg_name='docs', role_name='meta',
+                                        co_name='docs')
+
+        # And add that to our default roles
+        builder.invocation.add_default_role('meta')
+
+    """
+    this_pkg = NullPackageBuilder(name='meta', role='meta')
+    # Add the standard rules for a package
+    add_package_rules(builder.invocation.ruleset, name, role, this_pkg)
+    return this_pkg
 
 class Profile:
     """
-    A profile ties together a role, a deployment and an installation 
+    A profile ties together a role, a deployment and an installation
     directory. Profiles aren't actions - they modify the builder.
 
     There are two things you can do to a profile: you can ``assume()`` it,
@@ -202,10 +190,10 @@ class Profile:
     def use(self, builder):
         pass
 
-def add_checkout_rules(ruleset, co_label, obj):
+def add_checkout_rules(ruleset, co_label, action):
     """
     Add the standard checkout rules to a ruleset for a checkout
-    with name co_label. 'obj' should be an instance of VcsCheckoutBuilder,
+    with name co_label. 'action' should be an instance of VcsCheckoutBuilder,
     which knows how to build a checkout: label, depending on its tag.
     """
 
@@ -218,7 +206,7 @@ def add_checkout_rules(ruleset, co_label, obj):
 
     # And we simply use the VcsCheckoutBuilder (as we assume it to be)
     # to build us
-    co_rule = depend.Rule(co_label, obj)
+    co_rule = depend.Rule(co_label, action)
     ruleset.add(co_rule)
 
     # Fetched is a transient label.
@@ -227,7 +215,7 @@ def add_checkout_rules(ruleset, co_label, obj):
     # enough that "muddle fetch" should check the checkout out if it has not
     # already been done, then we can make it depend upon the checked_out label...
     # Tell its rule that it depends on the checkout being checked out (!)
-    rule = depend.Rule(fetched_label, obj)
+    rule = depend.Rule(fetched_label, action)
     rule.add(co_label)
     ruleset.add(rule)
     #rule = ruleset.rule_for_target(fetched_label, createIfNotPresent=True)
@@ -235,7 +223,7 @@ def add_checkout_rules(ruleset, co_label, obj):
 
     # Merged is very similar, and also depends on the checkout existing
     merged_label = co_label.copy_with_tag(utils.LabelTag.Merged, transient=True)
-    rule = depend.Rule(merged_label, obj)
+    rule = depend.Rule(merged_label, action)
     rule.add(co_label)
     ruleset.add(rule)
     #rule = ruleset.rule_for_target(merged_label, createIfNotPresent=True)
@@ -244,25 +232,25 @@ def add_checkout_rules(ruleset, co_label, obj):
     ## We used to say that UpToDate depended on Pulled.
     ## Our nearest equivalent would be Merged depending on Fetched.
     ## But that's plainly not a useful dependency, so we shall ignore it.
-    #depend.depend_chain(obj, 
-    #                    uptodate_label, 
+    #depend.depend_chain(action,
+    #                    uptodate_label,
     #                    [ utils.LabelTag.Fetched ], ruleset)
 
     # We don't really want 'push' to do a 'checkout', so instead we rely on
     # the action only doing something if the corresponding checkout has
     # been checked out. Which leaves the rule with no apparent dependencies
     pushed_label = co_label.copy_with_tag(utils.LabelTag.ChangesPushed, transient=True)
-    rule = depend.Rule(pushed_label, obj)
+    rule = depend.Rule(pushed_label, action)
     ruleset.add(rule)
 
     # The same also applies to commit...
     committed_label = co_label.copy_with_tag(utils.LabelTag.ChangesCommitted, transient=True)
-    rule = depend.Rule(committed_label, obj)
+    rule = depend.Rule(committed_label, action)
     ruleset.add(rule)
 
     # Centralised VCSs, in general, want us to do a 'fetch' (update) before
     # doing a 'commit', so we should try to honour that, if necessary
-    if (obj.must_fetch_before_commit()):
+    if (action.must_fetch_before_commit()):
         rule.add(fetched_label)
 
 def package_depends_on_checkout(ruleset, pkg_name, role_name, co_name, action=None):
@@ -279,12 +267,12 @@ def package_depends_on_checkout(ruleset, pkg_name, role_name, co_name, action=No
       are doing something deeply weird.
     """
 
-    checkout = depend.Label(utils.LabelType.Checkout, 
+    checkout = depend.Label(utils.LabelType.Checkout,
                             co_name, None,
                             utils.LabelTag.CheckedOut)
 
-    preconfig = depend.Label(utils.LabelType.Package, 
-		             pkg_name, role_name, 
+    preconfig = depend.Label(utils.LabelType.Package,
+		             pkg_name, role_name,
 			     utils.LabelTag.PreConfig)
 
     new_rule = depend.Rule(preconfig, action)
@@ -293,8 +281,8 @@ def package_depends_on_checkout(ruleset, pkg_name, role_name, co_name, action=No
 
     # We can't distclean a package until we've checked out its checkout
     distclean = depend.Label(utils.LabelType.Package,
-		             pkg_name, role_name, 
-			     utils.LabelTag.DistClean, 
+		             pkg_name, role_name,
+			     utils.LabelTag.DistClean,
 			     transient = True)
     ruleset.add(depend.depend_one(action, distclean, checkout))
 
@@ -314,20 +302,20 @@ def package_depends_on_packages(ruleset, pkg_name, role, tag_name, deps):
     for d in deps:
         dep_label = depend.Label(utils.LabelType.Package,
                                  d,
-                                 role, 
+                                 role,
                                  utils.LabelTag.PostInstalled)
         r.add(dep_label)
 
-    
 
-def add_package_rules(ruleset, pkg_name, role_name, obj):
+
+def add_package_rules(ruleset, pkg_name, role_name, action):
     """
     Add the standard package rules to a ruleset.
     """
-    
-    depend.depend_chain(obj,
+
+    depend.depend_chain(action,
                         depend.Label(utils.LabelType.Package,
-                              pkg_name, role_name, 
+                              pkg_name, role_name,
                               utils.LabelTag.PreConfig),
                         [ utils.LabelTag.Configured,
                           utils.LabelTag.Built,
@@ -336,14 +324,14 @@ def add_package_rules(ruleset, pkg_name, role_name, obj):
                         ruleset)
 
     # "clean" dependes on "preconfig", but is transient,
-    # since you don't want to remember you've done it .. 
-    # 
+    # since you don't want to remember you've done it ..
+    #
     # (and it avoids inverse rules which would be a bit
     #  urgh)
-    ruleset.add(depend.depend_one(obj, 
+    ruleset.add(depend.depend_one(action,
 				   depend.Label(utils.LabelType.Package,
-				                pkg_name, role_name, 
-						utils.LabelTag.Clean, 
+				                pkg_name, role_name,
+						utils.LabelTag.Clean,
 						transient = True),
 				   depend.Label(utils.LabelType.Package,
 					        pkg_name, role_name,
@@ -364,7 +352,7 @@ def do_depend(builder, pkg_name, role_names,
     currently using, so ``do_depend(a, ['b', 'c'], [ ('d', None) ])`` leads
     to ``a{b}`` depending on ``d{b}`` and ``a{c}`` depending on ``d{c}``.
     """
-    
+
     ruleset = builder.invocation.ruleset
 
     for role_name in role_names:
@@ -377,20 +365,20 @@ def do_depend(builder, pkg_name, role_names,
                                                        pkg_name, role_name,
                                                        utils.LabelTag.PreConfig),
                                           depend.Label(utils.LabelType.Package,
-                                                       pkg, role, 
+                                                       pkg, role,
                                                        utils.LabelTag.PostInstalled)))
-    
-def depend_across_roles(ruleset, pkg_name, role_names, 
+
+def depend_across_roles(ruleset, pkg_name, role_names,
                         depends_on_pkgs, depends_on_role):
     """
-    Register that pkg_name{role_name}'s preconfig depends on 
+    Register that pkg_name{role_name}'s preconfig depends on
     depends_on_pkg{depends_on_role} having been postinstalled.
     """
     for pkg in depends_on_pkgs:
         for role_name in role_names:
             ruleset.add(depend.depend_one(None,
                                           depend.Label(utils.LabelType.Package,
-                                                       pkg_name, role_name, 
+                                                       pkg_name, role_name,
                                                        utils.LabelTag.PreConfig),
                                           depend.Label(utils.LabelType.Package,
                                                        pkg,
@@ -398,8 +386,8 @@ def depend_across_roles(ruleset, pkg_name, role_names,
                                                        utils.LabelTag.PostInstalled)))
 
 def append_env_for_package(builder, pkg_name, pkg_roles,
-                           name, value, 
-                           domain = None, 
+                           name, value,
+                           domain = None,
                            type = None):
     """
     Set the environment variable name to value in the given
@@ -407,12 +395,12 @@ def append_env_for_package(builder, pkg_name, pkg_roles,
     package behaviour in particular roles in the build
     description.
     """
-    
+
     for r in pkg_roles:
         lbl = depend.Label(utils.LabelType.Package,
-                           pkg_name, 
-                           r, 
-                           "*", 
+                           pkg_name,
+                           r,
+                           "*",
                            domain = domain)
         env = builder.invocation.get_environment_for(lbl)
         env.append(name, value)
@@ -421,7 +409,7 @@ def append_env_for_package(builder, pkg_name, pkg_roles,
 
 
 def set_env_for_package(builder, pkg_name, pkg_roles,
-                        name, value, 
+                        name, value,
                         domain = None):
     """
     Set the environment variable name to value in the given
@@ -429,12 +417,12 @@ def set_env_for_package(builder, pkg_name, pkg_roles,
     package behaviour in particular roles in the build
     description.
     """
-    
+
     for r in pkg_roles:
         lbl = depend.Label(utils.LabelType.Package,
-                           pkg_name, 
-                           r, 
-                           "*", 
+                           pkg_name,
+                           r,
+                           "*",
                            domain = domain)
         env = builder.invocation.get_environment_for(lbl)
         env.set(name, value)
@@ -442,21 +430,22 @@ def set_env_for_package(builder, pkg_name, pkg_roles,
 def set_checkout_vcs_option(builder, label, **kwargs):
     """
     Sets extra VCS options for a checkout (identified by its label).
-    These are set in the relevant VersionControlHandler and passed on 
+    These are set in the relevant VersionControlHandler and passed on
     to the underlying vcs handler.
 
     For example:
       pkg.set_checkout_vcs_option(builder, depend.Label('checkout', 'kernel-source'), shallow_checkout=True)
-    
+
     Note that options are strictly set per-checkout.
     Defaults are set by version_control.default_vcs_options_dict.
     """
     if label.type is not utils.LabelType.Checkout:
         raise utils.GiveUp('set_checkout_vcs_option called on non-checkout %s'%label)
     for rule in builder.invocation.ruleset.rules_for_target(label):
-        if rule.obj is not None:
-            if not isinstance(rule.obj, muddled.pkg.VcsCheckoutBuilder):
-                raise utils.MuddleBug('rule for checkout %s had a non-builder object of type %s'%(label, rule.obj.__class__.__name__))
-            rule.obj.vcs.add_options(kwargs)
+        if rule.action is not None:
+            if not isinstance(rule.action, VcsCheckoutBuilder):
+                raise utils.MuddleBug('rule for checkout %s had a non-builder'
+                        ' object of type %s'%(label, rule.action.__class__.__name__))
+            rule.action.vcs.add_options(kwargs)
 
 # End file.

@@ -7,19 +7,21 @@ Instructions are ignored - there's no reason to follow them
 (yet) and it's simpler not to.
 """
 
+import os
+
 import muddled
-import muddled.pkg as pkg
 import muddled.env_store
 import muddled.depend as depend
 import muddled.utils as utils
-import os
 import muddled.deployment as deployment
 
-class ToolsDeploymentBuilder(pkg.Action):
+from muddled.depend import Action
+
+class ToolsDeploymentBuilder(Action):
     """
     Copy the dependent roles into the tools deployment.
     """
-    
+
     def __init__(self, dependent_roles):
         self.dependent_roles = dependent_roles
 
@@ -31,7 +33,7 @@ class ToolsDeploymentBuilder(pkg.Action):
                                 "unrecognised tools deployment label %s"%(label))
 
     def deploy(self, builder, label):
-        deploy_dir = builder.invocation.deploy_path(label.name, 
+        deploy_dir = builder.invocation.deploy_path(label.name,
                                                     domain = label.domain)
 
         utils.recursively_remove(deploy_dir)
@@ -39,7 +41,7 @@ class ToolsDeploymentBuilder(pkg.Action):
 
         for role in self.dependent_roles:
             print "> %s: Deploying role %s .."%(label.name, role)
-            install_dir = builder.invocation.role_install_path(role, 
+            install_dir = builder.invocation.role_install_path(role,
                                                                domain = label.domain)
             # We do want an exact copy here - this is a copy from the install
             #  set to the role deployment and therefore may include symlinks
@@ -54,18 +56,18 @@ def attach_env(builder, role, env, name):
     """
     Attach suitable environment variables for the given input role
     to the given environment store.
-    
+
     We set:
 
     * LD_LIBRARY_PATH   - Prepend $role_installl/lib
     * PATH              - Append $role_install/bin
     * PKG_CONFIG_PATH   - Prepend $role_install/lib/pkgconfig
-    * $role_TOOLS_PATH  - Prepend $role_install/bin 
+    * $role_TOOLS_PATH  - Prepend $role_install/bin
 
     The PATH/TOOLS_PATH stuff is so you can still locate tools which were
     in the path even if they've been overridden with your built tools.
     """
-    
+
     env.set_type("LD_LIBRARY_PATH", muddled.env_store.EnvType.Path)
     env.set_type("PATH", muddled.env_store.EnvType.Path)
     env.set_type("PKG_CONFIG_PATH", muddled.env_store.EnvType.Path)
@@ -79,7 +81,7 @@ def attach_env(builder, role, env, name):
     env.ensure_prepended("PKG_CONFIG_PATH", os.path.join(deploy_base, "lib", "pkgconfig"))
     env.ensure_appended("PATH", os.path.join(deploy_base, "bin"))
     env.set("%s_TOOLS_PATH"%(name.upper()), deploy_base)
-    
+
 
 def deploy(builder, name, rolesThatUseThis = [ ], rolesNeededForThis = [ ]):
     """
@@ -104,7 +106,7 @@ def deploy(builder, name, rolesThatUseThis = [ ], rolesNeededForThis = [ ]):
     """
 
     tgt = depend.Label(utils.LabelType.Deployment,
-                       name, 
+                       name,
                        None,
                        utils.LabelTag.Deployed)
 
@@ -127,9 +129,9 @@ def deploy(builder, name, rolesThatUseThis = [ ], rolesNeededForThis = [ ]):
 
     deployment.register_cleanup(builder, name)
 
-    
-        
-        
+
+
+
 
 
 # End file.

@@ -38,10 +38,10 @@ def describe_to(builder):
                         makeInstall = False)
 
     # Steal a few basic libraries from Debian.
-    deb.simple(builder, 
-               coName = "ubuntu-9.04", 
-               name = "libc6", 
-               roles = [ "root" ], 
+    deb.simple(builder,
+               coName = "ubuntu-9.04",
+               name = "libc6",
+               roles = [ "root" ],
                depends_on = [ ],
                pkgFile = "libc6_2.9.4-ubuntu6_i386.deb")
     deb.simple(builder,
@@ -50,7 +50,7 @@ def describe_to(builder):
                roles = [ "root" ],
                depends_on = [ "libc6" ],
                pkgFile = "libgcc1_4.3.3-5ubuntu4_i386.deb")
-    
+
     # If you want networking, you'll need nss too ..
     deb.simple(builder,
                coName = "ubuntu-9.04",
@@ -60,23 +60,23 @@ def describe_to(builder):
                pkgFile = "libnss3-1d_3.12.2-rc1-0ubuntu2_i386.deb")
     deb.simple(builder,
                coName = "ubuntu-9.04",
-               name = "libnss-mdns", 
+               name = "libnss-mdns",
                roles = [ "root" ],
                depends_on = [ "libc6" ],
                pkgFile = "libnss-mdns_0.10-3ubuntu2_i386.deb")
 
-    
+
     # Some shells 'n' stuff :-)
     make.simple(builder,
-                name = "busybox", 
+                name = "busybox",
                 roles = [ "root" ],
                 checkout = "busybox-1.14.1",
                 deps = [ "libc6" ],
                 makefileName = "Makefile.muddle")
-    
+
     make.simple(builder,
                 name = "udev",
-                roles = [ "root" ], 
+                roles = [ "root" ],
                 checkout = "udev-142",
                 deps = [ "libc6" ],
                 makefileName = "Makefile.muddle")
@@ -84,16 +84,16 @@ def describe_to(builder):
     make.simple(builder,
                 name = "etc-files",
                 roles = [ "root" ],
-                checkout = "etc-files", 
+                checkout = "etc-files",
                 deps = [ "libc6" ],
                 makefileName = "Makefile.muddle")
 
     # Not strictly necessary, but let's face it - you're
     # going to want DHCP
     make.simple(builder,
-                name = "dhcpcd", 
+                name = "dhcpcd",
                 roles = [ "root" ],
-                checkout = "dhcpcd-5.0.4", 
+                checkout = "dhcpcd-5.0.4",
                 deps = [ ],
                 makefileName = "Makefile.muddle")
 
@@ -104,9 +104,9 @@ def describe_to(builder):
                        "ubuntu-9.04")
 
     # OK. Deploy the ramdisk
-    cpio.deploy(builder, "root.cpio", 
+    cpio.deploy(builder, "root.cpio",
                 { "root" : "/" },
-                "root", 
+                "root",
                 [ "root" ])
 
     # Construct a collector to take the cpio archive and kernel
@@ -126,11 +126,11 @@ def describe_to(builder):
                                  dest = "initrd",
                                  recursive = False,
                                  copyExactly = False)
-                                  
+
 
 
     builder.by_default_deploy_list(["root", "firmware"])
 
 
 # .. and that's all, folks.
-                          
+

@@ -41,7 +41,7 @@ class Subversion(VersionControlSystem):
         else:
             return "-r %s"%revision
 
-    def checkout(self, repo, co_leaf, options, branch=None, revision=None, verbose=True):
+    def checkout(self, repo, co_leaf, options, verbose=True):
         """
         Clone a given checkout.
 
@@ -49,13 +49,13 @@ class Subversion(VersionControlSystem):
 
         Expected to create a directory called <co_leaf> therein.
         """
-        if branch:
-            raise utils.GiveUp("Subversion does not support the 'branch'"
-                               " argument to 'checkout' (branch='%s')"%branch)
-        utils.run_cmd("svn checkout %s %s %s"%(self._r_option(revision),
-                                               repo, co_leaf), verbose=verbose)
+        if repo.branch:
+            raise utils.GiveUp("Subversion does not support branch"
+                               " in 'checkout' (branch='%s')"%repo.branch)
+        utils.run_cmd("svn checkout %s %s %s"%(self._r_option(repo.revision),
+                                               repo.url, co_leaf), verbose=verbose)
 
-    def fetch(self, repo, options, branch=None, revision=None, verbose=True):
+    def fetch(self, repo, options, verbose=True):
         """
         Will be called in the actual checkout's directory.
 
@@ -66,18 +66,18 @@ class Subversion(VersionControlSystem):
 
           ("svn help status" would call those columns 1, 2 and 7)
         """
-        if branch:
-            raise utils.GiveUp("Subversion does not support the 'branch'"
-                               " argument to 'fetch' (branch='%s')"%branch)
+        if repo.branch:
+            raise utils.GiveUp("Subversion does not support branch"
+                               " in 'fetch' (branch='%s')"%repo.branch)
         retcode, text, ignore = utils.get_cmd_data("svn status")
         for line in text:
             if 'C' in (line[0], line[1], line[6]):
                 raise utils.GiveUp("%s: 'svn status' says there is a Conflict,"
                                     " refusing to fetch:\n%s\nUse 'muddle merge'"
                                     " if you want to merge"%(utils.indent(text,'    ')))
-        utils.run_cmd("svn update %s"%(self._r_option(revision)), verbose=verbose)
+        utils.run_cmd("svn update %s"%(self._r_option(repo.revision)), verbose=verbose)
 
-    def merge(self, other_repo, options, branch=None, revision=None, verbose=True):
+    def merge(self, other_repo, options, verbose=True):
         """
         Merge 'other_repo' into the local repository and working tree,
 
@@ -86,12 +86,12 @@ class Subversion(VersionControlSystem):
 
         Will be called in the actual checkout's directory.
         """
-        if branch:
-            raise utils.GiveUp("Subversion does not support the 'branch'"
-                               " argument to 'merge' (branch='%s')"%branch)
-        utils.run_cmd("svn update %s"%(self._r_option(revision)), verbose=verbose)
+        if other_repo.branch:
+            raise utils.GiveUp("Subversion does not support branch"
+                               " in 'merge' (branch='%s')"%other_repo.branch)
+        utils.run_cmd("svn update %s"%(self._r_option(other_repo.revision)), verbose=verbose)
 
-    def commit(self, options, verbose=True):
+    def commit(self, repo, options, verbose=True):
         """
         Will be called in the actual checkout's directory.
 
@@ -100,7 +100,7 @@ class Subversion(VersionControlSystem):
         """
         pass
 
-    def push(self, repo, options, branch=None, verbose=True):
+    def push(self, repo, options, verbose=True):
         """
         Will be called in the actual checkout's directory.
 
@@ -109,11 +109,9 @@ class Subversion(VersionControlSystem):
         """
         utils.run_cmd("svn commit", verbose=verbose)
 
-    def status(self, repo, options, branch=None):
+    def status(self, repo, options):
         """
         Will be called in the actual checkout's directory.
-
-        'branch' is ignored.
 
         Return status text or None if there is no interesting status.
         """
@@ -150,7 +148,7 @@ class Subversion(VersionControlSystem):
         """
         pass                # or should we say something? I assume not...
 
-    def revision_to_checkout(self, co_leaf, orig_revision, options, force=False, verbose=False):
+    def revision_to_checkout(self, repo, co_leaf, options, force=False, verbose=False):
         """
         Determine a revision id for this checkout, usable to check it out again.
 
@@ -183,7 +181,7 @@ class Subversion(VersionControlSystem):
         """
         Subversion recommends doing 'commit' before "fetch" (i.e., pull/update)
         """
-        True
+        return True
 
 # Tell the version control handler about us..
 register_vcs_handler("svn", Subversion())

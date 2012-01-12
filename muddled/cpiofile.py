@@ -1,14 +1,15 @@
 """
-Utilities to write cpio archives. 
+Utilities to write cpio archives.
 
 There is apparently no standard way to do this from python.
 Ugh.
 """
 
-import utils
-import stat
-import filespec
 import os
+import stat
+
+import muddled.utils as utils
+import muddled.filespec as filespec
 
 class File:
     """
@@ -28,19 +29,19 @@ class File:
     S_SGID   = 0002000
     S_STICKY = 0001000
 
-    
+
 
     def __init__(self):
         """
         Create a new, empty file. Some more or less sensible
         defaults are set up so that if you do try to synthesise
         a cpio archive from a default-constructed File you don't
-        get utter rubbish. No guarantees you get a valid 
-        archive either though .. 
+        get utter rubbish. No guarantees you get a valid
+        archive either though ..
 
         * key_name is the name of the key under which this file is stored
           in the parent hierarchy. It's a complete hack, but essential for
-          finding a file in the key map quickly without which deletion 
+          finding a file in the key map quickly without which deletion
           becomes an O(n^2) operation (and N = number of files in the root
           fs, so it's quite high).
 
@@ -85,14 +86,14 @@ class File:
 
     def __str__(self):
         return "[ %s (fs %s) mode = %o uid = %d gid = %d kids = %s]"%\
-            (self.name, 
-             self.fs_name, 
-             self.mode, self.uid, 
-             self.gid, 
+            (self.name,
+             self.fs_name,
+             self.mode, self.uid,
+             self.gid,
              " ".join(map(lambda x: x.name, self.children)))
 
 class Hierarchy:
-    
+
     def __init__(self, map, roots):
         """
         * self.map   - maps names in the target archive to file objects.
@@ -114,7 +115,7 @@ class Hierarchy:
 
         Anything in the result that does not have a parent is a root.
         """
-        
+
         # Merge
         for (k,v) in other.map.items():
             self.map[k] = v
@@ -146,7 +147,7 @@ class Hierarchy:
     def normalise(self):
         """
         Normalise the hierarchy into one with a single root.
-        
+
         We do this by taking each root in turn and removing a component, creating
         a directory in the process. If the resulting root is in roots, we add it
         to the children of that root and eliminate it from the map.
@@ -155,10 +156,10 @@ class Hierarchy:
         """
 
         while len(self.roots) > 1:
-            # Pick a key .. 
+            # Pick a key ..
             did_something = False
             new_roots = { }
-        
+
             for (k,v) in self.roots.items():
                 #print "Normalise %s => "%k
                 if (k != "/"):
@@ -170,13 +171,13 @@ class Hierarchy:
                     #print "=> dir = %s"%dir
                     if (dir not in self.map):
 
-                        # Curses. Don't already have that directory - 
+                        # Curses. Don't already have that directory -
                         # must build it.
                         new_dir = File()
                         new_dir.mode = 0755 | File.S_DIR
                         new_dir.name = dir
                         new_dir.children.append(v)
-                        # The directory wasn't present, so must be 
+                        # The directory wasn't present, so must be
                         # a new root .
                         new_roots[dir] = new_dir
                         self.map[dir] = new_dir
@@ -191,10 +192,10 @@ class Hierarchy:
             if (not did_something):
                 raise utils.GiveUp("Failed to normalise a hierarchy -"
                                     " circular roots?: %s"%self)
-            
-    
+
+
     def render(self, to_file, logProgress = False):
-        
+
         # Right. Trace each root into a list ..
         file_list = [ ]
         for r in self.roots.values():
@@ -210,7 +211,7 @@ class Hierarchy:
         Recursively remove file_name and all its descendants from the
         hierarchy.
         """
-        
+
         #print "Erase %s .. "%file_name
         # Irritatingly, we need to iterate to find the name, since
         # the map doesn't contain target names - only source ones :-(
@@ -226,7 +227,7 @@ class Hierarchy:
         par = self.parent_from_key(file_name)
         if (par is not None):
             par.delete_child_with_name(file_name)
-    
+
 
     def parent_from_key(self, key_name):
         up = os.path.dirname(key_name)
@@ -234,27 +235,27 @@ class Hierarchy:
         if (up in self.map):
             return self.map[up]
         else:
-            return None                
+            return None
 
     def put_target_file(self, name, obj):
         """
         Put a file into the archive. The directory
         for it must already exist.
-        
+
         * name - The name of the file in the target archive.
         * obj  - The file object to insert.
         """
-        
-        # Make sure we have referential integrity .. 
+
+        # Make sure we have referential integrity ..
         obj.name = name
 
-        # Find a parent .. 
+        # Find a parent ..
         par = self.parent_from_key(name)
         if (par is None):
             raise utils.GiveUp("Cannot find a parent for %s in put_target_file()"%name)
 
         par.children.append(obj)
-        self.map[name] = obj        
+        self.map[name] = obj
 
     def __str__(self):
         rv = [ ]
@@ -269,7 +270,7 @@ class Hierarchy:
 
 
 
-class CpioFileDataProvider(filespec.FileSpecDataProvider):    
+class CpioFileDataProvider(filespec.FileSpecDataProvider):
     def __init__(self, hierarchy):
         """
         Given a file map like that returned from files_from_fs()
@@ -279,13 +280,13 @@ class CpioFileDataProvider(filespec.FileSpecDataProvider):
         """
         self.hierarchy = hierarchy
 
-        
-    def list_files_under(self, dir, recursively = False, 
+
+    def list_files_under(self, dir, recursively = False,
                          vroot = None):
         """
         Return a list of the files under dir.
         """
-        
+
         if (dir[0] == '/'):
             dir = dir[1:]
 
@@ -294,7 +295,7 @@ class CpioFileDataProvider(filespec.FileSpecDataProvider):
 
         for r in self.hierarchy.roots.keys():
             to_find = utils.rel_join(vroot, dir)
-        
+
             abs_path = os.path.join(r, to_find)
 
             # Trim any trailing '/'s for normalisation reasons.
@@ -309,20 +310,20 @@ class CpioFileDataProvider(filespec.FileSpecDataProvider):
         if (obj is None):
             print "> Warning: No files in %s [vroot = %s] in this cpio archive.. "%(dir,vroot)
             return [ ]
-        
+
         # Read everything in this directory.
         result = [ ]
         for elem in obj.children:
             last_elem = os.path.basename(elem.name)
             # We want the last element only ..
             result.append(last_elem)
-            
+
             if (recursively):
                 # .. and recurse ..
                 #print "> l_f_u recurse dir = %s, elem.name = %s last = %s"%(dir, elem.name, last_elem)
-                result.extend(self.list_files_under(os.path.join(dir, last_elem), True, 
+                result.extend(self.list_files_under(os.path.join(dir, last_elem), True,
                                                     vroot = vroot))
-        
+
         return result
 
     def abs_match(self, filespec, vroot = None):
@@ -339,7 +340,7 @@ class CpioFileDataProvider(filespec.FileSpecDataProvider):
                 rv.append(self.hierarchy.map[f])
 
         return rv
-    
+
 
 
 def file_for_dir(name):
@@ -358,31 +359,31 @@ def file_from_data(name, data):
     outfile = File()
     outfile.name = name
     outfile.data = data
-    # Last modified just now .. 
+    # Last modified just now ..
     outfile.mtime = utils.unix_time()
     outfile.orig_file = None
     return outfile
 
-    
+
 
 def merge_maps(dest, src):
-    """ 
+    """
     Merge src into dest. This needs special handling because we need to
     keep the hierarchy intact
 
     We merge dest and src and then just rebuild the entire hierarchy - it's
     the easiest way, frankly.
-    
+
     For everything in the merged list, zap its children.
 
-    Now iterate over everything, os.path.split() it to find its parent 
+    Now iterate over everything, os.path.split() it to find its parent
     and add it to its parents' child list.
 
     If its parent doesn't exist, it's a root - mark and ignore it.
     """
-    
-    
-    
+
+
+
 
 def hierarchy_from_fs(name, base_name):
     """
@@ -396,13 +397,13 @@ def hierarchy_from_fs(name, base_name):
 
     # A map of filename to file object, so you can find 'em eas
     file_map = { }
-    
-    # Add the root .. 
+
+    # Add the root ..
     file_map[base_name] = file_from_fs(name,
                                   base_name)
 
     # Same as file_map, but indexed by the name in the fs rather
-    # than in the resulting archive - used to find directories 
+    # than in the resulting archive - used to find directories
     # quickly.
     by_tgt_map = { }
 
@@ -411,7 +412,7 @@ def hierarchy_from_fs(name, base_name):
     the_paths = os.walk(name)
     for p in the_paths:
         (root, dirs, files) = p
-        
+
         # This is legit - top-down means that root must have been
         # visited first. If it isn't, our ordering will collapse
         # and the cpio archive when we generate it will at the
@@ -421,8 +422,8 @@ def hierarchy_from_fs(name, base_name):
 
         for d in dirs:
             new_obj = os.path.join(root, d)
-            # Lop off the initial name and replace with base_name            
-            tgt_name =  utils.replace_root_name(name, base_name, 
+            # Lop off the initial name and replace with base_name
+            tgt_name =  utils.replace_root_name(name, base_name,
                                                 new_obj)
             new_file = file_from_fs(new_obj, tgt_name)
             file_map[tgt_name] = new_file
@@ -432,7 +433,7 @@ def hierarchy_from_fs(name, base_name):
         for f in files:
             new_obj = os.path.join(root, f)
             #print "new_obj = %s"%new_obj
-            tgt_name =  utils.replace_root_name(name, base_name, 
+            tgt_name =  utils.replace_root_name(name, base_name,
                                                 new_obj)
             new_file = file_from_fs(new_obj, tgt_name)
             file_map[tgt_name] = new_file
@@ -481,7 +482,7 @@ def trace_files(file_list, root):
     file_list.append(root)
     for c in root.children:
         trace_files(file_list, c)
-    
+
 
 class Archive:
     """
@@ -499,7 +500,7 @@ class Archive:
     def add_file(self, a_file):
         """
         DANGER WILL ROBINSON! You need to add files in the right order
-        here or cpio will get very confused. 
+        here or cpio will get very confused.
 
         .. todo:: Reorder files in render() so that we get them in the right
            order, and remember to create intermediate directories.
@@ -515,11 +516,11 @@ class Archive:
         """
         Render a CPIO archive to the given file.
         """
-        
+
         f_out = open(to_file, "wb")
-        
+
         file_list = list(self.files)
-        # There's a trailer on every cpio archive .. 
+        # There's a trailer on every cpio archive ..
         file_list.append(file_from_data("TRAILER!!!", ""))
 
         for f in file_list:
@@ -555,12 +556,12 @@ class Archive:
 
             # cpio, as is UNIX's wont, is almost entirely undocumented:
             # http://refspecs.freestandards.org/LSB_3.1.0/LSB-Core-generic/LSB-Core-generic/pkgformat.html
-            # has a spec for the SVR4 portable format (-Hnewc), which is 
+            # has a spec for the SVR4 portable format (-Hnewc), which is
             # understood by newer Linux kernels as an initrd format.
 
 
             # Magic
-            hdr_array.append("070701")  
+            hdr_array.append("070701")
             hdr_array.append("%08X"%f.ino)
             hdr_array.append("%08X"%f.mode)
             hdr_array.append("%08X"%f.uid)
@@ -588,7 +589,7 @@ class Archive:
             if (pos%4):
                 for i in range(0, 4-(pos%4)):
                     f_out.write("\0")
-        
+
 
             if (file_data is not None):
                 f_out.write(file_data)
@@ -603,7 +604,7 @@ class Archive:
             # using it - it's typically several megabytes.
             file_data = None
 
-            
+
         f_out.close()
         # And that's all, folks.
 

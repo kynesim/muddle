@@ -45,6 +45,18 @@ class GiveUp(Exception):
     """
     pass
 
+class Unsupported(GiveUp):
+    """
+    Use this to indicate that an action is unsupported.
+
+    This is used, for instance, when git reports that it will not pull to a
+    shallow clone, which is not an error, but the user will want to know.
+
+    This is deliberately a subclass of GiveUp, because it *is* telling muddle
+    to give up an operation.
+    """
+    pass
+
 # Keep the old exception names for the moment, as well
 Failure = GiveUp
 Error = MuddleBug
@@ -120,24 +132,36 @@ __label_type_type = namedtuple('LabelType',
 
 LabelType = __label_type_type(**__label_types)
 
+# Sometimes, we want to map a package type to a default tag
+# - these are the tags that we want to reach in our rules for each type
+package_type_to_tag = {
+        LabelType.Checkout   : LabelTag.CheckedOut,
+        LabelType.Package    : LabelTag.PostInstalled,
+        LabelType.Deployment : LabelTag.Deployed,
+        }
+
 # And directory types - i.e., what is the purpose of a particular directory?
 # We use a description of the purpose of the directory type as its value,
 # and trust to Python to be kind to us
-__directory_types = {'Checkout'  : 'Checkout directory',
-                     'Object'    : 'Package object directory',
-                     'Deployed'  : 'Deployment directory',
-                     'Install'   : 'Install directory',
-                     'Root'      : 'Root of the build tree',
-                     'DomainRoot': 'Root of subdomain',
-                     'MuddleDir' : '.muddle directory',
-                     'Versions'  : 'Versions directory',
-                     'Unexpected': 'An unexpectd place',
-                     }
+DirTypeDict = {'Checkout'  : 'Checkout directory',
+               'Object'    : 'Package object directory',
+               'Deployed'  : 'Deployment directory',
+               'Install'   : 'Install directory',
+               'Root'      : 'Root of the build tree',
+               'DomainRoot': 'Root of subdomain',
+               'MuddleDir' : '.muddle directory',
+               'Versions'  : 'Versions directory',
+               'Unexpected': 'An unexpected place',
+               }
 
-__directory_type_type = namedtuple('DirType',
-                                   ' '.join(__directory_types.keys()))
+__directory_type_type = namedtuple('DirType', ' '.join(DirTypeDict.keys()))
 
-DirType = __directory_type_type(**__directory_types)
+# Sometimes the reverse is useful
+ReverseDirTypeDict = {}
+for key, value in DirTypeDict.items():
+    ReverseDirTypeDict[value] = key
+
+DirType = __directory_type_type(**DirTypeDict)
 
 def string_cmp(a,b):
     """
@@ -351,10 +375,42 @@ def current_user():
 
 def current_machine_name():
     """
-    Return the identity of the current machine - possibly including the 
+    Return the identity of the current machine - possibly including the
     domain name, possibly not
     """
     return socket.gethostname()
+
+def page_text(progname, text):
+    """
+    Try paging 'text' by piping it through 'progname'.
+
+    Looks for 'progname' on the PATH, and if os.environ['PATH'] doesn't exist,
+    tries looking for it on os.defpath.
+
+    If an executable version of 'progname' can't be found, just prints the
+    text out.
+
+    If 'progname' is None (or an empty string, or otherwise false), then
+    just print 'text'.
+    """
+    if progname:
+        path = os.environ.get('PATH', os.defpath)
+        path = path.split(os.pathsep)
+        for locn in path:
+            locn = normalise_dir(locn)
+            prog = os.path.join(locn, progname)
+            if os.path.exists(prog):
+                try:
+                    proc = subprocess.Popen([prog],
+                                            stdin=subprocess.PIPE,
+                                            stderr=subprocess.STDOUT)
+                    proc.communicate(text)
+                    return
+                except OSError:
+                    # We're not allowed to run it, or some other problem,
+                    # so look for another candidate
+                    continue
+    print text
 
 def run_cmd_for_output(cmd_array, env = None, useShell = False, verbose = True):
     """
@@ -564,7 +620,7 @@ def recursively_remove(a_dir):
 def copy_file_metadata(from_path, to_path):
     """
     Copy file metadata.
-    
+
     If 'to_path' is a link, then it tries to copy whatever it can from
     'from_path', treated as a link.
 
@@ -697,6 +753,7 @@ def split_path_left(in_path):
         ('', 'a/b/c')
         >>> split_path_left('///a/b/c')
         ('', 'a/b/c')
+
     """
 
     if not in_path:
@@ -706,7 +763,7 @@ def split_path_left(in_path):
     # This reduces paths like '///a//b/c' to '/a/b/c', but unfortunately
     # it leaves '//a/b/c' untouched
     in_path = os.path.normpath(in_path)
-    
+
     remains = in_path
     lst = [ ]
 
@@ -731,7 +788,7 @@ def split_path_left(in_path):
             rp = ""
 
     return (lst[0], rp)
-    
+
 
 def print_string_set(ss):
     """
@@ -747,13 +804,13 @@ def c_escape(v):
     """
     Escape sensitive characters in v.
     """
-    
+
     return re.sub(r'([\r\n"\'\\])', r'\\\1', v)
 
 def replace_root_name(base, replacement, filename):
     """
     Given a filename, a base and a replacement, replace base with replacement
-    at the start of filename.    
+    at the start of filename.
     """
     #print "replace_root_name %s, %s, %s"%(base,replacement, filename)
     base_len = len(base)
@@ -784,18 +841,18 @@ def parse_mode(in_mode):
 
 def parse_uid(builder, text_uid):
     """
-    .. todo::  One day, we should do something more intelligent than just assuming 
+    .. todo::  One day, we should do something more intelligent than just assuming
                your uid is numeric
     """
     return int(text_uid)
 
 def parse_gid(builder, text_gid):
     """
-    .. todo::  One day, we should do something more intelligent than just assuming 
+    .. todo::  One day, we should do something more intelligent than just assuming
                your gid is numeric
     """
     return int(text_gid)
-        
+
 
 def xml_elem_with_child(doc, elem_name, child_text):
     """
@@ -882,12 +939,12 @@ def copy_without(src, dst, without=None, object_exactly=True, preserve=False, fo
     _copy_without(src, dst, ignored_names, object_exactly, preserve, force)
 
 def copy_name_list_with_dirs(file_list, old_root, new_root,
-                             object_exactly = True, preserve = False): 
+                             object_exactly = True, preserve = False):
     """
 
     Given file_list, create file_list[new_root/old_root], creating
     any directories you need on the way.
-    
+
     file_list is a list of full path names.
     old_root is the old root directory
     new_root is where we want them copied
@@ -915,18 +972,18 @@ def rel_join(vroot, path):
     If vroot is none, we just return path.
     """
 
-    if (vroot is None): 
+    if (vroot is None):
         return path
 
-    if (len(path) == 0): 
+    if (len(path) == 0):
         return vroot
 
     if path[0] == '/':
         path = path[1:]
-    
+
     return os.path.join(vroot, path)
 
-    
+
 def split_domain(domain_name):
     """
     Given a domain name, return a tuple of the hierarchy of sub-domains.
@@ -951,6 +1008,7 @@ def split_domain(domain_name):
         Traceback (most recent call last):
         ...
         GiveUp: Domain name "a(b(c)(d))" has 'sibling' sub-domains
+
     """
 
     if '(' not in domain_name:
@@ -984,6 +1042,7 @@ def domain_subpath(domain_name):
         Traceback (most recent call last):
         ...
         GiveUp: Domain name "a(b(c)" has mis-matched parentheses
+
     """
     if domain_name is None:
         return ''
@@ -992,7 +1051,7 @@ def domain_subpath(domain_name):
     for thing in split_domain(domain_name):
         parts.append('domains')
         parts.append(thing)
-    
+
     return os.path.join(*parts)
 
 
@@ -1018,7 +1077,7 @@ def unescape_backslashes(str):
     """
     Replace every string '\\X' with X, as if you were a shell
     """
-    
+
     wasBackslash = False
     result = [ ]
     for i in str:
@@ -1047,7 +1106,7 @@ def unquote_list(lst):
     Given a list of objects, potentially enclosed in quotation marks or other
     shell weirdness, return a list of the actual objects.
     """
-    
+
     # OK. First, dispose of any enclosing quotes.
     result = [ ]
     lst = lst.strip()
@@ -1056,7 +1115,7 @@ def unquote_list(lst):
 
     initial = lst.split(' ')
     last = None
-    
+
     for i in initial:
         if (last is not None):
             last = last + i
@@ -1082,7 +1141,7 @@ def find_by_predicate(source_dir, accept_fn, links_are_symbolic = True):
     """
     Given a source directory and an acceptance function
      fn(source_base, file_name) -> result
-    
+
     Obtain a list of [result] if result is not None.
     """
 
@@ -1092,7 +1151,7 @@ def find_by_predicate(source_dir, accept_fn, links_are_symbolic = True):
     if (r is not None):
         result.append(r)
 
-    
+
     if (links_are_symbolic and os.path.islink(source_dir)):
         # Bah
         return result
@@ -1100,14 +1159,14 @@ def find_by_predicate(source_dir, accept_fn, links_are_symbolic = True):
     if (os.path.isdir(source_dir)):
         # We may need to recurse...
         names = os.listdir(source_dir)
-        
+
         for name in names:
             full_name = os.path.join(source_dir, name)
             r = accept_fn(full_name)
             if (r is not None):
                 result.append(r)
 
-            # os.listdir() doesn't return . and .. 
+            # os.listdir() doesn't return . and ..
             if (os.path.isdir(full_name)):
                 result.extend(find_by_predicate(full_name, accept_fn, links_are_symbolic))
 
@@ -1296,7 +1355,7 @@ class VersionStamp(Mapping):
             * repo - the actual repository of the checkout
             * rev - the revision of the checkout
             * rel - the relative directory of the checkout
-              (this needs explaning more!)
+              (the 'prefix' from the Repository instance)
             * dir - the directory in ``src`` where the checkout goes
             * domain - which domain the checkout is in, or None. This
               is the domain as given within '(' and ')' in a label, so
@@ -1308,7 +1367,8 @@ class VersionStamp(Mapping):
               (e.g., "master" in git).
 
           These are essentially the exact arguments that would have been given
-          to the VCS initialisation, or to ``muddled.version_control.vcs_handler_for()``
+          to the old VCS initialisation mechanism, and should be enough to
+          enable us to recreate a checkout exactly.
 
         * 'problems' is a list of problems in determining the stamp
           information. This will be of zero length if the stamp if accurate,
@@ -1324,31 +1384,31 @@ class VersionStamp(Mapping):
     So, for instance:
 
         >>> v = VersionStamp('Somewhere', 'src/builds/01.py', [],
-        ...                  [('fred', 'Somewhere', 3, None, 'fred', None, None),
-        ...                   ('jim',  'Elsewhere', 7, None, 'jim', None, 'sheila')],
+        ...                  [('fred', 'vcs+Somewhere', 3, None, 'fred', None, None, None),
+        ...                   ('jim',  'vcs+Elsewhere', 7, None, 'jim', None, 'sheila', None)],
         ...                  ['Oops, a problem'])
         >>> print v
         [ROOT]
-        description = src/builds/01.py
         repository = Somewhere
+        description = src/builds/01.py
         <BLANKLINE>
         [CHECKOUT fred]
         directory = fred
         name = fred
-        repository = Somewhere
+        repository = vcs+Somewhere
         revision = 3
         <BLANKLINE>
         [CHECKOUT jim]
         co_leaf = sheila
         directory = jim
         name = jim
-        repository = Elsewhere
+        repository = vcs+Elsewhere
         revision = 7
         <BLANKLINE>
         [PROBLEMS]
         problem1 = Oops, a problem
         >>> v['jim']
-        CheckoutTuple(name='jim', repo='Elsewhere', rev=7, rel=None, dir='jim', domain=None, co_leaf='sheila', branch=None)
+        CheckoutTuple(name='jim', repo='vcs+Elsewhere', rev=7, rel=None, dir='jim', domain=None, co_leaf='sheila', branch=None)
 
     Note that this is *not* intended to be a mutable class, so please do not
     change any of its internals directly. In particular, if you *did* change
@@ -1560,7 +1620,7 @@ class VersionStamp(Mapping):
             try:
                 label = rule.target
                 try:
-                    vcs = rule.obj.vcs
+                    vcs = rule.action.vcs
                 except AttributeError:
                     stamp.problems.append("Rule for label '%s' has no VCS"%(label))
                     if not quiet:
@@ -1582,7 +1642,36 @@ class VersionStamp(Mapping):
                     rev = "HEAD"
                 else:
                     rev = vcs.revision_to_checkout(force=force, verbose=True)
-                revisions[label] = (vcs.repo_as_given, vcs.checkout_dir, rev, vcs.relative, vcs.checkout_leaf, vcs.branch)
+
+                # Our tuple is made up of:
+                # 
+                # - the repository base URL (nb: this is the VCS + URL form)
+                # - the directory within src/ that contains our checkout
+                # - the revision checked out
+                # - the repository path relative to the base URL, including the
+                #   leaf name
+                # - the checkout leaf directory (if not the same as the checkout name)
+                # - the branch checked out
+                #
+                # (this is an attempt to reconstruct what previous versions of
+                # muddle, before the use of Repository, would have done.)
+                #
+                # XXX For the new Repository mechanism, we also need to add:
+                #
+                # - inner_path
+                # - prefix_as_is
+                # - suffix
+                # - handler
+                if vcs.repo.prefix:
+                    relative = os.path.join(vcs.repo.prefix, vcs.repo.repo_name)
+                else:
+                    relative = vcs.repo.repo_name
+                revisions[label] = ('%s+%s'%(vcs.repo.vcs, vcs.repo.base_url),
+                                    vcs.checkout_dir,
+                                    rev,
+                                    relative,
+                                    vcs.checkout_leaf,
+                                    vcs.repo.branch)
             except GiveUp as exc:
                 print exc
                 stamp.problems.append(str(exc))
@@ -1792,6 +1881,11 @@ class Directory(object):
             print 'My home directory contains'
             print ' ',' '.join(os.listdir('.'))
 
+    or::
+
+        with Directory('fred') as d:
+            print 'In directory', d.where
+
     If 'stay_on_error' is true, then the directory will not be left ("popd"
     will not be done) if an exception occurs in its 'with' clause.
 
@@ -1801,22 +1895,52 @@ class Directory(object):
     If 'show_popd' is true, then a message will be printed out showing the
     directory that is being returned to. An extra "wrapper" message for any
     exception being propagated out will also be shown.
+
+    If 'set_PWD' is true, then set the os.environ['PWD'] to the directory
+    that is being "cd"ed into. This emulates the behaviour of "cd" in bash.
+    Checking the value of PWD is often used to find out what directory the
+    user thinks they are in, especially in the presence of soft links in
+    directory trees.
     """
-    def __init__(self, where, stay_on_error=False, show_pushd=True, show_popd=False):
+    def __init__(self, where, stay_on_error=False, show_pushd=True,
+                 show_popd=False, set_PWD=True):
         self.start = normalise_dir(os.getcwd())
         self.where = normalise_dir(where)
         self.close_on_error = not stay_on_error
         self.show_pushd = show_pushd
         self.show_popd = show_popd
+        self.set_PWD = set_PWD
         try:
             os.chdir(self.where)
         except OSError as e:
             raise GiveUp('Cannot change to directory %s: %s\n'%(where, e))
+
+        if set_PWD:
+            if 'PWD' in os.environ:
+                self.got_old_PWD = True
+                self.old_PWD = os.environ['PWD']
+            else:
+                self.got_old_PWD = False
+                self.old_PWD = None
+            os.environ['PWD'] = self.where
+
         if show_pushd:
             print '++ pushd to %s'%self.where
 
+    def join(self, *args):
+        """Return os.path.join(self.where, *args).
+        """
+        return os.path.join(self.where, *args)
+
     def close(self):
         os.chdir(self.start)
+
+        if self.set_PWD:
+            if self.got_old_PWD:
+                os.environ['PWD'] = self.old_PWD
+            else:
+                del os.environ['PWD']
+
         if self.show_popd:
             print '++ popd to  %s'%self.start
 
@@ -1846,7 +1970,7 @@ class NewDirectory(Directory):
     will be raised.
 
     If 'where' is None, then tempfile.mkdtemp() will be used to create the
-    directory, and 'self.where' will be set to its name.
+    directory, and 'self.where' will be set to its path.
 
     If 'stay_on_error' is True, then the directory will not be left ("popd"
     will not be done) if an exception occurs in its 'with' clause.
@@ -1858,11 +1982,17 @@ class NewDirectory(Directory):
     directory that is being returned to. An extra "wrapper" message for any
     exception being propagated out will also be shown.
 
+    If 'set_PWD' is true, then set the os.environ['PWD'] to the directory
+    that is being "cd"ed into. This emulates the behaviour of "cd" in bash.
+    Checking the value of PWD is often used to find out what directory the
+    user thinks they are in, especially in the presence of soft links in
+    directory trees.
+
     If 'show_dirops' is true, then a message will be printed out showing the
     'mkdir' command used to create the new directory.
     """
-    def __init__(self, where, stay_on_error=False,
-                 show_pushd=True, show_popd=False, show_dirops=True):
+    def __init__(self, where, stay_on_error=False, show_pushd=True,
+                 show_popd=False, set_PWD=True, show_dirops=True):
         self.show_dirops = show_dirops
         if where is None:
             where = tempfile.mkdtemp()
@@ -1877,7 +2007,8 @@ class NewDirectory(Directory):
                 # The extra spaces are to line up with 'pushd to'
                 print '++ mkdir    %s'%where
             os.makedirs(where)
-        super(NewDirectory, self).__init__(where, stay_on_error, show_pushd, show_popd)
+        super(NewDirectory, self).__init__(where, stay_on_error, show_pushd,
+                                           show_popd, set_PWD)
 
 class TransientDirectory(NewDirectory):
     """A pushd/popd directory that gets created first and deleted afterwards
@@ -1886,7 +2017,7 @@ class TransientDirectory(NewDirectory):
     will be raised.
 
     If 'where' is None, then tempfile.mkdtemp() will be used to create the
-    directory, and 'self.where' will be set to its name.
+    directory, and 'self.where' will be set to its path.
 
     If 'stay_on_error' is True, then the directory will not be left ("popd"
     will not be done) if an exception occurs in its 'with' clause.
@@ -1901,15 +2032,22 @@ class TransientDirectory(NewDirectory):
     directory that is being returned to. An extra "wrapper" message for any
     exception being propagated out will also be shown.
 
+    If 'set_PWD' is true, then set the os.environ['PWD'] to the directory
+    that is being "cd"ed into. This emulates the behaviour of "cd" in bash.
+    Checking the value of PWD is often used to find out what directory the
+    user thinks they are in, especially in the presence of soft links in
+    directory trees.
+
     If 'show_dirops' is true, then a message will be printed out showing the
     'mkdir' command used to create and the 'rmtree' command used to delete the
     transient directory.
     """
     def __init__(self, where=None, stay_on_error=False, keep_on_error=False,
-                 show_pushd=True, show_popd=False, show_dirops=True):
+                 show_pushd=True, show_popd=False, set_PWD=True, show_dirops=True):
         self.rmtree_on_error = not keep_on_error
         super(TransientDirectory, self).__init__(where, stay_on_error,
-                                                 show_pushd, show_popd, show_dirops)
+                                                 show_pushd, show_popd,
+                                                 set_PWD, show_dirops)
 
     def close(self, delete_tree):
         # Don't delete the tree unless asked to

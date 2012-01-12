@@ -1,16 +1,18 @@
 """
-File deployment. This deployment just copies files into a 
-role subdirectory in the /deployed directory, applying 
+File deployment. This deployment just copies files into a
+role subdirectory in the /deployed directory, applying
 appropriate instructions.
 """
 
 import os
-import muddled.pkg as pkg
+
 import muddled.env_store
 import muddled.depend as depend
 import muddled.utils as utils
 import muddled.filespec as filespec
 import muddled.deployment as deployment
+
+from muddled.depend import Action
 
 class FileInstructionImplementor:
     def apply(self, builder, instruction, role, path):
@@ -20,11 +22,11 @@ class FileInstructionImplementor:
         pass
 
 
-class FileDeploymentBuilder(pkg.Action):
+class FileDeploymentBuilder(Action):
     """
     Builds the specified file deployment
     """
-    
+
     def __init__(self, roles, target_dir):
         """
         role is actually a list of (role, domain) pairs.
@@ -59,21 +61,21 @@ class FileDeploymentBuilder(pkg.Action):
     def attach_env(self, builder):
         """
         Attaches an environment containing:
-        
+
           MUDDLE_TARGET_LOCATION - the location in the target filesystem where
           this deployment will end up.
 
         to every package label in this role.
         """
-        
+
         for role, domain in self.roles:
             lbl = depend.Label(utils.LabelType.Package,
                                "*",
                                role,
-                               "*", 
+                               "*",
                                domain = domain)
             env = builder.invocation.get_environment_for(lbl)
-        
+
             env.set_type("MUDDLE_TARGET_LOCATION", muddled.env_store.EnvType.SimpleValue)
             env.set("MUDDLE_TARGET_LOCATION", self.target_dir)
 
@@ -89,7 +91,7 @@ class FileDeploymentBuilder(pkg.Action):
 
 
         if (label.tag == utils.LabelTag.Deployed):
-            # We want to deploy 
+            # We want to deploy
             self.deploy(builder, label)
         elif (label.tag == utils.LabelTag.InstructionsApplied):
             self.apply_instructions(builder, label)
@@ -99,7 +101,7 @@ class FileDeploymentBuilder(pkg.Action):
     def deploy(self, builder, label):
         deploy_dir = builder.invocation.deploy_path(label.name, domain = label.domain)
         # First off, delete the target directory
-        
+
         utils.recursively_remove(deploy_dir)
         utils.ensure_dir(deploy_dir)
 
@@ -110,10 +112,10 @@ class FileDeploymentBuilder(pkg.Action):
                 print "> %s: Deploying role %s .. "%(label.name, role)
             install_dir = builder.invocation.role_install_path(role, domain = domain)
             utils.recursively_copy(install_dir, deploy_dir, object_exactly=True)
-        
+
 
         # This is somewhat tricky as it potentially requires privilege elevation.
-        # Privilege elevation is done by hooking back into ourselves via a 
+        # Privilege elevation is done by hooking back into ourselves via a
         # build command to a label we registered earlier.
         #
         # Note that you cannot split instruction application - once the first
@@ -131,7 +133,7 @@ class FileDeploymentBuilder(pkg.Action):
                                domain = domain)
 
             install_dir = builder.invocation.role_install_path(role, domain = label.domain)
-        
+
             instr_list = builder.load_instructions(lbl)
 
             app_dict = get_instruction_dict()
@@ -146,24 +148,24 @@ class FileDeploymentBuilder(pkg.Action):
                     # Deliberately do not break - we want to check everything for
                     # validity before acquiring privilege.
                     else:
-                        raise utils.GiveUp("File deployments don't know about " + 
-                                            "instruction %s"%iname + 
+                        raise utils.GiveUp("File deployments don't know about " +
+                                            "instruction %s"%iname +
                                             " found in label %s (filename %s)"%(lbl, fn))
 
 
         print "Rerunning muddle to apply instructions .. "
-        
+
         permissions_label = depend.Label(utils.LabelType.Deployment,
-                                         label.name, label.role,
+                                         label.name, None, # XXX label.role,
                                          utils.LabelTag.InstructionsApplied,
                                          domain = label.domain)
 
         if need_root:
             print "I need root to do this - sorry! - running sudo .."
-            utils.run_cmd("sudo %s buildlabel '%s'"%(builder.muddle_binary, 
+            utils.run_cmd("sudo %s buildlabel '%s'"%(builder.muddle_binary,
                                                      permissions_label))
         else:
-            utils.run_cmd("%s buildlabel '%s'"%(builder.muddle_binary, 
+            utils.run_cmd("%s buildlabel '%s'"%(builder.muddle_binary,
                                                 permissions_label))
 
     def apply_instructions(self, builder, label):
@@ -173,23 +175,24 @@ class FileDeploymentBuilder(pkg.Action):
             lbl = depend.Label(utils.LabelType.Package,
                                "*",
                                role,
-                               "*", 
+                               "*",
                                domain = domain)
 
             deploy_dir = builder.invocation.deploy_path(label.name, domain = label.domain)
-        
+
             instr_list = builder.load_instructions(lbl)
             for (lbl, fn, instrs) in instr_list:
-                print "Applying instructions for role %s, label %s .. "%(role, lbl)
+                print "File deployment: Applying instructions for role %s, label %s .. "%(role, lbl)
                 for instr in instrs:
                     # Obey this instruction.
                     iname = instr.outer_elem_name()
+                    print 'Instruction:', iname
                     if (iname in app_dict):
                         app_dict[iname].apply(builder, instr, role, deploy_dir)
                     else:
-                        raise utils.GiveUp("File deployments don't know about instruction %s"%iname + 
+                        raise utils.GiveUp("File deployments don't know about instruction %s"%iname +
                                             " found in label %s (filename %s)"%(lbl, fn))
-        
+
 
 # Application routines.
 class FIApplyChmod(FileInstructionImplementor):
@@ -213,7 +216,7 @@ class FIApplyChown(FileInstructionImplementor):
         # even if it is a symbolic link (the default is --reference,
         # which would only apply the chown to the file the symbolic
         # link references)
-        
+
         #print "path = %s"%path
         dp = filespec.FSFileSpecDataProvider(path)
         files = dp.abs_match(instr.filespec)
@@ -226,7 +229,7 @@ class FIApplyChown(FileInstructionImplementor):
 
         for f in files:
             utils.run_cmd("%s \"%s\""%(cmd, f))
-            
+
     def needs_privilege(self, builder, instr, role, path):
         # Yep
         return True
@@ -244,7 +247,7 @@ class FIApplyMknod(FileInstructionImplementor):
         abs_file = os.path.join(path, instr.file_name)
         utils.run_cmd("mknod %s %s %s %s"%(
                 abs_file,
-                mknod_type, 
+                mknod_type,
                 instr.major,
                 instr.minor))
         utils.run_cmd("chown %s:%s %s"%(
@@ -259,7 +262,7 @@ class FIApplyMknod(FileInstructionImplementor):
 # Register the relevant instruction providers.
 def get_instruction_dict():
     """
-    Return a dictionary mapping the names of instructions to the 
+    Return a dictionary mapping the names of instructions to the
     classes that implement them.
     """
     app_dict = { }
@@ -277,12 +280,12 @@ def deploy(builder, target_dir, name, roles):
     This is a convenience wrapper around deploy_with_domains().
 
     'roles' is a sequence of role names. The deployment will take the roles
-    specified, and build them into a deployment at deploy/[name].  
+    specified, and build them into a deployment at deploy/[name].
 
     More specifically, a rule will be created for label:
 
       "deployment:<name>/deployed"
-      
+
     which depends on "package:\*{<role}/postinstalled" (in the builder's default
     domain) for each <role> in 'roles'.
 
@@ -308,12 +311,12 @@ def deploy_with_domains(builder, target_dir, name, role_domains):
 
     'role_domains' is a sequence of (role, domain) pairs. The deployment will
     take the roles and domains specified, and build them into a deployment at
-    deploy/[name].  
+    deploy/[name].
 
     More specifically, a rule will be created for label:
 
       "deployment:<name>/deployed"
-      
+
     which depends on "package:(<domain>)*{<role}/postinstalled" for each
     (<role>, <domain>) pair in 'role_domains'.
 
@@ -328,7 +331,7 @@ def deploy_with_domains(builder, target_dir, name, role_domains):
 
     the_action = FileDeploymentBuilder(role_domains, target_dir)
 
-    dep_label = depend.Label(utils.LabelType.Deployment, name, None, 
+    dep_label = depend.Label(utils.LabelType.Deployment, name, None,
                              utils.LabelTag.Deployed)
 
     iapp_label = depend.Label(utils.LabelType.Deployment, name, None,
@@ -345,9 +348,9 @@ def deploy_with_domains(builder, target_dir, name, role_domains):
                                   domain = domain)
         deployment_rule.add(role_label)
 
-    # The instructionsapplied label is standalone .. 
+    # The instructionsapplied label is standalone ..
     app_rule = depend.Rule(iapp_label, the_action)
-    
+
     # Now add 'em ..
     builder.invocation.ruleset.add(deployment_rule)
     builder.invocation.ruleset.add(app_rule)
@@ -364,10 +367,10 @@ def deploy_with_domains(builder, target_dir, name, role_domains):
 
 # End file
 
-       
-        
 
-        
+
+
+
 
 
 

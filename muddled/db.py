@@ -1,42 +1,48 @@
 """
-Contains code which maintains the muddle database, 
+Contains code which maintains the muddle database,
 held in root/.muddle
 """
 
-import utils
 import os
 import xml.dom
 import xml.dom.minidom
 import traceback
-import depend
 
-from utils import domain_subpath
-from version_control import split_vcs_url
+import muddled.utils as utils
+import muddled.depend as depend
+
+from muddled.utils import domain_subpath
+from muddled.version_control import split_vcs_url
 
 class Database(object):
     """
     Represents the muddle database
 
-    Since we expect the user (and code) to edit these files 
+    Since we expect the user (and code) to edit these files
     frequently, we deliberately do not cache their values.
 
     """
-    
+
     def __init__(self, root_path):
         """
         Initialise a muddle database with the given root_path.
-        
+
+        Useful internal values include:
+
         * root_path          - The path to the root of the build tree.
         * local_labels       - Transient labels which are asserted.
         * checkout_locations - Maps checkout_label to the directory the
           checkout is in, relative to src/ - if there's no mapping, we believe
           it's directly in src.
+        * checkout_repositories - Maps checkout_label to a Repository instance,
+          representing where it is checked out from
 
         NB: the existence of an entry in the checkout_locations dictionary
         does not necessarily imply that such a checkout exists. It may, for
         instance, have gone away during a ``builder.unify()`` operation.
         Thus it is not safe to try to deduce all of the checkout labels
-        from the keys to this dictionary.
+        from the keys to this dictionary. And the same goes for the
+        checkout_repositories dictionary.
         """
         self.root_path = root_path
         utils.ensure_dir(os.path.join(self.root_path, ".muddle"))
@@ -45,6 +51,7 @@ class Database(object):
         self.versions_repo = PathFile(self.db_file_name("VersionsRepository"))
         self.role_env = { }
         self.checkout_locations = { }
+        self.checkout_repositories = { }
 
         self.local_tags = set()
 
@@ -98,21 +105,35 @@ class Database(object):
 
         This is mainly checkout locations.
         """
+
+        other_db = other_builder.invocation.db
+
+        # Both checkout_xxx dictionaries *should* have identical sets of keys,
+        # but just in case...
+        keys = set()
+        keys.update(other_db.checkout_locations.keys())
+        keys.update(other_db.checkout_repositories.keys())
+
+        # We really only want to transform the key labels once for both
+        # dictionaries
+        new_labels = {}
+        for co_label in keys:
+            new_co_label = self.normalise_checkout_label(co_label)
+            new_co_label._mark_unswept()
+            new_co_label._change_domain(other_domain_name)
+            new_labels[co_label] = new_co_label
+
         #print 'include domain:', other_domain_name
-        for (co_label,co_dir) in other_builder.invocation.db.checkout_locations.items():
+        for co_label, co_dir in other_db.checkout_locations.items():
             #print "Including %s -> %s -- %s"%(co_label,co_dir, other_domain_name)
-
-            new_label = self.normalise_checkout_label(co_label)
-            new_label._mark_unswept()
-            new_label._change_domain(other_domain_name)
-
-            new_dir = os.path.join(utils.domain_subpath(other_domain_name),
-                                   co_dir)
-
+            new_label = new_labels[co_label]
+            new_dir = os.path.join(utils.domain_subpath(other_domain_name), co_dir)
             #print "          %s -> %s"%(new_label, new_dir)
-
             self.checkout_locations[new_label] = new_dir
 
+        for co_label, repo in other_db.checkout_repositories.items():
+            new_label = new_labels[co_label]
+            self.checkout_repositories[new_label] = repo
 
     def set_domain_marker(self, domain_name):
         """
@@ -122,7 +143,6 @@ class Database(object):
         which acts as a useful flag that we *are* a (sub)domain.
         """
         utils.mark_as_domain(self.root_path, domain_name)
-
 
     def normalise_checkout_label(self, label):
         """
@@ -149,7 +169,6 @@ class Database(object):
                            domain=label.domain)
         return new
 
-
     def set_checkout_path(self, checkout_label, dir):
         assert checkout_label.type == utils.LabelType.Checkout
         key = self.normalise_checkout_label(checkout_label)
@@ -158,7 +177,6 @@ class Database(object):
 	#print '... dir',dir
 
         self.checkout_locations[key] = os.path.join('src', dir)
-
 
     def dump_checkout_paths(self):
         print "> Checkout paths .. "
@@ -196,6 +214,45 @@ class Database(object):
 
         return os.path.join(root, rel_dir)
 
+    def set_checkout_repo(self, checkout_label, repo):
+        assert checkout_label.type == utils.LabelType.Checkout
+        key = self.normalise_checkout_label(checkout_label)
+        self.checkout_repositories[key] = repo
+
+    def dump_checkout_repos(self, just_url=False):
+        """
+        Report on the repositories associated with our checkouts.
+
+        If 'just_url' is true, then report the repository URL, otherwise
+        report the full Repository definition (which shows branch and revision
+        as well).
+        """
+        print "> Checkout repositories .. "
+        keys = self.checkout_repositories.keys()
+        max = 0
+        for label in keys:
+            length = len(str(label))
+            if length > max:
+                max = length
+        keys.sort()
+        if just_url:
+            for label in keys:
+                print "%-*s -> %s"%(max, label, self.checkout_repositories[label])
+        else:
+            for label in keys:
+                print "%-*s -> %r"%(max, label, self.checkout_repositories[label])
+
+    def get_checkout_repo(self, checkout_label):
+        """
+        Returns the Repository instance for this checkout label
+        """
+        assert checkout_label.type == utils.LabelType.Checkout
+        key = self.normalise_checkout_label(checkout_label)
+        try:
+            return self.checkout_repositories[key]
+        except KeyError:
+            raise utils.GiveUp('There is no checkout path registered for label %s'%checkout_label)
+
     def build_desc_file_name(self):
         """
         Return the filename of the build description.
@@ -214,23 +271,23 @@ class Database(object):
         Set the name of a file containing instructions for the deployment
         mechanism.
 
-        * label - 
-        * instr_file - The InstructionFile object to set. 
+        * label -
+        * instr_file - The InstructionFile object to set.
 
         If instr_file is None, we unset the instructions.
-        
+
         """
         file_name = self.instruction_file_name(label)
 
         if instr_file is None:
             if os.path.exists(file_name):
-                os.unlink(file_name)
+                os.remove(file_name)
         else:
             instr_file.save_as(file_name)
 
     def clear_all_instructions(self, domain=None):
         """
-        Clear all instructions - essentially only ever called from 
+        Clear all instructions - essentially only ever called from
         the command line.
         """
         os.removedirs(self.instruction_file_dir(domain))
@@ -238,12 +295,12 @@ class Database(object):
     def scan_instructions(self, lbl):
         """
         Returns a list of pairs (label, filename) indicating the
-        list of instruction files matching lbl. It's up to you to 
+        list of instruction files matching lbl. It's up to you to
         load and sort them (but load_instructions() will help
         with that).
         """
         the_instruction_files = os.walk(self.instruction_file_dir(lbl.domain))
- 
+
         return_list = [ ]
 
         for (path, dirname, files) in the_instruction_files:
@@ -251,18 +308,18 @@ class Database(object):
                 if (f.endswith(".xml")):
                     # Yep
                     # This was of the form 'file/name/role.xml' or _default.xml
-                    # if there was no role, so .. 
+                    # if there was no role, so ..
                     role = f[:-4]
 
                     # dirname is only filled in for directories (?!). We actually want
-                    # the last element of path .. 
+                    # the last element of path ..
                     pkg_name = os.path.basename(path)
 
 
                     #print "Check instructions role = %s name = %s f = %s p = %s"%(role, pkg_name, f, path)
                     if (role == "_default"):
                         role = None
-                        
+
                     test_lbl = depend.Label(utils.LabelType.Package, pkg_name, role,
                                             utils.LabelTag.Temporary,
                                             domain = lbl.domain)
@@ -273,7 +330,7 @@ class Database(object):
 
         return return_list
 
-        
+
     def instruction_file_dir(self, domain=None):
         """
         Return the name of the directory in which we keep the instruction files
@@ -283,33 +340,33 @@ class Database(object):
         else:
             root = self.root_path
         return os.path.join(root, ".muddle", "instructions")
-        
+
     def instruction_file_name(self, label):
         """
         If this label were to be associated with a database file containing
-        the (absolute) filename of an instruction file to use for this 
+        the (absolute) filename of an instruction file to use for this
         package and role, what would it be?
         """
         if (label.type != utils.LabelType.Package):
             raise utils.MuddleBug("Attempt to retrieve instruction file "
                               "name for non-package tag %s"%(str(label)))
 
-        # Otherwise .. 
+        # Otherwise ..
         if label.role is None:
             leaf = "_default.xml"
         else:
             leaf = "%s.xml"%label.role
-            
+
         dir = os.path.join(self.instruction_file_dir(domain=label.domain),
                            label.name)
         utils.ensure_dir(dir)
         return os.path.join(dir, leaf)
-            
-        
+
+
     def tag_file_name(self, label):
         """
-        If this file exists, the given label is asserted. 
-        
+        If this file exists, the given label is asserted.
+
         To make life a bit easier, we group labels.
         """
 
@@ -323,7 +380,7 @@ class Database(object):
         else:
             leaf = "%s-%s"%(label.role, label.tag)
 
-        return os.path.join(root, 
+        return os.path.join(root,
                             ".muddle",
                             "tags",
                             label.type,
@@ -348,7 +405,7 @@ class Database(object):
 
         if (label.transient):
             self.local_tags.add(label)
-        else:        
+        else:
             file_name = self.tag_file_name(label)
             (dir,name) = os.path.split(file_name)
             utils.ensure_dir(dir)
@@ -356,13 +413,13 @@ class Database(object):
             f.write(utils.iso_time())
             f.write("\n")
             f.close()
-        
+
     def clear_tag(self, label):
         if (label.transient):
             self.local_tags.discard(label)
         else:
             try:
-                os.unlink(self.tag_file_name(label))
+                os.remove(self.tag_file_name(label))
             except:
                 pass
 
@@ -379,10 +436,10 @@ class Database(object):
 
 
 class PathFile(object):
-    """ 
+    """
     Manipulates a file containing a single path name.
     """
-    
+
     def __init__(self, file_name):
         """
         Create a PathFile object with the given filename.
@@ -409,7 +466,7 @@ class PathFile(object):
         """
         self.value_valid = True
         self.value = val
-        
+
     def from_disc(self):
         """
         Retrieve the current value of the PathFile, directly from disc.
@@ -422,7 +479,7 @@ class PathFile(object):
             f = open(self.file_name, "r")
             val = f.readline()
             f.close()
-            
+
             # Remove the trailing '\n' if it exists.
             if val[-1] == '\n':
                 val = val[:-1]
@@ -441,14 +498,14 @@ class PathFile(object):
         """
         Write the value of the PathFile to disc.
         """
-        
+
         if not self.value_valid:
             return
- 
+
         if (self.value is None):
             if (os.path.exists(self.file_name)):
                 try:
-                    os.unlink(self.file_name)
+                    os.remove(self.file_name)
                 except Exception:
                     pass
         else:
@@ -461,10 +518,10 @@ class PathFile(object):
 class Instruction(object):
     """
     Something stored in an InstructionFile.
-    
+
     Subtypes of this type are mainly defined in the instr.py module.
     """
-    
+
     def to_xml(self, doc):
         """
         Given an XML document, return a node which represents this instruction
@@ -486,23 +543,23 @@ class Instruction(object):
 
     def equal(self, other):
         """
-        Return True iff self and other represent the same instruction. 
+        Return True iff self and other represent the same instruction.
 
         Not __eq__() because we want the python identity to be object identity
         as always.
         """
-        if (self.__class__ == other.__class__): 
+        if (self.__class__ == other.__class__):
             return True
         else:
             return False
-    
-        
+
+
 
 class InstructionFactory(object):
     """
     An instruction factory.
     """
-    
+
     def from_xml(self, xmlNode):
         """
         Given an xmlNode, manufacture an Instruction from it or return
@@ -517,7 +574,7 @@ class InstructionFile(object):
     An XML file containing a sequence of instructions for deployments.
     Each instruction is a subtype of Instruction.
     """
-    
+
     def __init__(self, file_name, factory):
         """
         file_name       Where this file is stored
@@ -526,7 +583,7 @@ class InstructionFile(object):
         self.file_name = file_name
         self.values = None
         self.factory = factory
-        
+
 
     def __iter__(self):
         """
@@ -534,7 +591,7 @@ class InstructionFile(object):
         """
         if (self.values is None):
             self.read()
-        
+
         return self.values.__iter__()
 
     def save_as(self, file_name):
@@ -557,14 +614,14 @@ class InstructionFile(object):
             self.read()
 
         self.values.append(instr)
-    
+
     def clear(self):
         self.values = [ ]
 
     def read(self):
         """
         Read our instructions from disc. The XML file in question looks like::
-        
+
             <?xml version="1.0"?>
             <instructions priority=100>
              <instr-name>
@@ -572,14 +629,14 @@ class InstructionFile(object):
              </instr-name>
             </instructions>
 
-        The priority is used by deployments when deciding in what order to 
+        The priority is used by deployments when deciding in what order to
         apply instructions. Higher priorities get applied last (which is the
         logical way around, if you think about it).
         """
         self.values = [ ]
 
         if (not os.path.exists(self.file_name)):
-            return 
+            return
 
         try:
             top = xml.dom.minidom.parse(self.file_name)
@@ -638,7 +695,7 @@ class InstructionFile(object):
             impl = xml.dom.minidom.getDOMImplementation()
             new_doc = impl.createDocument(None, "instructions", None)
             top = new_doc.documentElement
-            
+
             for i in self.values:
                 elem = i.to_xml(new_doc)
                 top.appendChild(new_doc.createTextNode("\n"))
@@ -656,7 +713,7 @@ class InstructionFile(object):
         Convert to a string. Our preferred string representation is XML.
         """
         return self.get_xml()
-        
+
 
     def equal(self, other):
         """
@@ -676,16 +733,16 @@ class InstructionFile(object):
                 return False
 
         return True
-                    
-                                          
 
-    
+
+
+
 
 class TagFile(object):
     """
     An XML file containing a set of tags (statements).
     """
-    
+
     def __init__(self, file_name):
         self.file_name = file_name
         self.value = None
@@ -706,7 +763,7 @@ class TagFile(object):
         """
         if (self.value is None):
             self.read()
-            
+
         self.value += tag_value
 
     def clear(self, tag_value):
@@ -715,7 +772,7 @@ class TagFile(object):
         """
         if (self.value is None):
             self.read()
-            
+
         self.value -= tag_value
 
     def erase(self):
@@ -727,7 +784,7 @@ class TagFile(object):
     def read(self):
         """
         Read data in from the disc.
-        
+
         The XML file in question looks a bit like::
 
             <?xml version="1.0"?>
@@ -741,13 +798,13 @@ class TagFile(object):
 
         try:
             top = xml.dom.minidom.parse(self.file_name)
-            
+
             # Get the root element
             doc = top.documentElement()
-            
+
             for i in doc.childNodes:
                 if (i.nodeType == i.ELEMENT_NODE):
-                    new_value += i.tagName            
+                    new_value += i.tagName
         except:
             pass
 
@@ -757,20 +814,20 @@ class TagFile(object):
         """
         Commit an XML tagfile back to a file.
         """
-        
+
         if (self.value is None):
             return
 
-        
+
         try:
             impl = xml.dom.minidom.getDOMImplementation()
             new_doc = impl.createDocument(None, "tags", None)
             top = new_doc.documentElement
-            
+
             for i in self.value:
                 this_elem = new_doc.createElement(i)
                 top.appendChild(this_elem)
-                
+
             f = open(self.file_name, "w")
             f.write(top.toxml())
             f.close()
@@ -791,7 +848,7 @@ def load_instruction_helper(x,y):
         return cmp(f1, f2)
     else:
         return rv
-    
+
 
 def load_instructions(in_instructions, a_factory):
     """
@@ -800,12 +857,12 @@ def load_instructions(in_instructions, a_factory):
     that the sort is stable across fs operations), and return a list of triples
     (label,  filename, instructionfile).
 
-    * in_instructions - 
+    * in_instructions -
     * a_factory - An instruction factory - typically instr.factory.
 
     Returns a list of triples (label, filename, instructionfile object)
     """
-    
+
     # First off, just load everything ..
     loaded = [ ]
 

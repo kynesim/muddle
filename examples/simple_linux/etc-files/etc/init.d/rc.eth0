@@ -7,8 +7,8 @@ ACTION="$1"
 case "$ACTION" in
      start)
         # -b -> background, don't wait for link to come up (we don't care)
-	# -t 0 -> Never time out.   
-	echo Starting dhcpcd .. 
+	# -t 0 -> Never time out.
+	echo Starting dhcpcd ..
 	dhcpcd -b eth0 &
 	;;
      stop)
@@ -27,5 +27,5 @@ exit 0
 
 # End file.
 
-	
-   
+
+

@@ -5,8 +5,7 @@ Dependency sets and dependency management
 import re
 import copy
 
-import pkg
-import utils
+import muddled.utils as utils
 
 class Label(object):
     """
@@ -111,6 +110,24 @@ class Label(object):
                                       label_part,label_part),
                                  re.VERBOSE)
 
+    # In fragments, we allow want to allow ()<name> to mean "in the toplevel
+    # domain", so that we can override the default domain (which is presumably
+    # implied by location in the build tree)
+    fragment_re = re.compile(r"""
+                             ((?P<type>%s) :)?          # optional <type> and colon
+                             (\(
+                                 (?P<domain>%s)         # <domain>
+                             \))?                       # in optional ()
+                             (?P<name>%s)               # <name>
+                             (\{
+                                (?P<role>%s)?           # optional <role>
+                              \})?                      # in optional {}
+                              (/ (?P<tag>%s))?          # optional slash and <tag>
+                              $                         # and nothing more
+                              """%(label_part, domain_part, label_part,
+                                   label_part, label_part),
+                             re.VERBOSE)
+
     def __init__(self, type, name, role=None, tag='*', transient=False,
                  system=False, domain=None):
         """
@@ -166,7 +183,7 @@ class Label(object):
         Note that label flags (including specifically 'transient' and 'system')
         are not equality-preserving properties of a label - two labels are not
         made unequal just because they have different flags.
-        
+
         (In fact, no two labels should ever have different values for
         transience, for obvious reasons, and the system flag is intended only
         to limit over-reporting of information.)
@@ -197,6 +214,7 @@ class Label(object):
             Label('package', 'busybox', role='rootfs', tag='installed', domain='arm(helloworld)')
             >>> str(_)
             'package:(arm(helloworld))busybox{rootfs}/installed'
+
         """
 
         # Slightly icky, but it's a pain if an illegal label is allowed
@@ -245,7 +263,7 @@ class Label(object):
     def copy_and_unify_with(self, target):
         """
         Return a copy of ourserlves, unified with the target.
-    
+
         All the non-wildcard parts of 'target' are copied, to overwrite
         the equivalent parts of the new label.
         """
@@ -282,6 +300,15 @@ class Label(object):
         cp.transient = transient
         return cp
 
+    def copy_with_role(self, new_role):
+        """
+        Return a copy of self, with the role changed to new_role.
+        """
+        Label._check_part('role', new_role)
+        cp = self.copy()
+        cp._role = new_role
+        return cp
+
     def copy_with_domain(self, new_domain):
         """
         Return a copy of self, with the domain changed to new_domain.
@@ -303,6 +330,15 @@ class Label(object):
             return False
 
         return True
+
+    def is_wildcard(self):
+        """
+        Return True iff this label contains at least one wildcard.
+
+        This is the dual of is_definite(), but is provided so whichever seems
+        more appropriate to the task at hand can be chosen.
+        """
+        return not self.is_definite()
 
     def unifies(self, other):
         """
@@ -526,6 +562,7 @@ class Label(object):
             >>> l._mark_unswept()
             >>> print l
             a:b{c}/d[D]
+
         """
         self._unswept = True
 
@@ -571,6 +608,7 @@ class Label(object):
             >>> l._change_domain('f')
             >>> print l
             a:(f(e))b{c}/d
+
         """
         if self._unswept:
             if verbose: print 'sweep: %s -> '%str(self),
@@ -631,6 +669,7 @@ class Label(object):
             Traceback (most recent call last):
             ...
             GiveUp: Label domain '(fred((jim(bob))))' starts with zero length domain, '((jim(bob))', i.e. '(('
+
         """
         m = Label.domain_part_re.match(value)
         if m is None or m.end() != len(value):
@@ -709,6 +748,7 @@ class Label(object):
             Traceback (most recent call last):
             ...
             GiveUp: Label string 'package:()busybox/*' is not a valid Label
+
         """
         m = Label.label_string_re.match(label_string)
         if m is None or m.end() != len(label_string):
@@ -731,6 +771,51 @@ class Label(object):
 
         return Label(type, name, role=role, tag=tag, transient=transient,
                      system=system, domain=domain)
+    @staticmethod
+    def from_fragment(fragment, default_type, default_role=None, default_domain=None):
+        """
+        Given a string containing a label fragment, return a Label.
+
+        The caller indicates the default type, role and domain.
+
+        The fragment must contain a <name>, but otherwise *may* contain
+        any of:
+
+            * <type>: - if this is not given, the default is used
+            * (<domain>) - if this is not given, the default is used.
+            * {<role>} - if this is not given, the default is used.
+            * /<tag> - if this is not given, a tag appropriate to the
+              <type> is chosen (checked_out, postinstalled or deployed)
+
+        Any of the default_xx values may be None.
+        """
+        m = Label.fragment_re.match(fragment)
+        if m is None or m.end() != len(fragment):
+            raise utils.GiveUp("Label fragment '%s' is not allowed"%fragment)
+
+        type = m.group("type")
+        if type is None:
+            type = default_type
+        elif type == '*':
+            raise utils.GiveUp("Label type '*:' is not allowed,"
+                               " in label fragment '%s'"%fragment)
+        name = m.group("name")
+        role = m.group("role")
+        if role is None:
+            role = default_role         # which may be None as well
+        tag = m.group("tag")
+        if tag is None:
+            try:
+                tag = utils.package_type_to_tag[type]
+            except KeyError:
+                raise utils.GiveUp("Cannot guess tag for label fragment '%s'"
+                        " (unrecognised label type '%s:')"%(fragment, type))
+        domain = m.group("domain")
+        if domain is None:
+            domain = default_domain     # which may be None as well
+
+
+        return Label(type, name, role, tag, domain=domain)
 
     def split_domains(self):
         """
@@ -776,13 +861,55 @@ def label_from_string(str):
     """
     return Label.from_string(str)
 
+class Action:
+    """
+    Represents an object you can call to "build" a tag.
+    """
+
+    def build_label(self, builder, label):
+        """
+        Build the given label. Your dependencies have been satisfied.
+
+        * in_deps -  Is the set whose dependencies have been satisified.
+
+        Returns True on success, False or throw otherwise.
+        """
+        pass
+
+    # It may be necessary to declare the following methods, to enable
+    # sub-domains to work properly:
+    #
+    # _mark_unswept()
+    # _change_domain(new_domain)
+    #
+    #    which are used together to change domains within the Action,
+    #    that are not contained within Labels.
+    #
+    # _inner_labels()
+    #
+    #    which returns a list of those Labels contained "inside" the Action,
+    #    which might not otherwise be moved to the new domain.
+
+
+class SequentialAction:
+    """
+    Invoke two actions in turn
+    """
+
+    def __init__(self, a, b) :
+        self.a = a
+        self.b = b
+
+    def build_label(self, builder, label):
+        self.a.build_label(builder, label)
+        self.b.build_label(builder, label)
 
 class Rule:
     """
     A rule or "dependency set".
-    
+
     Every Rule has:
-    
+
     * a target Label (its desired result),
     * an optional Action object (to do the work to produce that result),
     * and a set of Labels on which the target depends (which must have been
@@ -800,13 +927,13 @@ class Rule:
 
     .. note:: The actual "satisfying" of labels is done in muddled.mechanics.
        For instance, Builder.build_label() "builds" a label in the context
-       of the rest of its environment, and uses 'obj' to "build" the label.
+       of the rest of its environment, and uses 'action' to "build" the label.
     """
 
-    def __init__(self, target_dep, obj):
+    def __init__(self, target_dep, action):
         """
         * `target_dep` is the Label this Rule intends to "make".
-        * `obj` is None or an Action, which will be used to "make" the
+        * `action` is None or an Action, which will be used to "make" the
           `target_dep`.
         """
         self.deps = set()
@@ -815,10 +942,10 @@ class Rule:
                               " as its target")
 
         self.target = target_dep
-        self.obj = obj
-        if (self.obj is not None) and (not isinstance(obj, pkg.Action)):
+        self.action = action
+        if (self.action is not None) and (not isinstance(action, Action)):
             raise utils.MuddleBug("Attempt to create a rule with an object rule "
-                              "which isn't an action but a %s."%(obj.__class__.__name__))
+                              "which isn't an action but a %s."%(action.__class__.__name__))
 
     def replace_target(self, new_t):
         self.target = new_t
@@ -839,7 +966,7 @@ class Rule:
         self.deps = new_deps
 
 
-    def catenate_and_merge(self, other_rule, complainOnDuplicate = False, 
+    def catenate_and_merge(self, other_rule, complainOnDuplicate = False,
                            replaceOnDuplicate = True):
         """
         Merge ourselves with the given rule.
@@ -847,20 +974,20 @@ class Rule:
         If replaceOnDuplicate is true, other_rule get priority - this is the
         target for a unify() and makes the source build instructions go away.
         """
-        if (self.obj is None):
-            self.obj = other_rule.obj
-        elif (other_rule.obj is None):
+        if (self.action is None):
+            self.action = other_rule.action
+        elif (other_rule.action is None):
             pass
         else:
             if complainOnDuplicate:
                 raise utils.MuddleBug(
-                    ("Duplicate action objects for %s and %s - have you "%(self.target, other_rule.target)) + 
+                    ("Duplicate action objects for %s and %s - have you "%(self.target, other_rule.target)) +
                     "remembered to remove a package from one of your domain builds?")
             else:
                 if replaceOnDuplicate:
-                    self.obj = other_rule.obj
+                    self.action = other_rule.action
                 else:
-                    self.obj = pkg.SequentialAction(self.obj, other_rule.obj)
+                    self.action = SequentialAction(self.action, other_rule.action)
 
         #print "catenate and merge for target = %s"%(self.target)
         self.deps.union(other_rule.deps)
@@ -877,7 +1004,7 @@ class Rule:
 
         Adds all the dependency labels from `deps` to this Rule.
 
-        If `deps.obj` is not None, replaces our `obj` with the one from `deps`.
+        If `deps.action` is not None, replaces our `action` with the one from `deps`.
         """
         for i in deps.deps:
             self.add(i)
@@ -886,8 +1013,8 @@ class Rule:
         # (which are rules with None as their action object)
         # get correctly overridden by merged rules when they're
         # registered
-        if (deps.obj is not None):
-            self.obj = deps.obj
+        if (deps.action is not None):
+            self.action = deps.action
 
 
     def depend_checkout(self, co_name, tag):
@@ -917,7 +1044,7 @@ class Rule:
     def __cmp__(self, other):
         # XXX Is this a sensible algorithm?
         # XXX Certainly starting by sorting the target sounds good
-        # XXX (I have some concern over sorting by self.obj, which doesn't
+        # XXX (I have some concern over sorting by self.action, which doesn't
         # XXX show up in the string representation of a Rule)
         if self.target < other.target:
             return -1
@@ -927,9 +1054,9 @@ class Rule:
             return 1
         elif self.deps < other.deps:
             return -1
-        elif self.obj > other.obj:
+        elif self.action > other.action:
             return 1
-        elif self.obj < other.obj:
+        elif self.action < other.action:
             return -1
         else:
             return 0
@@ -938,7 +1065,7 @@ class Rule:
         # XXX If we have __cmp__, we need __hash__ to be hashable. Does this
         # XXX implementation make sense? Would it be better to hash on our
         # XXX string representation (for instance)?
-        return hash(self.target) | hash(self.obj)
+        return hash(self.target) | hash(self.action)
 
     def to_string(self, showSystem = True, showUser = True):
         """
@@ -973,8 +1100,8 @@ class Rule:
         """
         output = [ str(self.target) ]
 
-        if self.obj:
-            output.append('<-%s--'%self.obj.__class__.__name__)
+        if self.action:
+            output.append('<-%s--'%self.action.__class__.__name__)
         else:
             output.append('<-')
 
@@ -998,14 +1125,14 @@ class RuleSet:
     A collection of rules that encapsulate how you can get from A to B.
 
     Formally, this is just a mapping of labels to Rules. Duplicate
-    targets are merged - it's assumed that the objects will be 
+    targets are merged - it's assumed that the objects will be
     the same.
 
     CAVEAT: Be aware that new rules (when added) can be merged into existing
     rules.  Since we don't *copy* rules when we add them, this could be a cause
     of unexpected side effects...
     """
-    
+
     def __init__(self):
         self.map = { }
 
@@ -1029,7 +1156,7 @@ class RuleSet:
     def rules_for_target(self, label, useTags = True, useMatch = True):
         """
         Return the set of rules for any target(s) matching the given label.
-    
+
         * If useTags is true, then we should take account of tags when
           matching, otherwise we should ignore them. If useMatch is true,
           then useTags is ignored.
@@ -1059,8 +1186,8 @@ class RuleSet:
     def wrap_actions(self, generator, label):
         for r in self.map.values():
             if (r.target.match(label)):
-                r.obj = generator.generate(r.obj)
-            
+                r.action = generator.generate(r.action)
+
     def targets_match(self, target, useMatch = True):
         """
         Return the set of targets matching the given 'target' label.
@@ -1078,7 +1205,7 @@ class RuleSet:
                 if (k.match(target) is not None):
                     result_set.add(k)
         elif target in self.map.keys():
-                result_set.add(target)
+            result_set.add(target)
 
         return result_set
 
@@ -1099,16 +1226,16 @@ class RuleSet:
             self.map[target] = rv
 
         return rv
-        
+
 
     def rules_which_depend_on(self, label, useTags = True, useMatch = True):
         """
         Given a label, return a set of the rules which have it as one of
-        their dependencies. 
-        
-        If there are no rules which have this label as one of their 
+        their dependencies.
+
+        If there are no rules which have this label as one of their
         dependencies, we return the empty set.
-    
+
         * If useTags is true, then we should take account of tags when
           matching, otherwise we should ignore them. If useMatch is true,
           then useTags is ignored.
@@ -1131,8 +1258,8 @@ class RuleSet:
                     if dep.match_without_tag(label):
                         result_set.add(v)
                         break
-                    
-                    
+
+
         return result_set
 
     def merge(self, other_deps):
@@ -1147,13 +1274,13 @@ class RuleSet:
 
     def unify(self, source, target):
         """
-        Merge source into target. 
+        Merge source into target.
 
         This is a pain, and depends heavily on CatenatedObject
         """
-        
+
         new_map = { }
-        
+
 
         # First, collect anything that might be rewritten.
         for (k,v) in self.map.items():
@@ -1164,7 +1291,10 @@ class RuleSet:
                 copied_source = k.copy_and_unify_with(target)
                 new_v.replace_target(copied_source)
                 new_k = copied_source
-                #print "Ruleset: rewrite src = %s, k = %s to %s"%(source,k,copied_source)
+                if False:
+                    print "Ruleset: rewrite src = %s\n" \
+                          "                   k = %s\n" \
+                          "                    to %s"%(source,k,copied_source)
             else:
                 new_k = k
 
@@ -1173,7 +1303,7 @@ class RuleSet:
                 old_v.catenate_and_merge(new_v)
             else:
                 new_map[new_k] = new_v
-            
+
         # Now, rename everything in the dependencies and copy
         # back ..
         for (k,v) in new_map.items():
@@ -1183,7 +1313,7 @@ class RuleSet:
         self.map = new_map
 
 
-    def to_string(self, matchLabel = None, 
+    def to_string(self, matchLabel = None,
                   showUser = True, showSystem = True, ignore_empty=False):
         """
         Return a string representing this rule set.
@@ -1225,18 +1355,18 @@ class RuleSet:
                 # Ignore items that don't depend on anything
                 continue
             if (matchLabel is None) or (matchLabel.match(i.target) is not None):
-                if ((i.target.system and showSystem) or 
+                if ((i.target.system and showSystem) or
                     ((not i.target.system) and showUser)):
                     str_list.append(i.to_string(showUser = showUser, showSystem = showSystem))
                     str_list.append('\n')
         str_list.append("-----\n")
         return "".join(str_list)
-        
+
 
     def __str__(self):
         return self.to_string()
 
-def depend_chain(obj, label, tags, ruleset):
+def depend_chain(action, label, tags, ruleset):
     """
     Add a chain of dependencies to the given ruleset.
 
@@ -1252,57 +1382,58 @@ def depend_chain(obj, label, tags, ruleset):
         package:fred{bob}/initial <- [ ]
         -----
         <BLANKLINE>
+
     """
 
     last = label.copy()
 
-    # The base .. 
-    r = Rule(last, obj)
+    # The base ..
+    r = Rule(last, action)
     ruleset.add(r)
 
     for tag in tags:
         next = last.copy_with_tag(tag)
-        r = Rule(next, obj)
+        r = Rule(next, action)
         r.add(last)
         ruleset.add(r)
         last = next
 
-    
 
-def depend_none(obj, label):
+
+def depend_none(action, label):
     """
     Quick rule that makes label depend on nothing.
     """
-    return Rule(label, obj)
+    return Rule(label, action)
 
-def depend_one(obj, label, dep_label):
+def depend_one(action, label, dep_label):
     """
     Quick rule that makes label depend only on dep_label.
     """
-    rv = Rule(label, obj)
+    rv = Rule(label, action)
     rv.add(dep_label)
     return rv
 
 
-def depend_self(obj, label, old_tag):
+def depend_self(action, label, old_tag):
     """
     Make a quick dependency set that depends just on you. Used by some of the
     standard package and checkout classes to quickly build standard dependency
     sets.
     """
-    rv = Rule(label, obj)
+    rv = Rule(label, action)
     dep_label = label.copy_with_tag(old_tag)
 
     rv.add(dep_label)
     return rv
-        
 
-def depend_empty(obj, label):
+
+def depend_empty(action, label):
     """
-    Create a dependency set with no prerequisites - simply signals that a 
+    Create a dependency set with no prerequisites - simply signals that a
     tag is available to be built at any time.
     """
-    rv = Rule(label, obj)
+    rv = Rule(label, action)
     return rv
 
 
@@ -1327,8 +1458,8 @@ def rule_list_to_string(rule_list):
     return "".join(str_list)
 
 
-def label_list_to_string(labels):
-    return " ".join(map(str, labels))
+def label_list_to_string(labels, join_with=' '):
+    return join_with.join(map(str, labels))
 
 def retag_label_list(labels, new_tag):
     """
@@ -1367,16 +1498,16 @@ def needed_to_build(ruleset, target, useTags = True, useMatch = False):
 
     # The set of labels we'd like to see asserted.
     targets = set()
-    targets.update(ruleset.targets_match(target, useMatch = useMatch))
+    targets.update(ruleset.targets_match(target, useMatch=useMatch))
 
     done_something = True
     trace = False
 
     while done_something:
         done_something = False
-        
-        if (trace):
-            print "> Loop"
+
+        if trace:
+            print "\n> Loop"
 
         # Remove anything we've already satisfied from our list of targets.
         targets = targets - rule_target_set
@@ -1384,17 +1515,23 @@ def needed_to_build(ruleset, target, useTags = True, useMatch = False):
         # Have we succeeded?
         if len(targets) == 0:
             # Yep!
-            if (trace):
-                print "To build: %s\n Needs: %s\n"%(target, map(str, rule_list))
+            if trace:
+                print
+                print "To build %s we need:"%target
+                for r in rule_list:
+                    print '    %s'%r
+                print
             return rule_list
-        
+
         # In that case, we need to go through all the dependencies of the
         # targets, adding each either to the target list or the rule_list.
         new_targets = set()
 
         for tgt in targets:
+            if trace:
+                print "\nLooking at target %s"%tgt
             rules = ruleset.rules_for_target(tgt, useTags)
-            if (rules is None):
+            if rules is None:
                 raise utils.MuddleBug("No rule found for target %s"%tgt)
 
             # This is slightly icky. Technically, in the presence of wildcard
@@ -1410,33 +1547,43 @@ def needed_to_build(ruleset, target, useTags = True, useMatch = False):
             if len(rules) == 0:
                 raise utils.MuddleBug("Rule list is empty for target %s"%tgt)
 
-
-            if (trace):
-                print "Rules for %s = %s"%(tgt, " ".join(map(str, rules)))
+            if trace:
+                print "Rules for %s:"%tgt
+                for r in rules:
+                    print '    %s'%r
 
             rule = None
-            for rule in rules:            
+            for rule in rules:
+                if trace:
+                    print "Looking at rule %s"%rule
                 for dep in rule.deps:
-                    if not (dep in rule_target_set):
-                        # Not satisfied. We need to satisfy it, so add it
-                        # to targets. The test here is purely so we can 
+                    if dep not in rule_target_set:
+                        if trace:
+                            print "  Cannot build %s because it needs %s"%(tgt, dep)
+                            # .. and we can't build this target until we have.
+
+                        # We need to satisfy this dependency, so add it
+                        # to targets. The test here is purely so we can
                         # detect circular dependencies.
-                        if (not (dep in new_targets) and not (dep in targets)):
-                            if (trace):
-                                print "Add new target = %s"%str(dep)
+                        if dep not in new_targets and dep not in targets:
+                            if trace:
+                                print "  Add new target %s"%str(dep)
                             new_targets.add(dep)
                             done_something = True
+                        elif trace:
+                            if dep in targets: print "  ..already in targets"
+                            if dep in new_targets: print "  ..already in new_targets"
 
-                        if (trace):
-                            print "Cannot build %s because of dependency %s"%(tgt, dep)
-                            # .. and we can't build this target until we have.
                         can_build_target = False
-                        
+
             if can_build_target:
                 # All dependencies are already satisfied, so we can ..
-                if (trace):
-                    print "Build rule = %s [ %s ] "%(str(tgt), str(rule))
-                rule_list.append(rule)
+                if trace:
+                    print "Add build rule: target %s"%tgt
+                    for rule in rules:
+                        print "                rule %s"%rule
+                for rule in rules:
+                    rule_list.append(rule)
                 rule_target_set.add(tgt)
                 done_something = True
             else:
@@ -1445,7 +1592,6 @@ def needed_to_build(ruleset, target, useTags = True, useMatch = False):
 
         targets = new_targets
 
-        
     # If we get here, we can never satisfy the remaining set of
     # targets because the graph is circular or incomplete.
     targets = list(targets)
@@ -1461,10 +1607,10 @@ def needed_to_build(ruleset, target, useTags = True, useMatch = False):
 def required_by(ruleset, label, useTags = True, useMatch = True):
     """
     Given a ruleset and a label, form the list of labels that (directly or
-    indirectly) depend on label. We deliberately do not give you the 
+    indirectly) depend on label. We deliberately do not give you the
     associated rules since you will want to call needed_to_build() individually
     to ensure that other prerequisites are satisfied.
-    
+
     The order in which we give you the labels gives you a hint as to a
     logical order to rebuild in (i.e. one the user will vaguely understand).
 
@@ -1474,7 +1620,7 @@ def required_by(ruleset, label, useTags = True, useMatch = True):
 
     Returns a set of labels to build.
     """
-    
+
     depends = set()
     return_val = [ ]
 
@@ -1495,7 +1641,7 @@ def required_by(ruleset, label, useTags = True, useMatch = True):
         for dep in depends:
             # Merge in everything that depends on dep
             new_rules = ruleset.rules_which_depend_on(dep, useTags, useMatch = useMatch)
-            
+
             # Each target depends on us ..
             for rule in new_rules:
                 # If we're not already in the depends set, add us ..
@@ -1514,11 +1660,11 @@ def rule_with_least_dependencies(rules):
     """
     Given a (Python) set of rules, find the 'best' one to use.
 
-    This is actually impossible by any rational metric, so you 
+    This is actually impossible by any rational metric, so you
     usually only expect to call this function with a set of
     size 1, in which case our metric really doesn't matter.
 
-    However, in a vague attempt to be somewhat intelligent, 
+    However, in a vague attempt to be somewhat intelligent,
     we return the element with the fewest direct dependencies.
     """
     best_r = None
@@ -1540,5 +1686,5 @@ def rule_target_str(rule):
 # End file.
 
 
-    
+
 

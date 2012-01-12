@@ -1,10 +1,10 @@
-# Makefile for cpio_co 
+# Makefile for cpio_co
 #
 # Just dumps some compiled C into the right place.
 
 INSTALL=install
 
-all: 
+all:
 	$(CC) -o $(MUDDLE_OBJ)/hello_world hello_world.c
 
 install:
@@ -12,10 +12,10 @@ install:
 	$(INSTALL) -m 0755 $(MUDDLE_OBJ)/hello_world $(MUDDLE_INSTALL)/bin/hello_world
 	$(INSTALL) -m 0644 hello_world.c $(MUDDLE_INSTALL)/hello_world.c
 
-config: 
+config:
 	@echo Nothing to do
 
-clean: 
+clean:
 	rm -f $(MUDDLE_OBJ)/hello_world
 
 distclean: clean

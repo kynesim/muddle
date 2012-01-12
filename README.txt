@@ -580,7 +580,7 @@ Any other queries?
 ------------------
 
 Richard Watts, <rrw@kynesim.co.uk> is the man to call. Enjoy!
-
+
 .. Local Variables:
 .. tab-width: 8
 .. indent-tabs-mode: nil

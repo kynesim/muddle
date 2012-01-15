@@ -211,20 +211,6 @@ class VersionControlHandler(object):
     def long_name(self):
         return self.vcs_handler.long_name
 
-    def checkout_tuple(self):
-        # This is used for stamp files
-        #
-        # XXX Note that 'inner_path' should now be part of the URL
-        # XXX - this definitely needs thinking about
-        return utils.CheckoutTuple(self.checkout_label.name,
-                                   '%s+%s'%(self.repo.vcs, self.repo.url),
-                                   self.repo.revision if self.repo.revision else 'HEAD',
-                                   self.repo.inner_path, # was self.relative,
-                                   self.checkout_dir,
-                                   self.checkout_label.domain,
-                                   self.checkout_leaf,
-                                   self.repo.branch)
-
     def get_my_absolute_checkout_path(self):
         """
         Does what it says on the tin.

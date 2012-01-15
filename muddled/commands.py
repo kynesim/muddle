@@ -39,10 +39,11 @@ import muddled.version_control as version_control
 
 from muddled.db import Database, InstructionFile
 from muddled.depend import Label, label_list_to_string
-from muddled.utils import VersionStamp, GiveUp, MuddleBug, Unsupported, \
+from muddled.utils import GiveUp, MuddleBug, Unsupported, \
         DirType, LabelTag, LabelType
 from muddled.version_control import split_vcs_url, checkout_from_repo
 from muddled.repository import Repository
+from muddled.version_stamp import VersionStamp
 
 # Following Richard's naming conventions...
 # A dictionary of <command name> : <command class>

@@ -2776,7 +2776,7 @@ class Doc(Command):
 @subcommand('stamp', 'save', CAT_STAMP)
 class StampSave(Command):
     """
-    :Syntax: muddle stamp save [-f[orce]|-h[ead]] [<filename>]
+    :Syntax: muddle stamp save [-f[orce]|-h[ead]|-v[ersion] <version>] [<filename>]
 
     Go through each checkout, and save its remote repository and current
     revision id/number to a file.
@@ -2819,6 +2819,14 @@ class StampSave(Command):
     In this case, the repository specified in the build description is used,
     and the revision id and status of each checkout is not checked.
 
+    By default, a version 2 stamp file will be created. This is equivalent
+    to specifying '-version 2'. If '-version 1' is specified, then a version
+    1 stamp file will be created instead. This is the version of stamp file
+    understood by muddle before it was able to create version 2 stamp files
+    (see 'muddle help stamp save' to see if this is the case for a particular
+    version of muddle or not). Note that the version 1 stamp file created
+    by muddle 2.3 and above is not absolutely guaranteed to be correct.
+
     See 'unstamp' for restoring from stamp files.
     """
 
@@ -2829,6 +2837,7 @@ class StampSave(Command):
         force = False
         just_use_head = False
         filename = None
+        version = 2
 
         while args:
             word = args[0]
@@ -2839,6 +2848,16 @@ class StampSave(Command):
             elif word in ('-h', '-head'):
                 just_use_head = True
                 force = False
+            elif word in ('-v', '-version'):
+                try:
+                    version = int(args[0])
+                except IndexError:
+                    raise GiveUp("-version must be followed by 1 or 2, for 'stamp save'")
+                except ValueError as e:
+                    raise GiveUp("-version must be followed by 1 or 2, not '%s'"%args[0])
+                if version not in (1, 2):
+                    raise GiveUp("-version must be followed by 1 or 2, not '%s'"%args[0])
+                args = args[1:]
             elif word.startswith('-'):
                 raise GiveUp("Unexpected switch '%s' for 'stamp save'"%word)
             elif filename is None:
@@ -2858,7 +2877,7 @@ class StampSave(Command):
 
         working_filename = 'working.stamp'
         print 'Writing to',working_filename
-        hash = stamp.write_to_file(working_filename)
+        hash = stamp.write_to_file(working_filename, version=version)
         print 'Wrote revision data to %s'%working_filename
         print 'File has SHA1 hash %s'%hash
 
@@ -2895,7 +2914,7 @@ class StampSave(Command):
 @subcommand('stamp', 'version', CAT_STAMP)
 class StampVersion(Command):
     """
-    :Syntax: muddle stamp version [-f[orce]]
+    :Syntax: muddle stamp version [-f[orce]|-v[ersion] <version>]
 
     This is similar to "stamp save", but using a pre-determined stamp filename.
 
@@ -2926,6 +2945,14 @@ class StampVersion(Command):
     Note that '-f' is supported (although perhaps not recommended), but '-h' is
     not.
 
+    By default, a version 2 stamp file will be created. This is equivalent
+    to specifying '-version 2'. If '-version 1' is specified, then a version
+    1 stamp file will be created instead. This is the version of stamp file
+    understood by muddle before it was able to create version 2 stamp files
+    (see 'muddle help stamp version' to see if this is the case for a
+    particular version of muddle or not). Note that the version 1 stamp file
+    created by muddle 2.3 and above is not absolutely guaranteed to be correct.
+
     See 'unstamp' for restoring from stamp files.
     """
 
@@ -2934,11 +2961,23 @@ class StampVersion(Command):
 
     def with_build_tree(self, builder, current_dir, args):
         force = False
+        version = 2
+
         while args:
             word = args[0]
             args = args[1:]
             if word in ('-f', '-force'):
                 force = True
+            elif word in ('-v', '-version'):
+                try:
+                    version = int(args[0])
+                except IndexError:
+                    raise GiveUp("-version must be followed by 1 or 2, for 'stamp save'")
+                except ValueError as e:
+                    raise GiveUp("-version must be followed by 1 or 2, not '%s'"%args[0])
+                if version not in (1, 2):
+                    raise GiveUp("-version must be followed by 1 or 2, not '%s'"%args[0])
+                args = args[1:]
             elif word.startswith('-'):
                 raise GiveUp("Unexpected switch '%s' for 'stamp version'"%word)
             else:
@@ -2964,7 +3003,7 @@ class StampVersion(Command):
 
         working_filename = os.path.join(version_dir, '_temporary.stamp')
         print 'Writing to',working_filename
-        hash = stamp.write_to_file(working_filename)
+        hash = stamp.write_to_file(working_filename, version=version)
         print 'Wrote revision data to %s'%working_filename
         print 'File has SHA1 hash %s'%hash
 

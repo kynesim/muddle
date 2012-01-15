@@ -1481,17 +1481,23 @@ class VersionStamp(Mapping):
         return iter(self._checkout_dict)
     # ==========================================================
 
-    def write_to_file(self, filename):
+    def write_to_file(self, filename, version=2):
         """Write our data out to a file.
+
+        By default, writes out a version 2 stamp file, as opposed to the older
+        version 1 format.
 
         Returns the SHA1 hash for the file.
         """
         with HashFile(filename, 'w') as fd:
-            self.write_to_file_object(fd)
+            self.write_to_file_object(fd, version)
             return fd.hash()
 
-    def write_to_file_object(self, fd):
+    def write_to_file_object(self, fd, version=2):
         """Write our data out to a file-like object (one with a 'write' method).
+
+        By default, writes out a version 2 stamp file, as opposed to the older
+        version 1 format.
 
         Returns the SHA1 hash for the file.
         """

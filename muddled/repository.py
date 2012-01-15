@@ -69,13 +69,21 @@ class Repository(object):
       ...                 handler='code.google.com')
       >>> g4.url
       'https://code.google.com/p/grump'
+      >>> g4.handler
+      'code.google.com'
 
     The default handler name is actually 'guess', which tries to decide by
-    looking at the repository URL - basically, if the repository starts with
-    "https://code.google.com/p/" it will use the 'code.google.com' handler,
-    and otherwise it won't.
+    looking at the repository URL and the VCS - basically, if the repository
+    starts with "https://code.google.com/p/" and the VCS is 'git', then it will
+    use the 'code.google.com' handler, and otherwise it won't. The 'handler'
+    value reflects which handler was actually used:
 
-      Note: this only applies if the VCS is 'git' at the moment.
+      >>> g2.handler
+      'code.google.com'
+      >>> print g3.handler
+      None
+      >>> g4.handler
+      'code.google.com'
 
     Sometimes, we need some extra "path" between the repository base path and
     the checkout name. For instance:
@@ -212,6 +220,8 @@ class Repository(object):
             else:
                 handler = None
 
+        self.handler = handler
+
         if handler:
             try:
                 handler_fn = self.path_handlers[(self.vcs, handler)]
@@ -328,6 +338,13 @@ class Repository(object):
         which allows one to tell definitively what URL was requested, and
         also distinguishes this from other means of creating a Repository
         instance (otherwise 'from_url_string' will be None).
+
+        Also, the handler will always be None for a Repository from a URL:
+
+            >>> print f.handler
+            None
+            >>> print r.handler
+            None
         """
         scheme, netloc, path, params, query, fragment = urlparse(repo_url)
         words = posixpath.split(path)
@@ -338,6 +355,7 @@ class Repository(object):
         repo = Repository(vcs, base_url, repo_name, suffix=suffix,
                           revision=revision, branch=branch, handler=None)
         repo.from_url_string = repo_url
+        repo.handler = None
         return repo
 
     @staticmethod

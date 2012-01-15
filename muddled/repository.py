@@ -8,8 +8,7 @@ import re
 
 from urlparse import urlparse, urljoin, urlunparse
 
-class GiveUp(Exception):
-    pass
+from muddled.utils import GiveUp
 
 branch_and_revision_re = re.compile("([^:]*):(.*)$")
 
@@ -163,6 +162,8 @@ class Repository(object):
         self.suffix = suffix
         self.inner_path = inner_path
 
+        self.from_url_string = None        # no, from parts as given
+
         if revision:
             # Subversion, for instance, has revisions that look like numbers.
             # It is thus very tempting for people to put the revision number
@@ -186,12 +187,12 @@ class Repository(object):
             try:
                 maybe_branch, maybe_revision = self._parse_revision(revision)
             except TypeError:
-                raise utils.GiveUp('VCS revision value should be a string,'
-                                   ' not %s'%type(revision))
+                raise GiveUp('VCS revision value should be a string,'
+                             ' not %s'%type(revision))
             if branch and maybe_branch:
-                raise utils.GiveUp('VCS revision value "%s" specifies branch'
-                                   ' "%s", but branch "%s" was specified'
-                                   ' explicitly'%(revision, maybe_branch, branch))
+                raise GiveUp('VCS revision value "%s" specifies branch'
+                             ' "%s", but branch "%s" was specified'
+                             ' explicitly'%(revision, maybe_branch, branch))
 
             revision = maybe_revision
             if maybe_branch:
@@ -316,7 +317,17 @@ class Repository(object):
             'file:///home/tibs/versions'
 
         Note that this way of creating a Repository instance does not invoke
-        any path handler.
+        any path handler. It does, however, set the 'from_url_string' value to
+        the original URL as given:
+
+            >>> f.from_url_string
+            'file:///home/tibs/versions'
+            >>> r.from_url_string
+            'http://example.com/fred/jim.git?branch=a'
+
+        which allows one to tell definitively what URL was requested, and
+        also distinguishes this from other means of creating a Repository
+        instance (otherwise 'from_url_string' will be None).
         """
         scheme, netloc, path, params, query, fragment = urlparse(repo_url)
         words = posixpath.split(path)
@@ -324,8 +335,10 @@ class Repository(object):
         other_stuff = posixpath.join(*words[:-1])
         base_url = urlunparse((scheme, netloc, other_stuff, '', '', ''))
         suffix = urlunparse(('', '', '', params, query, fragment))
-        return Repository(vcs, base_url, repo_name, suffix=suffix,
+        repo = Repository(vcs, base_url, repo_name, suffix=suffix,
                           revision=revision, branch=branch, handler=None)
+        repo.from_url_string = repo_url
+        return repo
 
     @staticmethod
     def register_path_handler(vcs, starts_with, handler):
@@ -412,12 +425,19 @@ class Repository(object):
                           branch=branch)
 
 def google_code_handler(repo):
+    """A repository path handler for google code projects.
+
+    Google code project repository URLs are of the form:
+
+        * https://code.google.com/p/<project> for the default repository
+        * https://code.google.com/p/<project>.<repo> for any other repository
+    """
 
     # Note that error messages must use %r for the 'repo' representation,
     # because %s uses repo.url, which isn't set up until we've returned(!)
     if repo.vcs != 'git':
         raise GiveUp('The code.google.com handler currently only understands'
-                     ' git, not %s, in %r'%(vcs, repo))
+                     ' git, not %s, in %r'%(repo.vcs, repo))
 
     if repo.prefix:
         raise GiveUp('The code.google.com handler does not support the'

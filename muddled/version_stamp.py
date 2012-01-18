@@ -11,7 +11,7 @@ from collections import namedtuple, Mapping
 from ConfigParser import RawConfigParser
 
 from muddled.repository import Repository
-from muddled.utils import MuddleSortedDict, HashFile, GiveUp
+from muddled.utils import MuddleSortedDict, HashFile, GiveUp, truncate
 
 DomainTuple = namedtuple('DomainTuple', 'name repository description')
 CheckoutTupleV1 = namedtuple('CheckoutTupleV1', 'name repo rev rel dir domain co_leaf branch')
@@ -139,14 +139,6 @@ class VersionStamp(Mapping):
         self.checkouts = {}     # label -> (co_dir, co_leaf, repo)
         self.problems = []
 
-    def _update_checkout_dict(self):
-        """Always call this after updating self.checkouts. Sorry.
-        """
-        if self.checkouts:
-            self._checkout_dict = dict([ (x.name, x) for x in self.checkouts ])
-        else:
-            self._checkout_dict = {}
-
     def __str__(self):
         """Make 'print' do something useful.
         """
@@ -269,21 +261,23 @@ class VersionStamp(Mapping):
                     section = 'CHECKOUT %s'%co_label.name
                 config.add_section(section)
                 config.set(section, "co_label", co_label)
-                if vcs.checkout_dir:
+                if co_dir:
                     config.set(section, "co_dir", co_dir)
-                if vcs.checkout_leaf:
+                if co_leaf:
                     config.set(section, "co_leaf", co_leaf)
 
                 config.set(section, "repo_vcs", repo.vcs)
                 # If we got our repository URL as a string, directly, then
                 # there is no point in outputting the parts that Repository
                 # deduced from it - we just need the original URL
+                # This will be written out as None if unset
                 config.set(section, "repo_from_url_string", repo.from_url_string)
                 if not repo.from_url_string:
                     # We need to specify all the parts
                     config.set(section, "repo_base_url", repo.base_url)
                     config.set(section, "repo_name", repo.repo_name)
                     maybe_set_option(config, section, "repo_prefix", repo.prefix)
+                    # NB: repo_prefix_as_is should be True or False
                     maybe_set_option(config, section, "repo_prefix_as_is", repo.prefix_as_is)
                     maybe_set_option(config, section, "repo_suffix", repo.suffix)
                     maybe_set_option(config, section, "repo_inner_path", repo.inner_path)
@@ -376,7 +370,6 @@ class VersionStamp(Mapping):
         if not quiet:
             print 'found %d'%len(checkout_rules)
 
-        revisions = MuddleSortedDict()
         checkout_rules.sort()
         for rule in checkout_rules:
             try:
@@ -405,35 +398,9 @@ class VersionStamp(Mapping):
                 else:
                     rev = vcs.revision_to_checkout(force=force, verbose=True)
 
-                # Our tuple is made up of:
-                # 
-                # - the repository base URL (nb: this is the VCS + URL form)
-                # - the directory within src/ that contains our checkout
-                # - the revision checked out
-                # - the repository path relative to the base URL, including the
-                #   leaf name
-                # - the checkout leaf directory (if not the same as the checkout name)
-                # - the branch checked out
-                #
-                # (this is an attempt to reconstruct what previous versions of
-                # muddle, before the use of Repository, would have done.)
-                #
-                # XXX For the new Repository mechanism, we also need to add:
-                #
-                # - inner_path
-                # - prefix_as_is
-                # - suffix
-                # - handler
-                if vcs.repo.prefix:
-                    relative = os.path.join(vcs.repo.prefix, vcs.repo.repo_name)
-                else:
-                    relative = vcs.repo.repo_name
-                revisions[label] = ('%s+%s'%(vcs.repo.vcs, vcs.repo.base_url),
-                                    vcs.checkout_dir,
-                                    rev,
-                                    relative,
-                                    vcs.checkout_leaf,
-                                    vcs.repo.branch)
+                repo = vcs.repo.copy_with_changes(vcs.repo.repo_name, revision=rev)
+
+                stamp.checkouts[label] = (vcs.checkout_dir, vcs.checkout_leaf, repo)
             except GiveUp as exc:
                 print exc
                 stamp.problems.append(str(exc))
@@ -441,16 +408,12 @@ class VersionStamp(Mapping):
         if stamp.domains and not quiet:
             print 'Found domains:',stamp.domains
 
-        for label, (repo, dir, rev, rel, co_leaf, branch) in revisions.items():
-            stamp.checkouts.append(CheckoutTupleV1(label.name, repo, rev, rel, dir,
-                                                 label.domain, co_leaf, branch))
-
-        if len(revisions) != len(checkout_rules):
+        if len(stamp.checkouts) != len(checkout_rules):
             if not quiet:
                 print
                 print 'Unable to work out revision ids for all the checkouts'
-                if revisions:
-                    print '- although we did work out %d of %s'%(len(revisions),
+                if stamp.checkouts:
+                    print '- although we did work out %d of %s'%(len(stamp.checkouts),
                             len(checkout_rules))
                 if stamp.problems:
                     print 'Problems were:'
@@ -461,7 +424,6 @@ class VersionStamp(Mapping):
                 # This should not, I think, happen, but just in case...
                 stamp.problems.append('Unable to work out revision ids for all the checkouts')
 
-        stamp._update_checkout_dict()
         return stamp, stamp.problems
 
     @staticmethod
@@ -555,9 +517,7 @@ class VersionStamp(Mapping):
                     repo_from_url_string = maybe_get_option(config, section,
                             'repo_from_url_string')
 
-                    if repo_from_url_string:
-                        repo = Repository.from_url(repo_vcs, repo_from_url_string)
-                    else:
+                    if repo_from_url_string == 'None' or repo_from_url_string is None:
                         base_url = config.get(section, 'repo_base_url')
                         repo_name = config.get(section, 'repo_name')
 
@@ -569,9 +529,19 @@ class VersionStamp(Mapping):
                         branch = maybe_get_option(config, section, "repo_branch")
                         handler = maybe_get_option(config, section, "repo_handler")
 
+                        if prefix_as_is == 'True':
+                            prefix_as_is = True
+                        elif prefix_as_is == 'False' or prefix_as_is is None:
+                            prefix_as_is = False
+                        else:
+                        raise GiveUp("Unexpected value '%s' for prefix_as_is in  stamp"
+                                     " file for %s"%(prefix_as_is, co_label_str))
+
                         repo = Repository(repo_vcs, base_url, repo_name, prefix,
                                           prefix_as_is, suffix, inner_path,
                                           revision, branch, handler)
+                    else:
+                        repo = Repository.from_url(repo_vcs, repo_from_url_string)
 
                 self.checkouts[label] = (co_dir, co_leaf, repo)
 
@@ -581,7 +551,6 @@ class VersionStamp(Mapping):
             else:
                 print 'Ignoring configuration section [%s]'%section
 
-        stamp._update_checkout_dict()
         print 'File has SHA1 hash %s'%fd.hash()
         return stamp
 

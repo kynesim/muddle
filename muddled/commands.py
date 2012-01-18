@@ -3487,10 +3487,22 @@ Try "muddle help unstamp" for more information."""
         """
         Given the information from our stamp file, restore things.
         """
-        for domain_name, domain_repo, domain_desc in domains:
+        domain_names = domains.keys()
+        domain_names.sort()
+        for domain_name in domain_names:
+            domain_repo, domain_desc = domains[domain_name]
+
             print "Adding domain %s"%domain_name
 
-            domain_root_path = os.path.join(root_path, 'domains', domain_name)
+            # Take care to allow for multiple parts
+            # Thus domain 'fred(jim)' maps to <root>/domains/fred/domains/jim
+            domain_parts = Label.split_domain(domain_name)
+            path_parts = [root_path]
+            for d in domain_parts:
+                path_parts.append('domains')
+                path_parts.append(d)
+            domain_root_path = os.path.join(*path_parts)
+
             os.makedirs(domain_root_path)
 
             domain_builder = mechanics.minimal_build_tree(builder.muddle_binary,
@@ -3500,33 +3512,15 @@ Try "muddle help unstamp" for more information."""
             # Tell the domain's builder that it *is* a domain
             domain_builder.invocation.mark_domain(domain_name)
 
-        checkouts.sort()
-        for name, vcs_repo_url, revision, relative, co_dir, domain, co_leaf, branch in checkouts:
-            if domain:
-                print "Unstamping checkout (%s)%s"%(domain,name)
+        co_labels = checkouts.keys()
+        co_labels.sort()
+        for label in co_labels:
+            co_dir, co_leaf, repo = checkouts[label]
+            if label.domain:
+                print "Unstamping checkout (%s)%s"%(label.domain,label.name)
             else:
-                print "Unstamping checkout %s"%name
-            # So try registering this as a normal build, in our nascent
-            # build system
-            vcs, base_url = split_vcs_url(vcs_repo_url)
+                print "Unstamping checkout %s"%label.name
 
-            if relative:
-                # 'relative' is the full path to the checkout (with src/),
-                # including the checkout name/leaf
-                parts = posixpath.split(relative)
-                if parts[-1] == co_leaf:
-                    repo_name = co_leaf
-                    prefix = posixpath.join(*parts[:-1])
-                else:
-                    repo_name = parts[-1]
-                    prefix = posixpath.join(*parts[:-1])
-                repo = Repository(vcs, base_url, repo_name, prefix=prefix,
-                                  revision=revision, branch=branch)
-            else:
-                repo = Repository.from_url(vcs, base_url,
-                                           revision=revision, branch=branch)
-
-            label = Label(LabelType.Checkout, name, domain=domain)
             checkout_from_repo(builder, label, repo, co_dir, co_leaf)
 
             # Then need to mimic "muddle checkout" for it
@@ -3553,11 +3547,9 @@ Try "muddle help unstamp" for more information."""
         qc = QueryCheckouts()
         qc.with_build_tree(b, current_dir, [])
 
-        # Check our checkout names match
-        s_checkouts = set([name for name, repo, rev, rel, dir,
-                           domain, co_leaf, branch in checkouts])
-        # TODO: really should be using checkout labels, not names
-        b_checkouts = b.invocation.all_checkouts()
+        # Check our checkout labels match
+        s_checkouts = set(checkouts.keys())
+        b_checkouts = b.invocation.all_checkouts_labels()
         s_difference = s_checkouts.difference(b_checkouts)
         b_difference = b_checkouts.difference(s_checkouts)
         if s_difference or b_difference:
@@ -3565,12 +3557,12 @@ Try "muddle help unstamp" for more information."""
                   ' file and those in the build'
             if s_difference:
                 print 'Checkouts only in the stamp file:'
-                for name in s_difference:
-                    print '    %s'%name
+                for label in s_difference:
+                    print '    %s'%label
             if b_difference:
                 print 'Checkouts only in the build:'
-                for name in b_difference:
-                    print '    %s'%name
+                for label in b_difference:
+                    print '    %s'%label
             return 4
         else:
             print

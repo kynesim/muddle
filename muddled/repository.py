@@ -269,6 +269,24 @@ class Repository(object):
     def __str__(self):
         return self.url
 
+    def __eq__(self, other):
+        """Equal if VCS, actual URL, branch and revision are equal.
+
+        We don't care how the URL is derived (from parts or given as a whole),
+        just that it be the same.
+
+        So:
+
+            >>> a = Repository('git', 'ssh://git@example.com/', 'builds')
+            >>> b = Repository.from_url('git', 'ssh://git@example.com/builds')
+            >>> a == b
+            True
+        """
+        return (self.vcs == other.vcs and
+                self.url == other.url and
+                self.branch == other.branch and
+                self.revision == other.revision)
+
     def default_path(self):
         """Return the default repository path, calculated from all the parts.
 

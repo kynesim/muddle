@@ -930,6 +930,7 @@ class Help(Command):
       muddle help <cmd> <subcmd> for help on a subcommand
       muddle help _all           for help on all commands
       muddle help <cmd> _all     for help on all <cmd> subcommands
+      muddle help commands       just list the (top level) commands
       muddle help categories     shows command names sorted by category
       muddle help labels         for help on using labels
       muddle help subdomains     for help on subdomains
@@ -1228,7 +1229,7 @@ the parentheses. So, for instance, use:
         """Return help for args, or a summary of all commands.
         """
         if not args:
-            return self.help_list()
+            return self.help_summary()
 
         if args[0] == "_all":
             return self.help_all()   # and ignore the rest of the command line
@@ -1244,6 +1245,9 @@ the parentheses. So, for instance, use:
 
         if args[0] == "subdomains":
             return self.help_subdomains()
+
+        if args[0] == "commands":
+            return self.help_command_list()
 
         if len(args) == 1:
             cmd = args[0]
@@ -1292,20 +1296,28 @@ the parentheses. So, for instance, use:
 
         return "\n".join(result_array)
 
-    def help_list(self):
+    def help_summary(self):
         """
-        Return a list of all commands
+        Return a summary of usage and a list of all commands
         """
         result_array = []
         result_array.append(textwrap.dedent(Help.command_line_help))
         result_array.append(textwrap.dedent(Help.__doc__))
         result_array.append("\n")
 
+        result_array.append(self.help_command_list())
+
+        return "".join(result_array)
+
+    def help_command_list(self):
+        """Return a list of the top-level commands.
+        """
         # Use the entire set of command names, including any aliases
         keys = g_command_dict.keys()
         keys.sort()
         keys_text = ", ".join(keys)
 
+        result_array = []
         result_array.append(utils.wrap('Commands are: %s'%keys_text,
                                        # I'd like to do this, but it's not in Python 2.6.5
                                        #break_on_hyphens=False,

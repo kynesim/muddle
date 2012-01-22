@@ -62,9 +62,9 @@ def relative(builder, co_dir, co_name, repo_relative = None, rev = None, branch 
 
     base_repo = builder.build_desc_repo
     if repo_relative:
-        repo_url = urljoin(base_repo.base_url, repo_relative)
-        repo = Repository.from_url(base_repo.vcs, repo_url,
-                                   revision=rev, branch=branch)
+        repo_co_dir, repo_co_name = os.path.split(repo_relative)
+        repo = base_repo.copy_with_changes(repo_co_name, prefix=repo_co_dir,
+                                           revision=rev, branch=branch)
     else:
         repo = base_repo.copy_with_changes(co_name, prefix=co_dir,
                                            revision=rev, branch=branch)

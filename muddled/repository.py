@@ -413,6 +413,15 @@ class Repository(object):
             Repository('git', 'ssh://git@project-server/opt/kynesim/projects/042/git/', 'jim')
             >>> x.copy_with_changes('jim', branch='thrim')
             Repository('git', 'ssh://git@project-server/opt/kynesim/projects/042/git/', 'jim', branch='thrim')
+
+        Looking at a google code example:
+
+            >>> g = Repository('git', 'https://code.google.com/p/raw-cctv-replay', 'builds')
+            >>> g.url
+            'https://code.google.com/p/raw-cctv-replay.builds'
+            >>> g2 = g.copy_with_changes('stuff')
+            >>> g2.url
+            'https://code.google.com/p/raw-cctv-replay.stuff'
         """
         # We do it this way, rather than making a copy.copy() and amending
         # that, so that we correctly trigger any handler actions that might

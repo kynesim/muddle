@@ -16,21 +16,11 @@ from muddled.utils import MuddleSortedDict, HashFile, GiveUp, truncate
 DomainTuple = namedtuple('DomainTuple', 'name repository description')
 CheckoutTupleV1 = namedtuple('CheckoutTupleV1', 'name repo rev rel dir domain co_leaf branch')
 
-def set_option(config, section, name, value):
-    """Set an option in a section.
-    """
-    config.set(section, name, value)
-
 def maybe_set_option(config, section, name, value):
     """Set an option in a section, if its value is not None.
     """
     if value is not None:
         config.set(section, name, value)
-
-def get_option(config, section, name):
-    """Get an option from a section, as a string.
-    """
-    return config.get(section, name)
 
 def maybe_get_option(config, section, name):
     """Get an option from a section, as a string, or as None.
@@ -42,7 +32,7 @@ def maybe_get_option(config, section, name):
     else:
         return None
 
-class VersionStamp(Mapping):
+class VersionStamp(object):
     """A representation of the revision state of a build tree's checkouts.
 
     Our internal data is:
@@ -53,34 +43,29 @@ class VersionStamp(Mapping):
         * ``description`` is a string naming the build description (as stored
           in ``.muddle/Description``)
 
-        * 'domains' is a (possibly empty) set of tuples (specifically,
-          DomainTuple), each containing:
+        * 'versions_repo' is a string giving the versions repository (as stored
+          in ``.muddle/VersionsRepository``)
 
-            * name - the name of the domain
-            * repository - the default repository for the domain
-            * descripton - the build description for the domain
+        * 'domains' is a dictionary mapping domain names to tuples of the form
+          (domain_repo, domain_desc), where:
 
-        * 'checkouts' is a list of named tuples (specifically, CheckoutTupleV1)
-          describing the checkouts, each tuple containing:
+            * domain_repo is the default repository for the domain
+            * domain_desc is the build description for the domain
 
-            * name - the name of the checkout
-            * repo - the actual repository of the checkout
-            * rev - the revision of the checkout
-            * rel - the relative directory of the checkout
-              (the 'prefix' from the Repository instance)
-            * dir - the directory in ``src`` where the checkout goes
-            * domain - which domain the checkout is in, or None. This
-              is the domain as given within '(' and ')' in a label, so
-              it may contain commas - for instance "fred" or "fred,jim,bob".
-            * co_leaf - The leaf directory in which this checkout resides -
-              this is just the name for one and two-level checkouts, but will
-              be different for multilevel checkouts
-            * branch - the branch for this checkout, if it is not the default
-              (e.g., "master" in git).
+        * 'checkouts' is a dictionary mapping checkout labels to tuples of the
+          form (co_dir, co_leaf, repo), where:
 
-          These are essentially the exact arguments that would have been given
-          to the old VCS initialisation mechanism, and should be enough to
-          enable us to recreate a checkout exactly.
+            * co_dir is the sub-path between src/ and the co_leaf
+            * co_leaf is the name of the directory within src/ that
+              actually contains the checkout
+            * repo is a Repository instance, where to find the checkout
+              remotely
+
+           These are the appropriate arguments for the checkout_from_repo()
+           function in version_control.py.
+
+           The checkout will be in src/<co_dir>/<co_leaf> (if <co_dir> is
+           set), or src/<co_leaf> (if it is not).
 
         * 'problems' is a list of problems in determining the stamp
           information. This will be of zero length if the stamp if accurate,
@@ -89,55 +74,17 @@ class VersionStamp(Mapping):
 
           Note that when problems descriptions are written to a stamp file,
           they are truncated.
-
-    A VersionStamp instance also acts as if it were a dictionary from checkout
-    name to the checkout tuple.
-
-    So, for instance:
-
-        >>> v = VersionStamp('Somewhere', 'src/builds/01.py', [],
-        ...                  [('fred', 'vcs+Somewhere', 3, None, 'fred', None, None, None),
-        ...                   ('jim',  'vcs+Elsewhere', 7, None, 'jim', None, 'sheila', None)],
-        ...                  ['Oops, a problem'])
-        >>> print v
-        [ROOT]
-        repository = Somewhere
-        description = src/builds/01.py
-        <BLANKLINE>
-        [CHECKOUT fred]
-        directory = fred
-        name = fred
-        repository = vcs+Somewhere
-        revision = 3
-        <BLANKLINE>
-        [CHECKOUT jim]
-        co_leaf = sheila
-        directory = jim
-        name = jim
-        repository = vcs+Elsewhere
-        revision = 7
-        <BLANKLINE>
-        [PROBLEMS]
-        problem1 = Oops, a problem
-        >>> v['jim']
-        CheckoutTupleV1(name='jim', repo='vcs+Elsewhere', rev=7, rel=None, dir='jim', domain=None, co_leaf='sheila', branch=None)
-
-    Note that this is *not* intended to be a mutable class, so please do not
-    change any of its internals directly. In particular, if you *did* change
-    the checkouts sequence, you would definitely need to remember to update
-    the checkouts dictionary, and vice versa. And you would need to remember
-    that the checkouts list is composed of CheckoutTupleV1s, and the domains
-    list of DomainTuples, or otherwise stuff would go wrong.
     """
 
     MAX_PROBLEM_LEN = 100               # At what length to truncate problems
 
     def __init__(self):
-        self.repository = ''
-        self.description = ''
+        self.repository = ''    # content of .muddle/RootRepository
+        self.description = ''   # content of .muddle/Description
+        self.versions_repo = '' # and of .muddle/VersionsRepository
         self.domains = {}       # domain_name -> (domain_repo, domain_desc)
         self.checkouts = {}     # label -> (co_dir, co_leaf, repo)
-        self.problems = []
+        self.problems = []      # one string per problem
 
     def __str__(self):
         """Make 'print' do something useful.
@@ -147,21 +94,6 @@ class VersionStamp(Mapping):
         rv = s.getvalue()
         s.close()
         return rv.rstrip()
-
-    # ==========================================================
-    # Mapping infrastructure
-    def __getitem__(self, key):
-        return self._checkout_dict[key]
-
-    def __len__(self):
-        return len(self._checkout_dict)
-
-    def __contains__(self, key):
-        return key in self._checkout_dict
-
-    def __iter__(self):
-        return iter(self._checkout_dict)
-    # ==========================================================
 
     def write_to_file(self, filename, version=2):
         """Write our data out to a file.
@@ -201,12 +133,12 @@ class VersionStamp(Mapping):
         config.add_section("ROOT")
         config.set("ROOT", "repository", self.repository)
         config.set("ROOT", "description", self.description)
+        maybe_set_option(config, "ROOT", 'versions_repo', self.versions_repo)
         config.write(fd)
 
         if self.domains:
             config = RawConfigParser(None, dict_type=MuddleSortedDict)
             domain_names = self.domains.keys()
-            #domain_names.sort()
             for domain_name in domain_names:
                 domain_repo, domain_desc = self.domains[domain_name]
                 section = "DOMAIN %s"%domain_name
@@ -219,7 +151,6 @@ class VersionStamp(Mapping):
         config = RawConfigParser(None, dict_type=MuddleSortedDict)
         if version == 1:
             co_labels = self.checkouts.keys()
-            #co_labels.sort()
             for co_label in co_labels:
                 co_dir, co_leaf, repo = self.checkouts[co_label]
                 if co_label.domain:
@@ -251,7 +182,6 @@ class VersionStamp(Mapping):
 
         else:
             co_labels = self.checkouts.keys()
-            #co_labels.sort()
             for co_label in co_labels:
                 co_dir, co_leaf, repo = self.checkouts[co_label]
                 if co_label.domain:
@@ -363,6 +293,7 @@ class VersionStamp(Mapping):
 
         stamp.repository = builder.invocation.db.repo.get()
         stamp.description = builder.invocation.db.build_desc.get()
+        stamp.versions_repo = builder.invocation.db.versions_repo.get()
 
         if not quiet:
             print 'Finding all checkouts...',
@@ -452,6 +383,7 @@ class VersionStamp(Mapping):
 
         stamp.repository = config.get("ROOT", "repository")
         stamp.description = config.get("ROOT", "description")
+        stamp.versions_repo = maybe_get_option(config, "ROOT", "versions_repo")
 
         sections = config.sections()
         sections.remove("STAMP")

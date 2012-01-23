@@ -429,7 +429,7 @@ def write(our_stamp_file, far_stamp_file, output_dir_name):
 
     for label, rev1, rev2 in changed:
         print "-- Determining changes for checkout %s, %s..%s"%(label, rev1, rev2)
-        co_dir, co_leaf, repo = our_stamp[label]
+        co_dir, co_leaf, repo = our_stamp.checkouts[label]
         vcs = repo.vcs
         if vcs == 'bzr':
             bzr_send(label, co_dir, co_leaf, repo, rev1, rev2, output_dir, manifest_filename)

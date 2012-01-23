@@ -287,6 +287,13 @@ class Repository(object):
                 self.branch == other.branch and
                 self.revision == other.revision)
 
+    def same_ignoring_revision_as(self, other):
+        """Requires equality except for the revision.
+        """
+        return (self.vcs == other.vcs and
+                self.url == other.url and
+                self.branch == other.branch)
+
     def default_path(self):
         """Return the default repository path, calculated from all the parts.
 

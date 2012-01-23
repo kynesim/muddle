@@ -534,8 +534,8 @@ class VersionStamp(Mapping):
                         elif prefix_as_is == 'False' or prefix_as_is is None:
                             prefix_as_is = False
                         else:
-                        raise GiveUp("Unexpected value '%s' for prefix_as_is in  stamp"
-                                     " file for %s"%(prefix_as_is, co_label_str))
+                            raise GiveUp("Unexpected value '%s' for prefix_as_is in  stamp"
+                                         " file for %s"%(prefix_as_is, co_label_str))
 
                         repo = Repository(repo_vcs, base_url, repo_name, prefix,
                                           prefix_as_is, suffix, inner_path,
@@ -567,86 +567,95 @@ class VersionStamp(Mapping):
         Returns a tuple of (deleted, new, changed, problems) sequences, where
         these are:
 
-            * a sequence of checkout tuples for checkouts that are in this
-              VersionStamp but not in the 'other' - i.e., "deleted" checkouts
+            * a sequence of tuples of the form:
 
-            * a sequence of checkout tuples for checkouts that are in the
-              'other' VersionStamp but not in this - i.e., "new" checkouts
+                  (co_label, co_dir, co_leaf, repo)
+
+              for checkouts that are in this VersionStamp but not in the
+              'other' - i.e., "deleted" checkouts
+
+            * a sequence of tuples of the form:
+
+                  (co_label, co_dir, co_leaf, repo)
+
+              for checkouts that are in the 'other' VersionStamp but not in
+              this - i.e., "new" checkouts
 
             * a sequence of tuples for any checkouts with differing revisions,
               of the form:
 
-                  (checkout_name, this_revision, other_revision)
+                  (co_label, revision1, revision2)
 
-              where 'this_revision' and 'other_revision' are the 'rev' entries
-              from the relevant checkout tuples.
+              where 'this_repo' and 'other_repo' are relevant Repository
+              instances.
 
-            * a sequence of (checkout_name, problem_string) for checkouts that
-              are present in both VersionStamps, but differ in something other
-              than revision.
+            * a sequence of tuples of the form:
+
+                  (co_label, problem_string)
+
+              for checkouts that are present in both VersionStamps, but differ
+              in something other than revision.
         """
         deleted = set()
         new = set()
         changed = set()
         problems = []
 
-        names = set(self.keys() + other.keys())
+        co_labels = set(self.checkouts.keys() + other.checkouts.keys())
 
         # Drat - can't sort sets
-        names = list(names)
-        names.sort()
+        co_labels = list(co_labels)
+        co_labels.sort()
 
-        for name in names:
-            try:
-                if self[name] != other[name]:
-                    if not quiet:
-                        print 'Checkout %s has changed'%name
-                    name1, repo1, rev1, rel1, dir1, domain1, co_leaf1, branch1 = self[name]
-                    name2, repo2, rev2, rel2, dir2, domain2, co_leaf2, branch2 = other[name]
-                    # For the moment, be *very* conservative on what we allow
-                    # to have changed - basically, just the revision
-                    # (arguably we shouldn't care about domain...)
+        for label in co_labels:
+            if label in self.checkouts and label in other.checkouts:
+                co_dir1, co_leaf1, repo1 = self[name]
+                co_dir2, co_leaf2, repo2 = other[name]
+
+                if (co_dir1 != co_dir2 or co_leaf1 != co_leaf2 or
+                    repo1 != repo2):
+
                     errors = []
-                    if repo2 != repo1:
+
+                    # It's a problem if anything but the revision is different
+                    if not repo1.same_ignoring_revision(repo2):
                         errors.append('repository')
                         if not quiet:
-                            print '  Repository mismatch:',repo1,repo2
-                    if rel1 != rel2:
-                        errors.append('relative')
+                            print '  Repository mismatch:'
+                            print '    %s from %s'%(repo1.url, repo1)
+                            print '    %s from %s'%(repo2.url, repo2)
+                    if co_dir1 != co_dir2:
+                        errors.append('co_dir')
                         if not quiet:
-                            print '  Relative directory mismatch:',rel1,rel2
-                    if dir1 != dir2:
-                        errors.append('directory')
-                        if not quiet:
-                            print '  Directory mismatch:',dir1,dir2
-                    if domain1 != domain2:
-                        errors.append('domain')
-                        if not quiet:
-                            print '  Domain mismatch:',domain1,domain2
+                            print '  Checkout directory mismatch:'
+                            print '    %s'%co_dir1
+                            print '    %s'%co_dir2
                     if co_leaf1 != co_leaf2:
                         errors.append('co_leaf')
                         if not quiet:
-                            print '  Checkout leaf mismatch:',co_leaf1,co_leaf2
-                    if branch1 != branch2:
-                        errors.append('branch')
-                        if not quiet:
-                            print '  Checkout branch mismatch:',branch1,branch2
+                            print '  Checkout leaf mismatch:'
+                            print '    %s'%co_leaf1
+                            print '    %s'%co_leaf2
+
                     if errors:
                         if not quiet:
                             print '  ...only revision mismatch is allowed'
-                        problems.append((name1, 'Checkout %s does not match: %s'%(name,
-                                                        ', '.join(errors))))
+                        problems.append((label, 'Checkout %s does not match:'
+                                                ' %s'%(label, ', '.join(errors))))
                         continue
-                    changed.add((name1, rev1, rev2))
-            except KeyError:
-                if name in self._checkout_dict:
-                    if not quiet:
-                        print 'Checkout %s was deleted'%name
-                    deleted.add(self[name])
-                else:
-                    if not quiet:
-                        print 'Checkout %s is new'%name
-                    new.add(other[name])
+                    else:
+                        # They only differed in their revisions
+                        changed.add((label, repo1.revision, repo2.revision))
+
+            elif label in self.checkouts:
+                if not quiet:
+                    print 'Checkout %s was deleted'%name
+                co_dir, co_leaf, repo = self[name]
+                deleted.add( (label, co_dir, co_leaf, repo) )
+            else:       # It must be in other.checkouts...
+                if not quiet:
+                    print 'Checkout %s is new'%name
+                co_dir, co_leaf, repo = other[name]
+                new.add( (label, co_dir, co_leaf, repo) )
 
         return deleted, new, changed, problems
-

@@ -219,6 +219,25 @@ class VersionStamp(object):
                 # XXX (do we require option values to be strings? Not at the moment)
                 # XXX Or should we lost options and just add a (specific)
                 # XXX 'shallow' value to our VersionControlHandler?
+                #
+                # Consider reworking options so that:
+                #
+                # a. all option values are strings, or None
+                # b. there are no default options
+                # c. all code that looks for options copes with an option
+                #    not existing - so if git.py finds that "shallow_checkout"
+                #    is not set, then it defaults to False
+                # d. so make that the rule (absent == None == False)
+                #
+                # and then we can add 'options' to the tuple we hold for each
+                # checkout, and we can do something like:
+                #
+                # if options:
+                #    # Say we want our option value names to retain their case
+                #    config.optionxform = str
+                #    for key, value in options.itemize():
+                #        type_name = type(value).__class__.__name__
+                #        config.set(section, 'option:%s'%key, (type_name, value))
 
         config.write(fd)
 

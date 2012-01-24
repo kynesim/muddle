@@ -27,20 +27,34 @@ def show_version():
     """
     this_dir = os.path.split(__file__)[0]
     muddle_dir = os.path.split(this_dir)[0]
-    cmd = ['git', 'describe', '--dirty=-modified', '--long', '--all']
+    cmd_tag = ['git', 'describe', '--dirty=-modified', '--long', '--tags']
+    cmd_all = ['git', 'describe', '--dirty=-modified', '--long', '--all']
     with Directory(muddle_dir, show_pushd=False):
+        # First try looking for a version using tags, which should normally
+        # work. However, if it doesn't try --all
         try:
-            p = subprocess.Popen(cmd, shell=False,
-                                 stdout=subprocess.PIPE,
-                                 stderr=subprocess.STDOUT)
+            p = subprocess.Popen(cmd_tag, shell=False, stdout=subprocess.PIPE, stderr=subprocess.STDOUT)
             out, err = p.communicate()
-            retcode = p.returncode
-            if retcode == 0:
+            if p.returncode == 0:
                 print 'muddle %s in %s'%(out.strip(), muddle_dir)
+                return
             else:
                 raise utils.GiveUp("Problem determining muddle version: 'git' returned %s\n\n"
                                    "$ %s\n"
-                                   "%s\n"%(retcode, ' '.join(cmd), out.strip()))
+                                   "%s\n"%(p.returncode, ' '.join(cmd), out.strip()))
+        except Exception:
+            pass
+
+        try:
+            p = subprocess.Popen(cmd_all, shell=False, stdout=subprocess.PIPE, stderr=subprocess.STDOUT)
+            out, err = p.communicate()
+            if p.returncode == 0:
+                print 'muddle %s in %s'%(out.strip(), muddle_dir)
+                return
+            else:
+                raise utils.GiveUp("Problem determining muddle version: 'git' returned %s\n\n"
+                                   "$ %s\n"
+                                   "%s\n"%(p.returncode, ' '.join(cmd), out.strip()))
         except OSError as e:
             if e.errno == errno.ENOENT:
                 raise utils.GiveUp("Unable to determine 'muddle --version' - cannot find 'git'")

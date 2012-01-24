@@ -3537,6 +3537,41 @@ Try "muddle help unstamp" for more information."""
             print '...the checkouts present match those in the stamp file.'
             print 'The build looks as if it restored correctly.'
 
+# -----------------------------------------------------------------------------
+# Distribute
+# -----------------------------------------------------------------------------
+@command('distribute', CAT_STAMP)       # in some vague sort of way
+class Distribute(Command):
+    """
+    :Syntax: muddle distribute <target_directory>
+
+    For the moment, this is just a stub for development
+    """
+
+    def requires_build_tree(self):
+        return True
+
+    def with_build_tree(self, builder, current_dir, args):
+
+        target_dir = None
+        while args:
+            word = args[0]
+            args = args[1:]
+            if word.startswith('-'):
+                raise GiveUp("Unexpected switch '%s' for 'distribute'"%word)
+            elif target_dir is None:
+                target_dir = word
+            else:
+                raise GiveUp("Unexpected argument '%s' for 'distribute'"%word)
+
+        if target_dir is None:
+            raise GiveUp("Syntax: muddle distribute <target_directory>")
+
+        if self.no_op():
+            return
+
+        print 'Writing to', target_dir
+
 # =============================================================================
 # Checkout, package and deployment commands
 # =============================================================================

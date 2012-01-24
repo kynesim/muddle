@@ -31,35 +31,31 @@ def show_version():
     cmd_all = ['git', 'describe', '--dirty=-modified', '--long', '--all']
     with Directory(muddle_dir, show_pushd=False):
         # First try looking for a version using tags, which should normally
-        # work. However, if it doesn't try --all
+        # work.
         try:
-            p = subprocess.Popen(cmd_tag, shell=False, stdout=subprocess.PIPE, stderr=subprocess.STDOUT)
+            p = subprocess.Popen(cmd_tag, shell=False, stdout=subprocess.PIPE,
+                                 stderr=subprocess.STDOUT)
             out, err = p.communicate()
             if p.returncode == 0:
                 print 'muddle %s in %s'%(out.strip(), muddle_dir)
                 return
-            else:
-                raise utils.GiveUp("Problem determining muddle version: 'git' returned %s\n\n"
-                                   "$ %s\n"
-                                   "%s\n"%(p.returncode, ' '.join(cmd), out.strip()))
-        except Exception:
-            pass
-
-        try:
-            p = subprocess.Popen(cmd_all, shell=False, stdout=subprocess.PIPE, stderr=subprocess.STDOUT)
-            out, err = p.communicate()
-            if p.returncode == 0:
-                print 'muddle %s in %s'%(out.strip(), muddle_dir)
-                return
-            else:
-                raise utils.GiveUp("Problem determining muddle version: 'git' returned %s\n\n"
-                                   "$ %s\n"
-                                   "%s\n"%(p.returncode, ' '.join(cmd), out.strip()))
         except OSError as e:
             if e.errno == errno.ENOENT:
                 raise utils.GiveUp("Unable to determine 'muddle --version' - cannot find 'git'")
-            else:
-                raise
+        except Exception:
+            pass
+
+        # If that failed, try with --all
+        p = subprocess.Popen(cmd_all, shell=False, stdout=subprocess.PIPE,
+                             stderr=subprocess.STDOUT)
+        out, err = p.communicate()
+        if p.returncode == 0:
+            print 'muddle %s in %s'%(out.strip(), muddle_dir)
+            return
+        else:
+            raise utils.GiveUp("Problem determining muddle version: 'git' returned %s\n\n"
+                               "$ %s\n"
+                               "%s\n"%(p.returncode, ' '.join(cmd_all), out.strip()))
 
 
 def find_and_load(specified_root, muddle_binary):

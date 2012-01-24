@@ -7,14 +7,46 @@ See:
 
 for help on how to use it.
 """
+
+import errno
 import os
+import subprocess
 
 import muddled.commands as commands
 import muddled.utils as utils
 import muddled.mechanics as mechanics
 
 from muddled.depend import Label
-from muddled.utils import LabelType, LabelTag, DirType
+from muddled.utils import LabelType, LabelTag, DirType, Directory
+
+def show_version():
+    """Show something akin to a version of this muddle.
+
+    Simply run git to do it for us. Of course, this will fail if we don't
+    have git...
+    """
+    this_dir = os.path.split(__file__)[0]
+    muddle_dir = os.path.split(this_dir)[0]
+    cmd = ['git', 'describe', '--dirty=-modified', '--long', '--all']
+    with Directory(muddle_dir, show_pushd=False):
+        try:
+            p = subprocess.Popen(cmd, shell=False,
+                                 stdout=subprocess.PIPE,
+                                 stderr=subprocess.STDOUT)
+            out, err = p.communicate()
+            retcode = p.returncode
+            if retcode == 0:
+                print 'muddle %s in %s'%(out.strip(), muddle_dir)
+            else:
+                raise utils.GiveUp("Problem determining muddle version: 'git' returned %s\n\n"
+                                   "$ %s\n"
+                                   "%s\n"%(retcode, ' '.join(cmd), out.strip()))
+        except OSError as e:
+            if e.errno == errno.ENOENT:
+                raise utils.GiveUp("Unable to determine 'muddle --version' - cannot find 'git'")
+            else:
+                raise
+
 
 def find_and_load(specified_root, muddle_binary):
     """Find our .muddle root, and then load our builder, and return it.
@@ -74,6 +106,9 @@ def _cmdline(args, current_dir, original_env, muddle_binary):
         elif word == '--tree':
             args = args[1:]
             specified_root = args[0]
+        elif word == '--version':
+            show_version()
+            return
         elif word in ('-n', "--just-print"):
             command_options["no_operation"] = True
         elif word[0] == '-':

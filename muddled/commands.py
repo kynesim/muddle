@@ -956,6 +956,9 @@ Available <options> are:
                       'do something', just print out the labels for which that
                       action would be performed. For commands that "enquire"
                       (or "find out") something, this switch is ignored.
+   --version          Show the version of muddle and the directory it is
+                      being run from. Note that this uses git to interrogate
+                      the .git/ directory in the muddle source directory.
 
 If you don't give --tree, muddle will traverse directories up to the root to
 try and find a .muddle directory, which signifies the top of the build tree.

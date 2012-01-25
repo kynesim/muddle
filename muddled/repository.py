@@ -287,7 +287,7 @@ class Repository(object):
                 self.branch == other.branch and
                 self.revision == other.revision)
 
-    def same_ignoring_revision_as(self, other):
+    def same_ignoring_revision(self, other):
         """Requires equality except for the revision.
         """
         return (self.vcs == other.vcs and

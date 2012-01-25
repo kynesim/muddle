@@ -8,10 +8,12 @@
 import sys
 
 from collections import namedtuple, Mapping
+from datetime import datetime
 from ConfigParser import RawConfigParser
 
 from muddled.repository import Repository
-from muddled.utils import MuddleSortedDict, HashFile, GiveUp, truncate
+from muddled.utils import MuddleSortedDict, MuddleOrderedDict, \
+        HashFile, GiveUp, truncate
 
 DomainTuple = namedtuple('DomainTuple', 'name repository description')
 CheckoutTupleV1 = namedtuple('CheckoutTupleV1', 'name repo rev rel dir domain co_leaf branch')
@@ -123,13 +125,20 @@ class VersionStamp(object):
         # Note we take care to write out the sections by hand, so that they
         # come out in the order we want, other than in some random order (as
         # we're effectively writing out a dictionary)
-        config = RawConfigParser()
 
+        config = RawConfigParser(None, dict_type=MuddleOrderedDict)
         if version > 1:
             config.add_section("STAMP")
             config.set("STAMP", "version", version)
-            config.write(fd)
-
+            now = datetime.now()
+            now = datetime(now.year, now.month, now.day,
+                           now.hour, now.minute, now.second, 0, now.tzinfo)
+            config.set("STAMP", "now", now.isoformat(' '))
+            now = datetime.utcnow()
+            # Drop any microseconds!
+            now = datetime(now.year, now.month, now.day,
+                           now.hour, now.minute, now.second, 0, now.tzinfo)
+            config.set("STAMP", "utc", now.isoformat(' '))
         config.add_section("ROOT")
         config.set("ROOT", "repository", self.repository)
         config.set("ROOT", "description", self.description)
@@ -236,8 +245,22 @@ class VersionStamp(object):
                 #    # Say we want our option value names to retain their case
                 #    config.optionxform = str
                 #    for key, value in options.itemize():
+                #        # Discriminate VERY SIMPLY on type
+                #        if isinstance(value, bool):
+                #           type_name = 'bool'
+                #        elif isinstance(value, int):
+                #           type_name = 'init'
+                #        else:
+                #           type_name = 'str'
                 #        type_name = type(value).__class__.__name__
-                #        config.set(section, 'option:%s'%key, (type_name, value))
+                #        config.set(section, 'option:%s'%key, '%s:%s'%(type_name, value))
+                #
+                # When reading it back, we then split on the first colon, check
+                # that we have 'bool', 'int' or 'str', and if it's either of the
+                # first two, apply the appropriate function to the rest of the
+                # string. Ugly, but simple
+                #
+                # IF it works to have a colon in the value name
 
         config.write(fd)
 

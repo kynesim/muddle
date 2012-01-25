@@ -88,6 +88,9 @@ __label_tags = {# For checkouts.
                 'Deployed' : "deployed",
                 'InstructionsApplied' : "instructionsapplied",
 
+                # Special tag for Distribute packages or checkouts
+                'Distributed' : 'distributed',
+
                 # Special tag used to dynamically load extensions
                 # (e.g. the build description)
                 'Loaded' : "loaded",

@@ -16,6 +16,13 @@ class DistributePackage(Action):
     def build_label(self, builder, label):
         print 'DistributePackage %s'%label
 
+        # 1. Get the target dir from the builder.invocation
+        # 2. Get the actual directory of the package obj/ and install/
+        #    directories
+        # 3. Use copywithout to copy the obj/ and install/ directories over
+        # 4. Set the appropriate tags in the target .muddle/ directory
+        # 5. Set the /distributed tag on the package
+
 class DistributeCheckout(Action):
     """
     An action that distributes a checkout.
@@ -31,6 +38,16 @@ class DistributeCheckout(Action):
     def build_label(self, builder, label):
         print 'DistributeCheckout %s (%s VCS)'%(label,
                 'without' if self.copy_vcs_dir else 'with')
+
+        # 1. Get the target dir from the builder.invocation
+        # 2. Get the actual directory of the checkout
+        # 3. If we're not doing copy_vcs_dir, find the VCS for this
+        #    checkout, and from that determine its VCS dir, and make
+        #    that our "without" string
+        # 4. Do a copywithout to do the actual copy, suitably ignoring
+        #    the VCS directory if necessary.
+        # 5. Set the appropriate tags in the target .muddle/ directory
+        # 6. Set the /distributed tag on the checkout
 
 def distribute_checkout(builder, label, copy_vcs_dir=False):
     """Request the distribution of the given checkout.

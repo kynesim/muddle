@@ -354,6 +354,9 @@ def do_depend(builder, pkg_name, role_names,
     """
 
     ruleset = builder.invocation.ruleset
+    if isinstance(role_names, basestring):
+        r = role_names
+        role_names = [ r ]
 
     for role_name in role_names:
         for (pkg, role) in deps:

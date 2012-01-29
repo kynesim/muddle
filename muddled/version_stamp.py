@@ -5,15 +5,20 @@
 .. TODO .. Insert approximate (historical) documentation for version 1 stamp files ..
 """
 
+import os
+import posixpath
 import sys
 
 from collections import namedtuple, Mapping
 from datetime import datetime
 from ConfigParser import RawConfigParser
+from StringIO import StringIO
 
+from muddled.depend import Label
 from muddled.repository import Repository
 from muddled.utils import MuddleSortedDict, MuddleOrderedDict, \
-        HashFile, GiveUp, truncate
+        HashFile, GiveUp, truncate, LabelType
+from muddled.version_control import split_vcs_url
 
 DomainTuple = namedtuple('DomainTuple', 'name repository description')
 CheckoutTupleV1 = namedtuple('CheckoutTupleV1', 'name repo rev rel dir domain co_leaf branch')
@@ -137,12 +142,12 @@ class VersionStamp(object):
             relative = os.path.join(repo.prefix, repo.repo_name)
         else:
             relative = repo.repo_name
-        if rel:
+        if relative:
             config.set(section, "relative", relative)
-        if dir:
+        if co_dir:
             config.set(section, "directory", co_dir)
-        if branch:
-            config.set(section, "branch", branch)
+        if repo.branch:
+            config.set(section, "branch", repo.branch)
         # =============================================================
 
     def _set_v2_checkout_for_write(self, config, co_label):
@@ -439,86 +444,18 @@ class VersionStamp(object):
                 domain_name = config.get(section, 'name')
                 domain_repo = config.get(section, 'repository')
                 domain_desc = config.get(section, 'description')
-                stamp.domains.add(DomainTuple(domain_name, domain_repo, domain_desc))
+                stamp.domains[domain_name] = DomainTuple(domain_repo, domain_desc)
             elif section.startswith("CHECKOUT"):
                 # Because we are using a list, we will not grumble if we
                 # find the exact same checkout definition more than once
                 # - we'll just keep it twice. So let's hope that doesn't
                 # happen.
                 if stamp.version == 1:
-                    name = config.get(section, 'name')
-                    vcs_repo_url = config.get(section, 'repository')
-                    revision = config.get(section, 'revision')
-
-                    relative = maybe_get_option(config, section, 'relative')
-                    co_dir = maybe_get_option(config, section, 'directory')
-                    domain = maybe_get_option(config, section, 'domain')
-                    co_leaf = maybe_get_option(config, section, 'co_leaf')
-                    if co_leaf is None:
-                        co_leaf = name  # NB: this is deliberate - see the unstamp command
-                    branch = maybe_get_option(config, section, 'branch')
-
-                    # =========================================================
-                    # Try to pretend to be a version 2 stamp file
-                    label = Label(LabelType.Checkout, name, domain=domain)
-                    vcs, base_url = split_vcs_url(vcs_repo_url)
-                    if relative:
-                        # 'relative' is the full path to the checkout (with src/),
-                        # including the checkout name/leaf
-                        parts = posixpath.split(relative)
-                        if parts[-1] == co_leaf:
-                            repo_name = co_leaf
-                            prefix = posixpath.join(*parts[:-1])
-                        else:
-                            repo_name = parts[-1]
-                            prefix = posixpath.join(*parts[:-1])
-                        repo = Repository(vcs, base_url, repo_name, prefix=prefix,
-                                          revision=revision, branch=branch)
-                    else:
-                        repo = Repository.from_url(vcs, base_url,
-                                                   revision=revision, branch=branch)
-                    # =========================================================
+                    co_label, co_leaf, co_dir, repo, options = _read_v1_checkout(section, config)
                 else:
-                    co_label_str = config.get(section, 'co_label')
-                    try:
-                        co_label = Label.from_string(co_label_str)
-                    except GiveUp as e:
-                        raise GiveUp("Error reading 'co_label=%s' in stamp"
-                                     " file: %s"%(co_label_str, e))
-                    co_dir = maybe_get_option(config, section, 'co_dir')
-                    co_leaf = maybe_get_option(config, section, 'co_leaf')
+                    co_label, co_leaf, co_dir, repo, options = _read_v2_checkout(section, config)
 
-                    repo_vcs = config.get(section, 'repo_vcs')
-                    repo_from_url_string = maybe_get_option(config, section,
-                            'repo_from_url_string')
-
-                    if repo_from_url_string == 'None' or repo_from_url_string is None:
-                        base_url = config.get(section, 'repo_base_url')
-                        repo_name = config.get(section, 'repo_name')
-
-                        prefix = maybe_get_option(config, section, "repo_prefix")
-                        prefix_as_is = maybe_get_option(config, section, "repo_prefix_as_is")
-                        suffix = maybe_get_option(config, section, "repo_suffix")
-                        inner_path = maybe_get_option(config, section, "repo_inner_path")
-                        revision = maybe_get_option(config, section, "repo_revision")
-                        branch = maybe_get_option(config, section, "repo_branch")
-                        handler = maybe_get_option(config, section, "repo_handler")
-
-                        if prefix_as_is == 'True':
-                            prefix_as_is = True
-                        elif prefix_as_is == 'False' or prefix_as_is is None:
-                            prefix_as_is = False
-                        else:
-                            raise GiveUp("Unexpected value '%s' for prefix_as_is in  stamp"
-                                         " file for %s"%(prefix_as_is, co_label_str))
-
-                        repo = Repository(repo_vcs, base_url, repo_name, prefix,
-                                          prefix_as_is, suffix, inner_path,
-                                          revision, branch, handler)
-                    else:
-                        repo = Repository.from_url(repo_vcs, repo_from_url_string)
-
-                self.checkouts[label] = (co_dir, co_leaf, repo)
+                stamp.checkouts[co_label] = (co_dir, co_leaf, repo)
 
             elif section == "PROBLEMS":
                 for name, value in config.items("PROBLEMS"):
@@ -584,8 +521,8 @@ class VersionStamp(object):
 
         for label in co_labels:
             if label in self.checkouts and label in other.checkouts:
-                co_dir1, co_leaf1, repo1 = self[name]
-                co_dir2, co_leaf2, repo2 = other[name]
+                co_dir1, co_leaf1, repo1 = self.checkouts[label]
+                co_dir2, co_leaf2, repo2 = other.checkouts[label]
 
                 if (co_dir1 != co_dir2 or co_leaf1 != co_leaf2 or
                     repo1 != repo2):
@@ -624,13 +561,104 @@ class VersionStamp(object):
 
             elif label in self.checkouts:
                 if not quiet:
-                    print 'Checkout %s was deleted'%name
-                co_dir, co_leaf, repo = self[name]
+                    print 'Checkout %s was deleted'%label
+                co_dir, co_leaf, repo = self.checkouts[label]
                 deleted.add( (label, co_dir, co_leaf, repo) )
             else:       # It must be in other.checkouts...
                 if not quiet:
-                    print 'Checkout %s is new'%name
-                co_dir, co_leaf, repo = other[name]
+                    print 'Checkout %s is new'%label
+                co_dir, co_leaf, repo = other.checkouts[label]
                 new.add( (label, co_dir, co_leaf, repo) )
 
+        # XXX Doesn't compare options.
+
         return deleted, new, changed, problems
+
+def _read_v2_checkout(section, config):
+    """Read a version 2 stamp file CHECKOUT section.
+
+    Returns a tuple of the form (co_label, co_leaf, co_dir, repo, options)
+    """
+    co_label_str = config.get(section, 'co_label')
+    try:
+        co_label = Label.from_string(co_label_str)
+    except GiveUp as e:
+        raise GiveUp("Error reading 'co_label=%s' in stamp"
+                     " file: %s"%(co_label_str, e))
+    co_dir = maybe_get_option(config, section, 'co_dir')
+    co_leaf = maybe_get_option(config, section, 'co_leaf')
+
+    repo_vcs = config.get(section, 'repo_vcs')
+    repo_from_url_string = maybe_get_option(config, section,
+            'repo_from_url_string')
+
+    if repo_from_url_string == 'None' or repo_from_url_string is None:
+        base_url = config.get(section, 'repo_base_url')
+        repo_name = config.get(section, 'repo_name')
+
+        prefix = maybe_get_option(config, section, "repo_prefix")
+        prefix_as_is = maybe_get_option(config, section, "repo_prefix_as_is")
+        suffix = maybe_get_option(config, section, "repo_suffix")
+        inner_path = maybe_get_option(config, section, "repo_inner_path")
+        revision = maybe_get_option(config, section, "repo_revision")
+        branch = maybe_get_option(config, section, "repo_branch")
+        handler = maybe_get_option(config, section, "repo_handler")
+
+        if prefix_as_is == 'True':
+            prefix_as_is = True
+        elif prefix_as_is == 'False' or prefix_as_is is None:
+            prefix_as_is = False
+        else:
+            raise GiveUp("Unexpected value '%s' for prefix_as_is in  stamp"
+                         " file for %s"%(prefix_as_is, co_label_str))
+
+        repo = Repository(repo_vcs, base_url, repo_name, prefix,
+                          prefix_as_is, suffix, inner_path,
+                          revision, branch, handler)
+    else:
+        repo = Repository.from_url(repo_vcs, repo_from_url_string)
+
+    # XXX Still to read any options
+    options = {}
+
+    return (co_label, co_leaf, co_dir, repo, options)
+
+def _read_v1_checkout(section, config):
+    """Read a version 1 stamp file CHECKOUT section.
+
+    Returns a tuple of the form (co_label, co_leaf, co_dir, repo, {})
+    """
+    name = config.get(section, 'name')
+    vcs_repo_url = config.get(section, 'repository')
+    revision = config.get(section, 'revision')
+
+    relative = maybe_get_option(config, section, 'relative')
+    co_dir = maybe_get_option(config, section, 'directory')
+    domain = maybe_get_option(config, section, 'domain')
+    co_leaf = maybe_get_option(config, section, 'co_leaf')
+    if co_leaf is None:
+        co_leaf = name  # NB: this is deliberate - see the unstamp command
+    branch = maybe_get_option(config, section, 'branch')
+
+    # =========================================================
+    # Try to pretend to be a version 2 stamp file
+    co_label = Label(LabelType.Checkout, name, domain=domain)
+    vcs, base_url = split_vcs_url(vcs_repo_url)
+    if relative:
+        # 'relative' is the full path to the checkout (with src/),
+        # including the checkout name/leaf
+        parts = posixpath.split(relative)
+        if parts[-1] == co_leaf:
+            repo_name = co_leaf
+            prefix = posixpath.join(*parts[:-1])
+        else:
+            repo_name = parts[-1]
+            prefix = posixpath.join(*parts[:-1])
+        repo = Repository(vcs, base_url, repo_name, prefix=prefix,
+                          revision=revision, branch=branch)
+    else:
+        repo = Repository.from_url(vcs, base_url,
+                                   revision=revision, branch=branch)
+    # =========================================================
+    return (co_label, co_leaf, co_dir, repo, {})
+

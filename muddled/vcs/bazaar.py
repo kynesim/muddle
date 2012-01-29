@@ -1,5 +1,7 @@
 """
 Muddle support for Bazaar.
+
+.. to be documented ..
 """
 
 import os
@@ -473,6 +475,6 @@ class Bazaar(VersionControlSystem):
         return text
 
 # Tell the version control handler about us..
-register_vcs_handler("bzr", Bazaar())
+register_vcs_handler("bzr", Bazaar(), __doc__)
 
 # End file.

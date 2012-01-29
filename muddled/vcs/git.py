@@ -1,5 +1,7 @@
 """
 Muddle suppport for Git.
+
+.. to be documented ..
 """
 
 import os
@@ -345,6 +347,6 @@ class Git(VersionControlSystem):
     # reinvestigating periodically
 
 # Tell the version control handler about us..
-register_vcs_handler("git", Git())
+register_vcs_handler("git", Git(), __doc__)
 
 # End file.

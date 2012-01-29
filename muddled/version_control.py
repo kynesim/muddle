@@ -480,13 +480,18 @@ def default_vcs_options_dict():
 
 # This dictionary holds the global list of registered VCS handler
 # factories.
-vcs_dict = { }
+vcs_dict = {}
+# And this one the documentation for each VCS
+vcs_docs = {}
 
-def register_vcs_handler(scheme, factory):
+def register_vcs_handler(scheme, factory, docs=None):
     """
     Register a VCS handler factory with a VCS scheme prefix.
+
+    Also, preferably, register the VCS documentation on how muddle handles it.
     """
     vcs_dict[scheme] = factory
+    vcs_docs[scheme] = docs
 
 def list_registered(indent=''):
     """
@@ -518,6 +523,14 @@ def get_vcs_handler(vcs):
         return vcs_dict[vcs]
     except KeyError:
         raise utils.MuddleBug("No VCS handler registered for VCS type %s"%vcs)
+
+def get_vcs_docs(vcs):
+    """Given a VCS short name, return the docs for how muddle handles it
+    """
+    try:
+        return vcs_docs[vcs]
+    except KeyError:
+        raise utils.GiveUp("No VCS handler registered for VCS type %s"%vcs)
 
 def get_vcs_handler_from_string(repo_str):
     """Given a <vcs>+<url> string, return a VCS handler and <url>.

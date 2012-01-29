@@ -1,5 +1,7 @@
 """
 Muddle support for naive file copying.
+
+.. to be documented ..
 """
 
 import os
@@ -135,6 +137,6 @@ def _decode_file_url(url):
     return result.path
 
 # Tell the version control handler about us..
-register_vcs_handler("file", File())
+register_vcs_handler("file", File(), __doc__)
 
 # End file.

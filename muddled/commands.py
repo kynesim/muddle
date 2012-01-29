@@ -936,6 +936,8 @@ class Help(Command):
       muddle help labels         for help on using labels
       muddle help subdomains     for help on subdomains
       muddle help aliases        says which commands have more than one name
+      muddle help vcs [name]     name the supported version control systems,
+                                 or give details about one in particular
 
     <switch> may be:
 
@@ -1253,6 +1255,9 @@ the parentheses. So, for instance, use:
         if args[0] == "commands":
             return self.help_command_list()
 
+        if args[0] == "vcs":
+            return self.help_vcs(args[1:])
+
         if len(args) == 1:
             cmd = args[0]
             try:
@@ -1363,6 +1368,21 @@ the parentheses. So, for instance, use:
         Return help on how to use subdomains
         """
         return textwrap.dedent(Help.subdomains_help)
+
+    def help_vcs(self, args):
+        """
+        Return help on supported VCS
+        """
+        if args:
+            if len(args) != 1:
+                raise GiveUp("'muddle help vcs' takes zero or one arguments")
+            vcs = args[0]
+            return version_control.get_vcs_docs(vcs)
+        else:
+            str_list = [ ]
+            str_list.append("Available version control systems:\n\n")
+            str_list.append(version_control.list_registered(indent='  '))
+            return "".join(str_list)
 
     def help_all(self):
         """

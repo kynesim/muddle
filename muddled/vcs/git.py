@@ -2,6 +2,21 @@
 Muddle suppport for Git.
 
 .. to be documented ..
+
+
+Available git specific options are:
+
+    * shallow_checkout: If True, then only clone to a depth of 1 (i.e., pass
+      the git switch "--depth 1"). If False, then no effect. The default is
+      False.
+
+      This is typically of use when cloning the Linux kernel (or some other
+      large tree with a great deal of history), when one is not expecting to
+      modify the checkout in any way in the future (i.e., neither to push it
+      nor to pull it again).
+
+      If 'shallow_checkout' is specified, then "muddle fetch", "muddle merge"
+      and "muddle push" will refuse to do anything.
 """
 
 import os
@@ -73,7 +88,7 @@ class Git(VersionControlSystem):
             # Explicitly use master if no branch specified - don't default
             args = "-b master"
 
-        if options['shallow_checkout']:
+        if options.get('shallow_checkout'):
             args="%s --depth 1"%args
 
         utils.run_cmd("git clone %s %s %s"%(args, repo.url, co_leaf), verbose=verbose)
@@ -102,9 +117,11 @@ class Git(VersionControlSystem):
                                 "%s"%utils.indent(text,'    '))
 
     def _shallow_not_allowed(self, options):
-        """ Checks to see if the current checkout is shallow, and refuses if so.
-        Must only be called from the checkout directory. """
-        if options['shallow_checkout']:
+        """Checks to see if the current checkout is shallow, and refuses if so.
+
+        Must only be called from the checkout directory.
+        """
+        if options.get('shallow_checkout'):
             if os.path.exists('.git/shallow'):
                 raise utils.Unsupported('Shallow checkouts cannot interact with their upstream repositories.')
 
@@ -347,6 +364,6 @@ class Git(VersionControlSystem):
     # reinvestigating periodically
 
 # Tell the version control handler about us..
-register_vcs_handler("git", Git(), __doc__)
+register_vcs_handler("git", Git(), __doc__, ["shallow_checkout"])
 
 # End file.

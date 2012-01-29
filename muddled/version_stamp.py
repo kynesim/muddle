@@ -29,15 +29,27 @@ def maybe_set_option(config, section, name, value):
     if value is not None:
         config.set(section, name, value)
 
-def maybe_get_option(config, section, name):
+def maybe_get_option(config, section, name, remove=False):
     """Get an option from a section, as a string, or as None.
 
     If the option is present, return it, otherwise return None.
+
+    If remove is true, and the option was present, also remove it.
     """
     if config.has_option(section, name):
-        return config.get(section, name)
+        value = config.get(section, name)
+        if remove:
+            config.remove_option(section, name)
+        return value
     else:
         return None
+
+def get_and_remove_option(config, section, name):
+    """Get an option from a section, as a string, and also remove it.
+    """
+    value = config.get(section, name)
+    config.remove_option(section, name)
+    return value
 
 class VersionStamp(object):
     """A representation of the revision state of a build tree's checkouts.
@@ -453,7 +465,8 @@ class VersionStamp(object):
                 if stamp.version == 1:
                     co_label, co_leaf, co_dir, repo, options = _read_v1_checkout(section, config)
                 else:
-                    co_label, co_leaf, co_dir, repo, options = _read_v2_checkout(section, config)
+                    co_label, co_leaf, co_dir, repo, options = _read_v2_checkout(section, config,
+                                                                                 stamp.problems)
 
                 stamp.checkouts[co_label] = (co_dir, co_leaf, repo)
 
@@ -574,35 +587,38 @@ class VersionStamp(object):
 
         return deleted, new, changed, problems
 
-def _read_v2_checkout(section, config):
+def _read_v2_checkout(section, config, problems):
     """Read a version 2 stamp file CHECKOUT section.
 
     Returns a tuple of the form (co_label, co_leaf, co_dir, repo, options)
+
+    Note that this is destructive, as it removes options from the section
+    as it interrogates them.
     """
-    co_label_str = config.get(section, 'co_label')
+    co_label_str = get_and_remove_option(config, section, 'co_label')
     try:
         co_label = Label.from_string(co_label_str)
     except GiveUp as e:
         raise GiveUp("Error reading 'co_label=%s' in stamp"
                      " file: %s"%(co_label_str, e))
-    co_dir = maybe_get_option(config, section, 'co_dir')
-    co_leaf = maybe_get_option(config, section, 'co_leaf')
+    co_dir = maybe_get_option(config, section, 'co_dir', True)
+    co_leaf = maybe_get_option(config, section, 'co_leaf', True)
 
-    repo_vcs = config.get(section, 'repo_vcs')
+    repo_vcs = get_and_remove_option(config, section, 'repo_vcs')
     repo_from_url_string = maybe_get_option(config, section,
-            'repo_from_url_string')
+            'repo_from_url_string', True)
 
     if repo_from_url_string == 'None' or repo_from_url_string is None:
-        base_url = config.get(section, 'repo_base_url')
-        repo_name = config.get(section, 'repo_name')
+        base_url = get_and_remove_option(config, section, 'repo_base_url')
+        repo_name = get_and_remove_option(config, section, 'repo_name')
 
-        prefix = maybe_get_option(config, section, "repo_prefix")
-        prefix_as_is = maybe_get_option(config, section, "repo_prefix_as_is")
-        suffix = maybe_get_option(config, section, "repo_suffix")
-        inner_path = maybe_get_option(config, section, "repo_inner_path")
-        revision = maybe_get_option(config, section, "repo_revision")
-        branch = maybe_get_option(config, section, "repo_branch")
-        handler = maybe_get_option(config, section, "repo_handler")
+        prefix = maybe_get_option(config, section, "repo_prefix", True)
+        prefix_as_is = maybe_get_option(config, section, "repo_prefix_as_is", True)
+        suffix = maybe_get_option(config, section, "repo_suffix", True)
+        inner_path = maybe_get_option(config, section, "repo_inner_path", True)
+        revision = maybe_get_option(config, section, "repo_revision", True)
+        branch = maybe_get_option(config, section, "repo_branch", True)
+        handler = maybe_get_option(config, section, "repo_handler", True)
 
         if prefix_as_is == 'True':
             prefix_as_is = True
@@ -618,8 +634,37 @@ def _read_v2_checkout(section, config):
     else:
         repo = Repository.from_url(repo_vcs, repo_from_url_string)
 
-    # XXX Still to read any options
+    # XXX Untested
     options = {}
+    for key in config.options(section):
+        if key.startswith('option:'):
+            value = config.get(section, key)
+            option_name = key[7:]
+            colon_at = value.find(':')
+            option_type = value[:colon_at]
+            option_value = value[colon_at+1:]
+            if option_type == 'int':
+                try:
+                    options[option_name] = int(option_value)
+                except Exception as e:
+                    raise GiveUp("Cannot convert value to integer,"
+                                 " for '%s = %s' in [%s]"%(key, value, section))
+            elif option_type == 'bool':
+                if option_value == 'True':
+                    options[option_name] = True
+                elif option_value == 'False':
+                    options[option_name] = False
+                else:
+                    raise GiveUp("Value is not True or False,"
+                                 " for '%s = %s' in [%s]"%(key, value, section))
+            elif option_type == "str":
+                options[option_name] = option_value
+            else:
+                raise GiveUp("Unrecognised datatype (not bool, int or str),"
+                             " for '%s = %s' in [%s]"%(key, value, section))
+
+        else:
+            problems.append('Unexpected "%s" in section [%s]'%(key, section))
 
     return (co_label, co_leaf, co_dir, repo, options)
 

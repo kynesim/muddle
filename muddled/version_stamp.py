@@ -20,7 +20,6 @@ from muddled.utils import MuddleSortedDict, MuddleOrderedDict, \
         HashFile, GiveUp, truncate, LabelType
 from muddled.version_control import split_vcs_url
 
-DomainTuple = namedtuple('DomainTuple', 'name repository description')
 CheckoutTupleV1 = namedtuple('CheckoutTupleV1', 'name repo rev rel dir domain co_leaf branch')
 
 def maybe_set_option(config, section, name, value):
@@ -207,10 +206,10 @@ class VersionStamp(object):
                 if isinstance(value, bool):
                    type_name = 'bool'
                 elif isinstance(value, int):
-                   type_name = 'init'
+                   type_name = 'int'
                 else:
                    type_name = 'str'
-                config.set(section, 'option:%s'%key, '%s:%s'%(type_name, value))
+                config.set(section, 'option~%s'%key, '%s:%s'%(type_name, value))
 
     def write_to_file_object(self, fd, version=2):
         """Write our data out to a file-like object (one with a 'write' method).
@@ -434,7 +433,13 @@ class VersionStamp(object):
 
         if config.has_section("STAMP"):
             # It is at least a version 2 stamp file
-            stamp.version = config.get("STAMP", "version")
+            version_str = config.get("STAMP", "version")
+            try:
+                stamp.version = int(version_str)
+            except Exception as e:
+                raise GiveUp("Unexpected version %r - expecting an integer,"
+                             " and particularly 1 or 2"%version_str)
+
             if stamp.version != 2:
                 raise GiveUp("This version of muddle does not know how to"
                              " parse a version %d stamp file"%stamp.version)
@@ -456,7 +461,7 @@ class VersionStamp(object):
                 domain_name = config.get(section, 'name')
                 domain_repo = config.get(section, 'repository')
                 domain_desc = config.get(section, 'description')
-                stamp.domains[domain_name] = DomainTuple(domain_repo, domain_desc)
+                stamp.domains[domain_name] = (domain_repo, domain_desc)
             elif section.startswith("CHECKOUT"):
                 # Because we are using a list, we will not grumble if we
                 # find the exact same checkout definition more than once
@@ -469,6 +474,7 @@ class VersionStamp(object):
                                                                                  stamp.problems)
 
                 stamp.checkouts[co_label] = (co_dir, co_leaf, repo)
+                stamp.options[co_label] = options
 
             elif section == "PROBLEMS":
                 for name, value in config.items("PROBLEMS"):
@@ -634,39 +640,52 @@ def _read_v2_checkout(section, config, problems):
     else:
         repo = Repository.from_url(repo_vcs, repo_from_url_string)
 
-    # XXX Untested
     options = {}
     for key in config.options(section):
-        if key.startswith('option:'):
-            value = config.get(section, key)
-            option_name = key[7:]
-            colon_at = value.find(':')
-            option_type = value[:colon_at]
-            option_value = value[colon_at+1:]
-            if option_type == 'int':
-                try:
-                    options[option_name] = int(option_value)
-                except Exception as e:
-                    raise GiveUp("Cannot convert value to integer,"
-                                 " for '%s = %s' in [%s]"%(key, value, section))
-            elif option_type == 'bool':
-                if option_value == 'True':
-                    options[option_name] = True
-                elif option_value == 'False':
-                    options[option_name] = False
-                else:
-                    raise GiveUp("Value is not True or False,"
-                                 " for '%s = %s' in [%s]"%(key, value, section))
-            elif option_type == "str":
+        if key.startswith('option~'):
+            try:
+                option_name, option_value = _parse_option(section, config, key)
                 options[option_name] = option_value
-            else:
-                raise GiveUp("Unrecognised datatype (not bool, int or str),"
-                             " for '%s = %s' in [%s]"%(key, value, section))
-
+            except GiveUp as e:
+                problems.append(str(e))
         else:
+            # Remember, we removed all the items we *expected*
             problems.append('Unexpected "%s" in section [%s]'%(key, section))
 
     return (co_label, co_leaf, co_dir, repo, options)
+
+def _parse_option(section, config, key):
+    """Parse an option from the stamp file.
+
+    Return a tuple (option_name, option_value), or raise GiveUp
+    """
+    value = config.get(section, key)
+    option_name = key[7:]
+    colon_at = value.find(':')
+    if colon_at == -1:
+        raise GiveUp("No datatype (no colon in value),"
+                     " for '%s = %s' in [%s]"%(key, value, section))
+    option_type = value[:colon_at]
+    option_value = value[colon_at+1:]
+    if option_type == 'int':
+        try:
+            option_value = int(option_value)
+        except Exception as e:
+            raise GiveUp("Cannot convert value to integer,"
+                         " for '%s = %s' in [%s]"%(key, value, section))
+    elif option_type == 'bool':
+        if option_value == 'True':
+            option_value = True
+        elif option_value == 'False':
+            option_value = False
+        else:
+            raise GiveUp("Value is not True or False,"
+                         " for '%s = %s' in [%s]"%(key, value, section))
+    elif option_type != "str":
+        raise GiveUp("Unrecognised datatype '%s' (not bool, int or str),"
+                     " for '%s = %s' in [%s]"%(option_type, key, value, section))
+
+    return option_name, option_value
 
 def _read_v1_checkout(section, config):
     """Read a version 1 stamp file CHECKOUT section.

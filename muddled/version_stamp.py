@@ -69,6 +69,10 @@ class VersionStamp(object):
            The checkout will be in src/<co_dir>/<co_leaf> (if <co_dir> is
            set), or src/<co_leaf> (if it is not).
 
+        * 'options' is a dictionary mapping checkout labels to dictionaries
+          of the form {option_name : option_value}. There will only be entries
+          for those checkouts which do have options.
+
         * 'problems' is a list of problems in determining the stamp
           information. This will be of zero length if the stamp if accurate,
           but will otherwise contain a string for each checkout whose revision
@@ -86,6 +90,7 @@ class VersionStamp(object):
         self.versions_repo = '' # and of .muddle/VersionsRepository
         self.domains = {}       # domain_name -> (domain_repo, domain_desc)
         self.checkouts = {}     # label -> (co_dir, co_leaf, repo)
+        self.options = {}       # label -> {option_name : option_value}
         self.problems = []      # one string per problem
 
     def __str__(self):
@@ -108,6 +113,87 @@ class VersionStamp(object):
         with HashFile(filename, 'w') as fd:
             self.write_to_file_object(fd, version)
             return fd.hash()
+
+    def _set_v1_checkout_for_write(self, config, co_label):
+        """Setup a config for a version 1 stamp file.
+        """
+        co_dir, co_leaf, repo = self.checkouts[co_label]
+        if co_label.domain:
+            section = 'CHECKOUT (%s)%s'%(co_label.domain,
+                                         co_label.name)
+        else:
+            section = 'CHECKOUT %s'%co_label.name
+        config.add_section(section)
+        # =============================================================
+        # Attempt to approximate version 1
+        if co_label.domain:
+            config.set(section, "domain", co_label.domain)
+        config.set(section, "name", co_label.name)
+        config.set(section, "repository", '%s+%s'%(repo.vcs, repo.base_url))
+        config.set(section, "revision", repo.revision)
+        if co_leaf:
+            config.set(section, "co_leaf", co_leaf)
+        if repo.prefix:
+            relative = os.path.join(repo.prefix, repo.repo_name)
+        else:
+            relative = repo.repo_name
+        if rel:
+            config.set(section, "relative", relative)
+        if dir:
+            config.set(section, "directory", co_dir)
+        if branch:
+            config.set(section, "branch", branch)
+        # =============================================================
+
+    def _set_v2_checkout_for_write(self, config, co_label):
+        """Setup a config for a version 2 stamp file.
+        """
+        co_dir, co_leaf, repo = self.checkouts[co_label]
+        if co_label.domain:
+            section = 'CHECKOUT (%s)%s'%(co_label.domain,
+                                         co_label.name)
+        else:
+            section = 'CHECKOUT %s'%co_label.name
+        config.add_section(section)
+        config.set(section, "co_label", co_label)
+        if co_dir:
+            config.set(section, "co_dir", co_dir)
+        if co_leaf:
+            config.set(section, "co_leaf", co_leaf)
+
+        config.set(section, "repo_vcs", repo.vcs)
+        # If we got our repository URL as a string, directly, then
+        # there is no point in outputting the parts that Repository
+        # deduced from it - we just need the original URL
+        # This will be written out as None if unset
+        config.set(section, "repo_from_url_string", repo.from_url_string)
+        if not repo.from_url_string:
+            # We need to specify all the parts
+            config.set(section, "repo_base_url", repo.base_url)
+            config.set(section, "repo_name", repo.repo_name)
+            maybe_set_option(config, section, "repo_prefix", repo.prefix)
+            # NB: repo_prefix_as_is should be True or False
+            maybe_set_option(config, section, "repo_prefix_as_is", repo.prefix_as_is)
+            maybe_set_option(config, section, "repo_suffix", repo.suffix)
+            maybe_set_option(config, section, "repo_inner_path", repo.inner_path)
+            maybe_set_option(config, section, "repo_revision", repo.revision)
+            maybe_set_option(config, section, "repo_branch", repo.branch)
+            maybe_set_option(config, section, "repo_handler", repo.handler)
+
+        if self.options.has_key(co_label):
+            co_options = self.options[co_label]
+            co_option_names = co_options.keys()
+            co_option_names.sort()
+            for key in co_option_names:
+                value = co_options[key]
+                # Discriminate VERY SIMPLY on type
+                if isinstance(value, bool):
+                   type_name = 'bool'
+                elif isinstance(value, int):
+                   type_name = 'init'
+                else:
+                   type_name = 'str'
+                config.set(section, 'option:%s'%key, '%s:%s'%(type_name, value))
 
     def write_to_file_object(self, fd, version=2):
         """Write our data out to a file-like object (one with a 'write' method).
@@ -157,110 +243,22 @@ class VersionStamp(object):
                 config.set(section, "description", domain_desc)
             config.write(fd)
 
-        config = RawConfigParser(None, dict_type=MuddleSortedDict)
+        config = RawConfigParser(None, dict_type=MuddleOrderedDict)
+        # Say we want our option value names to retain their case within
+        # this configuration - that will matter if we have to write out
+        # any VCS options
+        config.optionxform = str
+
         if version == 1:
             co_labels = self.checkouts.keys()
+            co_labels.sort()
             for co_label in co_labels:
-                co_dir, co_leaf, repo = self.checkouts[co_label]
-                if co_label.domain:
-                    section = 'CHECKOUT (%s)%s'%(co_label.domain,
-                                                 co_label.name)
-                else:
-                    section = 'CHECKOUT %s'%co_label.name
-                config.add_section(section)
-                # =============================================================
-                # Attempt to approximate version 1
-                if co_label.domain:
-                    config.set(section, "domain", co_label.domain)
-                config.set(section, "name", co_label.name)
-                config.set(section, "repository", '%s+%s'%(repo.vcs, repo.base_url))
-                config.set(section, "revision", repo.revision)
-                if co_leaf:
-                    config.set(section, "co_leaf", co_leaf)
-                if repo.prefix:
-                    relative = os.path.join(repo.prefix, repo.repo_name)
-                else:
-                    relative = repo.repo_name
-                if rel:
-                    config.set(section, "relative", relative)
-                if dir:
-                    config.set(section, "directory", co_dir)
-                if branch:
-                    config.set(section, "branch", branch)
-                # =============================================================
-
+                self._set_v1_checkout_for_write(config, co_label)
         else:
             co_labels = self.checkouts.keys()
+            co_labels.sort()
             for co_label in co_labels:
-                co_dir, co_leaf, repo = self.checkouts[co_label]
-                if co_label.domain:
-                    section = 'CHECKOUT (%s)%s'%(co_label.domain,
-                                                 co_label.name)
-                else:
-                    section = 'CHECKOUT %s'%co_label.name
-                config.add_section(section)
-                config.set(section, "co_label", co_label)
-                if co_dir:
-                    config.set(section, "co_dir", co_dir)
-                if co_leaf:
-                    config.set(section, "co_leaf", co_leaf)
-
-                config.set(section, "repo_vcs", repo.vcs)
-                # If we got our repository URL as a string, directly, then
-                # there is no point in outputting the parts that Repository
-                # deduced from it - we just need the original URL
-                # This will be written out as None if unset
-                config.set(section, "repo_from_url_string", repo.from_url_string)
-                if not repo.from_url_string:
-                    # We need to specify all the parts
-                    config.set(section, "repo_base_url", repo.base_url)
-                    config.set(section, "repo_name", repo.repo_name)
-                    maybe_set_option(config, section, "repo_prefix", repo.prefix)
-                    # NB: repo_prefix_as_is should be True or False
-                    maybe_set_option(config, section, "repo_prefix_as_is", repo.prefix_as_is)
-                    maybe_set_option(config, section, "repo_suffix", repo.suffix)
-                    maybe_set_option(config, section, "repo_inner_path", repo.inner_path)
-                    maybe_set_option(config, section, "repo_revision", repo.revision)
-                    maybe_set_option(config, section, "repo_branch", repo.branch)
-                    maybe_set_option(config, section, "repo_handler", repo.handler)
-                # XXX TODO: what to do about options?
-                # XXX Maybe store: option:<key> = '<value>'
-                # XXX (do we require option values to be strings? Not at the moment)
-                # XXX Or should we lost options and just add a (specific)
-                # XXX 'shallow' value to our VersionControlHandler?
-                #
-                # Consider reworking options so that:
-                #
-                # a. all option values are strings, or None
-                # b. there are no default options
-                # c. all code that looks for options copes with an option
-                #    not existing - so if git.py finds that "shallow_checkout"
-                #    is not set, then it defaults to False
-                # d. so make that the rule (absent == None == False)
-                #
-                # and then we can add 'options' to the tuple we hold for each
-                # checkout, and we can do something like:
-                #
-                # if options:
-                #    # Say we want our option value names to retain their case
-                #    config.optionxform = str
-                #    for key, value in options.itemize():
-                #        # Discriminate VERY SIMPLY on type
-                #        if isinstance(value, bool):
-                #           type_name = 'bool'
-                #        elif isinstance(value, int):
-                #           type_name = 'init'
-                #        else:
-                #           type_name = 'str'
-                #        type_name = type(value).__class__.__name__
-                #        config.set(section, 'option:%s'%key, '%s:%s'%(type_name, value))
-                #
-                # When reading it back, we then split on the first colon, check
-                # that we have 'bool', 'int' or 'str', and if it's either of the
-                # first two, apply the appropriate function to the rest of the
-                # string. Ugly, but simple
-                #
-                # IF it works to have a colon in the value name
+                self._set_v2_checkout_for_write(config, co_label)
 
         config.write(fd)
 
@@ -374,6 +372,9 @@ class VersionStamp(object):
                 repo = vcs.repo.copy_with_changes(vcs.repo.repo_name, revision=rev)
 
                 stamp.checkouts[label] = (vcs.checkout_dir, vcs.checkout_leaf, repo)
+
+                if vcs.options:
+                    stamp.options[label] = vcs.options
             except GiveUp as exc:
                 print exc
                 stamp.problems.append(str(exc))

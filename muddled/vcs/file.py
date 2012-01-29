@@ -75,12 +75,12 @@ class File(VersionControlSystem):
 
         Just copies everything again. This is an imperfect sort of "merge".
         """
-        if repo.revision and repo.revision != 'HEAD':
+        if other_repo.revision and other_repo.revision != 'HEAD':
             raise utils.GiveUp("File does not support the 'revision' argument to"
-                               " 'merge' (revision='%s'"%repo.revision)
-        if repo.branch:
+                               " 'merge' (revision='%s'"%other_repo.revision)
+        if other_repo.branch:
             raise utils.GiveUp("File does not support the 'branch' argument to"
-                               " 'merge' (branch='%s'"%repo.branch)
+                               " 'merge' (branch='%s'"%other_repo.branch)
         self.checkout(other_repo, os.curdir, verbose=verbose)
 
     def commit(self, repo, options, verbose=True):

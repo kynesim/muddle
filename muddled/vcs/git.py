@@ -176,12 +176,12 @@ class Git(VersionControlSystem):
         or at least not for muddle purposes. In that case we're better off just
         giving up, and letting the user sort it out directly.
         """
-        if repo.revision and repo.revision != 'HEAD':
+        if other_repo.revision and other_repo.revision != 'HEAD':
             raise utils.GiveUp(\
                    "The build description specifies revision %s for this checkout.\n"
                    "Since git always merges to the currrent HEAD, muddle does not\n"
                    "support 'muddle merge' for a git checkout with a revision"
-                   " specified."%repo.revision)
+                   " specified."%other_repo.revision)
 
         # Refuse to pull if there are any local changes or untracked files.
         self._is_it_safe()
@@ -192,10 +192,10 @@ class Git(VersionControlSystem):
         # Retrieve changes from the remote repository to the local repository
         utils.run_cmd("git fetch origin", verbose=verbose)
         # And merge them (all) into the current working tree
-        if repo.branch is None:
+        if other_repo.branch is None:
             remote = 'remotes/origin/master'
         else:
-            remote = 'remotes/origin/%s'%repo.branch
+            remote = 'remotes/origin/%s'%other_repo.branch
         utils.run_cmd("git merge %s"%remote, verbose=verbose)
 
     def commit(self, repo, options, verbose=True):

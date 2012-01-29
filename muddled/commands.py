@@ -3544,10 +3544,8 @@ Try "muddle help unstamp" for more information."""
             checkout_from_repo(builder, label, repo, co_dir, co_leaf)
 
             # Then need to mimic "muddle checkout" for it
-            label = Label(LabelType.Checkout,
-                          name, None, LabelTag.CheckedOut,
-                          domain=domain)
-            builder.build_label(label, silent=False)
+            new_label = label.copy_with_tag(LabelTag.CheckedOut)
+            builder.build_label(new_label, silent=False)
 
     def check_build(self, current_dir, checkouts, builder, muddle_binary):
         """

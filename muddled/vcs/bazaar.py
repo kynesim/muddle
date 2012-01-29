@@ -150,18 +150,18 @@ class Bazaar(VersionControlSystem):
         """
 
         # XXX TODO XXX This should not be needed with the new Repository mechanism
-        if repo.branch:
-            effective_repo = os.path.join(repo.url, repo.branch)
+        if other_repo.branch:
+            effective_repo = os.path.join(other_repo.url, other_repo.branch)
         else:
-            effective_repo = repo.url
+            effective_repo = other_repo.url
 
         # Refuse to pull if there are any local changes
         env = self._derive_env()
         self._is_it_safe(env)
 
-        rspec = self._r_option(repo.revision)
+        rspec = self._r_option(other_repo.revision)
 
-        utils.run_cmd("bzr merge %s %s"%(rspec, self._normalised_repo(effective_other_repo)),
+        utils.run_cmd("bzr merge %s %s"%(rspec, self._normalised_repo(effective_repo)),
                       env=env, verbose=verbose)
 
     def commit(self, repo, options, verbose=True):

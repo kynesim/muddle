@@ -465,13 +465,13 @@ class VersionControlHandler(object):
         for key, value in optsdict.items():
 
             if option_not_allowed(self.vcs_handler.short_name, key):
-                raise GiveUp("Option '%s' is not allowed for VCS %s'"%(key,
-                                vcs_handler.short_name))
+                raise utils.GiveUp("Option '%s' is not allowed for VCS %s'"%(key,
+                                   self.vcs_handler.short_name))
 
             if not (isinstance(value, bool) or isinstance(value, int) or
                     isinstance(value, str)):
-                raise GiveUp("Additional options to VCS must be bool, int or"
-                             " string. '%s' is %s"%(value, type(value)))
+                raise utils.GiveUp("Additional options to VCS must be bool, int or"
+                                   " string. '%s' is %s"%(value, type(value)))
                 self.options[key] = value
 
 # This dictionary holds the global list of registered VCS handler
@@ -584,8 +584,8 @@ def vcs_action_for(builder, co_label, repo, co_dir = None, co_leaf = None):
         co_leaf = co_label.name
 
     handler = vcs_handler_for(builder, co_label, co_leaf, repo, co_dir)
-    if (handler is None):
-        raise utils.GiveUp("Cannot build a VCS handler for %s rel = %s"%(repo, rev))
+    if handler is None:
+        raise utils.GiveUp("Cannot build a VCS handler for %s"%repo)
 
     return pkg.VcsCheckoutBuilder(co_label.name, handler)
 
@@ -748,8 +748,7 @@ def vcs_get_directory(url, directory=None):
     """
     vcs_handler, plain_url = get_vcs_handler_from_string(url)
     repo = Repository.from_url(vcs_handler.short_name, plain_url)
-    options = default_vcs_options_dict()
-    return vcs_handler.checkout(repo, directory, options)
+    return vcs_handler.checkout(repo, directory, {})
 
 def vcs_push_directory(url):
     """
@@ -763,8 +762,7 @@ def vcs_push_directory(url):
     """
     vcs_handler, plain_url = get_vcs_handler_from_string(url)
     repo = Repository.from_url(vcs_handler.short_name, plain_url)
-    options = default_vcs_options_dict()
-    vcs_handler.push(repo, options)
+    vcs_handler.push(repo, {})
 
 def vcs_fetch_directory(url):
     """
@@ -778,8 +776,7 @@ def vcs_fetch_directory(url):
     """
     vcs_handler, plain_url = get_vcs_handler_from_string(url)
     repo = Repository.from_url(vcs_handler.short_name, plain_url)
-    options = default_vcs_options_dict()
-    vcs_handler.fetch(repo, options)
+    vcs_handler.fetch(repo, {})
 
 def vcs_init_directory(scheme, files=None):
     """

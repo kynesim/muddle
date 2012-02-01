@@ -122,7 +122,7 @@ def _cmdline(args, current_dir, original_env, muddle_binary):
         elif word in ('-n', "--just-print"):
             command_options["no_operation"] = True
         elif word[0] == '-':
-            raise utils.GiveUp, "Unexpected command line option %s"%word
+            raise utils.GiveUp, 'Unexpected command line option %s - see "muddle help"'%word
         else:
             break
 

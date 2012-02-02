@@ -296,9 +296,6 @@ def checkout_build_descriptions(root_dir, d):
                  d.join('domains', 'subdomain2', 'src', 'builds', '01.py'),
                 ])
 
-def checkout_all(d):
-    muddle(['checkout', '_all'])
-    check_checkout_files(d)
 
 def check_checkout_files(d):
     """Check we have all the files we should have after checkout
@@ -352,7 +349,6 @@ def stamp():
     """Produce a version stamp.
     """
 
-    muddle(['stamp', 'version'])
 
 def test_options():
     """Test we can read back options from a stamp file.
@@ -408,9 +404,16 @@ def main(args):
         with NewDirectory('build') as d:
             banner('CHECK REPOSITORIES OUT')
             checkout_build_descriptions(root_dir, d)
-            checkout_all(d)
+            muddle(['checkout', '_all'])
+            check_checkout_files(d)
 
-            stamp()
+            banner('STAMP')
+            muddle(['stamp', 'version'])
+
+        with NewDirectory('build2') as d2:
+            banner('UNSTAMP')
+            muddle(['unstamp', os.path.join(d.where, 'versions', '01.stamp')])
+            check_checkout_files(d2)
 
         banner('TESTING CHECKOUT OPTIONS')
         test_options()

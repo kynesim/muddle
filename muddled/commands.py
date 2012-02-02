@@ -3503,6 +3503,18 @@ Try "muddle help unstamp" for more information."""
         return self.check_build(current_dir, stamp.checkouts, builder,
                                 muddle_binary)
 
+    def _domain_path(self, root_path, domain_name):
+        """Turn a domain name into its path.
+
+        Perhaps should be in utils.py...
+        """
+        domain_parts = Label.split_domain(domain_name)
+        path_parts = [root_path]
+        for d in domain_parts:
+            path_parts.append('domains')
+            path_parts.append(d)
+        return os.path.join(*path_parts)
+
     def restore_stamp(self, builder, root_path, domains, checkouts):
         """
         Given the information from our stamp file, restore things.
@@ -3516,12 +3528,7 @@ Try "muddle help unstamp" for more information."""
 
             # Take care to allow for multiple parts
             # Thus domain 'fred(jim)' maps to <root>/domains/fred/domains/jim
-            domain_parts = Label.split_domain(domain_name)
-            path_parts = [root_path]
-            for d in domain_parts:
-                path_parts.append('domains')
-                path_parts.append(d)
-            domain_root_path = os.path.join(*path_parts)
+            domain_root_path = self._domain_path(root_path, domain_name)
 
             os.makedirs(domain_root_path)
 
@@ -3537,11 +3544,17 @@ Try "muddle help unstamp" for more information."""
         for label in co_labels:
             co_dir, co_leaf, repo = checkouts[label]
             if label.domain:
+                domain_root_path = self._domain_path(root_path, label.domain)
                 print "Unstamping checkout (%s)%s"%(label.domain,label.name)
+                if co_dir:
+                    actual_co_dir = os.path.join(domain_root_path, 'src', co_dir)
+                else:
+                    actual_co_dir = os.path.join(domain_root_path, 'src')
+                checkout_from_repo(builder, label, repo, actual_co_dir, co_leaf)
             else:
                 print "Unstamping checkout %s"%label.name
+                checkout_from_repo(builder, label, repo, co_dir, co_leaf)
 
-            checkout_from_repo(builder, label, repo, co_dir, co_leaf)
 
             # Then need to mimic "muddle checkout" for it
             new_label = label.copy_with_tag(LabelTag.CheckedOut)
@@ -3567,7 +3580,7 @@ Try "muddle help unstamp" for more information."""
 
         # Check our checkout labels match
         s_checkouts = set(checkouts.keys())
-        b_checkouts = b.invocation.all_checkouts_labels()
+        b_checkouts = b.invocation.all_checkout_labels()
         s_difference = s_checkouts.difference(b_checkouts)
         b_difference = b_checkouts.difference(s_checkouts)
         if s_difference or b_difference:

@@ -342,23 +342,30 @@ class Repository(object):
           just as for the normal constructor.
 
         We make a good guess as to the 'checkout name', assuming it is
-        the last component of the path in the URL.
+        the last component of the path in the URL. But, of course, no handler
+        gets invoked.
 
         Thus:
 
             >>> r = Repository.from_url('git', 'http://example.com/fred/jim.git?branch=a')
             >>> r
-            Repository('git', 'http://example.com/fred', 'jim.git', suffix='?branch=a')
+            Repository.from_url('git', 'http://example.com/fred/jim.git?branch=a')
             >>> r.url
             'http://example.com/fred/jim.git?branch=a'
+            >>> r.repo_name
+            'jim.git'
+            >>> r.suffix
+            '?branch=a'
 
         and even:
 
             >>> f = Repository.from_url('file', 'file:///home/tibs/versions')
             >>> f
-            Repository('file', 'file:///home/tibs', 'versions')
+            Repository.from_url('file', 'file:///home/tibs/versions')
             >>> f.url
             'file:///home/tibs/versions'
+            >>> f.repo_name
+            'versions'
 
         Note that this way of creating a Repository instance does not invoke
         any path handler. It does, however, set the 'from_url_string' value to
@@ -486,7 +493,7 @@ class Repository(object):
                           branch=branch)
 
     def copy_with_changed_revision(self, revision):
-        """Return a new instance based on this one.
+        """Return a Repository that differs only in its revision.
 
         A simple copy is taken, and then the revision is changed. This is used
         in version stamping.
@@ -504,6 +511,35 @@ class Repository(object):
         # For this one, we *do* want a complete copy
         new = copy.deepcopy(self)
         new.revision = revision
+        return new
+
+    def copy_with_changed_branch(self, branch, revision=None):
+        """Return a Repository that differs only in its branch (and revision).
+
+        A simple copy is taken, and then the branch and revision are changed.
+        Typically, the revision is just unset.
+
+        Note that we don't check that you don't set the revision to the same
+        value again, although it seems unlikely to be sensible in most version
+        control systems to do this.
+
+        For instance:
+
+            >>> r = Repository('git', 'ssh://git@project-server/opt/kynesim/projects/042/git/',
+            ...                'builds', branch='fred', revision='23')
+            >>> r
+            Repository('git', 'ssh://git@project-server/opt/kynesim/projects/042/git/', 'builds', revision='23', branch='fred')
+            >>> s = r.copy_with_changed_branch('jim')
+            >>> s
+            Repository('git', 'ssh://git@project-server/opt/kynesim/projects/042/git/', 'builds', branch='jim')
+            >>> s = r.copy_with_changed_branch('jim', revision='99')
+            >>> s
+            Repository('git', 'ssh://git@project-server/opt/kynesim/projects/042/git/', 'builds', revision='99', branch='jim')
+        """
+        # For this one, we *do* want a complete copy
+        new = copy.deepcopy(self)
+        new.branch = branch
+        new.revision = revision     # Conveniently, defaulting to None
         return new
 
 def google_code_handler(repo):

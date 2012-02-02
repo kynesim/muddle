@@ -207,8 +207,6 @@ class VersionStamp(object):
         # there is no point in outputting the parts that Repository
         # deduced from it - we just need the original URL
         # This will be written out as None if unset
-        print 'XXX', co_label
-        print 'XXX', repo.from_url_string
         config.set(section, "repo_from_url_string", repo.from_url_string)
         if repo.from_url_string is None:
             # We need to specify all the parts
@@ -408,7 +406,7 @@ class VersionStamp(object):
                 else:
                     rev = vcs.revision_to_checkout(force=force, verbose=True)
 
-                repo = vcs.repo.copy_with_changes(vcs.repo.repo_name, revision=rev)
+                repo = vcs.repo.copy_with_changed_revision(rev)
 
                 stamp.checkouts[label] = (vcs.checkout_dir, vcs.checkout_leaf, repo)
 

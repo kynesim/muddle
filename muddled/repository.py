@@ -2,6 +2,7 @@
 """A new way of handling repositories
 """
 
+import copy
 import os
 import posixpath
 import re
@@ -483,6 +484,27 @@ class Repository(object):
                           inner_path=(self.inner_path if inner_path is None else inner_path),
                           revision=revision,
                           branch=branch)
+
+    def copy_with_changed_revision(self, revision):
+        """Return a new instance based on this one.
+
+        A simple copy is taken, and then the revision is changed. This is used
+        in version stamping.
+
+        For instance:
+
+            >>> r = Repository('git', 'ssh://git@project-server/opt/kynesim/projects/042/git/',
+            ...                'builds', revision='23')
+            >>> r
+            Repository('git', 'ssh://git@project-server/opt/kynesim/projects/042/git/', 'builds', revision='23')
+            >>> s = r.copy_with_changed_revision('27')
+            >>> s
+            Repository('git', 'ssh://git@project-server/opt/kynesim/projects/042/git/', 'builds', revision='27')
+        """
+        # For this one, we *do* want a complete copy
+        new = copy.deepcopy(self)
+        new.revision = revision
+        return new
 
 def google_code_handler(repo):
     """A repository path handler for google code projects.

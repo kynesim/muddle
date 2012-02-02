@@ -207,6 +207,8 @@ class VersionStamp(object):
         # there is no point in outputting the parts that Repository
         # deduced from it - we just need the original URL
         # This will be written out as None if unset
+        print 'XXX', co_label
+        print 'XXX', repo.from_url_string
         config.set(section, "repo_from_url_string", repo.from_url_string)
         if repo.from_url_string is None:
             # We need to specify all the parts
@@ -417,7 +419,9 @@ class VersionStamp(object):
                 stamp.problems.append(str(exc))
 
         if stamp.domains and not quiet:
-            print 'Found domains:',stamp.domains
+            domain_names = stamp.domains.keys()
+            domain_names.sort()
+            print 'Found domains:',' '.join(domain_names)
 
         if len(stamp.checkouts) != len(checkout_rules):
             if not quiet:

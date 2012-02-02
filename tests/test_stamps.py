@@ -24,9 +24,10 @@ except ImportError:
     sys.path.insert(0, get_parent_file(__file__))
     import muddled.cmdline
 
-from muddled.utils import GiveUp, normalise_dir, LabelType, DirTypeDict
+from muddled.utils import GiveUp, normalise_dir, LabelType, LabelTag, DirTypeDict
 from muddled.utils import Directory, NewDirectory, TransientDirectory
 from muddled.depend import Label, label_list_to_string
+from muddled.version_stamp import VersionStamp
 
 MUDDLE_MAKEFILE = """\
 # Trivial muddle makefile
@@ -191,6 +192,35 @@ int main(int argc, char **argv)
 }}
 """
 
+OPTIONS_TEST  = """\
+[STAMP]
+version = 2
+now = 2012-01-29 17:55:40
+utc = 2012-01-29 17:55:40
+
+[ROOT]
+repository = git+file:///Users/tibs/sw/m3/tests/transient/repo/main
+description = builds/01.py
+versions_repo = git+file:///Users/tibs/sw/m3/tests/transient/repo/main/versions
+
+[CHECKOUT co_name]
+co_label = checkout:co_name/checked_out
+co_leaf = co_name
+repo_vcs = git
+repo_from_url_string = None
+repo_base_url = file:///Users/tibs/sw/m3/tests/transient/repo
+repo_name = second_co
+repo_prefix_as_is = False
+repo_revision = 388b51c67c56229e7253e727218392e7b6873ea9
+option~Fred = int:99
+option~BadFred = int:ThreadNeedle
+option~Jim = bool:False
+option~BadJim = bool:Immensity
+option~Bill = str:Some sort of string
+option~Aha~There = No colons here
+option~AhaTwo = what:pardon
+"""
+
 def make_build_desc(co_dir, file_content):
     """Take some of the repetition out of making build descriptions.
     """
@@ -324,6 +354,40 @@ def stamp():
 
     muddle(['stamp', 'version'])
 
+def test_options():
+    """Test we can read back options from a stamp file.
+    """
+    fname = 'test_options.stamp'
+    touch(fname, OPTIONS_TEST)
+    v = VersionStamp.from_file(fname)
+
+    if len(v.problems) != 4:
+        raise GiveUp('Expected 4 problems reading %s, got %d'%(fname, len(v.problems)))
+
+    print v.problems
+    print
+
+    co_label = Label(LabelType.Checkout, 'co_name', None, LabelTag.CheckedOut)
+    co_dir, co_leaf, repo = v.checkouts[co_label]
+    options = v.options[co_label]
+
+    expected_repo = 'file:///Users/tibs/sw/m3/tests/transient/repo/second_co'
+    if co_dir is not None or co_leaf != 'co_name' or \
+       str(repo) != expected_repo:
+        raise GiveUp('Error in reading checkout back\n'
+                     '  co_dir %s, expected None\n'
+                     '  co_leaf %s, expected co_name\n'
+                     '  repo     %s\n'
+                     '  expected %s'%(co_dir, co_leaf, repo, expected_repo))
+
+    if len(options) != 3 or \
+            options['Jim'] != False or \
+            options['Bill'] != 'Some sort of string' or \
+            options['Fred'] != 99:
+        raise GiveUp('Error in reading checkout options back\n'
+                     "  expected {'Jim': False, 'Bill': 'Some sort of string', 'Fred': 99}\n"
+                     '  got      %s'%options)
+
 def main(args):
 
     if args:
@@ -337,6 +401,7 @@ def main(args):
 
     #with TransientDirectory(root_dir):     # XXX
     with NewDirectory(root_dir):
+
         banner('MAKE REPOSITORIES')
         make_repos_with_subdomain(root_dir)
 
@@ -346,6 +411,9 @@ def main(args):
             checkout_all(d)
 
             stamp()
+
+        banner('TESTING CHECKOUT OPTIONS')
+        test_options()
 
 if __name__ == '__main__':
     args = sys.argv[1:]

@@ -50,6 +50,31 @@ def get_and_remove_option(config, section, name):
     config.remove_option(section, name)
     return value
 
+def make_RawConfigParser(ordered=False, sorted=False):
+    """Make a RawConfigParrser.
+
+    Always tell it we want to preserve the case of keys.
+
+    If 'ordered', then use a MuddleOrderedDict inside it, so that things
+    remember their insertion order, and that is used on output.
+
+    If 'sorted', use a MuddleSortedDict, so that things are sorted, and
+    thus output in sorted order.
+
+    If neither, don't specify a dict, and random stuff might happen
+    """
+    if ordered:
+        config = RawConfigParser(dict_type=MuddleOrderedDict)
+    elif sorted:
+        config = RawConfigParser(dict_type=MuddleSortedDict)
+    else:
+        config = RawConfigParser()
+    # Say we want our option value names to retain their case within
+    # this configuration - that will matter if we have to write out
+    # any VCS options
+    config.optionxform = str
+    return config
+
 class VersionStamp(object):
     """A representation of the revision state of a build tree's checkouts.
 
@@ -228,7 +253,7 @@ class VersionStamp(object):
         # come out in the order we want, other than in some random order (as
         # we're effectively writing out a dictionary)
 
-        config = RawConfigParser(None, dict_type=MuddleOrderedDict)
+        config = make_RawConfigParser(ordered=True)
         if version > 1:
             config.add_section("STAMP")
             config.set("STAMP", "version", version)
@@ -248,7 +273,7 @@ class VersionStamp(object):
         config.write(fd)
 
         if self.domains:
-            config = RawConfigParser(None, dict_type=MuddleSortedDict)
+            config = make_RawConfigParser(sorted=True)
             domain_names = self.domains.keys()
             for domain_name in domain_names:
                 domain_repo, domain_desc = self.domains[domain_name]
@@ -259,11 +284,7 @@ class VersionStamp(object):
                 config.set(section, "description", domain_desc)
             config.write(fd)
 
-        config = RawConfigParser(None, dict_type=MuddleOrderedDict)
-        # Say we want our option value names to retain their case within
-        # this configuration - that will matter if we have to write out
-        # any VCS options
-        config.optionxform = str
+        config = make_RawConfigParser(ordered=True)
 
         if version == 1:
             co_labels = self.checkouts.keys()
@@ -279,7 +300,7 @@ class VersionStamp(object):
         config.write(fd)
 
         if self.problems:
-            config = RawConfigParser(None, dict_type=MuddleSortedDict)
+            config = make_RawConfigParser(sorted=True)
             section = 'PROBLEMS'
             config.add_section(section)
             for index, item in enumerate(self.problems):
@@ -428,7 +449,7 @@ class VersionStamp(object):
         print 'Reading stamp file %s'%filename
         fd = HashFile(filename)
 
-        config = RawConfigParser()
+        config = make_RawConfigParser()
         config.readfp(fd)
 
         if config.has_section("STAMP"):

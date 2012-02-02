@@ -349,6 +349,13 @@ def stamp():
     """Produce a version stamp.
     """
 
+def check_problem(got, starts):
+    """We can't be bothered to check ALL of the string...
+    """
+    if not got.startswith(starts):
+        raise GiveUp('Problem report does not start with what we expect\n'
+                     'Got:    %s\n'
+                     'Wanted: %s ...'%(got, starts))
 
 def test_options():
     """Test we can read back options from a stamp file.
@@ -360,8 +367,10 @@ def test_options():
     if len(v.problems) != 4:
         raise GiveUp('Expected 4 problems reading %s, got %d'%(fname, len(v.problems)))
 
-    print v.problems
-    print
+    check_problem(v.problems[0], "Cannot convert value to integer, for 'option~BadFred = int:ThreadNeedle'")
+    check_problem(v.problems[1], "Value is not True or False, for 'option~BadJim = bool:Immensity'")
+    check_problem(v.problems[2], "No datatype (no colon in value), for 'option~Aha~There = No colons here'")
+    check_problem(v.problems[3], "Unrecognised datatype 'what' (not bool, int or str), for 'option~AhaTwo = what:pardon'")
 
     co_label = Label(LabelType.Checkout, 'co_name', None, LabelTag.CheckedOut)
     co_dir, co_leaf, repo = v.checkouts[co_label]
@@ -417,6 +426,15 @@ def main(args):
 
         banner('TESTING CHECKOUT OPTIONS')
         test_options()
+
+    # STILL TO TEST:
+    # 
+    # * Stamp/unstamp of Repositories that are set via a URL, and not
+    #   components
+    #
+    # * Unstamp of version 1 stamp files
+    #
+    # * Not coping with stamp files of an unknown version(!)
 
 if __name__ == '__main__':
     args = sys.argv[1:]

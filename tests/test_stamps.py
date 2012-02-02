@@ -375,10 +375,13 @@ def test_options():
     if len(v.problems) != 4:
         raise GiveUp('Expected 4 problems reading %s, got %d'%(fname, len(v.problems)))
 
+    # Make the problem order deterministic
+    v.problems.sort()
+
     check_problem(v.problems[0], "Cannot convert value to integer, for 'option~BadFred = int:ThreadNeedle'")
-    check_problem(v.problems[1], "Value is not True or False, for 'option~BadJim = bool:Immensity'")
-    check_problem(v.problems[2], "No datatype (no colon in value), for 'option~Aha~There = No colons here'")
-    check_problem(v.problems[3], "Unrecognised datatype 'what' (not bool, int or str), for 'option~AhaTwo = what:pardon'")
+    check_problem(v.problems[1], "No datatype (no colon in value), for 'option~Aha~There = No colons here'")
+    check_problem(v.problems[2], "Unrecognised datatype 'what' (not bool, int or str), for 'option~AhaTwo = what:pardon'")
+    check_problem(v.problems[3], "Value is not True or False, for 'option~BadJim = bool:Immensity'")
 
     co_label = Label(LabelType.Checkout, 'co_name', None, LabelTag.CheckedOut)
     co_dir, co_leaf, repo = v.checkouts[co_label]

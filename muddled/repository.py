@@ -253,18 +253,26 @@ class Repository(object):
             return None, revision
 
     def __repr__(self):
-        parts = [repr(self.vcs), repr(self.base_url), repr(self.repo_name)]
-        if self.prefix:
-            parts.append('prefix=%s'%repr(self.prefix))
-        if self.suffix:
-            parts.append('suffix=%s'%repr(self.suffix))
-        if self.inner_path:
-            parts.append('inner_path=%s'%repr(self.inner_path))
-        if self.revision:
-            parts.append('revision=%s'%repr(self.revision))
-        if self.branch:
-            parts.append('branch=%s'%repr(self.branch))
-        return 'Repository(%s)'%(', '.join(parts))
+        if self.from_url_string:
+            parts = [repr(self.vcs), repr(self.from_url_string)]
+            if self.revision:
+                parts.append('revision=%s'%repr(self.revision))
+            if self.branch:
+                parts.append('branch=%s'%repr(self.branch))
+            return 'Repository.from_url(%s)'%(', '.join(parts))
+        else:
+            parts = [repr(self.vcs), repr(self.base_url), repr(self.repo_name)]
+            if self.prefix:
+                parts.append('prefix=%s'%repr(self.prefix))
+            if self.suffix:
+                parts.append('suffix=%s'%repr(self.suffix))
+            if self.inner_path:
+                parts.append('inner_path=%s'%repr(self.inner_path))
+            if self.revision:
+                parts.append('revision=%s'%repr(self.revision))
+            if self.branch:
+                parts.append('branch=%s'%repr(self.branch))
+            return 'Repository(%s)'%(', '.join(parts))
 
     def __str__(self):
         return self.url

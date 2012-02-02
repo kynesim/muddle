@@ -61,6 +61,9 @@ import muddled.checkouts.simple
 import muddled.deployments.collect as collect
 from muddled.mechanics import include_domain
 from muddled.depend import Label
+from muddled.utils import LabelType
+from muddled.repository import Repository
+from muddled.version_control import checkout_from_repo
 
 def describe_to(builder):
     role = 'x86'
@@ -69,7 +72,12 @@ def describe_to(builder):
     # Checkout ..
     muddled.pkgs.make.medium(builder, "main_pkg", [role], "main_co")
     muddled.pkgs.make.medium(builder, "first_pkg", [role], "first_co")
-    muddled.pkgs.make.medium(builder, "second_pkg", [role], "second_co")
+
+    # So we can test stamping a Repository using a direct URL
+    co_label = Label(LabelType.Checkout, 'second_co')
+    repo = Repository.from_url('git', 'file://{repo}/main/second_co')
+    checkout_from_repo(builder, co_label, repo)
+    muddled.pkgs.make.simple(builder, "second_pkg", role, "second_co")
 
     # A package in a different role (which we never actually build)
     muddled.pkgs.make.simple(builder, "main_pkg", 'arm', "main_co")

@@ -208,7 +208,7 @@ class VersionStamp(object):
         # deduced from it - we just need the original URL
         # This will be written out as None if unset
         config.set(section, "repo_from_url_string", repo.from_url_string)
-        if not repo.from_url_string:
+        if repo.from_url_string is None:
             # We need to specify all the parts
             config.set(section, "repo_base_url", repo.base_url)
             config.set(section, "repo_name", repo.repo_name)

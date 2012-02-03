@@ -254,7 +254,15 @@ class Git(VersionControlSystem):
         # doesn't handle the case where you've created a new repo (with
         # muddle bootstrap or import) - git remote _add_ adds some
         # branch-tracking entries on the side.
-        utils.run_cmd("git remote rm origin", verbose=verbose, allowFailure=True)
+
+        # Let's try not to do a "git remote rm" if we don't have to,
+        # so that we don't show the user a nasty error message. So ask
+        # if there are any configurations for remote origin...
+        retcode, out, ignore = utils.get_cmd_data("git config --get-regexp remote.origin.*",
+                                                  fail_nonzero=False)
+        if retcode == 0:    # there were
+            utils.run_cmd("git remote rm origin", verbose=verbose, allowFailure=True)
+
         utils.run_cmd("git remote add origin %s"%remote_repo, verbose=verbose)
 
     def _git_status_text_ok(self, text):

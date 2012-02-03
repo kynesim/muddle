@@ -17,7 +17,7 @@ from StringIO import StringIO
 from muddled.depend import Label
 from muddled.repository import Repository
 from muddled.utils import MuddleSortedDict, MuddleOrderedDict, \
-        HashFile, GiveUp, truncate, LabelType
+        HashFile, GiveUp, truncate, LabelType, LabelTag
 from muddled.version_control import split_vcs_url
 
 CheckoutTupleV1 = namedtuple('CheckoutTupleV1', 'name repo rev rel dir domain co_leaf branch')
@@ -475,7 +475,8 @@ class VersionStamp(object):
         stamp.versions_repo = maybe_get_option(config, "ROOT", "versions_repo")
 
         sections = config.sections()
-        sections.remove("STAMP")
+        if config.has_section("STAMP"):
+            sections.remove("STAMP")
         sections.remove("ROOT")
         for section in sections:
             if section.startswith("DOMAIN"):
@@ -517,7 +518,8 @@ class VersionStamp(object):
         If 'quiet', then don't output messages about the comparison.
 
         Note that this only compares the checkouts - it does not compare any
-        of the other fields in a VersionStamp.
+        of the other fields in a VersionStamp. In particular, it does not
+        compare any options...
 
         Returns a tuple of (deleted, new, changed, problems) sequences, where
         these are:
@@ -571,6 +573,7 @@ class VersionStamp(object):
                     repo1 != repo2):
 
                     errors = []
+                    named = False
 
                     if repo1.same_ignoring_revision(repo2):
                         if repo1.revision != repo2.revision:
@@ -578,30 +581,66 @@ class VersionStamp(object):
                     else:
                         errors.append('repository')
                         if not quiet:
+                            print label
                             print '  Repository mismatch:'
                             print '    %s from %s'%(repo1.url, repo1)
                             print '    %s from %s'%(repo2.url, repo2)
+                            named = True
 
                     # It's a problem if anything but the revision is different
 
                     if co_dir1 != co_dir2:
                         errors.append('co_dir')
                         if not quiet:
+                            if not named:
+                                print label
+                                named = True
                             print '  Checkout directory mismatch:'
                             print '    %s'%co_dir1
                             print '    %s'%co_dir2
                     if co_leaf1 != co_leaf2:
                         errors.append('co_leaf')
                         if not quiet:
+                            if not named:
+                                print label
+                                named = True
                             print '  Checkout leaf mismatch:'
                             print '    %s'%co_leaf1
                             print '    %s'%co_leaf2
 
-                    if errors:
-                        if not quiet:
-                            print '  ...only revision mismatch is allowed'
-                        problems.append((label, 'Checkout %s does not match:'
-                                                ' %s'%(label, ', '.join(errors))))
+                if label in self.options:
+                    options1 = self.options[label]
+                else:
+                    options1 = {}
+
+                if label in other.options:
+                    options2 = other.options[label]
+                else:
+                    options2 = {}
+
+                if options1 != options2:
+                    errors.append('options')
+                    if not named:
+                        print label
+                        named = True
+                    print '  Options mismatch:'
+                    keys = set(options1.keys() + options2.keys())
+                    keys = list(keys)
+                    keys.sort()
+                    for key in keys:
+                        if key in options1 and key not in options2:
+                            print '    option %s was deleted'%key
+                        elif key not in options1 and key in options2:
+                            print '    option %s is new'%key
+                        else:
+                            print "    option %s changed from" \
+                                  " '%s' to '%s'"%(key, options1[key], options2[key])
+
+                if errors:
+                    if not quiet:
+                        print '  ...only revision mismatch is allowed'
+                    problems.append((label, 'Checkout %s does not match:'
+                                            ' %s'%(label, ', '.join(errors))))
             elif label in self.checkouts:
                 if not quiet:
                     print 'Checkout %s was deleted'%label
@@ -733,7 +772,8 @@ def _read_v1_checkout(section, config):
 
     # =========================================================
     # Try to pretend to be a version 2 stamp file
-    co_label = Label(LabelType.Checkout, name, domain=domain)
+    co_label = Label(LabelType.Checkout, name, tag=LabelTag.CheckedOut,
+                     domain=domain)
     vcs, base_url = split_vcs_url(vcs_repo_url)
     if relative:
         # 'relative' is the full path to the checkout (with src/),

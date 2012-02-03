@@ -472,7 +472,7 @@ class VersionControlHandler(object):
                     isinstance(value, str)):
                 raise utils.GiveUp("Additional options to VCS must be bool, int or"
                                    " string. '%s' is %s"%(value, type(value)))
-                self.options[key] = value
+            self.options[key] = value
 
 # This dictionary holds the global list of registered VCS handler
 # factories.

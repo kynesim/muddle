@@ -136,13 +136,9 @@ def svn_diff(label, co_dir, co_leaf, repo, rev1, rev2, output_dir, manifest_file
                  'co_label=%s\n'
                  'co_dir=%s\n'
                  'co_leaf=%s\n'
-                 'repo_vcs=%s\n'
-                 'repo_url=%s\n'
-                 'repo_branch=%s\n'
                  'patch=%s\n'
                  'old_revision=%s\n'
                  'new_revision=%s\n'%(name, label, co_dir, co_leaf,
-                     repo.vcs, repo.url, repo.branch,
                      output_filename, rev1, rev2))
 
 # Bazaar ======================================================================
@@ -246,13 +242,9 @@ def bzr_send(label, co_dir, co_leaf, repo, rev1, rev2, output_dir, manifest_file
                  'co_label=%s\n'
                  'co_dir=%s\n'
                  'co_leaf=%s\n'
-                 'repo_vcs=%s\n'
-                 'repo_url=%s\n'
-                 'repo_branch=%s\n'
                  'patch=%s\n'
                  'old_revision=%s\n'
                  'new_revision=%s\n'%(name, label, co_dir, co_leaf,
-                     repo.vcs, repo.url, repo.branch,
                      output_filename, rev1, rev2))
 
 # Git =========================================================================
@@ -290,6 +282,12 @@ def git_format_patch(label, co_dir, co_leaf, repo, rev1, rev2, output_dir, manif
     # *Should* check that neither of the requested revision ids
     # are above the id of the checkout we have to hand?
 
+    if rev1 is None:
+        raise LocalError('Cannot do git-format patch: rev1 is None')
+
+    if rev2 is None:
+        raise LocalError('Cannot do git-format patch: rev2 is None')
+
     cmd = 'cd %s; git format-patch -o %s' \
           ' %s..%s'%(checkout_dir, output_path, rev1, rev2)
     print '..',cmd
@@ -303,13 +301,9 @@ def git_format_patch(label, co_dir, co_leaf, repo, rev1, rev2, output_dir, manif
                  'co_label=%s\n'
                  'co_dir=%s\n'
                  'co_leaf=%s\n'
-                 'repo_vcs=%s\n'
-                 'repo_url=%s\n'
-                 'repo_branch=%s\n'
                  'patch=%s\n'
                  'old_revision=%s\n'
                  'new_revision=%s\n'%(name, label, co_dir, co_leaf,
-                     repo.vcs, repo.url, repo.branch,
                      output_path, rev1, rev2))
 
 # Tar =========================================================================
@@ -361,13 +355,7 @@ def tar_pack(label, co_dir, co_leaf, repo, output_dir, manifest_filename):
                  'co_label=%s\n'
                  'co_dir=%s\n'
                  'co_leaf=%s\n'
-                 'repo_vcs=%s\n'
-                 'repo_url=%s\n'
-                 'repo_branch=%s\n'
-                 'repo_revision=%s\n'
-                 'patch=%s\n'%(name, label, co_dir, co_leaf,
-                     repo.vcs, repo.url, repo.branch, repo.revision,
-                     tar_filename))
+                 'patch=%s\n'%(name, label, co_dir, co_leaf, tar_filename))
 
 # =============================================================================
 def find_builder(current_dir):
@@ -505,38 +493,38 @@ def read(where):
     for section in sections:
         print 'Section %s'%section
         if section.startswith("BZR"):
-            checkout = config.get(section, 'checkout')
-            directory = config.get(section, 'directory')
-            if directory == 'None':
-                directory = None
+            co_leaf = config.get(section, 'co_leaf')
+            co_dir = config.get(section, 'co_dir')
+            if co_dir == 'None':
+                co_dir = None
             filename = config.get(section, 'patch')
-            print '  Checkout %s, directory %s, filename %s'%(checkout,directory,filename)
-            bzr_merge_from_send(checkout, directory,
+            print '  co_leaf %s, co_dir %s, filename %s'%(co_leaf,co_dir,filename)
+            bzr_merge_from_send(co_leaf, co_dir,
                                 os.path.join(where, filename))
         elif section.startswith("SVN"):
-            checkout = config.get(section, 'checkout')
-            directory = config.get(section, 'directory')
-            if directory == 'None':
-                directory = None
+            co_leaf = config.get(section, 'co_leaf')
+            co_dir = config.get(section, 'co_dir')
+            if co_dir == 'None':
+                co_dir = None
             filename = config.get(section, 'patch')
-            print '  Checkout %s, directory %s, filename %s'%(checkout,directory,filename)
-            svn_patch(checkout, directory, os.path.join(where, filename))
+            print '  co_leaf %s, co_dir %s, filename %s'%(co_leaf,co_dir,filename)
+            svn_patch(co_leaf, co_dir, os.path.join(where, filename))
         elif section.startswith("GIT"):
-            checkout = config.get(section, 'checkout')
-            directory = config.get(section, 'directory')
-            if directory == 'None':
-                directory = None
+            co_leaf = config.get(section, 'co_leaf')
+            co_dir = config.get(section, 'co_dir')
+            if co_dir == 'None':
+                co_dir = None
             patch_dir = config.get(section, 'patch')
-            print '  Checkout %s, directory %s, patch_dir %s'%(checkout,directory,patch_dir)
-            git_am(checkout, directory, os.path.join(where, patch_dir))
+            print '  co_leaf %s, co_dir %s, patch_dir %s'%(co_leaf,co_dir,patch_dir)
+            git_am(co_leaf, co_dir, os.path.join(where, patch_dir))
         elif section.startswith("TAR"):
-            checkout = config.get(section, 'checkout')
-            directory = config.get(section, 'directory')
-            if directory == 'None':
-                directory = None
+            co_leaf = config.get(section, 'co_leaf')
+            co_dir = config.get(section, 'co_dir')
+            if co_dir == 'None':
+                co_dir = None
             filename = config.get(section, 'patch')
-            print '  Checkout %s, directory %s, filename %s'%(checkout,directory,filename)
-            tar_unpack(checkout, directory, os.path.join(where, filename))
+            print '  co_leaf %s, co_dir %s, filename %s'%(co_leaf,co_dir,filename)
+            tar_unpack(co_leaf, co_dir, os.path.join(where, filename))
         else:
             print 'No support for %s yet - ignoring...'%section.split()[0]
 
@@ -592,5 +580,6 @@ if __name__ == '__main__':
         main(args)
     except LocalError as what:
         print what
+        sys.exit(1)
 
 # vim: set tabstop=8 softtabstop=4 shiftwidth=4 expandtab:

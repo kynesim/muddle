@@ -342,8 +342,8 @@ class Repository(object):
           just as for the normal constructor.
 
         We make a good guess as to the 'checkout name', assuming it is
-        the last component of the path in the URL. But, of course, no handler
-        gets invoked.
+        the last component of the path in the URL. But, of course, no path
+        handler gets called, so the result may not be quite what is expected.
 
         Thus:
 
@@ -367,9 +367,8 @@ class Repository(object):
             >>> f.repo_name
             'versions'
 
-        Note that this way of creating a Repository instance does not invoke
-        any path handler. It does, however, set the 'from_url_string' value to
-        the original URL as given:
+        We do, however, set the 'from_url_string' value to the original URL as
+        given:
 
             >>> f.from_url_string
             'file:///home/tibs/versions'
@@ -377,10 +376,12 @@ class Repository(object):
             'http://example.com/fred/jim.git?branch=a'
 
         which allows one to tell definitively what URL was requested, and
-        also distinguishes this from other means of creating a Repository
-        instance (otherwise 'from_url_string' will be None).
+        also distinguishes this from a Repository instance created in the
+        normal manner (in a normal Repository instance. 'from_url_string' will
+        be None).
 
-        Also, the handler will always be None for a Repository from a URL:
+        Also, the handler will always be None for a Repository created with
+        this method:
 
             >>> print f.handler
             None
@@ -481,6 +482,9 @@ class Repository(object):
             >>> g2 = g.copy_with_changes('stuff')
             >>> g2.url
             'https://code.google.com/p/raw-cctv-replay.stuff'
+
+        Note that, by its nature, calling this will result in a Repository
+        instance that has 'from_url_string' unset.
         """
         # We do it this way, rather than making a copy.copy() and amending
         # that, so that we correctly trigger any handler actions that might
@@ -507,6 +511,9 @@ class Repository(object):
             >>> s = r.copy_with_changed_revision('27')
             >>> s
             Repository('git', 'ssh://git@project-server/opt/kynesim/projects/042/git/', 'builds', revision='27')
+
+        Note that the copy will have the same value of 'from_url_string' as
+        the original.
         """
         # For this one, we *do* want a complete copy
         new = copy.deepcopy(self)
@@ -535,6 +542,9 @@ class Repository(object):
             >>> s = r.copy_with_changed_branch('jim', revision='99')
             >>> s
             Repository('git', 'ssh://git@project-server/opt/kynesim/projects/042/git/', 'builds', revision='99', branch='jim')
+
+        Note that the copy will have the same value of 'from_url_string' as
+        the original.
         """
         # For this one, we *do* want a complete copy
         new = copy.deepcopy(self)

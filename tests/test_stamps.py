@@ -438,15 +438,6 @@ def main(args):
         banner('TESTING CHECKOUT OPTIONS')
         test_options()
 
-    # STILL TO TEST:
-    # 
-    # * Stamp/unstamp of Repositories that are set via a URL, and not
-    #   components
-    #
-    # * Unstamp of version 1 stamp files
-    #
-    # * Not coping with stamp files of an unknown version(!)
-
 if __name__ == '__main__':
     args = sys.argv[1:]
     try:

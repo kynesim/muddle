@@ -276,7 +276,12 @@ class Repository(object):
             return 'Repository(%s)'%(', '.join(parts))
 
     def __str__(self):
-        return self.url
+        """It is terribly convenient if this returns our URL.
+        """
+        if self.from_url_string:
+            return self.from_url_string
+        else:
+            return self.url
 
     def __eq__(self, other):
         """Equal if VCS, actual URL, branch and revision are equal.

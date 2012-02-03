@@ -196,7 +196,7 @@ class VersionControlHandler(object):
         self.checkout_leaf = co_leaf        # should we calculate this as needed?
 
         self.options = {}
-        self._add_options(addoptions)
+        self.add_options(addoptions)
 
     def _inner_labels(self):
         """
@@ -450,7 +450,7 @@ class VersionControlHandler(object):
         """
         return self.vcs_handler.get_file_content(url, self.options, verbose)
 
-    def _add_options(self, optsdict):
+    def add_options(self, optsdict):
         """
         Add the options the user has requested, and checks them.
 

@@ -217,9 +217,10 @@ class VersionStamp(object):
             maybe_set_option(config, section, "repo_prefix_as_is", repo.prefix_as_is)
             maybe_set_option(config, section, "repo_suffix", repo.suffix)
             maybe_set_option(config, section, "repo_inner_path", repo.inner_path)
-            maybe_set_option(config, section, "repo_revision", repo.revision)
-            maybe_set_option(config, section, "repo_branch", repo.branch)
             maybe_set_option(config, section, "repo_handler", repo.handler)
+        # But we still may have revision and branch for either/both
+        maybe_set_option(config, section, "repo_revision", repo.revision)
+        maybe_set_option(config, section, "repo_branch", repo.branch)
 
         if self.options.has_key(co_label):
             co_options = self.options[co_label]
@@ -571,13 +572,18 @@ class VersionStamp(object):
 
                     errors = []
 
-                    # It's a problem if anything but the revision is different
-                    if not repo1.same_ignoring_revision(repo2):
+                    if repo1.same_ignoring_revision(repo2):
+                        if repo1.revision != repo2.revision:
+                            changed.add((label, repo1.revision, repo2.revision))
+                    else:
                         errors.append('repository')
                         if not quiet:
                             print '  Repository mismatch:'
                             print '    %s from %s'%(repo1.url, repo1)
                             print '    %s from %s'%(repo2.url, repo2)
+
+                    # It's a problem if anything but the revision is different
+
                     if co_dir1 != co_dir2:
                         errors.append('co_dir')
                         if not quiet:
@@ -596,11 +602,6 @@ class VersionStamp(object):
                             print '  ...only revision mismatch is allowed'
                         problems.append((label, 'Checkout %s does not match:'
                                                 ' %s'%(label, ', '.join(errors))))
-                        continue
-                    else:
-                        # They only differed in their revisions
-                        changed.add((label, repo1.revision, repo2.revision))
-
             elif label in self.checkouts:
                 if not quiet:
                     print 'Checkout %s was deleted'%label
@@ -637,6 +638,10 @@ def _read_v2_checkout(section, config, problems):
     repo_from_url_string = maybe_get_option(config, section,
             'repo_from_url_string', True)
 
+    # Revision and branch may apply to any repository
+    revision = maybe_get_option(config, section, "repo_revision", True)
+    branch = maybe_get_option(config, section, "repo_branch", True)
+
     if repo_from_url_string == 'None' or repo_from_url_string is None:
         base_url = get_and_remove_option(config, section, 'repo_base_url')
         repo_name = get_and_remove_option(config, section, 'repo_name')
@@ -645,8 +650,6 @@ def _read_v2_checkout(section, config, problems):
         prefix_as_is = maybe_get_option(config, section, "repo_prefix_as_is", True)
         suffix = maybe_get_option(config, section, "repo_suffix", True)
         inner_path = maybe_get_option(config, section, "repo_inner_path", True)
-        revision = maybe_get_option(config, section, "repo_revision", True)
-        branch = maybe_get_option(config, section, "repo_branch", True)
         handler = maybe_get_option(config, section, "repo_handler", True)
 
         if prefix_as_is == 'True':
@@ -661,7 +664,8 @@ def _read_v2_checkout(section, config, problems):
                           prefix_as_is, suffix, inner_path,
                           revision, branch, handler)
     else:
-        repo = Repository.from_url(repo_vcs, repo_from_url_string)
+        repo = Repository.from_url(repo_vcs, repo_from_url_string,
+                                   revision=revision, branch=branch)
 
     options = {}
     for key in config.options(section):

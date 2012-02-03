@@ -164,7 +164,7 @@ class VersionControlHandler(object):
     """
 
     def __init__(self, builder, vcs_handler, co_label, co_leaf, repo,
-                 co_dir=None, addoptions=None):
+                 co_dir=None, options=None):
         """
         * 'builder' is the builder for this build
         * 'vcs_handler' knows how to do VCS operations for this checkout
@@ -179,7 +179,7 @@ class VersionControlHandler(object):
           directory is 'fred/jim'. If the 'co_leaf' directory is at the "top
           level" within 'src', then this should be None or ''.
 
-        'addoptions' may be a dictionaary of additional VCS options, as
+        'options' may be a dictionaary of additional VCS options, as
         {option_name : option_value}. This is specific to the particular VCS
         - see "muddle help vcs <vcs_name>" for details.
 
@@ -196,7 +196,7 @@ class VersionControlHandler(object):
         self.checkout_leaf = co_leaf        # should we calculate this as needed?
 
         self.options = {}
-        self.add_options(addoptions)
+        self.add_options(options)
 
     def _inner_labels(self):
         """

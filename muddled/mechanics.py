@@ -212,18 +212,18 @@ class Invocation:
     def all_checkout_labels(self):
         """
         Return a set of the labels of all the checkouts in our rule set.
+
+        Note that all the labels will be of the form:
+
+            checkout:<co_name>/checked_out
         """
         lbl = Label(LabelType.Checkout, "*", domain="*")
         all_rules = self.ruleset.rules_for_target(lbl)
         all_labels = set()
-        already_got = set()
         for cur in all_rules:
             lbl = cur.target
-            tup = (lbl.domain, lbl.name)
-            if tup not in already_got:
-                already_got.add(tup)
-                all_labels.add(Label(LabelType.Checkout,
-                                     lbl.name, tag='*', domain=lbl.domain))
+            vanilla = lbl.copy_with_tag(LabelTag.CheckedOut)
+            all_labels.add(vanilla)
         return all_labels
 
     def all_domains(self):

@@ -39,10 +39,11 @@ import muddled.version_control as version_control
 
 from muddled.db import Database, InstructionFile
 from muddled.depend import Label, label_list_to_string
-from muddled.utils import VersionStamp, GiveUp, MuddleBug, Unsupported, \
+from muddled.utils import GiveUp, MuddleBug, Unsupported, \
         DirType, LabelTag, LabelType
 from muddled.version_control import split_vcs_url, checkout_from_repo
 from muddled.repository import Repository
+from muddled.version_stamp import VersionStamp
 
 # Following Richard's naming conventions...
 # A dictionary of <command name> : <command class>
@@ -935,6 +936,8 @@ class Help(Command):
       muddle help labels         for help on using labels
       muddle help subdomains     for help on subdomains
       muddle help aliases        says which commands have more than one name
+      muddle help vcs [name]     name the supported version control systems,
+                                 or give details about one in particular
 
     <switch> may be:
 
@@ -1252,6 +1255,9 @@ the parentheses. So, for instance, use:
         if args[0] == "commands":
             return self.help_command_list()
 
+        if args[0] == "vcs":
+            return self.help_vcs(args[1:])
+
         if len(args) == 1:
             cmd = args[0]
             try:
@@ -1362,6 +1368,21 @@ the parentheses. So, for instance, use:
         Return help on how to use subdomains
         """
         return textwrap.dedent(Help.subdomains_help)
+
+    def help_vcs(self, args):
+        """
+        Return help on supported VCS
+        """
+        if args:
+            if len(args) != 1:
+                raise GiveUp("'muddle help vcs' takes zero or one arguments")
+            vcs = args[0]
+            return version_control.get_vcs_docs(vcs)
+        else:
+            str_list = [ ]
+            str_list.append("Available version control systems:\n\n")
+            str_list.append(version_control.list_registered(indent='  '))
+            return "".join(str_list)
 
     def help_all(self):
         """
@@ -2776,7 +2797,7 @@ class Doc(Command):
 @subcommand('stamp', 'save', CAT_STAMP)
 class StampSave(Command):
     """
-    :Syntax: muddle stamp save [-f[orce]|-h[ead]] [<filename>]
+    :Syntax: muddle stamp save [-f[orce]|-h[ead]|-v[ersion] <version>] [<filename>]
 
     Go through each checkout, and save its remote repository and current
     revision id/number to a file.
@@ -2819,6 +2840,14 @@ class StampSave(Command):
     In this case, the repository specified in the build description is used,
     and the revision id and status of each checkout is not checked.
 
+    By default, a version 2 stamp file will be created. This is equivalent
+    to specifying '-version 2'. If '-version 1' is specified, then a version
+    1 stamp file will be created instead. This is the version of stamp file
+    understood by muddle before it was able to create version 2 stamp files
+    (see 'muddle help stamp save' to see if this is the case for a particular
+    version of muddle or not). Note that the version 1 stamp file created
+    by muddle 2.3 and above is not absolutely guaranteed to be correct.
+
     See 'unstamp' for restoring from stamp files.
     """
 
@@ -2829,6 +2858,7 @@ class StampSave(Command):
         force = False
         just_use_head = False
         filename = None
+        version = 2
 
         while args:
             word = args[0]
@@ -2839,6 +2869,16 @@ class StampSave(Command):
             elif word in ('-h', '-head'):
                 just_use_head = True
                 force = False
+            elif word in ('-v', '-version'):
+                try:
+                    version = int(args[0])
+                except IndexError:
+                    raise GiveUp("-version must be followed by 1 or 2, for 'stamp save'")
+                except ValueError as e:
+                    raise GiveUp("-version must be followed by 1 or 2, not '%s'"%args[0])
+                if version not in (1, 2):
+                    raise GiveUp("-version must be followed by 1 or 2, not '%s'"%args[0])
+                args = args[1:]
             elif word.startswith('-'):
                 raise GiveUp("Unexpected switch '%s' for 'stamp save'"%word)
             elif filename is None:
@@ -2858,7 +2898,7 @@ class StampSave(Command):
 
         working_filename = 'working.stamp'
         print 'Writing to',working_filename
-        hash = stamp.write_to_file(working_filename)
+        hash = stamp.write_to_file(working_filename, version=version)
         print 'Wrote revision data to %s'%working_filename
         print 'File has SHA1 hash %s'%hash
 
@@ -2895,7 +2935,7 @@ class StampSave(Command):
 @subcommand('stamp', 'version', CAT_STAMP)
 class StampVersion(Command):
     """
-    :Syntax: muddle stamp version [-f[orce]]
+    :Syntax: muddle stamp version [-f[orce]|-v[ersion] <version>]
 
     This is similar to "stamp save", but using a pre-determined stamp filename.
 
@@ -2926,6 +2966,14 @@ class StampVersion(Command):
     Note that '-f' is supported (although perhaps not recommended), but '-h' is
     not.
 
+    By default, a version 2 stamp file will be created. This is equivalent
+    to specifying '-version 2'. If '-version 1' is specified, then a version
+    1 stamp file will be created instead. This is the version of stamp file
+    understood by muddle before it was able to create version 2 stamp files
+    (see 'muddle help stamp version' to see if this is the case for a
+    particular version of muddle or not). Note that the version 1 stamp file
+    created by muddle 2.3 and above is not absolutely guaranteed to be correct.
+
     See 'unstamp' for restoring from stamp files.
     """
 
@@ -2934,11 +2982,23 @@ class StampVersion(Command):
 
     def with_build_tree(self, builder, current_dir, args):
         force = False
+        version = 2
+
         while args:
             word = args[0]
             args = args[1:]
             if word in ('-f', '-force'):
                 force = True
+            elif word in ('-v', '-version'):
+                try:
+                    version = int(args[0])
+                except IndexError:
+                    raise GiveUp("-version must be followed by 1 or 2, for 'stamp save'")
+                except ValueError as e:
+                    raise GiveUp("-version must be followed by 1 or 2, not '%s'"%args[0])
+                if version not in (1, 2):
+                    raise GiveUp("-version must be followed by 1 or 2, not '%s'"%args[0])
+                args = args[1:]
             elif word.startswith('-'):
                 raise GiveUp("Unexpected switch '%s' for 'stamp version'"%word)
             else:
@@ -2964,7 +3024,7 @@ class StampVersion(Command):
 
         working_filename = os.path.join(version_dir, '_temporary.stamp')
         print 'Writing to',working_filename
-        hash = stamp.write_to_file(working_filename)
+        hash = stamp.write_to_file(working_filename, version=version)
         print 'Wrote revision data to %s'%working_filename
         print 'File has SHA1 hash %s'%hash
 
@@ -2985,7 +3045,7 @@ class StampVersion(Command):
 @subcommand('stamp', 'diff', CAT_STAMP)
 class StampDiff(Command):
     """
-    :Syntax: muddle stamp diff [-u[nified]|-c[ontext]|-n|-h[tml]] <file1> <file2> [<output_file>]
+    :Syntax: muddle stamp diff [-u[nified]|-c[ontext]|-n|-h[tml]|-x] <file1> <file2> [<output_file>]
 
     Compare two stamp files.
 
@@ -3005,6 +3065,10 @@ class StampDiff(Command):
 
     If '-h' is specified, then the output is an HTML page, displaying
     differences in two columns (with colours).
+
+    If '-x' is specified, then both stamp files are read in as VersionStamp
+    entities, and the checkouts therein are compared (just the checkouts).
+    This option only writes to stdout, not to <output_file>
     """
 
     def requires_build_tree(self):
@@ -3037,6 +3101,8 @@ class StampDiff(Command):
                 diff_style = 'context'
             elif word in ('-h', '-html'):
                 diff_style = 'html'
+            elif word == '-x':
+                diff_style = 'local'
             elif word.startswith('-'):
                 print "Unexpected switch '%s'"%word
                 self.print_syntax()
@@ -3057,7 +3123,41 @@ class StampDiff(Command):
             print 'Comparing stamp files %s and %s'%(file1, file2)
             return
 
-        self.diff(file1, file2, diff_style, output_file)
+        if diff_style == 'local':
+            if output_file:
+                raise GiveUp('"muddle stamp diff -x" does not support an output file')
+            self.diff_local(file1, file2)
+        else:
+            self.diff(file1, file2, diff_style, output_file)
+
+    def diff_local(self, file1, file2):
+        """
+        Output comparison using VersionStamp instances.
+        """
+        stamp1 = VersionStamp.from_file(file1)
+        stamp2 = VersionStamp.from_file(file2)
+        print
+        deleted, new, changed, problems = stamp1.compare_checkouts(stamp2)
+        if deleted or new or changed or problems:
+            print
+        if deleted:
+            print 'The following were deleted in the second stamp file:'
+            for co_label, co_dir, co_leaf, repo in deleted:
+                print '  %s'%co_label
+        if new:
+            print 'The following were new in the second stamp file:'
+            for co_label, co_dir, co_leaf, repo in new:
+                print '  %s'%co_label
+        if changed:
+            print 'The following were changed:'
+            for co_label, rev1, rev2 in changed:
+                print '  %s went from revision %s to %s'%(co_label, rev1, rev2)
+        if problems:
+            print 'The following problems were found:'
+            for co_label, problem in problems:
+                print '  %s'%(problem)
+        if not (deleted or new or changed or problems):
+            print "The checkouts in the stamp files appear to be the same"
 
     def diff(self, file1, file2, diff_style='unified', output_file=None):
         """
@@ -3443,14 +3543,33 @@ Try "muddle help unstamp" for more information."""
         return self.check_build(current_dir, stamp.checkouts, builder,
                                 muddle_binary)
 
+    def _domain_path(self, root_path, domain_name):
+        """Turn a domain name into its path.
+
+        Perhaps should be in utils.py...
+        """
+        domain_parts = Label.split_domain(domain_name)
+        path_parts = [root_path]
+        for d in domain_parts:
+            path_parts.append('domains')
+            path_parts.append(d)
+        return os.path.join(*path_parts)
+
     def restore_stamp(self, builder, root_path, domains, checkouts):
         """
         Given the information from our stamp file, restore things.
         """
-        for domain_name, domain_repo, domain_desc in domains:
+        domain_names = domains.keys()
+        domain_names.sort()
+        for domain_name in domain_names:
+            domain_repo, domain_desc = domains[domain_name]
+
             print "Adding domain %s"%domain_name
 
-            domain_root_path = os.path.join(root_path, 'domains', domain_name)
+            # Take care to allow for multiple parts
+            # Thus domain 'fred(jim)' maps to <root>/domains/fred/domains/jim
+            domain_root_path = self._domain_path(root_path, domain_name)
+
             os.makedirs(domain_root_path)
 
             domain_builder = mechanics.minimal_build_tree(builder.muddle_binary,
@@ -3460,40 +3579,26 @@ Try "muddle help unstamp" for more information."""
             # Tell the domain's builder that it *is* a domain
             domain_builder.invocation.mark_domain(domain_name)
 
-        checkouts.sort()
-        for name, vcs_repo_url, revision, relative, co_dir, domain, co_leaf, branch in checkouts:
-            if domain:
-                print "Unstamping checkout (%s)%s"%(domain,name)
-            else:
-                print "Unstamping checkout %s"%name
-            # So try registering this as a normal build, in our nascent
-            # build system
-            vcs, base_url = split_vcs_url(vcs_repo_url)
-
-            if relative:
-                # 'relative' is the full path to the checkout (with src/),
-                # including the checkout name/leaf
-                parts = posixpath.split(relative)
-                if parts[-1] == co_leaf:
-                    repo_name = co_leaf
-                    prefix = posixpath.join(*parts[:-1])
+        co_labels = checkouts.keys()
+        co_labels.sort()
+        for label in co_labels:
+            co_dir, co_leaf, repo = checkouts[label]
+            if label.domain:
+                domain_root_path = self._domain_path(root_path, label.domain)
+                print "Unstamping checkout (%s)%s"%(label.domain,label.name)
+                if co_dir:
+                    actual_co_dir = os.path.join(domain_root_path, 'src', co_dir)
                 else:
-                    repo_name = parts[-1]
-                    prefix = posixpath.join(*parts[:-1])
-                repo = Repository(vcs, base_url, repo_name, prefix=prefix,
-                                  revision=revision, branch=branch)
+                    actual_co_dir = os.path.join(domain_root_path, 'src')
+                checkout_from_repo(builder, label, repo, actual_co_dir, co_leaf)
             else:
-                repo = Repository.from_url(vcs, base_url,
-                                           revision=revision, branch=branch)
+                print "Unstamping checkout %s"%label.name
+                checkout_from_repo(builder, label, repo, co_dir, co_leaf)
 
-            label = Label(LabelType.Checkout, name, domain=domain)
-            checkout_from_repo(builder, label, repo, co_dir, co_leaf)
 
             # Then need to mimic "muddle checkout" for it
-            label = Label(LabelType.Checkout,
-                          name, None, LabelTag.CheckedOut,
-                          domain=domain)
-            builder.build_label(label, silent=False)
+            new_label = label.copy_with_tag(LabelTag.CheckedOut)
+            builder.build_label(new_label, silent=False)
 
     def check_build(self, current_dir, checkouts, builder, muddle_binary):
         """
@@ -3513,11 +3618,9 @@ Try "muddle help unstamp" for more information."""
         qc = QueryCheckouts()
         qc.with_build_tree(b, current_dir, [])
 
-        # Check our checkout names match
-        s_checkouts = set([name for name, repo, rev, rel, dir,
-                           domain, co_leaf, branch in checkouts])
-        # TODO: really should be using checkout labels, not names
-        b_checkouts = b.invocation.all_checkouts()
+        # Check our checkout labels match
+        s_checkouts = set(checkouts.keys())
+        b_checkouts = b.invocation.all_checkout_labels()
         s_difference = s_checkouts.difference(b_checkouts)
         b_difference = b_checkouts.difference(s_checkouts)
         if s_difference or b_difference:
@@ -3525,12 +3628,12 @@ Try "muddle help unstamp" for more information."""
                   ' file and those in the build'
             if s_difference:
                 print 'Checkouts only in the stamp file:'
-                for name in s_difference:
-                    print '    %s'%name
+                for label in s_difference:
+                    print '    %s'%label
             if b_difference:
                 print 'Checkouts only in the build:'
-                for name in b_difference:
-                    print '    %s'%name
+                for label in b_difference:
+                    print '    %s'%label
             return 4
         else:
             print
@@ -4022,6 +4125,7 @@ class Push(CheckoutCommand):
             for e in problems:
                 print str(e).rstrip()
                 print
+            raise GiveUp()
 
 @command('pull', CAT_CHECKOUT, ['fetch', 'update'])   # we want to settle on one command
 class Pull(CheckoutCommand):
@@ -4091,6 +4195,7 @@ class Pull(CheckoutCommand):
             for e in problems:
                 print str(e).rstrip()
                 print
+            raise GiveUp()
 
 @command('merge', CAT_CHECKOUT)
 class Merge(CheckoutCommand):
@@ -4146,6 +4251,7 @@ class Merge(CheckoutCommand):
             for e in problems:
                 print str(e).rstrip()
                 print
+            raise GiveUp()
 
 @command('status', CAT_CHECKOUT)
 class Status(CheckoutCommand):

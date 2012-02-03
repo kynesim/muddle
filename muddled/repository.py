@@ -2,6 +2,7 @@
 """A new way of handling repositories
 """
 
+import copy
 import os
 import posixpath
 import re
@@ -69,13 +70,21 @@ class Repository(object):
       ...                 handler='code.google.com')
       >>> g4.url
       'https://code.google.com/p/grump'
+      >>> g4.handler
+      'code.google.com'
 
     The default handler name is actually 'guess', which tries to decide by
-    looking at the repository URL - basically, if the repository starts with
-    "https://code.google.com/p/" it will use the 'code.google.com' handler,
-    and otherwise it won't.
+    looking at the repository URL and the VCS - basically, if the repository
+    starts with "https://code.google.com/p/" and the VCS is 'git', then it will
+    use the 'code.google.com' handler, and otherwise it won't. The 'handler'
+    value reflects which handler was actually used:
 
-      Note: this only applies if the VCS is 'git' at the moment.
+      >>> g2.handler
+      'code.google.com'
+      >>> print g3.handler
+      None
+      >>> g4.handler
+      'code.google.com'
 
     Sometimes, we need some extra "path" between the repository base path and
     the checkout name. For instance:
@@ -212,6 +221,8 @@ class Repository(object):
             else:
                 handler = None
 
+        self.handler = handler
+
         if handler:
             try:
                 handler_fn = self.path_handlers[(self.vcs, handler)]
@@ -243,21 +254,59 @@ class Repository(object):
             return None, revision
 
     def __repr__(self):
-        parts = [repr(self.vcs), repr(self.base_url), repr(self.repo_name)]
-        if self.prefix:
-            parts.append('prefix=%s'%repr(self.prefix))
-        if self.suffix:
-            parts.append('suffix=%s'%repr(self.suffix))
-        if self.inner_path:
-            parts.append('inner_path=%s'%repr(self.inner_path))
-        if self.revision:
-            parts.append('revision=%s'%repr(self.revision))
-        if self.branch:
-            parts.append('branch=%s'%repr(self.branch))
-        return 'Repository(%s)'%(', '.join(parts))
+        if self.from_url_string:
+            parts = [repr(self.vcs), repr(self.from_url_string)]
+            if self.revision:
+                parts.append('revision=%s'%repr(self.revision))
+            if self.branch:
+                parts.append('branch=%s'%repr(self.branch))
+            return 'Repository.from_url(%s)'%(', '.join(parts))
+        else:
+            parts = [repr(self.vcs), repr(self.base_url), repr(self.repo_name)]
+            if self.prefix:
+                parts.append('prefix=%s'%repr(self.prefix))
+            if self.suffix:
+                parts.append('suffix=%s'%repr(self.suffix))
+            if self.inner_path:
+                parts.append('inner_path=%s'%repr(self.inner_path))
+            if self.revision:
+                parts.append('revision=%s'%repr(self.revision))
+            if self.branch:
+                parts.append('branch=%s'%repr(self.branch))
+            return 'Repository(%s)'%(', '.join(parts))
 
     def __str__(self):
-        return self.url
+        """It is terribly convenient if this returns our URL.
+        """
+        if self.from_url_string:
+            return self.from_url_string
+        else:
+            return self.url
+
+    def __eq__(self, other):
+        """Equal if VCS, actual URL, branch and revision are equal.
+
+        We don't care how the URL is derived (from parts or given as a whole),
+        just that it be the same.
+
+        So:
+
+            >>> a = Repository('git', 'ssh://git@example.com/', 'builds')
+            >>> b = Repository.from_url('git', 'ssh://git@example.com/builds')
+            >>> a == b
+            True
+        """
+        return (self.vcs == other.vcs and
+                self.url == other.url and
+                self.branch == other.branch and
+                self.revision == other.revision)
+
+    def same_ignoring_revision(self, other):
+        """Requires equality except for the revision.
+        """
+        return (self.vcs == other.vcs and
+                self.url == other.url and
+                self.branch == other.branch)
 
     def default_path(self):
         """Return the default repository path, calculated from all the parts.
@@ -298,27 +347,33 @@ class Repository(object):
           just as for the normal constructor.
 
         We make a good guess as to the 'checkout name', assuming it is
-        the last component of the path in the URL.
+        the last component of the path in the URL. But, of course, no path
+        handler gets called, so the result may not be quite what is expected.
 
         Thus:
 
             >>> r = Repository.from_url('git', 'http://example.com/fred/jim.git?branch=a')
             >>> r
-            Repository('git', 'http://example.com/fred', 'jim.git', suffix='?branch=a')
+            Repository.from_url('git', 'http://example.com/fred/jim.git?branch=a')
             >>> r.url
             'http://example.com/fred/jim.git?branch=a'
+            >>> r.repo_name
+            'jim.git'
+            >>> r.suffix
+            '?branch=a'
 
         and even:
 
             >>> f = Repository.from_url('file', 'file:///home/tibs/versions')
             >>> f
-            Repository('file', 'file:///home/tibs', 'versions')
+            Repository.from_url('file', 'file:///home/tibs/versions')
             >>> f.url
             'file:///home/tibs/versions'
+            >>> f.repo_name
+            'versions'
 
-        Note that this way of creating a Repository instance does not invoke
-        any path handler. It does, however, set the 'from_url_string' value to
-        the original URL as given:
+        We do, however, set the 'from_url_string' value to the original URL as
+        given:
 
             >>> f.from_url_string
             'file:///home/tibs/versions'
@@ -326,8 +381,17 @@ class Repository(object):
             'http://example.com/fred/jim.git?branch=a'
 
         which allows one to tell definitively what URL was requested, and
-        also distinguishes this from other means of creating a Repository
-        instance (otherwise 'from_url_string' will be None).
+        also distinguishes this from a Repository instance created in the
+        normal manner (in a normal Repository instance. 'from_url_string' will
+        be None).
+
+        Also, the handler will always be None for a Repository created with
+        this method:
+
+            >>> print f.handler
+            None
+            >>> print r.handler
+            None
         """
         scheme, netloc, path, params, query, fragment = urlparse(repo_url)
         words = posixpath.split(path)
@@ -338,6 +402,7 @@ class Repository(object):
         repo = Repository(vcs, base_url, repo_name, suffix=suffix,
                           revision=revision, branch=branch, handler=None)
         repo.from_url_string = repo_url
+        repo.handler = None
         return repo
 
     @staticmethod
@@ -422,6 +487,9 @@ class Repository(object):
             >>> g2 = g.copy_with_changes('stuff')
             >>> g2.url
             'https://code.google.com/p/raw-cctv-replay.stuff'
+
+        Note that, by its nature, calling this will result in a Repository
+        instance that has 'from_url_string' unset.
         """
         # We do it this way, rather than making a copy.copy() and amending
         # that, so that we correctly trigger any handler actions that might
@@ -432,6 +500,62 @@ class Repository(object):
                           inner_path=(self.inner_path if inner_path is None else inner_path),
                           revision=revision,
                           branch=branch)
+
+    def copy_with_changed_revision(self, revision):
+        """Return a Repository that differs only in its revision.
+
+        A simple copy is taken, and then the revision is changed. This is used
+        in version stamping.
+
+        For instance:
+
+            >>> r = Repository('git', 'ssh://git@project-server/opt/kynesim/projects/042/git/',
+            ...                'builds', revision='23')
+            >>> r
+            Repository('git', 'ssh://git@project-server/opt/kynesim/projects/042/git/', 'builds', revision='23')
+            >>> s = r.copy_with_changed_revision('27')
+            >>> s
+            Repository('git', 'ssh://git@project-server/opt/kynesim/projects/042/git/', 'builds', revision='27')
+
+        Note that the copy will have the same value of 'from_url_string' as
+        the original.
+        """
+        # For this one, we *do* want a complete copy
+        new = copy.deepcopy(self)
+        new.revision = revision
+        return new
+
+    def copy_with_changed_branch(self, branch, revision=None):
+        """Return a Repository that differs only in its branch (and revision).
+
+        A simple copy is taken, and then the branch and revision are changed.
+        Typically, the revision is just unset.
+
+        Note that we don't check that you don't set the revision to the same
+        value again, although it seems unlikely to be sensible in most version
+        control systems to do this.
+
+        For instance:
+
+            >>> r = Repository('git', 'ssh://git@project-server/opt/kynesim/projects/042/git/',
+            ...                'builds', branch='fred', revision='23')
+            >>> r
+            Repository('git', 'ssh://git@project-server/opt/kynesim/projects/042/git/', 'builds', revision='23', branch='fred')
+            >>> s = r.copy_with_changed_branch('jim')
+            >>> s
+            Repository('git', 'ssh://git@project-server/opt/kynesim/projects/042/git/', 'builds', branch='jim')
+            >>> s = r.copy_with_changed_branch('jim', revision='99')
+            >>> s
+            Repository('git', 'ssh://git@project-server/opt/kynesim/projects/042/git/', 'builds', revision='99', branch='jim')
+
+        Note that the copy will have the same value of 'from_url_string' as
+        the original.
+        """
+        # For this one, we *do* want a complete copy
+        new = copy.deepcopy(self)
+        new.branch = branch
+        new.revision = revision     # Conveniently, defaulting to None
+        return new
 
 def google_code_handler(repo):
     """A repository path handler for google code projects.

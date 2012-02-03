@@ -45,5 +45,7 @@ if __name__ == "__main__":
         traceback.print_exc()
         sys.exit(1)
     except GiveUp as f:
-        print "%s"%f
+        text = str(f)
+        if text:
+            print text
         sys.exit(1)

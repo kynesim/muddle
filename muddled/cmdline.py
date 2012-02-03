@@ -19,6 +19,25 @@ import muddled.mechanics as mechanics
 from muddled.depend import Label
 from muddled.utils import LabelType, LabelTag, DirType, Directory
 
+def our_cmd(cmd_list, error_ok=True):
+    """Command processing for calculating muddle version
+    """
+    try:
+        p = subprocess.Popen(cmd_list, shell=False, stdout=subprocess.PIPE,
+                             stderr=subprocess.STDOUT)
+        out, err = p.communicate()
+        if p.returncode == 0:
+            return out.strip()
+        elif error_ok:
+            return ''
+        else:
+            raise utils.GiveUp("Problem determining muddle version: 'git' returned %s\n\n"
+                               "$ %s\n"
+                               "%s\n"%(p.returncode, ' '.join(cmd_list), out.strip()))
+    except OSError as e:
+        if e.errno == errno.ENOENT:
+            raise utils.GiveUp("Unable to determine 'muddle --version' - cannot find 'git'")
+
 def show_version():
     """Show something akin to a version of this muddle.
 
@@ -29,34 +48,28 @@ def show_version():
     muddle_dir = os.path.split(this_dir)[0]
     cmd_tag = ['git', 'describe', '--dirty=-modified', '--long', '--tags']
     cmd_all = ['git', 'describe', '--dirty=-modified', '--long', '--all']
+    branch  = ['git', 'symbolic-ref', '-q', 'HEAD']
+    version = "<unknown>"
     with Directory(muddle_dir, show_pushd=False):
         # First try looking for a version using tags, which should normally
         # work.
-        try:
-            p = subprocess.Popen(cmd_tag, shell=False, stdout=subprocess.PIPE,
-                                 stderr=subprocess.STDOUT)
-            out, err = p.communicate()
-            if p.returncode == 0:
-                print 'muddle %s in %s'%(out.strip(), muddle_dir)
-                return
-        except OSError as e:
-            if e.errno == errno.ENOENT:
-                raise utils.GiveUp("Unable to determine 'muddle --version' - cannot find 'git'")
-        except Exception:
-            pass
-
+        version = our_cmd(cmd_tag, error_ok=True)
         # If that failed, try with --all
-        p = subprocess.Popen(cmd_all, shell=False, stdout=subprocess.PIPE,
-                             stderr=subprocess.STDOUT)
-        out, err = p.communicate()
-        if p.returncode == 0:
-            print 'muddle %s in %s'%(out.strip(), muddle_dir)
-            return
-        else:
-            raise utils.GiveUp("Problem determining muddle version: 'git' returned %s\n\n"
-                               "$ %s\n"
-                               "%s\n"%(p.returncode, ' '.join(cmd_all), out.strip()))
+        if not version:
+            version = our_cmd(cmd_tag, error_ok=False)
 
+        # Are we on a branch?
+        branch = our_cmd(branch)
+        if branch:
+            if branch.startswith('refs/heads/'):
+                branch = branch[11:]
+            if branch == 'master':
+                branch = None
+
+        if branch:
+            print '%s on branch %s in %s'%(version, branch, muddle_dir)
+        else:
+            print '%s in %s'%(version, muddle_dir)
 
 def find_and_load(specified_root, muddle_binary):
     """Find our .muddle root, and then load our builder, and return it.
@@ -122,7 +135,7 @@ def _cmdline(args, current_dir, original_env, muddle_binary):
         elif word in ('-n', "--just-print"):
             command_options["no_operation"] = True
         elif word[0] == '-':
-            raise utils.GiveUp, "Unexpected command line option %s"%word
+            raise utils.GiveUp, 'Unexpected command line option %s - see "muddle help"'%word
         else:
             break
 

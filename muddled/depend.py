@@ -226,7 +226,7 @@ class Label(object):
             _check_part('role',role)
         _check_part('tag',tag)
         if domain is not None:
-            Label._check_domain(domain)
+            Label.split_domain(domain)
 
         self._type = type
         self._domain = domain
@@ -313,7 +313,7 @@ class Label(object):
         """
         Return a copy of self, with the domain changed to new_domain.
         """
-        Label._check_domain(new_domain)
+        Label.split_domain(new_domain)
         cp = self.copy()
         cp._domain = new_domain
         return cp
@@ -634,43 +634,50 @@ class Label(object):
             raise utils.GiveUp("Label %s '%s' is not allowed"%(what_part,value))
 
     @staticmethod
-    def _check_domain(value):
+    def split_domain(value):
         """
-        Check that a label domain component is valid.
+        Split a domain into its parts and check that it is valid.
 
-        Raises a utils.GiveUp exception if it's Bad, does nothing if it's OK.
+        Note that the 'value' should *not* include the outermost parentheses
+        (see the examples below).
+
+        Raises a utils.GiveUp exception if it's Bad.
 
         For instance:
 
-            >>> Label._check_domain('fred')
-            >>> Label._check_domain('fred(jim)')
-            >>> Label._check_domain('fred(jim(bob))')
-            >>> Label._check_domain('')
+            >>> Label.split_domain('fred')
+            ['fred']
+            >>> Label.split_domain('fred(jim)')
+            ['fred', 'jim']
+            >>> Label.split_domain('fred(jim(bob))')
+            ['fred', 'jim', 'bob']
+            >>> Label.split_domain('')
             Traceback (most recent call last):
             ...
             GiveUp: Label domain '()' is not allowed
-            >>> Label._check_domain('()')
+            >>> Label.split_domain('()')
             Traceback (most recent call last):
             ...
             GiveUp: Label domain '(())' starts with zero length domain, '(()', i.e. '(('
-            >>> Label._check_domain('(')
+            >>> Label.split_domain('(')
             Traceback (most recent call last):
             ...
             GiveUp: Label domain part '(()' has unbalanced parentheses, '('
-            >>> Label._check_domain(')')
+            >>> Label.split_domain(')')
             Traceback (most recent call last):
             ...
             GiveUp: Label domain '())' has unbalanced parentheses, ')'
-            >>> Label._check_domain('fred(jim')
+            >>> Label.split_domain('fred(jim')
             Traceback (most recent call last):
             ...
             GiveUp: Label domain part '(fred(jim)' has unbalanced parentheses, 'fred(jim'
-            >>> Label._check_domain('fred((jim(bob)))')
+            >>> Label.split_domain('fred((jim(bob)))')
             Traceback (most recent call last):
             ...
             GiveUp: Label domain '(fred((jim(bob))))' starts with zero length domain, '((jim(bob))', i.e. '(('
 
         """
+        parts = []
         m = Label.domain_part_re.match(value)
         if m is None or m.end() != len(value):
             raise utils.GiveUp("Label domain '(%s)' is not allowed"%(value))
@@ -681,16 +688,19 @@ class Label(object):
                 if dom[-1] == ')':
                     raise utils.GiveUp("Label domain '(%s)' has unbalanced"
                                         " parentheses, '%s'"%(value, dom))
+                parts.append(dom)
                 break
             else:
                 if dom[-1] != ')':
                     raise utils.GiveUp("Label domain part '(%s)' has unbalanced"
                                         " parentheses, '%s'"%(value, dom))
                 part = dom[:pos]
+                parts.append(part)
                 if len(part) == 0:
                     raise utils.GiveUp("Label domain '(%s)' starts with zero"
                                         " length domain, '(%s', i.e. '(('"%(value, dom))
                 dom = dom[pos+1:-1]
+        return parts
 
     @staticmethod
     def from_string(label_string):

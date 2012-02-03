@@ -257,6 +257,11 @@ def describe_to(builder):
     builder.by_default_deploy("everything")
 """
 
+GITIGNORE = """\
+*~
+*.pyc
+"""
+
 MAIN_C_SRC = """\
 // Simple example C source code
 #include <stdio.h>
@@ -360,7 +365,10 @@ def make_build_desc(co_dir, file_content):
     git('init')
     touch('01.py', file_content)
     git('add 01.py')
-    git('commit -a -m "Commit build desc"')
+    git('commit -m "Commit build desc"')
+    touch('.gitignore', GITIGNORE)
+    git('add .gitignore')
+    git('commit -m "Commit .gitignore"')
 
 def make_standard_checkout(co_dir, progname, desc):
     """Take some of the repetition out of making checkouts.

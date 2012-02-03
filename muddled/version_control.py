@@ -164,7 +164,7 @@ class VersionControlHandler(object):
     """
 
     def __init__(self, builder, vcs_handler, co_label, co_leaf, repo,
-                 co_dir=None, addoptions=None):
+                 co_dir=None, options=None):
         """
         * 'builder' is the builder for this build
         * 'vcs_handler' knows how to do VCS operations for this checkout
@@ -178,6 +178,14 @@ class VersionControlHandler(object):
           so if the checkout is in 'src/fred/jim/wombat', then the checkout
           directory is 'fred/jim'. If the 'co_leaf' directory is at the "top
           level" within 'src', then this should be None or ''.
+
+        'options' may be a dictionaary of additional VCS options, as
+        {option_name : option_value}. This is specific to the particular VCS
+        - see "muddle help vcs <vcs_name>" for details.
+
+        Option names (the keys) are restricted for names registered for that
+        particular VCS. Option values are restricted to boolean, integer or
+        string.
         """
         self.builder = builder
         self.vcs_handler = vcs_handler
@@ -187,8 +195,8 @@ class VersionControlHandler(object):
         self.checkout_dir = co_dir          # should we get this from the db?
         self.checkout_leaf = co_leaf        # should we calculate this as needed?
 
-        self._options = default_vcs_options_dict()
-        self.add_options(addoptions)
+        self.options = {}
+        self.add_options(options)
 
     def _inner_labels(self):
         """
@@ -210,20 +218,6 @@ class VersionControlHandler(object):
 
     def long_name(self):
         return self.vcs_handler.long_name
-
-    def checkout_tuple(self):
-        # This is used for stamp files
-        #
-        # XXX Note that 'inner_path' should now be part of the URL
-        # XXX - this definitely needs thinking about
-        return utils.CheckoutTuple(self.checkout_label.name,
-                                   '%s+%s'%(self.repo.vcs, self.repo.url),
-                                   self.repo.revision if self.repo.revision else 'HEAD',
-                                   self.repo.inner_path, # was self.relative,
-                                   self.checkout_dir,
-                                   self.checkout_label.domain,
-                                   self.checkout_leaf,
-                                   self.repo.branch)
 
     def get_my_absolute_checkout_path(self):
         """
@@ -275,7 +269,7 @@ class VersionControlHandler(object):
         with utils.Directory(parent_dir):
             try:
                 self.vcs_handler.checkout(self.repo, self.checkout_leaf,
-                                          self._options, verbose)
+                                          self.options, verbose)
             except utils.MuddleBug as err:
                 raise utils.MuddleBug('Error checking out %s in %s:\n%s'%(self.checkout_label,
                                       parent_dir, err))
@@ -291,7 +285,7 @@ class VersionControlHandler(object):
         """
         with utils.Directory(self.get_my_absolute_checkout_path()):
             try:
-                self.vcs_handler.fetch(self.repo, self._options, verbose)
+                self.vcs_handler.fetch(self.repo, self.options, verbose)
             except utils.MuddleBug as err:
                 raise utils.MuddleBug('Error fetching %s in %s:\n%s'%(self.checkout_label,
                                   self.src_rel_dir(), err))
@@ -309,7 +303,7 @@ class VersionControlHandler(object):
         """
         with utils.Directory(self.get_my_absolute_checkout_path()):
             try:
-                self.vcs_handler.merge(self.repo, self._options, verbose)
+                self.vcs_handler.merge(self.repo, self.options, verbose)
             except utils.MuddleBug as err:
                 raise utils.MuddleBug('Error merging %s in %s:\n%s'%(self.checkout_label,
                                   self.src_rel_dir(), err))
@@ -329,7 +323,7 @@ class VersionControlHandler(object):
         """
         with utils.Directory(self.get_my_absolute_checkout_path()):
             try:
-                self.vcs_handler.commit(self.repo, self._options, verbose)
+                self.vcs_handler.commit(self.repo, self.options, verbose)
             except utils.MuddleBug as err:
                 raise utils.MuddleBug('Error commiting %s in %s:\n%s'%(self.checkout_label,
                                   self.src_rel_dir(), err))
@@ -348,7 +342,7 @@ class VersionControlHandler(object):
         """
         with utils.Directory(self.get_my_absolute_checkout_path()):
             try:
-                self.vcs_handler.push(self.repo, self._options, verbose)
+                self.vcs_handler.push(self.repo, self.options, verbose)
             except utils.MuddleBug as err:
                 raise utils.MuddleBug('Error pushing %s in %s:\n%s'%(self.checkout_label,
                                   self.src_rel_dir(), err))
@@ -381,7 +375,7 @@ class VersionControlHandler(object):
             print '>>', self.checkout_label
         with utils.Directory(self.get_my_absolute_checkout_path(), show_pushd=False):
             try:
-                status_text = self.vcs_handler.status(self.repo, self._options)
+                status_text = self.vcs_handler.status(self.repo, self.options)
                 if status_text:
                     full_text = '%s status for %s in %s:\n%s'%(self.short_name(),
                                                  self.checkout_label,
@@ -413,7 +407,7 @@ class VersionControlHandler(object):
         actual_dir = self.get_my_absolute_checkout_path()
         with utils.Directory(actual_dir):
             self.vcs_handler.reparent(actual_dir, # or self.checkout_leaf
-                                      self.repo, self._options, force, verbose)
+                                      self.repo, self.options, force, verbose)
 
     def revision_to_checkout(self, force=False, verbose=False):
         """
@@ -444,63 +438,59 @@ class VersionControlHandler(object):
         with utils.Directory(self.get_my_absolute_checkout_path()):
             return self.vcs_handler.revision_to_checkout(self.repo,
                                                          self.checkout_leaf,
-                                                         self._options,
+                                                         self.options,
                                                          force, verbose)
 
     def must_fetch_before_commit(self):
-        return self.vcs_handler.must_fetch_before_commit(self._options)
+        return self.vcs_handler.must_fetch_before_commit(self.options)
 
     def get_file_content(self, url, verbose=True):
         """
         Retrieve a file's content via a VCS.
         """
-        return self.vcs_handler.get_file_content(url, self._options, verbose)
+        return self.vcs_handler.get_file_content(url, self.options, verbose)
 
-    def get_options(self):
-        return self._options
-
-    def add_options(self, optsdict=None, **kwargs):
+    def add_options(self, optsdict):
         """
-        Adds extra VCS options to this checkout - specified by dictionary,
-        keyword args or both. (If an option is present both in the dictionary
-        and the keyword args, the resulting effect is undefined.)
+        Add the options the user has requested, and checks them.
 
-        Any unrecognised option causes an exception.
+        For reasons mostly to do with how stamping/unstamping works,
+        we require option values to be either boolean, integer or string.
+
+        Any other choice raises an exception.
         """
-        newopts = {}
-        if optsdict is not None:
-            newopts.update(optsdict)
-        newopts.update(kwargs)
-        for o in newopts:
-            if not o in self._options:
-                raise utils.GiveUp("VCS option %s was not recognised"%o)
-            self._options[o] = newopts[o]
+        if not optsdict:
+            return
 
-def default_vcs_options_dict():
-    """
-    Construct a default VCS options dictionary for a checkout.
-    This dictionary is also the set of allowed options.
+        for key, value in optsdict.items():
 
-    NOTE: The implementer of a new option is responsible for deciding
-    what the option's behaviour should be across ALL currently-implemented
-    VCS modules. By default a VCS module simply ignores options it doesn't
-    understand; in some cases this might not be appropriate and a module
-    would instead want to raise an error because the option doesn't make
-    sense to that system.
-    """
-    return {
-            'shallow_checkout': False,
-            }
+            if option_not_allowed(self.vcs_handler.short_name, key):
+                raise utils.GiveUp("Option '%s' is not allowed for VCS %s'"%(key,
+                                   self.vcs_handler.short_name))
+
+            if not (isinstance(value, bool) or isinstance(value, int) or
+                    isinstance(value, str)):
+                raise utils.GiveUp("Additional options to VCS must be bool, int or"
+                                   " string. '%s' is %s"%(value, type(value)))
+            self.options[key] = value
 
 # This dictionary holds the global list of registered VCS handler
 # factories.
-vcs_dict = { }
+vcs_dict = {}
+# And this one the documentation for each VCS
+vcs_docs = {}
+# And this one for (a list of) allowable options for each VCS
+vcs_options = {}
 
-def register_vcs_handler(scheme, factory):
+def register_vcs_handler(scheme, factory, docs=None, options=None):
     """
     Register a VCS handler factory with a VCS scheme prefix.
+
+    Also, preferably, register the VCS documentation on how muddle handles it.
     """
     vcs_dict[scheme] = factory
+    vcs_docs[scheme] = docs
+    vcs_options[scheme] = options
 
 def list_registered(indent=''):
     """
@@ -532,6 +522,20 @@ def get_vcs_handler(vcs):
         return vcs_dict[vcs]
     except KeyError:
         raise utils.MuddleBug("No VCS handler registered for VCS type %s"%vcs)
+
+def get_vcs_docs(vcs):
+    """Given a VCS short name, return the docs for how muddle handles it
+    """
+    try:
+        return vcs_docs[vcs]
+    except KeyError:
+        raise utils.GiveUp("No VCS handler registered for VCS type %s"%vcs)
+
+def option_not_allowed(vcs, option):
+    if vcs in vcs_options and option in vcs_options[vcs]:
+        return False
+    else:
+        return True
 
 def get_vcs_handler_from_string(repo_str):
     """Given a <vcs>+<url> string, return a VCS handler and <url>.
@@ -580,8 +584,8 @@ def vcs_action_for(builder, co_label, repo, co_dir = None, co_leaf = None):
         co_leaf = co_label.name
 
     handler = vcs_handler_for(builder, co_label, co_leaf, repo, co_dir)
-    if (handler is None):
-        raise utils.GiveUp("Cannot build a VCS handler for %s rel = %s"%(repo, rev))
+    if handler is None:
+        raise utils.GiveUp("Cannot build a VCS handler for %s"%repo)
 
     return pkg.VcsCheckoutBuilder(co_label.name, handler)
 
@@ -744,8 +748,7 @@ def vcs_get_directory(url, directory=None):
     """
     vcs_handler, plain_url = get_vcs_handler_from_string(url)
     repo = Repository.from_url(vcs_handler.short_name, plain_url)
-    options = default_vcs_options_dict()
-    return vcs_handler.checkout(repo, directory, options)
+    return vcs_handler.checkout(repo, directory, {})
 
 def vcs_push_directory(url):
     """
@@ -759,8 +762,7 @@ def vcs_push_directory(url):
     """
     vcs_handler, plain_url = get_vcs_handler_from_string(url)
     repo = Repository.from_url(vcs_handler.short_name, plain_url)
-    options = default_vcs_options_dict()
-    vcs_handler.push(repo, options)
+    vcs_handler.push(repo, {})
 
 def vcs_fetch_directory(url):
     """
@@ -774,8 +776,7 @@ def vcs_fetch_directory(url):
     """
     vcs_handler, plain_url = get_vcs_handler_from_string(url)
     repo = Repository.from_url(vcs_handler.short_name, plain_url)
-    options = default_vcs_options_dict()
-    vcs_handler.fetch(repo, options)
+    vcs_handler.fetch(repo, {})
 
 def vcs_init_directory(scheme, files=None):
     """

@@ -3045,7 +3045,7 @@ class StampVersion(Command):
 @subcommand('stamp', 'diff', CAT_STAMP)
 class StampDiff(Command):
     """
-    :Syntax: muddle stamp diff [-u[nified]|-c[ontext]|-n|-h[tml]] <file1> <file2> [<output_file>]
+    :Syntax: muddle stamp diff [-u[nified]|-c[ontext]|-n|-h[tml]|-x] <file1> <file2> [<output_file>]
 
     Compare two stamp files.
 
@@ -3065,6 +3065,10 @@ class StampDiff(Command):
 
     If '-h' is specified, then the output is an HTML page, displaying
     differences in two columns (with colours).
+
+    If '-x' is specified, then both stamp files are read in as VersionStamp
+    entities, and the checkouts therein are compared (just the checkouts).
+    This option only writes to stdout, not to <output_file>
     """
 
     def requires_build_tree(self):
@@ -3097,6 +3101,8 @@ class StampDiff(Command):
                 diff_style = 'context'
             elif word in ('-h', '-html'):
                 diff_style = 'html'
+            elif word == '-x':
+                diff_style = 'local'
             elif word.startswith('-'):
                 print "Unexpected switch '%s'"%word
                 self.print_syntax()
@@ -3117,7 +3123,36 @@ class StampDiff(Command):
             print 'Comparing stamp files %s and %s'%(file1, file2)
             return
 
-        self.diff(file1, file2, diff_style, output_file)
+        if diff_style == 'local':
+            if output_file:
+                raise GiveUp('"muddle stamp diff -x" does not support an output file')
+            self.diff_local(file1, file2)
+        else:
+            self.diff(file1, file2, diff_style, output_file)
+
+    def diff_local(self, file1, file2):
+        """
+        Output comparison using VersionStamp instances.
+        """
+        stamp1 = VersionStamp.from_file(file1)
+        stamp2 = VersionStamp.from_file(file2)
+        deleted, new, changed, problems = stamp1.compare_checkouts(stamp2)
+        if deleted:
+            print 'The following were deleted in the second stamp file:'
+            for co_label, co_dir, co_leaf, repo in deleted:
+                print '  %s'%co_label
+        if new:
+            print 'The following were new in the second stamp file:'
+            for co_label, co_dir, co_leaf, repo in new:
+                print '  %s'%co_label
+        if changed:
+            print 'The following were changed:'
+            for co_label, rev1, rev2 in changed:
+                print '  %s went from revision %s to %s'%(co_label, rev1, rev2)
+        if problems:
+            print 'The following problems were found:'
+            for co_label, problem in problems:
+                print '  %s: %s'%(co_label, problem)
 
     def diff(self, file1, file2, diff_style='unified', output_file=None):
         """

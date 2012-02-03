@@ -4050,6 +4050,7 @@ class Push(CheckoutCommand):
             for e in problems:
                 print str(e).rstrip()
                 print
+            raise GiveUp()
 
 @command('pull', CAT_CHECKOUT, ['fetch', 'update'])   # we want to settle on one command
 class Pull(CheckoutCommand):
@@ -4119,6 +4120,7 @@ class Pull(CheckoutCommand):
             for e in problems:
                 print str(e).rstrip()
                 print
+            raise GiveUp()
 
 @command('merge', CAT_CHECKOUT)
 class Merge(CheckoutCommand):
@@ -4174,6 +4176,7 @@ class Merge(CheckoutCommand):
             for e in problems:
                 print str(e).rstrip()
                 print
+            raise GiveUp()
 
 @command('status', CAT_CHECKOUT)
 class Status(CheckoutCommand):

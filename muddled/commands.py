@@ -3136,7 +3136,10 @@ class StampDiff(Command):
         """
         stamp1 = VersionStamp.from_file(file1)
         stamp2 = VersionStamp.from_file(file2)
+        print
         deleted, new, changed, problems = stamp1.compare_checkouts(stamp2)
+        if deleted or new or changed or problems:
+            print
         if deleted:
             print 'The following were deleted in the second stamp file:'
             for co_label, co_dir, co_leaf, repo in deleted:
@@ -3152,7 +3155,9 @@ class StampDiff(Command):
         if problems:
             print 'The following problems were found:'
             for co_label, problem in problems:
-                print '  %s: %s'%(co_label, problem)
+                print '  %s'%(problem)
+        if not (deleted or new or changed or problems):
+            print "The checkouts in the stamp files appear to be the same"
 
     def diff(self, file1, file2, diff_style='unified', output_file=None):
         """

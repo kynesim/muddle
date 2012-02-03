@@ -517,9 +517,8 @@ class VersionStamp(object):
 
         If 'quiet', then don't output messages about the comparison.
 
-        Note that this only compares the checkouts - it does not compare any
-        of the other fields in a VersionStamp. In particular, it does not
-        compare any options...
+        Note that this only compares the checkouts (including their options) -
+        it does not compare any of the other fields in a VersionStamp.
 
         Returns a tuple of (deleted, new, changed, problems) sequences, where
         these are:

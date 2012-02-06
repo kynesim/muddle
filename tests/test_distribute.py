@@ -61,9 +61,11 @@ import muddled.checkouts.simple
 import muddled.deployments.collect as collect
 from muddled.mechanics import include_domain
 from muddled.depend import Label
-from muddled.utils import LabelType
+from muddled.utils import LabelType, LabelTag
 from muddled.repository import Repository
 from muddled.version_control import checkout_from_repo
+
+from muddled.distribute import distribute_checkout, distribute_package
 
 def describe_to(builder):
     role = 'x86'
@@ -113,6 +115,19 @@ def describe_to(builder):
     # The 'arm' role is *not* a default role
     builder.invocation.add_default_role(role)
     builder.by_default_deploy(deployment)
+
+    # Let's add some distribution rules
+    distribute_checkout(builder,
+                        Label(LabelType.Checkout, 'first_co', LabelTag.CheckedOut))
+    distribute_checkout(builder,
+                        Label(LabelType.Checkout, 'first_co', LabelTag.CheckedOut,
+                        domain='subdomain1'), copy_vcs_dir=True)
+
+    distribute_package(builder,
+                       Label(LabelType.Package, 'second_co', LabelTag.PostInstalled))
+    distribute_package(builder,
+                       Label(LabelType.Package, 'second_co', LabelTag.PostInstalled,
+                       domain='subdomain1'), copy_vcs_dir=True)
 """
 
 SUBDOMAIN1_BUILD_DESC = """ \

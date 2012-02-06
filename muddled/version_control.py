@@ -654,7 +654,6 @@ def checkout_from_repo(builder, co_label, repo, co_dir=None, co_leaf=None):
     vcs_handler = vcs_action_for(builder, co_label, repo, co_dir=co_dir, co_leaf=co_leaf)
     pkg.add_checkout_rules(builder.invocation.ruleset, co_label, vcs_handler)
 
-
 def conventional_repo_url(repo, rel, co_dir = None):
     """
     Many VCSs adopt the convention that the first element of the relative

@@ -197,7 +197,10 @@ class Database(object):
         If it is None, then "<root path>/src" is returned.
 
         Otherwise, the path to the checkout directory for this label is
-        calculated.
+        calculated and returned.
+
+        If you want the path *relative* to the root of the build tree
+        (i.e., a path starting "src/"), then use get_checkout_location().
         """
         if checkout_label is None:
             return os.path.join(self.root_path, "src")
@@ -213,6 +216,29 @@ class Database(object):
             raise utils.GiveUp('There is no checkout path registered for label %s'%checkout_label)
 
         return os.path.join(root, rel_dir)
+
+    def get_checkout_location(self, checkout_label):
+        """
+        'checkout_label' is a "checkout:" Label, or None
+
+        If it is None, then "src" is returned.
+
+        Otherwise, the path to the checkout directory for this label, relative
+        to the root of the build tree, is calculated and returned.
+
+        If you want the full path to the checkout directory, then use
+        get_checkout_path().
+        """
+        if checkout_label is None:
+            return 'src'
+
+        assert checkout_label.type == utils.LabelType.Checkout
+
+        key = self.normalise_checkout_label(checkout_label)
+        try:
+            return self.checkout_locations[key]
+        except KeyError:
+            raise utils.GiveUp('There is no checkout path registered for label %s'%checkout_label)
 
     def set_checkout_repo(self, checkout_label, repo):
         assert checkout_label.type == utils.LabelType.Checkout
@@ -251,7 +277,7 @@ class Database(object):
         try:
             return self.checkout_repositories[key]
         except KeyError:
-            raise utils.GiveUp('There is no checkout path registered for label %s'%checkout_label)
+            raise utils.GiveUp('There is no repository registered for label %s'%checkout_label)
 
     def build_desc_file_name(self):
         """

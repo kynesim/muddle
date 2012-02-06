@@ -145,6 +145,16 @@ class VersionControlSystem(object):
         """
         return False
 
+    def get_vcs_dirname(self):
+        """
+        Return the name of the directory holding information for this VCS.
+
+        For instance, ".git" for git.
+
+        Returns None if there is no such concept.
+        """
+        return None
+
 
 class VersionControlHandler(object):
     """
@@ -444,6 +454,16 @@ class VersionControlHandler(object):
     def must_fetch_before_commit(self):
         return self.vcs_handler.must_fetch_before_commit(self.options)
 
+    def get_vcs_dirname(self):
+        """
+        Return the name of the directory holding information for this VCS.
+
+        For instance, ".git" for git.
+
+        Returns None if there is no such concept.
+        """
+        return self.vcs_handler.get_vcs_dirname()
+
     def get_file_content(self, url, verbose=True):
         """
         Retrieve a file's content via a VCS.
@@ -711,28 +731,6 @@ def vcs_get_file_data(url):
     """
     vcs_handler, plain_url = get_vcs_handler_from_string(url)
     return vcs_handler.get_file_content(plain_url)
-
-# This is a dictionary of VCS name to function-to-clone/push/pull-a-directory
-vcs_dir_handler = {}
-
-def register_vcs_dir_handler(scheme, handler):
-    """
-    Register a function for cloning/pushing/pulling an indivual directory.
-
-    'scheme' is the VCS (short) name. This should match the mnemonic used
-    at the start of URLs - so, e.g., "bzr" for "bzr+ssh://whatever".
-
-    'handler' is the function. It should take (at least) two arguments:
-
-    1. the action to perform. One of "clone", "push", "pull", "commit".
-    2. the URL of the repository to use. This is not needed for "commit".
-    3. for "clone", optionally the name of the directory to clone into
-
-    For "clone" it assumes it will produce the clone in the current directory.
-    For "push" and "pull" it assumes that the current directory is the cloned
-    directory.
-    """
-    vcs_dir_handler[scheme] = handler
 
 def vcs_get_directory(url, directory=None):
     """

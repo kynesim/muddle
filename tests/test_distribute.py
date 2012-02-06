@@ -118,16 +118,16 @@ def describe_to(builder):
 
     # Let's add some distribution rules
     distribute_checkout(builder,
-                        Label(LabelType.Checkout, 'first_co', LabelTag.CheckedOut))
+                        Label(LabelType.Checkout, 'first_co'))
     distribute_checkout(builder,
-                        Label(LabelType.Checkout, 'first_co', LabelTag.CheckedOut,
-                        domain='subdomain1'), copy_vcs_dir=True)
+                        Label(LabelType.Checkout, 'first_co', domain='subdomain1'),
+                        copy_vcs_dir=True)
 
     distribute_package(builder,
-                       Label(LabelType.Package, 'second_co', LabelTag.PostInstalled))
+                       Label(LabelType.Package, 'second_pkg', 'x86', LabelTag.PostInstalled))
     distribute_package(builder,
-                       Label(LabelType.Package, 'second_co', LabelTag.PostInstalled,
-                       domain='subdomain1'), copy_vcs_dir=True)
+                       Label(LabelType.Package, 'second_pkg', 'x86', LabelTag.PostInstalled,
+                       domain='subdomain1'))
 """
 
 SUBDOMAIN1_BUILD_DESC = """ \

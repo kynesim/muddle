@@ -3675,6 +3675,28 @@ class Distribute(Command):
 
         print 'Writing to', target_dir
 
+        # We get all the "reasonable" checkout labels
+        all_checkouts = builder.invocation.all_checkout_labels()
+        # So, for each checked out checkout, can we distribute it?
+        for label in all_checkouts:
+            target = label.copy_with_tag(LabelTag.Distributed)
+            if builder.invocation.target_label_exists(target):
+                builder.build_label(target)
+
+        # And similarly for our packages.
+        all_packages = builder.invocation.all_package_labels()
+        for label in all_packages:
+            target = label.copy_with_tag(LabelTag.Distributed)
+            if builder.invocation.target_label_exists(target):
+                builder.build_label(target)
+
+        # XXX TODO
+        # Question - what are we meant to do if a package implicitly sets
+        # a distribution state for a checkout, and we also explicitly set
+        # a different (incompatible) state for a checkout? Who wins? Or do
+        # we just try to satisfy both?
+
+
 # =============================================================================
 # Checkout, package and deployment commands
 # =============================================================================

@@ -3,7 +3,7 @@ Actions and mechanisms relating to distributing build trees
 """
 
 from muddled.depend import Action, Rule
-from muddled.utils import MuddleBug, LabelTag
+from muddled.utils import MuddleBug, LabelTag, LabelType
 
 class DistributePackage(Action):
     """
@@ -36,7 +36,7 @@ class DistributeCheckout(Action):
         self.copy_vcs_dir = copy_vcs_dir
 
     def build_label(self, builder, label):
-        print 'DistributeCheckout %s (%s VCS)'%(label,
+        print 'DistributeCheckout %s (%s VCS dir)'%(label,
                 'without' if self.copy_vcs_dir else 'with')
 
         # 1. Get the target dir from the builder.invocation
@@ -66,6 +66,8 @@ def distribute_checkout(builder, label, copy_vcs_dir=False):
     rule = Rule(target_label, action)       # to build target_label, run action
     rule.add(source_label)                  # after we've built source_label
 
+    builder.invocation.ruleset.add(rule)
+
 def distribute_package(builder, label):
     """Request the distribution of the given package.
 
@@ -80,4 +82,6 @@ def distribute_package(builder, label):
     action = DistributePackage()
     rule = Rule(target_label, action)       # to build target_label, run action
     rule.add(source_label)                  # after we've built source_label
+
+    builder.invocation.ruleset.add(rule)
 

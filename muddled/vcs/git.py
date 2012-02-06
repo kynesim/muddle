@@ -368,6 +368,9 @@ class Git(VersionControlSystem):
         """
         return False
 
+    def get_vcs_dirname(self):
+        return '.git'
+
     # I can't see any way to do 'get_file_content', but this needs
     # reinvestigating periodically
 

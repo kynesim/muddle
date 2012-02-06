@@ -2,8 +2,11 @@
 Actions and mechanisms relating to distributing build trees
 """
 
+import os
+
 from muddled.depend import Action, Rule
-from muddled.utils import MuddleBug, LabelTag, LabelType
+from muddled.utils import MuddleBug, LabelTag, LabelType, copy_without
+from muddled.version_control import get_vcs_handler
 
 class DistributeContext(object):
     """Information we need to do a "distribute" action.
@@ -68,11 +71,27 @@ class DistributeCheckout(Action):
 
         # 1. We know the target directory. Note it may not exist yet
         # 2. Get the actual directory of the checkout
+        co_dir = builder.invocation.db.get_checkout_path(label)
         # 3. If we're not doing copy_vcs_dir, find the VCS for this
         #    checkout, and from that determine its VCS dir, and make
         #    that our "without" string
+        without = []
+        if not self.copy_vcs_dir:
+            repo = builder.invocation.db.get_checkout_repo(label)
+            vcs_handler = get_vcs_handler(repo.vcs)
+            vcs_dir = vcs_handler.get_vcs_dirname()
+            if vcs_dir:
+                without.append(vcs_dir)
         # 4. Do a copywithout to do the actual copy, suitably ignoring
         #    the VCS directory if necessary.
+        # XXX NEEDS TO REMOVE THE COMMON PART FROM co_dir FIRST
+        target_dir = os.path.join(self.target_dir, co_dir)
+        print 'Copying:'
+        print '  from %s'%co_dir
+        print '  to   %s'%target_dir
+        if not self.copy_vcs_dir:
+            print '  without %s'%vcs_dir
+        copy_without(co_dir, target_dir, without, preserve=True)
         # 5. Set the appropriate tags in the target .muddle/ directory
         # 6. Set the /distributed tag on the checkout
 

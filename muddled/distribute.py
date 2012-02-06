@@ -43,7 +43,27 @@ class DistributePackage(Action):
         # 1. We know the target directory. Note it may not exist yet
         # 2. Get the actual directory of the package obj/ and install/
         #    directories
+        obj_dir = builder.invocation.package_obj_path(label)
+        install_dir = builder.invocation.package_install_path(label)
         # 3. Use copywithout to copy the obj/ and install/ directories over
+        root_path = normalise_dir(builder.invocation.db.root_path)
+        rel_obj_dir = os.path.relpath(normalise_dir(obj_dir), root_path)
+        rel_install_dir = os.path.relpath(normalise_dir(install_dir), root_path)
+
+        target_obj_dir = os.path.join(self.target_dir, rel_obj_dir)
+        target_install_dir = os.path.join(self.target_dir, rel_install_dir)
+
+        target_obj_dir = normalise_dir(target_obj_dir)
+        target_install_dir = normalise_dir(target_install_dir)
+
+        print 'Copying:'
+        print '  from %s'%obj_dir
+        print '  and  %s'%install_dir
+        print '  to   %s'%target_obj_dir
+        print '  and  %s'%target_install_dir
+
+        copy_without(obj_dir, target_obj_dir, preserve=True)
+        copy_without(install_dir, target_install_dir, preserve=True)
         # 4. Set the appropriate tags in the target .muddle/ directory
         # 5. Set the /distributed tag on the package
 

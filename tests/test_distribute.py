@@ -54,6 +54,8 @@ distclean:
 TOPLEVEL_BUILD_DESC = """ \
 # A build description that includes two subdomains
 
+import os
+
 import muddled
 import muddled.pkgs.make
 import muddled.deployments.cpio
@@ -65,7 +67,8 @@ from muddled.utils import LabelType, LabelTag
 from muddled.repository import Repository
 from muddled.version_control import checkout_from_repo
 
-from muddled.distribute import distribute_checkout, distribute_package
+from muddled.distribute import DistributeContext, \
+        distribute_checkout, distribute_package
 
 def describe_to(builder):
     role = 'x86'
@@ -117,15 +120,18 @@ def describe_to(builder):
     builder.by_default_deploy(deployment)
 
     # Let's add some distribution rules
-    distribute_checkout(builder,
+    dc = DistributeContext(builder, os.path.join(builder.invocation.db.root_path,
+                                                 '..',
+                                                 'distribution'))
+    distribute_checkout(dc,
                         Label(LabelType.Checkout, 'first_co'))
-    distribute_checkout(builder,
+    distribute_checkout(dc,
                         Label(LabelType.Checkout, 'first_co', domain='subdomain1'),
                         copy_vcs_dir=True)
 
-    distribute_package(builder,
+    distribute_package(dc,
                        Label(LabelType.Package, 'second_pkg', 'x86', LabelTag.PostInstalled))
-    distribute_package(builder,
+    distribute_package(dc,
                        Label(LabelType.Package, 'second_pkg', 'x86', LabelTag.PostInstalled,
                        domain='subdomain1'))
 """

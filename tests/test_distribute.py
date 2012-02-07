@@ -68,7 +68,7 @@ from muddled.repository import Repository
 from muddled.version_control import checkout_from_repo
 
 from muddled.distribute import DistributeContext, \
-        distribute_checkout, distribute_package
+        distribute_checkout, distribute_package, distribute_build_description
 
 def describe_to(builder):
     role = 'x86'
@@ -123,17 +123,27 @@ def describe_to(builder):
     dc = DistributeContext(builder, os.path.join(builder.invocation.db.root_path,
                                                  '..',
                                                  'distribution'))
-    distribute_checkout(dc,
-                        Label(LabelType.Checkout, 'first_co'))
+    # Stuff from this top-level domain
+    distribute_build_description(dc, Label(LabelType.Checkout, 'builds'))
+    distribute_checkout(dc, Label(LabelType.Checkout, 'first_co'))
+    distribute_package(dc,
+                       Label(LabelType.Package, 'second_pkg', 'x86', LabelTag.PostInstalled))
+
+    # Our first subdomain doesn't know how to distribute itself, so we'll do it
     distribute_checkout(dc,
                         Label(LabelType.Checkout, 'first_co', domain='subdomain1'),
                         copy_vcs_dir=True)
-
-    distribute_package(dc,
-                       Label(LabelType.Package, 'second_pkg', 'x86', LabelTag.PostInstalled))
     distribute_package(dc,
                        Label(LabelType.Package, 'second_pkg', 'x86', LabelTag.PostInstalled,
                        domain='subdomain1'))
+    distribute_package(dc,
+                       Label(LabelType.Package, 'second_pkg', 'x86', LabelTag.PostInstalled,
+                       domain='subdomain1(subdomain3)'),
+                       binary=True, source=True)
+    distribute_package(dc,
+                       Label(LabelType.Package, 'second_pkg', 'x86', LabelTag.PostInstalled,
+                       domain='subdomain2'),
+                       binary=False, source=True)
 """
 
 SUBDOMAIN1_BUILD_DESC = """ \
@@ -298,6 +308,54 @@ def checkout_build_descriptions(root_dir, d):
 
 def check_checkout_files(d):
     """Check we have all the files we should have after checkout
+
+    'd' is the current Directory.
+    """
+    def check_dot_muddle(is_subdomain):
+        with Directory('.muddle') as m:
+            check_files([m.join('Description'),
+                         m.join('RootRepository'),
+                         m.join('VersionsRepository')])
+
+            if is_subdomain:
+                check_files([m.join('am_subdomain')])
+
+            with Directory(m.join('tags', 'checkout')) as c:
+                check_files([c.join('builds', 'checked_out'),
+                             c.join('first_co', 'checked_out'),
+                             c.join('main_co', 'checked_out'),
+                             c.join('second_co', 'checked_out')])
+
+    def check_src_files(main_c_file='main1.c'):
+        check_files([s.join('builds', '01.py'),
+                     s.join('main_co', 'Makefile.muddle'),
+                     s.join('main_co', main_c_file),
+                     s.join('first_co', 'Makefile.muddle'),
+                     s.join('first_co', 'first.c'),
+                     s.join('second_co', 'Makefile.muddle'),
+                     s.join('second_co', 'second.c')])
+
+    check_dot_muddle(is_subdomain=False)
+    with Directory('src') as s:
+        check_src_files('main1.c')
+
+    with Directory(d.join('domains', 'subdomain1', 'src')) as s:
+        check_src_files('subdomain1.c')
+    with Directory(d.join('domains', 'subdomain1')):
+        check_dot_muddle(is_subdomain=True)
+
+    with Directory(d.join('domains', 'subdomain1', 'domains', 'subdomain3', 'src')) as s:
+        check_src_files('subdomain3.c')
+    with Directory(d.join('domains', 'subdomain1', 'domains', 'subdomain3')):
+        check_dot_muddle(is_subdomain=True)
+
+    with Directory(d.join('domains', 'subdomain2', 'src')) as s:
+        check_src_files('subdomain2.c')
+    with Directory(d.join('domains', 'subdomain2')):
+        check_dot_muddle(is_subdomain=True)
+
+def check_distributed_files(d):
+    """Check we have all the files we should have after distributing
 
     'd' is the current Directory.
     """

@@ -3646,7 +3646,11 @@ Try "muddle help unstamp" for more information."""
 @command('distribute', CAT_STAMP)       # in some vague sort of way
 class Distribute(Command):
     """
-    :Syntax: muddle distribute <target_directory>
+    :Syntax: muddle distribute <name> <target_directory>
+
+    - <name> is the name of a distribution context.
+    - <target_directory> is where to distribute to. If it already exists,
+      it should preferably be an empty directory.
 
     For the moment, this is just a stub for development
     """
@@ -3656,34 +3660,45 @@ class Distribute(Command):
 
     def with_build_tree(self, builder, current_dir, args):
 
+        name = None
         target_dir = None
         while args:
             word = args[0]
             args = args[1:]
             if word.startswith('-'):
                 raise GiveUp("Unexpected switch '%s' for 'distribute'"%word)
+            elif name is None:
+                name = word
             elif target_dir is None:
                 target_dir = word
             else:
                 raise GiveUp("Unexpected argument '%s' for 'distribute'"%word)
 
-        if target_dir is None:
-            raise GiveUp("Syntax: muddle distribute <target_directory>")
+        if name is None or target_dir is None:
+            raise GiveUp("Syntax: muddle distribute <name> <target_directory>")
 
         if self.no_op():
             return
 
-        print 'Writing to', target_dir
+        print 'Writing distribution', name, 'to', target_dir
+
+        # XXX TODO
+        # Presumably this will raise an exception if there is no distribution
+        # of that name...
+        from muddled.distribute import distribute_set_target
+        distribute_set_target(name, target)
 
         # We get all the "reasonable" checkout labels
         all_checkouts = builder.invocation.all_checkout_labels()
         # So, for each checked out checkout, can we distribute it?
+        # XXX Needs to check its for the right distribution name
         for label in all_checkouts:
             target = label.copy_with_tag(LabelTag.Distributed)
             if builder.invocation.target_label_exists(target):
                 builder.build_label(target)
 
         # And similarly for our packages.
+        # XXX Needs to check its for the right distribution name
         all_packages = builder.invocation.all_package_labels()
         for label in all_packages:
             target = label.copy_with_tag(LabelTag.Distributed)

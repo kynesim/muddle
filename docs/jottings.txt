@@ -1,0 +1,85 @@
+========
+Jottings
+========
+
+In an ideal world, I'd have time to write all the things about muddle that
+need writing down. This doesn't seem to be that world.
+
+This section of the documentation is where I shall try to put useful notes -
+more or less what is typically called "Frequently Asked Questions", except
+that that seems to rather a high standard to aim for.
+
+``bash: <toolchain>/bin/arm-none-linux-gnueabi-gcc: No such file or directory``
+===============================================================================
+This isn't really a muddle issue, but it's very confusing when it happens.
+
+What this normally means is that your are running 64-bit operating system
+(e.g., Ubuntu), but the toolchain has been built for 32-bit. The solution
+for Debian derived systems is normally to install ``ia32-libs``::
+
+  sudo apt-get install ia32-libs
+
+which provide compatibility.
+
+It might be nice to put this into an ``aptget`` clause in the build
+description, but I'm not sure what happens if you attempt to install
+``ia32-libs`` on a 32-bit OS.
+
+So what should I apt-get install?
+=================================
+Clearly one normally needs ``build-essentials``, which provides C and C++
+compilers, GNU make and suchlike.
+
+Future versions of muddle are likely to take advantage of ``rsync``, if its
+installed, to speed up copying of files.
+
+Building the kernel is likely to want you to install ``lzma``, which is
+unobvious.
+
+If you insist on using ``udev`` (busybox's ``mdev`` is smaller and simpler to
+use, but you might not have a choice), then you'll probably *have* to install
+``docbook-xsl``, even if you try your hardest to stop it building any
+documentation.
+
+It's not uncommon for FSF packages to insist of ``texinfo``, even if you're
+trying not to build documentation.
+
+How do I pull in a "meta" checkout?
+===================================
+Sometimes one has a "meta" checkout, which contains information that isn't
+actually built, but one always wants present. A typical example is a
+``src/docs/`` directory, containing documentation.
+
+The simplest way to make this always present is to use a fragment like the
+following::
+
+    checkouts.simple.relative(builder, co_name='docs')
+
+    null_pkg = null_package(builder, name='meta', role='meta')
+    package_depends_on_checkout(builder.invocation.ruleset,
+                                pkg_name='meta', role_name='meta',
+                                co_name='docs')
+
+    # And add it to our default roles
+    builder.invocation.add_default_role('meta')
+
+in your build description.
+
+This says:
+
+* we have a simple checkout called ``docs``
+* we have a NULL package, called ``meta``, in role ``{meta}``. A NULL package
+  has "empty" rules for how to build it, so it will never actually do
+  anything.
+* we make this NULL package depend on the checkout (and if we had other "meta"
+  checkouts, we could make it depend on each of those as well, so you only
+  need one ``package:meta{meta}``)
+* and we add the ``{meta}`` role as one of our default roles. It will thus
+  be built by a bare ``muddle`` command at the top of the build tree, which
+  is normally how people build the whole tree.
+
+Of course, just declaring the checkout means that ``muddle checkout _all``
+would pull it out, but pulling it in via a default role makes it even more
+likely that the ``docs`` directory will get instantiated.
+
+.. vim: set filetype=rst tabstop=8 softtabstop=2 shiftwidth=2 expandtab:

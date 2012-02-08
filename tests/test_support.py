@@ -10,6 +10,7 @@ import shutil
 import subprocess
 import sys
 import traceback
+from stat import *      # Honestly, this is recommended
 
 def get_parent_dir(this_file=None):
     """Determine the path of our parent directory.
@@ -207,6 +208,70 @@ def banner(text):
     print delim
     print '* %s *'%text
     print delim
+
+class DirTree(object):
+    """A tool for representing a directory tree in ASCII.
+
+    Useful for testing that we have the correct files.
+    """
+
+    def __init__(self, path, summarise_dirs=None, indent='  '):
+        self.path = path
+        if summarise_dirs:
+            self.summarise_dirs = summarise_dirs
+        else:
+            self.summarise_dirs = []
+        self.indent = indent
+
+    def _filestr(self, path, filename):
+        s = os.stat(path)
+        m = s.st_mode
+        flags = []
+        if S_ISLNK(m):
+            # This is *not* going to show the identical linked path as
+            # (for instance) 'ls' or 'tree', but it should be simply
+            # comparable to another DirTree link
+            flags.append('@')
+            far = os.path.realpath(path)
+            head, tail = os.path.split(path)
+            rel = os.path.relpath(far, head)
+            flags.append(' -> %s'%rel)
+            if os.path.isdir(far):
+                flags.append('/')
+                # We don't try to cope with a "far" executable, or if it's
+                # another link (does it work like that?)
+        elif S_ISDIR(m):
+            flags.append('/')
+            if filename in self.summarise_dirs:
+                flags.append('...')
+        elif (m & S_IXUSR) or (m & S_IXGRP) or (m & S_IXOTH):
+            flags.append('*')
+        return '%s%s'%(filename, ''.join(flags))
+
+    def _tree(self, path, head, tail, lines, level):
+        lines.append('%s%s'%(level*self.indent, self._filestr(path, tail)))
+        if os.path.isdir(path) and tail not in self.summarise_dirs:
+            files = os.listdir(path)
+            files.sort()
+            for name in files:
+                self._tree(os.path.join(path, name), path, name, lines, level+1)
+
+    def __str__(self):
+        lines = []
+        head, tail = os.path.split(self.path)
+        self._tree(self.path, head, tail, lines, 0)
+        return '\n'.join(lines)
+
+    def __repr__(self):
+        return 'DirTree(%r)'%self.path
+
+
+    def __eq__(self, other):
+        return str(self) == str(other)
+
+    def besides(self, other):
+        pass
+
 
 if __name__ == '__main__':
     # Pretend to be muddle the command line program

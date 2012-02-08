@@ -218,7 +218,7 @@ class DirTree(object):
     def __init__(self, path, summarise_dirs=None, indent='  '):
         self.path = path
         if summarise_dirs:
-            self.summarise_dirs = summarise_dirs
+            self.summarise_dirs = summarise_dirs[:]
         else:
             self.summarise_dirs = []
         self.indent = indent
@@ -256,22 +256,76 @@ class DirTree(object):
             for name in files:
                 self._tree(os.path.join(path, name), path, name, lines, level+1)
 
-    def __str__(self):
+    def as_lines(self):
         lines = []
         head, tail = os.path.split(self.path)
         self._tree(self.path, head, tail, lines, 0)
+        return lines
+
+    def __str__(self):
+        lines = self.as_lines()
         return '\n'.join(lines)
 
     def __repr__(self):
         return 'DirTree(%r)'%self.path
 
-
     def __eq__(self, other):
         return str(self) == str(other)
 
-    def besides(self, other):
-        pass
+    def assert_same(self, other_path):
+        """Compare this DirTree and DirTree(other_path)
 
+        Raises a GiveUp exception if they do not match, with an explanation
+        inside it of why.
+        """
+        other = DirTree(other_path, self.summarise_dirs, self.indent)
+        this_lines = self.as_lines()
+        that_lines = other.as_lines()
+
+        for index, (this, that) in enumerate(zip(this_lines, that_lines)):
+            if this != that:
+                context_lines = []
+                for n in range(index):
+                    context_lines.append(' %s'%(this_lines[n]))
+                if context_lines:
+                    context = '%s\n'%('\n'.join(context_lines))
+                else:
+                    context = ''
+                raise GiveUp('Directory tree mismatch:\n'
+                             '--- {us}\n'
+                             '+++ {them}\n'
+                             '@@@ line {index}\n'
+                             '{context}'
+                             '-{this}\n'
+                             '+{that}'.format(us=self.path, them=other.path,
+                                     context=context,
+                                     index=index, this=this, that=that))
+
+        if len(this_lines) != len(that_lines):
+            len_this = len(this_lines)
+            len_that = len(that_lines)
+            same = min(len_this, len_that)
+            context_lines = []
+            for n in range(same):
+                context_lines.append(' %s'%(this_lines[n]))
+
+            if len_this > len_that:
+                difference = len_this - len_that
+                context_lines.append('...and then %d more line%s in %s'%(difference,
+                    '' if difference==1 else 's', self.path))
+            else:
+                difference = len_that - len_this
+                context_lines.append('...and then %d more line%s in %s'%(difference,
+                    '' if difference==1 else 's', other.path))
+            context = '\n'.join(context_lines)
+
+            raise GiveUp('Directory tree mismatch:\n'
+                         'Comparing: {us}\n'
+                         '     with: {them}\n'
+                         'Different number of lines ({uslen} versus {themlen})\n'
+                         '{context}'.format(us=self.path, them=other.path,
+                             uslen=len(this_lines), themlen=len(that_lines),
+                             context=context))
 
 if __name__ == '__main__':
     # Pretend to be muddle the command line program

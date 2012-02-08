@@ -10,7 +10,7 @@ import shutil
 import subprocess
 import sys
 import traceback
-from stat import *      # Honestly, this is recommended
+import stat
 
 def get_parent_dir(this_file=None):
     """Determine the path of our parent directory.
@@ -240,7 +240,7 @@ class DirTree(object):
         s = os.stat(path)
         m = s.st_mode
         flags = []
-        if S_ISLNK(m):
+        if stat.S_ISLNK(m):
             # This is *not* going to show the identical linked path as
             # (for instance) 'ls' or 'tree', but it should be simply
             # comparable to another DirTree link
@@ -253,11 +253,11 @@ class DirTree(object):
                 flags.append('/')
                 # We don't try to cope with a "far" executable, or if it's
                 # another link (does it work like that?)
-        elif S_ISDIR(m):
+        elif stat.S_ISDIR(m):
             flags.append('/')
             if filename in self.summarise_dirs:
                 flags.append('...')
-        elif (m & S_IXUSR) or (m & S_IXGRP) or (m & S_IXOTH):
+        elif (m & stat.S_IXUSR) or (m & stat.S_IXGRP) or (m & stat.S_IXOTH):
             flags.append('*')
         return '%s%s'%(filename, ''.join(flags))
 

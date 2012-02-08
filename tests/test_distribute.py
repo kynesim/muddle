@@ -354,11 +354,27 @@ def check_checkout_files(d):
     with Directory(d.join('domains', 'subdomain2')):
         check_dot_muddle(is_subdomain=True)
 
-def check_distributed_files(d):
+def check_distributed_files(d, dist_dir):
     """Check we have all the files we should have after distributing
 
     'd' is the current Directory.
+
+    'target_dir' is the root of our distribution
     """
+
+    def compare_dirs(orig_root, dist_root, subdir, with_git=False):
+        orig = os.path.join(orig_root, subdir)
+        dist = os.path.join(dist_root, subdir)
+        if with_git:
+            dt = DirTree(orig)
+        else:
+            dt = DirTree(orig, summarise_dirs=['.git'])
+        dt.assert_same(dist)
+
+    compare_dirs(d.where, dist_dir, os.path.join('src', 'second_co'))
+
+    return
+
     def check_dot_muddle(is_subdomain):
         with Directory('.muddle') as m:
             check_files([m.join('Description'),
@@ -428,6 +444,8 @@ def main(args):
             banner('TESTING DISTRIBUTE')
             target_dir = os.path.join(root_dir, 'target')
             muddle(['distribute', target_dir])
+
+            check_distributed_files(d, target_dir)
 
 
 if __name__ == '__main__':

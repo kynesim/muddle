@@ -212,10 +212,23 @@ def banner(text):
 class DirTree(object):
     """A tool for representing a directory tree in ASCII.
 
-    Useful for testing that we have the correct files.
+    Useful for testing that we have the correct files, as it can compare
+    its representation against another equivalent instance, and produce
+    error reports if they don't match.
     """
 
     def __init__(self, path, summarise_dirs=None, indent='  '):
+        """Create a DirTree for 'path'.
+
+        'path' is the path to the directory we want to represent.
+
+        'summarise_dirs' may be a list of directory names that should
+        be reported but not traversed - typically VCS directories. So,
+        for instance "summarise_dirs=['.git']".
+
+        'indent' is how much to indent each "internal" line respective
+        to its container. Two spaces normally makes a good default.
+        """
         self.path = path
         if summarise_dirs:
             self.summarise_dirs = summarise_dirs[:]
@@ -257,6 +270,10 @@ class DirTree(object):
                 self._tree(os.path.join(path, name), path, name, lines, level+1)
 
     def as_lines(self):
+        """Return our representation as a list of text lines.
+
+        Our "str()" output is this list joined with newlines.
+        """
         lines = []
         head, tail = os.path.split(self.path)
         self._tree(self.path, head, tail, lines, 0)
@@ -270,13 +287,20 @@ class DirTree(object):
         return 'DirTree(%r)'%self.path
 
     def __eq__(self, other):
+        """Test for identical representations.
+        """
         return str(self) == str(other)
 
     def assert_same(self, other_path):
-        """Compare this DirTree and DirTree(other_path)
+        """Compare this DirTree and the DirTree() for 'other_path'.
+
+        Thus 'other_path' should be a path.
 
         Raises a GiveUp exception if they do not match, with an explanation
         inside it of why.
+
+        This is really the method for which I wrote this class. It allows
+        convenient comparison of two directories, a source and a target.
         """
         other = DirTree(other_path, self.summarise_dirs, self.indent)
         this_lines = self.as_lines()

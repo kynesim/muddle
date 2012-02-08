@@ -12,10 +12,10 @@ Contents:
 
    README
    muddle-dirs
+   jottings
    muddle_patch.README
    muddle-useful
    muddle-package
-   jottings
    docs.readme
 
 

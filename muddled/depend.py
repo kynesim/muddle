@@ -871,7 +871,7 @@ def label_from_string(str):
     """
     return Label.from_string(str)
 
-class Action:
+class Action(object):
     """
     Represents an object you can call to "build" a tag.
     """
@@ -901,7 +901,7 @@ class Action:
     #    which might not otherwise be moved to the new domain.
 
 
-class SequentialAction:
+class SequentialAction(object):
     """
     Invoke two actions in turn
     """
@@ -914,7 +914,7 @@ class SequentialAction:
         self.a.build_label(builder, label)
         self.b.build_label(builder, label)
 
-class Rule:
+class Rule(object):
     """
     A rule or "dependency set".
 
@@ -1130,7 +1130,7 @@ class Rule:
         return " ".join(output)
 
 
-class RuleSet:
+class RuleSet(object):
     """
     A collection of rules that encapsulate how you can get from A to B.
 

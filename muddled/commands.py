@@ -44,7 +44,7 @@ from muddled.utils import GiveUp, MuddleBug, Unsupported, \
 from muddled.version_control import split_vcs_url, checkout_from_repo
 from muddled.repository import Repository
 from muddled.version_stamp import VersionStamp
-from muddled.distribute import distribute
+from muddled.distribute import distribute, find_all_distribution_names
 
 # Following Richard's naming conventions...
 # A dictionary of <command name> : <command class>
@@ -1786,6 +1786,18 @@ class QueryDepend(QueryCommand):
         print builder.invocation.ruleset.to_string(matchLabel = label,
                                                    showSystem = show_sys, showUser = show_user,
                                                    ignore_empty = ignore_empty)
+
+@subcommand('query', 'distributions', CAT_QUERY)
+class QueryDistributions(QueryCommand):
+    """
+    :Syntax: muddle query distributions
+
+    List the names of the distributions defined by the build description.
+    """
+
+    def with_build_tree(self, builder, current_dir, args):
+        names = find_all_distribution_names(builder)
+        print ' '.join(names)
 
 @subcommand('query', 'vcs', CAT_QUERY)
 class QueryVCS(QueryCommand):

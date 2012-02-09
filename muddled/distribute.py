@@ -200,6 +200,11 @@ class DistributeAction(Action):
         """
         return name in self.distributions
 
+    def distribution_names(self):
+        """Return the distribution names we know about.
+        """
+        return self.distributions.keys()
+
     def build_label(self, builder, label):
         """Override this to do the actual task of distribution.
         """
@@ -349,15 +354,23 @@ def distribute(builder, target_dir, name, unset_tags=False):
     distribution_labels = list(distribution_labels)
     distribution_labels.sort()
 
+    if not distribution_labels:
+        print 'Nothing to distribute for %s'%name
+        return
+
+    num_labels = len(distribution_labels)
+
     if unset_tags:
-        print 'Killing /distribute labels'
+        print 'Killing %d /distribute label%s'%(num_labels,
+                '' if num_labels==1 else 's')
         for label in distribution_labels:
             builder.kill_label(label)
 
     # Remember to say where we're copying to...
     builder.set_distribution(name, target_dir)
 
-    print 'Building /distribute labels'
+    print 'Building %d /distribute label%s'%(num_labels,
+            '' if num_labels==1 else 's')
     for label in distribution_labels:
         builder.build_label(label)
 
@@ -366,3 +379,27 @@ def distribute(builder, target_dir, name, unset_tags=False):
     # a distribution state for a checkout, and we also explicitly set
     # a different (incompatible) state for a checkout? Who wins? Or do
     # we just try to satisfy both?
+
+def find_all_distribution_names(builder):
+    """Return a set of all the distribution names.
+    """
+    distribution_names = set()
+
+    invocation = builder.invocation
+    target_label_exists = invocation.target_label_exists
+
+    # We get all the "reasonable" checkout and package labels
+    all_checkouts = builder.invocation.all_checkout_labels()
+    all_packages = builder.invocation.all_package_labels()
+
+    combined_labels = all_checkouts.union(all_packages)
+    for label in combined_labels:
+        target = label.copy_with_tag(LabelTag.Distributed)
+        # Is there a distribution target for this label?
+        if target_label_exists(target):
+            # If so, what names does it know?
+            rule = invocation.ruleset.map[target]
+            names = rule.action.distribution_names()
+            distribution_names.update(names)
+
+    return distribution_names

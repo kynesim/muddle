@@ -803,12 +803,10 @@ class Builder(object):
         # Should this be kept in our Invocation?
         self.build_desc_repo = None
 
-        # Distribution contexts have names, and we can associate a target
+        # The current distribution name and target directory, as a tuple,
+        # or actually None, since we've not set it yet
         # directory with each...
-        self.distribution_target = {}
-        # And even have a current one
-        self.distribution_name = None
-
+        self.distribution = None
 
     def get_subdomain_parameters(self, domain):
         return self.invocation.get_domain_parameters(domain)
@@ -836,30 +834,20 @@ class Builder(object):
         """
         self.domain_params[name] = value
 
-    def set_distribution_target(self, name, target_dir):
-        """Set the target directory for distribution target 'name'.
+    def set_distribution(self, name, target_dir):
+        """Set the current distribution name and target directory.
         """
-        self.distribution_target[name] = target_dir
+        self.distribution = (name, target_dir)
 
-    def get_distribution_target(self, name):
-        """Retrieve the target directory for distribution target 'name'.
+    def get_distribution(self):
+        """Retrieve the current distribution name and target directory.
 
-        Fails with a GiveUp if there is no target for that name.
+        Raises GiveUp if there is no current distribution set.
         """
-        try:
-            return self.distribution_target[name]
-        except KeyError:
-            raise GiveUp('No distribution target defined for distribution "%s"'%name)
-
-    def set_current_distribution(self, name):
-        """Set the current distribution.
-        """
-        self.distribution_name = name
-
-    def get_current_distribution(self):
-        """Return the name of the current distribution.
-        """
-        return self.distribution_name
+        if self.distribution:
+            return self.distribution
+        else:
+            raise GiveUp('No distribution name or target directory set')
 
     def roles_do_not_share_libraries(self, a, b):
         """

@@ -67,7 +67,8 @@ from muddled.utils import LabelType, LabelTag
 from muddled.repository import Repository
 from muddled.version_control import checkout_from_repo
 
-from muddled.distribute import DistributeContext
+from muddled.distribute import distribute_checkout, distribute_package, \
+        distribute_build_description
 
 def describe_to(builder):
     role = 'x86'
@@ -122,19 +123,21 @@ def describe_to(builder):
     label = Label.from_string
     # We're describing a distribution called "mixed", which contains both
     # source and binary elements
-    dc = DistributeContext(builder, 'mixed')
-    # Stuff from this top-level domain
-    dc.add_build_description(Label(LabelType.Checkout, 'builds'))
-    dc.add_checkout(label('checkout:first_co/*'))
-    dc.add_package(label('package:second_pkg{{x86}}/*'))
+    distribute_build_description(builder, 'mixed', Label(LabelType.Checkout, 'builds'))
+    distribute_checkout(builder, 'mixed', label('checkout:first_co/*'))
+    distribute_package(builder, 'mixed', label('package:second_pkg{{x86}}/*'))
 
     # And some variations, in our subdomains
-    dc.add_checkout(label('checkout:(subdomain1)first_co/*'), copy_vcs_dir=True)
-    dc.add_package(label('package:(subdomain1)second_pkg{{x86}}/*'))
-    dc.add_package(label('package:(subdomain1(subdomain3))second_pkg{{x86}}/*'),
-                   binary=True, source=True)
-    dc.add_package(label('package:(subdomain2)second_pkg{{x86}}/*'),
-                   binary=False, source=True)
+    distribute_checkout(builder, 'mixed',
+                        label('checkout:(subdomain1)first_co/*'), copy_vcs_dir=True)
+    distribute_package(builder, 'mixed',
+                       label('package:(subdomain1)second_pkg{{x86}}/*'))
+    distribute_package(builder, 'mixed',
+                       label('package:(subdomain1(subdomain3))second_pkg{{x86}}/*'),
+                       binary=True, source=True)
+    distribute_package(builder, 'mixed',
+                       label('package:(subdomain2)second_pkg{{x86}}/*'),
+                       binary=False, source=True)
 """
 
 SUBDOMAIN1_BUILD_DESC = """ \

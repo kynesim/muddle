@@ -217,26 +217,39 @@ class DirTree(object):
     error reports if they don't match.
     """
 
-    def __init__(self, path, summarise_dirs=None, indent='  '):
+    def __init__(self, path, fold_dirs=None, indent='  '):
         """Create a DirTree for 'path'.
 
         'path' is the path to the directory we want to represent.
 
-        'summarise_dirs' may be a list of directory names that should
+        'fold_dirs' may be a list of directory names that should
         be reported but not traversed - typically VCS directories. So,
-        for instance "summarise_dirs=['.git']".
+        for instance "fold_dirs=['.git']". The names must be just a
+        filename, no extra path elements. Also, it is only directories
+        that get checked against this list.
 
         'indent' is how much to indent each "internal" line respective
         to its container. Two spaces normally makes a good default.
         """
         self.path = path
-        if summarise_dirs:
-            self.summarise_dirs = summarise_dirs[:]
+        if fold_dirs:
+            self.fold_dirs = fold_dirs[:]
         else:
-            self.summarise_dirs = []
+            self.fold_dirs = []
         self.indent = indent
 
     def _filestr(self, path, filename):
+        """Return a useful representation of a file.
+
+        'path' is the full path of the file, sufficient to "find" it with
+        os.stat() (so it may be relative to the current directory).
+
+        'filename' is just its filename, the last element of its path,
+        which is what we're going to use in our representation.
+
+        We could work the latter out from the former, but our caller already
+        knew both, so this is hopefully slightly faster.
+        """
         s = os.stat(path)
         m = s.st_mode
         flags = []
@@ -255,28 +268,55 @@ class DirTree(object):
                 # another link (does it work like that?)
         elif stat.S_ISDIR(m):
             flags.append('/')
-            if filename in self.summarise_dirs:
+            if filename in self.fold_dirs:
                 flags.append('...')
         elif (m & stat.S_IXUSR) or (m & stat.S_IXGRP) or (m & stat.S_IXOTH):
             flags.append('*')
         return '%s%s'%(filename, ''.join(flags))
 
-    def _tree(self, path, head, tail, lines, level):
+    def _tree(self, path, head, tail, ignore, lines, level):
+        """Add the next components of the tree to 'lines'
+
+        First adds the element specified by 'path' (or 'head'/'tail'),
+        and then recurses down inside it if that is a directory that
+        we are reporting on (depending on self.fold_dirs).
+
+        'lines' is our accumulator of results. 'level' indicates how
+        much indentation we're currently using, at this level.
+
+        'path' is the same as 'head' joined to 'tail' - they're passed
+        down separately just because we already had to calculate 'head'
+        and 'tail' higher up, but we need all three.
+
+        'ignore' is a list of filenames to ignore (or empty). We don't
+        report filenames in that list (or their content, if they are a
+        directory).
+        """
         lines.append('%s%s'%(level*self.indent, self._filestr(path, tail)))
-        if os.path.isdir(path) and tail not in self.summarise_dirs:
+        if os.path.isdir(path) and tail not in self.fold_dirs:
             files = os.listdir(path)
             files.sort()
             for name in files:
-                self._tree(os.path.join(path, name), path, name, lines, level+1)
+                if name not in ignore:
+                    self._tree(os.path.join(path, name), path, name, ignore,
+                               lines, level+1)
 
-    def as_lines(self):
+    def as_lines(self, ignore=None):
         """Return our representation as a list of text lines.
+
+        If 'ignore' is specified, it should be a list of files (normally
+        directories) that will be ignored (not shown) in the listing of this
+        DirTree (but not in the listing of the other). See 'assert_same()'
+        for how this is used.
 
         Our "str()" output is this list joined with newlines.
         """
         lines = []
+        if ignore is None:
+            ignore = []
         head, tail = os.path.split(self.path)
-        self._tree(self.path, head, tail, lines, 0)
+        if tail not in ignore:
+            self._tree(self.path, head, tail, ignore, lines, 0)
         return lines
 
     def __str__(self):
@@ -291,10 +331,20 @@ class DirTree(object):
         """
         return str(self) == str(other)
 
-    def assert_same(self, other_path):
+    def assert_same(self, other_path, ignore=None):
         """Compare this DirTree and the DirTree() for 'other_path'.
 
-        Thus 'other_path' should be a path.
+        Thus 'other_path' should be a path. A temporary DirTree will
+        be created for 'other_path', using the same values for
+        'fold_dirs' and 'indent' as for this DirTree.
+
+        If 'ignore' is specified, it should be a list of files (normally
+        directories) that will be ignored (not shown) in the listing of this
+        DirTree (but not in the listing of the other). For instance::
+
+            muddle.utils.copy_without('source/src', 'target/src', ['.git'])
+            s = DirTree('source/src', fold_dirs=['.git'])
+            copy_succeeded = s.assert_same('target/src', ignore=['.git'])
 
         Raises a GiveUp exception if they do not match, with an explanation
         inside it of why.
@@ -302,9 +352,14 @@ class DirTree(object):
         This is really the method for which I wrote this class. It allows
         convenient comparison of two directories, a source and a target.
         """
-        other = DirTree(other_path, self.summarise_dirs, self.indent)
-        this_lines = self.as_lines()
+        other = DirTree(other_path, self.fold_dirs, self.indent)
+        this_lines = self.as_lines(ignore)
         that_lines = other.as_lines()
+
+        if ignore:
+            ignore_text = 'Ignoring: %s\n'%(', '.join(ignore))
+        else:
+            ignore_text = ''
 
         for index, (this, that) in enumerate(zip(this_lines, that_lines)):
             if this != that:
@@ -315,14 +370,15 @@ class DirTree(object):
                     context = '%s\n'%('\n'.join(context_lines))
                 else:
                     context = ''
-                raise GiveUp('Directory tree mismatch:\n'
+                raise GiveUp('Directory tree mismatch\n'
+                             '{ignore}'
                              '--- {us}\n'
                              '+++ {them}\n'
                              '@@@ line {index}\n'
                              '{context}'
                              '-{this}\n'
                              '+{that}'.format(us=self.path, them=other.path,
-                                     context=context,
+                                     ignore=ignore_text, context=context,
                                      index=index, this=this, that=that))
 
         if len(this_lines) != len(that_lines):
@@ -337,17 +393,32 @@ class DirTree(object):
                 difference = len_this - len_that
                 context_lines.append('...and then %d more line%s in %s'%(difference,
                     '' if difference==1 else 's', self.path))
+                for count in range(min(3, difference)):
+                    context_lines.append('-%s'%(this_lines[len_that+count]))
+                if difference > 4:
+                    context_lines.append('...etc.')
+                elif difference == 4:
+                    context_lines.append('-%s'%(this_lines[len_that+3]))
             else:
                 difference = len_that - len_this
                 context_lines.append('...and then %d more line%s in %s'%(difference,
                     '' if difference==1 else 's', other.path))
+                for count in range(min(3, difference)):
+                    context_lines.append('-%s'%(that_lines[len_this+count]))
+                if difference > 4:
+                    context_lines.append('...etc.')
+                elif difference == 4:
+                    context_lines.append('-%s'%(that_lines[len_this+3]))
+
             context = '\n'.join(context_lines)
 
-            raise GiveUp('Directory tree mismatch:\n'
-                         'Comparing: {us}\n'
-                         '     with: {them}\n'
+            raise GiveUp('Directory tree mismatch\n'
+                         '{ignore}'
+                         '--- {us}\n'
+                         '+++ {them}\n'
                          'Different number of lines ({uslen} versus {themlen})\n'
                          '{context}'.format(us=self.path, them=other.path,
+                             ignore=ignore_text,
                              uslen=len(this_lines), themlen=len(that_lines),
                              context=context))
 

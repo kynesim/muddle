@@ -31,7 +31,7 @@ def check_build_name(name):
         raise GiveUp("Build name '%s' is not allowed (it may only contain"
                      " 'A'-'Z', 'a'-'z', '0'-'9', '_' or '-')"%name)
 
-class Invocation:
+class Invocation(object):
     """
     An invocation is the central muddle object. It holds the
     database the builder uses to perform actions on behalf
@@ -803,6 +803,12 @@ class Builder(object):
         # Should this be kept in our Invocation?
         self.build_desc_repo = None
 
+        # Distribution contexts have names, and we can associate a target
+        # directory with each...
+        self.distribution_target = {}
+        # And even have a current one
+        self.distribution_name = None
+
 
     def get_subdomain_parameters(self, domain):
         return self.invocation.get_domain_parameters(domain)
@@ -830,6 +836,30 @@ class Builder(object):
         """
         self.domain_params[name] = value
 
+    def set_distribution_target(self, name, target_dir):
+        """Set the target directory for distribution target 'name'.
+        """
+        self.distribution_target[name] = target_dir
+
+    def get_distribution_target(self, name):
+        """Retrieve the target directory for distribution target 'name'.
+
+        Fails with a GiveUp if there is no target for that name.
+        """
+        try:
+            return self.distribution_target[name]
+        except KeyError:
+            raise GiveUp('No distribution target defined for distribution "%s"'%name)
+
+    def set_current_distribution(self, name):
+        """Set the current distribution.
+        """
+        self.distribution_name = name
+
+    def get_current_distribution(self):
+        """Return the name of the current distribution.
+        """
+        return self.distribution_name
 
     def roles_do_not_share_libraries(self, a, b):
         """

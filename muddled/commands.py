@@ -44,6 +44,7 @@ from muddled.utils import GiveUp, MuddleBug, Unsupported, \
 from muddled.version_control import split_vcs_url, checkout_from_repo
 from muddled.repository import Repository
 from muddled.version_stamp import VersionStamp
+from muddled.distribute import distribute
 
 # Following Richard's naming conventions...
 # A dictionary of <command name> : <command class>
@@ -3646,11 +3647,11 @@ Try "muddle help unstamp" for more information."""
 @command('distribute', CAT_STAMP)       # in some vague sort of way
 class Distribute(Command):
     """
-    :Syntax: muddle distribute <name> <target_directory>
+    :Syntax: muddle distribute <target_directory> <name>
 
-    - <name> is the name of a distribution context.
     - <target_directory> is where to distribute to. If it already exists,
       it should preferably be an empty directory.
+    - <name> is the name of a distribution context.
 
     For the moment, this is just a stub for development
     """
@@ -3667,10 +3668,10 @@ class Distribute(Command):
             args = args[1:]
             if word.startswith('-'):
                 raise GiveUp("Unexpected switch '%s' for 'distribute'"%word)
-            elif name is None:
-                name = word
             elif target_dir is None:
                 target_dir = word
+            elif name is None:
+                name = word
             else:
                 raise GiveUp("Unexpected argument '%s' for 'distribute'"%word)
 
@@ -3682,35 +3683,7 @@ class Distribute(Command):
 
         print 'Writing distribution', name, 'to', target_dir
 
-        # XXX TODO
-        # Presumably this will raise an exception if there is no distribution
-        # of that name...
-        from muddled.distribute import distribute_set_target
-        distribute_set_target(name, target)
-
-        # We get all the "reasonable" checkout labels
-        all_checkouts = builder.invocation.all_checkout_labels()
-        # So, for each checked out checkout, can we distribute it?
-        # XXX Needs to check its for the right distribution name
-        for label in all_checkouts:
-            target = label.copy_with_tag(LabelTag.Distributed)
-            if builder.invocation.target_label_exists(target):
-                builder.build_label(target)
-
-        # And similarly for our packages.
-        # XXX Needs to check its for the right distribution name
-        all_packages = builder.invocation.all_package_labels()
-        for label in all_packages:
-            target = label.copy_with_tag(LabelTag.Distributed)
-            if builder.invocation.target_label_exists(target):
-                builder.build_label(target)
-
-        # XXX TODO
-        # Question - what are we meant to do if a package implicitly sets
-        # a distribution state for a checkout, and we also explicitly set
-        # a different (incompatible) state for a checkout? Who wins? Or do
-        # we just try to satisfy both?
-
+        distribute(builder, target_dir, name)
 
 # =============================================================================
 # Checkout, package and deployment commands

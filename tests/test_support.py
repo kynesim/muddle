@@ -312,6 +312,9 @@ class DirTree(object):
         Our "str()" output is this list joined with newlines.
         """
         lines = []
+        if not os.path.exists(self.path):
+            return lines
+
         if ignore is None:
             ignore = []
         head, tail = os.path.split(self.path)

@@ -67,8 +67,7 @@ from muddled.utils import LabelType, LabelTag
 from muddled.repository import Repository
 from muddled.version_control import checkout_from_repo
 
-from muddled.distribute import DistributeContext, \
-        distribute_checkout, distribute_package, distribute_build_description
+from muddled.distribute import DistributeContext
 
 def describe_to(builder):
     role = 'x86'
@@ -120,30 +119,22 @@ def describe_to(builder):
     builder.by_default_deploy(deployment)
 
     # Let's add some distribution rules
-    dc = DistributeContext(builder, os.path.join(builder.invocation.db.root_path,
-                                                 '..',
-                                                 'distribution'))
+    label = Label.from_string
+    # We're describing a distribution called "mixed", which contains both
+    # source and binary elements
+    dc = DistributeContext(builder, 'mixed')
     # Stuff from this top-level domain
-    distribute_build_description(dc, Label(LabelType.Checkout, 'builds'))
-    distribute_checkout(dc, Label(LabelType.Checkout, 'first_co'))
-    distribute_package(dc,
-                       Label(LabelType.Package, 'second_pkg', 'x86', LabelTag.PostInstalled))
+    dc.add_build_description(Label(LabelType.Checkout, 'builds'))
+    dc.add_checkout(label('checkout:first_co/*'))
+    dc.add_package(label('package:second_pkg{{x86}}/*'))
 
-    # Our first subdomain doesn't know how to distribute itself, so we'll do it
-    distribute_checkout(dc,
-                        Label(LabelType.Checkout, 'first_co', domain='subdomain1'),
-                        copy_vcs_dir=True)
-    distribute_package(dc,
-                       Label(LabelType.Package, 'second_pkg', 'x86', LabelTag.PostInstalled,
-                       domain='subdomain1'))
-    distribute_package(dc,
-                       Label(LabelType.Package, 'second_pkg', 'x86', LabelTag.PostInstalled,
-                       domain='subdomain1(subdomain3)'),
-                       binary=True, source=True)
-    distribute_package(dc,
-                       Label(LabelType.Package, 'second_pkg', 'x86', LabelTag.PostInstalled,
-                       domain='subdomain2'),
-                       binary=False, source=True)
+    # And some variations, in our subdomains
+    dc.add_checkout(label('checkout:(subdomain1)first_co/*'), copy_vcs_dir=True)
+    dc.add_package(label('package:(subdomain1)second_pkg{{x86}}/*'))
+    dc.add_package(label('package:(subdomain1(subdomain3))second_pkg{{x86}}/*'),
+                   binary=True, source=True)
+    dc.add_package(label('package:(subdomain2)second_pkg{{x86}}/*'),
+                   binary=False, source=True)
 """
 
 SUBDOMAIN1_BUILD_DESC = """ \
@@ -362,16 +353,23 @@ def check_distributed_files(d, dist_dir):
     'target_dir' is the root of our distribution
     """
 
-    def compare_dirs(orig_root, dist_root, subdir, with_git=False):
+    def compare_dirs(orig_root, dist_root, subdir, git_copied=False):
         orig = os.path.join(orig_root, subdir)
         dist = os.path.join(dist_root, subdir)
-        if with_git:
-            dt = DirTree(orig)
-        else:
-            dt = DirTree(orig, summarise_dirs=['.git'])
-        dt.assert_same(dist)
+        # Whether there's .git directories or not, we don't want to show
+        # their innards
+        dt = DirTree(orig, fold_dirs=['.git'])
 
+        # If the target directory didn't have .git copied to it, then we
+        # should expect to NOT find it
+        if git_copied:
+            dt.assert_same(dist)
+        else:
+            dt.assert_same(dist, ignore=['.git'])
+
+    # One of these is going to be correct!
     compare_dirs(d.where, dist_dir, os.path.join('src', 'second_co'))
+    compare_dirs(d.where, dist_dir, os.path.join('src', 'second_co'), git_copied=True)
 
     return
 
@@ -443,7 +441,7 @@ def main(args):
 
             banner('TESTING DISTRIBUTE')
             target_dir = os.path.join(root_dir, 'target')
-            muddle(['distribute', target_dir])
+            muddle(['distribute', target_dir, 'mixed'])
 
             check_distributed_files(d, target_dir)
 

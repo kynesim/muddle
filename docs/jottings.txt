@@ -1,0 +1,368 @@
+========
+Jottings
+========
+
+In an ideal world, I'd have time to write all the things about muddle that
+need writing down. This doesn't seem to be that world.
+
+This section of the documentation is where I shall try to put useful notes -
+more or less what is typically called "Frequently Asked Questions", except
+that that seems to rather a high standard to aim for.
+
+``bash: <toolchain>/bin/arm-none-linux-gnueabi-gcc: No such file or directory``
+===============================================================================
+This isn't really a muddle issue, but it's very confusing when it happens.
+
+What this normally means is that your are running 64-bit operating system
+(e.g., Ubuntu), but the toolchain has been built for 32-bit. The solution
+for Debian derived systems is normally to install ``ia32-libs``::
+
+  sudo apt-get install ia32-libs
+
+which provide compatibility.
+
+It might be nice to put this into an ``aptget`` clause in the build
+description, but I'm not sure what happens if you attempt to install
+``ia32-libs`` on a 32-bit OS.
+
+``./autogen.sh: line 3: autoreconf: command not found``
+=======================================================
+And this one means you need to install ``autoconf`` (for the GNU autotools)::
+
+  sudo apt-get install autoconf
+
+So what should I apt-get install?
+=================================
+Clearly one normally needs ``build-essentials``, which provides C and C++
+compilers, GNU make and suchlike.
+
+Future versions of muddle are likely to take advantage of ``rsync``, if its
+installed, to speed up copying of files.
+
+Building the kernel is likely to want you to install ``lzma``, which is
+unobvious.
+
+If you insist on using ``udev`` (busybox's ``mdev`` is smaller and simpler to
+use, but you might not have a choice), then you'll probably *have* to install
+``docbook-xsl``, even if you try your hardest to stop it building any
+documentation.
+
+It's not uncommon for FSF packages to insist of ``texinfo``, even if you're
+trying not to build documentation.
+
+bash or dash?
+=============
+Current Ubuntu systems (is it all Debian derived systems?) default to
+``/bin/sh`` being ``dash``, rather than ``bash``.
+
+``dash`` is a Posix compliant shell. It's much smaller than bash, and arguably
+simpler to understand.
+
+``bash`` is a monster, with inaccurate documentation, but it is the norm on
+many Linux distributions (and on Mac OS X).
+
+Many software packages assume bash in their build scripts and Makefiles. FSF
+packages do so explicitly. It is also quite easy to accidentally require bash
+when writing shell scritps, as we're not normally conscious of where its
+extensions start.
+
+Unfortunately this means that building on Linux more or less requires one to
+replace dash with bash.
+
+To check, do::
+
+  $ ls -l /bin/sh
+  lrwxrwxrwx 1 root root 4 2012-01-04 16:52 /bin/sh -> bash
+
+...you can see I'd already done the conversion.
+
+There are two "obvious" ways of fixing this:
+
+1. Reconfigure dash::
+
+     $ sudo dpkg-reconfigure dash
+
+   and answer "no" when asked if it should install dash as ``/bin/sh``.
+
+2. Do it by hand (but please think about the commands before typing them, in
+   case I got them wrong...)::
+
+     $ cd /bin
+     $ sudo ln -sf bash sh
+     $ ls -l sh
+
+How do I pull in a "meta" checkout?
+===================================
+Sometimes one has a "meta" checkout, which contains information that isn't
+actually built, but one always wants present. A typical example is a
+``src/docs/`` directory, containing documentation.
+
+The simplest way to make this always present is to use a fragment like the
+following::
+
+    checkouts.simple.relative(builder, co_name='docs')
+
+    null_pkg = null_package(builder, name='meta', role='meta')
+    package_depends_on_checkout(builder.invocation.ruleset,
+                                pkg_name='meta', role_name='meta',
+                                co_name='docs')
+
+    # And add it to our default roles
+    builder.invocation.add_default_role('meta')
+
+in your build description.
+
+This says:
+
+* we have a simple checkout called ``docs``
+* we have a NULL package, called ``meta``, in role ``{meta}``. A NULL package
+  has "empty" rules for how to build it, so it will never actually do
+  anything.
+* we make this NULL package depend on the checkout (and if we had other "meta"
+  checkouts, we could make it depend on each of those as well, so you only
+  need one ``package:meta{meta}``)
+* and we add the ``{meta}`` role as one of our default roles. It will thus
+  be built by a bare ``muddle`` command at the top of the build tree, which
+  is normally how people build the whole tree.
+
+Of course, just declaring the checkout means that ``muddle checkout _all``
+would pull it out, but pulling it in via a default role makes it even more
+likely that the ``docs`` directory will get instantiated.
+
+Build out-of-tree. Please.
+==========================
+We recommend going to lengths to do all builds out-of-tree.
+
+That is, don't build in the checkout directory, build in the obj/ directory
+for your package.
+
+There are two main reasons for doing this:
+
+1. The traditional reason for building out of tree is that it allows one to
+   build for several different configurations, and this is especially
+   important in a muddle build, where one may build a single package in more
+   than one role. Indeed, it's not uncommon to build a package for more than
+   one architecture.
+
+2. The other reason is clarity and simplicity. It's very useful to have all
+   build artefacts sequestered from the original code. And moreover, this
+   works best when using version control systems as well. If the build
+   scatters files around in the checkout source directory, you're going to
+   have to amend the `.gitignore`` file (or equivelant) so the VCS doesn't
+   think there are un-checked-in files around. And ``muddle push`` is
+   deliberately cautious about pushing in such circumstances.
+
+3. The final reason is that you can recursively delete the ``obj/`` directory
+   and *know* you've got rid of build artefacts. Which is uncommonly useful.
+
+Many packages are quite capable of building out-of-tree (and many, for
+instance the Linux kernel, actively recommend it themselves).
+
+However, if you have to build a checkout that does not support it (sadly, KBUS
+has been a problem here), then the simple and obvious solution is to use
+``$(MUDDLE) copywithout`` and just copy the whole source tree (or those bits
+needed) into the obj/ tree.
+
+So, for instance, from a Makefile.muddle for ``zlib``::
+
+  config:
+          -rm -rf $(MUDDLE_OBJ_OBJ)
+          -mkdir -p $(MUDDLE_OBJ_OBJ)
+          $(MUDDLE) copywithout $(MUDDLE_SRC) $(MUDDLE_OBJ_OBJ) .git
+          (cd $(MUDDLE_OBJ_OBJ); ./configure --shared)
+
+How do I get back to a clean checkout state?
+============================================
+The following strongly assumes all your builds are out-of-tree (see above).
+
+If you understand how muddle works (see the chapter on "muddle and its
+directories"), then it should be obvious that you do::
+
+  $ rm -rf obj/ install/ deploy/
+  $ rm -rf .muddle/tags/package .muddle/tags/deployment
+
+(for some value of "obvious"). Of course, the ``deploy/`` directory and the
+``deployment/`` tags directory will not exist if no deployment has occurred
+yet, but the flags to "rm" should cope with that.
+
+.. note:: Take great care not to delete the ``src/`` directory, or anything
+   else inside ``.muddle/``. It may sound stupid, but I have done it...
+
+If that's worrisome, a close equivalent is::
+
+  muddle distclean _all
+  muddle cleandeploy
+
+although the first actually only obeys the "distclean" target in each
+Makefile.muddle, which won't necessarily do what (or as much) as you want.
+
+How do I build my kernel?
+=========================
+Muddle has a special bit of infrastructure advertised for building the Linux
+kernel. It seemed like a good idea at the time, but it's overcomplex and
+doesn't work well for cross-compilation. So we now recommend something like
+the following:
+
+1. Keep your kernel source tree as a GIT checkout. If you need to do any
+   patches, do them directly into that checkout (don't, for instance, keep a
+   directory of patches and try to apply them. We've tried this, it doesn't
+   scale, and heh, it's actually what GIT automates for you. We tried it so
+   you didn't need to.). Use branches to describe what you're doing as well.
+   In other words, treat your local version of the kernel source tree just
+   like normal kernel developers do.
+
+2. The following fragment of a build description may be a useful guideline.
+   We're assuming cross-compiling for ARM here.
+
+   We start with some useful headers and constants::
+
+      import muddled.pkgs.make as make
+      import muddled.pkg as pkg
+
+      from muddled.utils import LabelType, LabelTag
+
+      # The name of the kernel checkout, and which branch we're using therein
+      # (note that this is likely the only branch that will get cloned)
+      LINUX_CHECKOUT_BRANCH = 'linux-3.2.0'
+
+      # Kernel config - obviously this needs to name an existing file!
+      TARGET_KERNEL_CONFIG = 'arch/arm/configs/some_evm_defconfig'
+
+   and then later on actually define the kernel::
+
+      make.twolevel(builder, 'kernel', roles=['base'], co_dir='base',
+                    co_name='kernel', branch=LINUX_CHECKOUT_BRANCH)
+
+   the following can be a nice trick, if most people are just going to be
+   building the kernel, and not changing its sources::
+
+      # If we don't have KERNEL_DEEP_CLONES set in our environment, then we want
+      # a shallow clone - this *much* reduces the time it takes to clone the
+      # kernel sources, but then means we can't "muddle fetch" to update them
+      #
+      # Users can set KERNEL_DEEP_CLONES by, for instance, doing:
+      #
+      #    export KERNEL_DEEP_CLONES=yes
+      #
+      # in their .bashrc.
+      #
+      if 'KERNEL_DEEP_CLONES' not in os.environ:
+          pkg.set_checkout_vcs_option(builder, Label(LabelType.Checkout, 'kernel'),
+                                      shallow_checkout=True)
+
+   If you're using ``u-boot``, then something like the following may also be
+   needed. I'm not bothering to show the description for ``u-boot`` itself. ::
+
+      # Building a kernel image suitable for use with u-boot depends on the
+      # mkimage program, provided by u-boot, so our kernel build depends on it
+      rule = depend.depend_one(None,
+                      Label(LabelType.Checkout, 'kernel', 'base', LabelTag.Configured),
+                      Label(LabelType.Package, 'u-boot', 'boot', LabelTag.Installed))
+      builder.invocation.ruleset.add(rule)
+
+      # We also want to tell the kernel build what architecture and
+      # configuration file it should use.
+      pkg.append_env_for_package(builder, 'kernel', ['base'],
+                                 'TARGET_CPU', TARGET_ARCH)
+      pkg.append_env_for_package(builder, 'kernel', ['base'],
+                                 'TARGET_KERNEL_CONFIG', TARGET_KERNEL_CONFIG)
+
+3. If other packages need to know the kernel label, then give it to them "by
+   hand" - for instance, for a notional package ``driverXX``::
+
+      pkg.append_env_for_package(builder, 'driverXX', ['drivers'],
+                                 'KERNEL_PACKAGE_LABEL',
+                                 str(Label(LabelType.Package, 'kernel', 'base',
+                                           LabelTag.PostInstalled)))
+
+4. Finally, a Makefile.muddle that looks something like::
+
+    # Build a kernel.
+    #
+    # We put a couple of useful scripts in the obj dir:
+    #
+    #  do_menuconfig - does a 'make menuconfig' with all the right options.
+    #  do_install_new_config - copies the current config back to the source
+    #  directory.
+
+    KERNEL_SRC=$(MUDDLE_SRC)
+    KERNEL_BUILD=$(MUDDLE_OBJ_OBJ)
+    MAKE_CMD=$(MAKE) -C $(KERNEL_SRC) O=$(KERNEL_BUILD) ARCH=arm \
+            CROSS_COMPILE=$($(TARGET_CPU)_PFX)
+
+    UBOOT=$(shell $(MUDDLE) query dir package:u-boot{boot}/*)
+    UBOOT_TOOLS=$(UBOOT)/u-boot/u-boot-tools
+
+    all:
+            PATH=$$PATH:$(UBOOT_TOOLS) $(MAKE_CMD) uImage
+            $(MAKE_CMD) INSTALL_MOD_PATH=$(MUDDLE_INSTALL) modules
+
+    install:
+            mkdir -p $(MUDDLE_INSTALL)/boot
+            install -m 0744 $(KERNEL_BUILD)/arch/$(KERNEL_ARCH)/boot/uImage $(MUDDLE_INSTALL)/boot/uImage
+            $(MAKE_CMD) INSTALL_MOD_PATH=$(MUDDLE_INSTALL) modules_install
+            $(MAKE_CMD) INSTALL_HDR_PATH=$(MUDDLE_INSTALL) headers_install
+            $(MAKE_CMD) INSTALL_FW_PATH=$(MUDDLE_INSTALL)/firmware firmware_install
+
+    config:
+            -mkdir -p $(KERNEL_BUILD)
+            echo '$(MAKE_CMD) menuconfig' > $(KERNEL_BUILD)/do_menuconfig
+            chmod +x $(KERNEL_BUILD)/do_menuconfig
+            echo 'cp $(MUDDLE_OBJ_OBJ)/.config $(KERNEL_SRC)/$(TARGET_KERNEL_CONFIG)' >$(KERNEL_BUILD)/do_install_new_config
+            chmod +x $(KERNEL_BUILD)/do_install_new_config
+            install -m 0644 $(KERNEL_SRC)/$(TARGET_KERNEL_CONFIG) $(MUDDLE_OBJ_OBJ)/.config
+            $(MAKE_CMD) oldconfig
+
+    clean:
+            $(MAKE_CMD) clean
+
+    distclean:
+            rm -rf $(MUDDLE_OBJ)
+
+   (if you're very luck I've got that right - this is a generalisation of some
+   more specialised makefiles, so I'll not be surprised if it has a bug or
+   so).
+
+How do I change my kernel configuation?
+=======================================
+This depends on whether one means temporarily or permanently...
+
+Typically, we recommend building the kernel out-of-tree.
+
+Thus, given a kernel package called ``package:kernel{base}``, and building for
+architecture ``arm``, one can do::
+
+  cd obj/kernel/base/obj
+  make menuconfig ARCH=arm
+
+(or ``gconfig`` or whatever one prefers as the interface - menuconfig is
+really the worst choice)
+
+This will create an updated ``.config`` in that directory, and doing ``muddle
+rebuild kernel{base}`` should then rebuild using that configuration.
+
+Beware that ``muddle distrebuld kernel{base}`` would do a *reconfigure* first,
+which will obey the ``configure`` target in your Makefile.muddle, which is
+probably copying in the (unchanged) .config from somewhere else...
+
+And the two scripts ``do_menuconfig`` and ``do_install_new_config`` propagated
+by the Makefile.muddle in the previous section may also be of use.
+
+How can I make sure the correct toolchain is available?
+=======================================================
+Let us assume you have::
+
+  ARM_TOOLCHAIN = "/opt/toolchains/arm-2010q2"
+
+to set up appropriate constants.Then later on (in your ``describe_to()``
+function), you can do::
+
+    if not os.path.exists(ARM_TOOLCHAIN):
+        raise GiveUp("Required toolchain %s not present"%ARM_TOOLCHAIN)
+
+This is rather horrible, but may be less worse than the alternative.
+
+A similar sort of thing to check that ``/bin/sh`` is a link to ``bash`` may
+also be worth doing...
+
+.. vim: set filetype=rst tabstop=8 softtabstop=2 shiftwidth=2 expandtab:

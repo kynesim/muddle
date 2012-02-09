@@ -5,7 +5,7 @@ Dependency sets and dependency management
 import re
 import copy
 
-import muddled.utils as utils
+from muddled.utils import GiveUp, MuddleBug, package_type_to_tag, LabelType
 
 class Label(object):
     """
@@ -631,7 +631,7 @@ class Label(object):
         """
         m = Label.label_part_re.match(value)
         if m is None or m.end() != len(value):
-            raise utils.GiveUp("Label %s '%s' is not allowed"%(what_part,value))
+            raise GiveUp("Label %s '%s' is not allowed"%(what_part,value))
 
     @staticmethod
     def split_domain(value):
@@ -680,25 +680,25 @@ class Label(object):
         parts = []
         m = Label.domain_part_re.match(value)
         if m is None or m.end() != len(value):
-            raise utils.GiveUp("Label domain '(%s)' is not allowed"%(value))
+            raise GiveUp("Label domain '(%s)' is not allowed"%(value))
         dom = value
         while dom:
             pos = dom.find('(')
             if pos == -1:
                 if dom[-1] == ')':
-                    raise utils.GiveUp("Label domain '(%s)' has unbalanced"
-                                        " parentheses, '%s'"%(value, dom))
+                    raise GiveUp("Label domain '(%s)' has unbalanced"
+                                 " parentheses, '%s'"%(value, dom))
                 parts.append(dom)
                 break
             else:
                 if dom[-1] != ')':
-                    raise utils.GiveUp("Label domain part '(%s)' has unbalanced"
-                                        " parentheses, '%s'"%(value, dom))
+                    raise GiveUp("Label domain part '(%s)' has unbalanced"
+                                 " parentheses, '%s'"%(value, dom))
                 part = dom[:pos]
                 parts.append(part)
                 if len(part) == 0:
-                    raise utils.GiveUp("Label domain '(%s)' starts with zero"
-                                        " length domain, '(%s', i.e. '(('"%(value, dom))
+                    raise GiveUp("Label domain '(%s)' starts with zero"
+                                 " length domain, '(%s', i.e. '(('"%(value, dom))
                 dom = dom[pos+1:-1]
         return parts
 
@@ -762,8 +762,8 @@ class Label(object):
         """
         m = Label.label_string_re.match(label_string)
         if m is None or m.end() != len(label_string):
-            raise utils.GiveUp('Label string %s is not a valid'
-                                ' Label'%repr(label_string))
+            raise GiveUp('Label string %s is not a valid'
+                         ' Label'%repr(label_string))
 
         type   = m.group('type')
         domain = m.group('domain') # conveniently, None if not present
@@ -801,14 +801,14 @@ class Label(object):
         """
         m = Label.fragment_re.match(fragment)
         if m is None or m.end() != len(fragment):
-            raise utils.GiveUp("Label fragment '%s' is not allowed"%fragment)
+            raise GiveUp("Label fragment '%s' is not allowed"%fragment)
 
         type = m.group("type")
         if type is None:
             type = default_type
         elif type == '*':
-            raise utils.GiveUp("Label type '*:' is not allowed,"
-                               " in label fragment '%s'"%fragment)
+            raise GiveUp("Label type '*:' is not allowed,"
+                         " in label fragment '%s'"%fragment)
         name = m.group("name")
         role = m.group("role")
         if role is None:
@@ -816,10 +816,10 @@ class Label(object):
         tag = m.group("tag")
         if tag is None:
             try:
-                tag = utils.package_type_to_tag[type]
+                tag = package_type_to_tag[type]
             except KeyError:
-                raise utils.GiveUp("Cannot guess tag for label fragment '%s'"
-                        " (unrecognised label type '%s:')"%(fragment, type))
+                raise GiveUp("Cannot guess tag for label fragment '%s'"
+                             " (unrecognised label type '%s:')"%(fragment, type))
         domain = m.group("domain")
         if domain is None:
             domain = default_domain     # which may be None as well
@@ -843,18 +843,18 @@ class Label(object):
             pos = dom.find('(')
             if pos == -1:
                 if dom[-1] == ')':
-                    raise utils.GiveUp("Label %s domain part '%s' has unbalanced"
-                                        " parentheses"%(self, dom))
+                    raise GiveUp("Label %s domain part '%s' has unbalanced"
+                                 " parentheses"%(self, dom))
                 rv.append(dom)
                 break
             else:
                 if dom[-1] != ')':
-                    raise utils.GiveUp("Label %s domain part '%s' has unbalanced"
-                                        " parentheses"%(self, dom))
+                    raise GiveUp("Label %s domain part '%s' has unbalanced"
+                                 " parentheses"%(self, dom))
                 part = dom[:pos]
                 if len(part) == 0:
-                    raise utils.GiveUp("Label %s domain part '%s' starts with zero"
-                                        " length domain - i.e., '(('"%(self, dom))
+                    raise GiveUp("Label %s domain part '%s' starts with zero"
+                                 " length domain - i.e., '(('"%(self, dom))
                 rv.append(part)
                 dom = dom[pos+1:-1]
         return rv
@@ -948,14 +948,14 @@ class Rule:
         """
         self.deps = set()
         if (not isinstance(target_dep, Label)):
-            raise utils.MuddleBug("Attempt to create a rule without a label"
-                              " as its target")
+            raise MuddleBug("Attempt to create a rule without a label"
+                            " as its target")
 
         self.target = target_dep
         self.action = action
         if (self.action is not None) and (not isinstance(action, Action)):
-            raise utils.MuddleBug("Attempt to create a rule with an object rule "
-                              "which isn't an action but a %s."%(action.__class__.__name__))
+            raise MuddleBug("Attempt to create a rule with an object rule "
+                            "which isn't an action but a %s."%(action.__class__.__name__))
 
     def replace_target(self, new_t):
         self.target = new_t
@@ -990,7 +990,7 @@ class Rule:
             pass
         else:
             if complainOnDuplicate:
-                raise utils.MuddleBug(
+                raise MuddleBug(
                     ("Duplicate action objects for %s and %s - have you "%(self.target, other_rule.target)) +
                     "remembered to remove a package from one of your domain builds?")
             else:
@@ -1031,21 +1031,21 @@ class Rule:
         """
         Add a dependency on label "checkout:<co_name>/<tag>".
         """
-        dep = Label(utils.LabelType.Checkout, co_name, None, tag)
+        dep = Label(LabelType.Checkout, co_name, None, tag)
         self.add(dep)
 
     def depend_pkg(self, pkg, role, tag):
         """
         Add a dependency on label "package:<pkg>{<role>}/tag".
         """
-        dep = Label(utils.LabelType.Package, pkg, role, tag)
+        dep = Label(LabelType.Package, pkg, role, tag)
         self.add(dep)
 
     def depend_deploy(self, dep_name, tag):
         """
         Add a dependency on label "deployment:<dep_name>/tag".
         """
-        dep = Label(utils.LabelType.Deployment, dep_name, None, tag)
+        dep = Label(LabelType.Deployment, dep_name, None, tag)
         self.add(dep)
 
     def __str__(self):
@@ -1542,7 +1542,7 @@ def needed_to_build(ruleset, target, useTags = True, useMatch = False):
                 print "\nLooking at target %s"%tgt
             rules = ruleset.rules_for_target(tgt, useTags)
             if rules is None:
-                raise utils.MuddleBug("No rule found for target %s"%tgt)
+                raise MuddleBug("No rule found for target %s"%tgt)
 
             # This is slightly icky. Technically, in the presence of wildcard
             # rules, there can be several rules which build a target.
@@ -1555,7 +1555,7 @@ def needed_to_build(ruleset, target, useTags = True, useMatch = False):
             can_build_target = True
 
             if len(rules) == 0:
-                raise utils.MuddleBug("Rule list is empty for target %s"%tgt)
+                raise MuddleBug("Rule list is empty for target %s"%tgt)
 
             if trace:
                 print "Rules for %s:"%tgt
@@ -1606,12 +1606,12 @@ def needed_to_build(ruleset, target, useTags = True, useMatch = False):
     # targets because the graph is circular or incomplete.
     targets = list(targets)
     targets.sort()
-    raise utils.GiveUp("Dependency graph is circular or incomplete. \n" +
-                      "building = %s\n"%target +
-                      "targets = %s \n"%label_set_to_string(targets,
-                                                            start_with='[\n    ',
-                                                            end_with='\n]',
-                                                            join_with='\n    '))
+    raise GiveUp("Dependency graph is circular or incomplete. \n" +
+                 "building = %s\n"%target +
+                 "targets = %s \n"%label_set_to_string(targets,
+                                                       start_with='[\n    ',
+                                                       end_with='\n]',
+                                                       join_with='\n    '))
 
 
 def required_by(ruleset, label, useTags = True, useMatch = True):
@@ -1639,7 +1639,7 @@ def required_by(ruleset, label, useTags = True, useMatch = True):
     if (len(rules) == 0):
         # If this was a wildcarded label, who cares?
         if (label.is_definite()):
-            raise utils.GiveUp("No rules match label %s ."%label)
+            raise GiveUp("No rules match label %s ."%label)
 
     for r in rules:
         depends.add(r.target)

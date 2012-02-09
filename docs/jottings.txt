@@ -48,7 +48,8 @@ use, but you might not have a choice), then you'll probably *have* to install
 documentation.
 
 It's not uncommon for FSF packages to insist of ``texinfo``, even if you're
-trying not to build documentation.
+trying not to build documentation. You may also need to install ``autotool``
+and ``libtool``.
 
 bash or dash?
 =============

@@ -6,7 +6,7 @@ import muddled.utils as utils
 import muddled.depend as depend
 from muddled.depend import Action
 
-class ArchSpecificAction:
+class ArchSpecificAction(object):
     """
     Allow an action to be invoked if and only if you're on the
     right architecture
@@ -23,7 +23,7 @@ class ArchSpecificAction:
             raise utils.MuddleBug("Label %s cannot be built on this architecture (%s) - requires %s"%(label, utils.arch_name(), self.arch))
 
 
-class ArchSpecificActionGenerator:
+class ArchSpecificActionGenerator(object):
 
     def __init__(self, arch):
         self.arch = arch
@@ -169,7 +169,7 @@ def null_package(builder, name, role):
     add_package_rules(builder.invocation.ruleset, name, role, this_pkg)
     return this_pkg
 
-class Profile:
+class Profile(object):
     """
     A profile ties together a role, a deployment and an installation
     directory. Profiles aren't actions - they modify the builder.

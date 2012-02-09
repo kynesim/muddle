@@ -23,7 +23,7 @@ import xml.dom.minidom
 class ConfigError(Exception):
     pass
 
-class Config:
+class Config(object):
     """
     Represents a configuration file
     """

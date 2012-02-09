@@ -16,7 +16,7 @@ import muddled.deployment as deployment
 
 from muddled.depend import Action, Label
 
-class CollectInstructionImplementor:
+class CollectInstructionImplementor(object):
     def prepare(self, builder, instruction, role, path):
         """
         Prepares for rsync. This means fixing up the destination file
@@ -29,7 +29,7 @@ class CollectInstructionImplementor:
     def needs_privilege(self, builder, instr, role, path):
         pass
 
-class AssemblyDescriptor:
+class AssemblyDescriptor(object):
     def __init__(self, from_label, from_rel, to_name, recursive = True,
                  failOnAbsentSource = False,
                  copyExactly = True,

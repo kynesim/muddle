@@ -11,7 +11,7 @@ import stat
 import muddled.utils as utils
 import muddled.filespec as filespec
 
-class File:
+class File(object):
     """
     Represents a file in a CPIO archive.
     """
@@ -92,7 +92,7 @@ class File:
              self.gid,
              " ".join(map(lambda x: x.name, self.children)))
 
-class Hierarchy:
+class Hierarchy(object):
 
     def __init__(self, map, roots):
         """
@@ -484,7 +484,7 @@ def trace_files(file_list, root):
         trace_files(file_list, c)
 
 
-class Archive:
+class Archive(object):
     """
     Represents a CPIO archive.
 

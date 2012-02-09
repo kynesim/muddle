@@ -23,7 +23,7 @@ import muddled.cpiofile as cpiofile
 
 from muddled.depend import Action
 
-class CpioInstructionImplementor:
+class CpioInstructionImplementor(object):
     def apply(self, builder, instruction, role, path):
         pass
 
@@ -401,7 +401,7 @@ def deploy(builder, target_file, target_base, name, target_roles_order,
                          compressionMethod, pruneFunc, label_order)
 
 
-class CpioWrapper:
+class CpioWrapper(object):
     def __init__(self, builder, action, label):
         self.action = action
         self.label = label

@@ -6,7 +6,8 @@ import os
 
 from muddled.depend import Action, Rule
 from muddled.utils import GiveUp, MuddleBug, LabelTag, LabelType, \
-        copy_without, normalise_dir, find_local_relative_root
+        copy_without, normalise_dir, find_local_relative_root, package_tags, \
+        copy_file
 from muddled.version_control import get_vcs_handler
 
 def distribute_checkout(builder, name, label, copy_vcs_dir=False):
@@ -153,12 +154,20 @@ def _actually_distribute_binary(builder, label, target_dir):
     """
     # 1. We know the target directory. Note it may not exist yet
     # 2. Get the actual directory of the package obj/ and install/
-    #    directories
+    #    directories. Luckily, we know we should always have a role
+    #    (since the build mechanism works on "real" labels), so
+    #    for the obj/ path we will get obj/<name>/<role>/
+    #
     obj_dir = builder.invocation.package_obj_path(label)
+    #
+    #    and for the install/ path, we shall get install/<role>.
+    #    This last means that multiple packages will copy to the
+    #    same directory, so it's worth checking that we don't do
+    #    that.
+    #
     install_dir = builder.invocation.package_install_path(label)
+    #
     # 3. Use copywithout to copy the obj/ and install/ directories over
-
-    # XXX TODO XXX Only copy the stuff for THIS ROLE
 
     root_path = normalise_dir(builder.invocation.db.root_path)
     rel_obj_dir = os.path.relpath(normalise_dir(obj_dir), root_path)
@@ -171,13 +180,16 @@ def _actually_distribute_binary(builder, label, target_dir):
     tgt_install_dir = normalise_dir(tgt_install_dir)
 
     print 'Copying:'
-    print '  from %s'%obj_dir
-    print '  and  %s'%install_dir
-    print '  to   %s'%tgt_obj_dir
-    print '  and  %s'%tgt_install_dir
+    print '    from %s'%obj_dir
+    print '    to   %s'%tgt_obj_dir
 
     copy_without(obj_dir, tgt_obj_dir, preserve=True)
-    copy_without(install_dir, tgt_install_dir, preserve=True)
+
+    if not os.path.exists(tgt_install_dir):
+        print 'and from %s'%install_dir
+        print '      to %s'%tgt_install_dir
+        copy_without(install_dir, tgt_install_dir, preserve=True)
+
     # 4. Set the appropriate tags in the target .muddle/ directory
     tags_dir = os.path.join('.muddle', 'tags', 'package', label.name)
     local_root = find_local_relative_root(builder, label)
@@ -186,9 +198,15 @@ def _actually_distribute_binary(builder, label, target_dir):
     print '..copying %s'%src_tags_dir
     print '       to %s'%tgt_tags_dir
 
-    # XXX TODO XXX Only copy the stuff for THIS ROLE
-
-    copy_without(src_tags_dir, tgt_tags_dir, preserve=True)
+    #    We only want to copy tags for this particular role...
+    if not os.path.exists(tgt_tags_dir):
+        os.makedirs(tgt_tags_dir)
+    for tag in package_tags.values():
+        tag_filename = '%s-%s'%(label.role, tag)
+        tag_file = os.path.join(src_tags_dir, tag_filename)
+        if os.path.exists(tag_file):
+            copy_file(tag_file, os.path.join(tgt_tags_dir, tag_filename),
+                      preserve=True)
 
 class DistributeAction(Action):
     """

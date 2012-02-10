@@ -63,14 +63,16 @@ Error = MuddleBug
 
 # Start with the known label tags. Keys are the "in program" representation,
 # values are the tag as used in labels themselves.
-__label_tags = {# For checkouts.
+
+checkout_tags = {
                 'CheckedOut' : "checked_out",
                 'Fetched' : "fetched",
                 'Merged' : "merged",
                 'ChangesCommitted' : "changes_committed",
                 'ChangesPushed' : "changes_pushed",
+                }
 
-                # For packages
+package_tags = {
                 'PreConfig' : "preconfig",
                 'Configured' : "configured",
                 'Built' : "built",
@@ -79,7 +81,9 @@ __label_tags = {# For checkouts.
 
                 'Clean' : "clean",
                 'DistClean' : "distclean",
+                }
 
+deployment_tags = {
                 # For deployments. These must be independent of each other and
                 # transient or deployment will get awfully confused.
                 # instructionsapplied is used to separate deployment and
@@ -87,7 +91,9 @@ __label_tags = {# For checkouts.
                 # address spaces so that application can be privileged.
                 'Deployed' : "deployed",
                 'InstructionsApplied' : "instructionsapplied",
+                  }
 
+__label_tags = {
                 # Special tag for Distribute packages or checkouts
                 'Distributed' : 'distributed',
 
@@ -102,6 +108,10 @@ __label_tags = {# For checkouts.
                 # Used by the initscripts package to store runtime environments.
                 'RuntimeEnv' : "runtime_env",
                 }
+
+__label_tags.update(checkout_tags)
+__label_tags.update(package_tags)
+__label_tags.update(deployment_tags)
 
 # We shall produce a named tuple type using the "in program" names
 __label_tag_type = namedtuple('LabelTag',

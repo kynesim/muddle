@@ -324,6 +324,10 @@ class DistributeAction(Action):
         """
         self.distributions = {name:data}
 
+    def __str__(self):
+        return '%s/%s/'%(self.__class__.__name__,
+                ','.join(sorted(self.distributions.keys())))
+
     def add_distribution(self, name, data):
         """Add another distribution to this action.
         """
@@ -586,7 +590,7 @@ def copy_muddle_skeleton(builder, name, target_dir, domains):
 
     print 'Done'
 
-def distribute(builder, name, target_dir, unset_tags=False):
+def distribute(builder, name, target_dir, unset_tags=False, no_op=False):
     """Distribute using distribution context 'name', to 'target_dir'.
 
     The DistributeContext called 'name' must exist.
@@ -628,6 +632,12 @@ def distribute(builder, name, target_dir, unset_tags=False):
     # XXX TODO checkouts, so that they don't try to check them out again?
     # XXX TODO - yes, almost certainly so
 
+
+    print 'Writing distribution', name, 'to', target_dir
+
+    # =========================================================================
+    # PREPARE
+    # =========================================================================
     distribution_labels = set()
     domains = set()
 
@@ -690,13 +700,28 @@ def distribute(builder, name, target_dir, unset_tags=False):
 
     distribution_labels = sorted(distribution_labels)
 
+    # =========================================================================
+    # REPORT?
+    # =========================================================================
+    if no_op:
+        maxlen = 0
+        for label in distribution_labels:
+            maxlen = max(maxlen,len(str(label)))
+
+        for label in distribution_labels:
+            rule = invocation.ruleset.map[target]
+            print '%-*s with %s'%(maxlen, label, rule.action)
+        return
+
+    # =========================================================================
+    # DISTRIBUTE
+    # =========================================================================
     # If '/distributed' is now transient, do we need to do this?
     if unset_tags:
         print 'Killing %d /distribute label%s'%(num_labels,
                 '' if num_labels==1 else 's')
         for label in distribution_labels:
             builder.kill_label(label)
-
     # Remember to say where we're copying to...
     builder.set_distribution(name, target_dir)
 

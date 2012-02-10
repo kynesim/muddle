@@ -3728,12 +3728,7 @@ class Distribute(Command):
         if name is None or target_dir is None:
             raise GiveUp("Syntax: muddle distribute <name> <target_directory>")
 
-        if self.no_op():
-            return
-
-        print 'Writing distribution', name, 'to', target_dir
-
-        distribute(builder, name, target_dir)
+        distribute(builder, name, target_dir, no_op=self.no_op())
 
 # =============================================================================
 # Checkout, package and deployment commands

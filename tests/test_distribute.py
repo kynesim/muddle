@@ -67,8 +67,7 @@ from muddled.utils import LabelType, LabelTag
 from muddled.repository import Repository
 from muddled.version_control import checkout_from_repo
 
-from muddled.distribute import distribute_checkout, distribute_package, \
-        distribute_build_description
+from muddled.distribute import distribute_checkout, distribute_package
 
 def describe_to(builder):
     role = 'x86'
@@ -122,8 +121,7 @@ def describe_to(builder):
     # Let's add some distribution rules
     label = Label.from_string
     # We're describing a distribution called "mixed", which contains both
-    # source and binary elements
-    distribute_build_description(builder, 'mixed', Label(LabelType.Checkout, 'builds'))
+    # source and binary elements.
     distribute_checkout(builder, 'mixed', label('checkout:first_co/*'))
     distribute_package(builder, 'mixed', label('package:second_pkg{{x86}}/*'))
 

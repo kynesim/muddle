@@ -534,10 +534,7 @@ class Invocation(object):
         if (build_desc is None):
             return None
 
-        # Split off the first
-
-        (co,path) = utils.split_path_left(build_desc)
-        return (co, path)
+        return build_co_and_path_from_str(build_desc)
 
     def dump_checkout_paths(self):
         return self.db.dump_checkout_paths()
@@ -1819,5 +1816,22 @@ def include_domain(builder, domain_name, domain_repo, domain_desc):
 
     return domain_builder
 
+def build_co_and_path_from_str(str):
+    """Turn a BuildDescription text into checkout name and inner path.
+
+    That is, we assume the string we're given (which was presumably
+    read from a BuildDescription) is of the form:
+
+        <checkout-name>/<path-to-build-desc>
+
+    For instance::
+
+        >>> build_co_and_path_from_str('builds/01.py')
+        'builds', '01.py'
+        >>> build_co_and_path_from_str('strawberry/jam/toast.py')
+        'strawberry', 'jam/toast.py'
+    """
+    co_name, inner_path = utils.split_path_left(str)
+    return co_name, inner_path
 
 # End file.

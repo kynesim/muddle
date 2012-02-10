@@ -4,11 +4,12 @@ Actions and mechanisms relating to distributing build trees
 
 import os
 
-from muddled.depend import Action, Rule
+from muddled.depend import Action, Rule, Label
 from muddled.utils import GiveUp, MuddleBug, LabelTag, LabelType, \
         copy_without, normalise_dir, find_local_relative_root, package_tags, \
-        copy_file
+        copy_file, domain_subpath
 from muddled.version_control import get_vcs_handler
+from muddled.mechanics import build_co_and_path_from_str
 
 def distribute_checkout(builder, name, label, copy_vcs_dir=False):
     """Request the distribution of the given checkout.
@@ -47,17 +48,42 @@ def distribute_checkout(builder, name, label, copy_vcs_dir=False):
 
         builder.invocation.ruleset.add(rule)
 
-def distribute_build_description(builder, name, label, copy_vcs_dir=False):
-    """Request the distribution of the build description checkout.
+def distribute_build_desc(builder, name, label, copy_vcs_dir=False):
+    """Request the distribution of the given build description checkout.
 
-    - 'context' is a DistributeContext instance, naming the builder and the
-      target directory
+    - 'name' is the name of this distribution
     - 'label' must be a checkout label, but the tag is not important.
 
-    By default, don't copy any VCS directory.
+    By default, we don't copy any VCS directory.
+
+    Notes:
+
+        1. If we already described a distribution called 'name' for 'label',
+           then this will silently overwrite it.
     """
-    # For the moment, just like any other checkout
-    distribute_checkout(builder, name, label, copy_vcs_dir)
+    if label.type != LabelType.Checkout:
+        raise MuddleBug('Attempt to use non-checkout label %s for a distribute checkout rule'%label)
+
+    source_label = label.copy_with_tag(LabelTag.CheckedOut)
+    target_label = label.copy_with_tag(LabelTag.Distributed, transient=True)
+
+    # Making our target label transient means that its tag will not be
+    # written out to the muddle database (i.e., .muddle/tags/...) when
+    # the label is built
+
+    # Is there already a rule for distributing this label?
+    if builder.invocation.target_label_exists(target_label):
+        # Yes - add this distribution to it (if it's not there already)
+        action = builder.invocation.ruleset.map[target_label]
+        action.add_distribution(name, copy_vcs_dir)
+    else:
+        # No - we need to create one
+        action = DistributeBuildDescription(name, copy_vcs_dir)
+
+        rule = Rule(target_label, action)       # to build target_label, run action
+        rule.add(source_label)                  # after we've built source_label
+
+        builder.invocation.ruleset.add(rule)
 
 def distribute_package(builder, name, label, binary=True, source=False, copy_vcs_dir=False):
     """Request the distribution of the given package.
@@ -114,6 +140,18 @@ def distribute_package(builder, name, label, binary=True, source=False, copy_vcs
 
         builder.invocation.ruleset.add(rule)
 
+def _set_checkout_tags(builder, label, target_dir):
+    """Copy checkout muddle tags
+    """
+    root_path = normalise_dir(builder.invocation.db.root_path)
+    tags_dir = os.path.join('.muddle', 'tags', 'checkout', label.name)
+    local_root = find_local_relative_root(builder, label)
+    src_tags_dir = os.path.join(root_path, local_root, tags_dir)
+    tgt_tags_dir = os.path.join(target_dir, local_root, tags_dir)
+    print '..copying %s'%src_tags_dir
+    print '       to %s'%tgt_tags_dir
+    copy_without(src_tags_dir, tgt_tags_dir, preserve=True)
+
 def _actually_distribute_checkout(builder, label, target_dir, copy_vcs_dir):
     """As it says.
     """
@@ -140,14 +178,51 @@ def _actually_distribute_checkout(builder, label, target_dir, copy_vcs_dir):
         print '  without %s'%vcs_dir
     copy_without(co_src_dir, co_tgt_dir, without, preserve=True)
     # 5. Set the appropriate tags in the target .muddle/ directory
-    root_path = normalise_dir(builder.invocation.db.root_path)
-    tags_dir = os.path.join('.muddle', 'tags', 'checkout', label.name)
-    local_root = find_local_relative_root(builder, label)
-    src_tags_dir = os.path.join(root_path, local_root, tags_dir)
-    tgt_tags_dir = os.path.join(target_dir, local_root, tags_dir)
-    print '..copying %s'%src_tags_dir
-    print '       to %s'%tgt_tags_dir
-    copy_without(src_tags_dir, tgt_tags_dir, preserve=True)
+    _set_checkout_tags(builder, label, target_dir)
+
+def _actually_distribute_build_desc(builder, label, target_dir, copy_vcs_dir):
+    """Very similar to what we do for any other checkout...
+    """
+    # Get the actual directory of the checkout
+    co_src_dir = builder.invocation.db.get_checkout_location(label)
+
+    # Now, we want to copy everything except:
+    #
+    #   * no .pyc files
+    #   * MAYBE no VCS file, depending
+
+    vcs_dir = None
+    if not copy_vcs_dir:
+        repo = builder.invocation.db.get_checkout_repo(label)
+        vcs_handler = get_vcs_handler(repo.vcs)
+        vcs_dir = vcs_handler.get_vcs_dirname()
+
+    co_tgt_dir = os.path.join(normalise_dir(target_dir), co_src_dir)
+    print 'Copying:'
+    print '  from %s'%co_src_dir
+    print '  to   %s'%co_tgt_dir
+    if vcs_dir:
+        print '  without %s'%vcs_dir
+
+    for dirpath, dirnames, filenames in os.walk(co_src_dir):
+
+        # Where are we inside the checkout?
+        inner_path = os.path.relpath(co_src_dir, dirpath)
+
+        for name in filenames:
+            base, ext = os.path.splitext(name)
+            if ext == '.pyc':                       # Ignore .pyc files
+                continue
+            copy_file(os.path.join(dirpath, name),
+                      os.path.join(co_tgt_dir, inner_path, name),
+                      preserve=True)
+
+        # Ignore VCS directories, if we were asked to do so
+        if vc_dir and vcs_dir in dirnames:
+            dirnames.remove(vcs_dir)
+
+    # Set the appropriate tags in the target .muddle/ directory
+    _set_checkout_tags(builder, label, target_dir)
 
 def _actually_distribute_binary(builder, label, target_dir):
     """Do a binary distribution of our package.
@@ -287,17 +362,18 @@ class DistributeCheckout(DistributeAction):
         _actually_distribute_checkout(builder, label, target_dir, copy_vcs_dir)
 
 class DistributeBuildDescription(DistributeCheckout):
+    """This is similar to DistributeCheckout, but differs in detail.
     """
-    An action that distributes a build description's checkout.
 
-    It copies the checkout source directory.
+    def build_label(self, builder, label):
+        name, target_dir = builder.get_distribution()
 
-    By default it does not copy any VCS subdirectory (.git/, etc.)
+        copy_vcs_dir = self.distributions[name]
 
-    For the moment, it is identical to DistributeCheckout, but that will
-    not be so when it is finished
-    """
-    pass
+        print 'DistributeBuildDescription %s (%s VCS dir) to %s'%(label,
+                'without' if copy_vcs_dir else 'with', target_dir)
+
+        _actually_distribute_build_desc(builder, label, target_dir, copy_vcs_dir)
 
 class DistributePackage(DistributeAction):
     """
@@ -360,8 +436,56 @@ class DistributePackage(DistributeAction):
             checkouts = builder.invocation.checkouts_for_package(label)
             for co_label in checkouts:
                 _actually_distribute_checkout(builder, co_label,
-                                              target_dir, self.copy_vcs_dir)
+                                              target_dir, copy_vcs_dir)
 
+def find_all_distribution_names(builder):
+    """Return a set of all the distribution names.
+    """
+    distribution_names = set()
+
+    invocation = builder.invocation
+    target_label_exists = invocation.target_label_exists
+
+    # We get all the "reasonable" checkout and package labels
+    all_checkouts = builder.invocation.all_checkout_labels()
+    all_packages = builder.invocation.all_package_labels()
+
+    combined_labels = all_checkouts.union(all_packages)
+    for label in combined_labels:
+        target = label.copy_with_tag(LabelTag.Distributed)
+        # Is there a distribution target for this label?
+        if target_label_exists(target):
+            # If so, what names does it know?
+            rule = invocation.ruleset.map[target]
+            names = rule.action.distribution_names()
+            distribution_names.update(names)
+
+    return distribution_names
+
+def domain_from_parts(parts):
+    """Construct a domain name from a list of parts.
+    """
+    num_parts = len(parts)
+    domain = '('.join(parts) + ')'*(num_parts-1)
+    return domain
+
+def build_desc_label_in_domain(builder, domain):
+    """Return the label for the build description checkout in this domain.
+    """
+    # Basically, we need to figure out what checkout to use...
+
+    print 'Domain:', domain
+    if not domain:
+        build_co_name, build_desc_path = builder.invocation.build_co_and_path()
+    else:
+        build_desc_path = os.path.join(builder.invocation.db.root_path,
+                                       domain_subpath(domain),
+                                       '.muddle', 'Description')
+        with open(build_desc_path) as fd:
+            str = fd.readline()
+        build_co_name, build_desc_path = build_co_and_path_from_str(str.strip())
+    print '  co_name', build_co_name
+    return Label(LabelType.Checkout, build_co_name, domain=domain)
 
 def distribute(builder, target_dir, name, unset_tags=False):
     """Distribute using distribution context 'name', to 'target_dir'.
@@ -400,6 +524,7 @@ def distribute(builder, target_dir, name, unset_tags=False):
     # XXX TODO _all_sources, or _all_binaries, or _all_checkouts, ...
 
     distribution_labels = set()
+    domains = set()
 
     invocation = builder.invocation
     target_label_exists = invocation.target_label_exists
@@ -418,6 +543,8 @@ def distribute(builder, target_dir, name, unset_tags=False):
             if rule.action.does_distribution(name):
                 # Yes, we like this label
                 distribution_labels.add(target)
+                # And remember its domain
+                domains.add(target.domain)
 
     distribution_labels = list(distribution_labels)
     distribution_labels.sort()
@@ -425,6 +552,36 @@ def distribute(builder, target_dir, name, unset_tags=False):
     if not distribution_labels:
         print 'Nothing to distribute for %s'%name
         return
+
+    # Add in appropriate build descriptions
+    # We need a build description for each domain we had a label for
+    # (and possibly also any "in between" domains that weren't mentioned
+    # explicitly?)
+
+    cumulative_domains = set()
+    for domain in sorted(domains):
+        print 'Domain %r'%domain
+        if domain is None:
+            print '  Add domain %r'%domain
+            cumulative_domains.add(domain)
+        else:
+            parts = Label.split_domain(domain)
+            for ii in range(1, 1+len(parts)):
+                d = domain_from_parts(parts[:ii])
+                print '  Add domain %r'%d
+                cumulative_domains.add(d)
+    print 'Found all domains'
+
+    # XXX TODO XXX
+    # Do we want VCS dir for our build descriptions?
+    copy_vcs_dir = False
+
+    print 'Adding build descriptions'
+    for domain in sorted(cumulative_domains):
+        co_label = build_desc_label_in_domain(builder, domain)
+        print '  Label', co_label
+        distribute_build_desc(builder, name, co_label, copy_vcs_dir)
+    print 'Done'
 
     num_labels = len(distribution_labels)
 
@@ -447,27 +604,3 @@ def distribute(builder, target_dir, name, unset_tags=False):
     # a distribution state for a checkout, and we also explicitly set
     # a different (incompatible) state for a checkout? Who wins? Or do
     # we just try to satisfy both?
-
-def find_all_distribution_names(builder):
-    """Return a set of all the distribution names.
-    """
-    distribution_names = set()
-
-    invocation = builder.invocation
-    target_label_exists = invocation.target_label_exists
-
-    # We get all the "reasonable" checkout and package labels
-    all_checkouts = builder.invocation.all_checkout_labels()
-    all_packages = builder.invocation.all_package_labels()
-
-    combined_labels = all_checkouts.union(all_packages)
-    for label in combined_labels:
-        target = label.copy_with_tag(LabelTag.Distributed)
-        # Is there a distribution target for this label?
-        if target_label_exists(target):
-            # If so, what names does it know?
-            rule = invocation.ruleset.map[target]
-            names = rule.action.distribution_names()
-            distribution_names.update(names)
-
-    return distribution_names

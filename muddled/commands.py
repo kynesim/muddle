@@ -3679,13 +3679,31 @@ Try "muddle help unstamp" for more information."""
 @command('distribute', CAT_STAMP)       # in some vague sort of way
 class Distribute(Command):
     """
-    :Syntax: muddle distribute <target_directory> <name>
+    :Syntax: muddle distribute <name> <target_directory>
 
+    - <name> is a distribution name.
     - <target_directory> is where to distribute to. If it already exists,
       it should preferably be an empty directory.
-    - <name> is the name of a distribution context.
 
-    For the moment, this is just a stub for development
+    Several special distribution names exist:
+
+        * "_source_release" is a distribution of all checkouts, without their
+          VCS directories. This is typically useful for archiving with tar for
+          sending out as a release.
+
+        * "_source_release_vcs" is the same but including VCS directories.
+          This is essentially a way of getting a "clean copy" of the current
+          build tree, although perhaps not as clean as starting over again
+          from "muddle init".
+
+        * "_binary_release" - this is a binary distribution of all packages.
+          Note that all binary releases also include the build description
+          checkout(s) implied by the packages distributed.
+
+    Note that these special distribution names don't necessarily show up in
+    "muddle query distributions" (or at least, not yet).
+
+    BEWARE: THIS COMMAND IS STILL UNDER DEVELOPMENT.
     """
 
     def requires_build_tree(self):
@@ -3700,10 +3718,10 @@ class Distribute(Command):
             args = args[1:]
             if word.startswith('-'):
                 raise GiveUp("Unexpected switch '%s' for 'distribute'"%word)
-            elif target_dir is None:
-                target_dir = word
             elif name is None:
                 name = word
+            elif target_dir is None:
+                target_dir = word
             else:
                 raise GiveUp("Unexpected argument '%s' for 'distribute'"%word)
 
@@ -3715,7 +3733,7 @@ class Distribute(Command):
 
         print 'Writing distribution', name, 'to', target_dir
 
-        distribute(builder, target_dir, name)
+        distribute(builder, name, target_dir)
 
 # =============================================================================
 # Checkout, package and deployment commands

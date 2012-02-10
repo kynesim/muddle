@@ -37,8 +37,8 @@ def distribute_checkout(builder, name, label, copy_vcs_dir=False):
     # Is there already a rule for distributing this label?
     if builder.invocation.target_label_exists(target_label):
         # Yes - add this distribution to it (if it's not there already)
-        action = builder.invocation.ruleset.map[target_label]
-        action.add_distribution(name, copy_vcs_dir)
+        rule = builder.invocation.ruleset.map[target_label]
+        rule.action.add_distribution(name, copy_vcs_dir)
     else:
         # No - we need to create one
         action = DistributeCheckout(name, copy_vcs_dir)
@@ -74,8 +74,8 @@ def distribute_build_desc(builder, name, label, copy_vcs_dir=False):
     # Is there already a rule for distributing this label?
     if builder.invocation.target_label_exists(target_label):
         # Yes - add this distribution to it (if it's not there already)
-        action = builder.invocation.ruleset.map[target_label]
-        action.add_distribution(name, copy_vcs_dir)
+        rule = builder.invocation.ruleset.map[target_label]
+        rule.action.add_distribution(name, copy_vcs_dir)
     else:
         # No - we need to create one
         action = DistributeBuildDescription(name, copy_vcs_dir)
@@ -492,7 +492,7 @@ def build_desc_label_in_domain(builder, domain, label_tag):
     print '  co_name', build_co_name
     return Label(LabelType.Checkout, build_co_name, tag=label_tag, domain=domain)
 
-def add_build_descriptions(builder, name, domains):
+def add_build_descriptions(builder, name, domains, copy_vcs_dir=False):
     """Add all the implicated build description checkouts to our distribution.
     """
     # We need a build description for each domain we had a label for
@@ -515,10 +515,6 @@ def add_build_descriptions(builder, name, domains):
                 cumulative_domains.add(d)
     print 'Found all domains'
 
-    # XXX TODO XXX
-    # Do we want VCS dir for our build descriptions?
-    copy_vcs_dir = False
-
     print 'Adding build descriptions'
     for domain in sorted(cumulative_domains):
         co_label = build_desc_label_in_domain(builder, domain, LabelTag.Distributed)
@@ -529,7 +525,7 @@ def add_build_descriptions(builder, name, domains):
 
     return extra_labels
 
-def distribute(builder, target_dir, name, unset_tags=False):
+def distribute(builder, name, target_dir, unset_tags=False):
     """Distribute using distribution context 'name', to 'target_dir'.
 
     The DistributeContext called 'name' must exist.
@@ -565,8 +561,16 @@ def distribute(builder, target_dir, name, unset_tags=False):
     # XXX TODO Of course, naming them is the hard part - for instance,
     # XXX TODO _all_sources, or _all_binaries, or _all_checkouts, ...
 
+    # XXX TODO If we distribute packages as binary, and thus set up the
+    # XXX TODO corresponding tags in the .muddle directory, should we also
+    # XXX TODO "bluff" the checked_out tags for their (not distributed)
+    # XXX TODO checkouts, so that they don't try to check them out again?
+    # XXX TODO - yes, almost certainly so
+
     distribution_labels = set()
     domains = set()
+
+    copy_vcs_dir = False
 
     invocation = builder.invocation
     target_label_exists = invocation.target_label_exists
@@ -574,6 +578,26 @@ def distribute(builder, target_dir, name, unset_tags=False):
     # We get all the "reasonable" checkout and package labels
     all_checkouts = builder.invocation.all_checkout_labels()
     all_packages = builder.invocation.all_package_labels()
+
+    # Standard names
+    # ==============
+    if name == '_source_release':
+        # A source release is the source directories alone, but with no VCS
+        for label in all_checkouts:
+            distribute_checkout(builder, name, label, copy_vcs_dir=False)
+        all_packages = []
+    elif name == '_source_release_vcs':
+        # or we can have a source release with VCS...
+        for label in all_checkouts:
+            distribute_checkout(builder, name, label, copy_vcs_dir=True)
+        all_packages = []
+        copy_vcs_dir = True
+    elif name == '_binary_release':
+        # A binary release is all packages as binary
+        for label in all_packages:
+            distribute_package(builder, name, label, binary=True, source=False)
+        all_checkouts = []
+    # ==============
 
     combined_labels = all_checkouts.union(all_packages)
     for label in combined_labels:
@@ -593,7 +617,7 @@ def distribute(builder, target_dir, name, unset_tags=False):
         return
 
     # Add in appropriate build descriptions
-    extra_labels = add_build_descriptions(builder, name, domains)
+    extra_labels = add_build_descriptions(builder, name, domains, copy_vcs_dir)
 
     # Don't forget that means more labels for us
     distribution_labels.update(extra_labels)

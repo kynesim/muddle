@@ -364,58 +364,18 @@ def check_distributed_files(d, dist_dir):
         # If the target directory didn't have .git copied to it, then we
         # should expect to NOT find it
         if git_copied:
-            dt.assert_same(dist)
+            dt.assert_same(dist, ignore=['01.pyc'])
         else:
-            dt.assert_same(dist, ignore=['.git'])
+            dt.assert_same(dist, ignore=['01.pyc', '.git'])
 
-    # One of these is going to be correct!
+    print '--- Checking src/second_co'
     compare_dirs(d.where, dist_dir, os.path.join('src', 'second_co'))
-    compare_dirs(d.where, dist_dir, os.path.join('src', 'second_co'), git_copied=True)
-
-    return
-
-    def check_dot_muddle(is_subdomain):
-        with Directory('.muddle') as m:
-            check_files([m.join('Description'),
-                         m.join('RootRepository'),
-                         m.join('VersionsRepository')])
-
-            if is_subdomain:
-                check_files([m.join('am_subdomain')])
-
-            with Directory(m.join('tags', 'checkout')) as c:
-                check_files([c.join('builds', 'checked_out'),
-                             c.join('first_co', 'checked_out'),
-                             c.join('main_co', 'checked_out'),
-                             c.join('second_co', 'checked_out')])
-
-    def check_src_files(main_c_file='main1.c'):
-        check_files([s.join('builds', '01.py'),
-                     s.join('main_co', 'Makefile.muddle'),
-                     s.join('main_co', main_c_file),
-                     s.join('first_co', 'Makefile.muddle'),
-                     s.join('first_co', 'first.c'),
-                     s.join('second_co', 'Makefile.muddle'),
-                     s.join('second_co', 'second.c')])
-
-    check_dot_muddle(is_subdomain=False)
-    with Directory('src') as s:
-        check_src_files('main1.c')
-
-    with Directory(d.join('domains', 'subdomain1', 'src')) as s:
-        check_src_files('subdomain1.c')
-    with Directory(d.join('domains', 'subdomain1')):
-        check_dot_muddle(is_subdomain=True)
-
-    with Directory(d.join('domains', 'subdomain1', 'domains', 'subdomain3', 'src')) as s:
-        check_src_files('subdomain3.c')
-    with Directory(d.join('domains', 'subdomain1', 'domains', 'subdomain3')):
-        check_dot_muddle(is_subdomain=True)
-
-    with Directory(d.join('domains', 'subdomain2', 'src')) as s:
-        check_src_files('subdomain2.c')
-    with Directory(d.join('domains', 'subdomain2')):
-        check_dot_muddle(is_subdomain=True)
+    print '--- Checking .muddle'
+    compare_dirs(d.where, dist_dir, '.muddle')
+    print '--- Checking src'
+    compare_dirs(d.where, dist_dir, 'src')
+    print '--- Checking domains'
+    compare_dirs(d.where, dist_dir, 'domains')
 
 def main(args):
 
@@ -442,7 +402,8 @@ def main(args):
 
             banner('TESTING DISTRIBUTE')
             target_dir = os.path.join(root_dir, 'target')
-            muddle(['distribute', target_dir, 'mixed'])
+            muddle(['distribute', '_source_release', target_dir])
+            #muddle(['distribute', 'mixed', target_dir])
 
             check_distributed_files(d, target_dir)
 

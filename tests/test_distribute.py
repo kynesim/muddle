@@ -125,17 +125,18 @@ def describe_to(builder):
     distribute_checkout(builder, 'mixed', label('checkout:first_co/*'))
     distribute_package(builder, 'mixed', label('package:second_pkg{{x86}}/*'))
 
-    # And some variations, in our subdomains
-    distribute_checkout(builder, 'mixed',
-                        label('checkout:(subdomain1)first_co/*'), copy_vcs_dir=True)
-    distribute_package(builder, 'mixed',
-                       label('package:(subdomain1)second_pkg{{x86}}/*'))
-    distribute_package(builder, 'mixed',
-                       label('package:(subdomain1(subdomain3))second_pkg{{x86}}/*'),
-                       binary=True, source=True)
-    distribute_package(builder, 'mixed',
-                       label('package:(subdomain2)second_pkg{{x86}}/*'),
-                       binary=False, source=True)
+    if False:
+        # And some variations, in our subdomains
+        distribute_checkout(builder, 'mixed',
+                            label('checkout:(subdomain1)first_co/*'), copy_vcs_dir=True)
+        distribute_package(builder, 'mixed',
+                           label('package:(subdomain1)second_pkg{{x86}}/*'))
+        distribute_package(builder, 'mixed',
+                           label('package:(subdomain1(subdomain3))second_pkg{{x86}}/*'),
+                           binary=True, source=True)
+        distribute_package(builder, 'mixed',
+                           label('package:(subdomain2)second_pkg{{x86}}/*'),
+                           binary=False, source=True)
 """
 
 SUBDOMAIN1_BUILD_DESC = """ \

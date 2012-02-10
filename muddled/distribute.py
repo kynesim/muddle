@@ -6,7 +6,7 @@ import os
 
 from muddled.depend import Action, Rule
 from muddled.utils import GiveUp, MuddleBug, LabelTag, LabelType, \
-        copy_without, normalise_dir
+        copy_without, normalise_dir, find_local_root
 from muddled.version_control import get_vcs_handler
 
 def distribute_checkout(builder, name, label, copy_vcs_dir=False):
@@ -110,7 +110,7 @@ def _actually_distribute_checkout(builder, label, target_dir, copy_vcs_dir):
     """
     # 1. We know the target directory. Note it may not exist yet
     # 2. Get the actual directory of the checkout
-    co_dir = builder.invocation.db.get_checkout_location(label)
+    co_src_dir = builder.invocation.db.get_checkout_location(label)
     # 3. If we're not doing copy_vcs_dir, find the VCS for this
     #    checkout, and from that determine its VCS dir, and make
     #    that our "without" string
@@ -123,15 +123,24 @@ def _actually_distribute_checkout(builder, label, target_dir, copy_vcs_dir):
             without.append(vcs_dir)
     # 4. Do a copywithout to do the actual copy, suitably ignoring
     #    the VCS directory if necessary.
-    target_dir = os.path.join(normalise_dir(target_dir), co_dir)
+    co_tgt_dir = os.path.join(normalise_dir(target_dir), co_src_dir)
     print 'Copying:'
-    print '  from %s'%co_dir
-    print '  to   %s'%target_dir
+    print '  from %s'%co_src_dir
+    print '  to   %s'%co_tgt_dir
     if not copy_vcs_dir:
         print '  without %s'%vcs_dir
-    copy_without(co_dir, target_dir, without, preserve=True)
+    copy_without(co_src_dir, co_tgt_dir, without, preserve=True)
     # 5. Set the appropriate tags in the target .muddle/ directory
-    # 6. Set the /distributed tag on the checkout
+    tags_dir = os.path.join('.muddle', 'tags', 'checkout', label.name)
+    local_root = find_local_root(builder, label)
+    src_tags_dir = os.path.join(local_root, tags_dir)
+
+    root_path = normalise_dir(builder.invocation.db.root_path)
+    rel_local_root = os.path.relpath(local_root, root_path)
+    tgt_tags_dir = os.path.join(target_dir, rel_local_root, tags_dir)
+    print '..copying %s'%src_tags_dir
+    print '       to %s'%tgt_tags_dir
+    copy_without(src_tags_dir, tgt_tags_dir, preserve=True)
 
 def _actually_distribute_binary(builder, label, target_dir):
     """Do a binary distribution of our package.
@@ -142,26 +151,40 @@ def _actually_distribute_binary(builder, label, target_dir):
     obj_dir = builder.invocation.package_obj_path(label)
     install_dir = builder.invocation.package_install_path(label)
     # 3. Use copywithout to copy the obj/ and install/ directories over
+
+    # XXX TODO XXX Only copy the stuff for THIS ROLE
+
     root_path = normalise_dir(builder.invocation.db.root_path)
     rel_obj_dir = os.path.relpath(normalise_dir(obj_dir), root_path)
     rel_install_dir = os.path.relpath(normalise_dir(install_dir), root_path)
 
-    target_obj_dir = os.path.join(target_dir, rel_obj_dir)
-    target_install_dir = os.path.join(target_dir, rel_install_dir)
+    tgt_obj_dir = os.path.join(target_dir, rel_obj_dir)
+    tgt_install_dir = os.path.join(target_dir, rel_install_dir)
 
-    target_obj_dir = normalise_dir(target_obj_dir)
-    target_install_dir = normalise_dir(target_install_dir)
+    tgt_obj_dir = normalise_dir(tgt_obj_dir)
+    tgt_install_dir = normalise_dir(tgt_install_dir)
 
     print 'Copying:'
     print '  from %s'%obj_dir
     print '  and  %s'%install_dir
-    print '  to   %s'%target_obj_dir
-    print '  and  %s'%target_install_dir
+    print '  to   %s'%tgt_obj_dir
+    print '  and  %s'%tgt_install_dir
 
-    copy_without(obj_dir, target_obj_dir, preserve=True)
-    copy_without(install_dir, target_install_dir, preserve=True)
+    copy_without(obj_dir, tgt_obj_dir, preserve=True)
+    copy_without(install_dir, tgt_install_dir, preserve=True)
     # 4. Set the appropriate tags in the target .muddle/ directory
-    # 5. Set the /distributed tag on the package
+    tags_dir = os.path.join('.muddle', 'tags', 'package', label.name)
+    local_root = find_local_root(builder, label)
+    src_tags_dir = os.path.join(local_root, tags_dir)
+
+    rel_local_root = os.path.relpath(local_root, root_path)
+    tgt_tags_dir = os.path.join(target_dir, rel_local_root, tags_dir)
+    print '..copying %s'%src_tags_dir
+    print '       to %s'%tgt_tags_dir
+
+    # XXX TODO XXX Only copy the stuff for THIS ROLE
+
+    copy_without(src_tags_dir, tgt_tags_dir, preserve=True)
 
 class DistributeAction(Action):
     """
@@ -330,6 +353,29 @@ def distribute(builder, target_dir, name, unset_tags=False):
     If 'unset_tags' is true, then we unset the /distribute tags for our
     labels before doing the distribution.
     """
+
+    # XXX TODO
+    # XXX TODO 1. We should copy the "top level" of each .muddle directory
+    # XXX TODO 2. We should distribute the build description checkouts
+    # XXX TODO    (how do we know whether to copy VCS or not?)
+    # XXX TODO 3. If we have subdomains, we should do both (1) and (2) for
+    # XXX TODO    them as well, BUT:
+    # XXX TODO
+    # XXX TODO      Should we only do so if there are any labels *with* that
+    # XXX TODO      subdomain actually being distributed? Or do we always
+    # XXX TODO      distribute the whole "skeleton" of a build tree?
+    # XXX TODO
+    # XXX TODO      ...Maybe we should have a switch to tell us which to do
+    # XXX TODO
+
+    # XXX TODO Add support for "generic" distributions, including at least:
+    # XXX TODO
+    # XXX TODO  - all checkouts, without VCS (useful for packaging up releases)
+    # XXX TODO  - all checkouts, with VCS (useful as a "clean copy" command)
+    # XXX TODO  - all packages as binary only
+    # XXX TODO
+    # XXX TODO Of course, naming them is the hard part - for instance,
+    # XXX TODO _all_sources, or _all_binaries, or _all_checkouts, ...
 
     distribution_labels = set()
 

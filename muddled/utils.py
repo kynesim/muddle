@@ -326,6 +326,60 @@ def find_root_and_domain(dir):
     # Didn't find a directory.
     return (None, None)
 
+def find_label_dir(builder, label):
+    """Given a label, find the corresponding directory.
+
+    * for checkout labels, the checkout directory
+    * for package labels, the install directory
+    * for deployment labels, the deployment directory
+
+    This is the heart of "muddle query dir".
+    """
+    if label.type == LabelType.Checkout:
+        dir = builder.invocation.db.get_checkout_path(label)
+    elif label.type == LabelType.Package:
+        dir = builder.invocation.package_install_path(label)
+    elif label.type == LabelType.Deployment:
+        dir = builder.invocation.deploy_path(label.name, domain=label.domain)
+    else:
+        dir = None
+    return dir
+
+def find_local_root(builder, label):
+    """Given a label, find its "local" root directory.
+
+    For a normal label, this will be the normal muddle root directory
+    (where the top-level .muddle/ directory is).
+
+    For a label in a subdomain, it will be the root directory of that
+    subdomain - again, where its .muddle/ directory is.
+    """
+    label_dir = find_label_dir(builder, label)
+    if label_dir is None:
+        raise GiveUp('Cannot find local root, cannot determine location of label %s'%label)
+
+    # Then we need to go up until we find we find a .muddle/ directory
+    # (we assume that at worst we'll hit one at the top of the build tree)
+    #
+    # We know we're (somewhere) under either src/, install/ or deploy/
+    # so we should have at least two levels to go up
+
+    dir = label_dir
+    while True:
+        if os.path.exists(os.path.join(dir, '.muddle')):
+            return dir
+
+        up1, tail = os.path.split(dir)
+        if up1 == dir or dir == '/':
+            # We treat this as a bug because we assume we wouldn't BE here
+            # unless we already knew (or rather, one of our callers did) that
+            # we were "inside" a muddle build tree
+            raise MuddleBug('Searching upwards for local root failed\n'
+                            'Label was %s\n'
+                            'Started at %s\n'
+                            'Ended at %s, without finding a .muddle/ directory'%(
+                                label, label_dir, head))
+        dir = up1
 
 def ensure_dir(dir, verbose=True):
     """

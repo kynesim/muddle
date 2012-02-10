@@ -40,7 +40,7 @@ import muddled.version_control as version_control
 from muddled.db import Database, InstructionFile
 from muddled.depend import Label, label_list_to_string
 from muddled.utils import GiveUp, MuddleBug, Unsupported, \
-        DirType, LabelTag, LabelType
+        DirType, LabelTag, LabelType, find_label_dir
 from muddled.version_control import split_vcs_url, checkout_from_repo
 from muddled.repository import Repository
 from muddled.version_stamp import VersionStamp
@@ -2167,14 +2167,34 @@ class QueryDir(QueryCommand):
     def with_build_tree(self, builder, current_dir, args):
         label = self.get_label_from_fragment(builder, args)
 
-        dir = None
-        if label.type == LabelType.Checkout:
-            dir = builder.invocation.db.get_checkout_path(label)
-        elif label.type == LabelType.Package:
-            dir = builder.invocation.package_install_path(label)
-        elif label.type == LabelType.Deployment:
-            dir = builder.invocation.deploy_path(label.name,
-                    domain=label.domain)
+        dir = find_label_dir(builder, label)
+
+        if dir is not None:
+            print dir
+        else:
+            print None
+
+@subcommand('query', 'localroot', CAT_QUERY)
+class QueryLocalRoot(QueryCommand):
+    """
+    :Syntax: muddle query localroot <label>
+
+    Print the "local root" directory for a label.
+
+    For a label representing a checkout, package or deployment in the
+    top-level, prints out the normal root directory (as "muddle query root").
+
+    For a label in a subdomain, printes out the root directory for said
+    subdomain (i.e., the directory containing its .muddle/ directory).
+
+    <label> is a label or label fragment (see "muddle help labels"). The
+    default type is 'package:'.
+    """
+
+    def with_build_tree(self, builder, current_dir, args):
+        label = self.get_label_from_fragment(builder, args)
+
+        dir = utils.find_local_root(builder, label)
 
         if dir is not None:
             print dir

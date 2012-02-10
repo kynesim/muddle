@@ -288,6 +288,11 @@ def _actually_distribute_binary(builder, label, target_dir):
             copy_file(tag_file, os.path.join(tgt_tags_dir, tag_filename),
                       preserve=True)
 
+    # XXX TODO Still to do:
+    # XXX TODO
+    # XXX TODO - Tags for the checkouts this package depends on
+    # XXX TODO - Something about instruction files
+
 class DistributeAction(Action):
     """
     An action that distributes a something-or-other.
@@ -525,6 +530,38 @@ def add_build_descriptions(builder, name, domains, copy_vcs_dir=False):
 
     return extra_labels
 
+def copy_muddle_skeleton(builder, name, target_dir, domains):
+    """Copy the "top files" for each necessary .muddle directory
+    """
+
+    src_root = builder.invocation.db.root_path
+    tgt_root = target_dir
+
+    for domain in sorted(domains):
+        print '.muddle skeleton for domain:', domain
+
+        if not domain:
+            src_dir = os.path.join(src_root, '.muddle')
+            tgt_dir = os.path.join(tgt_root, '.muddle')
+        else:
+            inner_path = domain_subpath(domain)
+            src_dir = os.path.join(src_root, inner_path, '.muddle')
+            tgt_dir = os.path.join(tgt_root, inner_path, '.muddle')
+
+        if not os.path.exists(tgt_dir):
+            os.makedirs(tgt_dir)
+
+        for name in ('RootRepository', 'Description'):
+            copy_file(os.path.join(src_dir, name),
+                      os.path.join(tgt_dir, name), preserve=True)
+
+        for name in ('VersionsRepository', 'am_subdomain'):
+            src_name = os.path.join(src_dir, name)
+            if os.path.exists(src_name):
+                copy_file(src_name, os.path.join(tgt_dir, name), preserve=True)
+
+    print 'Done'
+
 def distribute(builder, name, target_dir, unset_tags=False):
     """Distribute using distribution context 'name', to 'target_dir'.
 
@@ -635,6 +672,9 @@ def distribute(builder, name, target_dir, unset_tags=False):
 
     # Remember to say where we're copying to...
     builder.set_distribution(name, target_dir)
+
+    # Copy over the skeleton of the required .muddle directories
+    copy_muddle_skeleton(builder, name, target_dir, domains)
 
     print 'Building %d /distribute label%s'%(num_labels,
             '' if num_labels==1 else 's')

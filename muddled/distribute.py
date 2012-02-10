@@ -6,7 +6,7 @@ import os
 
 from muddled.depend import Action, Rule
 from muddled.utils import GiveUp, MuddleBug, LabelTag, LabelType, \
-        copy_without, normalise_dir, find_local_root
+        copy_without, normalise_dir, find_local_relative_root
 from muddled.version_control import get_vcs_handler
 
 def distribute_checkout(builder, name, label, copy_vcs_dir=False):
@@ -131,13 +131,11 @@ def _actually_distribute_checkout(builder, label, target_dir, copy_vcs_dir):
         print '  without %s'%vcs_dir
     copy_without(co_src_dir, co_tgt_dir, without, preserve=True)
     # 5. Set the appropriate tags in the target .muddle/ directory
-    tags_dir = os.path.join('.muddle', 'tags', 'checkout', label.name)
-    local_root = find_local_root(builder, label)
-    src_tags_dir = os.path.join(local_root, tags_dir)
-
     root_path = normalise_dir(builder.invocation.db.root_path)
-    rel_local_root = os.path.relpath(local_root, root_path)
-    tgt_tags_dir = os.path.join(target_dir, rel_local_root, tags_dir)
+    tags_dir = os.path.join('.muddle', 'tags', 'checkout', label.name)
+    local_root = find_local_relative_root(builder, label)
+    src_tags_dir = os.path.join(root_path, local_root, tags_dir)
+    tgt_tags_dir = os.path.join(target_dir, local_root, tags_dir)
     print '..copying %s'%src_tags_dir
     print '       to %s'%tgt_tags_dir
     copy_without(src_tags_dir, tgt_tags_dir, preserve=True)
@@ -174,11 +172,9 @@ def _actually_distribute_binary(builder, label, target_dir):
     copy_without(install_dir, tgt_install_dir, preserve=True)
     # 4. Set the appropriate tags in the target .muddle/ directory
     tags_dir = os.path.join('.muddle', 'tags', 'package', label.name)
-    local_root = find_local_root(builder, label)
-    src_tags_dir = os.path.join(local_root, tags_dir)
-
-    rel_local_root = os.path.relpath(local_root, root_path)
-    tgt_tags_dir = os.path.join(target_dir, rel_local_root, tags_dir)
+    local_root = find_local_relative_root(builder, label)
+    src_tags_dir = os.path.join(root_path, local_root, tags_dir)
+    tgt_tags_dir = os.path.join(target_dir, local_root, tags_dir)
     print '..copying %s'%src_tags_dir
     print '       to %s'%tgt_tags_dir
 

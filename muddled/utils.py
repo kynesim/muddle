@@ -381,6 +381,20 @@ def find_local_root(builder, label):
                                 label, label_dir, head))
         dir = up1
 
+def find_local_relative_root(builder, label):
+    """Given a label, find its "local" root directory, relative to toplevel.
+
+    Calls find_local_root() and then calculates the location of that relative
+    to the root of the entire muddle build tree.
+    """
+    local_root = find_local_root(builder, label)
+    top_root = builder.invocation.db.root_path
+
+    local_root = normalise_dir(local_root)
+    top_root = normalise_dir(top_root)
+
+    return os.path.relpath(local_root, top_root)
+
 def ensure_dir(dir, verbose=True):
     """
     Ensure that dir exists and is a directory, or throw an error.
@@ -1387,6 +1401,7 @@ class HashFile(object):
 def normalise_dir(dir):
     dir = os.path.expanduser(dir)
     dir = os.path.abspath(dir)
+    dir = os.path.normpath(dir)     # remove double slashes, etc.
     return dir
 
 class Directory(object):

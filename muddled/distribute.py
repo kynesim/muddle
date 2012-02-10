@@ -26,7 +26,11 @@ def distribute_checkout(builder, name, label, copy_vcs_dir=False):
         raise MuddleBug('Attempt to use non-checkout label %s for a distribute checkout rule'%label)
 
     source_label = label.copy_with_tag(LabelTag.CheckedOut)
-    target_label = label.copy_with_tag(LabelTag.Distributed)
+    target_label = label.copy_with_tag(LabelTag.Distributed, transient=True)
+
+    # Making our target label transient means that its tag will not be
+    # written out to the muddle database (i.e., .muddle/tags/...) when
+    # the label is built
 
     # Is there already a rule for distributing this label?
     if builder.invocation.target_label_exists(target_label):
@@ -89,7 +93,11 @@ def distribute_package(builder, name, label, binary=True, source=False, copy_vcs
         raise MuddleBug('Attempt to use non-package label %s for a distribute package rule'%label)
 
     source_label = label.copy_with_tag(LabelTag.PostInstalled)
-    target_label = label.copy_with_tag(LabelTag.Distributed)
+    target_label = label.copy_with_tag(LabelTag.Distributed, transient=True)
+
+    # Making our target label transient means that its tag will not be
+    # written out to the muddle database (i.e., .muddle/tags/...) when
+    # the label is built
 
     # Is there already a rule for distributing this label?
     if builder.invocation.target_label_exists(target_label):

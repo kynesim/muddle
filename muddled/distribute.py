@@ -207,18 +207,23 @@ def _actually_distribute_build_desc(builder, label, target_dir, copy_vcs_dir):
     for dirpath, dirnames, filenames in os.walk(co_src_dir):
 
         # Where are we inside the checkout?
+        # Beware, inner_path may be something like './01.py'
         inner_path = os.path.relpath(co_src_dir, dirpath)
+        inner_path = os.path.normpath(inner_path)   # there, better
 
         for name in filenames:
             base, ext = os.path.splitext(name)
             if ext == '.pyc':                       # Ignore .pyc files
                 continue
-            copy_file(os.path.join(dirpath, name),
-                      os.path.join(co_tgt_dir, inner_path, name),
-                      preserve=True)
+            src_path = os.path.join(dirpath, name)
+            tgt_dir = os.path.join(co_tgt_dir, inner_path)
+            tgt_path = os.path.join(tgt_dir, name)
+            if not os.path.exists(tgt_dir):
+                os.makedirs(tgt_dir)
+            copy_file(src_path, tgt_path, preserve=True)
 
         # Ignore VCS directories, if we were asked to do so
-        if vc_dir and vcs_dir in dirnames:
+        if vcs_dir and vcs_dir in dirnames:
             dirnames.remove(vcs_dir)
 
     # Set the appropriate tags in the target .muddle/ directory
@@ -469,7 +474,7 @@ def domain_from_parts(parts):
     domain = '('.join(parts) + ')'*(num_parts-1)
     return domain
 
-def build_desc_label_in_domain(builder, domain):
+def build_desc_label_in_domain(builder, domain, label_tag):
     """Return the label for the build description checkout in this domain.
     """
     # Basically, we need to figure out what checkout to use...
@@ -485,7 +490,44 @@ def build_desc_label_in_domain(builder, domain):
             str = fd.readline()
         build_co_name, build_desc_path = build_co_and_path_from_str(str.strip())
     print '  co_name', build_co_name
-    return Label(LabelType.Checkout, build_co_name, domain=domain)
+    return Label(LabelType.Checkout, build_co_name, tag=label_tag, domain=domain)
+
+def add_build_descriptions(builder, name, domains):
+    """Add all the implicated build description checkouts to our distribution.
+    """
+    # We need a build description for each domain we had a label for
+    # (and possibly also any "in between" domains that weren't mentioned
+    # explicitly?)
+
+    extra_labels = []
+
+    cumulative_domains = set()
+    for domain in sorted(domains):
+        print 'Domain %r'%domain
+        if domain is None:
+            print '  Add domain %r'%domain
+            cumulative_domains.add(domain)
+        else:
+            parts = Label.split_domain(domain)
+            for ii in range(1, 1+len(parts)):
+                d = domain_from_parts(parts[:ii])
+                print '  Add domain %r'%d
+                cumulative_domains.add(d)
+    print 'Found all domains'
+
+    # XXX TODO XXX
+    # Do we want VCS dir for our build descriptions?
+    copy_vcs_dir = False
+
+    print 'Adding build descriptions'
+    for domain in sorted(cumulative_domains):
+        co_label = build_desc_label_in_domain(builder, domain, LabelTag.Distributed)
+        print '  Label', co_label
+        distribute_build_desc(builder, name, co_label, copy_vcs_dir)
+        extra_labels.append(co_label)
+    print 'Done'
+
+    return extra_labels
 
 def distribute(builder, target_dir, name, unset_tags=False):
     """Distribute using distribution context 'name', to 'target_dir'.
@@ -546,45 +588,21 @@ def distribute(builder, target_dir, name, unset_tags=False):
                 # And remember its domain
                 domains.add(target.domain)
 
-    distribution_labels = list(distribution_labels)
-    distribution_labels.sort()
-
     if not distribution_labels:
         print 'Nothing to distribute for %s'%name
         return
 
     # Add in appropriate build descriptions
-    # We need a build description for each domain we had a label for
-    # (and possibly also any "in between" domains that weren't mentioned
-    # explicitly?)
+    extra_labels = add_build_descriptions(builder, name, domains)
 
-    cumulative_domains = set()
-    for domain in sorted(domains):
-        print 'Domain %r'%domain
-        if domain is None:
-            print '  Add domain %r'%domain
-            cumulative_domains.add(domain)
-        else:
-            parts = Label.split_domain(domain)
-            for ii in range(1, 1+len(parts)):
-                d = domain_from_parts(parts[:ii])
-                print '  Add domain %r'%d
-                cumulative_domains.add(d)
-    print 'Found all domains'
-
-    # XXX TODO XXX
-    # Do we want VCS dir for our build descriptions?
-    copy_vcs_dir = False
-
-    print 'Adding build descriptions'
-    for domain in sorted(cumulative_domains):
-        co_label = build_desc_label_in_domain(builder, domain)
-        print '  Label', co_label
-        distribute_build_desc(builder, name, co_label, copy_vcs_dir)
-    print 'Done'
+    # Don't forget that means more labels for us
+    distribution_labels.update(extra_labels)
 
     num_labels = len(distribution_labels)
 
+    distribution_labels = sorted(distribution_labels)
+
+    # If '/distributed' is now transient, do we need to do this?
     if unset_tags:
         print 'Killing %d /distribute label%s'%(num_labels,
                 '' if num_labels==1 else 's')

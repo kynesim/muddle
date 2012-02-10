@@ -73,9 +73,21 @@ def distribute_build_desc(builder, name, label, copy_vcs_dir=False):
 
     # Is there already a rule for distributing this label?
     if builder.invocation.target_label_exists(target_label):
-        # Yes - add this distribution to it (if it's not there already)
+        # Yes. Is it the right sort of action?
         rule = builder.invocation.ruleset.map[target_label]
-        rule.action.add_distribution(name, copy_vcs_dir)
+        action = rule.action
+        if isinstance(action, DistributeBuildDescription):
+            # It's the right sort of thing - just add this distribution name
+            action.add_distribution(name, copy_vcs_dir)
+        elif isinstance(action, DistributeCheckout):
+            # Ah, it's a generic checkout action - let's replace it with
+            # an equivalent build description action
+            new_action = DistributeBuildDescription(name, copy_vcs_dir)
+            # And copy over any names we don't yet have
+            new_action.merge(action)
+        else:
+            # Oh dear, it's something unexpected
+            raise GiveUp('Found unexpected action %s on build description rule'%action)
     else:
         # No - we need to create one
         action = DistributeBuildDescription(name, copy_vcs_dir)
@@ -334,6 +346,18 @@ class DistributeAction(Action):
         """Return the distribution names we know about.
         """
         return self.distributions.keys()
+
+    def merge(self, other):
+        """Merge in the distribution names dictionary from another action.
+
+        Any names that the other action has that we don't will be copied over.
+
+        Any names we already have will be ignored.
+        """
+        other_dict = other.distributions
+        for name in other_dict.keys():
+            if name not in self.distributions:
+                self.distributions[name] = other_dict[name]
 
     def build_label(self, builder, label):
         """Override this to do the actual task of distribution.
@@ -654,6 +678,9 @@ def distribute(builder, name, target_dir, unset_tags=False):
         return
 
     # Add in appropriate build descriptions
+    # We need to do this after everyone else has had a chance to set rules
+    # on /distribute labels, so we can override any DistributeCheckout actions
+    # that were mistakenly placed on our build descriptions...
     extra_labels = add_build_descriptions(builder, name, domains, copy_vcs_dir)
 
     # Don't forget that means more labels for us

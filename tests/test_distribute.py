@@ -347,50 +347,6 @@ def check_checkout_files(d):
     with Directory(d.join('domains', 'subdomain2')):
         check_dot_muddle(is_subdomain=True)
 
-def check_distributed_files(d, dist_dir):
-    """Check we have all the files we should have after distributing
-
-    'd' is the current Directory.
-
-    'target_dir' is the root of our distribution
-    """
-
-    def compare_dirs(orig_root, dist_root, subdir, copy_vcs_dir=False, unwanted_files=None):
-        orig = os.path.join(orig_root, subdir)
-        dist = os.path.join(dist_root, subdir)
-        # Whether there's .git directories or not, we don't want to show
-        # their innards
-        dt = DirTree(orig, fold_dirs=['.git'])
-
-        if not unwanted_files:
-            unwanted_files = []
-
-        # Always ignore the compiled build description
-        unwanted_files.append('builds/01.pyc')
-        # If the target directory didn't have .git copied to it, then we
-        # should expect to NOT find it
-        if not copy_vcs_dir:
-            unwanted_files.append('.git')
-        dt.assert_same(dist, unwanted_files=unwanted_files)
-
-    print '--- Checking src/second_co'
-    compare_dirs(d.where, dist_dir, os.path.join('src', 'second_co'))
-    print '--- Checking .muddle'
-    compare_dirs(d.where, dist_dir, '.muddle',
-                 unwanted_files=['.muddle/tags/package',
-                                 '.muddle/tags/deployment',
-                                ])
-    print '--- Checking src'
-    compare_dirs(d.where, dist_dir, 'src')
-    print '--- Checking domains'
-    compare_dirs(d.where, dist_dir, 'domains',
-                 unwanted_files=['obj',
-                                 'install',
-                                 'deploy',
-                                 '.muddle/tags/package',
-                                 '.muddle/tags/deployment',
-                                ])
-
 def main(args):
 
     if args:
@@ -418,12 +374,22 @@ def main(args):
             banner('STAMP VERSION')
             muddle(['stamp', 'version'])
 
-            banner('TESTING DISTRIBUTE')
+            banner('TESTING DISTRIBUTE SOURCE RELEASE')
             target_dir = os.path.join(root_dir, 'target')
             muddle(['distribute', '_source_release', target_dir])
-            #muddle(['distribute', 'mixed', target_dir])
+            dt = DirTree(d.where, fold_dirs=['.git'])
+            dt.assert_same(target_dir, onedown=True,
+                           unwanted_files=['.git',
+                                           'builds/01.pyc',
+                                           'obj',
+                                           'install',
+                                           'deploy',
+                                           'versions',      # XXX For the moment
+                                           '.muddle/tags/package',
+                                           '.muddle/tags/deployment',
+                                          ])
 
-            check_distributed_files(d, target_dir)
+            #muddle(['distribute', 'mixed', target_dir])
 
 
 if __name__ == '__main__':

@@ -282,7 +282,7 @@ class DirTree(object):
                 return False
         return True
 
-    def _tree(self, path, head, tail, unwanted_files, lines, level):
+    def _tree(self, path, head, tail, unwanted_files, lines, level, report_this=True):
         """Add the next components of the tree to 'lines'
 
         First adds the element specified by 'path' (or 'head'/'tail'),
@@ -299,7 +299,8 @@ class DirTree(object):
         See the description of 'same_as' for how 'unwanted_files' is
         interpreted.
         """
-        lines.append('%s%s'%(level*self.indent, self._filestr(path, tail)))
+        if report_this:
+            lines.append('%s%s'%(level*self.indent, self._filestr(path, tail)))
         if os.path.isdir(path) and tail not in self.fold_dirs:
             files = os.listdir(path)
             files.sort()
@@ -308,8 +309,11 @@ class DirTree(object):
                 if self.path_is_wanted(this_path, unwanted_files):
                     self._tree(this_path, path, name, unwanted_files, lines, level+1)
 
-    def as_lines(self, unwanted_files=None):
+    def as_lines(self, onedown=False, unwanted_files=None):
         """Return our representation as a list of text lines.
+
+        If 'onedown' is true, then we don't list the toplevel directory
+        we're given (i.e., 'path' itself).
 
         See the description of 'same_as' for how 'unwanted_files' is
         interpreted.
@@ -322,9 +326,12 @@ class DirTree(object):
 
         if unwanted_files is None:
             unwanted_files = []
+
+        # Start with 'self.path' itself
         head, tail = os.path.split(self.path)
         if self.path_is_wanted(self.path, unwanted_files):
-            self._tree(self.path, head, tail, unwanted_files, lines, 0)
+            self._tree(self.path, head, tail, unwanted_files, lines, 0,
+                       report_this=not onedown)
         return lines
 
     def __str__(self):
@@ -339,12 +346,15 @@ class DirTree(object):
         """
         return str(self) == str(other)
 
-    def assert_same(self, other_path, unwanted_files=None):
+    def assert_same(self, other_path, onedown=False, unwanted_files=None):
         """Compare this DirTree and the DirTree() for 'other_path'.
 
         Thus 'other_path' should be a path. A temporary DirTree will
-        be created for 'other_path', using the same values for
+        be created for 'other_path', using the same values for 'onedown',
         'fold_dirs' and 'indent' as for this DirTree.
+
+        If 'onedown' is true, then we don't list the toplevel directory
+        we're given (i.e., 'path' itself).
 
         If 'unwanted_files' is specified, then is should be a list of filenames
         (or an empty list). These are files that we do not report when listing
@@ -373,8 +383,8 @@ class DirTree(object):
         convenient comparison of two directories, a source and a target.
         """
         other = DirTree(other_path, self.fold_dirs, self.indent)
-        this_lines = self.as_lines(unwanted_files)
-        that_lines = other.as_lines()
+        this_lines = self.as_lines(onedown, unwanted_files)
+        that_lines = other.as_lines(onedown)
 
         if unwanted_files:
             unwanted_text = 'Unwanted files:\n  %s\n'%('\n  '.join(unwanted_files))

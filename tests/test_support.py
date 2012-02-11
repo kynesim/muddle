@@ -215,6 +215,8 @@ class DirTree(object):
     Useful for testing that we have the correct files, as it can compare
     its representation against another equivalent instance, and produce
     error reports if they don't match.
+
+    Really, a hack for a single solution...
     """
 
     def __init__(self, path, fold_dirs=None, indent='  '):
@@ -274,7 +276,13 @@ class DirTree(object):
             flags.append('*')
         return '%s%s'%(filename, ''.join(flags))
 
-    def _tree(self, path, head, tail, ignore, lines, level):
+    def path_is_wanted(self, path, unwanted_files):
+        for end in unwanted_files:
+            if path.endswith(os.path.join('/', end)):
+                return False
+        return True
+
+    def _tree(self, path, head, tail, unwanted_files, lines, level):
         """Add the next components of the tree to 'lines'
 
         First adds the element specified by 'path' (or 'head'/'tail'),
@@ -288,26 +296,23 @@ class DirTree(object):
         down separately just because we already had to calculate 'head'
         and 'tail' higher up, but we need all three.
 
-        'ignore' is a list of filenames to ignore (or empty). We don't
-        report filenames in that list (or their content, if they are a
-        directory).
+        See the description of 'same_as' for how 'unwanted_files' is
+        interpreted.
         """
         lines.append('%s%s'%(level*self.indent, self._filestr(path, tail)))
         if os.path.isdir(path) and tail not in self.fold_dirs:
             files = os.listdir(path)
             files.sort()
             for name in files:
-                if name not in ignore:
-                    self._tree(os.path.join(path, name), path, name, ignore,
-                               lines, level+1)
+                this_path = os.path.join(path, name)
+                if self.path_is_wanted(this_path, unwanted_files):
+                    self._tree(this_path, path, name, unwanted_files, lines, level+1)
 
-    def as_lines(self, ignore=None):
+    def as_lines(self, unwanted_files=None):
         """Return our representation as a list of text lines.
 
-        If 'ignore' is specified, it should be a list of files (normally
-        directories) that will be ignored (not shown) in the listing of this
-        DirTree (but not in the listing of the other). See 'assert_same()'
-        for how this is used.
+        See the description of 'same_as' for how 'unwanted_files' is
+        interpreted.
 
         Our "str()" output is this list joined with newlines.
         """
@@ -315,11 +320,11 @@ class DirTree(object):
         if not os.path.exists(self.path):
             return lines
 
-        if ignore is None:
-            ignore = []
+        if unwanted_files is None:
+            unwanted_files = []
         head, tail = os.path.split(self.path)
-        if tail not in ignore:
-            self._tree(self.path, head, tail, ignore, lines, 0)
+        if self.path_is_wanted(self.path, unwanted_files):
+            self._tree(self.path, head, tail, unwanted_files, lines, 0)
         return lines
 
     def __str__(self):
@@ -334,20 +339,32 @@ class DirTree(object):
         """
         return str(self) == str(other)
 
-    def assert_same(self, other_path, ignore=None):
+    def assert_same(self, other_path, unwanted_files=None):
         """Compare this DirTree and the DirTree() for 'other_path'.
 
         Thus 'other_path' should be a path. A temporary DirTree will
         be created for 'other_path', using the same values for
         'fold_dirs' and 'indent' as for this DirTree.
 
-        If 'ignore' is specified, it should be a list of files (normally
-        directories) that will be ignored (not shown) in the listing of this
-        DirTree (but not in the listing of the other). For instance::
+        If 'unwanted_files' is specified, then is should be a list of filenames
+        (or an empty list). These are files that we do not report when listing
+        this DirTree, because we expect them to be absent in the 'other_path'.
+        For instance::
+
+
+        If 'unwanted_paths' is specified, then it should be a list of
+        filesnames and "terminal" paths (or an empty list).
+
+        When listing this DirTree, a path will be ignored if it ends with
+        '/<xxx>', where <xxx> is one of the unwanted filenames/paths.
+        For instance::
 
             muddle.utils.copy_without('source/src', 'target/src', ['.git'])
             s = DirTree('source/src', fold_dirs=['.git'])
-            copy_succeeded = s.assert_same('target/src', ignore=['.git'])
+            copy_succeeded = s.assert_same('target/src',
+                                            unwanted_files=['.git',
+                                                            'builds/01.pyc',
+                                                           ])
 
         Raises a GiveUp exception if they do not match, with an explanation
         inside it of why.
@@ -356,13 +373,13 @@ class DirTree(object):
         convenient comparison of two directories, a source and a target.
         """
         other = DirTree(other_path, self.fold_dirs, self.indent)
-        this_lines = self.as_lines(ignore)
+        this_lines = self.as_lines(unwanted_files)
         that_lines = other.as_lines()
 
-        if ignore:
-            ignore_text = 'Ignoring: %s\n'%(', '.join(ignore))
+        if unwanted_files:
+            unwanted_text = 'Unwanted files:\n  %s\n'%('\n  '.join(unwanted_files))
         else:
-            ignore_text = ''
+            unwanted_text = ''
 
         for index, (this, that) in enumerate(zip(this_lines, that_lines)):
             if this != that:
@@ -374,14 +391,14 @@ class DirTree(object):
                 else:
                     context = ''
                 raise GiveUp('Directory tree mismatch\n'
-                             '{ignore}'
+                             '{unwanted}'
                              '--- {us}\n'
                              '+++ {them}\n'
                              '@@@ line {index}\n'
                              '{context}'
                              '-{this}\n'
                              '+{that}'.format(us=self.path, them=other.path,
-                                     ignore=ignore_text, context=context,
+                                     unwanted=unwanted_text, context=context,
                                      index=index, this=this, that=that))
 
         if len(this_lines) != len(that_lines):
@@ -416,12 +433,12 @@ class DirTree(object):
             context = '\n'.join(context_lines)
 
             raise GiveUp('Directory tree mismatch\n'
-                         '{ignore}'
+                         '{unwanted}'
                          '--- {us}\n'
                          '+++ {them}\n'
                          'Different number of lines ({uslen} versus {themlen})\n'
                          '{context}'.format(us=self.path, them=other.path,
-                             ignore=ignore_text,
+                             unwanted=unwanted_text,
                              uslen=len(this_lines), themlen=len(that_lines),
                              context=context))
 

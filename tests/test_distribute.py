@@ -355,28 +355,41 @@ def check_distributed_files(d, dist_dir):
     'target_dir' is the root of our distribution
     """
 
-    def compare_dirs(orig_root, dist_root, subdir, git_copied=False):
+    def compare_dirs(orig_root, dist_root, subdir, copy_vcs_dir=False, unwanted_files=None):
         orig = os.path.join(orig_root, subdir)
         dist = os.path.join(dist_root, subdir)
         # Whether there's .git directories or not, we don't want to show
         # their innards
         dt = DirTree(orig, fold_dirs=['.git'])
 
+        if not unwanted_files:
+            unwanted_files = []
+
+        # Always ignore the compiled build description
+        unwanted_files.append('builds/01.pyc')
         # If the target directory didn't have .git copied to it, then we
         # should expect to NOT find it
-        if git_copied:
-            dt.assert_same(dist, ignore=['01.pyc'])
-        else:
-            dt.assert_same(dist, ignore=['01.pyc', '.git'])
+        if not copy_vcs_dir:
+            unwanted_files.append('.git')
+        dt.assert_same(dist, unwanted_files=unwanted_files)
 
     print '--- Checking src/second_co'
     compare_dirs(d.where, dist_dir, os.path.join('src', 'second_co'))
     print '--- Checking .muddle'
-    compare_dirs(d.where, dist_dir, '.muddle')
+    compare_dirs(d.where, dist_dir, '.muddle',
+                 unwanted_files=['.muddle/tags/package',
+                                 '.muddle/tags/deployment',
+                                ])
     print '--- Checking src'
     compare_dirs(d.where, dist_dir, 'src')
     print '--- Checking domains'
-    compare_dirs(d.where, dist_dir, 'domains')
+    compare_dirs(d.where, dist_dir, 'domains',
+                 unwanted_files=['obj',
+                                 'install',
+                                 'deploy',
+                                 '.muddle/tags/package',
+                                 '.muddle/tags/deployment',
+                                ])
 
 def main(args):
 
@@ -400,6 +413,10 @@ def main(args):
             checkout_build_descriptions(root_dir, d)
             muddle(['checkout', '_all'])
             check_checkout_files(d)
+            banner('BUILD')
+            muddle([])
+            banner('STAMP VERSION')
+            muddle(['stamp', 'version'])
 
             banner('TESTING DISTRIBUTE')
             target_dir = os.path.join(root_dir, 'target')

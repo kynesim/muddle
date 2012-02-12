@@ -240,7 +240,7 @@ def _actually_distribute_build_desc(builder, label, target_dir, copy_vcs_dir):
             if ext == '.pyc':                       # Ignore .pyc files
                 continue
             src_path = os.path.join(dirpath, name)
-            tgt_dir = os.path.join(co_tgt_dir, dirpath)
+            tgt_dir = os.path.join(target_dir, dirpath)
             tgt_path = os.path.join(tgt_dir, name)
             if not os.path.exists(tgt_dir):
                 os.makedirs(tgt_dir)

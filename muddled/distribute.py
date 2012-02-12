@@ -203,7 +203,7 @@ def _actually_distribute_checkout(builder, label, target_dir, copy_vcs_dir):
     print 'Copying:'
     print '  from %s'%co_src_dir
     print '  to   %s'%co_tgt_dir
-    if not copy_vcs_dir:
+    if vcs_dir:
         print '  without %s'%vcs_dir
     copy_without(co_src_dir, co_tgt_dir, without, preserve=True)
     # 5. Set the appropriate tags in the target .muddle/ directory

@@ -216,6 +216,7 @@ class Command(object):
         If 'allowed_more' is False, then the command line must end after any
         switches.
         """
+        self.switches = []              # In case we're called again
         while args:
             word = args[0]
             if word[0] == '-':

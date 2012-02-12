@@ -384,7 +384,7 @@ def main(args):
                                            'obj',
                                            'install',
                                            'deploy',
-                                           'versions',      # XXX For the moment
+                                           'versions',
                                            '.muddle/tags/package',
                                            '.muddle/tags/deployment',
                                           ])
@@ -402,6 +402,36 @@ def main(args):
                                            '.muddle/tags/package',
                                            '.muddle/tags/deployment',
                                           ])
+
+            banner('TESTING DISTRIBUTE BINARY RELEASE')
+            target_dir = os.path.join(root_dir, 'binary')
+            muddle(['distribute', '_binary_release', target_dir])
+            dt = DirTree(d.where, fold_dirs=['.git'])
+            dt.assert_same(target_dir, onedown=True,
+                           unwanted_files=['.git',
+                                           'builds/01.pyc',
+                                           'src/main_co',
+                                           'src/first_co',
+                                           'src/second_co',
+                                           'deploy',
+                                           'versions',
+                                           '.muddle/tags/deployment',
+                                          ])
+
+            banner('TESTING DISTRIBUTE BINARY RELEASE WITH VERSIONS')
+            target_dir = os.path.join(root_dir, 'binary-with-versions')
+            muddle(['distribute', '-with-versions', '_binary_release', target_dir])
+            dt = DirTree(d.where, fold_dirs=['.git'])
+            dt.assert_same(target_dir, onedown=True,
+                           unwanted_files=['.git',
+                                           'builds/01.pyc',
+                                           'src/main_co',
+                                           'src/first_co',
+                                           'src/second_co',
+                                           'deploy',
+                                           '.muddle/tags/deployment',
+                                          ])
+
 
             #muddle(['distribute', 'mixed', target_dir])
 

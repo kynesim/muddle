@@ -791,4 +791,12 @@ def vcs_init_directory(scheme, files=None):
     vcs_handler.init_directory()
     vcs_handler.add_files(files)
 
+def vcs_special_dirname(url):
+    """Return the name of the 'special' directory used by this VCS.
+
+    For instance, if 'url' starts with "git+" then we return ".git"
+    """
+    vcs_handler, plain_url = get_vcs_handler_from_string(url)
+    return vcs_handler.get_vcs_dirname()
+
 # End file.

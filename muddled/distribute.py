@@ -8,7 +8,7 @@ from muddled.depend import Action, Rule, Label
 from muddled.utils import GiveUp, MuddleBug, LabelTag, LabelType, \
         copy_without, normalise_dir, find_local_relative_root, package_tags, \
         copy_file, domain_subpath
-from muddled.version_control import get_vcs_handler
+from muddled.version_control import get_vcs_handler, vcs_special_dirname
 from muddled.mechanics import build_co_and_path_from_str
 
 def distribute_checkout(builder, name, label, copy_vcs_dir=False):
@@ -607,7 +607,35 @@ def copy_muddle_skeleton(builder, name, target_dir, domains):
 
     print 'Done'
 
-def distribute(builder, name, target_dir, unset_tags=False, no_op=False):
+def copy_versions_dir(builder, name, target_dir, copy_vcs_dir=False):
+    """Copy the stamp versions directory
+    """
+
+    src_root = builder.invocation.db.root_path
+    src_dir = os.path.join(src_root, 'versions')
+    if not os.path.exists(src_dir):
+        return
+
+    print 'Copying versions/ directory'
+
+    tgt_root = target_dir
+    tgt_dir = os.path.join(tgt_root, 'versions')
+
+    if not os.path.exists(tgt_dir):
+        os.makedirs(tgt_dir)
+
+    versions_repo_url = builder.invocation.db.versions_repo.get()
+    vcs_dir = vcs_special_dirname(versions_repo_url)
+
+    files = os.listdir(src_dir)
+    for name in files:
+        if name == vcs_dir and not copy_vcs_dir:
+            continue
+        copy_file(os.path.join(src_dir, name),
+                  os.path.join(tgt_dir, name), preserve=True)
+
+
+def distribute(builder, name, target_dir, with_versions_dir=False, unset_tags=False, no_op=False):
     """Distribute using distribution context 'name', to 'target_dir'.
 
     The DistributeContext called 'name' must exist.
@@ -713,6 +741,10 @@ def distribute(builder, name, target_dir, unset_tags=False, no_op=False):
 
     # Copy over the skeleton of the required .muddle directories
     copy_muddle_skeleton(builder, name, target_dir, domains)
+
+    if with_versions_dir:
+        # Copy over the versions directory, if any
+        copy_versions_dir(builder, name, target_dir, copy_vcs_dir)
 
     print 'Building %d /distribute label%s'%(num_labels,
             '' if num_labels==1 else 's')

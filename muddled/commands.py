@@ -3679,11 +3679,14 @@ Try "muddle help unstamp" for more information."""
 @command('distribute', CAT_STAMP)       # in some vague sort of way
 class Distribute(Command):
     """
-    :Syntax: muddle distribute <name> <target_directory>
+    :Syntax: muddle distribute [-with-versions] <name> <target_directory>
 
     - <name> is a distribution name.
     - <target_directory> is where to distribute to. If it already exists,
       it should preferably be an empty directory.
+
+    If -with-versions is specified, then the versions/ directory will also be
+    copied. By default it is not.
 
     Several special distribution names exist:
 
@@ -3706,6 +3709,8 @@ class Distribute(Command):
     BEWARE: THIS COMMAND IS STILL UNDER DEVELOPMENT.
     """
 
+    allowed_switches = {'-with-versions':'with-versions'}
+
     def requires_build_tree(self):
         return True
 
@@ -3713,6 +3718,11 @@ class Distribute(Command):
 
         name = None
         target_dir = None
+
+        args = self.remove_switches(args)
+
+        with_versions_dir = ('with-versions' in self.switches)
+
         while args:
             word = args[0]
             args = args[1:]
@@ -3726,9 +3736,11 @@ class Distribute(Command):
                 raise GiveUp("Unexpected argument '%s' for 'distribute'"%word)
 
         if name is None or target_dir is None:
-            raise GiveUp("Syntax: muddle distribute <name> <target_directory>")
+            raise GiveUp("Syntax: muddle distribute [<switches>] <name> <target_directory>")
 
-        distribute(builder, name, target_dir, no_op=self.no_op())
+        distribute(builder, name, target_dir,
+                   with_versions_dir=with_versions_dir,
+                   no_op=self.no_op())
 
 # =============================================================================
 # Checkout, package and deployment commands

@@ -375,7 +375,7 @@ def main(args):
             muddle(['stamp', 'version'])
 
             banner('TESTING DISTRIBUTE SOURCE RELEASE')
-            target_dir = os.path.join(root_dir, 'target')
+            target_dir = os.path.join(root_dir, 'source')
             muddle(['distribute', '_source_release', target_dir])
             dt = DirTree(d.where, fold_dirs=['.git'])
             dt.assert_same(target_dir, onedown=True,
@@ -385,6 +385,20 @@ def main(args):
                                            'install',
                                            'deploy',
                                            'versions',      # XXX For the moment
+                                           '.muddle/tags/package',
+                                           '.muddle/tags/deployment',
+                                          ])
+
+            banner('TESTING DISTRIBUTE SOURCE RELEASE WITH VERSIONS')
+            target_dir = os.path.join(root_dir, 'source-with-versions')
+            muddle(['distribute', '-with-versions', '_source_release', target_dir])
+            dt = DirTree(d.where, fold_dirs=['.git'])
+            dt.assert_same(target_dir, onedown=True,
+                           unwanted_files=['.git',
+                                           'builds/01.pyc',
+                                           'obj',
+                                           'install',
+                                           'deploy',
                                            '.muddle/tags/package',
                                            '.muddle/tags/deployment',
                                           ])

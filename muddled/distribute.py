@@ -200,11 +200,11 @@ def _actually_distribute_checkout(builder, label, target_dir, copy_vcs_dir):
     # 4. Do a copywithout to do the actual copy, suitably ignoring
     #    the VCS directory if necessary.
     co_tgt_dir = os.path.join(normalise_dir(target_dir), co_src_dir)
-    print 'Copying:'
+    print 'Copying checkout:'
     print '  from %s'%co_src_dir
     print '  to   %s'%co_tgt_dir
-    if vcs_dir:
-        print '  without %s'%vcs_dir
+    if without:
+        print '  without %s'%without
     copy_without(co_src_dir, co_tgt_dir, without, preserve=True)
     # 5. Set the appropriate tags in the target .muddle/ directory
     _set_checkout_tags(builder, label, target_dir)
@@ -227,25 +227,20 @@ def _actually_distribute_build_desc(builder, label, target_dir, copy_vcs_dir):
         vcs_dir = vcs_handler.get_vcs_dirname()
 
     co_tgt_dir = os.path.join(normalise_dir(target_dir), co_src_dir)
-    print 'Copying:'
+    print 'Copying build description:'
     print '  from %s'%co_src_dir
     print '  to   %s'%co_tgt_dir
     if vcs_dir:
-        print '  without %s'%vcs_dir
+        print '  without %s'%[vcs_dir]
 
     for dirpath, dirnames, filenames in os.walk(co_src_dir):
-
-        # Where are we inside the checkout?
-        # Beware, inner_path may be something like './01.py'
-        inner_path = os.path.relpath(co_src_dir, dirpath)
-        inner_path = os.path.normpath(inner_path)   # there, better
 
         for name in filenames:
             base, ext = os.path.splitext(name)
             if ext == '.pyc':                       # Ignore .pyc files
                 continue
             src_path = os.path.join(dirpath, name)
-            tgt_dir = os.path.join(co_tgt_dir, inner_path)
+            tgt_dir = os.path.join(co_tgt_dir, dirpath)
             tgt_path = os.path.join(tgt_dir, name)
             if not os.path.exists(tgt_dir):
                 os.makedirs(tgt_dir)
@@ -288,7 +283,7 @@ def _actually_distribute_binary(builder, label, target_dir):
     tgt_obj_dir = normalise_dir(tgt_obj_dir)
     tgt_install_dir = normalise_dir(tgt_install_dir)
 
-    print 'Copying:'
+    print 'Copying binaries:'
     print '    from %s'%obj_dir
     print '    to   %s'%tgt_obj_dir
 

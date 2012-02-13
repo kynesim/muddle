@@ -328,9 +328,30 @@ def _actually_distribute_binary(builder, label, target_dir):
     for co_label in checkouts:
         _set_checkout_tags(builder, co_label, target_dir)
 
-    # XXX TODO Still to do:
-    # XXX TODO
-    # XXX TODO - Something about instruction files
+    # 6. Instruction files
+    #    Although there is infrastructure for this (db.scan_instructions),
+    #    it actually appears to be easier to do this "by hand".
+    #    Assuming I'm *doing* the right thing...
+
+    inst_subdir = os.path.join('instructions', label.name)
+    inst_src_dir = os.path.join(root_path, local_root, inst_subdir)
+    inst_tgt_dir = os.path.join(target_dir, local_root, inst_subdir)
+
+    def make_inst_dir():
+        if not os.path.exists(inst_tgt_dir):
+            os.makedirs(inst_tgt_dir)
+
+    if label.role and label.role != '*':    # Surely we always have a role?
+        src_name = '%s.xml'%label.role
+        src_file = os.path.join(inst_src_dir, src_name)
+        if os.path.exists(src_file):
+            make_inst_dir()
+            copy_file(src_file, os.path.join(inst_tgt_dir, src_name), preserve=True)
+
+    src_file = os.path.join(inst_src_dir, '_default.xml')
+    if os.path.exists(src_file):
+        make_inst_dir()
+        copy_file(src_file, os.path.join(inst_tgt_dir, '_default.xml'), preserve=True)
 
 class DistributeAction(Action):
     """

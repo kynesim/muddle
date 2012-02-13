@@ -2205,6 +2205,32 @@ class QueryLocalRoot(QueryCommand):
         else:
             print None
 
+        # =====================================================================
+        # XXX EXTRA TEMPORARY DEBUGGING XXX
+        # =====================================================================
+        wild = label.copy_with_tag('*')     # Once with /*
+        print 'Instructions for', wild
+        for lbl, path in builder.invocation.db.scan_instructions(wild):
+            print lbl, path
+        wild = wild.copy_with_role('*')     # Once with {*}/*
+        print 'Instructions for', wild
+        for lbl, path in builder.invocation.db.scan_instructions(wild):
+            print lbl, path
+        # =====================================================================
+        inst_subdir = os.path.join('instructions', label.name)
+        inst_src_dir = os.path.join(builder.invocation.db.root_path, '.muddle', inst_subdir)
+
+        if label.role and label.role != '*':    # Surely we always have a role?
+            src_name = '%s.xml'%label.role
+            src_file = os.path.join(inst_src_dir, src_name)
+            if os.path.exists(src_file):
+                print 'Found', src_file
+
+        src_file = os.path.join(inst_src_dir, '_default.xml')
+        if os.path.exists(src_file):
+            print 'Found', src_file
+        # =====================================================================
+
 @subcommand('query', 'env', CAT_QUERY)
 class QueryEnv(QueryCommand):
     """

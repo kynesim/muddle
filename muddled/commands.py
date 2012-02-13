@@ -1798,7 +1798,10 @@ class QueryDistributions(QueryCommand):
 
     def with_build_tree(self, builder, current_dir, args):
         names = find_all_distribution_names(builder)
-        print ' '.join(names)
+        if names:
+            print 'Distributions defined in the build description are:'
+            print '  %s'%(' '.join(names))
+        print 'Standard distributions are:\n  _source_release, _binary_release'
 
 @subcommand('query', 'vcs', CAT_QUERY)
 class QueryVCS(QueryCommand):

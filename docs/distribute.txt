@@ -1,0 +1,301 @@
+=====================
+``muddle distribute``
+=====================
+
+The ``muddle distribute`` command is intended to help with the following use
+cases:
+
+1. I want to distribute all of my source code as an archive (typically, a
+   ``.tgz`` (gzipped TAR file) or ``.zip`` file). How do I extract the
+   relevant directories?
+
+2. I want to prepare a binary release for passing to someone.
+
+3. I want to prepare a distribution where some packages are distributed as
+   source code, some as binary, and some not at all.
+
+That third case was actually the driving force of the development of muddle
+distribution support, as we wanted to be able to produce a build tree
+containing source code for any open-source packages, binary blobs for
+proprietary packages whose source code is private, and possibly omitting
+entirely packages that are "secret".
+
+The desired intent is that, whatever means (1 through 3) is used, the result
+should be a functioning muddle build tree. Clearly this might not always be
+possible for some of the more extreme values of case 3 (if too much of the
+build tree is not distributed because it is "secret"), but even in such cases
+it should ideally be possible to write the build description(s) in such a
+manner that something useful can be built.
+
+  (For instance, GPL v2 says "For an executable work, complete source code
+  means all the source code for all modules it contains, plus any associated
+  interface definition files, plus the scripts used to control compilation and
+  installation of the executable." (I hope that counts as fair quoting!).
+  At the individual checkout/package level, the Makefiles are simple to
+  distribute. Quite often the "scripts used to ..." for the entire system,
+  though, are indeed those used to build the system, but don't actually
+  function outside the original context in which they were used. We'd like to
+  make it possible, in this sort of situation, to distribute muddle build
+  trees that actually work and produce someting
+  useful.)
+
+What is a distribution?
+=======================
+A distribution is two things:
+
+1. a copy of all or part of the muddle build tree
+2. a description of what to copy, for this purpose
+
+The ``muddle distribute`` command uses an instance of (2) to produce (1).
+
+A distribution (in the sense of a set of instructions for distributing) is
+identified by a name. This is just a string, and at the moment has no
+restrictions on its content. However, as normal, we reserve any names starting
+with underscore (``_``) for the system to define (there are currently two
+examples), and we recommend sticking to ``A-Za-z0-9_-`` for the characters in
+the name. However, that is not enforced.
+
+How does it work?
+=================
+.. note:: Ignore this little section if you want.
+
+More-or-less as you might expect, with labels and tags and actions.
+
+Basically, for those checkouts or packages that are to be distributed, a rule
+is added to "build" label ``checkout:<name>/distributed`` from
+``checkout:<name>/checked_out`` using the DistributeCheckout action, or
+``package:<name>{<role>)/distributed`` from
+``package:<name>{<role>}/postinstalled`` using the DistributePackage action.
+
+For source and binary releases (cases 1 and 2) the ``muddle distribute``
+command itself organises this. For case 3, appropriate code in the build
+description causes the rules to be added.
+
+You won't, however, see any ``/distribute`` tags in the ``.muddle`` tags
+directories, as the ``/distribute`` tag is treated as "transient" - i.e., it
+doesn't get recorded on disk. This avoids problems if one (for instance) does
+a source distribution with VCS to one directory, and then without to another,
+followed by a partial distribution to yet another - it would not be clear what
+the ``/distribute`` tags meant, and it would always be necessary to clear them
+before each ``muddle distribute``.
+
+Case 1: Source distribution
+===========================
+
+.. note:: The use case in this section seem to be fairly well satisfied
+   by the current implementation, so is likely to be reasonably stable
+
+In a simple build tree, where there are no subdomains, a `.tgz`` file can be
+produced with a command like::
+
+  tar -zcvf archive.tgz build/src build/.muddle build/versions
+
+where ``build`` is the directory containing the build tree.
+
+If VCS directories (``.git/`` and the like) are not wanted, then something
+like::
+
+  tar -zcvf --exclude-vcs archive.tgz build/src build/.muddle build/versions
+
+may suffice.
+
+However:
+
+a. Neither of those copies over the ``.muddle`` directory, and if one asked
+   to archive the ``.muddle`` directory, one would get all of it, not just
+   the parts needed (and one might also get tags set for packages indicating
+   that they have been built, which will not be true of the archived build
+   tree).
+b. If there are subdomains, the command would need to be rather more complex.
+   And if you're doing something weird, like having a VCS directory (perhaps
+   ``.git``) for the tree as stored in the local repositories, but also a
+   historitcal VCS directory (perhaps ``.bzr``) that came with the checkout
+   when it was imported, then it all gets rather difficult.
+
+So instead one can do::
+
+  pushd build
+  muddle distribute -with-version _source_release ../release_1.0
+  popd
+  tar -zcvf release_1.0.tgz release_1.0
+
+which will copy the sources to a directory called ``release_1.0``.
+
+Specifically, it will copy:
+
+* each checkout directory, including the build description, in all domains
+* the ``versions`` directory, if it exists
+* the necessary parts of the ``.muddle`` directory:
+
+  * the ``Description``,  ``RootRepository`` and ``VersionsRepository`` files
+  * the ``tags/checkout`` directory and the tags for the copied checkouts
+
+It does not copy the VCS directory (as determined by the build description,
+``.git`` or whatever) for the checkouts, or for the ``versions`` directory.
+
+If the ``versions`` directory is not wanted, then the ``-with-versions``
+switch can be left off.
+
+If the VCS directories in the checkouts (and ``versions`` directory) *are*
+wanted, then the ``-with-vcs`` switch should be specified::
+
+  muddle distribute -with-version -with-vcs _source_release ../release_1.0.vcs
+
+In either case, because the necessary parts of the ``.muddle`` directory have
+been copied, it should be possible to build the build tree in the normal
+manner::
+
+  cd release_1.0
+  muddle
+
+Case 2: Binary distribution
+===========================
+
+.. note:: Whilst I think this section makes sense, it is possible that it
+   may be re-addressed in the future.
+
+Sometimes someone wants a binary release - that is, the content of the ``obj``
+and ``install`` directories, plus the build descriptions (so they can deploy
+if necessary).
+
+The command::
+
+  muddle distribute _binary_release ../release_1.0-bin
+
+performs a binary release. It copies:
+
+* the ``obj/<package-name>/<package-role>`` directory for each package
+* the ``install/<role>`` directory for each package (this is, of course,
+  the same directory for all packages in the same role)
+* the build description (i.e., its checkout) for the top-level and for any
+  subdomains that have distributed packages (and any "intermediate" subdomains
+  - i.e., if we distribute ``package:(a(b))name/*`` then we will distribute
+  the build description for subdomain "a(b)", but also for "a").
+* the necessary parts of the ``.muddle`` directory:
+
+  * the ``Description``,  ``RootRepository`` and ``VersionsRepository`` files
+  * the ``tags/package`` directory, and the tags for each package and its role
+    therein
+  * the ``tags/checkout`` directory and the tags for the checkouts used by the
+    distributed packages
+
+  .. note:: TODO At the moment it does not copy any instructions - this needs
+     fixing.
+
+As you might guess, if the ``-with-version`` switch is given, then it will
+also distribute the ``versions`` directory, if it exists.
+
+Also, if ``-with-vcs`` is specified, the VCS directories for the build
+descriptions and the ``versions`` directory (if distributed) will also be
+included.
+
+Case 3: Describing a distribution
+=================================
+
+.. note:: This section is still evolving, and much work still remains to be
+   done on working out what we want to do and how to do it
+
+It is possible to define a distribution within the muddle build description.
+Two functions are provided so far::
+
+  from muddled.distribute import distribute_checkout, distribute_package
+  def describe_to(builder):
+      ...
+      distribute_checkout(builder, 'mixed', label('checkout:first_co/*'))
+      distribute_package(builder, 'mixed', label('package:second_pkg{x86}/*'))
+
+The first function::
+
+  distribute_checkout(builder, name, label, copy_vcs_dir=False)
+
+is used to say that a particular checkout (identified by ``label``) is to be
+part of the distribution called ``name``. If ``copy_vcs_dir`` is true, then
+its VCS directory should be distributed.
+
+The function creates a rule saying that ``checkout:<name>/distributed`` is
+build from ``checkout:<name>/checked_out`` using the DistributeCheckout action.
+
+A particular checkout may be part of more than one distribution. Adding a
+checkout to the same distribution more than once has no special effect, except
+that it is the last call that sets the value of ``copy_vcs_dir`` that will be
+used.
+
+.. note:: All checkouts in the build description are implicitly part of
+   distribution ``_source_release``. The ``muddle distribute`` command itself
+   calls ``distribute_checkout`` to add them to this distribution, after the
+   build description has been read. Thus there is never any point in
+   explicitly adding a checkout to ``_source_release`` in the build
+   description itself, as that will be ignored.
+
+Build description checkouts are treated specially. The ``muddle distribute``
+command adds the necessary rules itself, saying that each
+``checkout:<build-desc>/distributed`` is built from
+``checkout:<build-desc>/checked_out`` using the DistributeBuildDescription
+action (which is actually very similar to the DistributeCheckout action, of
+course).
+
+If you do call ``distribute_checkout()`` on a build description checkout, the
+rule you add will actually be replaced by ``muddle distribute``.
+
+The second function::
+
+  distribute_package(builder, name, label, binary=True, source=False, copy_vcs_dir=False)
+
+is used to say that a particular package (identified by ``label``) is to be
+part of the distribution called ``name``.
+
+If ``binary`` is true, then the ``obj`` and ``install`` directories for
+``label`` will be distributed.
+
+If ``source`` is true, then the checkout labels directly used by ``label``
+will be distributed. In that case, if ``copy_vcs_dir`` is true, then
+the VCS directories for those checkouts will also be distributed.
+
+If both ``binary`` and ``source`` are false, nothing much is going to be done
+for this package. The current implementation doesn't grumble about that.
+
+The function creates a rule saying that`
+`package:<name>{<role>)/distributed`` is built from
+``package:<name>{<role>}/postinstalled`` using the DistributePackage action.
+
+A particular package may be part of more than one distribution. Adding a
+package to the same distribution more than once has no special effect, except
+that it is the last call that sets the value of ``binary``, ``source`` and
+``copy_vcs_dir`` that will be used for that distribution.
+
+Still to consider
+-----------------
+* How this related to licences.
+* Can the function calls be made more concise.
+* Do we want to be able to assign one checkout/package to several distributions
+  in a single call?
+* Do we want to have a single call to assign several checkouts/packages to the
+  same distribution?
+* Should there be a call to say "the default checkout/package distribution
+  is..."?
+
+Also:
+
+* should roles (i.e., in particular, ``install`` directories) be treated
+  separarely? If not, should packages be able to say "I only own particular
+  files in the ``install`` directory"?
+* do we ever need to distribute deployments?
+* how to handle instruction files
+* what is meant to happen if contradictory rules are made for a checkout,
+  one via ``distribute_checkout()`` and another via ``distribute_package(...,
+  source=True)``?
+
+Related commands
+================
+* ``muddle help distribute`` gives the help text for ``muddle distribute``,
+  which summarises some of the above.
+
+* ``muddle query distributions`` lists the names of the distributions that
+  exist, either because they are defined in the build description, or because
+  they are predefined.
+
+* ``muddle query localroot <label>`` was provided for development purposes in
+  this project - it reports on the "local root" for a label, which for a label
+  containing a subdomain name will be the "root" of the subdomain.
+
+.. vim: set filetype=rst tabstop=8 softtabstop=2 shiftwidth=2 expandtab:

@@ -758,3 +758,24 @@ def distribute(builder, name, target_dir, with_versions_dir=False,
     # a distribution state for a checkout, and we also explicitly set
     # a different (incompatible) state for a checkout? Who wins? Or do
     # we just try to satisfy both?
+
+    # XXX TODO
+    # At the moment, if we choose to distribute a package as binary, then we
+    # get the obj/<package>/<role> directory, but we also get *all* of the
+    # install/<role> directory, wherever it came from. Should we have:
+    #
+    # 1. A way of saying "for this package, ignore these files in the obj/
+    #    directory"
+    # 2. A way of saying "for this package, ignore these files in the install/
+    #    directory"
+    # 3. A distinction between distributing a package as binary (which defines
+    #    what to do for the obj/ directory) and distributing a role as binary
+    #    (which ditto the install/ directory), and maybe then (1) and (2)
+    #    equivalents for each
+    #
+    #    If we go for that, how do we "name" the role (remembering we still
+    #    and always want to be able to name a domain as well)? Do we just
+    #    use a wildcarded package label: 'package:*{x86}/distributed'?
+    #
+    # Do we ever want to be able to distribute the deploy directory?
+    # Presumably by choosing to distribute individual deployments.

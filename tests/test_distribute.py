@@ -476,8 +476,41 @@ def main(args):
                                           ])
 
 
-            #muddle(['distribute', 'mixed', target_dir])
-
+            banner('TESTING DISTRIBUTE "mixed"')
+            target_dir = os.path.join(root_dir, 'mixed')
+            muddle(['distribute', 'mixed', target_dir])
+            dt = DirTree(d.where, fold_dirs=['.git'])
+            dt.assert_same(target_dir, onedown=True,
+                           unwanted_files=['.git',
+                                           'builds/01.pyc',
+                                           # -- Checkouts
+                                           'src/main_co',
+                                           # We want src/first_co
+                                           'src/second_co',
+                                           # -- Domains
+                                           'domains', # we don't want any subdomains
+                                           # -- Packages: obj
+                                           'obj/main_pkg',
+                                           'obj/first_pkg',
+                                           # We want obj/second_pkg
+                                           # -- Packages: install
+                                           'install/arm',
+                                           # We want install/x86/second, but have no
+                                           # way to stop getting ALL of install/x86
+                                           # -- Deployments
+                                           'deploy',
+                                           # -- Tags
+                                           # We explicitly want tags for first_co
+                                           # We implicitly want tags for second_co,
+                                           # because we have package first_pkg which
+                                           # depends on it
+                                           '.muddle/tags/checkout/main_co',
+                                           '.muddle/tags/package/main_pkg',
+                                           '.muddle/tags/package/first_pkg',
+                                           '.muddle/tags/deployment',
+                                           # -- etc
+                                           'versions',
+                                          ])
 
 if __name__ == '__main__':
     args = sys.argv[1:]

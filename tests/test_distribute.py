@@ -391,7 +391,7 @@ def main(args):
 
             banner('TESTING DISTRIBUTE SOURCE RELEASE WITH VCS')
             target_dir = os.path.join(root_dir, 'source-with-vcs')
-            muddle(['distribute', '_source_release_vcs', target_dir])
+            muddle(['distribute', '-with-vcs', '_source_release', target_dir])
             dt = DirTree(d.where, fold_dirs=['.git'])
             dt.assert_same(target_dir, onedown=True,
                            unwanted_files=[
@@ -410,6 +410,20 @@ def main(args):
             dt = DirTree(d.where, fold_dirs=['.git'])
             dt.assert_same(target_dir, onedown=True,
                            unwanted_files=['.git',
+                                           'builds/01.pyc',
+                                           'obj',
+                                           'install',
+                                           'deploy',
+                                           '.muddle/tags/package',
+                                           '.muddle/tags/deployment',
+                                          ])
+
+            banner('TESTING DISTRIBUTE SOURCE RELEASE WITH VCS AND VERSIONS')
+            target_dir = os.path.join(root_dir, 'source-with-vcs-and-versions')
+            muddle(['distribute', '-with-vcs', '-with-versions', '_source_release', target_dir])
+            dt = DirTree(d.where, fold_dirs=['.git'])
+            dt.assert_same(target_dir, onedown=True,
+                           unwanted_files=[
                                            'builds/01.pyc',
                                            'obj',
                                            'install',
@@ -439,6 +453,20 @@ def main(args):
             dt = DirTree(d.where, fold_dirs=['.git'])
             dt.assert_same(target_dir, onedown=True,
                            unwanted_files=['.git',
+                                           'builds/01.pyc',
+                                           'src/main_co',
+                                           'src/first_co',
+                                           'src/second_co',
+                                           'deploy',
+                                           '.muddle/tags/deployment',
+                                          ])
+
+            banner('TESTING DISTRIBUTE BINARY RELEASE WITH VERSIONS AND VCS')
+            target_dir = os.path.join(root_dir, 'binary-with-versions-and-vcs')
+            muddle(['distribute', '-with-versions', '-with-vcs', '_binary_release', target_dir])
+            dt = DirTree(d.where, fold_dirs=['.git'])
+            dt.assert_same(target_dir, onedown=True,
+                           unwanted_files=[
                                            'builds/01.pyc',
                                            'src/main_co',
                                            'src/first_co',

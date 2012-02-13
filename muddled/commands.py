@@ -3680,37 +3680,57 @@ Try "muddle help unstamp" for more information."""
 @command('distribute', CAT_STAMP)       # in some vague sort of way
 class Distribute(Command):
     """
-    :Syntax: muddle distribute [-with-versions] <name> <target_directory>
+    :Syntax: muddle distribute [-with-versions|-with-vcs] <name> <target_directory>
 
     - <name> is a distribution name.
-    - <target_directory> is where to distribute to. If it already exists,
-      it should preferably be an empty directory.
 
-    If -with-versions is specified, then the versions/ directory will also be
-    copied. By default it is not.
-
-    Several special distribution names exist:
+      Two special distribution names exist:
 
         * "_source_release" is a distribution of all checkouts, without their
-          VCS directories. This is typically useful for archiving with tar for
-          sending out as a release.
+          VCS directories.
 
-        * "_source_release_vcs" is the same but including VCS directories.
-          This is essentially a way of getting a "clean copy" of the current
-          build tree, although perhaps not as clean as starting over again
-          from "muddle init".
+          "muddle distribute _source_release" is typically useful for
+          generating a directory to archive with tar and send out as a
+          source code release.
+
+          "muddle distribute -with-vcs _source_release" is a way to get a
+          "clean copy" of the current build tree, although perhaps not as clean
+          as starting over again from "muddle init",
 
         * "_binary_release" - this is a binary distribution of all packages.
           Note that all binary releases also include the build description
           checkout(s) implied by the packages distributed.
 
-    Note that these special distribution names don't necessarily show up in
-    "muddle query distributions" (or at least, not yet).
+      These special distribution names don't necessarily show up in "muddle
+      query distributions" (or at least, not yet).
+
+    - <target_directory> is where to distribute to. If it already exists,
+      it should preferably be an empty directory.
+
+    If the -with-versions switch is specified, then if there is a stamp
+    "versions/" directory it will also be copied. By default it is not.
+
+    If the -with-vcs switch is specified, then VCS directories (that is,
+    ".git/" for git, and so on) are requested:
+
+      - for the build description directories
+      - for the "versions/" directory, if it is being copied
+      - to all checkouts in a "_source_release" distribution
+
+    It does not apply to checkouts specified with "distribute_checkout" in
+    the build description, as they use the "copy_vcs_dirs" arguments to that
+    function instead.
+
+    Note that "muddle -n distribute" can be used in the normal manenr to see
+    what the command would do. It shows the labels that would be distributed,
+    and the actions that would be used to do so. This is especially useful for
+    the "_source_release" and "_binary_release" commands.
 
     BEWARE: THIS COMMAND IS STILL UNDER DEVELOPMENT.
     """
 
-    allowed_switches = {'-with-versions':'with-versions'}
+    allowed_switches = {'-with-vcs':'with-vcs',
+                        '-with-versions':'with-versions'}
 
     def requires_build_tree(self):
         return True
@@ -3723,6 +3743,7 @@ class Distribute(Command):
         args = self.remove_switches(args)
 
         with_versions_dir = ('with-versions' in self.switches)
+        with_vcs = ('with-vcs' in self.switches)
 
         while args:
             word = args[0]
@@ -3740,7 +3761,7 @@ class Distribute(Command):
             raise GiveUp("Syntax: muddle distribute [<switches>] <name> <target_directory>")
 
         distribute(builder, name, target_dir,
-                   with_versions_dir=with_versions_dir,
+                   with_versions_dir=with_versions_dir, copy_vcs_dir=with_vcs,
                    no_op=self.no_op())
 
 # =============================================================================

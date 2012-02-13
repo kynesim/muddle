@@ -619,28 +619,49 @@ def copy_versions_dir(builder, name, target_dir, copy_vcs_dir=False):
     if not os.path.exists(tgt_dir):
         os.makedirs(tgt_dir)
 
-    versions_repo_url = builder.invocation.db.versions_repo.get()
-    vcs_dir = vcs_special_dirname(versions_repo_url)
 
-    files = os.listdir(src_dir)
-    for name in files:
-        if name == vcs_dir and not copy_vcs_dir:
-            continue
-        copy_file(os.path.join(src_dir, name),
-                  os.path.join(tgt_dir, name), preserve=True)
+    without = []
+    if not copy_vcs_dir:
+        versions_repo_url = builder.invocation.db.versions_repo.get()
+        vcs_dir = vcs_special_dirname(versions_repo_url)
+        if vcs_dir:
+            without.append(vcs_dir)
 
+    print 'Copying versions/ directory:'
+    print '  from %s'%src_dir
+    print '  to   %s'%tgt_dir
+    if without:
+        print '  without %s'%without
 
-def distribute(builder, name, target_dir, with_versions_dir=False, unset_tags=False, no_op=False):
+    copy_without(src_dir, tgt_dir, without, preserve=True)
+
+def distribute(builder, name, target_dir, with_versions_dir=False,
+               copy_vcs_dir=False, no_op=False):
     """Distribute using distribution context 'name', to 'target_dir'.
 
     The DistributeContext called 'name' must exist.
 
     All distributions described in that DistributeContext will be made.
 
-    'target_dir' need not exist - it will be created if necessary.
+    'name' is the name of the distribution to, erm, distribute. The special
+    names "_source_release" and "_binary_release" are always recognised.
 
-    If 'unset_tags' is true, then we unset the /distribute tags for our
-    labels before doing the distribution.
+    'target_dir' is where to put the distribution. It will be created if
+    necessary.
+
+    If 'with_versions_dir' is true, then any stamp "versions/" directory
+    will also be distributed.
+
+    If "copy_vcs_dir" is true, then the VCS directory (.git/ for git, etc.)
+    will be copied for:
+
+        - the build description(s)
+        - the "versions/" directory (if it is distributed)
+        - all checkouts in a "_source_release" distribution
+
+    If 'no_op' is true, then we just report on what we would do - this
+    lists the labels that would be distributed, and the action that would
+    be used to do so.
     """
 
     print 'Writing distribution', name, 'to', target_dir
@@ -650,8 +671,6 @@ def distribute(builder, name, target_dir, with_versions_dir=False, unset_tags=Fa
     # =========================================================================
     distribution_labels = set()
     domains = set()
-
-    copy_vcs_dir = False
 
     invocation = builder.invocation
     target_label_exists = invocation.target_label_exists
@@ -665,14 +684,8 @@ def distribute(builder, name, target_dir, with_versions_dir=False, unset_tags=Fa
     if name == '_source_release':
         # A source release is the source directories alone, but with no VCS
         for label in all_checkouts:
-            distribute_checkout(builder, name, label, copy_vcs_dir=False)
+            distribute_checkout(builder, name, label, copy_vcs_dir=copy_vcs_dir)
         all_packages = set()
-    elif name == '_source_release_vcs':
-        # or we can have a source release with VCS...
-        for label in all_checkouts:
-            distribute_checkout(builder, name, label, copy_vcs_dir=True)
-        all_packages = set()
-        copy_vcs_dir = True
     elif name == '_binary_release':
         # A binary release is all packages as binary
         for label in all_packages:
@@ -725,12 +738,6 @@ def distribute(builder, name, target_dir, with_versions_dir=False, unset_tags=Fa
     # =========================================================================
     # DISTRIBUTE
     # =========================================================================
-    # If '/distributed' is now transient, do we need to do this?
-    if unset_tags:
-        print 'Killing %d /distribute label%s'%(num_labels,
-                '' if num_labels==1 else 's')
-        for label in distribution_labels:
-            builder.kill_label(label)
     # Remember to say where we're copying to...
     builder.set_distribution(name, target_dir)
 

@@ -280,10 +280,75 @@ Also:
   separarely? If not, should packages be able to say "I only own particular
   files in the ``install`` directory"?
 * do we ever need to distribute deployments?
-* how to handle instruction files
 * what is meant to happen if contradictory rules are made for a checkout,
   one via ``distribute_checkout()`` and another via ``distribute_package(...,
   source=True)``?
+
+And even:
+
+* Should we set an "am_distribution" file in the toplevel ``.muddle`` of a
+  distribution, much as we put an ``am_subdomain`` file in each subdomain's
+  ``.muddle`` directory?
+* If we do, should a "muddle" command in such a tree be restricted? That is,
+
+  * for source(ish) distributions, should we forbig doing anything that would
+    clear the ``/checked_out`` tags (of course, the user can always do this
+    "by hand"). That is, any "muddle" command that operates on checkouts.
+
+  * for binary(ish) distributions, should this do that and also forbid going
+    to any tag "before" ``/built`` (or possibly even ``/postinstalled``).
+    That is, any muddle command that builds packages.
+
+Problems become:
+
+1. How the ``am_subdomain`` file allows us to know the difference between
+   source(ish) and binary(ish) distributions.
+2. What that difference *is* (it's more-or-less simple for ``_source_release``
+   and ``_binary_release``, but not otherwise!)
+
+Perhaps it should have the labels that were distributed in it, one per line,
+and muddle should honour those in some fashion.
+
+Perhaps we *should* put in place ``/distributed`` tags in the *distributed*
+tree, and those should be honoured.
+
+Or perhaps this is all to complex (too complicated, at least) and we should
+thus not attempt to do anything about it (but I for one can see grumbling
+after accicentally typing "muddle distrebuild" in a binary distribution!)
+
+  Although - what does happen if I do that in a binary distribution?
+  ...goes to try it... It says::
+
+    $ m3 distrebuild package:main_pkg{x86}
+    Building: package:main_pkg{x86}/distclean .. 
+    > Building package:main_pkg{x86}/distclean[T]
+    Path /home/tibs/sw/m3/tests/transient/binary/src/main_co for checkout main_co does not exist, building package:main_pkg{x86}/distclean[T]
+    Traceback (most recent call last):
+      File "/home/tibs/sw/m3/muddled/__main__.py", line 41, in <module>
+        muddled.cmdline.cmdline(sys.argv[1:], muddle_binary)
+      File "/home/tibs/sw/m3/muddled/cmdline.py", line 268, in cmdline
+        _cmdline(args, original_dir, original_env, muddle_binary)
+      File "/home/tibs/sw/m3/muddled/cmdline.py", line 226, in _cmdline
+        command.with_build_tree(builder, current_dir, args)
+      File "/home/tibs/sw/m3/muddled/commands.py", line 279, in with_build_tree
+        self.build_these_labels(builder, labels)
+      File "/home/tibs/sw/m3/muddled/commands.py", line 4028, in build_these_labels
+        build_a_kill_b(builder, labels, LabelTag.DistClean, LabelTag.PreConfig)
+      File "/home/tibs/sw/m3/muddled/commands.py", line 881, in build_a_kill_b
+        builder.build_label(l_a)
+      File "/home/tibs/sw/m3/muddled/mechanics.py", line 1254, in build_label
+        r.action.build_label(self, r.target)
+      File "/home/tibs/sw/m3/muddled/pkgs/make.py", line 88, in build_label
+        self.ensure_dirs(builder, label)
+      File "/home/tibs/sw/m3/muddled/pkgs/make.py", line 58, in ensure_dirs
+        label))
+    MuddleBug: Path /home/tibs/sw/m3/tests/transient/binary/src/main_co for checkout main_co does not exist, building package:main_pkg{x86}/distclean[T]
+
+  which is oververbose (the traceback is not helpful in this instance), but is
+  actually doing the Correct Thing - specifically, it can't decide what to do
+  because it can't find its Makefile.muddle, because there is no source
+  checkout. So that could be tidied up, and we could then mark this issue as
+  Problem Gone Away...
 
 Related commands
 ================

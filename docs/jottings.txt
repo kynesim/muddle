@@ -111,6 +111,48 @@ also be worth doing - something like::
 or you might prefer to test on ``!= '/bin/bash'``. Neither is particularly
 elegant.
 
+Why didn't my ``deploy`` directory change?
+==========================================
+The ``deploy`` directory (or, in other words, deployments) are treated
+differently than the rest of the build infrastructure.
+
+When you do ``muddle build`` of a package, it generally works something like:
+
+* take the sources from the appropriate checkouts  in the ``src`` directory
+* build in the appropriate ``obj`` directory
+* copy useful stuff to the appropriate ``install`` directory
+
+``muddle rebuild``, ``muddle distrebuild`` and so on all do variations on this
+sequence. None of them touch the ``deploy`` directory and its contents.
+
+The commands that *do* are:
+
+* the commands in the "deployment" categorie (see ``muddle help categories``):
+
+  * ``muddle deploy`` and ``muddle redeploy``
+  * ``muddle cleandeploy``
+
+* ``muddle`` at the top level, when there are default deployments defined in the
+  build description.
+  
+  This last is because ``muddle`` at the top level is equivalent to
+  ``muddle buildlabel _default_deployments _default_roles`` - that is, it will
+  build the default deployments (but not any that are not default
+  deployments).
+
+If one is just building a build tree that one was given, then the build
+description should (hopefully!) have been written so that ``muddle`` at the
+top level does the right thing, producing the deployments that a normal user
+wants.
+
+If one is developing within a build tree, however, redeploying is expected to
+be a rarer thing - one is normally doing the build/fix/build cycle until
+everything works, and all the depedencies appear to be correct, and *then* one
+redeploys. In this context, the ``deploy`` directory contains "the stuff to be
+deployed on the target board" (or whatever the target might be), and one
+doesn't expect to generate this until everything (more or less) appears to be
+building correctly.
+
 How do I pull in a "meta" checkout?
 ===================================
 Sometimes one has a "meta" checkout, which contains information that isn't
@@ -381,5 +423,21 @@ function), you can do::
         raise GiveUp("Required toolchain %s not present"%ARM_TOOLCHAIN)
 
 This is rather horrible, but may be less worse than the alternative.
+
+Do you have a picture of a label?
+=================================
+Why, yes I do. Here is a label without domains (a "normal" label):
+
+.. image:: images/Label.png
+
+and here is a label with domains:
+
+.. image:: images/Label-with-domain.png
+
+There's even an attempt to show how these relate to the build sequence:
+
+.. image:: images/Everything-graph2.png
+
+although I'm not entirely sure if that's helpful or not.
 
 .. vim: set filetype=rst tabstop=8 softtabstop=2 shiftwidth=2 expandtab:

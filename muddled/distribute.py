@@ -179,6 +179,7 @@ def _set_checkout_tags(builder, label, target_dir):
     local_root = find_local_relative_root(builder, label)
     src_tags_dir = os.path.join(root_path, local_root, tags_dir)
     tgt_tags_dir = os.path.join(target_dir, local_root, tags_dir)
+    tgt_tags_dir = os.path.normpath(tgt_tags_dir)
     if DEBUG:
         print '..copying %s'%src_tags_dir
         print '       to %s'%tgt_tags_dir
@@ -203,6 +204,7 @@ def _actually_distribute_checkout(builder, label, target_dir, copy_vcs_dir):
     # 4. Do a copywithout to do the actual copy, suitably ignoring
     #    the VCS directory if necessary.
     co_tgt_dir = os.path.join(normalise_dir(target_dir), co_src_dir)
+    co_tgt_dir = os.path.normpath(co_tgt_dir)
     if DEBUG:
         print 'Copying checkout:'
         print '  from %s'%co_src_dir
@@ -306,6 +308,7 @@ def _actually_distribute_binary(builder, label, target_dir):
     local_root = find_local_relative_root(builder, label)
     src_tags_dir = os.path.join(root_path, local_root, tags_dir)
     tgt_tags_dir = os.path.join(target_dir, local_root, tags_dir)
+    tgt_tags_dir = os.path.normpath(tgt_tags_dir)
 
     if DEBUG:
         print '..copying %s'%src_tags_dir
@@ -332,8 +335,7 @@ def _actually_distribute_binary(builder, label, target_dir):
     #    Although there is infrastructure for this (db.scan_instructions),
     #    it actually appears to be easier to do this "by hand".
     #    Assuming I'm *doing* the right thing...
-
-    inst_subdir = os.path.join('instructions', label.name)
+    inst_subdir = os.path.join('.muddle', 'instructions', label.name)
     inst_src_dir = os.path.join(root_path, local_root, inst_subdir)
     inst_tgt_dir = os.path.join(target_dir, local_root, inst_subdir)
 

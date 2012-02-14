@@ -224,6 +224,13 @@ int main(int argc, char **argv)
 }}
 """
 
+INSTRUCTIONS = """
+<?xml version="1.0"?>
+<instructions priority=100>
+  <!-- Nothing to do here. Move along... -->
+</instructions>
+"""
+
 def make_build_desc(co_dir, file_content):
     """Take some of the repetition out of making build descriptions.
     """
@@ -347,6 +354,22 @@ def check_checkout_files(d):
     with Directory(d.join('domains', 'subdomain2')):
         check_dot_muddle(is_subdomain=True)
 
+def add_some_instructions(d):
+    """Add some instruction file by hand.
+
+    We should do this properly, via Makefiles copying instructions with
+    ``$(MUDDLE_INSTRUCT)``, but this is simpler.
+    """
+    with Directory('.muddle'):
+        with NewDirectory('instructions'):
+            with NewDirectory('first_pkg'):
+                touch('_default.xml', INSTRUCTIONS)
+            with NewDirectory('second_pkg'):
+                touch('_default.xml', INSTRUCTIONS)
+                touch('x86.xml', INSTRUCTIONS)
+                touch('arm.xml', INSTRUCTIONS)
+                touch('fred.xml', INSTRUCTIONS)     # How did that get here?
+
 def main(args):
 
     if args:
@@ -373,6 +396,8 @@ def main(args):
             muddle([])
             banner('STAMP VERSION')
             muddle(['stamp', 'version'])
+            banner('ADD SOME INSTRUCTIONS')
+            add_some_instructions(d)
 
             banner('TESTING DISTRIBUTE SOURCE RELEASE')
             target_dir = os.path.join(root_dir, 'source')
@@ -385,6 +410,7 @@ def main(args):
                                            'install',
                                            'deploy',
                                            'versions',
+                                           '.muddle/instructions',
                                            '.muddle/tags/package',
                                            '.muddle/tags/deployment',
                                           ])
@@ -400,6 +426,7 @@ def main(args):
                                            'install',
                                            'deploy',
                                            'versions',
+                                           '.muddle/instructions',
                                            '.muddle/tags/package',
                                            '.muddle/tags/deployment',
                                           ])
@@ -414,6 +441,7 @@ def main(args):
                                            'obj',
                                            'install',
                                            'deploy',
+                                           '.muddle/instructions',
                                            '.muddle/tags/package',
                                            '.muddle/tags/deployment',
                                           ])
@@ -428,6 +456,7 @@ def main(args):
                                            'obj',
                                            'install',
                                            'deploy',
+                                           '.muddle/instructions',
                                            '.muddle/tags/package',
                                            '.muddle/tags/deployment',
                                           ])
@@ -444,6 +473,8 @@ def main(args):
                                            'src/second_co',
                                            'deploy',
                                            'versions',
+                                           '.muddle/instructions/second_pkg/arm.xml',
+                                           '.muddle/instructions/second_pkg/fred.xml',
                                            '.muddle/tags/deployment',
                                           ])
 
@@ -458,6 +489,8 @@ def main(args):
                                            'src/first_co',
                                            'src/second_co',
                                            'deploy',
+                                           '.muddle/instructions/second_pkg/arm.xml',
+                                           '.muddle/instructions/second_pkg/fred.xml',
                                            '.muddle/tags/deployment',
                                           ])
 
@@ -472,6 +505,8 @@ def main(args):
                                            'src/first_co',
                                            'src/second_co',
                                            'deploy',
+                                           '.muddle/instructions/second_pkg/arm.xml',
+                                           '.muddle/instructions/second_pkg/fred.xml',
                                            '.muddle/tags/deployment',
                                           ])
 
@@ -509,6 +544,9 @@ def main(args):
                                            '.muddle/tags/package/first_pkg',
                                            '.muddle/tags/deployment',
                                            # -- etc
+                                           '.muddle/instructions/first_pkg',
+                                           '.muddle/instructions/second_pkg/arm.xml',
+                                           '.muddle/instructions/second_pkg/fred.xml',
                                            'versions',
                                           ])
 

@@ -130,6 +130,11 @@ def describe_to(builder):
     distribute_role(builder, 'role-x86', 'x86', domain=None,
                     binary=True, source=True)
 
+    # And another distribution which is a vertical slice down the domains
+    # (so see the subdomain build descriptions as well)
+    distribute_package(builder, 'vertical', label('package:second_pkg{{x86}}/*'),
+                       binary=True, source=True)
+
     if False:
         # And some variations, in our subdomains
         distribute_checkout(builder, 'mixed',
@@ -154,6 +159,7 @@ import muddled.checkouts.simple
 import muddled.deployments.collect as collect
 from muddled.mechanics import include_domain
 from muddled.depend import Label
+from muddled.distribute import distribute_package
 
 def describe_to(builder):
     role = 'x86'
@@ -183,6 +189,11 @@ def describe_to(builder):
 
     builder.invocation.add_default_role(role)
     builder.by_default_deploy(deployment)
+
+    # Our vertical distribution continues
+    label = Label.from_string
+    distribute_package(builder, 'vertical', label('package:second_pkg{{x86}}/*'),
+                       binary=True, source=True)
 """
 
 SUBDOMAIN2_BUILD_DESC = """ \
@@ -212,7 +223,38 @@ def describe_to(builder):
     builder.by_default_deploy("everything")
 """
 
-SUBDOMAIN3_BUILD_DESC = SUBDOMAIN2_BUILD_DESC
+SUBDOMAIN3_BUILD_DESC = """ \
+# A simple build description
+
+import muddled
+import muddled.pkgs.make
+import muddled.checkouts.simple
+import muddled.deployments.filedep
+from muddled.depend import Label
+from muddled.distribute import distribute_package
+
+def describe_to(builder):
+    role = 'x86'
+    deployment = 'everything'
+
+    muddled.pkgs.make.medium(builder, "main_pkg", [role], "main_co")
+    muddled.pkgs.make.medium(builder, "first_pkg", [role], "first_co")
+    muddled.pkgs.make.medium(builder, "second_pkg", [role], "second_co")
+
+    # The 'everything' deployment is built from our single role, and goes
+    # into deploy/everything.
+    muddled.deployments.filedep.deploy(builder, "", "everything", [role])
+
+    # If no role is specified, assume this one
+    builder.invocation.add_default_role(role)
+    # muddle at the top level will default to building this deployment
+    builder.by_default_deploy("everything")
+
+    # Our vertical distribution continues
+    label = Label.from_string
+    distribute_package(builder, 'vertical', label('package:second_pkg{x86}/*'),
+                       binary=True, source=True)
+"""
 
 GITIGNORE = """\
 *~
@@ -576,6 +618,45 @@ def main(args):
                                            'obj/main_pkg/arm',
                                            'install/arm',
                                           ])
+
+
+            banner('TESTING DISTRIBUTE "vertical"')
+            target_dir = os.path.join(root_dir, 'vertical')
+            muddle(['distribute', 'vertical', target_dir])
+            dt = DirTree(d.where, fold_dirs=['.git'])
+            dt.assert_same(target_dir, onedown=True,
+                           unwanted_files=['.git',
+                                           'builds/01.pyc',
+                                           # -- Checkouts
+                                           'src/main_co',
+                                           'src/first_co',
+                                           # We want src/second_co
+                                           # -- Packages: obj
+                                           'obj/main_pkg',
+                                           'obj/first_pkg',
+                                           # We want obj/second_pkg
+                                           # -- Packages: install
+                                           'install/arm',
+                                           # We want install/x86/second, but have no
+                                           # way to stop getting ALL of install/x86
+                                           # -- Subdomains
+                                           # We've not asked for owt in subdomain2
+                                           'domains/subdomain2',
+                                           # -- Deployments
+                                           'deploy',
+                                           # -- Tags
+                                           # We want tags for second_co and second_pkg
+                                           '.muddle/tags/checkout/main_co',
+                                           '.muddle/tags/checkout/first_co',
+                                           '.muddle/tags/package/main_pkg',
+                                           '.muddle/tags/package/first_pkg',
+                                           '.muddle/tags/deployment',
+                                           # -- etc
+                                           '.muddle/instructions/first_pkg',
+                                           '.muddle/instructions/second_pkg/arm.xml',
+                                           '.muddle/instructions/second_pkg/fred.xml',
+                                           'versions',
+                                         ])
 
 if __name__ == '__main__':
     args = sys.argv[1:]

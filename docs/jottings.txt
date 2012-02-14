@@ -64,11 +64,18 @@ many Linux distributions (and on Mac OS X).
 
 Many software packages assume bash in their build scripts and Makefiles. FSF
 packages do so explicitly. It is also quite easy to accidentally require bash
-when writing shell scritps, as we're not normally conscious of where its
-extensions start.
+when writing shell scripts, as we're not normally conscious of where its
+extensions start. Unfortunatley, many of those same shell scripts start with
+``#! /bin/sh`` when what they *mean* is ``#! /bin/bash``.
 
-Unfortunately this means that building on Linux more or less requires one to
-replace dash with bash.
+  (A relatively common example of this is when scripts use ``echo -e``, which
+  is a valid switch for bash's built in ``echo``, but not that in dash. Of
+  course, another solution for this specific problem would be for the script
+  to use the system ``echo``, in ``/bin/echo``, which probably does support
+  ``-e``.)
+
+Unfortunately this means that building on Linux typically requires one to
+replace ``sh`` meaning dash with ``sh`` meaning bash.
 
 To check, do::
 
@@ -91,6 +98,60 @@ There are two "obvious" ways of fixing this:
      $ cd /bin
      $ sudo ln -sf bash sh
      $ ls -l sh
+
+There's an argument to say that, if some of the Makefiles or build scripts in
+the system really do care, it is a good idea to test for this in the build
+description, and give an "up front" error, rather than a confusing
+A similar sort of thing to check that ``/bin/sh`` is a link to ``bash`` may
+also be worth doing - something like::
+
+    if os.path.realpath('/bin/sh') == '/bin/dash':
+        raise GiveUp('/bin/sh is linked to dash, not bash - this will not work for some scripts')
+
+or you might prefer to test on ``!= '/bin/bash'``. Neither is particularly
+elegant.
+
+Why didn't my ``deploy`` directory change?
+==========================================
+The ``deploy`` directory (or, in other words, deployments) are treated
+differently than the rest of the build infrastructure.
+
+When you do ``muddle build`` of a package, it generally works something like:
+
+* take the sources from the appropriate checkouts  in the ``src`` directory
+* build in the appropriate ``obj`` directory
+* copy useful stuff to the appropriate ``install`` directory
+
+``muddle rebuild``, ``muddle distrebuild`` and so on all do variations on this
+sequence. None of them touch the ``deploy`` directory and its contents.
+
+The commands that *do* are:
+
+* the commands in the "deployment" categorie (see ``muddle help categories``):
+
+  * ``muddle deploy`` and ``muddle redeploy``
+  * ``muddle cleandeploy``
+
+* ``muddle`` at the top level, when there are default deployments defined in the
+  build description.
+  
+  This last is because ``muddle`` at the top level is equivalent to
+  ``muddle buildlabel _default_deployments _default_roles`` - that is, it will
+  build the default deployments (but not any that are not default
+  deployments).
+
+If one is just building a build tree that one was given, then the build
+description should (hopefully!) have been written so that ``muddle`` at the
+top level does the right thing, producing the deployments that a normal user
+wants.
+
+If one is developing within a build tree, however, redeploying is expected to
+be a rarer thing - one is normally doing the build/fix/build cycle until
+everything works, and all the depedencies appear to be correct, and *then* one
+redeploys. In this context, the ``deploy`` directory contains "the stuff to be
+deployed on the target board" (or whatever the target might be), and one
+doesn't expect to generate this until everything (more or less) appears to be
+building correctly.
 
 How do I pull in a "meta" checkout?
 ===================================
@@ -363,7 +424,20 @@ function), you can do::
 
 This is rather horrible, but may be less worse than the alternative.
 
-A similar sort of thing to check that ``/bin/sh`` is a link to ``bash`` may
-also be worth doing...
+Do you have a picture of a label?
+=================================
+Why, yes I do. Here is a label without domains (a "normal" label):
+
+.. image:: images/Label.png
+
+and here is a label with domains:
+
+.. image:: images/Label-with-domain.png
+
+There's even an attempt to show how these relate to the build sequence:
+
+.. image:: images/Everything-graph2.png
+
+although I'm not entirely sure if that's helpful or not.
 
 .. vim: set filetype=rst tabstop=8 softtabstop=2 shiftwidth=2 expandtab:

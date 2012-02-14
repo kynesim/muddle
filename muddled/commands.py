@@ -1069,7 +1069,10 @@ Muddle tries quite hard to do the sensible thing if you type it without any
 arguments, depending on the current directory. Specifically, for commands
 that "build" a label (whether checkout, package or deployment):
 
-* at the very top of the build tree, "muddle _default_deployments _default_roles"
+* at the very top of the build tree:
+
+    muddle buildlabel _default_deployments _default_roles
+
 * within a 'src/' directory, or within a non-checkout subdirectory inside
   'src'/,  "muddle rebuild" for each checkout that is below the current
   directory (i.e., rebuild all packages using the checkouts below the

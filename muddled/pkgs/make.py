@@ -51,15 +51,16 @@ class MakeBuilder(PackageBuilder):
         """
 
         inv = builder.invocation
-        tmp = Label(utils.LabelType.Checkout, self.co, domain=label.domain)
-        if not os.path.exists(inv.checkout_path(tmp)):
-            raise utils.MuddleBug("Path %s for checkout %s does not exist, building %s"%
-                              (inv.checkout_path(tmp), self.co,
-                               label))
+        co_label = Label(utils.LabelType.Checkout, self.co, domain=label.domain)
+        if not os.path.exists(inv.checkout_path(co_label)):
+            raise utils.GiveUp("Missing source directory\n"
+                               "  %s depends on %s\n"
+                               "  Directory %s does not exist"%(label, co_label,
+                                   inv.checkout_path(co_label)))
 
-        tmp = Label(utils.LabelType.Package, self.name, self.role, domain=label.domain)
-        utils.ensure_dir(inv.package_obj_path(tmp))
-        utils.ensure_dir(inv.package_install_path(tmp))
+        co_label = Label(utils.LabelType.Package, self.name, self.role, domain=label.domain)
+        utils.ensure_dir(inv.package_obj_path(co_label))
+        utils.ensure_dir(inv.package_install_path(co_label))
 
     def _amend_env(self, co_path):
         """Amend the environment before building a label

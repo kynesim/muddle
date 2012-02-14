@@ -322,33 +322,25 @@ after accicentally typing "muddle distrebuild" in a binary distribution!)
     $ m3 distrebuild package:main_pkg{x86}
     Building: package:main_pkg{x86}/distclean .. 
     > Building package:main_pkg{x86}/distclean[T]
-    Path /home/tibs/sw/m3/tests/transient/binary/src/main_co for checkout main_co does not exist, building package:main_pkg{x86}/distclean[T]
-    Traceback (most recent call last):
-      File "/home/tibs/sw/m3/muddled/__main__.py", line 41, in <module>
-        muddled.cmdline.cmdline(sys.argv[1:], muddle_binary)
-      File "/home/tibs/sw/m3/muddled/cmdline.py", line 268, in cmdline
-        _cmdline(args, original_dir, original_env, muddle_binary)
-      File "/home/tibs/sw/m3/muddled/cmdline.py", line 226, in _cmdline
-        command.with_build_tree(builder, current_dir, args)
-      File "/home/tibs/sw/m3/muddled/commands.py", line 279, in with_build_tree
-        self.build_these_labels(builder, labels)
-      File "/home/tibs/sw/m3/muddled/commands.py", line 4028, in build_these_labels
-        build_a_kill_b(builder, labels, LabelTag.DistClean, LabelTag.PreConfig)
-      File "/home/tibs/sw/m3/muddled/commands.py", line 881, in build_a_kill_b
-        builder.build_label(l_a)
-      File "/home/tibs/sw/m3/muddled/mechanics.py", line 1254, in build_label
-        r.action.build_label(self, r.target)
-      File "/home/tibs/sw/m3/muddled/pkgs/make.py", line 88, in build_label
-        self.ensure_dirs(builder, label)
-      File "/home/tibs/sw/m3/muddled/pkgs/make.py", line 58, in ensure_dirs
-        label))
-    MuddleBug: Path /home/tibs/sw/m3/tests/transient/binary/src/main_co for checkout main_co does not exist, building package:main_pkg{x86}/distclean[T]
+    Can't build package:main_pkg{x86}/distclean: Missing source directory
+      package:main_pkg{x86}/distclean[T] depends on checkout:main_co/*
+      Directory /home/tibs/sw/m3/tests/transient/binary/src/main_co does not exist
 
-  which is oververbose (the traceback is not helpful in this instance), but is
-  actually doing the Correct Thing - specifically, it can't decide what to do
-  because it can't find its Makefile.muddle, because there is no source
-  checkout. So that could be tidied up, and we could then mark this issue as
-  Problem Gone Away...
+  And that's OK. Unfortunately, though::
+
+    $ m3 rebuild main_pkg
+    Killing package:main_pkg{x86}/built
+    Clearing tags for package:main_pkg{x86}/built
+      package:main_pkg{x86}/built
+      package:main_pkg{x86}/installed
+      package:main_pkg{x86}/postinstalled
+    Building package:main_pkg{x86}/postinstalled
+    > Building package:main_pkg{x86}/built
+    Can't build package:main_pkg{x86}/postinstalled - Missing source directory
+      package:main_pkg{x86}/built depends on checkout:main_co/*
+      Directory /home/tibs/sw/m3/tests/transient/binary/src/main_co does not exist
+
+  so we've now lost our tags. Oh well. At least it told us.
 
 Related commands
 ================

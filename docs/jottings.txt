@@ -64,11 +64,18 @@ many Linux distributions (and on Mac OS X).
 
 Many software packages assume bash in their build scripts and Makefiles. FSF
 packages do so explicitly. It is also quite easy to accidentally require bash
-when writing shell scritps, as we're not normally conscious of where its
-extensions start.
+when writing shell scripts, as we're not normally conscious of where its
+extensions start. Unfortunatley, many of those same shell scripts start with
+``#! /bin/sh`` when what they *mean* is ``#! /bin/bash``.
 
-Unfortunately this means that building on Linux more or less requires one to
-replace dash with bash.
+  (A relatively common example of this is when scripts use ``echo -e``, which
+  is a valid switch for bash's built in ``echo``, but not that in dash. Of
+  course, another solution for this specific problem would be for the script
+  to use the system ``echo``, in ``/bin/echo``, which probably does support
+  ``-e``.)
+
+Unfortunately this means that building on Linux typically requires one to
+replace ``sh`` meaning dash with ``sh`` meaning bash.
 
 To check, do::
 
@@ -91,6 +98,18 @@ There are two "obvious" ways of fixing this:
      $ cd /bin
      $ sudo ln -sf bash sh
      $ ls -l sh
+
+There's an argument to say that, if some of the Makefiles or build scripts in
+the system really do care, it is a good idea to test for this in the build
+description, and give an "up front" error, rather than a confusing
+A similar sort of thing to check that ``/bin/sh`` is a link to ``bash`` may
+also be worth doing - something like::
+
+    if os.path.realpath('/bin/sh') == '/bin/dash':
+        raise GiveUp('/bin/sh is linked to dash, not bash - this will not work for some scripts')
+
+or you might prefer to test on ``!= '/bin/bash'``. Neither is particularly
+elegant.
 
 How do I pull in a "meta" checkout?
 ===================================
@@ -362,8 +381,5 @@ function), you can do::
         raise GiveUp("Required toolchain %s not present"%ARM_TOOLCHAIN)
 
 This is rather horrible, but may be less worse than the alternative.
-
-A similar sort of thing to check that ``/bin/sh`` is a link to ``bash`` may
-also be worth doing...
 
 .. vim: set filetype=rst tabstop=8 softtabstop=2 shiftwidth=2 expandtab:

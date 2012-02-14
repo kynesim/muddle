@@ -101,21 +101,24 @@ and here is an example with more comments::
 
   </instructions>
 
-Start and end
-~~~~~~~~~~~~~
-The file starts with::
+Summary
+~~~~~~~
+The file is of the form::
 
-  <?xml version="1.0"?>
-  <instructions>
+    <?xml version="1.0"?>
+    <instructions priority=100>
+     <instr-name>
+       <stuff .. />
+     </instr-name>
+    </instructions>
 
-and ends with::
+where ``<instr-name>`` is a valid instruction specification (see below).
 
-  </instructions>
-
-Still to document
-~~~~~~~~~~~~~~~~~
-* ``priority`` attributes. See ``muddled/db.py`` and class
-  ``InstructionFile``.
+The ``priority`` attribute on ``<instruction>`` is optional. If it is present,
+then it is used by deployments to decide what order to apply instructions in.
+Higher priority values cause the instructions to be applied later (so
+instructions with ``priority=10`` will be applied before those with
+``priority=20``).
 
 Standard instructions
 ~~~~~~~~~~~~~~~~~~~~~

@@ -839,9 +839,6 @@ def distribute(builder, name, target_dir, with_versions_dir=False,
     # we just try to satisfy both?
 
     # XXX TODO
-    # Try not to copy install/<role> multiple times, once for each package!
-
-    # XXX TODO
     # At the moment, if we choose to distribute a package as binary, then we
     # get the obj/<package>/<role> directory, but we also get *all* of the
     # install/<role> directory, wherever it came from. Should we have:

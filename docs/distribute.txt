@@ -376,4 +376,93 @@ Related commands
   this project - it reports on the "local root" for a label, which for a label
   containing a subdomain name will be the "root" of the subdomain.
 
+Licenses
+========
+.. note:: This is work in progress.
+
+We want to be able to say what licence applies to a checkout, so that we can
+choose what to distribute by its license. The following thoughts occur:
+
+1. We might only want a single license for a piece of source code, but
+   in practice some are multi-licensed, and thus we really should support
+   multiple licenses per checkout (if only to make the user happy).
+
+2. There are three types of license (broadly):
+
+   * Open. These can be freely distributed as source.
+   * Closed. These can only be distributed as binary.
+   * Secret. These must not be distributed at all, and may also need a
+     mechanism to prevent distributing the relevant part of the build
+     description as well.
+
+3. There's a suggestion that we should be able to attach a license to a
+   package as well. Whilst it might be useful to specify an overall license
+   for a package, I think this should be seen as really being a license for
+   the checkouts used by the package. Reasons for this include:
+
+   * I don't think different licenses for differend roles make sense
+   * our "unit of distribution" for source code is the checkout
+
+I do not propose that muddle should help with the "contamination" problem.
+That is, if a package contains components that are statically linked against a
+GPL component, then that package must also be GPL. Trying to work this out
+would be a non-trivial problem involving inspection of Makefiles and other
+such complicated stuff. It's better to leave it up to humans to work out - and
+they need to do so anyway.
+
+We obviously need ``muddle query licenses`` which lists the checkouts and
+their declared license (if any).
+
+Richard suggested it would be nice to have an introspection capability, where
+muddle would "guess" the license by looking at the content of the checkout
+directory. This feels like it should work for well-formed GPL checkouts
+(although if would not, of course, detect dual-licensing).
+
+I think the license "memory" should live in db.py, alongside the other
+dictionaries of ``checkout -> xxx`` (i.e., location and repository). This
+means the label mangling done at subdomain inclusion time will be handled in a
+tidy manner.
+
+Initially we then want ``builder.set_license(...)`` functions - possible two
+APIs:
+
+1. ``builder.set_license(name, license1, license2, ...)`` which takes a
+   checkout ``name`` (but doesn't cope with domains)
+
+2. ``builder.set_label_licenses(label, [license1, license2, ...])`` which
+   takes a package or checkout license, and sets the values in the
+   checkout-to-license dictionary.
+
+Eventually we may want all the "useful" functions (``make.twolevel``, etc.)
+to support ``license`` (and maybe also ``licenses``???) arguments - but that
+can be after we've proven the technology.
+
+Then we want to add another way of describing a distribution::
+
+  distribute_licenses(builder, name, [license1, license2, ...], binary=True,
+                      source=True, copy_vcs_dir=False)
+
+Note that this doesn't know anything about what the licenses *mean*. It's
+possible we want some checking mechanism that recognises some licenses as open
+and some as closed, and grumbles if we do unlikely or disallowed things.
+
+Naming licenses:
+
+* For the common licenses, define simple strings for them::
+
+      GPL2 = 'gpl2'
+      MPL1 = 'mpl1.1'
+      BSD  = 'BSD'
+
+* For specialised open licenses, prefix them with ``open``::
+
+       open:zlib
+
+* For binary licenses, prefix them with ``binary``::
+
+       binary:customerA
+
+* For secret licenses, perhaps we only need ``secret`` - anything else gives
+  away information!
+
 .. vim: set filetype=rst tabstop=8 softtabstop=2 shiftwidth=2 expandtab:

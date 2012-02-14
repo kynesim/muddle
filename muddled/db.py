@@ -43,6 +43,23 @@ class Database(object):
         Thus it is not safe to try to deduce all of the checkout labels
         from the keys to this dictionary. And the same goes for the
         checkout_repositories dictionary.
+
+        XXX EXPERIMENTAL
+        We also have:
+
+        * licenses - which is a dictionary of checkout labels to a
+          list of one or more license names. For instance::
+
+            { checkout:zlib/*   : ['open:zlib'],      # their own open license
+              checkout:kernel/* : ['gpl2'],
+              checkout:kbus/*   : ['mpl1.1', 'gpl2'], # kernel module is dual licensed
+              checkout:customer_app/* : ['secret'],   # as it says
+            }
+
+        The question is, are licenses for packages sensible, or does one always
+        propagate them down onto checkouts? If we allow package licenses, how
+        do we stop them differing by role? Should we? I think that's all too
+        complicated, so let's stick with checkout licenses.
         """
         self.root_path = root_path
         utils.ensure_dir(os.path.join(self.root_path, ".muddle"))

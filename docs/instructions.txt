@@ -1,0 +1,219 @@
+=================
+Instruction files
+=================
+
+See:
+
+* ``muddle help instruct``
+* ``muddle help query inst-files``
+* ``muddle help query inst-details``
+
+for some basic help on instruction files, until I have time to write a better
+introduction. For the moment, this section is mainly here to document what
+goes *into* instruction files.
+
+Where instruction files get put
+-------------------------------
+
+Instruction files are stored in the ``.muddle`` directory, specifically as
+either:
+
+* ``.muddle/instructions/<package-name>/<role>.xml`` or
+* ``.muddle/instructions/<package-name>/_default.xml``
+
+The latter corresponds to instructions for role ``{*}`` for package
+``<package-name>``.
+
+The content of instruction files
+--------------------------------
+Instruction files are XML files. Here is a simple example::
+
+  <?xml version="1.0"?>
+  <instructions>
+    <chown>
+      <filespec>
+        <root>/bin</root>
+        <spec>hello_world</spec>
+      </filespec>
+      <user>root</user>
+      <group>root</group>
+    </chown>
+    <chmod>
+      <filespec>
+        <root>/bin</root>
+        <spec>hello_world</spec>
+      </filespec>
+      <mode>ugo+rx</mode>
+    </chmod>
+  </instructions>
+
+and here is an example with more comments::
+
+  <?xml version="1.0"?>
+
+  <!-- Filesystem for a Linux with busybox - the fiddly bits -->
+
+  <instructions>
+
+    <!-- There's something to be said for making all files be owned by
+         root (it makes the system look tidier), but on the other hand
+         it involves changing *all* files -->
+    <!--
+    <chown>
+      <filespec>
+        <root>/rootfs</root>
+        <spec>.*</spec>
+        <all-under />
+      </filespec>
+      <user>0</user>
+      <group>0</group>
+    </chown>
+    -->
+
+    <!-- Certain things *must* be set executable -->
+    <chmod>
+      <filespec>
+      <root>/rootfs/etc/init.d</root>
+        <spec>rcS</spec>
+      </filespec>
+      <mode>0755</mode>
+    </chmod>
+
+    <!-- Everyone needs access to /tmp -->
+    <chmod>
+      <filespec>
+        <root>/rootfs</root>
+        <spec>tmp</spec>
+      </filespec>
+      <mode>01777</mode>
+    </chmod>
+
+    <!-- Traditionally, this is the only device node we *need* -->
+    <mknod>
+      <name>rootfs/dev/console</name>
+      <uid>0</uid>
+      <gid>0</gid>
+      <type>char</type>
+      <major>5</major>
+      <minor>1</minor>
+      <mode>0600</mode>
+    </mknod>
+
+  </instructions>
+
+Start and end
+~~~~~~~~~~~~~
+The file starts with::
+
+  <?xml version="1.0"?>
+  <instructions>
+
+and ends with::
+
+  </instructions>
+
+Still to document
+~~~~~~~~~~~~~~~~~
+* ``priority`` attributes. See ``muddled/db.py`` and class
+  ``InstructionFile``.
+
+Standard instructions
+~~~~~~~~~~~~~~~~~~~~~
+There are currently three standard instructions available.
+
+These are *descriptions* of the actual instruction to be applied. It is up to
+the deployment tool that uses the instructions to decide what to actually do.
+For instance, ``filedep`` will run ``chown``, ``chmod`` or ``mknod`` directly,
+whilst ``cpiofile`` will simply emit instructions to the CPIO file it is
+constructing to do the appropriate thing when the CPIO file is "unpacked".
+
+chown
+.....
+This causes the ``chown`` program to be run, to set the ownership (user and
+group) for a file. For instance::
+
+    <chown>
+      <filespec>
+        <root>/bin</root>
+        <spec>hello_world</spec>
+      </filespec>
+      <user>root</user>
+      <group>root</group>
+    </chown>
+
+Internal tags are:
+
+* ``<filespec>`` which contains:
+
+  * ``<root>`` - the location of the file on the target filesystem, or the
+    location relative to ``${MUDDLE_INSTALL}`` (these are substantially the
+    same).
+  * ``<spec>`` - its filename
+
+* ``<user>`` - the name of the user that should own it. This is optional.
+  If not specified, the value will not be changed.
+* ``<group>`` - the name of the group it should be in. This is optional.
+  If not specified, the value will not be changed.
+
+chmod
+.....
+This causes the ``chmod`` program to be run, to set the permissions for a
+file. For instance::
+
+    <chmod>
+      <filespec>
+        <root>/bin</root>
+        <spec>hello_world</spec>
+      </filespec>
+      <mode>ugo+rx</mode>
+    </chmod>
+
+Internal tags are:
+
+* ``<filespec>`` which contains:
+
+  * ``<root>`` - the location of the file on the target filesystem, or the
+    location relative to ``${MUDDLE_INSTALL}`` (these are substantially the
+    same).
+
+  * ``<spec>`` - its filename
+
+* ``<mode>`` - the required permissions, specified in a manner that ``chmod``
+  will understand.
+
+mknod
+.....
+This causes ``mkdnod`` to be run to create a device node. For instance::
+
+  <mknod>
+   <name>/lib/udev/devices/console</name>
+   <uid>0</uid>
+   <gid>0</gid>
+   <type>char</type>
+   <major>5</major>
+   <minor>1</minor>
+   <mode>0600</mode>
+  </mknod>
+
+Internal tags are:
+
+* ``<name>`` - the path of the device node to create.
+
+  In early versions of muddle, this was an absolute path, and if a leading
+  ``/`` was used, then an attempt to write to the local filesystem was likely.
+
+  In current versions of muddle, leading ``/`` characters will be removed,
+  rendering this relative to the target filesystem.
+
+* ``<uid>`` - the user id to use for it
+* ``<gid>`` - the group id to use for it
+* ``<type>`` - the type of device node. ``char`` means ``c``, a charecter
+  device, ``block`` means ``b``, a block device.
+* ``<major>`` and ``<minor>`` - the major and minor device numbers. These may
+  be in decimal, in hexadecimal (starting with ``0x``) or octal (starting with
+  ``0`` but not ``x``).
+* ``<mode>`` is the permissions to be used for the device. These must be a
+  "umask" - i.e., an octal value specifying the permissions. See "man chmod"
+  for help on this.
+
+.. vim: set filetype=rst tabstop=8 softtabstop=2 shiftwidth=2 expandtab:

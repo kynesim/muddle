@@ -227,6 +227,8 @@ used.
    explicitly adding a checkout to ``_source_release`` in the build
    description itself, as that will be ignored.
 
+Build descriptions
+------------------
 Build description checkouts are treated specially. The ``muddle distribute``
 command adds the necessary rules itself, saying that each
 ``checkout:<build-desc>/distributed`` is built from

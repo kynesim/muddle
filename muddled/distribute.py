@@ -16,7 +16,7 @@ DEBUG=False
 def distribute_checkout(builder, name, label, copy_vcs_dir=False):
     """Request the distribution of the given checkout.
 
-    - 'name' is the name of this distribution
+    - 'name' is the name of the distribution we're adding this checkout to
     - 'label' must be a checkout label, but the tag is not important.
 
     By default, we don't copy any VCS directory.
@@ -58,7 +58,8 @@ def distribute_checkout(builder, name, label, copy_vcs_dir=False):
 def distribute_build_desc(builder, name, label, copy_vcs_dir=False):
     """Request the distribution of the given build description checkout.
 
-    - 'name' is the name of this distribution
+    - 'name' is the name of the distribution we're adding this build
+      description to
     - 'label' must be a checkout label, but the tag is not important.
 
     By default, we don't copy any VCS directory.
@@ -114,8 +115,7 @@ def distribute_build_desc(builder, name, label, copy_vcs_dir=False):
 def distribute_package(builder, name, label, binary=True, source=False, copy_vcs_dir=False):
     """Request the distribution of the given package.
 
-    - 'context' is a DistributeContext instance, naming the builder and the
-      target directory
+    - 'name' is the name of the distribution we're adding this package to
     - 'label' must be a package label, but the tag is not important.
 
     - If 'binary' is true, then a binary distribution will be performed.
@@ -170,6 +170,46 @@ def distribute_package(builder, name, label, binary=True, source=False, copy_vcs
         rule.add(source_label)                  # after we've built source_label
 
         builder.invocation.ruleset.add(rule)
+
+def distribute_role(builder, name, role, domain=None, binary=True, source=False, copy_vcs_dir=False):
+    """Request the distribution of all packages in the given role.
+
+    - 'name' is the name of the distribution we're adding this role to
+    - 'role' is the name of our role.
+    - 'domain' is the name of the subdomain to take the role from, or None
+
+    - If 'binary' is true, then a binary distribution will be performed.
+      This means that obj/ and install/ directories (and the associated
+      muddle tags) will be copied.
+
+    - If 'source' is true, then a source distribution will be performed.
+      This means that the source directories (within src/) for the checkouts
+      directly used by the package will be copied, along with the
+      associated muddle tags. If 'source' is true and 'copy_vcs_dir' is
+      true, then the VCS directories for those source checkouts will also
+      be copied, otherwise they will not.
+
+    Notes:
+
+        1. We don't forbid having both 'binary' and 'source' true,
+           but this may change in the future.
+        2. If a package directly uses more than one checkout, then
+           'copy_vcs_dir' applies to all of them. It is not possible
+           to give different values for different checkouts.
+        3. If we already described a distribution called 'name' for any
+           of the packages in this role/domain, then this will silently
+           overwrite it.
+    """
+    if DEBUG: print '.. distribute_role(builder, %r, %r, binary=%s, source=%s, %s)'%(name, role, binary, source, copy_vcs_dir)
+
+    lbl = Label(LabelType.Package, "*", role, "*", domain=domain)
+    all_rules = builder.invocation.ruleset.rules_for_target(lbl)
+
+    for rule in all_rules:
+        target = rule.target
+        distribute_package(builder, name, target, binary=binary, source=source,
+                           copy_vcs_dir=copy_vcs_dir)
+
 
 def _set_checkout_tags(builder, label, target_dir):
     """Copy checkout muddle tags
@@ -297,6 +337,9 @@ def _actually_distribute_binary(builder, label, target_dir):
 
     copy_without(obj_dir, tgt_obj_dir, preserve=True)
 
+    # If the target install directory already exists, we assume that some
+    # previous package has already copied its content (since the content
+    # is per-role, not per-package)
     if not os.path.exists(tgt_install_dir):
         if DEBUG:
             print 'and from %s'%install_dir

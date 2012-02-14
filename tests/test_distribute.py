@@ -67,7 +67,8 @@ from muddled.utils import LabelType, LabelTag
 from muddled.repository import Repository
 from muddled.version_control import checkout_from_repo
 
-from muddled.distribute import distribute_checkout, distribute_package
+from muddled.distribute import distribute_checkout, distribute_package, \
+        distribute_role
 
 def describe_to(builder):
     role = 'x86'
@@ -124,6 +125,10 @@ def describe_to(builder):
     # source and binary elements.
     distribute_checkout(builder, 'mixed', label('checkout:first_co/*'))
     distribute_package(builder, 'mixed', label('package:second_pkg{{x86}}/*'))
+
+    # We have another distribution which corresponds to role x86
+    distribute_role(builder, 'role-x86', 'x86', domain=None,
+                    binary=True, source=True)
 
     if False:
         # And some variations, in our subdomains
@@ -510,7 +515,6 @@ def main(args):
                                            '.muddle/tags/deployment',
                                           ])
 
-
             banner('TESTING DISTRIBUTE "mixed"')
             target_dir = os.path.join(root_dir, 'mixed')
             muddle(['distribute', 'mixed', target_dir])
@@ -548,6 +552,29 @@ def main(args):
                                            '.muddle/instructions/second_pkg/arm.xml',
                                            '.muddle/instructions/second_pkg/fred.xml',
                                            'versions',
+                                          ])
+
+            banner('TESTING DISTRIBUTE "role-x86"')
+            target_dir = os.path.join(root_dir, 'role-x86')
+            muddle(['distribute', 'role-x86', target_dir])
+            dt = DirTree(d.where, fold_dirs=['.git'])
+            dt.assert_same(target_dir, onedown=True,
+                           unwanted_files=['.git',
+                                           'builds/01.pyc',
+                                           'deploy',
+                                           '.muddle/tags/deployment',
+                                           'domains',   # we didn't ask for subdomains
+                                           'versions',
+                                           '.muddle/instructions/second_pkg/arm.xml',
+                                           '.muddle/instructions/second_pkg/fred.xml',
+                                           # We only want role x86, not role arm
+                                           '.muddle/tags/package/main_pkg/arm-built',
+                                           '.muddle/tags/package/main_pkg/arm-configured',
+                                           '.muddle/tags/package/main_pkg/arm-installed',
+                                           '.muddle/tags/package/main_pkg/arm-postinstalled',
+                                           '.muddle/tags/package/main_pkg/arm-preconfig',
+                                           'obj/main_pkg/arm',
+                                           'install/arm',
                                           ])
 
 if __name__ == '__main__':

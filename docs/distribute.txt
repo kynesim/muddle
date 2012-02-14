@@ -179,9 +179,6 @@ performs a binary release. It copies:
   * the ``tags/checkout`` directory and the tags for the checkouts used by the
     distributed packages
 
-  .. note:: TODO At the moment it does not copy any instructions - this needs
-     fixing.
-
 As you might guess, if the ``-with-version`` switch is given, then it will
 also distribute the ``versions`` directory, if it exists.
 
@@ -196,14 +193,17 @@ Case 3: Describing a distribution
    done on working out what we want to do and how to do it
 
 It is possible to define a distribution within the muddle build description.
-Two functions are provided so far::
+Three functions are provided so far::
 
   from muddled.distribute import distribute_checkout, distribute_package
   def describe_to(builder):
       ...
       distribute_checkout(builder, 'mixed', label('checkout:first_co/*'))
       distribute_package(builder, 'mixed', label('package:second_pkg{x86}/*'))
+      distribute_role(builder, 'role-x86', 'x86')
 
+Distribute a checkout
+---------------------
 The first function::
 
   distribute_checkout(builder, name, label, copy_vcs_dir=False)
@@ -237,6 +237,8 @@ course).
 If you do call ``distribute_checkout()`` on a build description checkout, the
 rule you add will actually be replaced by ``muddle distribute``.
 
+Distribute a package
+--------------------
 The second function::
 
   distribute_package(builder, name, label, binary=True, source=False, copy_vcs_dir=False)
@@ -262,6 +264,23 @@ A particular package may be part of more than one distribution. Adding a
 package to the same distribution more than once has no special effect, except
 that it is the last call that sets the value of ``binary``, ``source`` and
 ``copy_vcs_dir`` that will be used for that distribution.
+
+.. note:: All packages in the build description are implicitly part of
+   distribution ``_binary_release``. The ``muddle distribute`` command itself
+   calls ``distribute_package`` to add them to this distribution, after the
+   build description has been read. Thus there is never any point in
+   explicitly adding a package to ``_binary_release`` in the build
+   description itself, as that will be ignored.
+
+Distribute a role
+-----------------
+The third function::
+
+  distribute_role(builder, name, role, domain=None, binary=True, source=False, copy_vcs_dir=False)
+
+simply calls ``distribute_package`` on each package in the given role (and
+domain). As such, it is a convenience for when all packages (and possibly
+checkouts) within a role are to be treated alike.
 
 Still to consider
 -----------------

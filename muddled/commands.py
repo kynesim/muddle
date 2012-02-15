@@ -3712,7 +3712,15 @@ Try "muddle help unstamp" for more information."""
 @command('distribute', CAT_STAMP)       # in some vague sort of way
 class Distribute(Command):
     """
-    :Syntax: muddle distribute [-with-versions|-with-vcs] <name> <target_directory>
+    :Syntax: muddle distribute [<switches>|-no-muddle-makefile] <name> <target_directory>
+
+    - <switches> may be any of:
+
+        * -with-versions
+        * -with-vcs
+        * -no-muddle-makefile
+
+      See below for more information on each.
 
     - <name> is a distribution name.
 
@@ -3729,12 +3737,11 @@ class Distribute(Command):
           "clean copy" of the current build tree, although perhaps not as clean
           as starting over again from "muddle init",
 
-        * "_binary_release" - this is a binary distribution of all packages.
-          Note that all binary releases also include the build description
-          checkout(s) implied by the packages distributed.
-
-      These special distribution names don't necessarily show up in "muddle
-      query distributions" (or at least, not yet).
+        * "_binary_release" - this is a distribution of all the install
+          directories, as well as the build description checkout(s) implied by
+          the packages distributed and (unless -no-muddle-makefiles is given)
+          the muddle Makefiles needed by each package (as the only file in
+          each appropriate checkout directory)
 
     - <target_directory> is where to distribute to. If it already exists,
       it should preferably be an empty directory.
@@ -3750,8 +3757,14 @@ class Distribute(Command):
       - to all checkouts in a "_source_release" distribution
 
     It does not apply to checkouts specified with "distribute_checkout" in
-    the build description, as they use the "copy_vcs_dirs" arguments to that
+    the build description, as they use the "copy_vcs_dirs" argument to that
     function instead.
+
+    If the -no-muddle-makefile switch is specified, then the _binary_release
+    distribution will not include Muddle makefiles for each package
+    distributed. It does not override the setting of the "with_muddle_makefile"
+    argument explicitly set in any calls of "distribute_package" in the build
+    description.
 
     Note that "muddle -n distribute" can be used in the normal manenr to see
     what the command would do. It shows the labels that would be distributed,
@@ -3762,7 +3775,8 @@ class Distribute(Command):
     """
 
     allowed_switches = {'-with-vcs':'with-vcs',
-                        '-with-versions':'with-versions'}
+                        '-with-versions':'with-versions',
+                        '-no-muddle-makefile':'no-muddle-makefile'}
 
     def requires_build_tree(self):
         return True
@@ -3776,6 +3790,7 @@ class Distribute(Command):
 
         with_versions_dir = ('with-versions' in self.switches)
         with_vcs = ('with-vcs' in self.switches)
+        no_muddle_makefile = ('no-muddle-makefile' in self.switches)
 
         while args:
             word = args[0]
@@ -3793,7 +3808,9 @@ class Distribute(Command):
             raise GiveUp("Syntax: muddle distribute [<switches>] <name> <target_directory>")
 
         distribute(builder, name, target_dir,
-                   with_versions_dir=with_versions_dir, copy_vcs_dir=with_vcs,
+                   with_versions_dir=with_versions_dir,
+                   with_vcs_dir=with_vcs,
+                   no_muddle_makefile=no_muddle_makefile,
                    no_op=self.no_op())
 
 # =============================================================================

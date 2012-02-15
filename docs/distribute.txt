@@ -376,6 +376,19 @@ Related commands
   this project - it reports on the "local root" for a label, which for a label
   containing a subdomain name will be the "root" of the subdomain.
 
+Deployments
+===========
+We deliberately do not address distribution of the ``deploy`` directory.
+
+Deployments are already their own distribution mechanism - if a user wants to
+distribute some or all of a deployment, then this has normally been addressed
+outside the build tree. Also, just copying the ``deploy`` directory (with
+``cp`` or ``tar`` or whatever) is a perfectly appropriate thing to do.
+
+(muddle strongly encourages creation of the ``deploy`` directory content in a
+way that means it does not have trailing dependencies back into the rest of
+the build tree.)
+
 Licenses
 ========
 .. note:: This is work in progress.

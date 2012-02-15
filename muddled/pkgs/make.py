@@ -16,6 +16,25 @@ import os
 
 DEFAULT_MAKEFILE_NAME = "Makefile.muddle"
 
+def deduce_makefile_name(makefile_name, per_role, role):
+    """Deduce our actual muddle Makefile name.
+
+    'makefile_name' is the base name. If it is None, then we use
+    DEFAULT_MAKEFILE_NAME.
+
+    If 'per_role' is true, and 'role' is not None, then we add the
+    extension '.<role>' to the end of the makefile name.
+
+    Abstracted here so that it can be used outside this module as well.
+    """
+    if makefile_name is None:
+        makefile_name = DEFAULT_MAKEFILE_NAME
+
+    if per_role and role is not None:
+        makefile_name = "%s.%s"%(makefile_name, role)
+
+    return makefile_name
+
 class MakeBuilder(PackageBuilder):
     """
     Use make to build your package from the given checkout.
@@ -96,15 +115,11 @@ class MakeBuilder(PackageBuilder):
         with utils.Directory(co_path):
             self._amend_env(co_path)
 
-            if self.makefile_name is None:
-                makefile_name = DEFAULT_MAKEFILE_NAME
-            else:
-                makefile_name = self.makefile_name
+            makefile_name = deduce_makefile_name(self.makefile_name,
+                                                 self.per_role_makefiles,
+                                                 label.role)
 
-            if self.per_role_makefiles and label.role is not None:
-                make_args = " -f %s.%s"%(makefile_name,label.role)
-            else:
-                make_args = " -f %s"%(makefile_name)
+            make_args = ' -f %s'%(makefile_name)
 
             if (tag == utils.LabelTag.PreConfig):
                 # Preconfigure - nothing need be done

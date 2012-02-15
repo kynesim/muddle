@@ -725,7 +725,7 @@ class Invocation(object):
 
         If default_to_obvious_tag is true, then if label has a tag of '*', it
         will be replaced by the "obvious" (final) tag for this label type,
-        before any searching (for for a checkout: label, /checked_out would
+        before any searching (so for a checkout: label, /checked_out would
         be used).
         """
 

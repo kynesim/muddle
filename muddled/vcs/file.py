@@ -67,7 +67,7 @@ class File(VersionControlSystem):
         if repo.branch:
             raise utils.GiveUp("File does not support the 'branch' argument to"
                                " 'fetch' (branch='%s'"%repo.branch)
-        self.checkout(repo, os.curdir, verbose=verbose)
+        self.checkout(repo, os.curdir, options, verbose=verbose)
 
     def merge(self, other_repo, options, verbose=True):
         """
@@ -81,7 +81,7 @@ class File(VersionControlSystem):
         if other_repo.branch:
             raise utils.GiveUp("File does not support the 'branch' argument to"
                                " 'merge' (branch='%s'"%other_repo.branch)
-        self.checkout(other_repo, os.curdir, verbose=verbose)
+        self.checkout(other_repo, os.curdir, options, verbose=verbose)
 
     def commit(self, repo, options, verbose=True):
         """

@@ -716,7 +716,7 @@ class Invocation(object):
                 return_list.append(label)
         return return_list
 
-    def expand_wildcards(self, label, default_to_obvious_tag=True, wildcard_tag=None):
+    def expand_wildcards(self, label, default_to_obvious_tag=True):
         """
         Given a label which may contain wildcards, return a set of labels that match.
 

@@ -521,8 +521,6 @@ def main(args):
                                            '.muddle/tags/deployment',
                                           ])
 
-            return
-
             banner('TESTING DISTRIBUTE BINARY RELEASE WITH VERSIONS')
             target_dir = os.path.join(root_dir, 'binary-with-versions')
             muddle(['distribute', '-with-versions', '_binary_release', target_dir])
@@ -530,9 +528,13 @@ def main(args):
             dt.assert_same(target_dir, onedown=True,
                            unwanted_files=['.git',
                                            'builds/01.pyc',
-                                           'src/main_co',
-                                           'src/first_co',
-                                           'src/second_co',
+                                           'src/main_co/main1.c',
+                                           'src/first_co/first.c',
+                                           'src/second_co/second.c',
+                                           'domains/subdomain1/src/main_co/subdomain1.c',
+                                           'domains/subdomain1/domains/subdomain3/src/main_co/subdomain3.c',
+                                           'domains/subdomain2/src/main_co/subdomain2.c',
+                                           'obj',
                                            'deploy',
                                            '.muddle/instructions/second_pkg/arm.xml',
                                            '.muddle/instructions/second_pkg/fred.xml',
@@ -546,14 +548,20 @@ def main(args):
             dt.assert_same(target_dir, onedown=True,
                            unwanted_files=[
                                            'builds/01.pyc',
-                                           'src/main_co',
-                                           'src/first_co',
-                                           'src/second_co',
+                                           'src/main_co/main1.c',
+                                           'src/first_co/first.c',
+                                           'src/second_co/second.c',
+                                           'domains/subdomain1/src/main_co/subdomain1.c',
+                                           'domains/subdomain1/domains/subdomain3/src/main_co/subdomain3.c',
+                                           'domains/subdomain2/src/main_co/subdomain2.c',
+                                           'obj',
                                            'deploy',
                                            '.muddle/instructions/second_pkg/arm.xml',
                                            '.muddle/instructions/second_pkg/fred.xml',
                                            '.muddle/tags/deployment',
                                           ])
+
+            return
 
             banner('TESTING DISTRIBUTE "mixed"')
             target_dir = os.path.join(root_dir, 'mixed')

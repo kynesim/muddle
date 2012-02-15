@@ -13,6 +13,82 @@ from muddled.mechanics import build_co_and_path_from_str
 
 DEBUG=False
 
+# =============================================================================
+# LICENSES
+# =============================================================================
+# XXX NOTE This preliminary work is probably wrong, given discussions with
+# XXX Richard. Leave it here for the moment anyway.
+class License(object):
+    """The representation of a source license.
+
+    It seems appropriate to use a class, since I'm not yet sure what we're
+    going to want to remember about a license, but I can see methods in the
+    future...
+
+    License instances should be:
+
+        1. Singular
+        2. Immutable
+
+    but I don't particularly propose to work hard to enforce those...
+    """
+
+    def __init__(self, name, category):
+        """Initialise a new License.
+
+        The 'name' is the name of this license, as it is normally recognised.
+
+        'category' is meant to be a broad categorisation of the type of the
+        license. Currently that is one of:
+
+            * 'open' - this means that source code should be distributed
+            * 'binary' - this means that source code should not be distirbuted,
+              but binary (in a muddle sort of context) may
+            * 'secret' - this means that the checkout licensed should not be
+              distributed at all
+
+        At the moment there is no distinction between GPL licenses (where
+        static linking can require other checkouts also to be treated as
+        'open') and other sorts of 'open' license. This is because that's
+        primarily something that needs to be discerned and acted on by human
+        beings - we can't really expect to detect those sorts of interaction
+        automatically
+        """
+        self.name = name
+        if category not in ('open', 'binary', 'secret'):
+            raise GiveUp("Attempt to create License with unrecognised"
+                         " category '%s'"%category)
+        self.category = category
+
+    def __str__(self):
+        return self.name
+
+    def __repr__(self):
+        return 'License(%r, %r)'%(self.name, self.category)
+
+    def distribute_source(self):
+        """Returns True if we should (must?) distribute source code.
+        """
+        return self.category == 'open'
+
+# Let's define some standard licenses:
+MPL_1_1 = License('MPL 1.1', 'open')
+LGPL    = License('LGPL', 'open')
+APACHE  = License('Apache', 'open')
+APACHE2 = License('Apache 2.0', 'open')
+BSD     = License('BSD', 'open')
+BSD_ADV = License('BSD with advertising', 'open')   # what is this called?
+ZLIB    = License('zlib', 'open')                   # ZLIB has its own license
+ECLIPSE = License('Eclipse Public License 1.0', 'open')
+COMMON  = License('Common Public License', 'open')  # Some JAVA stuff
+GPL2PLUS = License('GPL v2 and above', 'open')
+GPL2     = License('GPL v2', 'open')
+GPL3     = License('GPL v3', 'open')                # Implicit "and above"?
+UKOGL    = License('UK Open Government License', 'open')
+
+# =============================================================================
+# DISTRIBUTION
+# =============================================================================
 def distribute_checkout(builder, name, label, copy_vcs_dir=False):
     """Request the distribution of the given checkout.
 

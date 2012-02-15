@@ -465,4 +465,29 @@ Naming licenses:
 * For secret licenses, perhaps we only need ``secret`` - anything else gives
   away information!
 
+Second iteration
+----------------
+``License(name, category)``, where ``name`` is the common name for the license,
+and ``category`` is one of ``open``, ``binary`` or ``secret``.
+
+Licenses are static things, they're just a way of naming what we've got.
+
+Next iteration
+--------------
+Richard would like active licenses.
+
+So declaring a checkout (or package) as having a particular license adds it to
+the distribution of the same name. For "propagating" licenses like LGPL and
+GPL, we also want a mechanism for saying that another checkout must also be
+released as source, because it depends on that library. In which case we
+*also* want a way to say "but actually, even though we 'depend' on it, that
+doesn't mean we're linking to it in a GPL-relevant manner, so the license does
+not propagate to this checkout".
+
+Most open source licenses (?) don't actually *require* source code
+distribution, it's just the GPL related licenses (of course, this needs
+checking).
+
+All of this still needs some thought...
+
 .. vim: set filetype=rst tabstop=8 softtabstop=2 shiftwidth=2 expandtab:

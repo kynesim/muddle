@@ -388,7 +388,7 @@ def find_local_root(builder, label):
                             'Label was %s\n'
                             'Started at %s\n'
                             'Ended at %s, without finding a .muddle/ directory'%(
-                                label, label_dir, head))
+                                label, label_dir, up1))
         dir = up1
 
 def find_local_relative_root(builder, label):

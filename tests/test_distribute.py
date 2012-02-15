@@ -67,8 +67,7 @@ from muddled.utils import LabelType, LabelTag
 from muddled.repository import Repository
 from muddled.version_control import checkout_from_repo
 
-from muddled.distribute import distribute_checkout, distribute_package, \
-        distribute_role
+from muddled.distribute import distribute_checkout, distribute_package
 
 def describe_to(builder):
     role = 'x86'
@@ -126,27 +125,17 @@ def describe_to(builder):
     distribute_checkout(builder, 'mixed', label('checkout:first_co/*'))
     distribute_package(builder, 'mixed', label('package:second_pkg{{x86}}/*'))
 
-    # We have another distribution which corresponds to role x86
-    distribute_role(builder, 'role-x86', 'x86', domain=None,
-                    binary=True, source=True)
+    # We have another distribution which corresponds to role x86, source
+    # and all binary
+    distribute_package(builder, 'role-x86', label('package:*{{x86}}/*'),
+                       obj=True, install=True)
+    distribute_checkout(builder, 'role-x86', label('package:*{{x86}}/*'))
 
     # And another distribution which is a vertical slice down the domains
     # (so see the subdomain build descriptions as well)
     distribute_package(builder, 'vertical', label('package:second_pkg{{x86}}/*'),
-                       binary=True, source=True)
-
-    if False:
-        # And some variations, in our subdomains
-        distribute_checkout(builder, 'mixed',
-                            label('checkout:(subdomain1)first_co/*'), copy_vcs_dir=True)
-        distribute_package(builder, 'mixed',
-                           label('package:(subdomain1)second_pkg{{x86}}/*'))
-        distribute_package(builder, 'mixed',
-                           label('package:(subdomain1(subdomain3))second_pkg{{x86}}/*'),
-                           binary=True, source=True)
-        distribute_package(builder, 'mixed',
-                           label('package:(subdomain2)second_pkg{{x86}}/*'),
-                           binary=False, source=True)
+                       obj=True, install=True)
+    distribute_checkout(builder, 'vertical', label('package:second_pkg{{x86}}/*'))
 """
 
 SUBDOMAIN1_BUILD_DESC = """ \
@@ -159,7 +148,7 @@ import muddled.checkouts.simple
 import muddled.deployments.collect as collect
 from muddled.mechanics import include_domain
 from muddled.depend import Label
-from muddled.distribute import distribute_package
+from muddled.distribute import distribute_package, distribute_checkout
 
 def describe_to(builder):
     role = 'x86'
@@ -193,7 +182,8 @@ def describe_to(builder):
     # Our vertical distribution continues
     label = Label.from_string
     distribute_package(builder, 'vertical', label('package:second_pkg{{x86}}/*'),
-                       binary=True, source=True)
+                       obj=True, install=True)
+    distribute_checkout(builder, 'vertical', label('package:second_pkg{{x86}}/*'))
 """
 
 SUBDOMAIN2_BUILD_DESC = """ \
@@ -231,7 +221,7 @@ import muddled.pkgs.make
 import muddled.checkouts.simple
 import muddled.deployments.filedep
 from muddled.depend import Label
-from muddled.distribute import distribute_package
+from muddled.distribute import distribute_package, distribute_checkout
 
 def describe_to(builder):
     role = 'x86'
@@ -253,7 +243,8 @@ def describe_to(builder):
     # Our vertical distribution continues
     label = Label.from_string
     distribute_package(builder, 'vertical', label('package:second_pkg{x86}/*'),
-                       binary=True, source=True)
+                       obj=True, install=True)
+    distribute_checkout(builder, 'vertical', label('package:second_pkg{x86}/*'))
 """
 
 GITIGNORE = """\
@@ -461,6 +452,8 @@ def main(args):
                                            '.muddle/tags/package',
                                            '.muddle/tags/deployment',
                                           ])
+
+            return
 
             banner('TESTING DISTRIBUTE SOURCE RELEASE WITH VCS')
             target_dir = os.path.join(root_dir, 'source-with-vcs')

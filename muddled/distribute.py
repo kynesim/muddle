@@ -140,9 +140,9 @@ def distribute_checkout(builder, name, label, copy_vcs_dir=False):
             # Yes - add this distribution to it (if it's not there already)
             if DEBUG: print '   exists: add/override'
             rule = builder.invocation.ruleset.map[target_label]
-            rule.action.set_distribution(name, copy_vcs_dir)
-            # And we want all source files...
-            rule.action.request_all_source_files()
+            # If it was already there, we'll just override whatever it thought
+            # it wanted to do before...
+            rule.action.set_distribution(name, copy_vcs_dir, just=None)
         else:
             # No - we need to create one
             if DEBUG: print '   adding anew'
@@ -209,7 +209,7 @@ def distribute_checkout_files(builder, name, label, source_files):
             if not action.copying_all_source_files():
                 action.add_source_files(name, source_files)
         else:
-            action.set_distribution(name, (False, source_files))
+            action.set_distribution(name, False, source_files)
 
     else:
         # No - we need to create one
@@ -353,7 +353,7 @@ def distribute_package(builder, name, label, obj=True, install=True,
             # Yes - add this distribution name to it (if it's not there already)
             if DEBUG: print '   exists: add/override'
             rule = builder.invocation.ruleset.map[target_label]
-            rule.action.set_distribution(name, (obj, install))
+            rule.action.set_distribution(name, obj, install)
         else:
             # No - we need to create one
             if DEBUG: print '   adding anew'
@@ -745,6 +745,16 @@ class DistributeCheckout(DistributeAction):
 
         super(DistributeCheckout, self).__init__(name, (copy_vcs_dir, just))
 
+    def set_distribution(self, name, copy_vcs_dir=False, just=None):
+        """Set the information for the named distribution.
+
+        If this action already has information for that name, overwrites it.
+        """
+        if just is not None:
+            just = set(just)
+
+        self.distributions[name] = (copy_vcs_dir, just)
+
     def add_source_files(self, name, source_files):
         """Add some specific source files to distribution 'name'.
 
@@ -762,7 +772,7 @@ class DistributeCheckout(DistributeAction):
             return
 
         just.update(source_files)
-        self.set_distribution(name, (copy_vcs_dir, just))
+        self.set_distribution(name, copy_vcs_dir, just)
 
     def request_all_source_files(self, name):
         """Request that distribution 'name' distribute all source files.
@@ -775,7 +785,7 @@ class DistributeCheckout(DistributeAction):
             # Nothing to do, we're already copying all files
             return
 
-        self.set_distribution(name, (copy_vcs_dir, None))
+        self.set_distribution(name, copy_vcs_dir, None)
 
     def copying_all_source_files(self, name):
         """Are we distributing all the soruce files?
@@ -865,6 +875,13 @@ class DistributePackage(DistributeAction):
                'install', although both False is not terribly useful.
         """
         super(DistributePackage, self).__init__(name, (obj, install))
+
+    def set_distribution(self, name, obj=True, install=True):
+        """Set the information for the named distribution.
+
+        If this action already has information for that name, overwrites it.
+        """
+        self.distributions[name] = (obj, install)
 
     def build_label(self, builder, label):
         name, target_dir = builder.get_distribution()
@@ -1022,7 +1039,7 @@ def copy_versions_dir(builder, name, target_dir, copy_vcs_dir=False):
     copy_without(src_dir, tgt_dir, without, preserve=True)
 
 def distribute(builder, name, target_dir, with_versions_dir=False,
-               with_vcs_dir=False, no_muddle_makefiles=False, no_op=False):
+               with_vcs_dir=False, no_muddle_makefile=False, no_op=False):
     """Distribute using distribution context 'name', to 'target_dir'.
 
     The DistributeContext called 'name' must exist.
@@ -1045,7 +1062,7 @@ def distribute(builder, name, target_dir, with_versions_dir=False,
         - the "versions/" directory (if it is distributed)
         - all checkouts in a "_source_release" distribution
 
-    If 'no_muddle_makefiles' is true, then the appropriate muddle Makefile (in
+    If 'no_muddle_makefile' is true, then the appropriate muddle Makefile (in
     the appropriate checkout) will be *not* distributed with a package.
 
     If 'no_op' is true, then we just report on what we would do - this
@@ -1079,7 +1096,7 @@ def distribute(builder, name, target_dir, with_versions_dir=False,
         # A binary release is the install directories for all packages
         for label in all_packages:
             distribute_package(builder, name, label, obj=False, install=True,
-                               with_muddle_makefile=(not no_muddle_makefiles))
+                               with_muddle_makefile=(not no_muddle_makefile))
         all_checkouts = set()
     # ==============
 

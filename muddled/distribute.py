@@ -750,6 +750,19 @@ class DistributeCheckout(DistributeAction):
 
         super(DistributeCheckout, self).__init__(name, (copy_vcs_dir, just))
 
+    def __str__(self):
+        parts = []
+        for key, (copy_vcs_dir, just) in self.distributions.items():
+            inner = []
+            if copy_vcs_dir:
+                inner.append('vcs')
+            if just:
+                inner.append('%d'%len(just))
+            else:
+                inner.append('*')
+            parts.append('%s[%s]'%(key, ','.join(inner)))
+        return '%s: %s'%(self.__class__.__name__, ', '.join(sorted(parts)))
+
     def set_distribution(self, name, copy_vcs_dir=False, just=None):
         """Set the information for the named distribution.
 
@@ -834,6 +847,15 @@ class DistributeBuildDescription(DistributeAction):
         """
         super(DistributeBuildDescription, self).__init__(name, copy_vcs_dir)
 
+    def __str__(self):
+        parts = []
+        for key, copy_vcs_dir in self.distributions.items():
+            if copy_vcs_dir:
+                parts.append('%s[vcs]'%key)
+            else:
+                parts.append(key)
+        return '%s: %s'%(self.__class__.__name__, ', '.join(sorted(parts)))
+
     def build_label(self, builder, label):
         name, target_dir = builder.get_distribution()
 
@@ -880,6 +902,20 @@ class DistributePackage(DistributeAction):
                'install', although both False is not terribly useful.
         """
         super(DistributePackage, self).__init__(name, (obj, install))
+
+    def __str__(self):
+        parts = []
+        for key, (obj, install) in self.distributions.items():
+            inner = []
+            if obj:
+                inner.append('obj')
+            if install:
+                inner.append('install')
+            if inner:
+                parts.append('%s[%s]'%(key, ','.join(inner)))
+            else:
+                parts.append(key)
+        return '%s: %s'%(self.__class__.__name__, ', '.join(sorted(parts)))
 
     def set_distribution(self, name, obj=True, install=True):
         """Set the information for the named distribution.
@@ -1143,7 +1179,7 @@ def distribute(builder, name, target_dir, with_versions_dir=False,
             maxlen = max(maxlen,len(str(label)))
         for label in distribution_labels:
             rule = invocation.ruleset.map[label]
-            print '%-*s with %s'%(maxlen, label, rule.action)
+            print '%-*s %s'%(maxlen, label, rule.action)
         return
 
     # =========================================================================

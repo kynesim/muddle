@@ -121,9 +121,10 @@ def describe_to(builder):
     # Let's add some distribution rules
     label = Label.from_string
     # We're describing a distribution called "mixed", which contains both
-    # source and binary elements.
+    # source and obj (but not install)
     distribute_checkout(builder, 'mixed', label('checkout:first_co/*'))
-    distribute_package(builder, 'mixed', label('package:second_pkg{{x86}}/*'))
+    distribute_package(builder, 'mixed', label('package:second_pkg{{x86}}/*'),
+                       obj=True, install=False)
 
     # We have another distribution which corresponds to role x86, source
     # and all binary
@@ -453,8 +454,6 @@ def main(args):
                                            '.muddle/tags/deployment',
                                           ])
 
-            return
-
             banner('TESTING DISTRIBUTE SOURCE RELEASE WITH VCS')
             target_dir = os.path.join(root_dir, 'source-with-vcs')
             muddle(['distribute', '-with-vcs', '_source_release', target_dir])
@@ -508,15 +507,22 @@ def main(args):
             dt.assert_same(target_dir, onedown=True,
                            unwanted_files=['.git',
                                            'builds/01.pyc',
-                                           'src/main_co',
-                                           'src/first_co',
-                                           'src/second_co',
+                                           'src/main_co/main1.c',
+                                           'src/first_co/first.c',
+                                           'src/second_co/second.c',
+                                           'domains/subdomain1/domains/subdomain3/src/main_co/main1.c',
+                                           'domains/subdomain1/domains/subdomain3/src/second_co',
+                                           'domains/subdomain1/domains/subdomain3/src/first_co/first.c',
+                                           'domains/subdomain1/domains/subdomain3/src/main_co/subdomain3.c',
+                                           'obj',
                                            'deploy',
                                            'versions',
                                            '.muddle/instructions/second_pkg/arm.xml',
                                            '.muddle/instructions/second_pkg/fred.xml',
                                            '.muddle/tags/deployment',
                                           ])
+
+            return
 
             banner('TESTING DISTRIBUTE BINARY RELEASE WITH VERSIONS')
             target_dir = os.path.join(root_dir, 'binary-with-versions')

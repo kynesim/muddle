@@ -206,7 +206,7 @@ def distribute_checkout_files(builder, name, label, source_files):
         if action.does_distribution(name):
             # If we're already copying all the source files, we don't need to do
             # anything. Otherwise...
-            if not action.copying_all_source_files():
+            if not action.copying_all_source_files(name):
                 action.add_source_files(name, source_files)
         else:
             action.set_distribution(name, False, source_files)
@@ -284,7 +284,7 @@ def distribute_build_desc(builder, name, label, copy_vcs_dir=False):
 
         builder.invocation.ruleset.add(rule)
 
-def distribute_package(builder, name, label, obj=True, install=True,
+def distribute_package(builder, name, label, obj=False, install=True,
                        with_muddle_makefile=True):
     """Request the distribution of the given package.
 
@@ -368,7 +368,8 @@ def distribute_package(builder, name, label, obj=True, install=True,
             # Our package label gets to have one MakeBuilder action associated
             # with it, which tells us what we want to know. It in turn is
             # "attached" to the various "buildy" tags on our label.
-            rule = builder.invocation.ruleset.rule_for_target(pkg_label)
+            tmp_label = pkg_label.copy_with_tag(LabelTag.Built)
+            rule = builder.invocation.ruleset.rule_for_target(tmp_label)
             # Shall we assume it is a MakeBuilder? Let's not
             action = rule.action
             if not isinstance(action, MakeBuilder):
@@ -378,11 +379,10 @@ def distribute_package(builder, name, label, obj=True, install=True,
                                                  action.per_role_makefiles,
                                                  pkg_label.role)
 
-            make_co = Label(LabelType.Checkout, action.co, LabelTag.CheckedOut,
-                            domain=pkg_label.domain)
+            make_co = Label(LabelType.Checkout, action.co, domain=pkg_label.domain)
 
             # And that's the muddle Makefile we want to add
-            distribute_checkout_files(builder, name, make_co, makefile_name)
+            distribute_checkout_files(builder, name, make_co, [makefile_name])
 
 def _set_checkout_tags(builder, label, target_dir):
     """Copy checkout muddle tags
@@ -444,8 +444,12 @@ def _actually_distribute_some_checkout_files(builder, label, target_dir, files):
         print '  to   %s'%co_tgt_dir
 
     for file in files:
-        copy_file(os.path.join(co_src_dir, file),
-                  os.path.join(co_tgt_dir, file), preserve=True)
+        actual_tgt_path = os.path.join(co_tgt_dir, file)
+        head, tail = os.path.split(actual_tgt_path)
+        if not os.path.exists(head):
+            os.makedirs(head)
+        copy_file(os.path.join(co_src_dir, file), actual_tgt_path,
+                  preserve=True)
 
     # We mustn't forget to set the appropriate tags in the target .muddle/
     # directory, since we want it to look "checked out"
@@ -587,7 +591,8 @@ def _actually_distribute_obj(builder, label, target_dir):
     copy_without(obj_dir, tgt_obj_dir, preserve=True)
 
     # We mustn't forget to set the appropriate package tags
-    _set_package_tags(builder, label, target_dir, ('.muddle', 'tags', 'package'))
+    _set_package_tags(builder, label, target_dir,
+                      ('preconfig', 'configured', 'built'))
 
     # In order to stop muddle wanting to rebuild the sources on which this
     # package depends, we also need to set the tags for the checkouts it
@@ -625,7 +630,7 @@ def _actually_distribute_install(builder, label, target_dir):
 
     # Set the appropriate package tags
     _set_package_tags(builder, label, target_dir,
-                      ('.muddle', 'tags', 'package, installed, postinstalled'))
+                      ('preconfig', 'configured', 'built', 'installed', 'postinstalled'))
 
     # In order to stop muddle wanting to rebuild the sources on which this
     # package depends, we also need to set the tags for the checkouts it
@@ -658,8 +663,8 @@ class DistributeAction(Action):
         self.distributions = {name:data}
 
     def __str__(self):
-        return '%s/%s/'%(self.__class__.__name__,
-                ','.join(sorted(self.distributions.keys())))
+        return '%s: %s'%(self.__class__.__name__,
+                ', '.join(sorted(self.distributions.keys())))
 
     def set_distribution(self, name, data):
         """Set the information for the named distribution.
@@ -1063,7 +1068,7 @@ def distribute(builder, name, target_dir, with_versions_dir=False,
         - all checkouts in a "_source_release" distribution
 
     If 'no_muddle_makefile' is true, then the appropriate muddle Makefile (in
-    the appropriate checkout) will be *not* distributed with a package.
+    the appropriate checkout) will *not* be distributed with a package.
 
     If 'no_op' is true, then we just report on what we would do - this
     lists the labels that would be distributed, and the action that would
@@ -1097,7 +1102,6 @@ def distribute(builder, name, target_dir, with_versions_dir=False,
         for label in all_packages:
             distribute_package(builder, name, label, obj=False, install=True,
                                with_muddle_makefile=(not no_muddle_makefile))
-        all_checkouts = set()
     # ==============
 
     combined_labels = set(all_checkouts.union(all_packages))

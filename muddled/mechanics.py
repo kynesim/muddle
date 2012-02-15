@@ -727,9 +727,6 @@ class Invocation(object):
         will be replaced by the "obvious" (final) tag for this label type,
         before any searching (for for a checkout: label, /checked_out would
         be used).
-
-        If required_tag is not None, then any labels found that have a '*' for
-        their tag will have it replaced by this value.
         """
 
         if label.is_definite():

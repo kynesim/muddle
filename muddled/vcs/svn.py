@@ -170,6 +170,9 @@ class Subversion(VersionControlSystem):
     def allows_relative_in_repo(self):
         return True
 
+    def get_vcs_special_files(self):
+        return ['.svn']
+
     def get_file_content(self, url, options, verbose=True):
         """
         Retrieve a file's content via Subversion.

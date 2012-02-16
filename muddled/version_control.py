@@ -145,15 +145,16 @@ class VersionControlSystem(object):
         """
         return False
 
-    def get_vcs_dirname(self):
+    def get_vcs_special_files(self):
         """
-        Return the name of the directory holding information for this VCS.
+        Return the names of the 'special' files/directories used by this VCS.
 
-        For instance, ".git" for git.
+        For instance, if 'url' starts with "git+" then we might return
+        [".git", ".gitignore", ".gitmodules"]
 
-        Returns None if there is no such concept.
+        Returns an empty list if there is no such concept.
         """
-        return None
+        return []
 
 
 class VersionControlHandler(object):
@@ -454,15 +455,16 @@ class VersionControlHandler(object):
     def must_fetch_before_commit(self):
         return self.vcs_handler.must_fetch_before_commit(self.options)
 
-    def get_vcs_dirname(self):
+    def get_vcs_special_files(self):
         """
-        Return the name of the directory holding information for this VCS.
+        Return the names of the 'special' files/directories used by this VCS.
 
-        For instance, ".git" for git.
+        For instance, if 'url' starts with "git+" then we might return
+        [".git", ".gitignore", ".gitmodules"]
 
-        Returns None if there is no such concept.
+        Returns an empty list if there is no such concept.
         """
-        return self.vcs_handler.get_vcs_dirname()
+        return self.vcs_handler.get_vcs_special_files()
 
     def get_file_content(self, url, verbose=True):
         """
@@ -791,12 +793,14 @@ def vcs_init_directory(scheme, files=None):
     vcs_handler.init_directory()
     vcs_handler.add_files(files)
 
-def vcs_special_dirname(url):
-    """Return the name of the 'special' directory used by this VCS.
+def vcs_special_files(url):
+    """
+    Return the names of the 'special' files/directories used by this VCS.
 
-    For instance, if 'url' starts with "git+" then we return ".git"
+    For instance, if 'url' starts with "git+" then we might return
+    [".git", ".gitignore", ".gitmodules"]
     """
     vcs_handler, plain_url = get_vcs_handler_from_string(url)
-    return vcs_handler.get_vcs_dirname()
+    return vcs_handler.get_vcs_special_files()
 
 # End file.

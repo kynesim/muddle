@@ -368,8 +368,8 @@ class Git(VersionControlSystem):
         """
         return False
 
-    def get_vcs_dirname(self):
-        return '.git'
+    def get_vcs_special_files(self):
+        return ['.git', '.gitignore', '.gitmodules']
 
     # I can't see any way to do 'get_file_content', but this needs
     # reinvestigating periodically

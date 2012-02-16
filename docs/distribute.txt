@@ -67,6 +67,14 @@ is added to "build" label ``checkout:<name>/distributed`` from
 ``package:<name>{<role>)/distributed`` from
 ``package:<name>{<role>}/postinstalled`` using the DistributePackage action.
 
+.. note:: *Technically* doing a DistributePackage of just the ``obj``
+   directories doesn't require that the package(s) be ``/postinstalled``,
+   as ``/built`` would suffice. I don't think that's worth worrying about
+   at the moment, especially as ``muddle`` always builds through to
+   ``/postinstalled`` if at all posible (i.e., that's what ``muddle build``
+   does, and see what it says in ``muddle help build`` about depending
+   on ``/postinstalled`` being the norm).
+
 For source and binary releases (cases 1 and 2) the ``muddle distribute``
 command itself organises this. For case 3, appropriate code in the build
 description causes the rules to be added.
@@ -130,13 +138,14 @@ Specifically, it will copy:
   * the ``Description``,  ``RootRepository`` and ``VersionsRepository`` files
   * the ``tags/checkout`` directory and the tags for the copied checkouts
 
-It does not copy the VCS directory (as determined by the build description,
-``.git`` or whatever) for the checkouts, or for the ``versions`` directory.
+It does not copy VCS "special" files (as determined by the build description,
+``.git``, ``.gitignore``, etc.) for the checkouts, or for the ``versions``
+directory.
 
 If the ``versions`` directory is not wanted, then the ``-with-versions``
 switch can be left off.
 
-If the VCS directories in the checkouts (and ``versions`` directory) *are*
+If the VCS "special" files in the checkouts (and ``versions`` directory) *are*
 wanted, then the ``-with-vcs`` switch should be specified::
 
   muddle distribute -with-version -with-vcs _source_release ../release_1.0.vcs
@@ -154,9 +163,10 @@ Case 2: Binary distribution
 .. note:: Whilst I think this section makes sense, it is possible that it
    may be re-addressed in the future.
 
-Sometimes someone wants a binary release - that is, the content of the ``obj``
-and ``install`` directories, plus the build descriptions (so they can deploy
-if necessary).
+Sometimes someone wants a binary release. A binary release is taken to be
+the "end product" of doing a ``muddle build``, and is thus the content of the
+``install`` directories, plus the build descriptions and muddle Makefiles (so
+the recipient hopefully has enough context to ``muddle deploy`` if necessary).
 
 The command::
 
@@ -164,7 +174,6 @@ The command::
 
 performs a binary release. It copies:
 
-* the ``obj/<package-name>/<package-role>`` directory for each package
 * the ``install/<role>`` directory for each package (this is, of course,
   the same directory for all packages in the same role)
 * the build description (i.e., its checkout) for the top-level and for any
@@ -179,10 +188,22 @@ performs a binary release. It copies:
   * the ``tags/checkout`` directory and the tags for the checkouts used by the
     distributed packages
 
+* the muddle Makefile (alone in its source checkout directory) for each
+  package.
+ 
+  For instance, if ``package:zlib{x86}/*`` is built from
+  ``checkout:zlib-3.0/checked_out``, using muddle Makefile ``Makefile.muddle``
+  in ``src/libs/zlib-3.0``, then the user will receive a directory called
+  ``src/libs/zlib-3.0`` that just contains ``Makefile.muddle``.
+
+  Note that this is *not* always enough to allow deployment, and sometimes
+  other support files will need to be (epxlicitly) added via the build
+  description.
+
 As you might guess, if the ``-with-version`` switch is given, then it will
 also distribute the ``versions`` directory, if it exists.
 
-Also, if ``-with-vcs`` is specified, the VCS directories for the build
+Also, if ``-with-vcs`` is specified, the VCS "special" files for the build
 descriptions and the ``versions`` directory (if distributed) will also be
 included.
 
@@ -193,31 +214,39 @@ Case 3: Describing a distribution
    done on working out what we want to do and how to do it
 
 It is possible to define a distribution within the muddle build description.
-Three functions are provided so far::
+The following functions are provided::
 
   from muddled.distribute import distribute_checkout, distribute_package
   def describe_to(builder):
       ...
       distribute_checkout(builder, 'mixed', label('checkout:first_co/*'))
+      distribute_checkout_files(builder, 'mixed', label('checkout:first_co/*'),
+                                ['src/Makefile', 'src/rules.txt'])
       distribute_package(builder, 'mixed', label('package:second_pkg{x86}/*'))
       distribute_role(builder, 'role-x86', 'x86')
 
 Distribute a checkout
 ---------------------
-The first function::
+::
 
-  distribute_checkout(builder, name, label, copy_vcs_dir=False)
+  distribute_checkout(builder, name, label, copy_vcs=False)
 
-is used to say that a particular checkout (identified by ``label``) is to be
-part of the distribution called ``name``. If ``copy_vcs_dir`` is true, then
-its VCS directory should be distributed.
+This is used to say that a particular checkout (identified by ``label``) is to
+be part of the distribution called ``name``. If ``copy_vcs`` is true, then its
+VCS "special" files should be distributed.
+
+Note that:
+
+a. the label name be a wildcard ('*'), in which case all matching
+   checkouts will be distributed.
+b. the label tag is ignored
 
 The function creates a rule saying that ``checkout:<name>/distributed`` is
 build from ``checkout:<name>/checked_out`` using the DistributeCheckout action.
 
 A particular checkout may be part of more than one distribution. Adding a
 checkout to the same distribution more than once has no special effect, except
-that it is the last call that sets the value of ``copy_vcs_dir`` that will be
+that it is the last call that sets the value of ``copy_vcs`` that will be
 used.
 
 .. note:: All checkouts in the build description are implicitly part of
@@ -227,35 +256,91 @@ used.
    explicitly adding a checkout to ``_source_release`` in the build
    description itself, as that will be ignored.
 
+Distribute specific file from a checkout
+----------------------------------------
+::
+
+  distribute_checkout_files(builder, name, label, source_files)
+
+This is used to say that the files in sequence ``source_files``, named
+relative to the source directory of checkout ``label``, should be distributed
+as part of distribution ``name``.
+
+Note that the label name may *not* be wildcarded, but the label tag is
+ignored.
+
+This is the function that is used internally to add muddle Makefiles for
+packages. It can also be used directly to specify that other files must also
+be distributed.
+
+Multiple calls with the same ``builder, ``name`` and ``label`` will just add
+the specified files to the same distribution.
+
+.. note:: It is proposed (although not yet implemented) that using a ``name``
+   of ``"*"`` would mean that the specified source files should be added to
+   all distributions of this checkout. Whether/how this would interact with
+   the ``with_muddle_makefile`` switch on ``distribute_package`` is not clear.
+
+Calling ``distribute_checkout_files`` after calling ``distribute_checkout``
+for the same distribution and checkout has no effect - the latter call has
+already selected all files.
+
+Calling ``distribute_checkout`` after calling ``distribute_checkout_files``
+for the same distribution and checkout means that the calls of the latter are
+essentially ignored, for the same reason (``distribute_checkout`` is choosing
+all files).
+
 Build descriptions
 ------------------
-Build description checkouts are treated specially. The ``muddle distribute``
-command adds the necessary rules itself, saying that each
+Build description checkouts are treated specially.
+
+The ``muddle distribute`` command adds the necessary rules itself, by calling
+``distribute_build_description``, saying that each
 ``checkout:<build-desc>/distributed`` is built from
 ``checkout:<build-desc>/checked_out`` using the DistributeBuildDescription
 action (which is actually very similar to the DistributeCheckout action, of
 course).
+
+There's never any reason to call ``distribute_build_description`` directly,
+as ``muddle distribute`` will always override it.
 
 If you do call ``distribute_checkout()`` on a build description checkout, the
 rule you add will actually be replaced by ``muddle distribute``.
 
 Distribute a package
 --------------------
-The second function::
+::
 
-  distribute_package(builder, name, label, binary=True, source=False, copy_vcs_dir=False)
+  distribute_package(builder, name, label, obj=False, install=True,
+                     with_muddle_makefile=True)
 
-is used to say that a particular package (identified by ``label``) is to be
-part of the distribution called ``name``.
+This is used to say that a particular package (identified by ``label``) is to
+be part of the distribution called ``name``.
 
-If ``binary`` is true, then the ``obj`` and ``install`` directories for
+Note that:
+
+a. the label name and role may be wildcards ('*'), in which case all matching
+   packages will be distributed.
+b. the label tag is ignored
+
+If ``obj`` is true, then the ``obj/<package-name>/<role>`` directory for
 ``label`` will be distributed.
 
-If ``source`` is true, then the checkout labels directly used by ``label``
-will be distributed. In that case, if ``copy_vcs_dir`` is true, then
-the VCS directories for those checkouts will also be distributed.
+If ``install`` is true, then the ``install/<role>`` directory for
+``label`` will be distributed.
 
-If both ``binary`` and ``source`` are false, nothing much is going to be done
+If ``with_muddle_makefile`` is true, then the muddle Makefile for this
+package will also be distributed.
+ 
+For instance, if ``package:zlib{x86}/*`` is built from
+``checkout:zlib-3.0/checked_out``, using muddle Makefile ``Makefile.muddle``
+in ``src/libs/zlib-3.0``, then the user will receive a directory called
+``src/libs/zlib-3.0`` that just contains ``Makefile.muddle``.
+
+Note that this is *not* always enough to allow deployment, and sometimes other
+support files will need to be (epxlicitly) added via the build description.
+
+If both ``obj`` and ``install`` are false, nothing much is going to be done
 for this package. The current implementation doesn't grumble about that.
 
 The function creates a rule saying that`
@@ -264,8 +349,8 @@ The function creates a rule saying that`
 
 A particular package may be part of more than one distribution. Adding a
 package to the same distribution more than once has no special effect, except
-that it is the last call that sets the value of ``binary``, ``source`` and
-``copy_vcs_dir`` that will be used for that distribution.
+that it is the last call that sets the value of ``obj``, ``install`` and
+``with_muddle_makefile`` that will be used for that distribution.
 
 .. note:: All packages in the build description are implicitly part of
    distribution ``_binary_release``. The ``muddle distribute`` command itself
@@ -274,15 +359,6 @@ that it is the last call that sets the value of ``binary``, ``source`` and
    explicitly adding a package to ``_binary_release`` in the build
    description itself, as that will be ignored.
 
-Distribute a role
------------------
-The third function::
-
-  distribute_role(builder, name, role, domain=None, binary=True, source=False, copy_vcs_dir=False)
-
-simply calls ``distribute_package`` on each package in the given role (and
-domain). As such, it is a convenience for when all packages (and possibly
-checkouts) within a role are to be treated alike.
 
 Still to consider
 -----------------
@@ -292,15 +368,13 @@ Still to consider
   in a single call?
 * Do we want to have a single call to assign several checkouts/packages to the
   same distribution?
-* Should there be a call to say "the default checkout/package distribution
-  is..."?
+
+* Should adding checkout files to distribution ``"*"`` actually add them to
+  all distributions? This may be essential for saying "you always need
+  ``src/Makefile`` to be able to build this checkout".
 
 Also:
 
-* should roles (i.e., in particular, ``install`` directories) be treated
-  separarely? If not, should packages be able to say "I only own particular
-  files in the ``install`` directory"?
-* do we ever need to distribute deployments?
 * what is meant to happen if contradictory rules are made for a checkout,
   one via ``distribute_checkout()`` and another via ``distribute_package(...,
   source=True)``?
@@ -453,7 +527,7 @@ can be after we've proven the technology.
 Then we want to add another way of describing a distribution::
 
   distribute_licenses(builder, name, [license1, license2, ...], binary=True,
-                      source=True, copy_vcs_dir=False)
+                      source=True, copy_vcs=False)
 
 Note that this doesn't know anything about what the licenses *mean*. It's
 possible we want some checking mechanism that recognises some licenses as open

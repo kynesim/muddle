@@ -2,6 +2,21 @@
 Actions and mechanisms relating to distributing build trees
 """
 
+# XXX TODO
+# Doing::
+#
+#   distribute_checkout_files(builder, '*', label, source_files)
+#
+# should arguable add those files to *all* distributions. This would make
+# it easier to say "actually you always need 'src/Makefile' to be able to
+# build this checkout".
+
+# XXX TODO
+# Question - what are we meant to do if a package implicitly sets
+# a distribution state for a checkout, and we also explicitly set
+# a different (incompatible) state for a checkout? Who wins? Or do
+# we just try to satisfy both?
+
 import os
 
 from muddled.depend import Action, Rule, Label
@@ -1209,9 +1224,3 @@ def distribute(builder, name, target_dir, with_versions_dir=False,
             '' if num_labels==1 else 's')
     for label in distribution_labels:
         builder.build_label(label)
-
-    # XXX TODO
-    # Question - what are we meant to do if a package implicitly sets
-    # a distribution state for a checkout, and we also explicitly set
-    # a different (incompatible) state for a checkout? Who wins? Or do
-    # we just try to satisfy both?

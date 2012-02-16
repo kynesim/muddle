@@ -8,7 +8,7 @@ from muddled.depend import Action, Rule, Label
 from muddled.utils import GiveUp, MuddleBug, LabelTag, LabelType, \
         copy_without, normalise_dir, find_local_relative_root, package_tags, \
         copy_file, domain_subpath
-from muddled.version_control import get_vcs_handler, vcs_special_dirname
+from muddled.version_control import get_vcs_handler, vcs_special_files
 from muddled.mechanics import build_co_and_path_from_str
 from muddled.pkgs.make import MakeBuilder, deduce_makefile_name
 
@@ -90,7 +90,7 @@ UKOGL    = License('UK Open Government License', 'open')
 # =============================================================================
 # DISTRIBUTION
 # =============================================================================
-def distribute_checkout(builder, name, label, copy_vcs_dir=False):
+def distribute_checkout(builder, name, label, copy_vcs=False):
     """Request the distribution of the specified checkout(s).
 
     - 'name' is the name of the distribution we're adding this checkout to
@@ -100,30 +100,34 @@ def distribute_checkout(builder, name, label, copy_vcs_dir=False):
        2. a package label, in which case all the checkouts directly used by
           the package will be distributed (this is identical to calling
           'distribute_checkout' on each of them in turn). Note that in this
-          case the same value of 'copy_vcs_dir' will be used for all the
+          case the same value of 'copy_vcs' will be used for all the
           checkouts. Either the package name or package role may be
           wildcarded, in which case the checkouts directly used by each
           matching label will be distributed.
 
-    In either case, the label tag is ignored.
+      In either case, the label tag is ignored.
 
-    This function requests the distribution of all of the files within the
-    checkout source directory, except that by default, we don't copy any VCS
-    directory.
+    - 'copy_vcs' says whether we should copy VCS "special" files (so, for
+       git this includes at least the '.git' directory, and any '.gitignore'
+       or '.gitmodules' files). The default is not to do so.
+
+    All files and directories within the specified checkout(s) will be
+    distributed, except for the VCS "special" files, whose distribution
+    depends on 'copy_vcs'.
 
     Notes:
 
         1. If we already described a distribution called 'name' for a given
            checkout label, then this will silently overwrite it.
     """
-    if DEBUG: print '.. distribute_checkout(builder, %r, %s, %s)'%(name, label, copy_vcs_dir)
+    if DEBUG: print '.. distribute_checkout(builder, %r, %s, %s)'%(name, label, copy_vcs)
 
     if label.type == LabelType.Package:
         packages = builder.invocation.expand_wildcards(label)
         for package in packages:
             checkouts = builder.invocation.checkouts_for_package(package)
             for co_label in checkouts:
-                distribute_checkout(builder, name, co_label, copy_vcs_dir)
+                distribute_checkout(builder, name, co_label, copy_vcs)
 
     elif label.type == LabelType.Checkout:
         source_label = label.copy_with_tag(LabelTag.CheckedOut)
@@ -142,11 +146,11 @@ def distribute_checkout(builder, name, label, copy_vcs_dir=False):
             rule = builder.invocation.ruleset.map[target_label]
             # If it was already there, we'll just override whatever it thought
             # it wanted to do before...
-            rule.action.set_distribution(name, copy_vcs_dir, just=None)
+            rule.action.set_distribution(name, copy_vcs, just=None)
         else:
             # No - we need to create one
             if DEBUG: print '   adding anew'
-            action = DistributeCheckout(name, copy_vcs_dir)
+            action = DistributeCheckout(name, copy_vcs)
 
             rule = Rule(target_label, action)       # to build target_label, run action
             rule.add(source_label)                  # after we've built source_label
@@ -183,7 +187,7 @@ def distribute_checkout_files(builder, name, label, source_files):
         2. However, if that previous distribution was distributing "all files"
            (i.e., created with 'distribute_checkout()'), then we will not alter
            the action. This means that this call may not be used to override
-           the 'copy_vcs_dir' choice by trying to specify the VCS directory as
+           the 'copy_vcs' choice by trying to specify the VCS directory as
            an extra source path...
     """
     if DEBUG: print '.. distribute_checkout_files(builder, %r, %s, %s)'%(name, label, source_files)
@@ -221,14 +225,15 @@ def distribute_checkout_files(builder, name, label, source_files):
 
         builder.invocation.ruleset.add(rule)
 
-def distribute_build_desc(builder, name, label, copy_vcs_dir=False):
+def distribute_build_desc(builder, name, label, copy_vcs=False):
     """Request the distribution of the given build description checkout.
 
     - 'name' is the name of the distribution we're adding this build
       description to
     - 'label' must be a checkout label, but the tag is not important.
-
-    By default, we don't copy any VCS directory.
+    - 'copy_vcs' says whether we should copy VCS "special" files (so, for
+       git this includes at least the '.git' directory, and any '.gitignore'
+       or '.gitmodules' files). The default is not to do so.
 
     Notes:
 
@@ -239,7 +244,7 @@ def distribute_build_desc(builder, name, label, copy_vcs_dir=False):
            DistributeBuildDescription action. All we'll copy over from the
            older action is the distribution names.
     """
-    if DEBUG: print '.. distribute_build_desc(builder, %r, %s, %s)'%(name, label, copy_vcs_dir)
+    if DEBUG: print '.. distribute_build_desc(builder, %r, %s, %s)'%(name, label, copy_vcs)
     if label.type != LabelType.Checkout:
         # This is a MuddleBug because we shouldn't be called directly by the
         # user, so it's muddle infrastructure that got it wrong
@@ -262,12 +267,12 @@ def distribute_build_desc(builder, name, label, copy_vcs_dir=False):
         if isinstance(action, DistributeBuildDescription):
             if DEBUG: print '   exists as DistributeBuildDescrption: add/override'
             # It's the right sort of thing - just add this distribution name
-            action.set_distribution(name, copy_vcs_dir)
+            action.set_distribution(name, copy_vcs)
         elif isinstance(action, DistributeCheckout):
             if DEBUG: print '   exists as DistributeCheckout: replace'
             # Ah, it's a generic checkout action - let's replace it with
             # a build description action
-            new_action = DistributeBuildDescription(name, copy_vcs_dir)
+            new_action = DistributeBuildDescription(name, copy_vcs)
             # And copy over any names we don't yet have
             new_action.merge_names(action)
             rule.action = new_action
@@ -277,7 +282,7 @@ def distribute_build_desc(builder, name, label, copy_vcs_dir=False):
     else:
         # No - we need to create one
         if DEBUG: print '   adding anew'
-        action = DistributeBuildDescription(name, copy_vcs_dir)
+        action = DistributeBuildDescription(name, copy_vcs)
 
         rule = Rule(target_label, action)       # to build target_label, run action
         rule.add(source_label)                  # after we've built source_label
@@ -455,23 +460,23 @@ def _actually_distribute_some_checkout_files(builder, label, target_dir, files):
     # directory, since we want it to look "checked out"
     _set_checkout_tags(builder, label, target_dir)
 
-def _actually_distribute_checkout(builder, label, target_dir, copy_vcs_dir):
+def _actually_distribute_checkout(builder, label, target_dir, copy_vcs):
     """As it says.
     """
     # Get the actual directory of the checkout
     co_src_dir = builder.invocation.db.get_checkout_location(label)
 
-    # If we're not doing copy_vcs_dir, find the VCS for this checkout, and from
-    # that determine its VCS dir, and make that our "without" string
+    # If we're not doing copy_vcs, find the VCS special files for this
+    # checkout, and them our "without" string
     without = []
-    if not copy_vcs_dir:
+    if not copy_vcs:
         repo = builder.invocation.db.get_checkout_repo(label)
         vcs_handler = get_vcs_handler(repo.vcs)
-        vcs_dir = vcs_handler.get_vcs_dirname()
-        if vcs_dir:
-            without.append(vcs_dir)
+        vcs_special_files = vcs_handler.get_vcs_special_files()
+        if vcs_special_files:
+            without.extend(vcs_special_files)
 
-    # So we can now copy our source directory, ignoring the VCS directory if
+    # So we can now copy our source directory, ignoring the VCS files if
     # necessary. Note that this can create the target directory for us.
     co_tgt_dir = os.path.join(normalise_dir(target_dir), co_src_dir)
     co_tgt_dir = os.path.normpath(co_tgt_dir)
@@ -487,7 +492,7 @@ def _actually_distribute_checkout(builder, label, target_dir, copy_vcs_dir):
     # directory
     _set_checkout_tags(builder, label, target_dir)
 
-def _actually_distribute_build_desc(builder, label, target_dir, copy_vcs_dir):
+def _actually_distribute_build_desc(builder, label, target_dir, copy_vcs):
     """Very similar to what we do for any other checkout...
     """
     # Get the actual directory of the checkout
@@ -496,25 +501,29 @@ def _actually_distribute_build_desc(builder, label, target_dir, copy_vcs_dir):
     # Now, we want to copy everything except:
     #
     #   * no .pyc files
-    #   * MAYBE no VCS file, depending
+    #   * MAYBE no VCS files, depending
 
-    vcs_dir = None
-    if not copy_vcs_dir:
+    vcs_special_files = []
+    if not copy_vcs:
         repo = builder.invocation.db.get_checkout_repo(label)
         vcs_handler = get_vcs_handler(repo.vcs)
-        vcs_dir = vcs_handler.get_vcs_dirname()
+        vcs_special_files = vcs_handler.get_vcs_special_files()
 
     co_tgt_dir = os.path.join(normalise_dir(target_dir), co_src_dir)
     if DEBUG:
         print 'Copying build description:'
         print '  from %s'%co_src_dir
         print '  to   %s'%co_tgt_dir
-        if vcs_dir:
-            print '  without %s'%[vcs_dir]
+        if vcs_special_files:
+            print '  without %s'%vcs_special_files
+
+    vcs_special_files = set(vcs_special_files)
 
     for dirpath, dirnames, filenames in os.walk(co_src_dir):
 
         for name in filenames:
+            if name in vcs_special_files:           # Maybe ignore VCS files
+                continue
             base, ext = os.path.splitext(name)
             if ext == '.pyc':                       # Ignore .pyc files
                 continue
@@ -526,8 +535,9 @@ def _actually_distribute_build_desc(builder, label, target_dir, copy_vcs_dir):
             copy_file(src_path, tgt_path, preserve=True)
 
         # Ignore VCS directories, if we were asked to do so
-        if vcs_dir and vcs_dir in dirnames:
-            dirnames.remove(vcs_dir)
+        directories_to_ignore = vcs_special_files.intersection(dirnames)
+        for name in directories_to_ignore:
+            dirnames.remove(name)
 
     # Set the appropriate tags in the target .muddle/ directory
     _set_checkout_tags(builder, label, target_dir)
@@ -714,7 +724,7 @@ class DistributeCheckout(DistributeAction):
     An action that distributes a checkout.
 
     By default it copies the whole of the checkout source directory, not
-    including any VCS subdirectory (.git/, etc.)
+    including any VCS files (.git/, etc.)
 
     A mechanism for only copying *some* files is also included. This is
     typically used by "binary" packages that want to copy (for instance) the
@@ -723,19 +733,20 @@ class DistributeCheckout(DistributeAction):
     Each checkout distribution is associated with a data tuple of the
     form:
 
-            (copy_vcs_dir, specific_files)
+            (copy_vcs, specific_files)
 
     where specific_files is None or a set of specific files for distibution.
     """
 
-    def __init__(self, name, copy_vcs_dir=False, just=None):
+    def __init__(self, name, copy_vcs=False, just=None):
         """
         'name' is the name of a DistributuionContext. When created, we are
         told which DistributionContext we can be distributed by. Later on,
         other names may be added...
 
-        If 'copy_vcs_dir' is false, then don't copy any VCS directory
-        (.git/, .bzr/, etc., depending on the VCS used for this checkout).
+        If 'copy_vcs' is false, then don't copy any VCS "special" files
+        (['.git', '.gitignore', ...] or ['.bzr'], etc., depending on the VCS
+        used for this checkout).
 
         If 'just' is not None, then it must be a sequence of source paths,
         relative to the checkout directory, which are the specific files
@@ -748,13 +759,13 @@ class DistributeCheckout(DistributeAction):
         if just is not None:
             just = set(just)
 
-        super(DistributeCheckout, self).__init__(name, (copy_vcs_dir, just))
+        super(DistributeCheckout, self).__init__(name, (copy_vcs, just))
 
     def __str__(self):
         parts = []
-        for key, (copy_vcs_dir, just) in self.distributions.items():
+        for key, (copy_vcs, just) in self.distributions.items():
             inner = []
-            if copy_vcs_dir:
+            if copy_vcs:
                 inner.append('vcs')
             if just:
                 inner.append('%d'%len(just))
@@ -763,7 +774,7 @@ class DistributeCheckout(DistributeAction):
             parts.append('%s[%s]'%(key, ','.join(inner)))
         return '%s: %s'%(self.__class__.__name__, ', '.join(sorted(parts)))
 
-    def set_distribution(self, name, copy_vcs_dir=False, just=None):
+    def set_distribution(self, name, copy_vcs=False, just=None):
         """Set the information for the named distribution.
 
         If this action already has information for that name, overwrites it.
@@ -771,7 +782,7 @@ class DistributeCheckout(DistributeAction):
         if just is not None:
             just = set(just)
 
-        self.distributions[name] = (copy_vcs_dir, just)
+        self.distributions[name] = (copy_vcs, just)
 
     def add_source_files(self, name, source_files):
         """Add some specific source files to distribution 'name'.
@@ -780,54 +791,54 @@ class DistributeCheckout(DistributeAction):
         nothing, as we're already outputting all the source files.
 
         Don't try to use this to add the VCS directory to a distribution of all
-        source files that was instantiated with copy_vcs_dir, as the clause
-        above will make that fail...
+        source files that was instantiated with copy_vcs, as the clause above
+        will make that fail...
         """
-        copy_vcs_dir, just = self.get_distribution(name)
+        copy_vcs, just = self.get_distribution(name)
 
         if just is None:
             # Nothing to do, we're already copying all files
             return
 
         just.update(source_files)
-        self.set_distribution(name, copy_vcs_dir, just)
+        self.set_distribution(name, copy_vcs, just)
 
     def request_all_source_files(self, name):
         """Request that distribution 'name' distribute all source files.
 
         This is a tidy way of undoing any selection of specific files.
         """
-        copy_vcs_dir, just = self.get_distribution(name)
+        copy_vcs, just = self.get_distribution(name)
 
         if just is None:
             # Nothing to do, we're already copying all files
             return
 
-        self.set_distribution(name, copy_vcs_dir, None)
+        self.set_distribution(name, copy_vcs, None)
 
     def copying_all_source_files(self, name):
         """Are we distributing all the soruce files?
         """
-        copy_vcs_dir, just = self.get_distribution(name)
+        copy_vcs, just = self.get_distribution(name)
         return just is None
 
-    def copying_vcs_dir(self, name):
+    def copying_vcs(self, name):
         """Are we distributing the VCS directory?
         """
-        copy_vcs_dir, just = self.get_distribution(name)
-        return copy_vcs_dir
+        copy_vcs, just = self.get_distribution(name)
+        return copy_vcs
 
     def build_label(self, builder, label):
         name, target_dir = builder.get_distribution()
 
-        copy_vcs_dir, just = self.distributions[name]
+        copy_vcs, just = self.distributions[name]
 
         if DEBUG:
-            print 'DistributeCheckout %s (%s VCS dir) to %s'%(label,
-                    'without' if copy_vcs_dir else 'with', target_dir)
+            print 'DistributeCheckout %s (%s VCS) to %s'%(label,
+                    'without' if copy_vcs else 'with', target_dir)
 
         if just is None:
-            _actually_distribute_checkout(builder, label, target_dir, copy_vcs_dir)
+            _actually_distribute_checkout(builder, label, target_dir, copy_vcs)
         else:
             _actually_distribute_some_checkout_files(builder, label, target_dir, just)
 
@@ -835,22 +846,22 @@ class DistributeBuildDescription(DistributeAction):
     """This is a bit like DistributeCheckoutAction, but without 'just'.
     """
 
-    def __init__(self, name, copy_vcs_dir=False):
+    def __init__(self, name, copy_vcs=False):
         """
         'name' is the name of a DistributionContext. When created, we are
         told which DistributionContext we can be distributed by. Later on,
         other names may be added...
 
-        If 'copy_vcs_dir' is false, then don't copy any VCS directory
-        (.git/, .bzr/, etc., depending on the VCS used for this checkout).
-
+        If 'copy_vcs' is false, then don't copy any VCS "special" files
+        (['.git', '.gitignore', ...] or ['.bzr'], etc., depending on the VCS
+        used for this checkout).
         """
-        super(DistributeBuildDescription, self).__init__(name, copy_vcs_dir)
+        super(DistributeBuildDescription, self).__init__(name, copy_vcs)
 
     def __str__(self):
         parts = []
-        for key, copy_vcs_dir in self.distributions.items():
-            if copy_vcs_dir:
+        for key, copy_vcs in self.distributions.items():
+            if copy_vcs:
                 parts.append('%s[vcs]'%key)
             else:
                 parts.append(key)
@@ -859,13 +870,13 @@ class DistributeBuildDescription(DistributeAction):
     def build_label(self, builder, label):
         name, target_dir = builder.get_distribution()
 
-        copy_vcs_dir = self.distributions[name]
+        copy_vcs = self.distributions[name]
 
         if DEBUG:
-            print 'DistributeBuildDescription %s (%s VCS dir) to %s'%(label,
-                    'without' if copy_vcs_dir else 'with', target_dir)
+            print 'DistributeBuildDescription %s (%s VCS) to %s'%(label,
+                    'without' if copy_vcs else 'with', target_dir)
 
-        _actually_distribute_build_desc(builder, label, target_dir, copy_vcs_dir)
+        _actually_distribute_build_desc(builder, label, target_dir, copy_vcs)
 
 class DistributePackage(DistributeAction):
     """
@@ -985,7 +996,7 @@ def build_desc_label_in_domain(builder, domain, label_tag):
         build_co_name, build_desc_path = build_co_and_path_from_str(str.strip())
     return Label(LabelType.Checkout, build_co_name, tag=label_tag, domain=domain)
 
-def add_build_descriptions(builder, name, domains, copy_vcs_dir=False):
+def add_build_descriptions(builder, name, domains, copy_vcs=False):
     """Add all the implicated build description checkouts to our distribution.
     """
     # We need a build description for each domain we had a label for
@@ -1008,9 +1019,9 @@ def add_build_descriptions(builder, name, domains, copy_vcs_dir=False):
     for domain in sorted(cumulative_domains):
         co_label = build_desc_label_in_domain(builder, domain, LabelTag.Distributed)
         if DEBUG: print '-- Build description', co_label
-        distribute_build_desc(builder, name, co_label, copy_vcs_dir)
+        distribute_build_desc(builder, name, co_label, copy_vcs)
         extra_labels.append(co_label)
-    print 'Done'
+    if DEBUG: print 'Done'
 
     return extra_labels
 
@@ -1046,7 +1057,7 @@ def copy_muddle_skeleton(builder, name, target_dir, domains):
 
     if DEBUG: print 'Done'
 
-def copy_versions_dir(builder, name, target_dir, copy_vcs_dir=False):
+def copy_versions_dir(builder, name, target_dir, copy_vcs=False):
     """Copy the stamp versions directory
     """
 
@@ -1064,11 +1075,11 @@ def copy_versions_dir(builder, name, target_dir, copy_vcs_dir=False):
         os.makedirs(tgt_dir)
 
     without = []
-    if not copy_vcs_dir:
+    if not copy_vcs:
         versions_repo_url = builder.invocation.db.versions_repo.get()
-        vcs_dir = vcs_special_dirname(versions_repo_url)
-        if vcs_dir:
-            without.append(vcs_dir)
+        vcs_files = vcs_special_files(versions_repo_url)
+        if vcs_files:
+            without.append(vcs_files)
 
     if DEBUG:
         print 'Copying versions/ directory:'
@@ -1080,7 +1091,7 @@ def copy_versions_dir(builder, name, target_dir, copy_vcs_dir=False):
     copy_without(src_dir, tgt_dir, without, preserve=True)
 
 def distribute(builder, name, target_dir, with_versions_dir=False,
-               with_vcs_dir=False, no_muddle_makefile=False, no_op=False):
+               with_vcs=False, no_muddle_makefile=False, no_op=False):
     """Distribute using distribution context 'name', to 'target_dir'.
 
     The DistributeContext called 'name' must exist.
@@ -1096,7 +1107,7 @@ def distribute(builder, name, target_dir, with_versions_dir=False,
     If 'with_versions_dir' is true, then any stamp "versions/" directory
     will also be distributed.
 
-    If "with_vcs_dir" is true, then the VCS directory (.git/ for git, etc.)
+    If "with_vcs" is true, then the VCS directory (.git/ for git, etc.)
     will be copied for:
 
         - the build description(s)
@@ -1131,7 +1142,7 @@ def distribute(builder, name, target_dir, with_versions_dir=False,
     if name == '_source_release':
         # A source release is the source directories alone, but with no VCS
         for label in all_checkouts:
-            distribute_checkout(builder, name, label, copy_vcs_dir=with_vcs_dir)
+            distribute_checkout(builder, name, label, copy_vcs=with_vcs)
         all_packages = set()
     elif name == '_binary_release':
         # A binary release is the install directories for all packages
@@ -1161,7 +1172,7 @@ def distribute(builder, name, target_dir, with_versions_dir=False,
     # We need to do this after everyone else has had a chance to set rules
     # on /distribute labels, so we can override any DistributeCheckout actions
     # that were mistakenly placed on our build descriptions...
-    extra_labels = add_build_descriptions(builder, name, domains, with_vcs_dir)
+    extra_labels = add_build_descriptions(builder, name, domains, with_vcs)
 
     # Don't forget that means more labels for us
     distribution_labels.update(extra_labels)
@@ -1193,7 +1204,7 @@ def distribute(builder, name, target_dir, with_versions_dir=False,
 
     if with_versions_dir:
         # Copy over the versions directory, if any
-        copy_versions_dir(builder, name, target_dir, with_vcs_dir)
+        copy_versions_dir(builder, name, target_dir, with_vcs)
 
     print 'Building %d /distribute label%s'%(num_labels,
             '' if num_labels==1 else 's')

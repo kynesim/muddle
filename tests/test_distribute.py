@@ -443,7 +443,7 @@ def main(args):
             muddle(['distribute', '_source_release', target_dir])
             dt = DirTree(d.where, fold_dirs=['.git'])
             dt.assert_same(target_dir, onedown=True,
-                           unwanted_files=['.git',
+                           unwanted_files=['.git*',
                                            'builds/01.pyc',
                                            'obj',
                                            'install',
@@ -475,7 +475,7 @@ def main(args):
             muddle(['distribute', '-with-versions', '_source_release', target_dir])
             dt = DirTree(d.where, fold_dirs=['.git'])
             dt.assert_same(target_dir, onedown=True,
-                           unwanted_files=['.git',
+                           unwanted_files=['.git*',
                                            'builds/01.pyc',
                                            'obj',
                                            'install',
@@ -505,14 +505,9 @@ def main(args):
             muddle(['distribute', '_binary_release', target_dir])
             dt = DirTree(d.where, fold_dirs=['.git'])
             dt.assert_same(target_dir, onedown=True,
-                           unwanted_files=['.git',
+                           unwanted_files=['.git*',
                                            'builds/01.pyc',
-                                           'src/main_co/main1.c',
-                                           'src/first_co/first.c',
-                                           'src/second_co/second.c',
-                                           'domains/subdomain1/src/main_co/subdomain1.c',
-                                           'domains/subdomain1/domains/subdomain3/src/main_co/subdomain3.c',
-                                           'domains/subdomain2/src/main_co/subdomain2.c',
+                                           '*.c',
                                            'obj',
                                            'deploy',
                                            'versions',
@@ -526,14 +521,9 @@ def main(args):
             muddle(['distribute', '-with-versions', '_binary_release', target_dir])
             dt = DirTree(d.where, fold_dirs=['.git'])
             dt.assert_same(target_dir, onedown=True,
-                           unwanted_files=['.git',
+                           unwanted_files=['.git*',
                                            'builds/01.pyc',
-                                           'src/main_co/main1.c',
-                                           'src/first_co/first.c',
-                                           'src/second_co/second.c',
-                                           'domains/subdomain1/src/main_co/subdomain1.c',
-                                           'domains/subdomain1/domains/subdomain3/src/main_co/subdomain3.c',
-                                           'domains/subdomain2/src/main_co/subdomain2.c',
+                                           '*.c',
                                            'obj',
                                            'deploy',
                                            '.muddle/instructions/second_pkg/arm.xml',
@@ -548,12 +538,8 @@ def main(args):
             dt.assert_same(target_dir, onedown=True,
                            unwanted_files=[
                                            'builds/01.pyc',
-                                           'src/main_co/main1.c',
-                                           'src/first_co/first.c',
-                                           'src/second_co/second.c',
-                                           'domains/subdomain1/src/main_co/subdomain1.c',
-                                           'domains/subdomain1/domains/subdomain3/src/main_co/subdomain3.c',
-                                           'domains/subdomain2/src/main_co/subdomain2.c',
+                                           '*.c',
+                                           'src/*_co/.git*',
                                            'obj',
                                            'deploy',
                                            '.muddle/instructions/second_pkg/arm.xml',

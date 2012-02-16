@@ -3749,8 +3749,8 @@ class Distribute(Command):
     If the -with-versions switch is specified, then if there is a stamp
     "versions/" directory it will also be copied. By default it is not.
 
-    If the -with-vcs switch is specified, then VCS directories (that is,
-    ".git/" for git, and so on) are requested:
+    If the -with-vcs switch is specified, then VCS "special" files (that is,
+    ".git", ".gitignore", ".gitmodules" for git, and so on) are requested:
 
       - for the build description directories
       - for the "versions/" directory, if it is being copied
@@ -3769,7 +3769,30 @@ class Distribute(Command):
     Note that "muddle -n distribute" can be used in the normal manenr to see
     what the command would do. It shows the labels that would be distributed,
     and the actions that would be used to do so. This is especially useful for
-    the "_source_release" and "_binary_release" commands.
+    the "_source_release" and "_binary_release" commands. Output will typically
+    be something like::
+
+        $ m3 -n distribute -with-vcs _binary_release ../fred
+        Writing distribution _binary_release to ../fred
+        checkout:builds/distributed        DistributeBuildDescription: _binary_release[vcs]
+        checkout:main_co/distributed       DistributeCheckout: _binary_release[1], role-x86[*]
+        package:main_pkg{arm}/distributed  DistributePackage: _binary_release[install]
+        package:main_pkg{x86}/distributed  DistributePackage: _binary_release[install], role-x86[obj,install]
+
+    * For each action, all the available distribution names are listed.
+    * Each distribution name may be followed by values in [..], depending on
+      what action it is associated with.
+    * For a DistributeBuildDescription, the value may be [vcs], indicating that
+      VCS files will be distributed.
+    * For a DistributeCheckout, the values are [*], [<n>], [*,vcs] or [<n>,vcs].
+      '*' means that all files will be distributed, a single integer (<n>) that
+      just that many specific files have been selected for distribution. [1]
+      typically means the muddle Makefile. A 'vcs' means that the VCS files
+      will be distributed.
+    * For a DistributePackage, the values are [obj], [install] or [obj,install],
+      indicating if "obj" or "install" directories are being distributed. It's
+      also possible (but not much use) to have a DistributePackage distribution
+      name that doesn't do either.
 
     BEWARE: THIS COMMAND IS STILL UNDER DEVELOPMENT.
     """
@@ -3809,7 +3832,7 @@ class Distribute(Command):
 
         distribute(builder, name, target_dir,
                    with_versions_dir=with_versions_dir,
-                   with_vcs_dir=with_vcs,
+                   with_vcs=with_vcs,
                    no_muddle_makefile=no_muddle_makefile,
                    no_op=self.no_op())
 

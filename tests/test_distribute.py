@@ -547,29 +547,26 @@ def main(args):
                                            '.muddle/tags/deployment',
                                           ])
 
-            return
-
             banner('TESTING DISTRIBUTE "mixed"')
             target_dir = os.path.join(root_dir, 'mixed')
             muddle(['distribute', 'mixed', target_dir])
             dt = DirTree(d.where, fold_dirs=['.git'])
             dt.assert_same(target_dir, onedown=True,
-                           unwanted_files=['.git',
+                           unwanted_files=['.git*',
                                            'builds/01.pyc',
                                            # -- Checkouts
                                            'src/main_co',
                                            # We want src/first_co
-                                           'src/second_co',
+                                           # We want the Makefile.muddle in second_co
+                                           'src/second_co/*.c',
                                            # -- Domains
                                            'domains', # we don't want any subdomains
                                            # -- Packages: obj
                                            'obj/main_pkg',
                                            'obj/first_pkg',
                                            # We want obj/second_pkg
-                                           # -- Packages: install
-                                           'install/arm',
-                                           # We want install/x86/second, but have no
-                                           # way to stop getting ALL of install/x86
+                                           # -- Not install/
+                                           'install',
                                            # -- Deployments
                                            'deploy',
                                            # -- Tags
@@ -581,6 +578,9 @@ def main(args):
                                            '.muddle/tags/package/main_pkg',
                                            '.muddle/tags/package/first_pkg',
                                            '.muddle/tags/deployment',
+                                           # but we're not transferring install/,
+                                           # so we don't want [post]installed tags
+                                           '.muddle/tags/package/second_pkg/*-*installed',
                                            # -- etc
                                            '.muddle/instructions/first_pkg',
                                            '.muddle/instructions/second_pkg/arm.xml',
@@ -593,7 +593,7 @@ def main(args):
             muddle(['distribute', 'role-x86', target_dir])
             dt = DirTree(d.where, fold_dirs=['.git'])
             dt.assert_same(target_dir, onedown=True,
-                           unwanted_files=['.git',
+                           unwanted_files=['.git*',
                                            'builds/01.pyc',
                                            'deploy',
                                            '.muddle/tags/deployment',
@@ -612,12 +612,14 @@ def main(args):
                                           ])
 
 
+            return
+
             banner('TESTING DISTRIBUTE "vertical"')
             target_dir = os.path.join(root_dir, 'vertical')
             muddle(['distribute', 'vertical', target_dir])
             dt = DirTree(d.where, fold_dirs=['.git'])
             dt.assert_same(target_dir, onedown=True,
-                           unwanted_files=['.git',
+                           unwanted_files=['.git*',
                                            'builds/01.pyc',
                                            # -- Checkouts
                                            'src/main_co',

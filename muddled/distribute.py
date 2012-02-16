@@ -468,13 +468,12 @@ def _actually_distribute_checkout(builder, label, target_dir, copy_vcs):
 
     # If we're not doing copy_vcs, find the VCS special files for this
     # checkout, and them our "without" string
-    without = []
-    if not copy_vcs:
+    if copy_vcs:
+        without = []
+    else:
         repo = builder.invocation.db.get_checkout_repo(label)
         vcs_handler = get_vcs_handler(repo.vcs)
-        vcs_special_files = vcs_handler.get_vcs_special_files()
-        if vcs_special_files:
-            without.extend(vcs_special_files)
+        without = vcs_handler.get_vcs_special_files()
 
     # So we can now copy our source directory, ignoring the VCS files if
     # necessary. Note that this can create the target directory for us.
@@ -503,26 +502,27 @@ def _actually_distribute_build_desc(builder, label, target_dir, copy_vcs):
     #   * no .pyc files
     #   * MAYBE no VCS files, depending
 
-    vcs_special_files = []
-    if not copy_vcs:
+    if copy_vcs:
+        files_to_ignore = []
+    else:
         repo = builder.invocation.db.get_checkout_repo(label)
         vcs_handler = get_vcs_handler(repo.vcs)
-        vcs_special_files = vcs_handler.get_vcs_special_files()
+        files_to_ignore = vcs_handler.get_vcs_special_files()
 
     co_tgt_dir = os.path.join(normalise_dir(target_dir), co_src_dir)
     if DEBUG:
         print 'Copying build description:'
         print '  from %s'%co_src_dir
         print '  to   %s'%co_tgt_dir
-        if vcs_special_files:
-            print '  without %s'%vcs_special_files
+        if files_to_ignore:
+            print '  without %s'%files_to_ignore
 
-    vcs_special_files = set(vcs_special_files)
+    files_to_ignore = set(files_to_ignore)
 
     for dirpath, dirnames, filenames in os.walk(co_src_dir):
 
         for name in filenames:
-            if name in vcs_special_files:           # Maybe ignore VCS files
+            if name in files_to_ignore:           # Maybe ignore VCS files
                 continue
             base, ext = os.path.splitext(name)
             if ext == '.pyc':                       # Ignore .pyc files
@@ -535,7 +535,7 @@ def _actually_distribute_build_desc(builder, label, target_dir, copy_vcs):
             copy_file(src_path, tgt_path, preserve=True)
 
         # Ignore VCS directories, if we were asked to do so
-        directories_to_ignore = vcs_special_files.intersection(dirnames)
+        directories_to_ignore = files_to_ignore.intersection(dirnames)
         for name in directories_to_ignore:
             dirnames.remove(name)
 
@@ -1074,12 +1074,11 @@ def copy_versions_dir(builder, name, target_dir, copy_vcs=False):
     if not os.path.exists(tgt_dir):
         os.makedirs(tgt_dir)
 
-    without = []
-    if not copy_vcs:
+    if copy_vcs:
+        without = []
+    else:
         versions_repo_url = builder.invocation.db.versions_repo.get()
-        vcs_files = vcs_special_files(versions_repo_url)
-        if vcs_files:
-            without.append(vcs_files)
+        without = vcs_special_files(versions_repo_url)
 
     if DEBUG:
         print 'Copying versions/ directory:'

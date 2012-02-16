@@ -577,4 +577,98 @@ checking).
 
 All of this still needs some thought...
 
+...more thought...
+
+So, specifically looking at GPL stuff.
+
+* There is an exemption for system libraries. So when we mark a system library
+  as GPL, we may also want to mark it as EXEMPT (if that is so, of course!),
+  and then we're specifically free to link against it willy-nilly. An example
+  is libgcc.
+
+* If a program is GPL then it can propagate GPL-ness to things it depends on
+  if it builds against them. So we may need a way of saying "yes, I depend on
+  that, but no I don't propagate license to it".
+
+* If a library is GPL and is depended upon, and the thing depending on it is
+  building against it (using header files, inheriting from it, linking againt
+  it) then propagation happens. But if we just depend on it being built for
+  some other reasons (not sure what), then we also need a mechanism to say
+  that we depend upn the library, but do not "use" it.
+
+* If a library is LGPL, then we're explicitly allowed to link to it in a
+  shared/dynamic manner. But muddle can't tell this, so we need the same
+  mechanism as for a GPL library.
+
+* Bison is special, since it incorporates chunks of itself into its output,
+  and that is explicitly allowed for.
+
+So, we need some propagation control mechanisms:
+
+1. If we depend on a GPL entity, or an LGPL entity, then it is assumed that we
+   need to distribute our source code unless we declare that we are not doing
+   "the thing that requires that".
+
+   So we need an annotation on a checkout that says "I depend on GPL entity X,
+   but not in a way that means I need my source distributing".
+
+2. If a GPL entity depends on other checkouts, then we may need to distribute
+   the source of those other checkouts.
+
+   So we need an annotation on a checkout saying "I'm GPL, and depend on X,
+   but not in a way that means X needs source distributing".
+
+None of which, of course, stop us distributing the source code anyway, if we
+want to.
+
+Do other licenses have equivalent requirements?
+
+Some licenses
+-------------
+From http://opensource.org/licenses/category, with "uninteresting" ones
+removed:
+
+* License that are popular and widely used or with strong communities
+
+  - Apache License, 2.0 (Apache-2.0)
+  - BSD 3-Clause "New" or "Revised" license (BSD-3-Clause)
+  - BSD 3-Clause "Simplified" or "FreeBSD" license (BSD-2-Clause)
+  - GNU General Public License (GPL)
+  - GNU Library or "Lesser" General Public License (LGPL)
+  - MIT license (MIT)
+  - Mozilla Public License 2.0 (MPL-2.0)
+  - Common Development and Distribution License (CDDL-1.0)
+  - Eclipse Public License (EPL-1.0)
+
+* Other/Miscellaneous licenses
+
+  - Adaptive Public License (APL-1.0)
+  - Artistic license 2.0 (Artistic-2.0)
+  - Open Software License (OSL-3.0)
+  - Q Public License (QPL-1.0)
+  - zlib/libpng license (Zlib)
+
+* Licenses that are redundant with more popular licenses
+
+  - Academic Free License (AFL-3.0)
+  - Attribution Assurance Licenses (AAL)
+  - The PostgreSQL License (PostgreSQL)
+
+* Superseded licenses
+
+  - Apache Software License 1.1
+  - Common Public License 1.0
+  - Artistic license 1.0
+  - Mozilla Public License 1.1 (MPL 1.1)
+  - Mozilla Public License 1.0 (MPL 1.0)
+
+* Uncategorized Licenses
+
+  - Boost Software License (BSL1.0)
+
+Then there's the UK Open Government License (RAW, not a problem), and perhaps
+the Python license (again, not a problem, I think).
+
+Which/where is "BSD with advertising"?
+
 .. vim: set filetype=rst tabstop=8 softtabstop=2 shiftwidth=2 expandtab:

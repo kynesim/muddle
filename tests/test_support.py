@@ -12,6 +12,8 @@ import sys
 import traceback
 import stat
 
+from fnmatch import fnmatchcase
+
 def get_parent_dir(this_file=None):
     """Determine the path of our parent directory.
 
@@ -277,8 +279,8 @@ class DirTree(object):
         return '%s%s'%(filename, ''.join(flags))
 
     def path_is_wanted(self, path, unwanted_files):
-        for end in unwanted_files:
-            if path.endswith(os.path.join('/', end)):
+        for expr in unwanted_files:
+            if fnmatchcase(path, expr):
                 return False
         return True
 
@@ -326,6 +328,13 @@ class DirTree(object):
 
         if unwanted_files is None:
             unwanted_files = []
+        else:
+            # Turn our unwanted path fragments into fnmatch expressions
+            # - we do this one here because we expect to do lots of comparisons
+            actual_unwanted_files = []
+            for expr in unwanted_files:
+                actual_unwanted_files.append('*/%s'%expr)
+            unwanted_files = actual_unwanted_files
 
         # Start with 'self.path' itself
         head, tail = os.path.split(self.path)
@@ -346,7 +355,8 @@ class DirTree(object):
         """
         return str(self) == str(other)
 
-    def assert_same(self, other_path, onedown=False, unwanted_files=None):
+    def assert_same(self, other_path, onedown=False, unwanted_files=None,
+                    unwanted_extensions=None):
         """Compare this DirTree and the DirTree() for 'other_path'.
 
         Thus 'other_path' should be a path. A temporary DirTree will
@@ -356,17 +366,19 @@ class DirTree(object):
         If 'onedown' is true, then we don't list the toplevel directory
         we're given (i.e., 'path' itself).
 
-        If 'unwanted_files' is specified, then is should be a list of filenames
-        (or an empty list). These are files that we do not report when listing
-        this DirTree, because we expect them to be absent in the 'other_path'.
-        For instance::
+        If 'unwanted_files' is specified, then is should be a list of terminal
+        partial paths. For each term <p> in the list, files are compared with
+        the expressions '*/<p>' using fnmatch.fnmatchcase(). This means that
+        "shell style" pattern macthing is used, where::
 
+            *       matches everything
+            ?       matches any single character
+            [seq]   matches any character in seq
+            [!seq]  matches any char not in seq
 
-        If 'unwanted_paths' is specified, then it should be a list of
-        filesnames and "terminal" paths (or an empty list).
+        Files whose path matches will not be reported in the output of this
+        DirTree, because we expect them to be absent in the 'other_path'.
 
-        When listing this DirTree, a path will be ignored if it ends with
-        '/<xxx>', where <xxx> is one of the unwanted filenames/paths.
         For instance::
 
             muddle.utils.copy_without('source/src', 'target/src', ['.git'])
@@ -374,7 +386,15 @@ class DirTree(object):
             copy_succeeded = s.assert_same('target/src',
                                             unwanted_files=['.git',
                                                             'builds/01.pyc',
+                                                            '*.c',
                                                            ])
+
+        means that we are NOT expecting to see any of the following in
+        'target/src':
+
+            * a file or directory called '.git'
+            * a file with a path that is of the form '<any-path>/builds/01.pyc'
+            * a file with extension '.c'
 
         Raises a GiveUp exception if they do not match, with an explanation
         inside it of why.

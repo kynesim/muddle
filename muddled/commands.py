@@ -44,7 +44,8 @@ from muddled.utils import GiveUp, MuddleBug, Unsupported, \
 from muddled.version_control import split_vcs_url, checkout_from_repo
 from muddled.repository import Repository
 from muddled.version_stamp import VersionStamp
-from muddled.distribute import distribute, find_all_distribution_names
+from muddled.distribute import distribute, find_all_distribution_names, \
+        print_standard_licenses
 
 # Following Richard's naming conventions...
 # A dictionary of <command name> : <command class>
@@ -1901,6 +1902,44 @@ class QueryCheckoutRepos(QueryCommand):
 
         just_url = ('url' in self.switches)
         builder.invocation.db.dump_checkout_repos(just_url=just_url)
+
+@subcommand('query', 'checkout-licenses', CAT_QUERY)
+class QueryCheckoutLicenses(QueryCommand):
+    """
+    :Syntax: muddle query checkout-licenses [-n[ame]]
+
+    Print the known checkouts and their licenses
+
+    With '-n' or '-name', print the license name. Otherwise, print the
+    full spec of the License instance that represents the license.
+
+    So, for instance, the standard printout produces lines of the form::
+
+        checkout:kernel/* -> License('xxx', 'open')
+
+    but with '-n' one would instead see::
+
+        checkout:kernel/* -> xxx
+    """
+
+    allowed_switches = {'-n':'name', '-name':'name'}
+
+    def with_build_tree(self, builder, current_dir, args):
+        args = self.remove_switches(args, allowed_more=False)
+
+        just_name = ('name' in self.switches)
+        builder.invocation.db.dump_checkout_licenses(just_name=just_name)
+
+@subcommand('query', 'licenses', CAT_QUERY)
+class QueryLicenses(QueryCommand):
+    """
+    :Syntax: muddle query licenses
+
+    Print the standard licenses we know about
+    """
+
+    def with_build_tree(self, builder, current_dir, args):
+        print_standard_licenses()
 
 @subcommand('query', 'domains', CAT_QUERY)
 class QueryDomains(QueryCommand):

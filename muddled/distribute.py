@@ -49,6 +49,17 @@ class License(object):
     but I don't particularly propose to work hard to enforce those...
     """
 
+    def __new__(cls, name, category):
+        """Construct ourselves a license of the correct type.
+        """
+        if category == 'gpl':
+            # Let's make a GPL license directly
+            return LicenseGPL(name)
+        else:
+            # Do minimal instantiation, the caller will call __init__ for
+            # us with (name, category)
+            return super(License, cls).__new__(cls)
+
     def __init__(self, name, category):
         """Initialise a new License.
 
@@ -57,23 +68,20 @@ class License(object):
         'category' is meant to be a broad categorisation of the type of the
         license. Currently that is one of:
 
-            * 'open' - this means that source code should be distributed
-            * 'binary' - this means that source code should not be distirbuted,
-              but binary (in a muddle sort of context) may
-            * 'secret' - this means that the checkout licensed should not be
-              distributed at all
-
-        At the moment there is no distinction between GPL licenses (where
-        static linking can require other checkouts also to be treated as
-        'open') and other sorts of 'open' license. This is because that's
-        primarily something that needs to be discerned and acted on by human
-        beings - we can't really expect to detect those sorts of interaction
-        automatically
+            * 'gpl' - some form of GPL license (GPL, LGPL). This will actually
+              cause creation of an instance of LicenseGPL.
+            * 'open' - an open source license, anything that is not 'gpl'.
+              Source code may, but need not be, distributed.
+            * 'binary' - a binary license, indicating that the source code is
+              not to be distributed, but binary (the contents of the "install"
+              directory) may be.
+            * 'secret' - a marker that the checkout should not be distributed
+              at all.
         """
         self.name = name
         if category not in ('open', 'binary', 'secret'):
-            raise GiveUp("Attempt to create License with unrecognised"
-                         " category '%s'"%category)
+            raise GiveUp("Attempt to create License '%s' with unrecognised"
+                         " category '%s'"%(name, category))
         self.category = category
 
     def __str__(self):
@@ -87,20 +95,57 @@ class License(object):
         """
         return self.category == 'open'
 
+# Do I really want a separate class for GPL checkouts? Only if I really have
+# substantially different methods that only make sense for it...
+class LicenseGPL(object):
+    """Some sort of GPL license.
+
+    (Why LicenseGPL rather than GPLLicense? Because I find the later more
+    confusing with the adjacent 'L's, and I want to keep GPL uppercase...)
+    """
+
+    def __init__(self, name):
+        self.name = name
+        # Note that one cannot create a 'gpl' license via the License
+        # class, as it will refuse to accept 'gpl' as a category
+        self.category = 'gpl'
+
+    def __repr__(self):
+        return 'LicenseGPL(%r)'%(self.name)
+
 # Let's define some standard licenses:
-MPL_1_1 = License('MPL 1.1', 'open')
-LGPL    = License('LGPL', 'open')
-APACHE  = License('Apache', 'open')
-APACHE2 = License('Apache 2.0', 'open')
-BSD     = License('BSD', 'open')
-BSD_ADV = License('BSD with advertising', 'open')   # what is this called?
-ZLIB    = License('zlib', 'open')                   # ZLIB has its own license
-ECLIPSE = License('Eclipse Public License 1.0', 'open')
-COMMON  = License('Common Public License', 'open')  # Some JAVA stuff
-GPL2PLUS = License('GPL v2 and above', 'open')
-GPL2     = License('GPL v2', 'open')
-GPL3     = License('GPL v3', 'open')                # Implicit "and above"?
-UKOGL    = License('UK Open Government License', 'open')
+standard_licenses = {}
+for mnemonic, license in (
+        ('mpl1_1', License('MPL 1.1', 'open')),
+        ('lgpl', License('LGPL', 'open')),
+        ('apache', License('Apache', 'open')),
+        ('apache2', License('Apache 2.0', 'open')),
+        ('bsd', License('BSD', 'open')),
+        ('bsd_adv', License('BSD with advertising', 'open')),   # what is this called?
+        ('zlib', License('zlib', 'open')),                   # ZLIB has its own license
+        ('eclipse', License('Eclipse Public License 1.0', 'open')),
+        ('common', License('Common Public License', 'open')),  # Some JAVA stuff
+        ('gpl2plus', License('GPL v2 and above', 'open')),
+        ('gpl2', License('GPL v2', 'open')),
+        ('gpl3', License('GPL v3', 'open')),                # Implicit "and above"?
+        ('ukogl', License('UK Open Government License', 'open')),
+        ):
+    standard_licenses[mnemonic] = license
+
+def print_standard_licenses():
+    keys = standard_licenses.keys()
+    for key in sorted(keys):
+        print '%-10s %r'%(key, standard_licenses[key])
+
+def set_license(builder, co_label, license):
+    """Set the license for a checkout.
+    """
+    builder.invocation.db.set_checkout_license(co_label, license)
+
+def set_license_name(builder, co_label, license_mnemonic):
+    """Set the license for a checkout, by its mnemonic.
+    """
+    set_license(builder, co_label, standard_licenses[license_mnemonic])
 
 # =============================================================================
 # DISTRIBUTION

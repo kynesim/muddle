@@ -18,58 +18,84 @@ class Database(object):
     """
     Represents the muddle database
 
-    Since we expect the user (and code) to edit these files
-    frequently, we deliberately do not cache their values.
+    Historically, this class represented the muddle database as stored
+    in the .muddle directory (on disk). Since we expect the user (and code) to
+    edit these files frequently, we deliberately do not cache their values
+    (other than, well, as themselves in the .muddle directory).
 
+    Since then however, we have also gained some dictionaries linking
+    checkout labels to particular quantities.
+
+    It's useful to have a single place for most such dictionaries because
+    when we do subdomain manipulation (i.e., taking a build description and
+    including its build tree into another as a subdomain) we need to change
+    all the labels in the new subdomain to reflect that fact. The fewer places
+    we have to worry about that, the better.
+
+    So, we remember:
+
+    * root_path - The path to the root of the build tree.
+    * repo - the PathFile for the '.muddle/RootRepository' file
+    * build_desc - the PathFile for the '.muddle/Description' file
+    * versions_repo - the PathFile for the '.muddle/VersionsRepository' file
+
+    * local_labels - Transient labels which are "asserted", via
+      'set_tag()', and queried via 'is_tag()'. This functionality is used
+      inside the Builder's "build_label()" mechanism, and is only intended
+      for use within muddle itself.
+
+    And a variety of dictionaries that take checkout labels as keys. Note
+    that:
+
+    1. All the keys are "normalised" to have an unset label tag.
+    2. Thus it is assumed that the dictionaries will only be accessed via
+       the methods supplied for this purpose.
+    3. The existence of an entry in does not necessarily imply that the
+       particular checkout still exists/is used. It may, for instance, have
+       gone away during a ``builder.unify()`` operation.
+
+    The dictionaries we use are:
+
+    * checkout_locations - This maps a checkout label to the directory the
+      checkout is in, relative to the root of the build tree. So examples
+      might be::
+
+        checkout:builds/*               -> src/builds
+        checkout:(subdomain1)first_co/* -> domains/subdomain1/src/first_co
+
+    * checkout_repositories - This maps a checkout_label to a Repository
+      instance, representing where it is checked out from. So examples might
+      be (eliding the actual URL)::
+
+        checkout:builds/*               -> Repository('git', 'http://.../main', 'builds')
+        checkout:(subdomain1)first_co/* -> Repository('git', 'http://.../subdomain1', 'first_co')
+
+    * checkout_licenses - This maps a checkout label to a License instances,
+      representing the source code license under which this checkout's source
+      code is being used. For instance::
+
+        checkout:builds/*               -> License('MPL 1.1', 'open')
+        checkout:(subdomain1)first_co/* -> License('LGPL v3', 'gpl')
+
+      In the case of a checkout that has multiple licenses, the license that is
+      being "used" should be indicated.
     """
 
     def __init__(self, root_path):
         """
         Initialise a muddle database with the given root_path.
-
-        Useful internal values include:
-
-        * root_path          - The path to the root of the build tree.
-        * local_labels       - Transient labels which are asserted.
-        * checkout_locations - Maps checkout_label to the directory the
-          checkout is in, relative to src/ - if there's no mapping, we believe
-          it's directly in src.
-        * checkout_repositories - Maps checkout_label to a Repository instance,
-          representing where it is checked out from
-
-        NB: the existence of an entry in the checkout_locations dictionary
-        does not necessarily imply that such a checkout exists. It may, for
-        instance, have gone away during a ``builder.unify()`` operation.
-        Thus it is not safe to try to deduce all of the checkout labels
-        from the keys to this dictionary. And the same goes for the
-        checkout_repositories dictionary.
-
-        XXX EXPERIMENTAL
-        We also have:
-
-        * licenses - which is a dictionary of checkout labels to a
-          list of one or more license names. For instance::
-
-            { checkout:zlib/*   : ['open:zlib'],      # their own open license
-              checkout:kernel/* : ['gpl2'],
-              checkout:kbus/*   : ['mpl1.1', 'gpl2'], # kernel module is dual licensed
-              checkout:customer_app/* : ['secret'],   # as it says
-            }
-
-        The question is, are licenses for packages sensible, or does one always
-        propagate them down onto checkouts? If we allow package licenses, how
-        do we stop them differing by role? Should we? I think that's all too
-        complicated, so let's stick with checkout licenses.
         """
         self.root_path = root_path
         utils.ensure_dir(os.path.join(self.root_path, ".muddle"))
         self.repo = PathFile(self.db_file_name("RootRepository"))
         self.build_desc = PathFile(self.db_file_name("Description"))
         self.versions_repo = PathFile(self.db_file_name("VersionsRepository"))
-        self.role_env = { }
-        self.checkout_locations = { }
-        self.checkout_repositories = { }
+        self.role_env = {}      # DEPRECATED - never used - XXX REMOVE XXX
+        self.checkout_locations = {}
+        self.checkout_repositories = {}
+        self.checkout_licenses = {}
 
+        # A set of "asserted" labels
         self.local_tags = set()
 
     def setup(self, repo_location, build_desc, versions_repo=None):
@@ -130,6 +156,7 @@ class Database(object):
         keys = set()
         keys.update(other_db.checkout_locations.keys())
         keys.update(other_db.checkout_repositories.keys())
+        keys.update(other_db.checkout_licenses.keys())
 
         # We really only want to transform the key labels once for both
         # dictionaries
@@ -151,6 +178,10 @@ class Database(object):
         for co_label, repo in other_db.checkout_repositories.items():
             new_label = new_labels[co_label]
             self.checkout_repositories[new_label] = repo
+
+        for co_label, repo in other_db.checkout_licenses.items():
+            new_label = new_labels[co_label]
+            self.checkout_licenses[new_label] = repo
 
     def set_domain_marker(self, domain_name):
         """
@@ -295,6 +326,44 @@ class Database(object):
             return self.checkout_repositories[key]
         except KeyError:
             raise utils.GiveUp('There is no repository registered for label %s'%checkout_label)
+
+    def set_checkout_license(self, checkout_label, lic):
+        assert checkout_label.type == utils.LabelType.Checkout
+        key = self.normalise_checkout_label(checkout_label)
+        self.checkout_licenses[key] = lic
+
+    def dump_checkout_licenses(self, just_name=False):
+        """
+        Report on the licenses associated with our checkouts.
+
+        If 'just_name' is true, then report the licenses name, otherwise
+        report the full License definition.
+        """
+        print "> Checkout licenses .. "
+        keys = self.checkout_licenses.keys()
+        max = 0
+        for label in keys:
+            length = len(str(label))
+            if length > max:
+                max = length
+        keys.sort()
+        if just_name:
+            for label in keys:
+                print "%-*s -> %s"%(max, label, self.checkout_licenses[label])
+        else:
+            for label in keys:
+                print "%-*s -> %r"%(max, label, self.checkout_licenses[label])
+
+    def get_checkout_license(self, checkout_label):
+        """
+        Returns the License instance for this checkout label
+        """
+        assert checkout_label.type == utils.LabelType.Checkout
+        key = self.normalise_checkout_label(checkout_label)
+        try:
+            return self.checkout_licenses[key]
+        except KeyError:
+            raise utils.GiveUp('There is no license registered for label %s'%checkout_label)
 
     def build_desc_file_name(self):
         """

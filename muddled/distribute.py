@@ -116,19 +116,20 @@ class LicenseGPL(object):
 # Let's define some standard licenses:
 standard_licenses = {}
 for mnemonic, license in (
-        ('mpl1_1', License('MPL 1.1', 'open')),
-        ('lgpl', License('LGPL', 'open')),
         ('apache', License('Apache', 'open')),
         ('apache2', License('Apache 2.0', 'open')),
         ('bsd', License('BSD', 'open')),
-        ('bsd_adv', License('BSD with advertising', 'open')),   # what is this called?
-        ('zlib', License('zlib', 'open')),                   # ZLIB has its own license
+        ('bsd_adv', License('BSD with advertising', 'open')), # what is this called?
+        ('common', License('Common Public License', 'open')), # Some JAVA stuff
         ('eclipse', License('Eclipse Public License 1.0', 'open')),
-        ('common', License('Common Public License', 'open')),  # Some JAVA stuff
-        ('gpl2plus', License('GPL v2 and above', 'open')),
-        ('gpl2', License('GPL v2', 'open')),
-        ('gpl3', License('GPL v3', 'open')),                # Implicit "and above"?
+        ('gpl2', License('GPL v2', 'gpl')),
+        ('gpl2plus', License('GPL v2 and above', 'gpl')),
+        ('gpl3', License('GPL v3', 'gpl')),                   # Implicit "and above"?
+        ('lgpl', License('LGPL', 'gpl')),
+        ('mpl', License('MPL 1.1', 'open')),
+        ('mpl1_1', License('MPL 1.1', 'open')),
         ('ukogl', License('UK Open Government License', 'open')),
+        ('zlib', License('zlib', 'open')),                    # ZLIB has its own license
         ):
     standard_licenses[mnemonic] = license
 
@@ -139,13 +140,15 @@ def print_standard_licenses():
 
 def set_license(builder, co_label, license):
     """Set the license for a checkout.
-    """
-    builder.invocation.db.set_checkout_license(co_label, license)
 
-def set_license_name(builder, co_label, license_mnemonic):
-    """Set the license for a checkout, by its mnemonic.
+    'license' must either be a License instance, or the mnemonic for one
+    of the standard licenses.
     """
-    set_license(builder, co_label, standard_licenses[license_mnemonic])
+    if isinstance(license, License):
+        builder.invocation.db.set_checkout_license(co_label, license)
+    else:
+        builder.invocation.db.set_checkout_license(co_label,
+                                                   standard_licenses[license])
 
 # =============================================================================
 # DISTRIBUTION

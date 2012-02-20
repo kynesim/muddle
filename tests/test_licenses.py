@@ -65,24 +65,31 @@ from muddled.utils import LabelType, LabelTag
 from muddled.repository import Repository
 from muddled.version_control import checkout_from_repo
 
-from muddled.distribute import distribute_checkout, distribute_package
+from muddled.distribute import distribute_checkout, distribute_package, \
+        set_license
+
+def add_package(builder, name, role, license=None, co_name=None):
+    if not co_name:
+        co_name = name
+    muddled.pkgs.make.medium(builder, name, [role], co_name)
+
+    if license:
+        co_label = Label(LabelType.Checkout, co_name)
+        set_license(builder, co_label, license)
 
 def describe_to(builder):
     role = 'x86'
     deployment = 'everything'
 
-    # Checkout ..
-    muddled.pkgs.make.medium(builder, "main_pkg", [role], "main_co")
-    muddled.pkgs.make.medium(builder, "first_pkg", [role], "first_co")
-
-    # So we can test stamping a Repository using a direct URL
-    co_label = Label(LabelType.Checkout, 'second_co')
-    repo = Repository.from_url('git', 'file://{repo}/main/second_co')
-    checkout_from_repo(builder, co_label, repo)
-    muddled.pkgs.make.simple(builder, "second_pkg", role, "second_co")
-
-    # A package in a different role (which we never actually build)
-    muddled.pkgs.make.simple(builder, "main_pkg", 'arm', "main_co")
+    add_package(builder, 'apache', 'x86', 'apache')
+    add_package(builder, 'bsd',    'x86', 'bsd')
+    add_package(builder, 'gpl2',   'x86', 'gpl2')
+    add_package(builder, 'gpl2plus', 'x86', 'gpl2plus')
+    add_package(builder, 'gpl3',  'x86', 'gpl3')
+    add_package(builder, 'lgpl',  'x86', 'lgpl')
+    add_package(builder, 'mpl',   'x86', 'mpl')
+    add_package(builder, 'ukogl', 'x86', 'ukogl')
+    add_package(builder, 'zlib',  'x86', 'zlib')
 
     collect.deploy(builder, deployment)
     collect.copy_from_role_install(builder, deployment,
@@ -93,7 +100,6 @@ def describe_to(builder):
     # The 'arm' role is *not* a default role
     builder.invocation.add_default_role(role)
     builder.by_default_deploy(deployment)
-
 """
 
 GITIGNORE = """\
@@ -134,60 +140,30 @@ def make_standard_checkout(co_dir, progname, desc):
         progname=progname))
 
 def make_repos_with_subdomain(root_dir):
-    """Create git repositories for our subdomain tests.
+    """Create git repositories for our tests.
+
+    I'm going to start by naming them after licenses...
     """
+
+    def new_repo(name):
+        with NewDirectory(name) as d:
+            make_standard_checkout(d.where, name, name)
+
     repo = os.path.join(root_dir, 'repo')
     with NewDirectory('repo'):
         with NewDirectory('main'):
             with NewDirectory('builds') as d:
                 make_build_desc(d.where, TOPLEVEL_BUILD_DESC.format(repo=repo))
-            with NewDirectory('main_co') as d:
-                make_standard_checkout(d.where, 'main1', 'main')
-            with NewDirectory('first_co') as d:
-                make_standard_checkout(d.where, 'first', 'first')
-            with NewDirectory('second_co') as d:
-                make_standard_checkout(d.where, 'second', 'second')
 
-def checkout_build_descriptions(root_dir, d):
-
-    repo = os.path.join(root_dir, 'repo')
-    muddle(['init', 'git+file://{repo}/main'.format(repo=repo), 'builds/01.py'])
-
-    check_files([d.join('src', 'builds', '01.py'),
-                ])
-
-def check_checkout_files(d):
-    """Check we have all the files we should have after checkout
-
-    'd' is the current Directory.
-    """
-    def check_dot_muddle(is_subdomain):
-        with Directory('.muddle') as m:
-            check_files([m.join('Description'),
-                         m.join('RootRepository'),
-                         m.join('VersionsRepository')])
-
-            if is_subdomain:
-                check_files([m.join('am_subdomain')])
-
-            with Directory(m.join('tags', 'checkout')) as c:
-                check_files([c.join('builds', 'checked_out'),
-                             c.join('first_co', 'checked_out'),
-                             c.join('main_co', 'checked_out'),
-                             c.join('second_co', 'checked_out')])
-
-    def check_src_files(main_c_file='main1.c'):
-        check_files([s.join('builds', '01.py'),
-                     s.join('main_co', 'Makefile.muddle'),
-                     s.join('main_co', main_c_file),
-                     s.join('first_co', 'Makefile.muddle'),
-                     s.join('first_co', 'first.c'),
-                     s.join('second_co', 'Makefile.muddle'),
-                     s.join('second_co', 'second.c')])
-
-    check_dot_muddle(is_subdomain=False)
-    with Directory('src') as s:
-        check_src_files('main1.c')
+            new_repo('apache')
+            new_repo('bsd')
+            new_repo('gpl2')
+            new_repo('gpl2plus')
+            new_repo('gpl3')
+            new_repo('lgpl')
+            new_repo('mpl')
+            new_repo('ukogl')
+            new_repo('zlib')
 
 def main(args):
 
@@ -201,22 +177,23 @@ def main(args):
     root_dir = normalise_dir(os.path.join(os.getcwd(), 'transient'))
 
     #with TransientDirectory(root_dir):     # XXX
-    with NewDirectory(root_dir):
+    with NewDirectory(root_dir) as root:
 
         banner('MAKE REPOSITORIES')
         make_repos_with_subdomain(root_dir)
 
         with NewDirectory('build') as d:
             banner('CHECK REPOSITORIES OUT')
-            checkout_build_descriptions(root_dir, d)
+            muddle(['init', 'git+file://{repo}/main'.format(repo=root.join('repo')),
+                    'builds/01.py'])
             muddle(['checkout', '_all'])
-            check_checkout_files(d)
             banner('BUILD')
             muddle([])
             banner('STAMP VERSION')
             muddle(['stamp', 'version'])
 
             banner('STUFF')
+            muddle(['query', 'checkout-licenses'])
 
 
 if __name__ == '__main__':

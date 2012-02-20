@@ -365,6 +365,13 @@ class Database(object):
         except KeyError:
             raise utils.GiveUp('There is no license registered for label %s'%checkout_label)
 
+    def checkout_has_license(self, checkout_label):
+        """
+        Return True if the named checkout has a license registered
+        """
+        key = self.normalise_checkout_label(checkout_label)
+        return key in self.checkout_licenses
+
     def build_desc_file_name(self):
         """
         Return the filename of the build description.

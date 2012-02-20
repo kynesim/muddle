@@ -32,8 +32,7 @@ DEBUG=False
 # =============================================================================
 # LICENSES
 # =============================================================================
-# XXX NOTE This preliminary work is probably wrong, given discussions with
-# XXX Richard. Leave it here for the moment anyway.
+
 class License(object):
     """The representation of a source license.
 
@@ -47,18 +46,10 @@ class License(object):
         2. Immutable
 
     but I don't particularly propose to work hard to enforce those...
-    """
 
-    def __new__(cls, name, category):
-        """Construct ourselves a license of the correct type.
-        """
-        if category == 'gpl':
-            # Let's make a GPL license directly
-            return LicenseGPL(name)
-        else:
-            # Do minimal instantiation, the caller will call __init__ for
-            # us with (name, category)
-            return super(License, cls).__new__(cls)
+    Use the subclasses to create your actual License instance, so that you
+    can use any appropriate extra methods...
+    """
 
     def __init__(self, name, category):
         """Initialise a new License.
@@ -68,8 +59,8 @@ class License(object):
         'category' is meant to be a broad categorisation of the type of the
         license. Currently that is one of:
 
-            * 'gpl' - some form of GPL license (GPL, LGPL). This will actually
-              cause creation of an instance of LicenseGPL.
+            * 'gpl' - some sort of GPL license, which propagate the need to
+              distribute source code to other "adjacent" entities
             * 'open' - an open source license, anything that is not 'gpl'.
               Source code may, but need not be, distributed.
             * 'binary' - a binary license, indicating that the source code is
@@ -79,7 +70,7 @@ class License(object):
               at all.
         """
         self.name = name
-        if category not in ('open', 'binary', 'secret'):
+        if category not in ('gpl', 'open', 'binary', 'secret'):
             raise GiveUp("Attempt to create License '%s' with unrecognised"
                          " category '%s'"%(name, category))
         self.category = category
@@ -90,46 +81,103 @@ class License(object):
     def __repr__(self):
         return 'License(%r, %r)'%(self.name, self.category)
 
+    def __eq__(self, other):
+        return (self.name == other.name and self.category == other.category)
+
     def distribute_source(self):
         """Returns True if we should (must?) distribute source code.
         """
-        return self.category == 'open'
+        return self.category in ('open', 'gpl')
 
-# Do I really want a separate class for GPL checkouts? Only if I really have
-# substantially different methods that only make sense for it...
-class LicenseGPL(object):
+class LicenseSecret(License):
+    """A "secret" license - we do not want to distribute anything
+    """
+
+    def __init__(self, name):
+        super(LicenseSecret, self).__init__(name, 'secret')
+
+    def __repr__(self):
+        return 'LicenseSecret(%r)'%(self.name)
+
+class LicenseBinary(License):
+    """A binary license - we distribute binary only, not source code
+    """
+
+    def __init__(self, name):
+        super(LicenseBinary, self).__init__(name, 'binary')
+
+    def __repr__(self):
+        return 'LicenseBinary(%r)'%(self.name)
+
+class LicenseOpen(License):
+    """Some non-GPL open source license.
+    """
+
+    def __init__(self, name):
+        super(LicenseOpen, self).__init__(name, 'open')
+
+    def __repr__(self):
+        return 'LicenseOpen(%r)'%(self.name)
+
+class LicenseGPL(License):
     """Some sort of GPL license.
 
     (Why LicenseGPL rather than GPLLicense? Because I find the later more
     confusing with the adjacent 'L's, and I want to keep GPL uppercase...)
     """
 
-    def __init__(self, name):
-        self.name = name
-        # Note that one cannot create a 'gpl' license via the License
-        # class, as it will refuse to accept 'gpl' as a category
-        self.category = 'gpl'
+    def __init__(self, name, system=False):
+        """Initialise a new GPL License.
+
+        The 'name' is the name of this license, as it is normally recognised.
+        """
+        super(LicenseGPL, self).__init__(name, 'gpl')
+        self.system_exception = False
 
     def __repr__(self):
         return 'LicenseGPL(%r)'%(self.name)
 
+    def __eq__(self, other):
+        # Doing the super-comparison first guarantees we're both some sort of GPL
+        return (super(LicenseGPL, self).__eq__(other) and
+                self.system_exception == other.system_exception)
+
+class LicenseGPLSystem(LicenseGPL):
+    """Some sort of GPL license, with the system exemption.
+
+    That is, this is a "system" license, i.e., it applies to a system library,
+    which means the normal "linking against this propagates the license" clause
+    does not apply.
+    """
+
+    def __init__(self, name):
+        super(LicenseGPLSystem, self).__init__(name)
+        self.system_exception = True
+
+    def __repr__(self):
+        return 'LicenseGPLSystem(%r)'%(self.name)
+
 # Let's define some standard licenses:
 standard_licenses = {}
 for mnemonic, license in (
-        ('apache', License('Apache', 'open')),
-        ('apache2', License('Apache 2.0', 'open')),
-        ('bsd', License('BSD', 'open')),
-        ('bsd_adv', License('BSD with advertising', 'open')), # what is this called?
-        ('common', License('Common Public License', 'open')), # Some JAVA stuff
-        ('eclipse', License('Eclipse Public License 1.0', 'open')),
-        ('gpl2', License('GPL v2', 'gpl')),
-        ('gpl2plus', License('GPL v2 and above', 'gpl')),
-        ('gpl3', License('GPL v3', 'gpl')),                   # Implicit "and above"?
-        ('lgpl', License('LGPL', 'gpl')),
-        ('mpl', License('MPL 1.1', 'open')),
-        ('mpl1_1', License('MPL 1.1', 'open')),
-        ('ukogl', License('UK Open Government License', 'open')),
-        ('zlib', License('zlib', 'open')),                    # ZLIB has its own license
+        ('apache',  LicenseOpen('Apache')),
+        ('apache2', LicenseOpen('Apache 2.0')),
+        ('bsd',     LicenseOpen('BSD')),
+        ('bsd_adv', LicenseOpen('BSD with advertising')), # what is this called?
+        ('common',  LicenseOpen('Common Public License')), # Some JAVA stuff
+        ('eclipse', LicenseOpen('Eclipse Public License 1.0')),
+        ('gpl2',    LicenseGPL('GPL v2')),
+        ('gpl2-system',     LicenseGPLSystem('GPL v2')),
+        ('gpl2plus',        LicenseGPL('GPL v2 and above')),
+        ('gpl2plus-system', LicenseGPLSystem('GPL v2 and above')),
+        ('gpl3',            LicenseGPL('GPL v3')), # Implicit "and above"?
+        ('gpl3-system',     LicenseGPLSystem('GPL v3')),
+        ('lgpl',            LicenseGPL('LGPL')),
+        ('lgpl-system',     LicenseGPLSystem('LGPL')),
+        ('mpl',             LicenseOpen('MPL 1.1')),
+        ('mpl1_1',          LicenseOpen('MPL 1.1')),
+        ('ukogl',           LicenseOpen('UK Open Government License')),
+        ('zlib',            LicenseOpen('zlib')), # ZLIB has its own license
         ):
     standard_licenses[mnemonic] = license
 
@@ -149,6 +197,43 @@ def set_license(builder, co_label, license):
     else:
         builder.invocation.db.set_checkout_license(co_label,
                                                    standard_licenses[license])
+
+def unlicensed_checkouts(builder):
+    """Return the set of all checkouts which do not have a license.
+
+    (Actually, a set of checkout labels, with the label tag "/checked_out").
+    """
+    all_checkouts = builder.invocation.all_checkout_labels()
+    result = set()
+    checkout_has_license = builder.invocation.db.checkout_has_license
+    normalise_checkout_label = builder.invocation.db.normalise_checkout_label
+    for co_label in all_checkouts:
+        if not checkout_has_license(co_label):
+            result.add(normalise_checkout_label(co_label))
+    return result
+
+def find_implicit_gpl(builder):
+    """Find all the checkouts to which GPL-ness propagates.
+    """
+
+    # There are clearly two ways we can do this:
+    #
+    # 1. For each checkout, follow its dependencies until we find something
+    #    that is non-system GPL, or we don't (obviously, finding one such
+    #    is enough).
+    #
+    # 2. For each non-system GPL checkout, find everything that depends upon
+    #    it and mark it as propagated-to
+    #
+    # In either case, it is definitely worth checking to see if there are
+    # *any* non-system GPL checkouts.
+    #
+    #
+
+    all_checkouts = builder.invocation.all_checkout_labels()
+    result = set()
+
+    return result
 
 # =============================================================================
 # DISTRIBUTION

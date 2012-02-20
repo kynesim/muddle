@@ -27,6 +27,8 @@ from muddled.utils import Directory, NewDirectory, TransientDirectory
 from muddled.depend import Label, label_list_to_string
 from muddled.version_stamp import VersionStamp
 
+from muddled.distribute import standard_licenses
+
 MUDDLE_MAKEFILE = """\
 # Trivial muddle makefile
 all:
@@ -66,12 +68,12 @@ from muddled.repository import Repository
 from muddled.version_control import checkout_from_repo
 
 from muddled.distribute import distribute_checkout, distribute_package, \
-        set_license
+        set_license, LicenseBinary, LicenseSecret
 
-def add_package(builder, name, role, license=None, co_name=None):
+def add_package(builder, name, role, license=None, co_name=None, deps=None):
     if not co_name:
         co_name = name
-    muddled.pkgs.make.medium(builder, name, [role], co_name)
+    muddled.pkgs.make.medium(builder, name, [role], co_name, deps=deps)
 
     if license:
         co_label = Label(LabelType.Checkout, co_name)
@@ -90,6 +92,28 @@ def describe_to(builder):
     add_package(builder, 'mpl',   'x86', 'mpl')
     add_package(builder, 'ukogl', 'x86', 'ukogl')
     add_package(builder, 'zlib',  'x86', 'zlib')
+
+    add_package(builder, 'gnulibc', 'x86', 'lgpl-system')
+    add_package(builder, 'linux', 'x86', 'gpl2-system')
+    add_package(builder, 'busybox', 'x86', 'gpl2')      # is it system?
+
+    add_package(builder, 'binary1', 'x86', LicenseBinary('Customer'))
+    add_package(builder, 'binary2', 'x86', LicenseBinary('Customer'))
+    add_package(builder, 'binary3', 'x86', LicenseBinary('Customer'))
+    add_package(builder, 'binary4', 'x86', LicenseBinary('Customer'))
+    add_package(builder, 'binary5', 'x86', LicenseBinary('Customer'))
+
+    add_package(builder, 'secret1', 'x86', LicenseSecret('Shh'))
+    add_package(builder, 'secret2', 'x86', LicenseSecret('Shh'))
+    add_package(builder, 'secret3', 'x86', LicenseSecret('Shh'))
+    add_package(builder, 'secret4', 'x86', LicenseSecret('Shh'))
+    add_package(builder, 'secret5', 'x86', LicenseSecret('Shh'))
+
+    add_package(builder, 'unlicensed1', 'x86')
+    add_package(builder, 'unlicensed2', 'x86')
+    add_package(builder, 'unlicensed3', 'x86')
+    add_package(builder, 'unlicensed4', 'x86')
+    add_package(builder, 'unlicensed5', 'x86')
 
     collect.deploy(builder, deployment)
     collect.copy_from_role_install(builder, deployment,
@@ -116,6 +140,10 @@ int main(int argc, char **argv)
     return 0;
 }}
 """
+
+def test_equalities():
+    assert standard_licenses['mpl'] == standard_licenses['mpl1_1']
+    assert standard_licenses['gpl2'] != standard_licenses['gpl2-system']
 
 def make_build_desc(co_dir, file_content):
     """Take some of the repetition out of making build descriptions.
@@ -165,11 +193,36 @@ def make_repos_with_subdomain(root_dir):
             new_repo('ukogl')
             new_repo('zlib')
 
+            new_repo('gnulibc')
+            new_repo('linux')
+            new_repo('busybox')
+
+            new_repo('binary1')
+            new_repo('binary2')
+            new_repo('binary3')
+            new_repo('binary4')
+            new_repo('binary5')
+
+            new_repo('secret1')
+            new_repo('secret2')
+            new_repo('secret3')
+            new_repo('secret4')
+            new_repo('secret5')
+
+            new_repo('unlicensed1')
+            new_repo('unlicensed2')
+            new_repo('unlicensed3')
+            new_repo('unlicensed4')
+            new_repo('unlicensed5')
+
 def main(args):
 
     if args:
         print __doc__
         raise GiveUp('Unexpected arguments %s'%' '.join(args))
+
+    # Some basic assertions
+    test_equalities()
 
     # Working in a local transient directory seems to work OK
     # although if it's anyone other than me they might prefer

@@ -45,7 +45,7 @@ from muddled.version_control import split_vcs_url, checkout_from_repo
 from muddled.repository import Repository
 from muddled.version_stamp import VersionStamp
 from muddled.distribute import distribute, find_all_distribution_names, \
-        print_standard_licenses
+        print_standard_licenses, unlicensed_checkouts
 
 # Following Richard's naming conventions...
 # A dictionary of <command name> : <command class>
@@ -1929,6 +1929,13 @@ class QueryCheckoutLicenses(QueryCommand):
 
         just_name = ('name' in self.switches)
         builder.invocation.db.dump_checkout_licenses(just_name=just_name)
+
+        unlicensed = unlicensed_checkouts(builder)
+        if unlicensed:
+            print
+            print 'The following checkouts do not have a license:'
+            for label in sorted(unlicensed):
+                print '  %s'%label
 
 @subcommand('query', 'licenses', CAT_QUERY)
 class QueryLicenses(QueryCommand):

@@ -109,7 +109,7 @@ def describe_to(builder):
     add_package(builder, 'secret4', 'x86', LicenseSecret('Shh'))
     add_package(builder, 'secret5', 'x86', LicenseSecret('Shh'))
 
-    add_package(builder, 'unlicensed1', 'x86')
+    add_package(builder, 'unlicensed1', 'x86', deps=['gpl2'])
     add_package(builder, 'unlicensed2', 'x86')
     add_package(builder, 'unlicensed3', 'x86')
     add_package(builder, 'unlicensed4', 'x86')

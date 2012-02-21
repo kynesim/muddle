@@ -45,7 +45,8 @@ from muddled.version_control import split_vcs_url, checkout_from_repo
 from muddled.repository import Repository
 from muddled.version_stamp import VersionStamp
 from muddled.distribute import distribute, find_all_distribution_names, \
-        print_standard_licenses, get_gpl_checkouts, get_unlicensed_checkouts
+        print_standard_licenses, get_gpl_checkouts, get_unlicensed_checkouts, \
+        get_implicit_gpl_checkouts
 
 # Following Richard's naming conventions...
 # A dictionary of <command name> : <command class>
@@ -1938,12 +1939,15 @@ class QueryCheckoutLicenses(QueryCommand):
                 print '  %s'%label
 
         # Hackery
-        keys = builder.invocation.db.checkout_licenses.keys()
-        maxlen = 0
-        for label in keys:
-            length = len(str(label))
-            if length > maxlen:
-                maxlen = length
+        def calc_maxlen(keys):
+            maxlen = 0
+            for label in keys:
+                length = len(str(label))
+                if length > maxlen:
+                    maxlen = length
+            return maxlen
+
+        maxlen = calc_maxlen(builder.invocation.db.checkout_licenses.keys())
 
         gpl_licensed = get_gpl_checkouts(builder)
         get_co_license = builder.invocation.db.get_checkout_license
@@ -1952,6 +1956,23 @@ class QueryCheckoutLicenses(QueryCommand):
             print 'The following checkouts have some sort of GPL license:'
             for label in sorted(gpl_licensed):
                 print '  %-*s -> %r'%(maxlen, label, get_co_license(label))
+
+        implicit_gpl_licensed = get_implicit_gpl_checkouts(builder)
+        if implicit_gpl_licensed:
+            maxlen = calc_maxlen(implicit_gpl_licensed)
+            print
+            print 'The following are then "implicitly" GPL licensed:'
+            for label in sorted(implicit_gpl_licensed):
+                if label.type == LabelType.Checkout:
+                    license = get_co_license(label, absent_is_None=True)
+                    if license:
+                        print '  %-*s -> %r'%(maxlen, label, license)
+                    else:
+                        print '  %-*s -> <no license>'%(maxlen, label)
+                else:
+                    checkouts = builder.invocation.checkouts_for_package(label)
+                    print '  %-*s for %s'%(maxlen, label,
+                                           label_list_to_string(checkouts))
 
 @subcommand('query', 'licenses', CAT_QUERY)
 class QueryLicenses(QueryCommand):

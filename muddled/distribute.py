@@ -19,7 +19,7 @@ Actions and mechanisms relating to distributing build trees
 
 import os
 
-from muddled.depend import Action, Rule, Label
+from muddled.depend import Action, Rule, Label, required_by, label_list_to_string
 from muddled.utils import GiveUp, MuddleBug, LabelTag, LabelType, \
         copy_without, normalise_dir, find_local_relative_root, package_tags, \
         copy_file, domain_subpath
@@ -106,12 +106,25 @@ class License(object):
         """
         return False
 
+    def is_binary(self):
+        """Is this a binary-distribution-only license?
+        """
+        return category == 'binary'
+
+    def is_secret(self):
+        """Is this a secret-do-not-distribute license?
+        """
+        return category == 'secret'
+
 class LicenseSecret(License):
     """A "secret" license - we do not want to distribute anything
     """
 
     def __init__(self, name):
         super(LicenseSecret, self).__init__(name, 'secret')
+
+    def __repr__(self):
+        return '%s(%r)'%(self.__class__.__name__, self.name)
 
 class LicenseBinary(License):
     """A binary license - we distribute binary only, not source code
@@ -120,12 +133,18 @@ class LicenseBinary(License):
     def __init__(self, name):
         super(LicenseBinary, self).__init__(name, 'binary')
 
+    def __repr__(self):
+        return '%s(%r)'%(self.__class__.__name__, self.name)
+
 class LicenseOpen(License):
     """Some non-GPL open source license.
     """
 
     def __init__(self, name):
         super(LicenseOpen, self).__init__(name, 'open')
+
+    def __repr__(self):
+        return '%s(%r)'%(self.__class__.__name__, self.name)
 
 class LicenseGPL(License):
     """Some sort of GPL license.
@@ -258,8 +277,12 @@ def get_gpl_checkouts(builder):
             gpl_licensed.add(co_label)
     return gpl_licensed
 
-def implicit_gpl_checkouts(builder):
+def get_implicit_gpl_checkouts(builder):
     """Find all the checkouts to which GPL-ness propagates.
+
+    First we find all the GPL checkouts.
+
+    For each GPL checkout that does
     """
 
     # There are clearly two ways we can do this:
@@ -288,7 +311,58 @@ def implicit_gpl_checkouts(builder):
     #
     # Regardless, approach (2) seems the more sensible.
 
+    all_gpl_checkouts = get_gpl_checkouts(builder)
+
+    # Localise for our loop
+    get_checkout_license = builder.invocation.db.get_checkout_license
+    ruleset = builder.invocation.ruleset
+
+    DEBUG = False
+
+    def add_if_not_us(us, this_co, result):
+        """Add 'this_co' to 'result' if it is not 'us'.
+
+        Relies on 'us' having a wildcarded label tag.
+        """
+        if us.just_match(this_co):
+            # OK, that's just some variant on ourselves
+            if DEBUG: print 'WHICH is us'%this_co
+        else:
+            lbl = this_co.copy_with_tag('*')
+            result.add(lbl)
+            if DEBUG: print 'ADD %s'%lbl
+
     result = set()
+    if DEBUG:
+        print
+        print 'Finding implicit GPL checkouts'
+    for co_label in all_gpl_checkouts:
+        if DEBUG: print '.. %s'%co_label
+        license = get_checkout_license(co_label)
+        if license.with_exception:
+            if DEBUG: print '     has a link-exception of some sort - ignoring it'
+            continue
+        depend_on_this = required_by(ruleset, co_label)
+        for this_label in depend_on_this:
+            # We should have a bunch of package labels (possibly the same
+            # package present with different tags), plus quite likely some
+            # variants on our own checkout label, and sometimes other stuff
+            if DEBUG: print '     %s'%this_label,
+            if this_label.type == LabelType.Package:
+                # OK, what checkouts does that imply?
+                pkg_checkouts = builder.invocation.checkouts_for_package(this_label)
+                if DEBUG: print 'EXPANDS to %s'%(label_list_to_string(pkg_checkouts))
+                for this_co in pkg_checkouts:
+                    if DEBUG: print '         %s'%this_label,
+                    # We know that our original 'co_label' has type '/*`
+                    add_if_not_us(co_label, this_co, result)
+            elif this_label.type == LabelType.Checkout:
+                # We know that our original 'co_label' has type '/*`
+                add_if_not_us(co_label, this_label, result)
+            else:
+                # Deployments don't build stuff, so we can ignore them
+                if DEBUG: print 'IGNORE'
+                continue
     return result
 
 # =============================================================================

@@ -79,6 +79,9 @@ class Database(object):
 
       In the case of a checkout that has multiple licenses, the license that is
       being "used" should be indicated.
+
+      Note that not all checkouts will necessarily have licenses associated
+      with them.
     """
 
     def __init__(self, root_path):
@@ -354,16 +357,23 @@ class Database(object):
             for label in keys:
                 print "%-*s -> %r"%(max, label, self.checkout_licenses[label])
 
-    def get_checkout_license(self, checkout_label):
+    def get_checkout_license(self, checkout_label, absent_is_None=False):
         """
         Returns the License instance for this checkout label
+
+        If 'absent_is_None' is true, then if 'checkout_label' does not have
+        an entry in the licenses dictionary, None will be returned. Otherwise,
+        an appropriate GiveUp exception will be raised.
         """
         assert checkout_label.type == utils.LabelType.Checkout
         key = self.normalise_checkout_label(checkout_label)
         try:
             return self.checkout_licenses[key]
         except KeyError:
-            raise utils.GiveUp('There is no license registered for label %s'%checkout_label)
+            if absent_is_None:
+                return None
+            else:
+                raise utils.GiveUp('There is no license registered for label %s'%checkout_label)
 
     def checkout_has_license(self, checkout_label):
         """

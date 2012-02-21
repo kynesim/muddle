@@ -45,7 +45,7 @@ from muddled.version_control import split_vcs_url, checkout_from_repo
 from muddled.repository import Repository
 from muddled.version_stamp import VersionStamp
 from muddled.distribute import distribute, find_all_distribution_names, \
-        print_standard_licenses, unlicensed_checkouts
+        print_standard_licenses, get_gpl_checkouts, get_unlicensed_checkouts
 
 # Following Richard's naming conventions...
 # A dictionary of <command name> : <command class>
@@ -521,7 +521,7 @@ class CheckoutCommand(CPDCommand):
     def interpret_all(self, builder):
         """Return the result of argument "_all"
         """
-        return builder.invocation.all_checkout_labels()
+        return builder.invocation.all_checkout_labels(LabelTag.CheckedOut)
 
     def interpret_labels(self, builder, args, initial_list):
         """
@@ -1851,7 +1851,7 @@ class QueryCheckouts(QueryCommand):
 
         joined = ('join' in self.switches)
 
-        cos = builder.invocation.all_checkout_labels()
+        cos = builder.invocation.all_checkout_labels(LabelTag.CheckedOut)
         a_list = list(cos)
         a_list.sort()
         out_list = []
@@ -1930,12 +1930,28 @@ class QueryCheckoutLicenses(QueryCommand):
         just_name = ('name' in self.switches)
         builder.invocation.db.dump_checkout_licenses(just_name=just_name)
 
-        unlicensed = unlicensed_checkouts(builder)
+        unlicensed = get_unlicensed_checkouts(builder)
         if unlicensed:
             print
             print 'The following checkouts do not have a license:'
             for label in sorted(unlicensed):
                 print '  %s'%label
+
+        # Hackery
+        keys = builder.invocation.db.checkout_licenses.keys()
+        maxlen = 0
+        for label in keys:
+            length = len(str(label))
+            if length > maxlen:
+                maxlen = length
+
+        gpl_licensed = get_gpl_checkouts(builder)
+        get_co_license = builder.invocation.db.get_checkout_license
+        if gpl_licensed:
+            print
+            print 'The following checkouts have some sort of GPL license:'
+            for label in sorted(gpl_licensed):
+                print '  %-*s -> %r'%(maxlen, label, get_co_license(label))
 
 @subcommand('query', 'licenses', CAT_QUERY)
 class QueryLicenses(QueryCommand):
@@ -3732,7 +3748,7 @@ Try "muddle help unstamp" for more information."""
 
         # Check our checkout labels match
         s_checkouts = set(checkouts.keys())
-        b_checkouts = b.invocation.all_checkout_labels()
+        b_checkouts = b.invocation.all_checkout_labels(LabelTag.CheckedOut)
         s_difference = s_checkouts.difference(b_checkouts)
         b_difference = b_checkouts.difference(s_checkouts)
         if s_difference or b_difference:

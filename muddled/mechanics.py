@@ -209,20 +209,29 @@ class Invocation(object):
             rv.add(cur.target.name)
         return rv
 
-    def all_checkout_labels(self):
+    def all_checkout_labels(self, tag=None):
         """
         Return a set of the labels of all the checkouts in our rule set.
 
-        Note that all the labels will be of the form:
+        Note that if 'tag' is None then all the labels will be of the form:
 
-            checkout:<co_name>/checked_out
+            checkout:<co_name>/*
+
+        otherwise 'tag' will be used as the checkout label tag:
+
+            checkout:<co_name>/<tag>
         """
         lbl = Label(LabelType.Checkout, "*", domain="*")
         all_rules = self.ruleset.rules_for_target(lbl)
         all_labels = set()
+        if tag is None:
+            required_tag = '*'
+        else:
+            required_tag = tag
         for cur in all_rules:
             lbl = cur.target
-            vanilla = lbl.copy_with_tag(LabelTag.CheckedOut)
+            #vanilla = lbl.copy_with_tag(LabelTag.CheckedOut)
+            vanilla = lbl.copy_with_tag(required_tag)
             all_labels.add(vanilla)
         return all_labels
 
@@ -1321,7 +1330,7 @@ class Builder(object):
         to determine that, before calling this method.
         """
         rv = [ ]
-        all_cos = self.invocation.all_checkout_labels()
+        all_cos = self.invocation.all_checkout_labels(LabelTag.CheckedOut)
 
         for co in all_cos:
             co_dir = self.invocation.checkout_path(co)

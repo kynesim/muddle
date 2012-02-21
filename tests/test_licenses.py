@@ -84,7 +84,7 @@ def describe_to(builder):
     deployment = 'everything'
 
     add_package(builder, 'apache', 'x86', 'apache')
-    add_package(builder, 'bsd',    'x86', 'bsd')
+    add_package(builder, 'bsd',    'x86', 'bsd-new')
     add_package(builder, 'gpl2',   'x86', 'gpl2')
     add_package(builder, 'gpl2plus', 'x86', 'gpl2plus')
     add_package(builder, 'gpl3',  'x86', 'gpl3')
@@ -93,9 +93,9 @@ def describe_to(builder):
     add_package(builder, 'ukogl', 'x86', 'ukogl')
     add_package(builder, 'zlib',  'x86', 'zlib')
 
-    add_package(builder, 'gnulibc', 'x86', 'lgpl-system')
-    add_package(builder, 'linux', 'x86', 'gpl2-system')
-    add_package(builder, 'busybox', 'x86', 'gpl2')      # is it system?
+    add_package(builder, 'gnulibc', 'x86', 'lgpl-except')
+    add_package(builder, 'linux', 'x86', 'gpl2-except')
+    add_package(builder, 'busybox', 'x86', 'gpl2')      # is it a link-exception?
 
     add_package(builder, 'binary1', 'x86', LicenseBinary('Customer'))
     add_package(builder, 'binary2', 'x86', LicenseBinary('Customer'))
@@ -143,7 +143,7 @@ int main(int argc, char **argv)
 
 def test_equalities():
     assert standard_licenses['mpl'] == standard_licenses['mpl1_1']
-    assert standard_licenses['gpl2'] != standard_licenses['gpl2-system']
+    assert standard_licenses['gpl2'] != standard_licenses['gpl2-except']
 
 def make_build_desc(co_dir, file_content):
     """Take some of the repetition out of making build descriptions.
@@ -215,19 +215,31 @@ def make_repos_with_subdomain(root_dir):
             new_repo('unlicensed4')
             new_repo('unlicensed5')
 
+def actual_tests(root_dir, d):
+    """Perform the actual tests.
+    """
+    banner('STUFF')
+    muddle(['query', 'checkout-licenses'])
+
 def main(args):
-
-    if args:
-        print __doc__
-        raise GiveUp('Unexpected arguments %s'%' '.join(args))
-
-    # Some basic assertions
-    test_equalities()
 
     # Working in a local transient directory seems to work OK
     # although if it's anyone other than me they might prefer
     # somewhere in $TMPDIR...
     root_dir = normalise_dir(os.path.join(os.getcwd(), 'transient'))
+
+    if args == ['-just']:
+        with Directory(root_dir):
+            with Directory('build') as d:
+                actual_tests(root_dir, d)
+        return
+
+    elif args:
+        print __doc__
+        raise GiveUp('Unexpected arguments %s'%' '.join(args))
+
+    # Some basic assertions
+    test_equalities()
 
     #with TransientDirectory(root_dir):     # XXX
     with NewDirectory(root_dir) as root:
@@ -245,9 +257,7 @@ def main(args):
             banner('STAMP VERSION')
             muddle(['stamp', 'version'])
 
-            banner('STUFF')
-            muddle(['query', 'checkout-licenses'])
-
+            actual_tests(root_dir, d)
 
 if __name__ == '__main__':
     args = sys.argv[1:]

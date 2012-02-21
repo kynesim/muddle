@@ -44,8 +44,8 @@ class Database(object):
       inside the Builder's "build_label()" mechanism, and is only intended
       for use within muddle itself.
 
-    And a variety of dictionaries that take checkout labels as keys. Note
-    that:
+    And a variety of dictionaries that take (mostly) checkout labels as keys.
+    Note that:
 
     1. All the keys are "normalised" to have an unset label tag.
     2. Thus it is assumed that the dictionaries will only be accessed via
@@ -82,6 +82,28 @@ class Database(object):
 
       Note that not all checkouts will necessarily have licenses associated
       with them.
+
+    * self.not_built_against is a dictionary of the form:
+
+        { package_label : set( gpl_checkout_labels ) }
+
+      Each gpl_checkout_label is a label whose license (typically GPL) might be
+      expected to "propagate" to any package built against that checkout. This
+      dictionary is used to tell the system that, whilst 'package_label' may
+      depend upon any of the 'gpl_checkout_labels', it doesn't build against
+      them in a way that actually causes that propagation.
+
+      So, for instance, if we have LGPL checkout label which our package links
+      to as a dynamic library, we'd want to tell muddle that the package
+      *depends* on the checkout, but doesn't get affected by the GPL nature of
+      its license.
+
+      This sort of thing is necessary because muddle itself has no way of
+      telling.
+
+      Note that ALL labels in this dictionary and its constituent sets should
+      have their tags set to '*', so it is expected that this dictionary will
+      be accessed using set_not_built_against() and get_not_built_against().
     """
 
     def __init__(self, root_path):
@@ -94,9 +116,11 @@ class Database(object):
         self.build_desc = PathFile(self.db_file_name("Description"))
         self.versions_repo = PathFile(self.db_file_name("VersionsRepository"))
         self.role_env = {}      # DEPRECATED - never used - XXX REMOVE XXX
+
         self.checkout_locations = {}
         self.checkout_repositories = {}
         self.checkout_licenses = {}
+        self.not_built_against = {}
 
         # A set of "asserted" labels
         self.local_tags = set()
@@ -154,21 +178,22 @@ class Database(object):
 
         other_db = other_builder.invocation.db
 
-        # Both checkout_xxx dictionaries *should* have identical sets of keys,
-        # but just in case...
         keys = set()
         keys.update(other_db.checkout_locations.keys())
         keys.update(other_db.checkout_repositories.keys())
         keys.update(other_db.checkout_licenses.keys())
+        keys.update(other_db.not_built_against.keys())
+        # Don't forget the labels in its sets
+        for not_against in other_db.not_built_against.values():
+            keys.update(not_against)
 
-        # We really only want to transform the key labels once for both
-        # dictionaries
+        # We really only want to transform the labels once
         new_labels = {}
-        for co_label in keys:
-            new_co_label = self.normalise_checkout_label(co_label)
-            new_co_label._mark_unswept()
-            new_co_label._change_domain(other_domain_name)
-            new_labels[co_label] = new_co_label
+        for label in keys:
+            new_label = label.copy()
+            new_label._mark_unswept()
+            new_label._change_domain(other_domain_name)
+            new_labels[label] = new_label
 
         #print 'include domain:', other_domain_name
         for co_label, co_dir in other_db.checkout_locations.items():
@@ -185,6 +210,18 @@ class Database(object):
         for co_label, repo in other_db.checkout_licenses.items():
             new_label = new_labels[co_label]
             self.checkout_licenses[new_label] = repo
+
+        for pkg_label, not_against in other_db.not_built_against.items():
+            new_set = set()
+            for lbl in not_against:
+                new_set.add(new_labels[lbl])
+
+            # And rememember to *update* the destination dictionary...
+            new_label = new_labels[pkg_label]
+            if new_label in self.not_built_against:
+                self.not_built_against[new_label].update(new_set)
+            else:
+                self.not_built_against[new_label] = new_set
 
     def set_domain_marker(self, domain_name):
         """
@@ -381,6 +418,71 @@ class Database(object):
         """
         key = self.normalise_checkout_label(checkout_label)
         return key in self.checkout_licenses
+
+    def set_not_built_against(self, pkg_label, co_label):
+        """Asserts that this package is not "built against" that checkout.
+
+        We assume that:
+
+        1. 'pkg_label' is a package that depends (perhaps indirectly) on 'co_label'
+        2. 'co_label' is a checkout with a "propagating" license (i.e., some for of
+           GPL license).
+        3. Thus by default the "GPL"ness would propagate from 'co_label' to this
+           package, and thus to the checkouts we are (directly) built from.
+
+        However, this function asserts that, in fact, our checkout is (or our
+        checkouts are) not built in such a way as to cause the license for
+        'co_label' to propagate.
+
+        Or, putting it another way, for a normal GPL license, we're not linking
+        with anything from 'co_label', or using its header files, or copying GPL'ed
+        files from it, and so on.
+
+        If 'co_label' is under LGPL, then that would reduce to saying we're not
+        static linking against 'co_label' (or anything else not allowed by the
+        LGPL).
+
+        Note that we may be called before 'co_label' has registered its license, so
+        we cannot actually check that 'co_label' has a propagating license (or,
+        indeed, that it exists or is depended upon by 'pkg_label').
+        """
+        if pkg_label.type != utils.LabelType.Package:
+            raise GiveUp('First label in not_build_against() is %s, which is not'
+                         ' a package'%pkg_label)
+        if co_label.type != utils.LabelType.Checkout:
+            raise GiveUp('Second label in not_build_against() is %s, which is not'
+                         ' a checkout'%co_label)
+
+        if pkg_label.tag == '*':
+            key = pkg_label
+        else:
+            key = pkg_label.copy_with_tag('*')
+
+        value = self.normalise_checkout_label(co_label)
+
+        if key in self.not_built_against:
+            self.not_built_against[key].add(value)
+        else:
+            self.not_built_against[key] = set([value])
+
+    def get_not_built_against(self, pkg_label):
+        """Find those things against which this package is *not* built.
+
+        That is, the things on which this package depends, that appear to be
+        GPL and propagate, but against which we have been told we do not
+        actually build, so the license is not, in fact, propagated.
+
+        Returns a (possibly empty) set of checkout labels, each with tag '*'.
+        """
+        if pkg_label.tag == '*':
+            key = pkg_label
+        else:
+            key = pkg_label.copy_with_tag('*')
+
+        try:
+            return self.not_built_against[key]
+        except KeyError:
+            return set()
 
     def build_desc_file_name(self):
         """

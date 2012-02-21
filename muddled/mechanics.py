@@ -40,31 +40,31 @@ class Invocation(object):
 
     def __init__(self, root_path):
         """
-        Construct a fresh invocation with a muddle db at
-        the given root_path.
-
+        Construct a fresh invocation with a .muddle directory at the given
+        root_path.
 
         * self.db         - The metadata database for this project.
-        * self.checkouts  - A map of name to checkout object.
-        * self.pkgs       - Map of (package, role) -> package object.
-        * self.env        - Map of label to environment
+        * self.ruleset    - The rules describing this build
+        * self.env        - A dictionary of label to environment
         * self.default_roles - The roles to build when you don't specify any.
-        * self.default_deployment_labels - The list of labels to build.
-        * self.banned_roles - An array of pairs of role1,d1,role2,d2 which aren't allowed
-                             to share libraries.
+        * self.default_deployment_labels - The deployments to deploy ditto
+        * self.banned_roles - An array of pairs of the form (role, domain)
+          which aren't allowed to share libraries.
         * self.domain_params - Maps domain names to dictionaries storing
-                               parameters that other domains can retrieve. This
-                               is used to communicate values from a build to
-                               its subdomains.
+          parameters that other domains can retrieve. This is used to
+          communicate values from a build to its subdomains.
+        * self.unifications - This is a list of tuples of the form
+          (source-label, target-label), where one "replaces" the other in the
+          build tree.
         """
         self.db = db.Database(root_path)
         self.ruleset = depend.RuleSet()
-        self.env = { }
-        self.default_roles = [ ]
-        self.default_deployment_labels = [ ]
-        self.banned_roles = [ ]
-        self.domain_params = { }
-        self.unifications = [ ]
+        self.env = {}
+        self.default_roles = []
+        self.default_deployment_labels = []
+        self.banned_roles = []
+        self.domain_params = {}
+        self.unifications = []
 
     def note_unification(self, source, target):
         self.unifications.append( (source, target) )
@@ -93,13 +93,13 @@ class Invocation(object):
         """
         self.db.set_domain_marker(domain_name)
 
-
-    def include_domain(self,domain_builder, domain_name):
+    def include_domain(self, domain_builder, domain_name):
         """
         Import the builder domain_builder into the current invocation, giving it
         domain_name.
 
-        We first import the db, then we rename None to domain_name in banned_roles.
+        We first import the db, then we rename None to domain_name in
+        banned_roles, then we sort out the not_built_against dictionary
         """
         self.db.include_domain(domain_builder, domain_name)
         for r in domain_builder.invocation.banned_roles:
@@ -116,7 +116,6 @@ class Invocation(object):
                 d2 = "*"
 
             self.banned_roles.append((a,d1,b,d2))
-
 
     def roles_do_not_share_libraries(self,r1, r2, domain1 = None, domain2 = None):
         """
@@ -762,11 +761,11 @@ class Builder(object):
         to sub-domains.
 
         Note that you MUST NOT set domain_params null unless you are
-         the top-level domain - it MUST come from the enclosing
-         domain's invocation or modifications made by the subdomain's
-         buidler will be lost, and as this is the only way to
-         communicate values to a parent domain, this would be
-         bad. Ugh.
+        the top-level domain - it MUST come from the enclosing
+        domain's invocation or modifications made by the subdomain's
+        buidler will be lost, and as this is the only way to
+        communicate values to a parent domain, this would be
+        bad. Ugh.
 
         default_domain is the default domain value to add to anything
         in local_pkgs , etc - it's used to make sure that if you're

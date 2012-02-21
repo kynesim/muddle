@@ -349,9 +349,10 @@ def get_implicit_gpl_checkouts(builder):
 
     # Localise for our loop
     get_checkout_license = builder.invocation.db.get_checkout_license
+    get_not_built_against = builder.invocation.db.get_not_built_against
     ruleset = builder.invocation.ruleset
 
-    DEBUG = True
+    DEBUG = False
 
     def add_if_not_us(our_co, this_co, result, because, reason):
         """Add 'this_co' to 'result' if it is not 'our_co'.
@@ -391,7 +392,7 @@ def get_implicit_gpl_checkouts(builder):
             if DEBUG: print '     %s'%this_label,
             if this_label.type == LabelType.Package:
 
-                not_against = get_not_built_against(builder, this_label)
+                not_against = get_not_built_against(this_label)
                 if co_label in not_against:
                     if DEBUG: print 'NOT against %s'%co_label
                     continue
@@ -414,78 +415,6 @@ def get_implicit_gpl_checkouts(builder):
                 if DEBUG: print 'IGNORE'
                 continue
     return result, because
-
-# Temporarily keep our "not build against" data here, but it really needs to
-# go in db.py (or somewhere) so it can be subdomain-proofed...
-not_against = {}
-
-def not_built_against(builder, pkg_label, co_label):
-    """Asserts that this package is not "built against" that checkout.
-
-    We assume that:
-
-    1. 'pkg_label' is a package that depends (perhaps indirectly) on 'co_label'
-    2. 'co_label' is a checkout with a "propagating" license (i.e., some for of
-       GPL license).
-    3. Thus by default the "GPL"ness would propagate from 'co_label' to this
-       package, and thus to the checkouts we are (directly) built from.
-
-    However, this function asserts that, in fact, our checkout is (or our
-    checkouts are) not built in such a way as to cause the license for
-    'co_label' to propagate.
-
-    Or, putting it another way, for a normal GPL license, we're not linking
-    with anything from 'co_label', or using its header files, or copying GPL'ed
-    files from it, and so on.
-
-    If 'co_label' is under LGPL, then that would reduce to saying we're not
-    static linking against 'co_label' (or anything else not allowed by the
-    LGPL).
-
-    Note that we may be called before 'co_label' has registered its license, so
-    we cannot actually check that 'co_label' has a propagating license (or,
-    indeed, that it exists or is depended upon by 'pkg_label').
-    """
-    if pkg_label.type != LabelType.Package:
-        raise GiveUp('First label in not_build_against() is %s, which is not'
-                     ' a package'%pkg_label)
-    if co_label.type != LabelType.Checkout:
-        raise GiveUp('Second label in not_build_against() is %s, which is not'
-                     ' a checkout'%co_label)
-
-    if pkg_label.tag == '*':
-        key = pkg_label
-    else:
-        key = pkg_label.copy_with_tag('*')
-
-    if co_label.tag == '*':
-        value = co_label
-    else:
-        value = co_label.copy_with_tag('*')
-
-    if key in not_against:
-        not_against[key].add(value)
-    else:
-        not_against[key] = set([value])
-
-def get_not_built_against(builder, pkg_label):
-    """Find those things against which this package is *not* built.
-
-    That is, the things on which this package depends, that appear to be
-    GPL and propagate, but against which we have been told we do not
-    actually build, so the license is not, in fact, propagated.
-
-    Returns a (possibly empty) set of checkout labels, with tag '*'.
-    """
-    if pkg_label.tag == '*':
-        key = pkg_label
-    else:
-        key = pkg_label.copy_with_tag('*')
-
-    try:
-        return not_against[key]
-    except KeyError:
-        return set()
 
 # =============================================================================
 # DISTRIBUTION

@@ -68,7 +68,7 @@ from muddled.repository import Repository
 from muddled.version_control import checkout_from_repo
 
 from muddled.distribute import distribute_checkout, distribute_package, \
-        set_license, LicenseBinary, LicenseSecret, not_built_against
+        set_license, LicenseBinary, LicenseSecret
 
 def add_package(builder, name, role, license=None, co_name=None, deps=None):
     if not co_name:
@@ -115,9 +115,8 @@ def describe_to(builder):
     add_package(builder, 'unlicensed4', 'x86')
     add_package(builder, 'unlicensed5', 'x86')
 
-    not_built_against(builder,
-                      Label.from_string('package:secret2{{x86}}/*'),
-                      Label.from_string('checkout:gpl2plus/*'))
+    builder.invocation.db.set_not_built_against(Label.from_string('package:secret2{{x86}}/*'),
+                                                Label.from_string('checkout:gpl2plus/*'))
 
     collect.deploy(builder, deployment)
     collect.copy_from_role_install(builder, deployment,

@@ -1973,6 +1973,14 @@ class QueryCheckoutLicenses(QueryCommand):
                     print '%s      %s %s'%(maxlen*' ', word, reason)
                     word = '       '
 
+        # XXX TEMPORARILY XXX
+        from distribute import not_against
+        if not_against:
+            print
+            print 'Exceptions are:'
+            for key, value in not_against.items():
+                print '  %s not built against %s'%(key, label_list_to_string(value))
+
 @subcommand('query', 'licenses', CAT_QUERY)
 class QueryLicenses(QueryCommand):
     """

@@ -1966,9 +1966,12 @@ class QueryCheckoutLicenses(QueryCommand):
                 license = get_co_license(label, absent_is_None=True)
                 if license is None:
                     license = '<no license>'
-                reason = because[label]
-                print '  %-*s -> %r\n%s      because %s'%(maxlen, label, license,
-                                                          maxlen*' ', reason)
+                reasons = because[label]
+                print '  %-*s -> %r'%(maxlen, label, license)
+                word = 'because'
+                for reason in sorted(reasons):
+                    print '%s      %s %s'%(maxlen*' ', word, reason)
+                    word = '       '
 
 @subcommand('query', 'licenses', CAT_QUERY)
 class QueryLicenses(QueryCommand):

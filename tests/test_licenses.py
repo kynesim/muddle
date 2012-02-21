@@ -104,12 +104,12 @@ def describe_to(builder):
     add_package(builder, 'binary5', 'x86', LicenseBinary('Customer'))
 
     add_package(builder, 'secret1', 'x86', LicenseSecret('Shh'), deps=['gnulibc'])
-    add_package(builder, 'secret2', 'x86', LicenseSecret('Shh'))
+    add_package(builder, 'secret2', 'x86', LicenseSecret('Shh'), deps=['gnulibc', 'gpl2plus'])
     add_package(builder, 'secret3', 'x86', LicenseSecret('Shh'))
     add_package(builder, 'secret4', 'x86', LicenseSecret('Shh'))
     add_package(builder, 'secret5', 'x86', LicenseSecret('Shh'))
 
-    add_package(builder, 'unlicensed1', 'x86', deps=['gpl2'])
+    add_package(builder, 'unlicensed1', 'x86', deps=['gpl2', 'gpl3'])
     add_package(builder, 'unlicensed2', 'x86')
     add_package(builder, 'unlicensed3', 'x86')
     add_package(builder, 'unlicensed4', 'x86')

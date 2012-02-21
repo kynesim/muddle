@@ -311,9 +311,12 @@ def get_gpl_checkouts(builder):
 def get_implicit_gpl_checkouts(builder):
     """Find all the checkouts to which GPL-ness propagates.
 
-    Returns a tuple, (result, because), where 'result' is a set of the checkout
-    labels that are implicitly made "GPL" by propagation, and 'because' is a
-    dictionary linking each such label to a string describing why.
+    Returns a tuple, (result, because), where:
+
+    * 'result' is a set of the checkout labels that are implicitly made "GPL"
+      by propagation, and
+    * 'because' is a dictionary linking each such label to a set of strings
+       explaining the reason for the labels inclusion
     """
 
     # There are clearly two ways we can do this:
@@ -363,7 +366,10 @@ def get_implicit_gpl_checkouts(builder):
         else:
             lbl = this_co.copy_with_tag('*')
             result.add(lbl)
-            because[lbl] = reason
+            if lbl in because:
+                because[lbl].add(reason)
+            else:
+                because[lbl] = set([reason])
             if DEBUG: print 'ADD %s'%lbl
 
     result = set()              # Checkouts implicitly affected

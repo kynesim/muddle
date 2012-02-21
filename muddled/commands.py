@@ -1957,22 +1957,18 @@ class QueryCheckoutLicenses(QueryCommand):
             for label in sorted(gpl_licensed):
                 print '  %-*s -> %r'%(maxlen, label, get_co_license(label))
 
-        implicit_gpl_licensed = get_implicit_gpl_checkouts(builder)
+        implicit_gpl_licensed, because = get_implicit_gpl_checkouts(builder)
         if implicit_gpl_licensed:
             maxlen = calc_maxlen(implicit_gpl_licensed)
             print
             print 'The following are then "implicitly" GPL licensed:'
             for label in sorted(implicit_gpl_licensed):
-                if label.type == LabelType.Checkout:
-                    license = get_co_license(label, absent_is_None=True)
-                    if license:
-                        print '  %-*s -> %r'%(maxlen, label, license)
-                    else:
-                        print '  %-*s -> <no license>'%(maxlen, label)
-                else:
-                    checkouts = builder.invocation.checkouts_for_package(label)
-                    print '  %-*s for %s'%(maxlen, label,
-                                           label_list_to_string(checkouts))
+                license = get_co_license(label, absent_is_None=True)
+                if license is None:
+                    license = '<no license>'
+                reason = because[label]
+                print '  %-*s -> %r\n%s      because %s'%(maxlen, label, license,
+                                                          maxlen*' ', reason)
 
 @subcommand('query', 'licenses', CAT_QUERY)
 class QueryLicenses(QueryCommand):

@@ -90,12 +90,12 @@ def describe_to(builder):
     add_package(builder, 'gpl3',  'x86', 'gpl3')
     add_package(builder, 'lgpl',  'x86', 'lgpl')
     add_package(builder, 'mpl',   'x86', 'mpl')
-    add_package(builder, 'ukogl', 'x86', 'ukogl')
+    add_package(builder, 'ukogl', 'x86', 'ukogl', deps=['lgpl'])
     add_package(builder, 'zlib',  'x86', 'zlib')
 
     add_package(builder, 'gnulibc', 'x86', 'lgpl-except')
     add_package(builder, 'linux', 'x86', 'gpl2-except')
-    add_package(builder, 'busybox', 'x86', 'gpl2')      # is it a link-exception?
+    add_package(builder, 'busybox', 'x86', 'gpl2')
 
     add_package(builder, 'binary1', 'x86', LicenseBinary('Customer'))
     add_package(builder, 'binary2', 'x86', LicenseBinary('Customer'))
@@ -103,7 +103,7 @@ def describe_to(builder):
     add_package(builder, 'binary4', 'x86', LicenseBinary('Customer'))
     add_package(builder, 'binary5', 'x86', LicenseBinary('Customer'))
 
-    add_package(builder, 'secret1', 'x86', LicenseSecret('Shh'))
+    add_package(builder, 'secret1', 'x86', LicenseSecret('Shh'), deps=['gnulibc'])
     add_package(builder, 'secret2', 'x86', LicenseSecret('Shh'))
     add_package(builder, 'secret3', 'x86', LicenseSecret('Shh'))
     add_package(builder, 'secret4', 'x86', LicenseSecret('Shh'))

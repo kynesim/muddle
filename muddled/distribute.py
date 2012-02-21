@@ -116,6 +116,31 @@ class License(object):
         """
         return category == 'secret'
 
+    def propagates(self):
+        """Does this license "propagate" to other checkouts?
+
+        In other words, if checkout A has this license, and checkout B depends
+        on checkout A, does the license have an effect on what you can do with
+        checkout B?
+
+        For non-GPL licenses, the answer is assumed "no", and we thus return
+        False.
+
+        For GPL licenses with a linking exception (e.g., the GCC runtime
+        library, or some Java libraries with CLASSPATH exceptions), the answer
+        is also "no", and we return False.
+
+        However, for most GPL licenses (and this includes LGPL), the answer
+        if "yes", there is some form of propagation (remember, LGPL allows
+        dynamic linking, and use of header files, but not static linking),
+        and we return True.
+
+        If we return True, it is then up to the user to decide if this means
+        anything in this particular case - muddle doesn't know *why* one
+        checkout depends on another.
+        """
+        return False
+
 class LicenseSecret(License):
     """A "secret" license - we do not want to distribute anything
     """
@@ -184,6 +209,12 @@ class LicenseGPL(License):
         """Returns True if this is some sort of GPL license.
         """
         return True
+
+    def propagates(self):
+        return not self.with_exception
+
+    # I don't want to type all that documentation again...
+    propagates.__doc__ = License.propagates.__doc__
 
 class LicenseLGPL(LicenseGPL):
     """Some sort of Lesser GPL (LGPL) license.
@@ -280,9 +311,9 @@ def get_gpl_checkouts(builder):
 def get_implicit_gpl_checkouts(builder):
     """Find all the checkouts to which GPL-ness propagates.
 
-    First we find all the GPL checkouts.
-
-    For each GPL checkout that does
+    Returns a tuple, (result, because), where 'result' is a set of the checkout
+    labels that are implicitly made "GPL" by propagation, and 'because' is a
+    dictionary linking each such label to a string describing why.
     """
 
     # There are clearly two ways we can do this:
@@ -319,27 +350,31 @@ def get_implicit_gpl_checkouts(builder):
 
     DEBUG = False
 
-    def add_if_not_us(us, this_co, result):
-        """Add 'this_co' to 'result' if it is not 'us'.
+    def add_if_not_us(our_co, this_co, result, because, reason):
+        """Add 'this_co' to 'result' if it is not 'our_co'.
 
-        Relies on 'us' having a wildcarded label tag.
+        In which case, also add 'this_co':'reason' to 'because'
+
+        Relies on 'our_co' having a wildcarded label tag.
         """
-        if us.just_match(this_co):
+        if our_co.just_match(this_co):
             # OK, that's just some variant on ourselves
-            if DEBUG: print 'WHICH is us'%this_co
+            if DEBUG: print 'WHICH is our_co'%this_co
         else:
             lbl = this_co.copy_with_tag('*')
             result.add(lbl)
+            because[lbl] = reason
             if DEBUG: print 'ADD %s'%lbl
 
-    result = set()
+    result = set()              # Checkouts implicitly affected
+    because = {}                # checkout -> what it depended on that did so
     if DEBUG:
         print
         print 'Finding implicit GPL checkouts'
     for co_label in all_gpl_checkouts:
         if DEBUG: print '.. %s'%co_label
         license = get_checkout_license(co_label)
-        if license.with_exception:
+        if not license.propagates():
             if DEBUG: print '     has a link-exception of some sort - ignoring it'
             continue
         depend_on_this = required_by(ruleset, co_label)
@@ -355,15 +390,17 @@ def get_implicit_gpl_checkouts(builder):
                 for this_co in pkg_checkouts:
                     if DEBUG: print '         %s'%this_label,
                     # We know that our original 'co_label' has type '/*`
-                    add_if_not_us(co_label, this_co, result)
+                    add_if_not_us(co_label, this_co, result, because,
+                                  '%s depends on %s'%(this_label.copy_with_tag('*'), co_label))
             elif this_label.type == LabelType.Checkout:
                 # We know that our original 'co_label' has type '/*`
-                add_if_not_us(co_label, this_label, result)
+                add_if_not_us(co_label, this_label, result, because,
+                              '%s depends on %s'%(this_label.copy_with_tag('*'), co_label))
             else:
                 # Deployments don't build stuff, so we can ignore them
                 if DEBUG: print 'IGNORE'
                 continue
-    return result
+    return result, because
 
 # =============================================================================
 # DISTRIBUTION

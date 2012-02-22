@@ -596,12 +596,18 @@ def num_cols():
     If it can't tell (e.g., because it curses is not available), returns 70.
     """
     if curses:
-        curses.setupterm()
-        cols = curses.tigetnum('cols')
-        if cols <= 0:
+        try:
+            curses.setupterm()
+            cols = curses.tigetnum('cols')
+            if cols <= 0:
+                return 70
+            else:
+                return cols
+        except TypeError:
+            # We get this if stdout not an int, or does not have a fileno()
+            # method, for instance if it has been redirected to a StringIO
+            # object.
             return 70
-        else:
-            return cols
     else:
         return 70
 

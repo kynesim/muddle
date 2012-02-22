@@ -2009,6 +2009,11 @@ class QueryCheckoutLicenses(QueryCommand):
             for license in sorted(role_licenses):
                 print '  - %r'%( license)
 
+        print
+        from muddled.distribute import report_license_clashes_in_role
+        for role in sorted(roles):
+            report_license_clashes_in_role(builder, role)
+
 @subcommand('query', 'licenses', CAT_QUERY)
 class QueryLicenses(QueryCommand):
     """

@@ -342,6 +342,20 @@ def get_gpl_checkouts(builder):
             gpl_licensed.add(co_label)
     return gpl_licensed
 
+def get_open_checkouts(builder):
+    """Return a set of all the open licensed checkouts.
+
+    That's checkouts with any sort of GPL or open license.
+    """
+    all_checkouts = builder.invocation.all_checkout_labels()
+    get_checkout_license = builder.invocation.db.get_checkout_license
+    gpl_licensed = set()
+    for co_label in all_checkouts:
+        license = get_checkout_license(co_label, absent_is_None=True)
+        if license and license.is_open():
+            gpl_licensed.add(co_label)
+    return gpl_licensed
+
 def get_implicit_gpl_checkouts(builder):
     """Find all the checkouts to which GPL-ness propagates.
 
@@ -561,6 +575,52 @@ def licenses_in_role(builder, role):
             licenses.add(license)
 
     return licenses
+
+def report_license_clashes_in_role(builder, role):
+    """Report license clashes in the install/ directory of 'role'.
+    """
+    binary_items = {}
+    secret_items = {}
+
+    get_checkout_license = builder.invocation.db.get_checkout_license
+
+    lbl = Label(LabelType.Package, "*", role, "*", domain="*")
+    all_rules = builder.invocation.ruleset.rules_for_target(lbl)
+
+    for rule in all_rules:
+        pkg_label = rule.target
+        checkouts = builder.invocation.checkouts_for_package(pkg_label)
+        for co_label in checkouts:
+            license = get_checkout_license(co_label, absent_is_None=True)
+            if license:
+                if license.is_binary():
+                    binary_items[co_label] = license
+                elif license.is_secret():
+                    secret_items[co_label] = license
+
+    if not binary_items and not secret_items:
+        return False
+
+    binary_keys = binary_items.keys()
+    secret_keys = secret_items.keys()
+
+    maxlen = 0
+    for label in binary_keys:
+        length = len(str(label))
+        if length > maxlen:
+            maxlen = length
+    for label in secret_keys:
+        length = len(str(label))
+        if length > maxlen:
+            maxlen = length
+
+    print 'There are both binary and secret licenses in role %s:'%(role)
+    for key in sorted(binary_keys):
+        print '* %-*s is %r'%(maxlen, key, binary_items[key])
+    for key in sorted(secret_keys):
+        print '* %-*s is %r'%(maxlen, key, secret_items[key])
+
+    return True
 
 # =============================================================================
 # DISTRIBUTION
@@ -1627,14 +1687,28 @@ def distribute(builder, name, target_dir, with_versions_dir=False,
                                with_muddle_makefile=(not no_muddle_makefile))
     elif name == '_for_gpl':
         # All GPL licensed checkouts, and anything that that has propagated to
+        gpl_checkouts = get_gpl_checkouts(builder)
+        imp_checkouts, because = get_implicit_gpl_checkouts(builder)
+        all_checkouts = gpl_checkouts | imp_checkouts
+        for label in all_checkouts:
+            distribute_checkout(builder, name, label, copy_vcs=with_vcs)
+        all_packages = set()
+
         if report_license_clashes(builder):
-            raise GiveUp('License clashes prevent "%s" distribution'%name)
-        pass
+            pass
+            ###raise GiveUp('License clashes prevent "%s" distribution'%name)
     elif name == '_all_open':
         # All open source checkouts, including anything in _for_gpl
+        open_checkouts = get_open_checkouts(builder)
+        imp_checkouts, because = get_implicit_gpl_checkouts(builder)
+        all_checkouts = open_checkouts | imp_checkouts
+        for label in all_checkouts:
+            distribute_checkout(builder, name, label, copy_vcs=with_vcs)
+        all_packages = set()
+
         if report_license_clashes(builder):
-            raise GiveUp('License clashes prevent "%s" distribution'%name)
-        pass
+            pass
+            ###raise GiveUp('License clashes prevent "%s" distribution'%name)
     elif name == '_by_license':
         # All checkouts in _all_open, and any install/ directories for anything
         # with a "binary" license. Nothing at all for "secret" licenses.

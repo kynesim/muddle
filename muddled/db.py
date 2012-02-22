@@ -267,7 +267,7 @@ class Database(object):
         self.checkout_locations[key] = os.path.join('src', dir)
 
     def dump_checkout_paths(self):
-        print "> Checkout paths .. "
+        print "> Checkout paths .."
         keys = self.checkout_locations.keys()
         max = 0
         for label in keys:
@@ -341,7 +341,7 @@ class Database(object):
         report the full Repository definition (which shows branch and revision
         as well).
         """
-        print "> Checkout repositories .. "
+        print "> Checkout repositories .."
         keys = self.checkout_repositories.keys()
         max = 0
         for label in keys:
@@ -379,7 +379,7 @@ class Database(object):
         If 'just_name' is true, then report the licenses name, otherwise
         report the full License definition.
         """
-        print "> Checkout licenses .. "
+        print "> Checkout licenses .."
         keys = self.checkout_licenses.keys()
         max = 0
         for label in keys:

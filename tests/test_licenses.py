@@ -14,6 +14,8 @@ import subprocess
 import sys
 import traceback
 
+from difflib import unified_diff
+
 from test_support import *
 try:
     import muddled.cmdline
@@ -218,11 +220,74 @@ def make_repos_with_subdomain(root_dir):
             new_repo('unlicensed4')
             new_repo('unlicensed5')
 
+def check_text(actual, wanted):
+    if actual == wanted:
+        return
+
+    actual_lines = actual.splitlines(True)
+    wanted_lines = wanted.splitlines(True)
+    for line in unified_diff(wanted_lines, actual_lines, fromfile='Expected', tofile='Got'):
+        sys.stdout.write(line)
+
 def actual_tests(root_dir, d):
     """Perform the actual tests.
     """
     banner('STUFF')
-    muddle(['query', 'checkout-licenses'])
+    text = captured_muddle(['query', 'checkout-licenses'])
+    check_text(text, """\
+> Checkout licenses ..
+checkout:apache/*   -> LicenseOpen('Apache')
+checkout:binary1/*  -> LicenseBinary('Customer')
+checkout:binary2/*  -> LicenseBinary('Customer')
+checkout:binary3/*  -> LicenseBinary('Customer')
+checkout:binary4/*  -> LicenseBinary('Customer')
+checkout:binary5/*  -> LicenseBinary('Customer')
+checkout:bsd/*      -> LicenseOpen('BSD 3-clause')
+checkout:busybox/*  -> LicenseGPL('GPL v2')
+checkout:gnulibc/*  -> LicenseLGPL('LGPL', with_exception=True)
+checkout:gpl2/*     -> LicenseGPL('GPL v2')
+checkout:gpl2plus/* -> LicenseGPL('GPL v2 and above')
+checkout:gpl3/*     -> LicenseGPL('GPL v3')
+checkout:lgpl/*     -> LicenseLGPL('LGPL')
+checkout:linux/*    -> LicenseGPL('GPL v2', with_exception=True)
+checkout:mpl/*      -> LicenseOpen('MPL 1.1')
+checkout:secret1/*  -> LicenseSecret('Shh')
+checkout:secret2/*  -> LicenseSecret('Shh')
+checkout:secret3/*  -> LicenseSecret('Shh')
+checkout:secret4/*  -> LicenseSecret('Shh')
+checkout:secret5/*  -> LicenseSecret('Shh')
+checkout:ukogl/*    -> LicenseOpen('UK Open Government License')
+checkout:zlib/*     -> LicenseOpen('zlib')
+
+The following checkouts do not have a license:
+  checkout:builds/*
+  checkout:unlicensed1/*
+  checkout:unlicensed2/*
+  checkout:unlicensed3/*
+  checkout:unlicensed4/*
+  checkout:unlicensed5/*
+
+The following checkouts have some sort of GPL license:
+  checkout:busybox/*  -> LicenseGPL('GPL v2')
+  checkout:gnulibc/*  -> LicenseLGPL('LGPL', with_exception=True)
+  checkout:gpl2/*     -> LicenseGPL('GPL v2')
+  checkout:gpl2plus/* -> LicenseGPL('GPL v2 and above')
+  checkout:gpl3/*     -> LicenseGPL('GPL v3')
+  checkout:lgpl/*     -> LicenseLGPL('LGPL')
+  checkout:linux/*    -> LicenseGPL('GPL v2', with_exception=True)
+
+The following are then "implicitly" GPL licensed:
+  checkout:secret3/*     -> LicenseSecret('Shh')
+                            because package:secret3{x86}/* depends on checkout:gpl2plus/*
+  checkout:ukogl/*       -> LicenseOpen('UK Open Government License')
+                            because package:ukogl{x86}/* depends on checkout:lgpl/*
+  checkout:unlicensed1/* -> '<no license>'
+                            because package:unlicensed1{x86}/* depends on checkout:gpl2/*
+                                    package:unlicensed1{x86}/* depends on checkout:gpl3/*
+
+Exceptions are:
+  package:secret2{x86}/* not built against checkout:gpl2plus/*
+""")
 
 def main(args):
 

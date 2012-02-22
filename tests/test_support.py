@@ -129,7 +129,7 @@ def captured_muddle(args, verbose=True):
     stdoutdata, stderrdata = p.communicate()
     retcode = p.returncode
     if retcode:
-        raise ShellError(cmd, retcode)
+        raise ShellError(' '.join(cmd_seq), retcode)
     return stdoutdata
 
 def git(cmd, verbose=True):

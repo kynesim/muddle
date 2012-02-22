@@ -671,4 +671,114 @@ the Python license (again, not a problem, I think).
 
 Which/where is "BSD with advertising"?
 
+Licenses and distributions
+==========================
+Brief notes, to be expanded:
+
+* Various classes, all based off ``License`` (use the subclasses by
+  preference, to get their individual behaviours).
+
+* A dictionary of ``standard_licenses``
+
+* Tell a checkout its license::
+
+    set_license(builder, co_label, license)
+
+  where ``license`` is a key from ``standard_licenses`` or a ``License``
+  instance.
+
+* Useful query functions::
+
+    get_unlicensed_checkouts(builder)
+    get_gpl_checkouts(builder)
+    get_implicit_gpl_checkouts(builder)
+
+  obviously mainly aimed at the muddle developer.
+
+* You can find out if a checkout has a license using::
+
+    builder.invocation.db.checkout_has_license(co_label)
+
+  and retrieve a checkout's license wth::
+
+    builder.invocation.db.get_checkout_license(co_label)
+
+  If you think it might not have a license, and don't want a ``GiveUp``
+  exception, use::
+
+    builder.invocation.db.get_checkout_license(co_label, absent_is_None=True)
+
+  which returns ``None`` if ``co_label`` does not have a license.
+
+  Setting a license is done with::
+
+    builder.invocation.db.set_checkout_license(co_label, license)
+
+  where ``license`` is either a ``License`` instance, or the name (key) of one
+  of the standard licenses.
+
+* Checkouts with GPL-style licenses "propagate" their license to checkouts
+  whose packages depend upon them (unless the GPL-style license has
+  ``with_exception`` set). This doesn't, however, take account of the fact
+  that "depends upon" doesn't necessarily mean "links with" (or "uses header
+  files from"). You can tell muddle that a checkout does not need to be
+  "propagated to" by a GPL checkout using::
+
+    builder.invocation.db.set_not_built_against(pkg_label, co_label)
+
+  This says that the package named by ``pkg_label`` may depend on the checkout
+  named by ``co_label``, but it doesn't do so in a way to trigger GPL
+  propagation. Exactly what that means depends upon the package and checkout
+  concerned (it may mean not statically linking to an LGPL library, it may
+  mean not using classes from a GPL Java class, it may mean depending on a
+  side-effect of building the checkout, that itself is not the business of GPL
+  licensing).
+
+  Note that if A depends on B depends on C which depends on a GPL checkout D,
+  saying that B is "not built against" D doesn't say anything about A or C.
+
+  Also, this call does not check that ``co_label`` has a GPL-style license,
+  not least because it may be called before code defining the license for
+  ``co_label`` has itself been called. Indeed, we also don't check that
+  ``pkg_label`` actually depends on ``co_label``, or that either exists...
+
+* Commands:
+
+  - ``muddle query licenses``
+
+    Prints out the standard licenses
+
+  - ``muddle query checkout-licenses``
+
+     Prints the licenses for the checkouts in the dependency tree, and other
+     related information it has deduced. This is deliberately verbose, giving
+     as much information as possible.
+
+
+Licenses are of four broad types:
+
+* *secret*. Checkouts with this license (and thus also their packages) are not
+  to be distributed as part of a normal license-driven distribution.
+
+* *binary*. Checkouts with this license (and thus also their packages) are to
+  be distributed as binary, not as source. Note that this still distributes
+  their muddle Makefile, and any other specific files, as for a "binary"
+  release.
+
+* *open*. Checkouts with this license are open-source, but do not *require*
+  distribution of their source code.
+
+* *gpl*. Checkouts with this license are open-source, but (a) require
+  distribution of their source code, and (b) may or may not propagate that
+  requirement to other checkouts whose packages depend on them.
+
+  All *gpl* licenses may have the "with exception" flag set, which implies a
+  "linking" exception that stops them "propagating". Otherwise, any checkout
+  that depends (whose package depends) on a *gpl* package is a candidate for
+  also needing to be distributed as source, unless it is marked (with:
+
+There is also a "meta" type, *unlicensed*. Any checkout that has not
+had its license declared is *unlicensed*, and all such checkouts are assumed to
+be equivalent to *open* checkouts. 
+
 .. vim: set filetype=rst tabstop=8 softtabstop=2 shiftwidth=2 expandtab:

@@ -675,6 +675,34 @@ Licenses and distributions
 ==========================
 Brief notes, to be expanded:
 
+Licenses are of four broad types:
+
+* *secret*. Checkouts with this license (and thus also their packages) are not
+  to be distributed as part of a normal license-driven distribution.
+
+* *binary*. Checkouts with this license (and thus also their packages) are to
+  be distributed as binary, not as source. Note that this still distributes
+  their muddle Makefile, and any other specific files, as for a "binary"
+  release.
+
+* *open*. Checkouts with this license are open-source, but do not *require*
+  distribution of their source code.
+
+* *gpl*. Checkouts with this license are open-source, but (a) require
+  distribution of their source code, and (b) may or may not propagate that
+  requirement to other checkouts whose packages depend on them.
+
+  All *gpl* licenses may have the "with exception" flag set, which implies a
+  "linking" exception that stops them "propagating". Otherwise, any checkout
+  that depends (whose package depends) on a *gpl* package is a candidate for
+  also needing to be distributed as source, unless it is marked (with:
+
+There is also a "meta" type, *not licensed*. Any checkout that has not
+had its license declared is *not licensed*, and all such checkouts are assumed to
+be equivalent to *open* checkouts. 
+
+We have:
+
 * Various classes, all based off ``License`` (use the subclasses by
   preference, to get their individual behaviours).
 
@@ -689,11 +717,13 @@ Brief notes, to be expanded:
 
 * Useful query functions::
 
-    get_unlicensed_checkouts(builder)
+    get_not_licensed_checkouts(builder)
     get_gpl_checkouts(builder)
     get_implicit_gpl_checkouts(builder)
+    check_for_license_clashes(builder, implicit_gpl_checkouts)
 
-  obviously mainly aimed at the muddle developer.
+  obviously mainly aimed at the muddle developer. See their docstrings for how
+  to use them.
 
 * You can find out if a checkout has a license using::
 
@@ -753,32 +783,5 @@ Brief notes, to be expanded:
      Prints the licenses for the checkouts in the dependency tree, and other
      related information it has deduced. This is deliberately verbose, giving
      as much information as possible.
-
-
-Licenses are of four broad types:
-
-* *secret*. Checkouts with this license (and thus also their packages) are not
-  to be distributed as part of a normal license-driven distribution.
-
-* *binary*. Checkouts with this license (and thus also their packages) are to
-  be distributed as binary, not as source. Note that this still distributes
-  their muddle Makefile, and any other specific files, as for a "binary"
-  release.
-
-* *open*. Checkouts with this license are open-source, but do not *require*
-  distribution of their source code.
-
-* *gpl*. Checkouts with this license are open-source, but (a) require
-  distribution of their source code, and (b) may or may not propagate that
-  requirement to other checkouts whose packages depend on them.
-
-  All *gpl* licenses may have the "with exception" flag set, which implies a
-  "linking" exception that stops them "propagating". Otherwise, any checkout
-  that depends (whose package depends) on a *gpl* package is a candidate for
-  also needing to be distributed as source, unless it is marked (with:
-
-There is also a "meta" type, *unlicensed*. Any checkout that has not
-had its license declared is *unlicensed*, and all such checkouts are assumed to
-be equivalent to *open* checkouts. 
 
 .. vim: set filetype=rst tabstop=8 softtabstop=2 shiftwidth=2 expandtab:

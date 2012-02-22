@@ -45,8 +45,8 @@ from muddled.version_control import split_vcs_url, checkout_from_repo
 from muddled.repository import Repository
 from muddled.version_stamp import VersionStamp
 from muddled.distribute import distribute, find_all_distribution_names, \
-        print_standard_licenses, get_gpl_checkouts, get_unlicensed_checkouts, \
-        get_implicit_gpl_checkouts, check_for_license_clashes
+        print_standard_licenses, get_gpl_checkouts, get_not_licensed_checkouts, \
+        get_implicit_gpl_checkouts, get_license_clashes, licenses_in_role
 
 # Following Richard's naming conventions...
 # A dictionary of <command name> : <command class>
@@ -1931,12 +1931,13 @@ class QueryCheckoutLicenses(QueryCommand):
         just_name = ('name' in self.switches)
         builder.invocation.db.dump_checkout_licenses(just_name=just_name)
 
-        unlicensed = get_unlicensed_checkouts(builder)
-        if unlicensed:
+        not_licensed = get_not_licensed_checkouts(builder)
+        if not_licensed:
             print
             print 'The following checkouts do not have a license:'
-            for label in sorted(unlicensed):
-                print '  %s'%label
+            print
+            for label in sorted(not_licensed):
+                print '* %s'%label
 
         # Hackery
         def calc_maxlen(keys):
@@ -1954,44 +1955,59 @@ class QueryCheckoutLicenses(QueryCommand):
         if gpl_licensed:
             print
             print 'The following checkouts have some sort of GPL license:'
+            print
             for label in sorted(gpl_licensed):
-                print '  %-*s -> %r'%(maxlen, label, get_co_license(label))
+                print '* %-*s -> %r'%(maxlen, label, get_co_license(label))
+
+        if builder.invocation.db.not_built_against:
+            print
+            print 'Exceptions to "implicit" GPL licensing are:'
+            print
+            for key, value in builder.invocation.db.not_built_against.items():
+                print '* %s is not built against %s'%(key, label_list_to_string(value))
 
         implicit_gpl_licensed, because = get_implicit_gpl_checkouts(builder)
         if implicit_gpl_licensed:
             maxlen = calc_maxlen(implicit_gpl_licensed)
             print
-            print 'The following are then "implicitly" GPL licensed:'
+            print 'The following are "implicitly" GPL licensed for the given reasons:'
+            print
             for label in sorted(implicit_gpl_licensed):
                 license = get_co_license(label, absent_is_None=True)
-                if license is None:
-                    license = '<no license>'
                 reasons = because[label]
-                print '  %-*s -> %r'%(maxlen, label, license)
-                word = 'because'
-                for reason in sorted(reasons):
-                    print '%s      %s %s'%(maxlen*' ', word, reason)
-                    word = '       '
+                if False:
+                    print '* %-*s -> %r'%(maxlen, label, license)
+                    word = 'because'
+                    for reason in sorted(reasons):
+                        print '  %s %s'%(word, reason)
+                        word = '       '
+                else:
+                    license = get_co_license(label, absent_is_None=True)
+                    print '* %-*s (was %r)'%(maxlen, label, license)
+                    #print '* %s, because:'%(label)
+                    for reason in sorted(reasons):
+                        print '  - %s'%(reason)
 
-        if builder.invocation.db.not_built_against:
+        bad_binary, bad_secret = get_license_clashes(builder, implicit_gpl_licensed)
+        if bad_binary or bad_secret:
             print
-            print 'Exceptions are:'
-            for key, value in builder.invocation.db.not_built_against.items():
-                print '  %s not built against %s'%(key, label_list_to_string(value))
+            print 'This means that the following have irreconcilable clashes:'
+            print
+            for label in sorted(bad_binary):
+                print '* %-*s -> %r'%(maxlen, label, get_co_license(label))
+            for label in sorted(bad_secret):
+                print '* %-*s -> %r'%(maxlen, label, get_co_license(label))
 
-        bad_binary, bad_secret = check_for_license_clashes(builder, implicit_gpl_licensed)
-        if bad_binary:
-            print
-            print 'Clashes between GPL-propagation and "binary" licenses are:'
-            for co_label in sorted(bad_binary):
-                license = get_co_license(co_label)
-                print '  %-*s -> %r'%(maxlen, co_label, license)
-        if bad_secret:
-            print
-            print 'Clashes between GPL-propagation and "secret" licenses are:'
-            for co_label in sorted(bad_secret):
-                license = get_co_license(co_label)
-                print '  %-*s -> %r'%(maxlen, co_label, license)
+        print
+        print 'Licenses by role:'
+        roles = builder.invocation.all_roles()
+        max_role_len = len(max(roles, key=len))
+        indent = ' '*max_role_len
+        for role in sorted(roles):
+            print '* %s'%role
+            role_licenses = licenses_in_role(builder, role)
+            for license in sorted(role_licenses):
+                print '  - %r'%( license)
 
 @subcommand('query', 'licenses', CAT_QUERY)
 class QueryLicenses(QueryCommand):

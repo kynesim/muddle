@@ -22,7 +22,7 @@ import os
 from muddled.depend import Action, Rule, Label, required_by, label_list_to_string
 from muddled.utils import GiveUp, MuddleBug, LabelTag, LabelType, \
         copy_without, normalise_dir, find_local_relative_root, package_tags, \
-        copy_file, domain_subpath
+        copy_file, domain_subpath, wrap
 from muddled.version_control import get_vcs_handler, vcs_special_files
 from muddled.mechanics import build_co_and_path_from_str
 from muddled.pkgs.make import MakeBuilder, deduce_makefile_name
@@ -83,6 +83,9 @@ class License(object):
 
     def __eq__(self, other):
         return (self.name == other.name and self.category == other.category)
+
+    def __hash__(self):
+        return hash((self.name, self.category))
 
     def distribute_source(self):
         """Returns True if we should (must?) distribute source code.
@@ -146,7 +149,7 @@ class LicenseSecret(License):
     """
 
     def __init__(self, name):
-        super(LicenseSecret, self).__init__(name, 'secret')
+        super(LicenseSecret, self).__init__(name=name, category='secret')
 
     def __repr__(self):
         return '%s(%r)'%(self.__class__.__name__, self.name)
@@ -156,7 +159,7 @@ class LicenseBinary(License):
     """
 
     def __init__(self, name):
-        super(LicenseBinary, self).__init__(name, 'binary')
+        super(LicenseBinary, self).__init__(name=name, category='binary')
 
     def __repr__(self):
         return '%s(%r)'%(self.__class__.__name__, self.name)
@@ -166,7 +169,7 @@ class LicenseOpen(License):
     """
 
     def __init__(self, name):
-        super(LicenseOpen, self).__init__(name, 'open')
+        super(LicenseOpen, self).__init__(name=name, category='open')
 
     def __repr__(self):
         return '%s(%r)'%(self.__class__.__name__, self.name)
@@ -191,7 +194,7 @@ class LicenseGPL(License):
 
         .. _`linking exception`: http://en.wikipedia.org/wiki/GPL_linking_exception
         """
-        super(LicenseGPL, self).__init__(name, 'gpl')
+        super(LicenseGPL, self).__init__(name=name, category='gpl')
         self.with_exception = with_exception
 
     def __repr__(self):
@@ -203,7 +206,10 @@ class LicenseGPL(License):
     def __eq__(self, other):
         # Doing the super-comparison first guarantees we're both some sort of GPL
         return (super(LicenseGPL, self).__eq__(other) and
-                self.system_exception == other.system_exception)
+                self.with_exception == other.with_exception)
+
+    def __hash__(self):
+        return hash((self.name, self.category, self.with_exception))
 
     def is_gpl(self):
         """Returns True if this is some sort of GPL license.
@@ -231,7 +237,7 @@ class LicenseLGPL(LicenseGPL):
 
         The 'name' is the name of this license, as it is normally recognised.
         """
-        super(LicenseLGPL, self).__init__(name, with_exception)
+        super(LicenseLGPL, self).__init__(name=name, with_exception=with_exception)
 
     def is_lgpl(self):
         """Returns True if this is some sort of LGPL license.
@@ -260,14 +266,41 @@ for mnemonic, license in (
         ('mpl1_1',          LicenseOpen('MPL 1.1')),
         ('ukogl',           LicenseOpen('UK Open Government License')),
         ('zlib',            LicenseOpen('zlib')), # ZLIB has its own license
+        ('code-nightmare-green', LicenseSecret('Code Nightmare Green')),
         ):
     standard_licenses[mnemonic] = license
 
 def print_standard_licenses():
     keys = standard_licenses.keys()
     maxlen = len(max(keys, key=len))
-    for key in sorted(keys):
-        print '%-*s %r'%(maxlen, key, standard_licenses[key])
+
+    gpl_keys = []
+    open_keys = []
+    binary_keys = []
+    secret_keys = []
+    other_keys = []
+
+    for key in keys:
+        license = standard_licenses[key]
+        if license.is_gpl():
+            gpl_keys.append((key, license))
+        elif license.is_open():
+            open_keys.append((key, license))
+        elif license.is_binary():
+            binary_keys.append((key, license))
+        elif license.is_secret():
+            secret_keys.append((key, license))
+        else:
+            other_keys.append((key, license))
+
+    print 'Standard licenses are:'
+
+    for thing in (gpl_keys, open_keys, binary_keys, secret_keys, other_keys):
+        if thing:
+            print
+            for key, license in sorted(thing):
+                print '%-*s %r'%(maxlen, key, license)
+    print
 
 def set_license(builder, co_label, license):
     """Set the license for a checkout.
@@ -281,7 +314,7 @@ def set_license(builder, co_label, license):
         builder.invocation.db.set_checkout_license(co_label,
                                                    standard_licenses[license])
 
-def get_unlicensed_checkouts(builder):
+def get_not_licensed_checkouts(builder):
     """Return the set of all checkouts which do not have a license.
 
     (Actually, a set of checkout labels, with the label tag "/checked_out").
@@ -417,8 +450,8 @@ def get_implicit_gpl_checkouts(builder):
                 continue
     return result, because
 
-def check_for_license_clashes(builder, implicit_gpl_checkouts):
-    """Report on clashes between actual license and "implicit GPL" licensing.
+def get_license_clashes(builder, implicit_gpl_checkouts):
+    """Return clashes between actual license and "implicit GPL" licensing.
 
     ``get_implicit_gpl_checkouts()`` returns those checkouts that are
     implicitly "made" GPL by propagation. However, if the checkouts concerned
@@ -444,6 +477,90 @@ def check_for_license_clashes(builder, implicit_gpl_checkouts):
             bad_secret.add(co_label)
 
     return bad_binary, bad_secret
+
+def report_license_clashes(builder, report_binary=True, report_secret=True):
+    """Report any license clashes.
+
+    This wraps get_implicit_gpl_checkouts() and check_for_license_clashes(),
+    plus some appropriate text reporting any problems.
+
+    It returns True if there were any clashes, False if there were not.
+
+    It reports clashes with "binary" licenses if 'report_binary' is True.
+
+    It reports clashes with "secret" licenses if 'report_secret' is True.
+
+    If both are False, it is silent.
+    """
+    implicit_gpl, because = get_implicit_gpl_checkouts(builder)
+
+    if not implicit_gpl:
+        return False
+
+    bad_binary, bad_secret = get_license_clashes(builder, implicit_gpl)
+
+    if not bad_binary and not bad_secret:
+        return False
+
+    def report(co_label):
+        license = get_checkout_license(co_label)
+        reasons = because[co_label]
+        header = '* %-*s is %r, but is implicitly GPL because:'%(maxlen, co_label, license)
+        print wrap(header, subsequent_indent='  ')
+        print
+        for reason in sorted(reasons):
+            print '  - %s'%reason
+        print
+
+    if report_binary or report_secret:
+        print
+        print 'The following GPL license clashes occur:'
+        print
+
+        maxlen = 0
+        if report_binary:
+            for label in bad_binary:
+                length = len(str(label))
+                if length > maxlen:
+                    maxlen = length
+        if report_secret:
+            for label in bad_secret:
+                length = len(str(label))
+                if length > maxlen:
+                    maxlen = length
+
+        get_checkout_license = builder.invocation.db.get_checkout_license
+
+        if report_binary:
+            for co_label in sorted(bad_binary):
+                report(co_label)
+
+        if report_secret:
+            for co_label in sorted(bad_secret):
+                report(co_label)
+
+    return True
+
+def licenses_in_role(builder, role):
+    """Given a role, what licenses are used by the packages (checkouts) therein?
+
+    Returns a set of License instances. May also include None in the values in
+    the set, if some of the checkouts are not licensed.
+    """
+    licenses = set()
+    get_checkout_license = builder.invocation.db.get_checkout_license
+
+    lbl = Label(LabelType.Package, "*", role, "*", domain="*")
+    all_rules = builder.invocation.ruleset.rules_for_target(lbl)
+
+    for rule in all_rules:
+        pkg_label = rule.target
+        checkouts = builder.invocation.checkouts_for_package(pkg_label)
+        for co_label in checkouts:
+            license = get_checkout_license(co_label, absent_is_None=True)
+            licenses.add(license)
+
+    return licenses
 
 # =============================================================================
 # DISTRIBUTION
@@ -1498,14 +1615,32 @@ def distribute(builder, name, target_dir, with_versions_dir=False,
     # ==============
     if name == '_source_release':
         # A source release is the source directories alone, but with no VCS
+        # This ignores licenses
         for label in all_checkouts:
             distribute_checkout(builder, name, label, copy_vcs=with_vcs)
         all_packages = set()
     elif name == '_binary_release':
         # A binary release is the install directories for all packages
+        # This ignores licenses
         for label in all_packages:
             distribute_package(builder, name, label, obj=False, install=True,
                                with_muddle_makefile=(not no_muddle_makefile))
+    elif name == '_for_gpl':
+        # All GPL licensed checkouts, and anything that that has propagated to
+        if report_license_clashes(builder):
+            raise GiveUp('License clashes prevent "%s" distribution'%name)
+        pass
+    elif name == '_all_open':
+        # All open source checkouts, including anything in _for_gpl
+        if report_license_clashes(builder):
+            raise GiveUp('License clashes prevent "%s" distribution'%name)
+        pass
+    elif name == '_by_license':
+        # All checkouts in _all_open, and any install/ directories for anything
+        # with a "binary" license. Nothing at all for "secret" licenses.
+        if report_license_clashes(builder):
+            raise GiveUp('License clashes prevent "%s" distribution'%name)
+        pass
     # ==============
 
     combined_labels = set(all_checkouts.union(all_packages))

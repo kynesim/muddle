@@ -108,14 +108,14 @@ def describe_to(builder):
     add_package(builder, 'secret1', 'x86', LicenseSecret('Shh'), deps=['gnulibc'])
     add_package(builder, 'secret2', 'x86', LicenseSecret('Shh'), deps=['gnulibc', 'gpl2plus'])
     add_package(builder, 'secret3', 'x86', LicenseSecret('Shh'), deps=['secret2'])
-    add_package(builder, 'secret4', 'x86', LicenseSecret('Shh'))
+    add_package(builder, 'secret4', 'x86', LicenseSecret('Shh'), deps=['secret2', 'gpl2'])
     add_package(builder, 'secret5', 'x86', LicenseSecret('Shh'))
 
-    add_package(builder, 'unlicensed1', 'x86', deps=['gpl2', 'gpl3'])
-    add_package(builder, 'unlicensed2', 'x86')
-    add_package(builder, 'unlicensed3', 'x86')
-    add_package(builder, 'unlicensed4', 'x86')
-    add_package(builder, 'unlicensed5', 'x86')
+    add_package(builder, 'not_licensed1', 'x86', deps=['gpl2', 'gpl3'])
+    add_package(builder, 'not_licensed2', 'x86')
+    add_package(builder, 'not_licensed3', 'x86')
+    add_package(builder, 'not_licensed4', 'x86')
+    add_package(builder, 'not_licensed5', 'x86')
 
     builder.invocation.db.set_not_built_against(Label.from_string('package:secret2{{x86}}/*'),
                                                 Label.from_string('checkout:gpl2plus/*'))
@@ -214,11 +214,11 @@ def make_repos_with_subdomain(root_dir):
             new_repo('secret4')
             new_repo('secret5')
 
-            new_repo('unlicensed1')
-            new_repo('unlicensed2')
-            new_repo('unlicensed3')
-            new_repo('unlicensed4')
-            new_repo('unlicensed5')
+            new_repo('not_licensed1')
+            new_repo('not_licensed2')
+            new_repo('not_licensed3')
+            new_repo('not_licensed4')
+            new_repo('not_licensed5')
 
 def check_text(actual, wanted):
     if actual == wanted:
@@ -261,11 +261,11 @@ checkout:zlib/*     -> LicenseOpen('zlib')
 
 The following checkouts do not have a license:
   checkout:builds/*
-  checkout:unlicensed1/*
-  checkout:unlicensed2/*
-  checkout:unlicensed3/*
-  checkout:unlicensed4/*
-  checkout:unlicensed5/*
+  checkout:not_licensed1/*
+  checkout:not_licensed2/*
+  checkout:not_licensed3/*
+  checkout:not_licensed4/*
+  checkout:not_licensed5/*
 
 The following checkouts have some sort of GPL license:
   checkout:busybox/*  -> LicenseGPL('GPL v2')
@@ -277,19 +277,19 @@ The following checkouts have some sort of GPL license:
   checkout:linux/*    -> LicenseGPL('GPL v2', with_exception=True)
 
 The following are then "implicitly" GPL licensed:
-  checkout:secret3/*     -> LicenseSecret('Shh')
-                            because package:secret3{x86}/* depends on checkout:gpl2plus/*
-  checkout:ukogl/*       -> LicenseOpen('UK Open Government License')
-                            because package:ukogl{x86}/* depends on checkout:lgpl/*
-  checkout:unlicensed1/* -> '<no license>'
-                            because package:unlicensed1{x86}/* depends on checkout:gpl2/*
-                                    package:unlicensed1{x86}/* depends on checkout:gpl3/*
+  checkout:not_licensed1/* -> '<no license>'
+                              because package:not_licensed1{x86}/* depends on checkout:gpl2/*
+                                      package:not_licensed1{x86}/* depends on checkout:gpl3/*
+  checkout:secret3/*       -> LicenseSecret('Shh')
+                              because package:secret3{x86}/* depends on checkout:gpl2plus/*
+  checkout:ukogl/*         -> LicenseOpen('UK Open Government License')
+                              because package:ukogl{x86}/* depends on checkout:lgpl/*
 
 Exceptions are:
   package:secret2{x86}/* not built against checkout:gpl2plus/*
 
 Clashes between GPL-propagation and "secret" licenses are:
-  checkout:secret3/*     -> LicenseSecret('Shh')
+  checkout:secret3/*       -> LicenseSecret('Shh')
 """)
 
 def main(args):

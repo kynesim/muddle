@@ -13,6 +13,7 @@ import traceback
 import stat
 
 from fnmatch import fnmatchcase
+from StringIO import StringIO
 
 def get_parent_dir(this_file=None):
     """Determine the path of our parent directory.
@@ -95,6 +96,11 @@ def muddle(args, verbose=True):
 
     I already know it's going to be a pain remembering that the first
     argument is a list of words...
+
+    Beware that this does not quite give the "insulation" between commands
+    that actually running "muddle" as a program would. On the whole, if that
+    becomes a problem it can either (a) be fixed on a case-by-case basis, or
+    (b) we could move to running MUDDLE_BINARY as an actual command.
     """
     if verbose:
         print '++ muddle %s'%(' '.join(args))
@@ -108,6 +114,23 @@ def muddle(args, verbose=True):
     finally:
         if old_pwd:
             os.environ['PWD'] = old_pwd
+
+def captured_muddle(args, verbose=True):
+    """Grab the output from a muddle command.
+
+    We can't just capture sys.stdout/stderr, because some things (notably
+    help) are output via a subprocess paging. So we need to run muddle
+    just like any other command...
+    """
+    cmd_seq = [MUDDLE_BINARY] + args
+    if verbose:
+        print ">> muddle %s"%(' '.join(args))
+    p = subprocess.Popen(cmd_seq, stdout=subprocess.PIPE, stderr=subprocess.STDOUT)
+    stdoutdata, stderrdata = p.communicate()
+    retcode = p.returncode
+    if retcode:
+        raise ShellError(cmd, retcode)
+    return stdoutdata
 
 def git(cmd, verbose=True):
     """Run a git command

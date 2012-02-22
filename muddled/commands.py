@@ -46,7 +46,7 @@ from muddled.repository import Repository
 from muddled.version_stamp import VersionStamp
 from muddled.distribute import distribute, find_all_distribution_names, \
         print_standard_licenses, get_gpl_checkouts, get_unlicensed_checkouts, \
-        get_implicit_gpl_checkouts
+        get_implicit_gpl_checkouts, check_for_license_clashes
 
 # Following Richard's naming conventions...
 # A dictionary of <command name> : <command class>
@@ -1979,6 +1979,20 @@ class QueryCheckoutLicenses(QueryCommand):
             for key, value in builder.invocation.db.not_built_against.items():
                 print '  %s not built against %s'%(key, label_list_to_string(value))
 
+        bad_binary, bad_secret = check_for_license_clashes(builder, implicit_gpl_licensed)
+        if bad_binary:
+            print
+            print 'Clashes between GPL-propagation and "binary" licenses are:'
+            for co_label in sorted(bad_binary):
+                license = get_co_license(co_label)
+                print '  %-*s -> %r'%(maxlen, co_label, license)
+        if bad_secret:
+            print
+            print 'Clashes between GPL-propagation and "secret" licenses are:'
+            for co_label in sorted(bad_secret):
+                license = get_co_license(co_label)
+                print '  %-*s -> %r'%(maxlen, co_label, license)
+
 @subcommand('query', 'licenses', CAT_QUERY)
 class QueryLicenses(QueryCommand):
     """
@@ -1987,7 +2001,13 @@ class QueryLicenses(QueryCommand):
     Print the standard licenses we know about
     """
 
+    def requires_build_tree(self):
+        return False
+
     def with_build_tree(self, builder, current_dir, args):
+        print_standard_licenses()
+
+    def without_build_tree(self, muddle_binary, root_path, args):
         print_standard_licenses()
 
 @subcommand('query', 'domains', CAT_QUERY)

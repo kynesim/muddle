@@ -94,7 +94,7 @@ class License(object):
 
         Note: this includes GPL and LGPL licenses.
         """
-        return category in ('open', 'gpl')
+        return self.category in ('open', 'gpl')
 
     def is_gpl(self):
         """Returns True if this is some sort of GPL license.
@@ -109,12 +109,12 @@ class License(object):
     def is_binary(self):
         """Is this a binary-distribution-only license?
         """
-        return category == 'binary'
+        return self.category == 'binary'
 
     def is_secret(self):
         """Is this a secret-do-not-distribute license?
         """
-        return category == 'secret'
+        return self.category == 'secret'
 
     def propagates(self):
         """Does this license "propagate" to other checkouts?
@@ -265,8 +265,9 @@ for mnemonic, license in (
 
 def print_standard_licenses():
     keys = standard_licenses.keys()
+    maxlen = len(max(keys, key=len))
     for key in sorted(keys):
-        print '%-10s %r'%(key, standard_licenses[key])
+        print '%-*s %r'%(maxlen, key, standard_licenses[key])
 
 def set_license(builder, co_label, license):
     """Set the license for a checkout.
@@ -415,6 +416,34 @@ def get_implicit_gpl_checkouts(builder):
                 if DEBUG: print 'IGNORE'
                 continue
     return result, because
+
+def check_for_license_clashes(builder, implicit_gpl_checkouts):
+    """Report on clashes between actual license and "implicit GPL" licensing.
+
+    ``get_implicit_gpl_checkouts()`` returns those checkouts that are
+    implicitly "made" GPL by propagation. However, if the checkouts concerned
+    were already licensed with either "binary" or "secret" licenses, then it
+    is likely that the caller would like to know about it, as it is probably
+    a mistake (or at best an infelicity).
+
+    This function returns two sets, (bad_binary, bad_secret), of checkouts
+    named in ``implicit_gpl_checkouts`` that have an explicit "binary" or
+    "secret" license.
+    """
+    bad_binary = set()
+    bad_secret = set()
+
+    get_checkout_license = builder.invocation.db.get_checkout_license
+    for co_label in implicit_gpl_checkouts:
+        license = get_checkout_license(co_label, absent_is_None=True)
+        if license is None:
+            continue
+        elif license.is_binary():
+            bad_binary.add(co_label)
+        elif license.is_secret():
+            bad_secret.add(co_label)
+
+    return bad_binary, bad_secret
 
 # =============================================================================
 # DISTRIBUTION

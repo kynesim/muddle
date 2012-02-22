@@ -287,6 +287,9 @@ The following are then "implicitly" GPL licensed:
 
 Exceptions are:
   package:secret2{x86}/* not built against checkout:gpl2plus/*
+
+Clashes between GPL-propagation and "secret" licenses are:
+  checkout:secret3/*     -> LicenseSecret('Shh')
 """)
 
 def main(args):

@@ -1754,7 +1754,8 @@ def distribute(builder, name, target_dir, with_versions_dir=False,
       * _all_open (all open licensed source directories)
       * _by_license (source or install directories by license, no secrets)
 
-    are always recognised.
+    are always recognised. See the code or "muddle help distribute" for a more
+    complete description of these.
 
     'target_dir' is where to put the distribution. It will be created if
     necessary.

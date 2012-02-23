@@ -35,6 +35,9 @@ from muddled.version_stamp import VersionStamp
 
 from muddled.distribute import standard_licenses
 
+class OurGiveUp(Exception):
+    pass
+
 MUDDLE_MAKEFILE = """\
 # Trivial muddle makefile
 all:
@@ -58,7 +61,7 @@ distclean:
 """
 
 MULTILICENSE_BUILD_DESC = """ \
-# Our build description
+# A build description with all sorts of licenses, and even a subdomain
 
 import os
 
@@ -67,6 +70,7 @@ import muddled.pkgs.make
 import muddled.deployments.cpio
 import muddled.checkouts.simple
 import muddled.deployments.collect as collect
+
 from muddled.mechanics import include_domain
 from muddled.depend import Label
 from muddled.utils import LabelType, LabelTag
@@ -130,9 +134,66 @@ def describe_to(builder):
                                    rel = "", dest = "",
                                    domain = None)
 
+    # We have a subdomain.
+    include_domain(builder,
+                   domain_name = "subdomain",
+                   domain_repo = "git+file://{repo}/subdomain",
+                   domain_desc = "builds/01.py")
+
+    collect.copy_from_deployment(builder, deployment,
+                                 dep_name=deployment,   # always the same
+                                 rel='',
+                                 dest='sub',
+                                 domain='subdomain')
+
     # The 'arm' role is *not* a default role
     builder.invocation.add_default_role(role)
     builder.by_default_deploy(deployment)
+"""
+
+SUBDOMAIN_BUILD_DESC = """ \
+# A subdomain build description
+
+import os
+
+import muddled
+import muddled.pkgs.make
+import muddled.checkouts.simple
+import muddled.deployments.filedep
+
+from muddled.depend import Label
+from muddled.utils import LabelType, LabelTag
+
+from muddled.distribute import distribute_checkout, distribute_package, \
+        set_license, LicenseBinary, LicenseSecret
+
+def add_package(builder, name, role, license=None, co_name=None, deps=None):
+    if not co_name:
+        co_name = name
+    muddled.pkgs.make.medium(builder, name, [role], co_name, deps=deps)
+
+    if license:
+        co_label = Label(LabelType.Checkout, co_name)
+        set_license(builder, co_label, license)
+
+def describe_to(builder):
+    role = 'x86'
+    deployment = 'everything'
+
+    add_package(builder, 'xyzlib',  'x86', 'zlib')
+    add_package(builder, 'manhattan', 'x86', 'code-nightmare-green')
+
+    builder.invocation.db.set_not_built_against(Label.from_string('package:manhattan{{x86}}/*'),
+                                                Label.from_string('checkout:xyzlib/*'))
+
+    # The 'everything' deployment is built from our single role, and goes
+    # into deploy/everything.
+    muddled.deployments.filedep.deploy(builder, "", "everything", [role])
+
+    # If no role is specified, assume this one
+    builder.invocation.add_default_role(role)
+    # muddle at the top level will default to building this deployment
+    builder.by_default_deploy("everything")
 """
 
 GITIGNORE = """\
@@ -176,7 +237,7 @@ def make_standard_checkout(co_dir, progname, desc):
     git('commit -a -m "Commit {desc} checkout {progname}"'.format(desc=desc,
         progname=progname))
 
-def make_repos_with_subdomain(root_dir):
+def make_repos(root_dir):
     """Create git repositories for our tests.
 
     I'm going to start by naming them after licenses...
@@ -224,14 +285,24 @@ def make_repos_with_subdomain(root_dir):
             new_repo('not_licensed4')
             new_repo('not_licensed5')
 
+        with NewDirectory('subdomain'):
+            with NewDirectory('builds') as d:
+                make_build_desc(d.where, SUBDOMAIN_BUILD_DESC.format(repo=repo))
+
+            new_repo('xyzlib')
+            new_repo('manhattan')
+
 def check_text(actual, wanted):
     if actual == wanted:
         return
 
     actual_lines = actual.splitlines(True)
     wanted_lines = wanted.splitlines(True)
-    for line in unified_diff(wanted_lines, actual_lines, fromfile='Expected', tofile='Got'):
+    diffs = unified_diff(wanted_lines, actual_lines, fromfile='Expected', tofile='Got')
+    for line in diffs:
         sys.stdout.write(line)
+    if diffs:
+        raise OurGiveUp('Text did not match')
 
 def actual_tests(root_dir, d):
     """Perform the actual tests.
@@ -241,28 +312,30 @@ def actual_tests(root_dir, d):
     check_text(text, """\
 Checkout licenses are:
 
-* checkout:apache/*   -> LicenseOpen('Apache')
-* checkout:binary1/*  -> LicenseBinary('Customer')
-* checkout:binary2/*  -> LicenseBinary('Customer')
-* checkout:binary3/*  -> LicenseBinary('Customer')
-* checkout:binary4/*  -> LicenseBinary('Customer')
-* checkout:binary5/*  -> LicenseBinary('Customer')
-* checkout:bsd/*      -> LicenseOpen('BSD 3-clause')
-* checkout:busybox/*  -> LicenseGPL('GPL v2')
-* checkout:gnulibc/*  -> LicenseLGPL('LGPL', with_exception=True)
-* checkout:gpl2/*     -> LicenseGPL('GPL v2')
-* checkout:gpl2plus/* -> LicenseGPL('GPL v2 and above')
-* checkout:gpl3/*     -> LicenseGPL('GPL v3')
-* checkout:lgpl/*     -> LicenseLGPL('LGPL')
-* checkout:linux/*    -> LicenseGPL('GPL v2', with_exception=True)
-* checkout:mpl/*      -> LicenseOpen('MPL 1.1')
-* checkout:secret1/*  -> LicenseSecret('Shh')
-* checkout:secret2/*  -> LicenseSecret('Shh')
-* checkout:secret3/*  -> LicenseSecret('Shh')
-* checkout:secret4/*  -> LicenseSecret('Shh')
-* checkout:secret5/*  -> LicenseSecret('Shh')
-* checkout:ukogl/*    -> LicenseOpen('UK Open Government License')
-* checkout:zlib/*     -> LicenseOpen('zlib')
+* checkout:apache/*               LicenseOpen('Apache')
+* checkout:binary1/*              LicenseBinary('Customer')
+* checkout:binary2/*              LicenseBinary('Customer')
+* checkout:binary3/*              LicenseBinary('Customer')
+* checkout:binary4/*              LicenseBinary('Customer')
+* checkout:binary5/*              LicenseBinary('Customer')
+* checkout:bsd/*                  LicenseOpen('BSD 3-clause')
+* checkout:busybox/*              LicenseGPL('GPL v2')
+* checkout:gnulibc/*              LicenseLGPL('LGPL', with_exception=True)
+* checkout:gpl2/*                 LicenseGPL('GPL v2')
+* checkout:gpl2plus/*             LicenseGPL('GPL v2 and above')
+* checkout:gpl3/*                 LicenseGPL('GPL v3')
+* checkout:lgpl/*                 LicenseLGPL('LGPL')
+* checkout:linux/*                LicenseGPL('GPL v2', with_exception=True)
+* checkout:mpl/*                  LicenseOpen('MPL 1.1')
+* checkout:secret1/*              LicenseSecret('Shh')
+* checkout:secret2/*              LicenseSecret('Shh')
+* checkout:secret3/*              LicenseSecret('Shh')
+* checkout:secret4/*              LicenseSecret('Shh')
+* checkout:secret5/*              LicenseSecret('Shh')
+* checkout:ukogl/*                LicenseOpen('UK Open Government License')
+* checkout:zlib/*                 LicenseOpen('zlib')
+* checkout:(subdomain)manhattan/* LicenseSecret('Code Nightmare Green')
+* checkout:(subdomain)xyzlib/*    LicenseOpen('zlib')
 
 The following checkouts do not have a license:
 
@@ -272,38 +345,40 @@ The following checkouts do not have a license:
 * checkout:not_licensed3/*
 * checkout:not_licensed4/*
 * checkout:not_licensed5/*
+* checkout:(subdomain)builds/*
 
 The following checkouts have some sort of GPL license:
 
-* checkout:busybox/*  -> LicenseGPL('GPL v2')
-* checkout:gnulibc/*  -> LicenseLGPL('LGPL', with_exception=True)
-* checkout:gpl2/*     -> LicenseGPL('GPL v2')
-* checkout:gpl2plus/* -> LicenseGPL('GPL v2 and above')
-* checkout:gpl3/*     -> LicenseGPL('GPL v3')
-* checkout:lgpl/*     -> LicenseLGPL('LGPL')
-* checkout:linux/*    -> LicenseGPL('GPL v2', with_exception=True)
+* checkout:busybox/*              LicenseGPL('GPL v2')
+* checkout:gnulibc/*              LicenseLGPL('LGPL', with_exception=True)
+* checkout:gpl2/*                 LicenseGPL('GPL v2')
+* checkout:gpl2plus/*             LicenseGPL('GPL v2 and above')
+* checkout:gpl3/*                 LicenseGPL('GPL v3')
+* checkout:lgpl/*                 LicenseLGPL('LGPL')
+* checkout:linux/*                LicenseGPL('GPL v2', with_exception=True)
 
 Exceptions to "implicit" GPL licensing are:
 
+* package:(subdomain)manhattan{x86}/* is not built against checkout:(subdomain)xyzlib/*
 * package:secret2{x86}/* is not built against checkout:gpl2plus/*
 
 The following are "implicitly" GPL licensed for the given reasons:
 
-* checkout:not_licensed1/* (was None)
+* checkout:not_licensed1/*  (was None)
   - package:not_licensed1{x86}/* depends on checkout:gpl2/*
   - package:not_licensed1{x86}/* depends on checkout:gpl3/*
-* checkout:secret3/*       (was LicenseSecret('Shh'))
+* checkout:secret3/*  (was LicenseSecret('Shh'))
   - package:secret3{x86}/* depends on checkout:gpl2plus/*
-* checkout:secret4/*       (was LicenseSecret('Shh'))
+* checkout:secret4/*  (was LicenseSecret('Shh'))
   - package:secret4{x86}/* depends on checkout:gpl2/*
   - package:secret4{x86}/* depends on checkout:gpl2plus/*
-* checkout:ukogl/*         (was LicenseOpen('UK Open Government License'))
+* checkout:ukogl/*  (was LicenseOpen('UK Open Government License'))
   - package:ukogl{x86}/* depends on checkout:lgpl/*
 
 This means that the following have irreconcilable clashes:
 
-* checkout:secret3/*       -> LicenseSecret('Shh')
-* checkout:secret4/*       -> LicenseSecret('Shh')
+* checkout:secret3/*              LicenseSecret('Shh')
+* checkout:secret4/*              LicenseSecret('Shh')
 """)
 
 def main(args):
@@ -330,7 +405,7 @@ def main(args):
     with NewDirectory(root_dir) as root:
 
         banner('MAKE REPOSITORIES')
-        make_repos_with_subdomain(root_dir)
+        make_repos(root_dir)
 
         with NewDirectory('build') as d:
             banner('CHECK REPOSITORIES OUT')
@@ -349,6 +424,10 @@ if __name__ == '__main__':
     try:
         main(args)
         print '\nGREEN light\n'
+    except OurGiveUp as e:
+        print
+        print e
+        print '\nRED light\n'
     except Exception as e:
         print
         traceback.print_exc()

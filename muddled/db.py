@@ -390,10 +390,10 @@ class Database(object):
         keys.sort()
         if just_name:
             for label in keys:
-                print "* %-*s -> %s"%(max, label, self.checkout_licenses[label])
+                print "* %-*s %s"%(max, label, self.checkout_licenses[label])
         else:
             for label in keys:
-                print "* %-*s -> %r"%(max, label, self.checkout_licenses[label])
+                print "* %-*s %r"%(max, label, self.checkout_licenses[label])
 
     def get_checkout_license(self, checkout_label, absent_is_None=False):
         """

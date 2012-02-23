@@ -1956,7 +1956,7 @@ class QueryCheckoutLicenses(QueryCommand):
             print 'The following checkouts have some sort of GPL license:'
             print
             for label in sorted(gpl_licensed):
-                print '* %-*s -> %r'%(maxlen, label, get_co_license(label))
+                print '* %-*s %r'%(maxlen, label, get_co_license(label))
 
         if builder.invocation.db.not_built_against:
             print
@@ -1967,25 +1967,17 @@ class QueryCheckoutLicenses(QueryCommand):
 
         implicit_gpl_licensed, because = get_implicit_gpl_checkouts(builder)
         if implicit_gpl_licensed:
-            maxlen = calc_maxlen(implicit_gpl_licensed)
             print
             print 'The following are "implicitly" GPL licensed for the given reasons:'
             print
             for label in sorted(implicit_gpl_licensed):
                 license = get_co_license(label, absent_is_None=True)
                 reasons = because[label]
-                if False:
-                    print '* %-*s -> %r'%(maxlen, label, license)
-                    word = 'because'
-                    for reason in sorted(reasons):
-                        print '  %s %s'%(word, reason)
-                        word = '       '
-                else:
-                    license = get_co_license(label, absent_is_None=True)
-                    print '* %-*s (was %r)'%(maxlen, label, license)
-                    #print '* %s, because:'%(label)
-                    for reason in sorted(reasons):
-                        print '  - %s'%(reason)
+                license = get_co_license(label, absent_is_None=True)
+                print '* %s  (was %r)'%(label, license)
+                #print '* %-*s (was %r)'%(maxlen, label, license)
+                for reason in sorted(reasons):
+                    print '  - %s'%(reason)
 
         bad_binary, bad_secret = get_license_clashes(builder, implicit_gpl_licensed)
         if bad_binary or bad_secret:
@@ -1993,9 +1985,9 @@ class QueryCheckoutLicenses(QueryCommand):
             print 'This means that the following have irreconcilable clashes:'
             print
             for label in sorted(bad_binary):
-                print '* %-*s -> %r'%(maxlen, label, get_co_license(label))
+                print '* %-*s %r'%(maxlen, label, get_co_license(label))
             for label in sorted(bad_secret):
-                print '* %-*s -> %r'%(maxlen, label, get_co_license(label))
+                print '* %-*s %r'%(maxlen, label, get_co_license(label))
 
 @subcommand('query', 'role-licenses', CAT_QUERY)
 class QueryRoleLicenses(QueryCommand):
@@ -2008,7 +2000,6 @@ class QueryRoleLicenses(QueryCommand):
 
     def with_build_tree(self, builder, current_dir, args):
 
-        print
         print 'Licenses by role:'
         roles = builder.invocation.all_roles()
         max_role_len = len(max(roles, key=len))

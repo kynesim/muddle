@@ -5,6 +5,10 @@ Some of this might look suspiciously like it was copied from (a version of)
 test_distribute.py. There's a reason for that.
 
 Much of it could doubtless be done more efficiently.
+
+We do assume that test_distribute has succeeded, and thus we assume that
+"muddle -n distribute ..." will give an accurate idea of what would actually
+be distributed.
 """
 
 import os
@@ -53,7 +57,7 @@ distclean:
 .PHONY: all config install clean distclean
 """
 
-TOPLEVEL_BUILD_DESC = """ \
+MULTILICENSE_BUILD_DESC = """ \
 # Our build description
 
 import os
@@ -185,8 +189,8 @@ def make_repos_with_subdomain(root_dir):
     repo = os.path.join(root_dir, 'repo')
     with NewDirectory('repo'):
         with NewDirectory('main'):
-            with NewDirectory('builds') as d:
-                make_build_desc(d.where, TOPLEVEL_BUILD_DESC.format(repo=repo))
+            with NewDirectory('builds_multilicense') as d:
+                make_build_desc(d.where, MULTILICENSE_BUILD_DESC.format(repo=repo))
 
             new_repo('apache')
             new_repo('bsd')
@@ -235,61 +239,71 @@ def actual_tests(root_dir, d):
     banner('STUFF')
     text = captured_muddle(['query', 'checkout-licenses'])
     check_text(text, """\
-> Checkout licenses ..
-checkout:apache/*   -> LicenseOpen('Apache')
-checkout:binary1/*  -> LicenseBinary('Customer')
-checkout:binary2/*  -> LicenseBinary('Customer')
-checkout:binary3/*  -> LicenseBinary('Customer')
-checkout:binary4/*  -> LicenseBinary('Customer')
-checkout:binary5/*  -> LicenseBinary('Customer')
-checkout:bsd/*      -> LicenseOpen('BSD 3-clause')
-checkout:busybox/*  -> LicenseGPL('GPL v2')
-checkout:gnulibc/*  -> LicenseLGPL('LGPL', with_exception=True)
-checkout:gpl2/*     -> LicenseGPL('GPL v2')
-checkout:gpl2plus/* -> LicenseGPL('GPL v2 and above')
-checkout:gpl3/*     -> LicenseGPL('GPL v3')
-checkout:lgpl/*     -> LicenseLGPL('LGPL')
-checkout:linux/*    -> LicenseGPL('GPL v2', with_exception=True)
-checkout:mpl/*      -> LicenseOpen('MPL 1.1')
-checkout:secret1/*  -> LicenseSecret('Shh')
-checkout:secret2/*  -> LicenseSecret('Shh')
-checkout:secret3/*  -> LicenseSecret('Shh')
-checkout:secret4/*  -> LicenseSecret('Shh')
-checkout:secret5/*  -> LicenseSecret('Shh')
-checkout:ukogl/*    -> LicenseOpen('UK Open Government License')
-checkout:zlib/*     -> LicenseOpen('zlib')
+Checkout licenses are:
+
+* checkout:apache/*   -> LicenseOpen('Apache')
+* checkout:binary1/*  -> LicenseBinary('Customer')
+* checkout:binary2/*  -> LicenseBinary('Customer')
+* checkout:binary3/*  -> LicenseBinary('Customer')
+* checkout:binary4/*  -> LicenseBinary('Customer')
+* checkout:binary5/*  -> LicenseBinary('Customer')
+* checkout:bsd/*      -> LicenseOpen('BSD 3-clause')
+* checkout:busybox/*  -> LicenseGPL('GPL v2')
+* checkout:gnulibc/*  -> LicenseLGPL('LGPL', with_exception=True)
+* checkout:gpl2/*     -> LicenseGPL('GPL v2')
+* checkout:gpl2plus/* -> LicenseGPL('GPL v2 and above')
+* checkout:gpl3/*     -> LicenseGPL('GPL v3')
+* checkout:lgpl/*     -> LicenseLGPL('LGPL')
+* checkout:linux/*    -> LicenseGPL('GPL v2', with_exception=True)
+* checkout:mpl/*      -> LicenseOpen('MPL 1.1')
+* checkout:secret1/*  -> LicenseSecret('Shh')
+* checkout:secret2/*  -> LicenseSecret('Shh')
+* checkout:secret3/*  -> LicenseSecret('Shh')
+* checkout:secret4/*  -> LicenseSecret('Shh')
+* checkout:secret5/*  -> LicenseSecret('Shh')
+* checkout:ukogl/*    -> LicenseOpen('UK Open Government License')
+* checkout:zlib/*     -> LicenseOpen('zlib')
 
 The following checkouts do not have a license:
-  checkout:builds/*
-  checkout:not_licensed1/*
-  checkout:not_licensed2/*
-  checkout:not_licensed3/*
-  checkout:not_licensed4/*
-  checkout:not_licensed5/*
+
+* checkout:builds_multilicense/*
+* checkout:not_licensed1/*
+* checkout:not_licensed2/*
+* checkout:not_licensed3/*
+* checkout:not_licensed4/*
+* checkout:not_licensed5/*
 
 The following checkouts have some sort of GPL license:
-  checkout:busybox/*  -> LicenseGPL('GPL v2')
-  checkout:gnulibc/*  -> LicenseLGPL('LGPL', with_exception=True)
-  checkout:gpl2/*     -> LicenseGPL('GPL v2')
-  checkout:gpl2plus/* -> LicenseGPL('GPL v2 and above')
-  checkout:gpl3/*     -> LicenseGPL('GPL v3')
-  checkout:lgpl/*     -> LicenseLGPL('LGPL')
-  checkout:linux/*    -> LicenseGPL('GPL v2', with_exception=True)
 
-The following are then "implicitly" GPL licensed:
-  checkout:not_licensed1/* -> '<no license>'
-                              because package:not_licensed1{x86}/* depends on checkout:gpl2/*
-                                      package:not_licensed1{x86}/* depends on checkout:gpl3/*
-  checkout:secret3/*       -> LicenseSecret('Shh')
-                              because package:secret3{x86}/* depends on checkout:gpl2plus/*
-  checkout:ukogl/*         -> LicenseOpen('UK Open Government License')
-                              because package:ukogl{x86}/* depends on checkout:lgpl/*
+* checkout:busybox/*  -> LicenseGPL('GPL v2')
+* checkout:gnulibc/*  -> LicenseLGPL('LGPL', with_exception=True)
+* checkout:gpl2/*     -> LicenseGPL('GPL v2')
+* checkout:gpl2plus/* -> LicenseGPL('GPL v2 and above')
+* checkout:gpl3/*     -> LicenseGPL('GPL v3')
+* checkout:lgpl/*     -> LicenseLGPL('LGPL')
+* checkout:linux/*    -> LicenseGPL('GPL v2', with_exception=True)
 
-Exceptions are:
-  package:secret2{x86}/* not built against checkout:gpl2plus/*
+Exceptions to "implicit" GPL licensing are:
 
-Clashes between GPL-propagation and "secret" licenses are:
-  checkout:secret3/*       -> LicenseSecret('Shh')
+* package:secret2{x86}/* is not built against checkout:gpl2plus/*
+
+The following are "implicitly" GPL licensed for the given reasons:
+
+* checkout:not_licensed1/* (was None)
+  - package:not_licensed1{x86}/* depends on checkout:gpl2/*
+  - package:not_licensed1{x86}/* depends on checkout:gpl3/*
+* checkout:secret3/*       (was LicenseSecret('Shh'))
+  - package:secret3{x86}/* depends on checkout:gpl2plus/*
+* checkout:secret4/*       (was LicenseSecret('Shh'))
+  - package:secret4{x86}/* depends on checkout:gpl2/*
+  - package:secret4{x86}/* depends on checkout:gpl2plus/*
+* checkout:ukogl/*         (was LicenseOpen('UK Open Government License'))
+  - package:ukogl{x86}/* depends on checkout:lgpl/*
+
+This means that the following have irreconcilable clashes:
+
+* checkout:secret3/*       -> LicenseSecret('Shh')
+* checkout:secret4/*       -> LicenseSecret('Shh')
 """)
 
 def main(args):
@@ -321,7 +335,7 @@ def main(args):
         with NewDirectory('build') as d:
             banner('CHECK REPOSITORIES OUT')
             muddle(['init', 'git+file://{repo}/main'.format(repo=root.join('repo')),
-                    'builds/01.py'])
+                    'builds_multilicense/01.py'])
             muddle(['checkout', '_all'])
             banner('BUILD')
             muddle([])

@@ -1907,29 +1907,28 @@ class QueryCheckoutRepos(QueryCommand):
 @subcommand('query', 'checkout-licenses', CAT_QUERY)
 class QueryCheckoutLicenses(QueryCommand):
     """
-    :Syntax: muddle query checkout-licenses [-n[ame]]
+    :Syntax: muddle query checkout-licenses
 
-    Print the known checkouts and their licenses
+    Print information including:
 
-    With '-n' or '-name', print the license name. Otherwise, print the
-    full spec of the License instance that represents the license.
+    * the known checkouts and their licenses
+    * which checkouts (if any) have GPL licenses of some sort
+    * which checkouts are "implicitly" GPL licensed because of depending
+      on a GPL-licensed checkout
+    * which packages have declared that they don't actually need to be
+      "implicitly" GPL
+    * which checkouts have irreconcilable clashes between "implicit" GPL
+      licenses and their actual license.
 
-    So, for instance, the standard printout produces lines of the form::
-
-        checkout:kernel/* -> License('xxx', 'open')
-
-    but with '-n' one would instead see::
-
-        checkout:kernel/* -> xxx
+    See also "muddle query role-licenses" for licenses applying to (packages
+    in) each role.
     """
 
     allowed_switches = {'-n':'name', '-name':'name'}
 
     def with_build_tree(self, builder, current_dir, args):
-        args = self.remove_switches(args, allowed_more=False)
 
-        just_name = ('name' in self.switches)
-        builder.invocation.db.dump_checkout_licenses(just_name=just_name)
+        builder.invocation.db.dump_checkout_licenses(just_name=False)
 
         not_licensed = get_not_licensed_checkouts(builder)
         if not_licensed:
@@ -1998,6 +1997,17 @@ class QueryCheckoutLicenses(QueryCommand):
             for label in sorted(bad_secret):
                 print '* %-*s -> %r'%(maxlen, label, get_co_license(label))
 
+@subcommand('query', 'role-licenses', CAT_QUERY)
+class QueryRoleLicenses(QueryCommand):
+    """
+    :Syntax: muddle query role-licenses
+
+    Print the known roles and the licenses used within them
+    (i.e., by checkouts used by packages with those roles).
+    """
+
+    def with_build_tree(self, builder, current_dir, args):
+
         print
         print 'Licenses by role:'
         roles = builder.invocation.all_roles()
@@ -2008,11 +2018,6 @@ class QueryCheckoutLicenses(QueryCommand):
             role_licenses = licenses_in_role(builder, role)
             for license in sorted(role_licenses):
                 print '  - %r'%( license)
-
-        print
-        from muddled.distribute import report_license_clashes_in_role
-        for role in sorted(roles):
-            report_license_clashes_in_role(builder, role)
 
 @subcommand('query', 'licenses', CAT_QUERY)
 class QueryLicenses(QueryCommand):

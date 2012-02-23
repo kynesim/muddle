@@ -464,6 +464,18 @@ def get_implicit_gpl_checkouts(builder):
                 continue
     return result, because
 
+def get_binary_checkouts(builder):
+    """Return a set of all the "binary" licensed checkouts.
+    """
+    all_checkouts = builder.invocation.all_checkout_labels()
+    get_checkout_license = builder.invocation.db.get_checkout_license
+    binary_licensed = set()
+    for co_label in all_checkouts:
+        license = get_checkout_license(co_label, absent_is_None=True)
+        if license and license.is_binary():
+            binary_licensed.add(co_label)
+    return binary_licensed
+
 def get_license_clashes(builder, implicit_gpl_checkouts):
     """Return clashes between actual license and "implicit GPL" licensing.
 
@@ -576,8 +588,15 @@ def licenses_in_role(builder, role):
 
     return licenses
 
-def report_license_clashes_in_role(builder, role):
+def report_license_clashes_in_role(builder, role, just_report_secret=True):
     """Report license clashes in the install/ directory of 'role'.
+
+    Basically, this function allows us to be unhappy if there are a mixture of
+    "binary" and "secret" things being put into the same "install/" directory.
+
+    If 'just_report_secret' is true, then we will only talk about the
+    secret entities, otherwise we'll report the "binary" licensed packages
+    that end up there as well.
     """
     binary_items = {}
     secret_items = {}
@@ -605,20 +624,25 @@ def report_license_clashes_in_role(builder, role):
     secret_keys = secret_items.keys()
 
     maxlen = 0
-    for label in binary_keys:
-        length = len(str(label))
-        if length > maxlen:
-            maxlen = length
     for label in secret_keys:
         length = len(str(label))
         if length > maxlen:
             maxlen = length
 
-    print 'There are both binary and secret licenses in role %s:'%(role)
-    for key in sorted(binary_keys):
-        print '* %-*s is %r'%(maxlen, key, binary_items[key])
-    for key in sorted(secret_keys):
-        print '* %-*s is %r'%(maxlen, key, secret_items[key])
+    if just_report_secret:
+        print 'There are both binary and secret licenses in role %s:'%(role)
+        for key in sorted(secret_keys):
+            print '* %-*s is %r'%(maxlen, key, secret_items[key])
+    else:
+        for label in binary_keys:
+            length = len(str(label))
+            if length > maxlen:
+                maxlen = length
+        print 'There are both binary and secret licenses in role %s:'%(role)
+        for key in sorted(binary_keys):
+            print '* %-*s is %r'%(maxlen, key, binary_items[key])
+        for key in sorted(secret_keys):
+            print '* %-*s is %r'%(maxlen, key, secret_items[key])
 
     return True
 
@@ -1624,6 +1648,95 @@ def copy_versions_dir(builder, name, target_dir, copy_vcs=False):
 
     copy_without(src_dir, tgt_dir, without, preserve=True)
 
+def select_all_gpl_checkouts(builder, name, with_vcs):
+    """Select all checkouts with some sort of "gpl" license for distribution
+
+    (or any checkout that has had "gpl"-ness propagated to it)
+
+    'name' is the name of our distribution.
+
+    'with_vcs' is true if we want VCS "special" files in our distributed
+    checkouts.
+
+    Raises GiveUp if we have license clashes
+    """
+    gpl_checkouts = get_gpl_checkouts(builder)
+    imp_checkouts, because = get_implicit_gpl_checkouts(builder)
+    all_checkouts = gpl_checkouts | imp_checkouts
+    for label in all_checkouts:
+        distribute_checkout(builder, name, label, copy_vcs=with_vcs)
+    if report_license_clashes(builder):
+        pass
+        ###raise GiveUp('License clashes prevent "%s" distribution'%name)
+
+    for co_label in all_checkouts:
+        distribute_checkout(builder, name, co_label, copy_vcs=with_vcs)
+
+def select_all_open_checkouts(builder, name, with_vcs):
+    """Select all checkouts with an "open" license for distribution.
+
+    This includes all "gpl" checkouts, and all checkouts made implicitly "gpl".
+
+    'name' is the name of our distribution.
+
+    'with_vcs' is true if we want VCS "special" files in our distributed
+    checkouts.
+
+    Raises GiveUp if we have license clashes
+    """
+    open_checkouts = get_open_checkouts(builder)
+    imp_checkouts, because = get_implicit_gpl_checkouts(builder)
+    all_checkouts = open_checkouts | imp_checkouts
+    for label in all_checkouts:
+        distribute_checkout(builder, name, label, copy_vcs=with_vcs)
+    if report_license_clashes(builder):
+        pass
+        ###raise GiveUp('License clashes prevent "%s" distribution'%name)
+
+    for co_label in all_checkouts:
+        distribute_checkout(builder, name, co_label, copy_vcs=with_vcs)
+
+def select_all_binary_nonsecret_packages(builder, name, with_muddle_makefile):
+    """Select all packages with a "binary" license for distribution.
+
+    'name' is the name of our distribution, for error reporting.
+
+    If 'with_muddle_makefile' is true, then we'll make an attempt to add
+    distribution information for each package's muddle Makefile (in the
+    appropriate checkout)
+
+    We do *not* want "secret" packages, and as such this function checks to
+    see if any "secret" packages may be present in the install/ directories
+    that we are proposing to distribute.
+
+    Raises GiveUp if we have license clashes
+    """
+    # Find all our "binary" checkouts
+    binary_checkouts = get_binary_checkouts(builder)
+    # Find all their packages
+    binary_packages = set()
+    for co_label in binary_checkouts:
+        # Get the package(s) directly using this checkout
+        package_labels = builder.invocation.packages_using_checkout(co_label)
+        binary_packages.update(package_labels)
+    # Ask for them to be distributed, and also work out which roles we're using
+    roles = set()
+    for pkg_label in binary_packages:
+        distribute_package(builder, name, pkg_label, obj=False, install=True,
+                           with_muddle_makefile=with_muddle_makefile)
+        roles.add(pkg_label.role)
+    # Check if there is a binary/secret clash in any of those roles
+    role_clash = False
+    for role in roles:
+        problem = report_license_clashes_in_role(builder, role, just_report_secret=True)
+        if problem:
+            role_clash = True
+            print 'which means there will probably be secret binaries in install/%s'%role
+            print
+    if role_clash:
+        pass
+        ###raise GiveUp('License clashes prevent "%s" distribution'%name)
+
 def distribute(builder, name, target_dir, with_versions_dir=False,
                with_vcs=False, no_muddle_makefile=False, no_op=False):
     """Distribute using distribution context 'name', to 'target_dir'.
@@ -1673,49 +1786,52 @@ def distribute(builder, name, target_dir, with_versions_dir=False,
 
     # Standard names
     # ==============
+    # For standard distributions, we set up our own idea of which labels
+    # should be distributed. This is no different than what the user might do
+    # in their build description, except we do it later, and thus may override
+    # things the user already did. Note that this means the user can add
+    # particular files (for instance) to a checkout that would otherwise be
+    # distributed (e.g., adding standard Makefiles).
+    #
+    # For distributions that do not distribute any package: labels, we unset
+    # all_packages, but otherwise we do our job by manipulating the dependency
+    # tree.
     if name == '_source_release':
-        # A source release is the source directories alone, but with no VCS
+        # A source release is all the source directories alone, but with no VCS
         # This ignores licenses
         for label in all_checkouts:
             distribute_checkout(builder, name, label, copy_vcs=with_vcs)
+        # No packages at all
         all_packages = set()
     elif name == '_binary_release':
-        # A binary release is the install directories for all packages
+        # A binary release is the install directories for all packages,
+        # plus muddle Makefiles and any other "selected" source files
         # This ignores licenses
+        # XXX If there are things marked "secret" in what we're distributing,
+        # XXX should we (a) mention it, or (b) refuse to continue without '-f'?
         for label in all_packages:
             distribute_package(builder, name, label, obj=False, install=True,
                                with_muddle_makefile=(not no_muddle_makefile))
-    elif name == '_for_gpl':
+    elif name == '_just_gpl':
         # All GPL licensed checkouts, and anything that that has propagated to
-        gpl_checkouts = get_gpl_checkouts(builder)
-        imp_checkouts, because = get_implicit_gpl_checkouts(builder)
-        all_checkouts = gpl_checkouts | imp_checkouts
-        for label in all_checkouts:
-            distribute_checkout(builder, name, label, copy_vcs=with_vcs)
+        select_all_gpl_checkouts(builder, name, with_vcs)
+        # No packages at all
         all_packages = set()
-
-        if report_license_clashes(builder):
-            pass
-            ###raise GiveUp('License clashes prevent "%s" distribution'%name)
     elif name == '_all_open':
         # All open source checkouts, including anything in _for_gpl
-        open_checkouts = get_open_checkouts(builder)
-        imp_checkouts, because = get_implicit_gpl_checkouts(builder)
-        all_checkouts = open_checkouts | imp_checkouts
-        for label in all_checkouts:
-            distribute_checkout(builder, name, label, copy_vcs=with_vcs)
+        select_all_open_checkouts(builder, name, with_vcs)
+        # No packages at all
         all_packages = set()
-
-        if report_license_clashes(builder):
-            pass
-            ###raise GiveUp('License clashes prevent "%s" distribution'%name)
     elif name == '_by_license':
         # All checkouts in _all_open, and any install/ directories for anything
         # with a "binary" license. Nothing at all for "secret" licenses.
-        if report_license_clashes(builder):
-            raise GiveUp('License clashes prevent "%s" distribution'%name)
-        pass
+        select_all_open_checkouts(builder, name, with_vcs)
+        select_all_binary_nonsecret_packages(builder, name,
+                                    with_muddle_makefile=(not no_muddle_makefile))
     # ==============
+
+    # *All* distributions then scan through the labels looking to see what
+    # needs distributing.
 
     combined_labels = set(all_checkouts.union(all_packages))
     for label in sorted(combined_labels):
@@ -1727,14 +1843,14 @@ def distribute(builder, name, target_dir, with_versions_dir=False,
             if rule.action.does_distribution(name):
                 # Yes, we like this label
                 distribution_labels.add(target)
-                # And remember its domain
+                # And remember its domain, so we can find the build description
                 domains.add(target.domain)
 
     if not distribution_labels:
         print 'Nothing to distribute for %s'%name
         return
 
-    # Add in appropriate build descriptions
+    # Add in the appropriate build descriptions
     # We need to do this after everyone else has had a chance to set rules
     # on /distribute labels, so we can override any DistributeCheckout actions
     # that were mistakenly placed on our build descriptions...

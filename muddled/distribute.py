@@ -18,6 +18,7 @@ Actions and mechanisms relating to distributing build trees
 # we just try to satisfy both?
 
 import os
+import fnmatch
 
 from muddled.depend import Action, Rule, Label, required_by, label_list_to_string
 from muddled.utils import GiveUp, MuddleBug, LabelTag, LabelType, \
@@ -683,10 +684,59 @@ def name_distribution(builder, name):
     global the_distributions
     the_distributions.add(name)
 
+def _distribute_checkout(builder, actual_names, label, copy_vcs=False):
+    """The work of saying we should distribute a checkout.
+
+    Depends on 'actual_names' being valid distribution names.
+    """
+
+    source_label = label.copy_with_tag(LabelTag.CheckedOut)
+    target_label = label.copy_with_tag(LabelTag.Distributed, transient=True)
+
+    if DEBUG: print '   target', target_label
+
+    # Making our target label transient means that its tag will not be
+    # written out to the muddle database (i.e., .muddle/tags/...) when
+    # the label is built
+
+    # Is there already a rule for distributing this label?
+    if builder.invocation.target_label_exists(target_label):
+        # Yes, so retrieve it, and its action
+        rule = builder.invocation.ruleset.map[target_label]
+        action = rule.action
+        if DEBUG: print '   %s exists: add/override %s'%(action, actual_names[0])
+    else:
+        # No - we need to create one
+        if DEBUG: print '   adding %s anew'%actual_names[0]
+        action = DistributeCheckout(actual_names[0], copy_vcs)
+
+        rule = Rule(target_label, action)   # to build target_label, run action
+        rule.add(source_label)              # after we've built source_label
+
+        builder.invocation.ruleset.add(rule)
+
+        # We've done with the first name
+        actual_names = actual_names[1:]
+
+    # Add the other distributions to the same action
+    for name in actual_names:
+        if DEBUG: print '   %s exists: add/override %s'%(action, name)
+        # If it was already there, this will just override whatever it thought
+        # it wanted to do before...
+        action.set_distribution(name, copy_vcs, just=None)
+
 def distribute_checkout(builder, name, label, copy_vcs=False):
     """Request the distribution of the specified checkout(s).
 
-    - 'name' is the name of the distribution we're adding this checkout to
+    - 'name' is the name of the distribution we're adding this checkout to,
+      or a "shell pattern" matching existing (already named) distributions.
+      In that case::
+
+            *       matches everything
+            ?       matches any single character
+            [seq]   matches any character in seq
+            [!seq]  matches any char not in seq
+
     - 'label' must be
 
        1. a checkout label, in which case that checkout will be distributed
@@ -715,43 +765,19 @@ def distribute_checkout(builder, name, label, copy_vcs=False):
     """
     if DEBUG: print '.. distribute_checkout(builder, %r, %s, %s)'%(name, label, copy_vcs)
 
-    if name not in the_distributions:
-        raise GiveUp('Distribution "%s" has not been named'%name)
+    actual_names = fnmatch.filter(the_distributions, name)
+    if not actual_names:
+        raise GiveUp('There is no distribution matching "%s"'%name)
 
     if label.type == LabelType.Package:
         packages = builder.invocation.expand_wildcards(label)
         for package in packages:
             checkouts = builder.invocation.checkouts_for_package(package)
             for co_label in checkouts:
-                distribute_checkout(builder, name, co_label, copy_vcs)
+                _distribute_checkout(builder, actual_names, co_label, copy_vcs)
 
     elif label.type == LabelType.Checkout:
-        source_label = label.copy_with_tag(LabelTag.CheckedOut)
-        target_label = label.copy_with_tag(LabelTag.Distributed, transient=True)
-
-        if DEBUG: print '   target', target_label
-
-        # Making our target label transient means that its tag will not be
-        # written out to the muddle database (i.e., .muddle/tags/...) when
-        # the label is built
-
-        # Is there already a rule for distributing this label?
-        if builder.invocation.target_label_exists(target_label):
-            # Yes - add this distribution to it (if it's not there already)
-            if DEBUG: print '   exists: add/override'
-            rule = builder.invocation.ruleset.map[target_label]
-            # If it was already there, we'll just override whatever it thought
-            # it wanted to do before...
-            rule.action.set_distribution(name, copy_vcs, just=None)
-        else:
-            # No - we need to create one
-            if DEBUG: print '   adding anew'
-            action = DistributeCheckout(name, copy_vcs)
-
-            rule = Rule(target_label, action)       # to build target_label, run action
-            rule.add(source_label)                  # after we've built source_label
-
-            builder.invocation.ruleset.add(rule)
+        _distribute_checkout(builder, actual_names, label, copy_vcs)
 
     else:
         raise GiveUp('distribute_checkout() takes a checkout or package label, not %s'%label)
@@ -759,7 +785,15 @@ def distribute_checkout(builder, name, label, copy_vcs=False):
 def distribute_checkout_files(builder, name, label, source_files):
     """Request the distribution of extra files from a particular checkout.
 
-    - 'name' is the name of the distribution we're adding this checkout to
+    - 'name' is the name of the distribution we're adding this checkout to,
+      or a "shell pattern" matching existing (already named) distributions.
+      In that case::
+
+            *       matches everything
+            ?       matches any single character
+            [seq]   matches any character in seq
+            [!seq]  matches any char not in seq
+
     - 'label' must be a checkout label. The label tag is not important.
     - 'specified_files' is a sequence of file paths, relative to the checkout
       directory.
@@ -787,9 +821,12 @@ def distribute_checkout_files(builder, name, label, source_files):
            an extra source path...
     """
     if DEBUG: print '.. distribute_checkout_files(builder, %r, %s, %s)'%(name, label, source_files)
+    if label.type != LabelType.Checkout:
+        raise GiveUp('distribute_checout_files() takes a checkout label, not %s'%label)
 
-    if name not in the_distributions:
-        raise GiveUp('Distribution "%s" has not been named'%name)
+    actual_names = fnmatch.filter(the_distributions, name)
+    if not actual_names:
+        raise GiveUp('There is no distribution matching "%s"'%name)
 
     source_label = label.copy_with_tag(LabelTag.CheckedOut)
     target_label = label.copy_with_tag(LabelTag.Distributed, transient=True)
@@ -802,10 +839,27 @@ def distribute_checkout_files(builder, name, label, source_files):
 
     # Is there already a rule for distributing this label?
     if builder.invocation.target_label_exists(target_label):
-        # Yes - add this distribution to it (if it's not there already)
-        if DEBUG: print '   exists: add/override'
+        # Yes, so retrieve it, and its action
         rule = builder.invocation.ruleset.map[target_label]
         action = rule.action
+        if DEBUG: print '   %s exists: add/override %s'%(action, actual_names[0])
+    else:
+        # No - we need to create one
+        if DEBUG: print '   adding %s anew'%actual_names[0]
+        action = DistributeCheckout(actual_names[0], False, source_files)
+
+        rule = Rule(target_label, action)   # to build target_label, run action
+        rule.add(source_label)              # after we've built source_label
+
+        builder.invocation.ruleset.add(rule)
+
+        # We've done with the first name
+        actual_names = actual_names[1:]
+
+    # Add the other distributions to the same action
+    for name in actual_names:
+        # Yes - add this distribution to it (if it's not there already)
+        if DEBUG: print '   %s exists: add/override %s'%(action, name)
         if action.does_distribution(name):
             # If we're already copying all the source files, we don't need to do
             # anything. Otherwise...
@@ -814,22 +868,17 @@ def distribute_checkout_files(builder, name, label, source_files):
         else:
             action.set_distribution(name, False, source_files)
 
-    else:
-        # No - we need to create one
-        if DEBUG: print '   adding anew'
-        action = DistributeCheckout(name, False, source_files)
-
-        rule = Rule(target_label, action)       # to build target_label, run action
-        rule.add(source_label)                  # after we've built source_label
-
-        builder.invocation.ruleset.add(rule)
-
 def distribute_build_desc(builder, name, label, copy_vcs=False):
     """Request the distribution of the given build description checkout.
 
     - 'name' is the name of the distribution we're adding this build
-      description to
+      description to.
+
+      Note that this function is normally used by muddle itself, and it does
+      not support any wildcarding of 'name'.
+
     - 'label' must be a checkout label, but the tag is not important.
+
     - 'copy_vcs' says whether we should copy VCS "special" files (so, for
        git this includes at least the '.git' directory, and any '.gitignore'
        or '.gitmodules' files). The default is not to do so.
@@ -895,7 +944,14 @@ def distribute_package(builder, name, label, obj=False, install=True,
                        with_muddle_makefile=True):
     """Request the distribution of the given package.
 
-    - 'name' is the name of the distribution we're adding this package to
+    - 'name' is the name of the distribution we're adding this checkout to,
+      or a "shell pattern" matching existing (already named) distributions.
+      In that case::
+
+            *       matches everything
+            ?       matches any single character
+            [seq]   matches any character in seq
+            [!seq]  matches any char not in seq
 
     - 'label' must be a package label. Either the name or the role may be
       wildcarded, in which case this function will be called on each matching
@@ -937,13 +993,17 @@ def distribute_package(builder, name, label, obj=False, install=True,
     if label.type != LabelType.Package:
         raise GiveUp('distribute_package() takes a package label, not %s'%label)
 
+    actual_names = fnmatch.filter(the_distributions, name)
+    if not actual_names:
+        raise GiveUp('There is no distribution matching "%s"'%name)
+
     packages = builder.invocation.expand_wildcards(label)
     if len(packages) == 0:
         raise GiveUp('distribute_package() of %s does not distribute anything'
                      ' (no matching package labels)'%label)
 
     if DEBUG and len(packages) > 1:
-        print '.. => %s'%(', '.join(packages))
+        print '.. => %s'%(', '.join(map(str, packages)))
 
     for pkg_label in packages:
         source_label = pkg_label.copy_with_tag(LabelTag.PostInstalled)
@@ -957,19 +1017,28 @@ def distribute_package(builder, name, label, obj=False, install=True,
 
         # Is there already a rule for distributing this label?
         if builder.invocation.target_label_exists(target_label):
-            # Yes - add this distribution name to it (if it's not there already)
-            if DEBUG: print '   exists: add/override'
+            # Yes, so retrieve it, and its action
             rule = builder.invocation.ruleset.map[target_label]
-            rule.action.set_distribution(name, obj, install)
+            action = rule.action
+            if DEBUG: print '   %s exists: add/override %s'%(action, actual_names[0])
+            add_index = 0
         else:
             # No - we need to create one
-            if DEBUG: print '   adding anew'
-            action = DistributePackage(name, obj, install)
+            if DEBUG: print '   adding %s anew'%actual_names[0]
+            action = DistributePackage(actual_names[0], obj, install)
 
-            rule = Rule(target_label, action)       # to build target_label, run action
-            rule.add(source_label)                  # after we've built source_label
+            rule = Rule(target_label, action)   # to build target_label, run action
+            rule.add(source_label)              # after we've built source_label
 
             builder.invocation.ruleset.add(rule)
+
+            # We've done with the first name
+            add_index = 1
+
+        # Add the other distributions to the same action
+        for name in actual_names[add_index:]:
+            if DEBUG: print '   %s exists: add/override %s'%(action, name)
+            action.set_distribution(name, obj, install)
 
         if with_muddle_makefile:
             # Our package label gets to have one MakeBuilder action associated
@@ -989,7 +1058,8 @@ def distribute_package(builder, name, label, obj=False, install=True,
             make_co = Label(LabelType.Checkout, action.co, domain=pkg_label.domain)
 
             # And that's the muddle Makefile we want to add
-            distribute_checkout_files(builder, name, make_co, [makefile_name])
+            for name in actual_names:
+                distribute_checkout_files(builder, name, make_co, [makefile_name])
 
 def _set_checkout_tags(builder, label, target_dir):
     """Copy checkout muddle tags
@@ -1855,7 +1925,11 @@ def distribute(builder, name, target_dir, with_versions_dir=False,
         # A source release is all the source directories alone, but with no VCS
         # This ignores licenses
         for label in all_checkouts:
+            print
+            print '===',label,'==='
+            print
             distribute_checkout(builder, name, label, copy_vcs=with_vcs)
+            print
         # No packages at all
         all_packages = set()
     elif name == '_binary_release':

@@ -1746,7 +1746,15 @@ def distribute(builder, name, target_dir, with_versions_dir=False,
     All distributions described in that DistributeContext will be made.
 
     'name' is the name of the distribution to, erm, distribute. The special
-    names "_source_release" and "_binary_release" are always recognised.
+    names:
+
+      * _source_release (all checkout source directories)
+      * _binary_release (all install directories, maybe plus extras)
+      * _just_gpl (just GPL and GPL-propagated source directories)
+      * _all_open (all open licensed source directories)
+      * _by_license (source or install directories by license, no secrets)
+
+    are always recognised.
 
     'target_dir' is where to put the distribution. It will be created if
     necessary.

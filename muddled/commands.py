@@ -71,10 +71,10 @@ CAT_PACKAGE='package'
 CAT_DEPLOYMENT='deployment'
 CAT_ANYLABEL='any label'
 CAT_QUERY='query'
-CAT_STAMP='stamp'
+CAT_EXPORT='export'
 CAT_MISC='misc'
 g_command_categories_in_order = [CAT_INIT, CAT_CHECKOUT, CAT_PACKAGE,
-        CAT_DEPLOYMENT, CAT_ANYLABEL, CAT_QUERY, CAT_STAMP, CAT_MISC]
+        CAT_DEPLOYMENT, CAT_ANYLABEL, CAT_QUERY, CAT_EXPORT, CAT_MISC]
 
 def in_category(command_name, category):
     if category not in g_command_categories_in_order:
@@ -2989,7 +2989,7 @@ class Doc(Command):
 # -----------------------------------------------------------------------------
 # Stamp commands
 # -----------------------------------------------------------------------------
-@subcommand('stamp', 'save', CAT_STAMP)
+@subcommand('stamp', 'save', CAT_EXPORT)
 class StampSave(Command):
     """
     :Syntax: muddle stamp save [-f[orce]|-h[ead]|-v[ersion] <version>] [<filename>]
@@ -3127,7 +3127,7 @@ class StampSave(Command):
             else:
                 return '%s%s'%(basename, extension)
 
-@subcommand('stamp', 'version', CAT_STAMP)
+@subcommand('stamp', 'version', CAT_EXPORT)
 class StampVersion(Command):
     """
     :Syntax: muddle stamp version [-f[orce]|-v[ersion] <version>]
@@ -3237,7 +3237,7 @@ class StampVersion(Command):
                     print 'Adding version stamp file to VCS'
                     version_control.vcs_init_directory(vcs_name, [version_filename])
 
-@subcommand('stamp', 'diff', CAT_STAMP)
+@subcommand('stamp', 'diff', CAT_EXPORT)
 class StampDiff(Command):
     """
     :Syntax: muddle stamp diff [-u[nified]|-c[ontext]|-n|-h[tml]|-x] <file1> <file2> [<output_file>]
@@ -3396,7 +3396,7 @@ class StampDiff(Command):
         else:
             sys.stdout.writelines(diff)
 
-@subcommand('stamp', 'push', CAT_STAMP)
+@subcommand('stamp', 'push', CAT_EXPORT)
 class StampPush(Command):
     """
     :Syntax: muddle stamp push [<repository_url>]
@@ -3461,7 +3461,7 @@ class StampPush(Command):
             db.versions_repo.set(versions_url)
             db.versions_repo.commit()
 
-@subcommand('stamp', 'pull', CAT_STAMP)
+@subcommand('stamp', 'pull', CAT_EXPORT)
 class StampPull(Command):
     """
     :Syntax: muddle stamp pull [<repository_url>]
@@ -3529,7 +3529,7 @@ class StampPull(Command):
             db.versions_repo.set(versions_url)
             db.versions_repo.commit()
 
-@command('unstamp', CAT_STAMP)
+@command('unstamp', CAT_EXPORT)
 class UnStamp(Command):
     """
     :Syntax: muddle unstamp <file>
@@ -3838,7 +3838,7 @@ Try "muddle help unstamp" for more information."""
 # -----------------------------------------------------------------------------
 # Distribute
 # -----------------------------------------------------------------------------
-@command('distribute', CAT_STAMP)       # in some vague sort of way
+@command('distribute', CAT_EXPORT)
 class Distribute(Command):
     """
     :Syntax: muddle distribute [<switches>|-no-muddle-makefile] <name> <target_directory>
@@ -3853,7 +3853,7 @@ class Distribute(Command):
 
     - <name> is a distribution name.
 
-      Two special distribution names exist:
+      Several special distribution names exist:
 
         * "_source_release" is a distribution of all checkouts, without their
           VCS directories.
@@ -3871,6 +3871,30 @@ class Distribute(Command):
           the packages distributed and (unless -no-muddle-makefiles is given)
           the muddle Makefiles needed by each package (as the only file in
           each appropriate checkout directory)
+
+        * "_just_gpl" is a distribution that satisfies the GPL licensing
+          requirements. It is all checkouts that have an explicit GPL
+          license (including LGPL), plus any licenses which depend on them,
+          and do not explicitly state that they do not need distributing
+          under the GPL terms, plus appropriate build descriptions.
+
+          It will fail if "propagated" GPL-ness clashes with declared "binary"
+          licenses for any checkouts.
+
+        * "_all_open" is a distribution of all open-source licensed checkouts.
+          It contains everything from "_just_gpl", plus any other open source
+          licensed checkouts.
+
+          It will fail for the same reasons that _just_gpl" fails.
+
+        * "_by_license" is a distribution of everything that is not licensed
+          with a "secret" license. It is equivalent to "_all_open" plus
+          those parts of a "_binary_release" that are not licensed "secret".
+
+          It will fail if "_all_open" would fail, or if any of the install
+          directories to be distributed could contain results from building
+          "secret" packages (as determined by which packages are in the
+          appropriate role).
 
     - <target_directory> is where to distribute to. If it already exists,
       it should preferably be an empty directory.
@@ -3922,6 +3946,9 @@ class Distribute(Command):
       indicating if "obj" or "install" directories are being distributed. It's
       also possible (but not much use) to have a DistributePackage distribution
       name that doesn't do either.
+
+    See also "muddle query checkout-licenses" for general information on the
+    licenses in the current build, and any clashes that may exist.
 
     BEWARE: THIS COMMAND IS STILL UNDER DEVELOPMENT.
     """

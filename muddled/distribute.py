@@ -3,13 +3,13 @@ Actions and mechanisms relating to distributing build trees
 """
 
 # XXX TODO
-# Doing::
-#
-#   distribute_checkout_files(builder, '*', label, source_files)
-#
-# should arguable add those files to *all* distributions. This would make
-# it easier to say "actually you always need 'src/Makefile' to be able to
-# build this checkout".
+# Does the -no-muddle-makefile switch to the "muddle distribute" command
+# actually make any sense?
+# If the user has added extra files to a distribution, then using that
+# switch will suppress the muddle Makefile, but not any other specifically
+# requested files, which will typically be other Makefiles. Which will lead
+# to all sorts of confusion. So maybe the solution is "just don't do that",
+# and we should always distribute muddle Makefiles...
 
 # XXX TODO
 # Question - what are we meant to do if a package implicitly sets
@@ -1817,7 +1817,8 @@ def distribute(builder, name, target_dir, with_versions_dir=False,
         # plus muddle Makefiles and any other "selected" source files
         # This ignores licenses
         # XXX If there are things marked "secret" in what we're distributing,
-        # XXX should we (a) mention it, or (b) refuse to continue without '-f'?
+        # XXX should we (a) mention it, or (b) refuse to continue without '-f',
+        # XXX or (c) just ignore it, as we're doing now?
         for label in all_packages:
             distribute_package(builder, name, label, obj=False, install=True,
                                with_muddle_makefile=(not no_muddle_makefile))
@@ -1835,8 +1836,8 @@ def distribute(builder, name, target_dir, with_versions_dir=False,
         # All checkouts in _all_open, and any install/ directories for anything
         # with a "binary" license. Nothing at all for "secret" licenses.
         select_all_open_checkouts(builder, name, with_vcs)
-        select_all_binary_nonsecret_packages(builder, name,
-                                    with_muddle_makefile=(not no_muddle_makefile))
+        # Note we always output muddle Makefiles with this distribution
+        select_all_binary_nonsecret_packages(builder, name, with_muddle_makefile=True)
     # ==============
 
     # *All* distributions then scan through the labels looking to see what

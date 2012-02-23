@@ -3913,7 +3913,9 @@ class Distribute(Command):
     distribution will not include Muddle makefiles for each package
     distributed. It does not override the setting of the "with_muddle_makefile"
     argument explicitly set in any calls of "distribute_package" in the build
-    description.
+    description, nor does it stop distribution of any extra files explicitly
+    chosen with "distribute_checkout_files" in the build description. It also
+    does not affect the "_by_license" distribution.
 
     Note that "muddle -n distribute" can be used in the normal manenr to see
     what the command would do. It shows the labels that would be distributed,
@@ -3947,6 +3949,8 @@ class Distribute(Command):
     licenses in the current build, and any clashes that may exist.
 
     BEWARE: THIS COMMAND IS STILL UNDER DEVELOPMENT.
+        In particular, the "-no-muddle-makefile" switch may go away,
+        and the standard distribution names may change.
     """
 
     allowed_switches = {'-with-vcs':'with-vcs',

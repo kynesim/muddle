@@ -67,7 +67,8 @@ from muddled.utils import LabelType, LabelTag
 from muddled.repository import Repository
 from muddled.version_control import checkout_from_repo
 
-from muddled.distribute import distribute_checkout, distribute_package
+from muddled.distribute import name_distribution, \
+        distribute_checkout, distribute_package
 
 def describe_to(builder):
     role = 'x86'
@@ -118,22 +119,27 @@ def describe_to(builder):
     builder.invocation.add_default_role(role)
     builder.by_default_deploy(deployment)
 
-    # Let's add some distribution rules
+    # Let's add some distribution specifics
     label = Label.from_string
     # We're describing a distribution called "mixed", which contains both
     # source and obj (but not install)
+    name_distribution(builder, 'mixed')
     distribute_checkout(builder, 'mixed', label('checkout:first_co/*'))
     distribute_package(builder, 'mixed', label('package:second_pkg{{x86}}/*'),
                        obj=True, install=False)
 
     # We have another distribution which corresponds to role x86, source
     # and all binary
+    name_distribution(builder, 'role-x86')
     distribute_package(builder, 'role-x86', label('package:*{{x86}}/*'),
                        obj=True, install=True)
     distribute_checkout(builder, 'role-x86', label('package:*{{x86}}/*'))
 
     # And another distribution which is a vertical slice down the domains
     # (so see the subdomain build descriptions as well)
+    # Also, note that technically our subdomain inclusion will have named this
+    # distribution before we do - but we're allowed to name it again
+    name_distribution(builder, 'vertical')
     distribute_package(builder, 'vertical', label('package:second_pkg{{x86}}/*'),
                        obj=True, install=True)
     distribute_checkout(builder, 'vertical', label('package:second_pkg{{x86}}/*'))
@@ -149,7 +155,8 @@ import muddled.checkouts.simple
 import muddled.deployments.collect as collect
 from muddled.mechanics import include_domain
 from muddled.depend import Label
-from muddled.distribute import distribute_package, distribute_checkout
+from muddled.distribute import name_distribution, \
+        distribute_package, distribute_checkout
 
 def describe_to(builder):
     role = 'x86'
@@ -159,6 +166,11 @@ def describe_to(builder):
     muddled.pkgs.make.medium(builder, "main_pkg", [role], "main_co")
     muddled.pkgs.make.medium(builder, "first_pkg", [role], "first_co")
     muddled.pkgs.make.medium(builder, "second_pkg", [role], "second_co")
+
+    # If we name our distribution here, before including the subdomain,
+    # which also uses it, then we shouldn't need to name it in the subdomain
+    # itself...
+    name_distribution(builder, 'vertical')
 
     include_domain(builder,
                    domain_name = "subdomain3",
@@ -242,6 +254,9 @@ def describe_to(builder):
     builder.by_default_deploy("everything")
 
     # Our vertical distribution continues
+    # (Remember, our parent domain named it for us - normally it would be
+    # bad form to rely on that, since subdomains are meant to stand alone
+    # as builds, but this is useful to do for testing...)
     label = Label.from_string
     distribute_package(builder, 'vertical', label('package:second_pkg{x86}/*'),
                        obj=True, install=True)

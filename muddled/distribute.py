@@ -649,6 +649,40 @@ def report_license_clashes_in_role(builder, role, just_report_secret=True):
 # =============================================================================
 # DISTRIBUTION
 # =============================================================================
+the_distributions = set(['_source_release',
+                         '_binary_release',
+                         '_just_gpl',
+                         '_all_open',
+                         '_by_license',
+                        ])
+
+def name_distribution(builder, name):
+    """Assert that a distribution called 'name' exists.
+
+    The user may assume that the standard distributions (see "muddle help
+    distribute") already exist, but otherwise must name a distribution before
+    it is used.
+
+    It is not an error to name a distribution more than once (but it won't
+    have any effect).
+
+    It is an error to try to use a distribution before it has been named. This
+    includes adding checkouts and packages to distributions. Wildcard
+    operations will only take account of the distributions that have already
+    been named.
+
+    Distribution names that start with an underscore are reserved by muddle to
+    define as it wishes, although we don't stop you naming a distribution that
+    starts with an underscore (just remember muddle may take the name later
+    without warning).
+    """
+    # Arguably, we should remember distributions on the builder object,
+    # but in fact I don't think it makes any difference whatsoever to
+    # how we treat them, especially as they are not to be distinct
+    # between different domains
+    global the_distributions
+    the_distributions.add(name)
+
 def distribute_checkout(builder, name, label, copy_vcs=False):
     """Request the distribution of the specified checkout(s).
 
@@ -680,6 +714,9 @@ def distribute_checkout(builder, name, label, copy_vcs=False):
            checkout label, then this will silently overwrite it.
     """
     if DEBUG: print '.. distribute_checkout(builder, %r, %s, %s)'%(name, label, copy_vcs)
+
+    if name not in the_distributions:
+        raise GiveUp('Distribution "%s" has not been named'%name)
 
     if label.type == LabelType.Package:
         packages = builder.invocation.expand_wildcards(label)
@@ -751,6 +788,9 @@ def distribute_checkout_files(builder, name, label, source_files):
     """
     if DEBUG: print '.. distribute_checkout_files(builder, %r, %s, %s)'%(name, label, source_files)
 
+    if name not in the_distributions:
+        raise GiveUp('Distribution "%s" has not been named'%name)
+
     source_label = label.copy_with_tag(LabelTag.CheckedOut)
     target_label = label.copy_with_tag(LabelTag.Distributed, transient=True)
 
@@ -808,6 +848,9 @@ def distribute_build_desc(builder, name, label, copy_vcs=False):
         # This is a MuddleBug because we shouldn't be called directly by the
         # user, so it's muddle infrastructure that got it wrong
         raise MuddleBug('distribute_build_desc() takes a checkout label, not %s'%label)
+
+    if name not in the_distributions:
+        raise GiveUp('Distribution "%s" has not been named'%name)
 
     source_label = label.copy_with_tag(LabelTag.CheckedOut)
     target_label = label.copy_with_tag(LabelTag.Distributed, transient=True)
@@ -1777,6 +1820,9 @@ def distribute(builder, name, target_dir, with_versions_dir=False,
     lists the labels that would be distributed, and the action that would
     be used to do so.
     """
+
+    if name not in the_distributions:
+        raise GiveUp('There is no distribution called "%s"'%name)
 
     print 'Writing distribution', name, 'to', target_dir
 

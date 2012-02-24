@@ -2007,6 +2007,9 @@ class QueryRoleLicenses(QueryCommand):
 
     If -no-clashes is given, then don't report binary/secret license clashes
     (which might cause problems when doing a "_by_license" distribution).
+
+    See also "muddle query checkout-licenses" for information on licenses
+    with respect to checkouts.
     """
 
     allowed_switches = {'-no-clashes': 'no-clashes'}
@@ -2020,6 +2023,7 @@ class QueryRoleLicenses(QueryCommand):
         roles = builder.invocation.all_roles()
 
         print 'Licenses by role:'
+        print
         for role in sorted(roles):
             print '* %s'%role
             role_licenses = licenses_in_role(builder, role)
@@ -2048,7 +2052,7 @@ class QueryRoleLicenses(QueryCommand):
                 print 'which would cause problems with a "_by_license" distribution:'
                 print
                 for role, (bin, sec) in sorted(clashes.items()):
-                    print '* %s, which is built from:'%role
+                    print '* %s, where the following licenses may cause problems:'%role
                     maxlen1 = calc_maxlen(sec)
                     maxlen2 = calc_maxlen(bin)
                     maxlen = max(maxlen1, maxlen2)

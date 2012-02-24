@@ -773,4 +773,110 @@ We have:
      related information it has deduced. This is deliberately verbose, giving
      as much information as possible.
 
+Still to consider
+-----------------
+If we are distributing a build description, and that build description may
+build "secret" things, how do we not distribute any information about the
+building of said "secret" things?
+
+Well, the simplest way is probably:
+
+a. Move all the code for building the "secret" things into one or more
+   distinct Python scripts (in the build description directory)
+b. Have a mechanism to tell the distribution code that, if non-"secret" things
+   are not being distributed, then empty files (of the same name) should be
+   distributed instead of those files.
+
+So, how do we declare that *in the build description*?
+
+Something like::
+
+  secret_build_files(builder, build_files)
+
+where ``build_files`` is a list of Python files, relative to the build
+description directory. For instance::
+
+  secret_build_files(builder, name, ['secret_app.py', 'subdir/other_app.py'])
+
+I propose that this *must* be done within a build description with respect to
+itself - i.e., a build description cannot affect a subdomain's build
+description (that just gets too complicated).
+
+Questions:
+
+1. Can I think of a better function name(!)
+2. Do we require the ``.py`` at the end of the filename(s)?
+
+This appears to only affect the "_by_license" distribution...
+
+  Implementation is by adding a list of such files to the
+  ``DistributeBuildDescriptionAction`` for the build description, and
+  then making the function that does the work for that do the right thing.
+
+Do we want an equivalent for subdomains as well::
+
+  secret_subdomains(builder, domain_names)
+
+(although I think I'd rather leave that, as we don't have a need for it).
+
+
+
+Question:
+---------
+Should the registry of distribution names have a list of license categories
+that it will distribute? So, for instance::
+
+  { '_source_release' : ['gpl', 'open', 'binary', 'secret']
+    '_binary_release' : ['gpl', 'open', 'binary', 'secret'],
+    '_for_gpl': ['gpl'],
+    '_all_open': ['gpl', 'open'],
+    '_by_license': ['gpl', 'open', 'binary'],
+  }
+
+Note that this is things that will be distributed, not *how*, so
+``_binary_release`` distributes anything regardless of license category,
+but doesn't distribute sources.
+
+This allows us to tell which distributions will (for instance) distribute
+"secret" stuff, and to be more intelligent about clashes.
+
+We presumably then also have to police the adding of checkouts to a
+distribution, so that a 'binary' licensed checkout can only be added to a
+distribution that allows it.
+
+THEN we can detect if we're doing a "secret" distribution or not, and thus
+decide what to do about those pesky secret build description files...
+
+And maybe the "add extra files" function should be by name or by license
+category???
+
+Or we could just have a "get" function for existing distribution names, and
+the user can then do::
+
+  for name in get_distributions_for(['gpl', 'open']):
+      distribute_checkout_files(builder, name, co_label, 'Makefile')
+
+in the build description. Yes, I think that works. And similarly::
+
+  for name in get_distributions_not_for(['secret']):
+      set_secret_build_files(builder, name, ['secret_app.py'])
+
+So we name distributions with::
+
+    name_distribution(builder, name, categories=None)
+
+where ``categories`` is a list of license categories, or None to mean all of
+them.
+
+So the final question becomes, do we treat "open" as meaning "including gpl"
+- i.e., does it make sense to do::
+
+    categories=['gpl', 'open']
+
+or is that actually identical to::
+
+    categories=['open']
+
+because it doesn't make sense to try to choose "open" without choosing "gpl"?
+
 .. vim: set filetype=rst tabstop=8 softtabstop=2 shiftwidth=2 expandtab:

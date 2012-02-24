@@ -287,6 +287,22 @@ def set_license(builder, co_label, license):
         builder.invocation.db.set_checkout_license(co_label,
                                                    standard_licenses[license])
 
+def set_license_for_names(builder, co_names, license):
+    """A convenience function to set one license for several checkout names.
+
+    Since this uses checkout names rather than labels, it is not domain aware.
+
+    It calls 'set_license()' for each checkout name, passing it a checkout
+    label constructed from the checkout name, with no domain.
+    """
+    # Try to stop the obvious mistake...
+    if isinstance(co_names, basestring):
+        raise GiveUp('Second argument to set_license_for_names() must be a sequence, not a string')
+
+    for name in co_names:
+        co_label = Label(LabelType.Checkout, co_name)
+        set_license(builder, co_label, license)
+
 def get_not_licensed_checkouts(builder):
     """Return the set of all checkouts which do not have a license.
 

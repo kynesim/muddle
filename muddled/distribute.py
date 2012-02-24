@@ -280,8 +280,9 @@ def distribute_build_desc(builder, name, label, copy_vcs=False):
 
     Notes:
 
-        1. If we already described a distribution called 'name' for 'label',
-           then this will silently overwrite it.
+        1. If there was already a DistributeBuildDescription action defined for
+           this build description's checkout, then we will just amend its
+           'copy_vcs' flag to match ours.
         2. If there was already a DistributeBuildCheckout action defined for
            this build description's checkout, then we will replace it with a
            DistributeBuildDescription action. All we'll copy over from the
@@ -313,12 +314,12 @@ def distribute_build_desc(builder, name, label, copy_vcs=False):
         if isinstance(action, DistributeBuildDescription):
             if DEBUG: print '   exists as DistributeBuildDescrption: add/override'
             # It's the right sort of thing - just add this distribution name
-            action.set_distribution(name, copy_vcs)
+            action.update_distribution(name, copy_vcs, None)
         elif isinstance(action, DistributeCheckout):
             if DEBUG: print '   exists as DistributeCheckout: replace'
             # Ah, it's a generic checkout action - let's replace it with
             # a build description action
-            new_action = DistributeBuildDescription(name, copy_vcs)
+            new_action = DistributeBuildDescription(name, copy_vcs, None)
             # And copy over any names we don't yet have
             new_action.merge_names(action)
             rule.action = new_action
@@ -328,12 +329,89 @@ def distribute_build_desc(builder, name, label, copy_vcs=False):
     else:
         # No - we need to create one
         if DEBUG: print '   adding anew'
-        action = DistributeBuildDescription(name, copy_vcs)
+        action = DistributeBuildDescription(name, copy_vcs, None)
 
         rule = Rule(target_label, action)       # to build target_label, run action
         rule.add(source_label)                  # after we've built source_label
 
         builder.invocation.ruleset.add(rule)
+
+def set_secret_build_files(builder, name, secret_files):
+    """Set some secret build files for the (current) build description.
+
+    These are files within the build description directory that will replaced
+    by empty files when doing the distribution.
+
+    - 'name' is the name of the distribution we're adding this checkout to,
+      or a "shell pattern" matching existing (already named) distributions.
+      In that case::
+
+            *       matches everything
+            ?       matches any single character
+            [seq]   matches any character in seq
+            [!seq]  matches any char not in seq
+
+    - 'secret_files' is the list of the files that must be distributed as empty
+      files. They are relative to the build description checkout directory.
+
+    XXX Do we check that the files exist? At the moment, this is undefined.
+    """
+    if DEBUG: print '.. set_secret_build_files(builder, %s)'%(name, secret_files)
+
+    actual_names = filter(the_distributions, name)
+    if not actual_names:
+        raise GiveUp('There is no distribution matching "%s"'%name)
+
+    # Work out the label for this build description
+    label = build_desc_label_in_domain(builder, None, LabelTag.Distributed)
+
+    source_label = label.copy_with_tag(LabelTag.CheckedOut)
+    target_label = label.copy_with_tag(LabelTag.Distributed, transient=True)
+
+    if DEBUG: print '   target', target_label
+
+    # Making our target label transient means that its tag will not be
+    # written out to the muddle database (i.e., .muddle/tags/...) when
+    # the label is built
+
+    # Is there already a rule for distributing this label?
+    name = actual_names[0]
+    if builder.invocation.target_label_exists(target_label):
+        # Yes. Is it the right sort of action?
+        rule = builder.invocation.ruleset.map[target_label]
+        action = rule.action
+        if isinstance(action, DistributeBuildDescription):
+            if DEBUG: print '   exists as DistributeBuildDescrption: add/override'
+            # It's the right sort of thing - just add these secret files
+            action.add_secret_files(name, secret_files)
+        elif isinstance(action, DistributeCheckout):
+            if DEBUG: print '   exists as DistributeCheckout: replace'
+            # Ah, it's a generic checkout action - let's replace it with
+            # a new build description action
+            old_action = action
+            action = DistributeBuildDescription(name, old_action.copying_vcs(),
+                                                secret_files)
+            # And copy over any existing names we don't yet have
+            action.merge_names(old_action)
+            rule.action = action
+        else:
+            # Oh dear, it's something unexpected
+            raise GiveUp('Found unexpected action %s on build description rule'%action)
+    else:
+        # No - we need to create one
+        if DEBUG: print '   adding anew'
+        # We have to guess at 'copy_vcs', but someone later on can override us
+        action = DistributeBuildDescription(name, False, secret_files)
+
+        rule = Rule(target_label, action)       # to build target_label, run action
+        rule.add(source_label)                  # after we've built source_label
+
+        builder.invocation.ruleset.add(rule)
+
+    # Sort out the other distribution names
+    for name in actual_names[1:]:
+        if DEBUG: print '   %s exists: add/override %s'%(action, name)
+        action.update_secret_files(name, secret_files)
 
 def distribute_package(builder, name, label, obj=False, install=True,
                        with_muddle_makefile=True):
@@ -558,8 +636,8 @@ def _actually_distribute_checkout(builder, label, target_dir, copy_vcs):
     # directory
     _set_checkout_tags(builder, label, target_dir)
 
-def _actually_distribute_build_desc(builder, label, target_dir, copy_vcs):
-    """Very similar to what we do for any other checkout...
+def _actually_distribute_build_desc(builder, label, target_dir, copy_vcs, secret_files):
+    """Very similar to what we do for any other checkout, but with secret_files
     """
     # Get the actual directory of the checkout
     co_src_dir = builder.invocation.db.get_checkout_location(label)
@@ -913,7 +991,7 @@ class DistributeBuildDescription(DistributeAction):
     """This is a bit like DistributeCheckoutAction, but without 'just'.
     """
 
-    def __init__(self, name, copy_vcs=False):
+    def __init__(self, name, copy_vcs=False, secret_files=None):
         """
         'name' is the name of a DistributionContext. When created, we are
         told which DistributionContext we can be distributed by. Later on,
@@ -922,28 +1000,75 @@ class DistributeBuildDescription(DistributeAction):
         If 'copy_vcs' is false, then don't copy any VCS "special" files
         (['.git', '.gitignore', ...] or ['.bzr'], etc., depending on the VCS
         used for this checkout).
+
+        If 'secret_files' is given, it is a sequence of Python files, relative
+        to the build description checkout directory, that must be replaced by
+        empty files when the distribution is done.
         """
-        super(DistributeBuildDescription, self).__init__(name, copy_vcs)
+        if secret_files is None:
+            secret_files = set()
+
+        super(DistributeBuildDescription, self).__init__(name, (copy_vcs, secret_files))
 
     def __str__(self):
         parts = []
-        for key, copy_vcs in self.distributions.items():
+        for key, (copy_vcs, secret_files) in self.distributions.items():
+            inner = []
             if copy_vcs:
-                parts.append('%s[vcs]'%key)
-            else:
-                parts.append(key)
+                inner.append('vcs')
+            if secret_files:
+                inner.append('-%d'%len(secret_files))
+            parts.append('%s[%s]'%(key, ','.join(inner)))
         return '%s: %s'%(self.__class__.__name__, ', '.join(sorted(parts)))
+
+    def set_distribution(self, name, copy_vcs=False, secret_files=None):
+        """Set the information for the named distribution.
+
+        If this action already has information for that name, updates it.
+        """
+        copy_vcs, local_secret_files = self.get_distribution(name)
+
+        if secret_files is not None:
+            local_secret_files.update(secret_files)
+
+        self.distributions[name] = (copy_vcs, local_secret_files)
+
+    def update_distribution(self, name, copy_vcs=False, secret_files=None):
+        """Update the information for the named distribution.
+
+        Adds the new distribution if necessary.
+        """
+        if name in self.distributions:
+            copy_vcs, local_secret_files = self.get_distribution(name)
+        else:
+            copy_vcs, local_secret_files = False, set()
+
+        if secret_files is not None:
+            local_secret_files.update(secret_files)
+
+        self.distributions[name] = (copy_vcs, local_secret_files)
+
+    def add_secret_files(self, name, secret_files):
+        """Add some specific secret files to distribution 'name'.
+
+        Does nothing if the files are already added
+        """
+        copy_vcs, local_secret_files = self.get_distribution(name)
+
+        local_secret_files.update(secret_files)
+        self.set_distribution(name, copy_vcs, local_secret_files)
 
     def build_label(self, builder, label):
         name, target_dir = builder.get_distribution()
 
-        copy_vcs = self.distributions[name]
+        copy_vcs, secret_files = self.distributions[name]
 
         if DEBUG:
             print 'DistributeBuildDescription %s (%s VCS) to %s'%(label,
                     'without' if copy_vcs else 'with', target_dir)
 
-        _actually_distribute_build_desc(builder, label, target_dir, copy_vcs)
+        _actually_distribute_build_desc(builder, label, target_dir, copy_vcs,
+                                        secret_files)
 
 class DistributePackage(DistributeAction):
     """

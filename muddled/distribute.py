@@ -29,16 +29,22 @@ from muddled.mechanics import build_co_and_path_from_str
 from muddled.pkgs.make import MakeBuilder, deduce_makefile_name
 from muddled.licenses import get_gpl_checkouts, get_implicit_gpl_checkouts, \
         get_open_checkouts, get_binary_checkouts, \
-        report_license_clashes, report_license_clashes_in_role
+        report_license_clashes, report_license_clashes_in_role, \
+        ALL_LICENSE_CATEGORIES
 
 DEBUG=False
 
-the_distributions = set(['_source_release',
-                         '_binary_release',
-                         '_just_gpl',
-                         '_all_open',
-                         '_by_license',
-                        ])
+# Distribution names, with the license categories they distribute something
+# from. Note that distributing something from 'gpl' or 'open' doesn't mean
+# the same thing as "distributing sources", as is evidenced by
+# '_binary_release'.
+the_distributions = { '_source_release' : ALL_LICENSE_CATEGORIES,
+                      '_binary_release' : ALL_LICENSE_CATEGORIES,
+                      '_just_gpl':   ('gpl', ),
+                      '_all_open':   ('gpl', 'open'),
+                      '_by_license': ('gpl', 'open', 'binary'),
+                    }
+
 
 def filter(names, pattern):
     """A version of fnmatch.filter that does not do normcase.
@@ -52,15 +58,22 @@ def filter(names, pattern):
             result.append(name)
     return result
 
-def name_distribution(builder, name):
+def name_distribution(builder, name, categories=None):
     """Assert that a distribution called 'name' exists.
+
+    Also specify which license categories are distributed.
+
+    If 'categories' is None, then all license categories are distributed.
+
+    Otherwise 'categories' must be a sequence of category names, taken
+    from 'gpl', 'open', binary' and 'secret'.
 
     The user may assume that the standard distributions (see "muddle help
     distribute") already exist, but otherwise must name a distribution before
     it is used.
 
-    It is not an error to name a distribution more than once (but it won't
-    have any effect).
+    It is not an error to name a distribution more than once, but it won't
+    have any effect, and specifically it won't change the license categories.
 
     It is an error to try to use a distribution before it has been named. This
     includes adding checkouts and packages to distributions. Wildcard
@@ -77,7 +90,10 @@ def name_distribution(builder, name):
     # how we treat them, especially as they are not to be distinct
     # between different domains
     global the_distributions
-    the_distributions.add(name)
+    if categories is None:
+        the_distributions[name] = ALL_LICENSE_CATEGORIES
+    else:
+        the_distributions[name] = tuple(categories)
 
 def _distribute_checkout(builder, actual_names, label, copy_vcs=False):
     """The work of saying we should distribute a checkout.
@@ -160,7 +176,7 @@ def distribute_checkout(builder, name, label, copy_vcs=False):
     """
     if DEBUG: print '.. distribute_checkout(builder, %r, %s, %s)'%(name, label, copy_vcs)
 
-    actual_names = filter(the_distributions, name)
+    actual_names = filter(the_distributions.keys(), name)
     if not actual_names:
         raise GiveUp('There is no distribution matching "%s"'%name)
 
@@ -219,7 +235,7 @@ def distribute_checkout_files(builder, name, label, source_files):
     if label.type != LabelType.Checkout:
         raise GiveUp('distribute_checout_files() takes a checkout label, not %s'%label)
 
-    actual_names = filter(the_distributions, name)
+    actual_names = filter(the_distributions.keys(), name)
     if not actual_names:
         raise GiveUp('There is no distribution matching "%s"'%name)
 
@@ -294,8 +310,8 @@ def distribute_build_desc(builder, name, label, copy_vcs=False):
         # user, so it's muddle infrastructure that got it wrong
         raise MuddleBug('distribute_build_desc() takes a checkout label, not %s'%label)
 
-    if name not in the_distributions:
-        raise GiveUp('Distribution "%s" has not been named'%name)
+    if name not in the_distributions.keys():
+        raise GiveUp('There is no distribution called "%s"'%name)
 
     source_label = label.copy_with_tag(LabelTag.CheckedOut)
     target_label = label.copy_with_tag(LabelTag.Distributed, transient=True)
@@ -357,7 +373,7 @@ def set_secret_build_files(builder, name, secret_files):
     """
     if DEBUG: print '.. set_secret_build_files(builder, %s)'%(name, secret_files)
 
-    actual_names = filter(the_distributions, name)
+    actual_names = filter(the_distributions.keys(), name)
     if not actual_names:
         raise GiveUp('There is no distribution matching "%s"'%name)
 
@@ -475,7 +491,7 @@ def distribute_package(builder, name, label, obj=False, install=True,
     if label.type != LabelType.Package:
         raise GiveUp('distribute_package() takes a package label, not %s'%label)
 
-    actual_names = filter(the_distributions, name)
+    actual_names = filter(the_distributions.keys(), name)
     if not actual_names:
         raise GiveUp('There is no distribution matching "%s"'%name)
 
@@ -1164,7 +1180,36 @@ def get_distribution_names(builder=None):
 
     Note that 'builder' is optional.
     """
-    return the_distributions
+    return the_distributions.keys()
+
+def get_distributions_for(builder, categories):
+    """Return distributions that distribute all the given 'categories'
+
+    That is, for each distribution, look and see if the license categories
+    it distributes for include all the values in 'categories', and if it does,
+    add its name to the result.
+    """
+    results = []
+    categories = set(categories)
+    for name, does_for in the_distributions.items():
+        if categories.issubset(does_for):
+            results.append(name)
+    return result
+
+def get_distributions_not_for(builder, categories):
+    """Return distributions that distribute none of the given 'categories'
+
+    That is, for each distribution, look and see if the license categories
+    it distributes for include any of the values in 'categories', and if it
+    does not, add its name to the result.
+    """
+    results = []
+    categories = set(categories)
+    for name, does_for in the_distributions.items():
+        if categories.isdisjoint(does_for):
+            results.append(name)
+    return result
+
 
 def get_used_distribution_names(builder):
     """Return a set of all the distribution names that are actually in use
@@ -1436,7 +1481,7 @@ def distribute(builder, name, target_dir, with_versions_dir=False,
     be used to do so.
     """
 
-    if name not in the_distributions:
+    if name not in the_distributions.keys():
         raise GiveUp('There is no distribution called "%s"'%name)
 
     print 'Writing distribution', name, 'to', target_dir

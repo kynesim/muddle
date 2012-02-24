@@ -10,6 +10,8 @@ from muddled.utils import GiveUp, LabelType, wrap
 
 DEBUG=False
 
+ALL_LICENSE_CATEGORIES = ('gpl', 'open', 'binary', 'secret')
+
 class License(object):
     """The representation of a source license.
 
@@ -43,7 +45,7 @@ class License(object):
               at all.
         """
         self.name = name
-        if category not in ('gpl', 'open', 'binary', 'secret'):
+        if category not in ALL_LICENSE_CATEGORIES:
             raise GiveUp("Attempt to create License '%s' with unrecognised"
                          " category '%s'"%(name, category))
         self.category = category

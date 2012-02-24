@@ -878,5 +878,7 @@ or is that actually identical to::
     categories=['open']
 
 because it doesn't make sense to try to choose "open" without choosing "gpl"?
+For the moment, let's go with the simplest to implement, and most explicit,
+which fully distinguishes 'gpl' and 'open'.
 
 .. vim: set filetype=rst tabstop=8 softtabstop=2 shiftwidth=2 expandtab:

@@ -47,7 +47,7 @@ from muddled.version_stamp import VersionStamp
 from muddled.licenses import print_standard_licenses, get_gpl_checkouts, \
         get_not_licensed_checkouts, get_implicit_gpl_checkouts, \
         get_license_clashes, licenses_in_role, get_license_clashes_in_role
-from muddled.distribute import distribute, \
+from muddled.distribute import distribute, the_distributions, \
         get_distribution_names, get_used_distribution_names
 
 # Following Richard's naming conventions...
@@ -1800,7 +1800,8 @@ class QueryDistributions(QueryCommand):
     """
     :Syntax: muddle query distributions
 
-    List the names of the distributions defined by the build description.
+    List the names of the distributions defined by the build description,
+    and the license categories that each distributes.
     """
 
     def requires_build_tree(self):
@@ -1809,14 +1810,21 @@ class QueryDistributions(QueryCommand):
     def with_build_tree(self, builder, current_dir, args):
         all_names = get_distribution_names()
         used_names = get_used_distribution_names(builder)
+        maxlen = len(max(all_names, key=len))
         print 'Distributions are:'
         for name in sorted(all_names):
-            print '  %s %s'%('*' if name in used_names else ' ', name)
+            print '  %s %-*s  (%s)'%('*' if name in used_names else ' ',
+                                     maxlen, name,
+                                     ', '.join(the_distributions[name]))
         print '(those marked with a "*" have content set by this build)'
 
     def without_build_tree(self, muddle_binary, root_path, args):
         names = get_distribution_names()
-        print 'Standard distributions are:\n  %s'%('\n  '.join(sorted(names)))
+        print 'Standard distributions are:\n'
+        maxlen = len(max(names, key=len))
+        for name in sorted(names):
+            print '  %-*s  (%s)'%(maxlen, name,
+                                  ', '.join(the_distributions[name]))
 
 @subcommand('query', 'vcs', CAT_QUERY)
 class QueryVCS(QueryCommand):

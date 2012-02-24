@@ -353,8 +353,7 @@ def set_secret_build_files(builder, name, secret_files):
 
     - 'secret_files' is the list of the files that must be distributed as empty
       files. They are relative to the build description checkout directory.
-
-    XXX Do we check that the files exist? At the moment, this is undefined.
+      Each named file must actually exist.
     """
     if DEBUG: print '.. set_secret_build_files(builder, %s)'%(name, secret_files)
 
@@ -364,6 +363,16 @@ def set_secret_build_files(builder, name, secret_files):
 
     # Work out the label for this build description
     label = build_desc_label_in_domain(builder, None, LabelTag.Distributed)
+    # And thus its directory
+    our_dir = builder.invocation.db.get_checkout_path(label)
+
+    for file in secret_files:
+        base, ext = os.path.splitext(file)
+        if ext != '.py':
+            raise GiveUp('Secret file "%s" does not end in ".py"'%file)
+        file_path = os.path.join(our_dir, file)
+        if not os.path.exists(file_path):
+            raise GiveUp('Secret file "%s" does not exist'%file_path)
 
     source_label = label.copy_with_tag(LabelTag.CheckedOut)
     target_label = label.copy_with_tag(LabelTag.Distributed, transient=True)
@@ -646,6 +655,7 @@ def _actually_distribute_build_desc(builder, label, target_dir, copy_vcs, secret
     #
     #   * no .pyc files
     #   * MAYBE no VCS files, depending
+    #   * no secret files
 
     if copy_vcs:
         files_to_ignore = []
@@ -664,6 +674,10 @@ def _actually_distribute_build_desc(builder, label, target_dir, copy_vcs, secret
 
     files_to_ignore = set(files_to_ignore)
 
+    # files_to_ignore may be specified as a filename or as a path
+    # secret_files, however, must be a specific path relative to our checkout,
+    # and is also not a directory.
+
     for dirpath, dirnames, filenames in os.walk(co_src_dir):
 
         for name in filenames:
@@ -673,6 +687,10 @@ def _actually_distribute_build_desc(builder, label, target_dir, copy_vcs, secret
             if ext == '.pyc':                       # Ignore .pyc files
                 continue
             src_path = os.path.join(dirpath, name)
+
+            if src_path in secret_files:            # XXX Needs testing!
+                continue
+
             tgt_dir = os.path.join(target_dir, dirpath)
             tgt_path = os.path.join(tgt_dir, name)
             if not os.path.exists(tgt_dir):

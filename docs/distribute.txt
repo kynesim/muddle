@@ -1,7 +1,24 @@
-=====================
+=================================================
+Distributions, licenses and ``muddle distribute``
+=================================================
+
+What we want to do
+==================
+We want to be able to:
+
+* Distribute build trees to other users, without their needing to clone
+  stuff from the build's repositories.
+
+* Indicate the licensing for checkouts, and thus
+
+* Distribute partial build trees, especially partial build trees whose content
+  is determined by that licensing.
+
+* In particular, distribute partial build trees that satisfy GPL compliance
+  rules, but are still maximally useful *as* build trees.
+
 ``muddle distribute``
 =====================
-
 The ``muddle distribute`` command is intended to help with the following use
 cases:
 
@@ -17,8 +34,9 @@ cases:
 That third case was actually the driving force of the development of muddle
 distribution support, as we wanted to be able to produce a build tree
 containing source code for any open-source packages, binary blobs for
-proprietary packages whose source code is private, and possibly omitting
-entirely packages that are "secret".
+proprietary packages whose source code is private, and omitting
+entirely packages that are "secret" (i.e., typilcally for proprietary
+reasons).
 
 The desired intent is that, whatever means (1 through 3) is used, the result
 should be a functioning muddle build tree. Clearly this might not always be
@@ -43,17 +61,28 @@ What is a distribution?
 =======================
 A distribution is two things:
 
-1. a copy of all or part of the muddle build tree
+1. a copy of all or part of the muddle build tree (the result of distributing)
 2. a description of what to copy, for this purpose
 
 The ``muddle distribute`` command uses an instance of (2) to produce (1).
 
-A distribution (in the sense of a set of instructions for distributing) is
-identified by a name. This is just a string, and at the moment has no
-restrictions on its content. However, as normal, we reserve any names starting
-with underscore (``_``) for the system to define (there are currently two
-examples), and we recommend sticking to ``A-Za-z0-9_-`` for the characters in
-the name. However, that is not enforced.
+Distributions are identified by a name. This is just a string, and at the
+moment has no restrictions on its content. A distribution is also associated
+with the license categories that it deals with - this will be discussed later
+on.
+
+However, as normal, we reserve any names starting with underscore (``_``) for
+the system to define (as "standard distributions"), and since we may
+introduce new standard distributions as time goes on, all such names should
+be avoided.
+
+Standard distributions include:
+
+* ``_source_release`` - discussed in `Case 1: Source distribution`
+* ``_binary_release`` - discussed in `Case 2: Binary distribution`
+* ``_just_gpl`` - discussed in `Case 3: The other standard distributions`
+* ``_all_open`` - ditto
+* ``_by_license`` - ditto
 
 How does it work?
 =================
@@ -77,7 +106,8 @@ is added to "build" label ``checkout:<name>/distributed`` from
 
 For source and binary releases (cases 1 and 2) the ``muddle distribute``
 command itself organises this. For case 3, appropriate code in the build
-description causes the rules to be added.
+description causes the rules to be added, or sets the conditions that allow
+``muddle distribute`` to do it.
 
 You won't, however, see any ``/distribute`` tags in the ``.muddle`` tags
 directories, as the ``/distribute`` tag is treated as "transient" - i.e., it
@@ -89,10 +119,6 @@ before each ``muddle distribute``.
 
 Case 1: Source distribution
 ===========================
-
-.. note:: The use case in this section seem to be fairly well satisfied
-   by the current implementation, so is likely to be reasonably stable
-
 In a simple build tree, where there are no subdomains, a `.tgz`` file can be
 produced with a command like::
 
@@ -120,7 +146,8 @@ b. If there are subdomains, the command would need to be rather more complex.
    historitcal VCS directory (perhaps ``.bzr``) that came with the checkout
    when it was imported, then it all gets rather difficult.
 
-So instead one can do::
+So instead the standard distribution "_source_release" is provided. The
+command::
 
   pushd build
   muddle distribute -with-version _source_release ../release_1.0
@@ -159,15 +186,12 @@ manner::
 
 Case 2: Binary distribution
 ===========================
-
-.. note:: Whilst I think this section makes sense, it is possible that it
-   may be re-addressed in the future.
-
 Sometimes someone wants a binary release. A binary release is taken to be
 the "end product" of doing a ``muddle build``, and is thus the content of the
 ``install`` directories, plus the build descriptions and muddle Makefiles (so
 the recipient hopefully has enough context to ``muddle deploy`` if necessary).
 
+For this purpose, the standard distribution "_binary_release" is provided.
 The command::
 
   muddle distribute _binary_release ../release_1.0-bin
@@ -207,11 +231,88 @@ Also, if ``-with-vcs`` is specified, the VCS "special" files for the build
 descriptions and the ``versions`` directory (if distributed) will also be
 included.
 
-Case 3: Describing a distribution
-=================================
+Case 3: The other standard distributions
+========================================
 
-.. note:: This section is still evolving, and much work still remains to be
-   done on working out what we want to do and how to do it
+
+
+Licenses
+========
+
+import muddled.licenses
+
+License categories: gpl, open, binary, secret
+
+ALL_LICENSE_CATEGORIES
+
+License
+LicenseOpen
+LicenseBinary
+LicenseSecret
+LicenseGPL
+LicenseLGPL
+
+standard_licenses
+
+set_license(builder, co_label, license)
+    builder.invocation.db.set_checkout_license(co_label, license)
+
+set_license_for_names(builder, co_names, license)
+
+get_license(builder, co_label)
+    builder.invocation.db.get_checkout_license(co_label)
+    builder.invocation.db.get_checkout_license(co_label, absent_is_None=True)
+
+set_not_built_against(builder, pkg_label, co_label)
+    builder.invocation.db.set_not_built_against(pkg_label, co_label)
+
+get_not_licensed_checkouts(builder)
+get_gpl_checkouts(builder)
+get_implicit_gpl_checkouts(builder)
+get_open_checkouts(builder)
+get_binary_checkouts(builder)
+get_secret_checkouts(builder)
+
+    builder.invocation.db.checkout_has_license(co_label)
+
+muddle query licenses
+muddle query checkout-licenses
+muddle query role-licenses
+
+Working with distributions
+==========================
+
+import muddled.distribute
+
+name_distribution(builder, name, categories=None)
+
+.. note:: When listing the categories that a distribution uses, 'gpl' and
+   'open' are distinct and separate - there is no assumption that 'open'
+   includes 'gpl'. In this instance 'open' means "open but not GPL".
+
+distribute_checkout(builder, name, label, copy_vcs=False)
+distribute_package(builder, name, label, obj=False, install=False,
+                   with_muddle_makefile=False)
+
+distribute_checkout_files(builder, name, label, source_files)
+set_secret_build_files(builder, name, secret_files)
+
+get_distribution_names(builder)
+get_distribution_names_for(builder, categories)
+get_distribution_names_not_for(builder, categories)
+get_used_distribution_names(builder)
+
+  for name in get_distributions_for(['gpl', 'open']):
+      distribute_checkout_files(builder, name, co_label, 'Makefile')
+
+  for name in get_distributions_not_for(['secret']):
+      set_secret_build_files(builder, name, ['secret_app.py'])
+
+muddle query distributions
+
+
+
+
 
 It is possible to define a distribution within the muddle build description.
 
@@ -463,6 +564,9 @@ choose what to distribute by its license. The following thoughts occur:
    in practice some are multi-licensed, and thus we really should support
    multiple licenses per checkout (if only to make the user happy).
 
+    RESOLVED: No, just the one license we're working to in this build
+    description
+
 2. There are three types of license (broadly):
 
    * Open. These can be freely distributed as source.
@@ -470,6 +574,8 @@ choose what to distribute by its license. The following thoughts occur:
    * Secret. These must not be distributed at all, and may also need a
      mechanism to prevent distributing the relevant part of the build
      description as well.
+
+   RESOLVED: open is split into GPL and (other) open
 
 3. There's a suggestion that we should be able to attach a license to a
    package as well. Whilst it might be useful to specify an overall license
@@ -479,74 +585,15 @@ choose what to distribute by its license. The following thoughts occur:
    * I don't think different licenses for differend roles make sense
    * our "unit of distribution" for source code is the checkout
 
+   RESOLVED: licenses belong to checkouts, but can be specified via a package
+   label, much as one can "checkout" a muddle package on the command line
+
 I do not propose that muddle should help with the "contamination" problem.
 That is, if a package contains components that are statically linked against a
 GPL component, then that package must also be GPL. Trying to work this out
 would be a non-trivial problem involving inspection of Makefiles and other
 such complicated stuff. It's better to leave it up to humans to work out - and
 they need to do so anyway.
-
-We obviously need ``muddle query licenses`` which lists the checkouts and
-their declared license (if any).
-
-Richard suggested it would be nice to have an introspection capability, where
-muddle would "guess" the license by looking at the content of the checkout
-directory. This feels like it should work for well-formed GPL checkouts
-(although if would not, of course, detect dual-licensing).
-
-I think the license "memory" should live in db.py, alongside the other
-dictionaries of ``checkout -> xxx`` (i.e., location and repository). This
-means the label mangling done at subdomain inclusion time will be handled in a
-tidy manner.
-
-Initially we then want ``builder.set_license(...)`` functions - possible two
-APIs:
-
-1. ``builder.set_license(name, license1, license2, ...)`` which takes a
-   checkout ``name`` (but doesn't cope with domains)
-
-2. ``builder.set_label_licenses(label, [license1, license2, ...])`` which
-   takes a package or checkout license, and sets the values in the
-   checkout-to-license dictionary.
-
-Eventually we may want all the "useful" functions (``make.twolevel``, etc.)
-to support ``license`` (and maybe also ``licenses``???) arguments - but that
-can be after we've proven the technology.
-
-Then we want to add another way of describing a distribution::
-
-  distribute_licenses(builder, name, [license1, license2, ...], binary=True,
-                      source=True, copy_vcs=False)
-
-Note that this doesn't know anything about what the licenses *mean*. It's
-possible we want some checking mechanism that recognises some licenses as open
-and some as closed, and grumbles if we do unlikely or disallowed things.
-
-Naming licenses:
-
-* For the common licenses, define simple strings for them::
-
-      GPL2 = 'gpl2'
-      MPL1 = 'mpl1.1'
-      BSD  = 'BSD'
-
-* For specialised open licenses, prefix them with ``open``::
-
-       open:zlib
-
-* For binary licenses, prefix them with ``binary``::
-
-       binary:customerA
-
-* For secret licenses, perhaps we only need ``secret`` - anything else gives
-  away information!
-
-Second iteration
-----------------
-``License(name, category)``, where ``name`` is the common name for the license,
-and ``category`` is one of ``open``, ``binary`` or ``secret``.
-
-Licenses are static things, they're just a way of naming what we've got.
 
 Next iteration
 --------------
@@ -773,112 +820,5 @@ We have:
      related information it has deduced. This is deliberately verbose, giving
      as much information as possible.
 
-Still to consider
------------------
-If we are distributing a build description, and that build description may
-build "secret" things, how do we not distribute any information about the
-building of said "secret" things?
-
-Well, the simplest way is probably:
-
-a. Move all the code for building the "secret" things into one or more
-   distinct Python scripts (in the build description directory)
-b. Have a mechanism to tell the distribution code that, if non-"secret" things
-   are not being distributed, then empty files (of the same name) should be
-   distributed instead of those files.
-
-So, how do we declare that *in the build description*?
-
-Something like::
-
-  secret_build_files(builder, build_files)
-
-where ``build_files`` is a list of Python files, relative to the build
-description directory. For instance::
-
-  secret_build_files(builder, name, ['secret_app.py', 'subdir/other_app.py'])
-
-I propose that this *must* be done within a build description with respect to
-itself - i.e., a build description cannot affect a subdomain's build
-description (that just gets too complicated).
-
-Questions:
-
-1. Can I think of a better function name(!)
-2. Do we require the ``.py`` at the end of the filename(s)?
-
-This appears to only affect the "_by_license" distribution...
-
-  Implementation is by adding a list of such files to the
-  ``DistributeBuildDescriptionAction`` for the build description, and
-  then making the function that does the work for that do the right thing.
-
-Do we want an equivalent for subdomains as well::
-
-  secret_subdomains(builder, domain_names)
-
-(although I think I'd rather leave that, as we don't have a need for it).
-
-
-
-Question:
----------
-Should the registry of distribution names have a list of license categories
-that it will distribute? So, for instance::
-
-  { '_source_release' : ['gpl', 'open', 'binary', 'secret']
-    '_binary_release' : ['gpl', 'open', 'binary', 'secret'],
-    '_for_gpl': ['gpl'],
-    '_all_open': ['gpl', 'open'],
-    '_by_license': ['gpl', 'open', 'binary'],
-  }
-
-Note that this is things that will be distributed, not *how*, so
-``_binary_release`` distributes anything regardless of license category,
-but doesn't distribute sources.
-
-This allows us to tell which distributions will (for instance) distribute
-"secret" stuff, and to be more intelligent about clashes.
-
-We presumably then also have to police the adding of checkouts to a
-distribution, so that a 'binary' licensed checkout can only be added to a
-distribution that allows it.
-
-THEN we can detect if we're doing a "secret" distribution or not, and thus
-decide what to do about those pesky secret build description files...
-
-And maybe the "add extra files" function should be by name or by license
-category???
-
-Or we could just have a "get" function for existing distribution names, and
-the user can then do::
-
-  for name in get_distributions_for(['gpl', 'open']):
-      distribute_checkout_files(builder, name, co_label, 'Makefile')
-
-in the build description. Yes, I think that works. And similarly::
-
-  for name in get_distributions_not_for(['secret']):
-      set_secret_build_files(builder, name, ['secret_app.py'])
-
-So we name distributions with::
-
-    name_distribution(builder, name, categories=None)
-
-where ``categories`` is a list of license categories, or None to mean all of
-them.
-
-So the final question becomes, do we treat "open" as meaning "including gpl"
-- i.e., does it make sense to do::
-
-    categories=['gpl', 'open']
-
-or is that actually identical to::
-
-    categories=['open']
-
-because it doesn't make sense to try to choose "open" without choosing "gpl"?
-For the moment, let's go with the simplest to implement, and most explicit,
-which fully distinguishes 'gpl' and 'open'.
 
 .. vim: set filetype=rst tabstop=8 softtabstop=2 shiftwidth=2 expandtab:

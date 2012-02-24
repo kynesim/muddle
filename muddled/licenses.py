@@ -305,6 +305,48 @@ def set_license_for_names(builder, co_names, license):
         co_label = Label(LabelType.Checkout, name)
         set_license(builder, co_label, license)
 
+def get_license(builder, co_label, absent_is_None=True):
+    """Get the license for a checkout.
+
+    If 'absent_is_None' is true, then if 'co_label' does not have an entry in
+    the licenses dictionary, None will be returned. Otherwise, an appropriate
+    GiveUp exception will be raised.
+
+    This is a simple wrapper around builder.invocation.db.get_checkout_license.
+    """
+    return builder.invocation.db.get_checkout_license(co_label, absent_is_None)
+
+def set_not_built_against(builder, pkg_label, co_label):
+    """Asserts that this package is not "built against" that checkout.
+
+    We assume that:
+
+    1. 'pkg_label' is a package that depends (perhaps indirectly) on 'co_label'
+    2. 'co_label' is a checkout with a "propagating" license (i.e., some for of
+       GPL license).
+    3. Thus by default the "GPL"ness would propagate from 'co_label' to this
+       package, and thus to the checkouts we are (directly) built from.
+
+    However, this function asserts that, in fact, our checkout is (or our
+    checkouts are) not built in such a way as to cause the license for
+    'co_label' to propagate.
+
+    Or, putting it another way, for a normal GPL license, we're not linking
+    with anything from 'co_label', or using its header files, or copying GPL'ed
+    files from it, and so on.
+
+    If 'co_label' is under LGPL, then that would reduce to saying we're not
+    static linking against 'co_label' (or anything else not allowed by the
+    LGPL).
+
+    Note that we may be called before 'co_label' has registered its license, so
+    we cannot actually check that 'co_label' has a propagating license (or,
+    indeed, that it exists or is depended upon by 'pkg_label').
+
+    This is a simple wrapper around builder.invocation.db.set_not_built_against.
+    """
+    builder.invocation.db.set_not_built_against(pkg_label, co_label)
+
 def get_not_licensed_checkouts(builder):
     """Return the set of all checkouts which do not have a license.
 

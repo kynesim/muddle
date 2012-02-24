@@ -91,6 +91,8 @@ def describe_to(builder):
     role = 'x86'
     deployment = 'everything'
 
+    another_license = LicenseSecret('ignore-this')
+
     add_package(builder, 'apache', 'x86', 'apache')
     add_package(builder, 'bsd',    'x86', 'bsd-new')
     add_package(builder, 'gpl2',   'x86', 'gpl2')

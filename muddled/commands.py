@@ -2074,7 +2074,10 @@ class QueryLicenses(QueryCommand):
     """
     :Syntax: muddle query licenses
 
-    Print the standard licenses we know about
+    Print the standard licenses we know about.
+
+    See "muddle query checkout-licenses" to find out about any licenses
+    defined, and used, in the build description.
     """
 
     def requires_build_tree(self):

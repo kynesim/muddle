@@ -28,12 +28,10 @@ except ImportError:
     sys.path.insert(0, get_parent_file(__file__))
     import muddled.cmdline
 
-from muddled.utils import GiveUp, normalise_dir, LabelType, LabelTag, DirTypeDict
+from muddled.utils import GiveUp, normalise_dir, LabelType, LabelTag
 from muddled.utils import Directory, NewDirectory, TransientDirectory
-from muddled.depend import Label, label_list_to_string
-from muddled.version_stamp import VersionStamp
-
-from muddled.distribute import standard_licenses
+#from muddled.depend import Label, label_list_to_string
+from muddled.licenses import standard_licenses
 
 class OurGiveUp(Exception):
     pass
@@ -77,8 +75,8 @@ from muddled.utils import LabelType, LabelTag
 from muddled.repository import Repository
 from muddled.version_control import checkout_from_repo
 
-from muddled.distribute import distribute_checkout, distribute_package, \
-        set_license, LicenseBinary, LicenseSecret
+from muddled.distribute import distribute_checkout, distribute_package
+from muddled.licenses import set_license, LicenseBinary, LicenseSecret
 
 def add_package(builder, name, role, license=None, co_name=None, deps=None):
     if not co_name:
@@ -164,8 +162,8 @@ import muddled.deployments.filedep
 from muddled.depend import Label
 from muddled.utils import LabelType, LabelTag
 
-from muddled.distribute import distribute_checkout, distribute_package, \
-        set_license, LicenseBinary, LicenseSecret
+from muddled.distribute import distribute_checkout, distribute_package
+from muddled.licenses import set_license, LicenseBinary, LicenseSecret
 
 def add_package(builder, name, role, license=None, co_name=None, deps=None):
     if not co_name:

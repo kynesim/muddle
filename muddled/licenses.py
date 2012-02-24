@@ -302,7 +302,7 @@ def set_license_for_names(builder, co_names, license):
         raise GiveUp('Second argument to set_license_for_names() must be a sequence, not a string')
 
     for name in co_names:
-        co_label = Label(LabelType.Checkout, co_name)
+        co_label = Label(LabelType.Checkout, name)
         set_license(builder, co_label, license)
 
 def get_not_licensed_checkouts(builder):
@@ -466,6 +466,33 @@ def get_binary_checkouts(builder):
         if license and license.is_binary():
             binary_licensed.add(co_label)
     return binary_licensed
+
+def get_secret_checkouts(builder):
+    """Return a set of all the "secret" licensed checkouts.
+    """
+    all_checkouts = builder.invocation.all_checkout_labels()
+    get_checkout_license = builder.invocation.db.get_checkout_license
+    secret_licensed = set()
+    for co_label in all_checkouts:
+        license = get_checkout_license(co_label, absent_is_None=True)
+        if license and license.is_secret():
+            secret_licensed.add(co_label)
+    return secret_licensed
+
+def checkout_license_allowed(builder, co_label, categories):
+    """Does this checkout have a license in the given categories?
+
+    Returns True if the checkout has a license that is in any of the
+    given categories, or if it does not have a license.
+
+    Returns False if it is licensed, but its license is not in any of
+    the given categories.
+    """
+    license = builder.invocation.db.get_checkout_license(co_label, absent_is_None=True)
+    if license is None or license in categories:
+        return True
+    else:
+        return False
 
 def get_license_clashes(builder, implicit_gpl_checkouts):
     """Return clashes between actual license and "implicit GPL" licensing.

@@ -28,7 +28,7 @@ from muddled.version_control import get_vcs_handler, vcs_special_files
 from muddled.mechanics import build_co_and_path_from_str
 from muddled.pkgs.make import MakeBuilder, deduce_makefile_name
 from muddled.licenses import get_gpl_checkouts, get_implicit_gpl_checkouts, \
-        get_open_checkouts, get_binary_checkouts, \
+        get_open_checkouts, get_binary_checkouts, checkout_license_allowed, \
         report_license_clashes, report_license_clashes_in_role, \
         ALL_LICENSE_CATEGORIES
 
@@ -114,11 +114,27 @@ def name_distribution(builder, name, categories=None):
                 raise GiveUp('Unrecognised license category "%s" in name_distribution'%cat)
         the_distributions[name] = tuple(categories)
 
+def assert_checkout_allowed_in_distribution(builder, co_label, name):
+    """Is this checkout allowed in this distribution?
+
+    If 'checkout_license_allowed()' returns False for this checkout label and
+    the license categories of this distribution, then we raise an appropriate
+    exception.
+    """
+    if not checkout_license_allowed(builder, co_label, the_distributions[name]):
+        license = builder.invocation.db.get_checkout_license(co_label, absent_is_None=True)
+        raise GiveUp('Checkout %s is not allowed in distribution "%s"\n'
+                     '(checkout has license %s, distribution allows (%s)'%(co_label,
+                         name, license, ', '.join(the_distributions[name])))
+
 def _distribute_checkout(builder, actual_names, label, copy_vcs=False):
     """The work of saying we should distribute a checkout.
 
     Depends on 'actual_names' being valid distribution names.
     """
+
+    for name in actual_names:
+        assert_checkout_allowed_in_distribution(builder, label, name)
 
     source_label = label.copy_with_tag(LabelTag.CheckedOut)
     target_label = label.copy_with_tag(LabelTag.Distributed, transient=True)
@@ -258,6 +274,9 @@ def distribute_checkout_files(builder, name, label, source_files):
     if not actual_names:
         raise GiveUp('There is no distribution matching "%s"'%name)
 
+    for name in actual_names:
+        assert_checkout_allowed_in_distribution(builder, label, name)
+
     source_label = label.copy_with_tag(LabelTag.CheckedOut)
     target_label = label.copy_with_tag(LabelTag.Distributed, transient=True)
 
@@ -332,6 +351,9 @@ def distribute_build_desc(builder, name, label, copy_vcs=False):
     if name not in the_distributions.keys():
         raise GiveUp('There is no distribution called "%s"'%name)
 
+    # And just in case
+    assert_checkout_allowed_in_distribution(builder, label, name)
+
     source_label = label.copy_with_tag(LabelTag.CheckedOut)
     target_label = label.copy_with_tag(LabelTag.Distributed, transient=True)
 
@@ -390,7 +412,7 @@ def set_secret_build_files(builder, name, secret_files):
       files. They are relative to the build description checkout directory.
       Each named file must actually exist.
     """
-    if DEBUG: print '.. set_secret_build_files(builder, %s)'%(name, secret_files)
+    if DEBUG: print '.. set_secret_build_files(builder, %r, %s)'%(name, secret_files)
 
     actual_names = filter(the_distributions.keys(), name)
     if not actual_names:
@@ -400,6 +422,10 @@ def set_secret_build_files(builder, name, secret_files):
     label = build_desc_label_in_domain(builder, None, LabelTag.Distributed)
     # And thus its directory
     our_dir = builder.invocation.db.get_checkout_path(label)
+
+    # We'd better check
+    for name in actual_names:
+        assert_checkout_allowed_in_distribution(builder, label, name)
 
     for file in secret_files:
         base, ext = os.path.splitext(file)
@@ -455,7 +481,7 @@ def set_secret_build_files(builder, name, secret_files):
     # Sort out the other distribution names
     for name in actual_names[1:]:
         if DEBUG: print '   %s exists: add/override %s'%(action, name)
-        action.update_secret_files(name, secret_files)
+        action.add_secret_files(name, secret_files)
 
 def distribute_package(builder, name, label, obj=False, install=True,
                        with_muddle_makefile=True):
@@ -1213,7 +1239,7 @@ def get_distributions_for(builder, categories):
     for name, does_for in the_distributions.items():
         if categories.issubset(does_for):
             results.append(name)
-    return result
+    return results
 
 def get_distributions_not_for(builder, categories):
     """Return distributions that distribute none of the given 'categories'
@@ -1227,7 +1253,7 @@ def get_distributions_not_for(builder, categories):
     for name, does_for in the_distributions.items():
         if categories.isdisjoint(does_for):
             results.append(name)
-    return result
+    return results
 
 
 def get_used_distribution_names(builder):

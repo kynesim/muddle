@@ -448,11 +448,11 @@ class Database(object):
         indeed, that it exists or is depended upon by 'pkg_label').
         """
         if pkg_label.type != utils.LabelType.Package:
-            raise GiveUp('First label in not_build_against() is %s, which is not'
-                         ' a package'%pkg_label)
+            raise utils.GiveUp('First label in not_build_against() is %s, which is not'
+                               ' a package'%pkg_label)
         if co_label.type != utils.LabelType.Checkout:
-            raise GiveUp('Second label in not_build_against() is %s, which is not'
-                         ' a checkout'%co_label)
+            raise utils.GiveUp('Second label in not_build_against() is %s, which is not'
+                               ' a checkout'%co_label)
 
         if pkg_label.tag == '*':
             key = pkg_label

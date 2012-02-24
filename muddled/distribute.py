@@ -73,7 +73,7 @@ def name_distribution(builder, name, categories=None):
     it is used.
 
     It is not an error to name a distribution more than once, but it won't
-    have any effect, and specifically it won't change the license categories.
+    have any effect, and the categories named must be identical.
 
     It is an error to try to use a distribution before it has been named. This
     includes adding checkouts and packages to distributions. Wildcard
@@ -85,14 +85,33 @@ def name_distribution(builder, name, categories=None):
     starts with an underscore (just remember muddle may take the name later
     without warning).
     """
+    global the_distributions
+
+    if name in the_distributions:   # Check we're not trying to change it
+        if categories:
+            new = set(categories)
+        else:
+            new = set(ALL_LICENSE_CATEGORIES)
+
+        old = set(the_distributions[name])
+
+        if new == old:
+            return
+        else:
+            raise GiveUp('Attempt to name distribution "%s" with categories'
+                         ' (%s) but it already has (%s)'%(name, ', '.join(new),
+                                                          ', '.join(old)))
+
     # Arguably, we should remember distributions on the builder object,
     # but in fact I don't think it makes any difference whatsoever to
     # how we treat them, especially as they are not to be distinct
     # between different domains
-    global the_distributions
-    if categories is None:
+    if not categories:
         the_distributions[name] = ALL_LICENSE_CATEGORIES
     else:
+        for cat in categories:
+            if cat not in ALL_LICENSE_CATEGORIES:
+                raise GiveUp('Unrecognised license category "%s" in name_distribution'%cat)
         the_distributions[name] = tuple(categories)
 
 def _distribute_checkout(builder, actual_names, label, copy_vcs=False):

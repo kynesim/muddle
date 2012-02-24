@@ -1832,9 +1832,9 @@ def build_co_and_path_from_str(str):
     For instance::
 
         >>> build_co_and_path_from_str('builds/01.py')
-        'builds', '01.py'
+        ('builds', '01.py')
         >>> build_co_and_path_from_str('strawberry/jam/toast.py')
-        'strawberry', 'jam/toast.py'
+        ('strawberry', 'jam/toast.py')
     """
     co_name, inner_path = utils.split_path_left(str)
     return co_name, inner_path

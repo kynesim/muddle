@@ -214,16 +214,44 @@ Case 3: Describing a distribution
    done on working out what we want to do and how to do it
 
 It is possible to define a distribution within the muddle build description.
-The following functions are provided::
 
-  from muddled.distribute import distribute_checkout, distribute_package
-  def describe_to(builder):
-      ...
-      distribute_checkout(builder, 'mixed', label('checkout:first_co/*'))
-      distribute_checkout_files(builder, 'mixed', label('checkout:first_co/*'),
-                                ['src/Makefile', 'src/rules.txt'])
-      distribute_package(builder, 'mixed', label('package:second_pkg{x86}/*'))
-      distribute_role(builder, 'role-x86', 'x86')
+Name a distribution
+-------------------
+::
+
+  name_distribution(builder, name)
+
+Before you can use a distribution, it must be "named". Essentially, the name
+of a distribution must be declared before it is used. It is not an error to
+name a distribution more than once.
+
+The standard distributions (those whose names start with an underscore) will
+already have been named before the build description is read.
+
+.. note:: *Before* in this sense means "in time", so if a subdomain is
+   included, and names distribution "Fred", and then the parent domain
+   refers to domain "Fred" after the subdomain inclusion, then that will
+   work. Of course, it will not be very friendly, as the user is unlikely
+   to realise what is going on, so we strongly recommend naming a distribution
+   within each build description using it!
+
+Distribution names and wildcards
+--------------------------------
+The functions that add checkouts, packages and checkout files to distributions
+can all take a shell-style wildcard instead of a specific distribution name.
+They will then add the relevant entity to all distributions with names that
+match that wildcard.
+
+Only distributions that have already been named will be considered in
+"expanding" the wildcard.
+
+Wildcarding is done with ``fnmatchcase`` from the Python ``fnmatch`` module,
+so::
+
+            *       matches everything
+            ?       matches any single character
+            [seq]   matches any character in seq
+            [!seq]  matches any char not in seq
 
 Distribute a checkout
 ---------------------
@@ -232,22 +260,25 @@ Distribute a checkout
   distribute_checkout(builder, name, label, copy_vcs=False)
 
 This is used to say that a particular checkout (identified by ``label``) is to
-be part of the distribution called ``name``. If ``copy_vcs`` is true, then its
-VCS "special" files should be distributed.
+be part of the distribution called ``name``. If ``name`` is wildcarded (see
+`Distribution names and wildcards`_, then the checkout will be added to each
+distribution that matches the wildcard.
+
+If ``copy_vcs`` is true, then the checkouts VCS "special" files should be
+distributed.
 
 Note that:
 
-a. the label name be a wildcard ('*'), in which case all matching
+a. the label name may also be a wildcard ('*'), in which case all matching
    checkouts will be distributed.
-b. the label tag is ignored
+b. the label tag is ignored.
 
 The function creates a rule saying that ``checkout:<name>/distributed`` is
 build from ``checkout:<name>/checked_out`` using the DistributeCheckout action.
 
-A particular checkout may be part of more than one distribution. Adding a
-checkout to the same distribution more than once has no special effect, except
-that it is the last call that sets the value of ``copy_vcs`` that will be
-used.
+Adding a checkout to the same distribution more than once has no special
+effect, except that it is the last call that sets the value of ``copy_vcs``
+that will be used.
 
 .. note:: All checkouts in the build description are implicitly part of
    distribution ``_source_release``. The ``muddle distribute`` command itself
@@ -256,8 +287,8 @@ used.
    explicitly adding a checkout to ``_source_release`` in the build
    description itself, as that will be ignored.
 
-Distribute specific file from a checkout
-----------------------------------------
+Distribute specific files from a checkout
+-----------------------------------------
 ::
 
   distribute_checkout_files(builder, name, label, source_files)
@@ -265,6 +296,9 @@ Distribute specific file from a checkout
 This is used to say that the files in sequence ``source_files``, named
 relative to the source directory of checkout ``label``, should be distributed
 as part of distribution ``name``.
+
+If ``name`` is wildcarded (see `Distribution names and wildcards`_, then the
+files will be added to each distribution that matches the wildcard.
 
 Note that the label name may *not* be wildcarded, but the label tag is
 ignored.
@@ -275,11 +309,6 @@ be distributed.
 
 Multiple calls with the same ``builder, ``name`` and ``label`` will just add
 the specified files to the same distribution.
-
-.. note:: It is proposed (although not yet implemented) that using a ``name``
-   of ``"*"`` would mean that the specified source files should be added to
-   all distributions of this checkout. Whether/how this would interact with
-   the ``with_muddle_makefile`` switch on ``distribute_package`` is not clear.
 
 Calling ``distribute_checkout_files`` after calling ``distribute_checkout``
 for the same distribution and checkout has no effect - the latter call has
@@ -314,14 +343,17 @@ Distribute a package
   distribute_package(builder, name, label, obj=False, install=True,
                      with_muddle_makefile=True)
 
+
 This is used to say that a particular package (identified by ``label``) is to
-be part of the distribution called ``name``.
+be part of the distribution called ``name``. If ``name`` is wildcarded (see
+`Distribution names and wildcards`_, then the package will be added to each
+distribution that matches the wildcard.
 
 Note that:
 
-a. the label name and role may be wildcards ('*'), in which case all matching
-   packages will be distributed.
-b. the label tag is ignored
+a. the label name and role may also be wildcards ('*'), in which case all
+   matching packages will be distributed.
+b. the label tag is ignored.
 
 If ``obj`` is true, then the ``obj/<package-name>/<role>`` directory for
 ``label`` will be distributed.
@@ -347,10 +379,10 @@ The function creates a rule saying that`
 `package:<name>{<role>)/distributed`` is built from
 ``package:<name>{<role>}/postinstalled`` using the DistributePackage action.
 
-A particular package may be part of more than one distribution. Adding a
-package to the same distribution more than once has no special effect, except
-that it is the last call that sets the value of ``obj``, ``install`` and
-``with_muddle_makefile`` that will be used for that distribution.
+Adding a package to the same distribution more than once has no special
+effect, except that it is the last call that sets the value of ``obj``,
+``install`` and ``with_muddle_makefile`` that will be used for that
+distribution.
 
 .. note:: All packages in the build description are implicitly part of
    distribution ``_binary_release``. The ``muddle distribute`` command itself
@@ -362,57 +394,14 @@ that it is the last call that sets the value of ``obj``, ``install`` and
 
 Still to consider
 -----------------
-* How this related to licences.
 * Can the function calls be made more concise.
-* Do we want to be able to assign one checkout/package to several distributions
-  in a single call?
-* Do we want to have a single call to assign several checkouts/packages to the
-  same distribution?
-
-* Should adding checkout files to distribution ``"*"`` actually add them to
-  all distributions? This may be essential for saying "you always need
-  ``src/Makefile`` to be able to build this checkout".
-
-Also:
-
 * what is meant to happen if contradictory rules are made for a checkout,
   one via ``distribute_checkout()`` and another via ``distribute_package(...,
   source=True)``?
 
-And even:
+* Should we worry about attempts to (re)build in a binary distributon?
 
-* Should we set an "am_distribution" file in the toplevel ``.muddle`` of a
-  distribution, much as we put an ``am_subdomain`` file in each subdomain's
-  ``.muddle`` directory?
-* If we do, should a "muddle" command in such a tree be restricted? That is,
-
-  * for source(ish) distributions, should we forbig doing anything that would
-    clear the ``/checked_out`` tags (of course, the user can always do this
-    "by hand"). That is, any "muddle" command that operates on checkouts.
-
-  * for binary(ish) distributions, should this do that and also forbid going
-    to any tag "before" ``/built`` (or possibly even ``/postinstalled``).
-    That is, any muddle command that builds packages.
-
-Problems become:
-
-1. How the ``am_subdomain`` file allows us to know the difference between
-   source(ish) and binary(ish) distributions.
-2. What that difference *is* (it's more-or-less simple for ``_source_release``
-   and ``_binary_release``, but not otherwise!)
-
-Perhaps it should have the labels that were distributed in it, one per line,
-and muddle should honour those in some fashion.
-
-Perhaps we *should* put in place ``/distributed`` tags in the *distributed*
-tree, and those should be honoured.
-
-Or perhaps this is all to complex (too complicated, at least) and we should
-thus not attempt to do anything about it (but I for one can see grumbling
-after accicentally typing "muddle distrebuild" in a binary distribution!)
-
-  Although - what does happen if I do that in a binary distribution?
-  ...goes to try it... It says::
+  ::
 
     $ m3 distrebuild package:main_pkg{x86}
     Building: package:main_pkg{x86}/distclean .. 

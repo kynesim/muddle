@@ -18,7 +18,7 @@ Actions and mechanisms relating to distributing build trees
 # we just try to satisfy both?
 
 import os
-import fnmatch
+from fnmatch import fnmatchcase
 
 from muddled.depend import Action, Rule, Label
 from muddled.utils import GiveUp, MuddleBug, LabelTag, LabelType, \
@@ -39,6 +39,18 @@ the_distributions = set(['_source_release',
                          '_all_open',
                          '_by_license',
                         ])
+
+def filter(names, pattern):
+    """A version of fnmatch.filter that does not do normcase.
+
+    (The version supplied does os.path.normcase on both the pattern
+    and maybe the names. We don't want either.)
+    """
+    result = []
+    for name in names:
+        if fnmatchcase(name, pattern):
+            result.append(name)
+    return result
 
 def name_distribution(builder, name):
     """Assert that a distribution called 'name' exists.
@@ -148,7 +160,7 @@ def distribute_checkout(builder, name, label, copy_vcs=False):
     """
     if DEBUG: print '.. distribute_checkout(builder, %r, %s, %s)'%(name, label, copy_vcs)
 
-    actual_names = fnmatch.filter(the_distributions, name)
+    actual_names = filter(the_distributions, name)
     if not actual_names:
         raise GiveUp('There is no distribution matching "%s"'%name)
 
@@ -207,7 +219,7 @@ def distribute_checkout_files(builder, name, label, source_files):
     if label.type != LabelType.Checkout:
         raise GiveUp('distribute_checout_files() takes a checkout label, not %s'%label)
 
-    actual_names = fnmatch.filter(the_distributions, name)
+    actual_names = filter(the_distributions, name)
     if not actual_names:
         raise GiveUp('There is no distribution matching "%s"'%name)
 
@@ -376,7 +388,7 @@ def distribute_package(builder, name, label, obj=False, install=True,
     if label.type != LabelType.Package:
         raise GiveUp('distribute_package() takes a package label, not %s'%label)
 
-    actual_names = fnmatch.filter(the_distributions, name)
+    actual_names = filter(the_distributions, name)
     if not actual_names:
         raise GiveUp('There is no distribution matching "%s"'%name)
 
@@ -1004,8 +1016,15 @@ class DistributePackage(DistributeAction):
         if install:
             _actually_distribute_install(builder, label, target_dir)
 
-def find_all_distribution_names(builder):
-    """Return a set of all the distribution names.
+def get_distribution_names(builder=None):
+    """Return the known distribution names.
+
+    Note that 'builder' is optional.
+    """
+    return the_distributions
+
+def get_used_distribution_names(builder):
+    """Return a set of all the distribution names that are actually in use
     """
     distribution_names = set()
 

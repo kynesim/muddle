@@ -46,8 +46,9 @@ from muddled.repository import Repository
 from muddled.version_stamp import VersionStamp
 from muddled.licenses import print_standard_licenses, get_gpl_checkouts, \
         get_not_licensed_checkouts, get_implicit_gpl_checkouts, \
-        get_license_clashes, licenses_in_role
-from muddled.distribute import distribute, find_all_distribution_names
+        get_license_clashes, licenses_in_role, get_license_clashes_in_role
+from muddled.distribute import distribute, \
+        get_distribution_names, get_used_distribution_names
 
 # Following Richard's naming conventions...
 # A dictionary of <command name> : <command class>
@@ -1802,12 +1803,20 @@ class QueryDistributions(QueryCommand):
     List the names of the distributions defined by the build description.
     """
 
+    def requires_build_tree(self):
+        return False
+
     def with_build_tree(self, builder, current_dir, args):
-        names = find_all_distribution_names(builder)
-        if names:
-            print 'Distributions defined in the build description are:'
-            print '  %s'%(' '.join(names))
-        print 'Standard distributions are:\n  _source_release, _binary_release'
+        all_names = get_distribution_names()
+        used_names = get_used_distribution_names(builder)
+        print 'Distributions are:'
+        for name in sorted(all_names):
+            print '  %s %s'%('*' if name in used_names else ' ', name)
+        print '(those marked with a "*" have content set by this build)'
+
+    def without_build_tree(self, muddle_binary, root_path, args):
+        names = get_distribution_names()
+        print 'Standard distributions are:\n  %s'%('\n  '.join(sorted(names)))
 
 @subcommand('query', 'vcs', CAT_QUERY)
 class QueryVCS(QueryCommand):
@@ -1925,8 +1934,6 @@ class QueryCheckoutLicenses(QueryCommand):
     in) each role.
     """
 
-    allowed_switches = {'-n':'name', '-name':'name'}
-
     def with_build_tree(self, builder, current_dir, args):
 
         builder.invocation.db.dump_checkout_licenses(just_name=False)
@@ -1993,23 +2000,62 @@ class QueryCheckoutLicenses(QueryCommand):
 @subcommand('query', 'role-licenses', CAT_QUERY)
 class QueryRoleLicenses(QueryCommand):
     """
-    :Syntax: muddle query role-licenses
+    :Syntax: muddle query role-licenses [-no-clashes]
 
     Print the known roles and the licenses used within them
     (i.e., by checkouts used by packages with those roles).
+
+    If -no-clashes is given, then don't report binary/secret license clashes
+    (which might cause problems when doing a "_by_license" distribution).
     """
+
+    allowed_switches = {'-no-clashes': 'no-clashes'}
 
     def with_build_tree(self, builder, current_dir, args):
 
-        print 'Licenses by role:'
+        args = self.remove_switches(args, allowed_more=False)
+
+        report_clashes = not ('no-clashes' in self.switches)
+
         roles = builder.invocation.all_roles()
-        max_role_len = len(max(roles, key=len))
-        indent = ' '*max_role_len
+
+        print 'Licenses by role:'
         for role in sorted(roles):
             print '* %s'%role
             role_licenses = licenses_in_role(builder, role)
             for license in sorted(role_licenses):
                 print '  - %r'%( license)
+
+        if report_clashes:
+            # Hackery
+            def calc_maxlen(keys):
+                maxlen = 0
+                for label in keys:
+                    length = len(str(label))
+                    if length > maxlen:
+                        maxlen = length
+                return maxlen
+
+            clashes = {}
+            for role in roles:
+                binary_items, secret_items = get_license_clashes_in_role(builder, role)
+                if binary_items and secret_items:
+                    # We have a clash in the licensing of the "install/" directory
+                    clashes[role] = (binary_items, secret_items)
+            if clashes:
+                print
+                print 'The following roles have both "binary" and "secret" licenses,'
+                print 'which would cause problems with a "_by_license" distribution:'
+                print
+                for role, (bin, sec) in sorted(clashes.items()):
+                    print '* %s, which is built from:'%role
+                    maxlen1 = calc_maxlen(sec)
+                    maxlen2 = calc_maxlen(bin)
+                    maxlen = max(maxlen1, maxlen2)
+                    for key, item in sorted(bin.items()):
+                        print '  - %-*s %r'%(maxlen, key, item)
+                    for key, item in sorted(sec.items()):
+                        print '  - %-*s %r'%(maxlen, key, item)
 
 @subcommand('query', 'licenses', CAT_QUERY)
 class QueryLicenses(QueryCommand):

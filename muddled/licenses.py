@@ -13,10 +13,6 @@ DEBUG=False
 class License(object):
     """The representation of a source license.
 
-    It seems appropriate to use a class, since I'm not yet sure what we're
-    going to want to remember about a license, but I can see methods in the
-    future...
-
     License instances should be:
 
         1. Singular
@@ -565,20 +561,24 @@ def licenses_in_role(builder, role):
 
     return licenses
 
-def report_license_clashes_in_role(builder, role, just_report_secret=True):
-    """Report license clashes in the install/ directory of 'role'.
+def get_license_clashes_in_role(builder, role):
+    """Find license clashes in the install/ directory of 'role'.
 
-    Basically, this function allows us to be unhappy if there are a mixture of
-    "binary" and "secret" things being put into the same "install/" directory.
+    Returns two dictionaries (binary_items, secret_items)
 
-    If 'just_report_secret' is true, then we will only talk about the
-    secret entities, otherwise we'll report the "binary" licensed packages
-    that end up there as well.
+    'binary_items' is a dictionary of {checkout_label : binary_license}
+
+    'secret_items' is a dictionary of {checkout_label : secret_license}
+
+    If secret_items has content, then there is a licensing clash in the given
+    role, as one cannot do a binary distribution of both "binary" and "secret"
+    licensed content in the same "install" directory.
     """
     binary_items = {}
     secret_items = {}
 
     get_checkout_license = builder.invocation.db.get_checkout_license
+    normalise_checkout_label = builder.invocation.db.normalise_checkout_label
 
     lbl = Label(LabelType.Package, "*", role, "*", domain="*")
     all_rules = builder.invocation.ruleset.rules_for_target(lbl)
@@ -590,9 +590,26 @@ def report_license_clashes_in_role(builder, role, just_report_secret=True):
             license = get_checkout_license(co_label, absent_is_None=True)
             if license:
                 if license.is_binary():
-                    binary_items[co_label] = license
+                    binary_items[normalise_checkout_label(co_label)] = license
                 elif license.is_secret():
-                    secret_items[co_label] = license
+                    secret_items[normalise_checkout_label(co_label)] = license
+
+    return binary_items, secret_items
+
+def report_license_clashes_in_role(builder, role, just_report_secret=True):
+    """Report license clashes in the install/ directory of 'role'.
+
+    Basically, this function allows us to be unhappy if there are a mixture of
+    "binary" and "secret" things being put into the same "install/" directory.
+
+    If 'just_report_secret' is true, then we will only talk about the
+    secret entities, otherwise we'll report the "binary" licensed packages
+    that end up there as well.
+
+    If there was a clash reported, we return True, and otherwise we return
+    False.
+    """
+    binary_items, secret_items = get_license_clashes_in_role(builder, role)
 
     if not binary_items and not secret_items:
         return False

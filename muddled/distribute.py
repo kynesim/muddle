@@ -46,7 +46,7 @@ the_distributions = { '_source_release' : ALL_LICENSE_CATEGORIES,
                     }
 
 
-def filter(names, pattern):
+def _filter(names, pattern):
     """A version of fnmatch.filter that does not do normcase.
 
     (The version supplied does os.path.normcase on both the pattern
@@ -114,7 +114,7 @@ def name_distribution(builder, name, categories=None):
                 raise GiveUp('Unrecognised license category "%s" in name_distribution'%cat)
         the_distributions[name] = tuple(categories)
 
-def assert_checkout_allowed_in_distribution(builder, co_label, name):
+def _assert_checkout_allowed_in_distribution(builder, co_label, name):
     """Is this checkout allowed in this distribution?
 
     If 'checkout_license_allowed()' returns False for this checkout label and
@@ -134,7 +134,7 @@ def _distribute_checkout(builder, actual_names, label, copy_vcs=False):
     """
 
     for name in actual_names:
-        assert_checkout_allowed_in_distribution(builder, label, name)
+        _assert_checkout_allowed_in_distribution(builder, label, name)
 
     source_label = label.copy_with_tag(LabelTag.CheckedOut)
     target_label = label.copy_with_tag(LabelTag.Distributed, transient=True)
@@ -211,7 +211,7 @@ def distribute_checkout(builder, name, label, copy_vcs=False):
     """
     if DEBUG: print '.. distribute_checkout(builder, %r, %s, %s)'%(name, label, copy_vcs)
 
-    actual_names = filter(the_distributions.keys(), name)
+    actual_names = _filter(the_distributions.keys(), name)
     if not actual_names:
         raise GiveUp('There is no distribution matching "%s"'%name)
 
@@ -270,12 +270,12 @@ def distribute_checkout_files(builder, name, label, source_files):
     if label.type != LabelType.Checkout:
         raise GiveUp('distribute_checout_files() takes a checkout label, not %s'%label)
 
-    actual_names = filter(the_distributions.keys(), name)
+    actual_names = _filter(the_distributions.keys(), name)
     if not actual_names:
         raise GiveUp('There is no distribution matching "%s"'%name)
 
     for name in actual_names:
-        assert_checkout_allowed_in_distribution(builder, label, name)
+        _assert_checkout_allowed_in_distribution(builder, label, name)
 
     source_label = label.copy_with_tag(LabelTag.CheckedOut)
     target_label = label.copy_with_tag(LabelTag.Distributed, transient=True)
@@ -352,7 +352,7 @@ def distribute_build_desc(builder, name, label, copy_vcs=False):
         raise GiveUp('There is no distribution called "%s"'%name)
 
     # And just in case
-    assert_checkout_allowed_in_distribution(builder, label, name)
+    _assert_checkout_allowed_in_distribution(builder, label, name)
 
     source_label = label.copy_with_tag(LabelTag.CheckedOut)
     target_label = label.copy_with_tag(LabelTag.Distributed, transient=True)
@@ -414,18 +414,18 @@ def set_secret_build_files(builder, name, secret_files):
     """
     if DEBUG: print '.. set_secret_build_files(builder, %r, %s)'%(name, secret_files)
 
-    actual_names = filter(the_distributions.keys(), name)
+    actual_names = _filter(the_distributions.keys(), name)
     if not actual_names:
         raise GiveUp('There is no distribution matching "%s"'%name)
 
     # Work out the label for this build description
-    label = build_desc_label_in_domain(builder, None, LabelTag.Distributed)
+    label = _build_desc_label_in_domain(builder, None, LabelTag.Distributed)
     # And thus its directory
     our_dir = builder.invocation.db.get_checkout_path(label)
 
     # We'd better check
     for name in actual_names:
-        assert_checkout_allowed_in_distribution(builder, label, name)
+        _assert_checkout_allowed_in_distribution(builder, label, name)
 
     for file in secret_files:
         base, ext = os.path.splitext(file)
@@ -536,7 +536,7 @@ def distribute_package(builder, name, label, obj=False, install=True,
     if label.type != LabelType.Package:
         raise GiveUp('distribute_package() takes a package label, not %s'%label)
 
-    actual_names = filter(the_distributions.keys(), name)
+    actual_names = _filter(the_distributions.keys(), name)
     if not actual_names:
         raise GiveUp('There is no distribution matching "%s"'%name)
 
@@ -1280,14 +1280,14 @@ def get_used_distribution_names(builder):
 
     return distribution_names
 
-def domain_from_parts(parts):
+def _domain_from_parts(parts):
     """Construct a domain name from a list of parts.
     """
     num_parts = len(parts)
     domain = '('.join(parts) + ')'*(num_parts-1)
     return domain
 
-def build_desc_label_in_domain(builder, domain, label_tag):
+def _build_desc_label_in_domain(builder, domain, label_tag):
     """Return the label for the build description checkout in this domain.
     """
     # Basically, we need to figure out what checkout to use...
@@ -1303,7 +1303,7 @@ def build_desc_label_in_domain(builder, domain, label_tag):
         build_co_name, build_desc_path = build_co_and_path_from_str(str.strip())
     return Label(LabelType.Checkout, build_co_name, tag=label_tag, domain=domain)
 
-def add_build_descriptions(builder, name, domains, copy_vcs=False):
+def _add_build_descriptions(builder, name, domains, copy_vcs=False):
     """Add all the implicated build description checkouts to our distribution.
     """
     # We need a build description for each domain we had a label for
@@ -1319,12 +1319,12 @@ def add_build_descriptions(builder, name, domains, copy_vcs=False):
         else:
             parts = Label.split_domain(domain)
             for ii in range(1, 1+len(parts)):
-                d = domain_from_parts(parts[:ii])
+                d = _domain_from_parts(parts[:ii])
                 cumulative_domains.add(d)
 
     if DEBUG: print 'Adding build descriptions'
     for domain in sorted(cumulative_domains):
-        co_label = build_desc_label_in_domain(builder, domain, LabelTag.Distributed)
+        co_label = _build_desc_label_in_domain(builder, domain, LabelTag.Distributed)
         if DEBUG: print '-- Build description', co_label
         distribute_build_desc(builder, name, co_label, copy_vcs)
         extra_labels.append(co_label)
@@ -1332,7 +1332,7 @@ def add_build_descriptions(builder, name, domains, copy_vcs=False):
 
     return extra_labels
 
-def copy_muddle_skeleton(builder, name, target_dir, domains):
+def _copy_muddle_skeleton(builder, name, target_dir, domains):
     """Copy the "top files" for each necessary .muddle directory
     """
 
@@ -1364,7 +1364,7 @@ def copy_muddle_skeleton(builder, name, target_dir, domains):
 
     if DEBUG: print 'Done'
 
-def copy_versions_dir(builder, name, target_dir, copy_vcs=False):
+def _copy_versions_dir(builder, name, target_dir, copy_vcs=False):
     """Copy the stamp versions directory
     """
 
@@ -1619,7 +1619,7 @@ def distribute(builder, name, target_dir, with_versions_dir=False,
     # We need to do this after everyone else has had a chance to set rules
     # on /distribute labels, so we can override any DistributeCheckout actions
     # that were mistakenly placed on our build descriptions...
-    extra_labels = add_build_descriptions(builder, name, domains, with_vcs)
+    extra_labels = _add_build_descriptions(builder, name, domains, with_vcs)
 
     # Don't forget that means more labels for us
     distribution_labels.update(extra_labels)
@@ -1647,11 +1647,11 @@ def distribute(builder, name, target_dir, with_versions_dir=False,
     builder.set_distribution(name, target_dir)
 
     # Copy over the skeleton of the required .muddle directories
-    copy_muddle_skeleton(builder, name, target_dir, domains)
+    _copy_muddle_skeleton(builder, name, target_dir, domains)
 
     if with_versions_dir:
         # Copy over the versions directory, if any
-        copy_versions_dir(builder, name, target_dir, with_vcs)
+        _copy_versions_dir(builder, name, target_dir, with_vcs)
 
     print 'Building %d /distribute label%s'%(num_labels,
             '' if num_labels==1 else 's')

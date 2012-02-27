@@ -59,7 +59,7 @@ def _filter(names, pattern):
     return result
 
 def name_distribution(builder, name, categories=None):
-    """Assert that a distribution called 'name' exists.
+    """Declare that a distribution called 'name' exists.
 
     Also specify which license categories are distributed.
 
@@ -113,6 +113,66 @@ def name_distribution(builder, name, categories=None):
             if cat not in ALL_LICENSE_CATEGORIES:
                 raise GiveUp('Unrecognised license category "%s" in name_distribution'%cat)
         the_distributions[name] = tuple(categories)
+
+def get_distribution_names(builder=None):
+    """Return the known distribution names.
+
+    Note that 'builder' is optional.
+    """
+    return the_distributions.keys()
+
+def get_distributions_for(builder, categories):
+    """Return distributions that distribute all the given 'categories'
+
+    That is, for each distribution, look and see if the license categories
+    it distributes for include all the values in 'categories', and if it does,
+    add its name to the result.
+    """
+    results = []
+    categories = set(categories)
+    for name, does_for in the_distributions.items():
+        if categories.issubset(does_for):
+            results.append(name)
+    return results
+
+def get_distributions_not_for(builder, categories):
+    """Return distributions that distribute none of the given 'categories'
+
+    That is, for each distribution, look and see if the license categories
+    it distributes for include any of the values in 'categories', and if it
+    does not, add its name to the result.
+    """
+    results = []
+    categories = set(categories)
+    for name, does_for in the_distributions.items():
+        if categories.isdisjoint(does_for):
+            results.append(name)
+    return results
+
+
+def get_used_distribution_names(builder):
+    """Return a set of all the distribution names that are actually in use
+    """
+    distribution_names = set()
+
+    invocation = builder.invocation
+    target_label_exists = invocation.target_label_exists
+
+    # We get all the "reasonable" checkout and package labels
+    all_checkouts = builder.invocation.all_checkout_labels(LabelTag.CheckedOut)
+    all_packages = builder.invocation.all_package_labels()
+
+    combined_labels = all_checkouts.union(all_packages)
+    for label in combined_labels:
+        target = label.copy_with_tag(LabelTag.Distributed)
+        # Is there a distribution target for this label?
+        if target_label_exists(target):
+            # If so, what names does it know?
+            rule = invocation.ruleset.map[target]
+            names = rule.action.distribution_names()
+            distribution_names.update(names)
+
+    return distribution_names
 
 def _assert_checkout_allowed_in_distribution(builder, co_label, name):
     """Is this checkout allowed in this distribution?
@@ -1219,66 +1279,6 @@ class DistributePackage(DistributeAction):
 
         if install:
             _actually_distribute_install(builder, label, target_dir)
-
-def get_distribution_names(builder=None):
-    """Return the known distribution names.
-
-    Note that 'builder' is optional.
-    """
-    return the_distributions.keys()
-
-def get_distributions_for(builder, categories):
-    """Return distributions that distribute all the given 'categories'
-
-    That is, for each distribution, look and see if the license categories
-    it distributes for include all the values in 'categories', and if it does,
-    add its name to the result.
-    """
-    results = []
-    categories = set(categories)
-    for name, does_for in the_distributions.items():
-        if categories.issubset(does_for):
-            results.append(name)
-    return results
-
-def get_distributions_not_for(builder, categories):
-    """Return distributions that distribute none of the given 'categories'
-
-    That is, for each distribution, look and see if the license categories
-    it distributes for include any of the values in 'categories', and if it
-    does not, add its name to the result.
-    """
-    results = []
-    categories = set(categories)
-    for name, does_for in the_distributions.items():
-        if categories.isdisjoint(does_for):
-            results.append(name)
-    return results
-
-
-def get_used_distribution_names(builder):
-    """Return a set of all the distribution names that are actually in use
-    """
-    distribution_names = set()
-
-    invocation = builder.invocation
-    target_label_exists = invocation.target_label_exists
-
-    # We get all the "reasonable" checkout and package labels
-    all_checkouts = builder.invocation.all_checkout_labels(LabelTag.CheckedOut)
-    all_packages = builder.invocation.all_package_labels()
-
-    combined_labels = all_checkouts.union(all_packages)
-    for label in combined_labels:
-        target = label.copy_with_tag(LabelTag.Distributed)
-        # Is there a distribution target for this label?
-        if target_label_exists(target):
-            # If so, what names does it know?
-            rule = invocation.ruleset.map[target]
-            names = rule.action.distribution_names()
-            distribution_names.update(names)
-
-    return distribution_names
 
 def _domain_from_parts(parts):
     """Construct a domain name from a list of parts.

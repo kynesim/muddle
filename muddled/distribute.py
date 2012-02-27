@@ -63,6 +63,9 @@ def name_distribution(builder, name, categories=None):
 
     Also specify which license categories are distributed.
 
+    'builder' is ignored at the moment, but should be the build tree "builder"
+    if available.
+
     If 'categories' is None, then all license categories are distributed.
 
     Otherwise 'categories' must be a sequence of category names, taken
@@ -127,6 +130,20 @@ def get_distributions_for(builder, categories):
     That is, for each distribution, look and see if the license categories
     it distributes for include all the values in 'categories', and if it does,
     add its name to the result.
+
+    For instance, we know we should always have at least two distributions
+    that work for category 'binary':
+
+        >>> dists = get_distributions_for(None, ['binary'])
+        >>> '_by_license' in dists
+        True
+        >>> '_binary_release' in dists
+        True
+        >>> '_just_gpl' in dists
+        False
+
+    'builder' is ignored at the moment, but should be the build tree "builder"
+    if available.
     """
     results = []
     categories = set(categories)
@@ -141,6 +158,24 @@ def get_distributions_not_for(builder, categories):
     That is, for each distribution, look and see if the license categories
     it distributes for include any of the values in 'categories', and if it
     does not, add its name to the result.
+
+    For instance, we know that we have at least one distribution that is not
+    for 'open' and 'secure':
+
+        >>> dists = get_distributions_not_for(None, ['open', 'secure'])
+        >>> '_just_gpl' in dists
+        True
+        >>> '_source_release' in dists
+        False
+
+    Asking for distributions that don't do anything should hopefully return
+    an empty list:
+
+        >>> get_distributions_not_for(None, ALL_LICENSE_CATEGORIES)
+        []
+
+    'builder' is ignored at the moment, but should be the build tree "builder"
+    if available.
     """
     results = []
     categories = set(categories)
@@ -152,6 +187,9 @@ def get_distributions_not_for(builder, categories):
 
 def get_used_distribution_names(builder):
     """Return a set of all the distribution names that are actually in use
+
+    "in use" is taken to mean that some rule in the dependency tree has an
+    action that is defined for that particular distribution name.
     """
     distribution_names = set()
 

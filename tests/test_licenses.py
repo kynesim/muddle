@@ -210,7 +210,7 @@ def describe_to(builder):
     add_package(builder, 'linux', 'x86', 'gpl2-except')
     add_package(builder, 'busybox', 'x86', 'gpl2')
 
-    add_package(builder, 'binary1', 'x86', LicenseBinary('Customer'))
+    add_package(builder, 'binary1', 'x86', LicenseBinary('Customer'), deps=['zlib'])
     add_package(builder, 'binary2', 'x86', LicenseBinary('Customer'))
     add_package(builder, 'binary3', 'x86', LicenseBinary('Customer'))
     add_package(builder, 'binary4', 'x86', LicenseBinary('Customer'))
@@ -259,11 +259,22 @@ def describe_to(builder):
     for co_label in get_open_not_gpl_checkouts(builder):
         distribute_checkout(builder, 'just_open', co_label)
 
-    name_distribution(builder, 'binary_and_secret', ['binary', 'secret'])
+    name_distribution(builder, 'binary_and_secret_source', ['binary', 'secret'])
     for co_label in get_binary_checkouts(builder):
-        distribute_checkout(builder, 'binary_and_secret', co_label)
+        distribute_checkout(builder, 'binary_and_secret_source', co_label)
     for co_label in get_secret_checkouts(builder):
-        distribute_checkout(builder, 'binary_and_secret', co_label)
+        distribute_checkout(builder, 'binary_and_secret_source', co_label)
+
+    name_distribution(builder, 'binary_and_secret_install', ['binary', 'secret'])
+    for co_label in get_binary_checkouts(builder):
+        # Get the package(s) directly using this checkout
+        pkg_labels = builder.invocation.packages_using_checkout(co_label)
+        for label in pkg_labels:
+            distribute_package(builder, 'binary_and_secret_install', label)
+    for co_label in get_secret_checkouts(builder):
+        pkg_labels = builder.invocation.packages_using_checkout(co_label)
+        for label in pkg_labels:
+            distribute_package(builder, 'binary_and_secret_install', label)
 """
 
 SECRET_BUILD_FILE = """\
@@ -710,6 +721,52 @@ def main(args):
                                            '.muddle/tags/package',
                                            '.muddle/tags/deployment',
                                           ])
+
+            banner('TESTING DISTRIBUTE JUST GPL')
+            target_dir = os.path.join(root_dir, 'just_gpl')
+            muddle(['distribute', '_just_gpl', target_dir])
+            dt = DirTree(d.where, fold_dirs=['.git'])
+            dt.assert_same(target_dir, onedown=True,
+                           unwanted_files=['.git*',
+                                           'src/builds*/*.pyc',
+                                           # Some 'open' things, by propagation, but not:
+                                           'src/apache',
+                                           'src/bsd',
+                                           'src/mpl',
+                                           'src/zlib',
+                                           # No binary things, because they're GPL
+                                           'src/binary*',
+                                           # No secret things, they're very not GPL
+                                           'src/secret*',
+                                           # No not licensed things, because they're not GPL,
+                                           # except for 1, by propagation
+                                           'src/not_licensed[2345]',
+                                           'obj',
+                                           'install',
+                                           'deploy',
+                                           'versions',
+                                           '.muddle/instructions',
+                                           '.muddle/tags/package',
+                                           '.muddle/tags/deployment',
+                                           '.muddle/tags/checkout/apache',
+                                           '.muddle/tags/checkout/bsd',
+                                           '.muddle/tags/checkout/mpl',
+                                           '.muddle/tags/checkout/zlib',
+                                           '.muddle/tags/checkout/binary*',
+                                           '.muddle/tags/checkout/not_licensed[2345]',
+                                           '.muddle/tags/checkout/secret*',
+                                           # Nothing in the subdomains is GPL
+                                           'domains',
+                                          ])
+
+            # Then test:
+            #
+            # - _just_gpl
+            # - _open
+            # - _by_license
+            # - just_open
+            # - binary_and_secret_source
+            # - binary_and_secret_install
 
 if __name__ == '__main__':
     args = sys.argv[1:]

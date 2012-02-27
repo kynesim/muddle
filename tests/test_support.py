@@ -174,6 +174,15 @@ def append(filename, content, verbose=True):
     with open(filename, 'a') as fd:
         fd.write(content)
 
+def same_content(filename, content=None, verbose=True):
+    """Read a file, and check its content matches
+    """
+    if verbose:
+        print '++ same_content %s'%filename
+    with open(filename) as fd:
+        this_content = fd.read()
+    return this_content == content
+
 def check_files(paths, verbose=True):
     """Given a list of paths, check they all exist.
     """

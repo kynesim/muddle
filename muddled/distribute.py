@@ -48,9 +48,12 @@ DEBUG=False
 # from. Note that distributing something from 'gpl' or 'open' doesn't mean
 # the same thing as "distributing sources", as is evidenced by
 # '_binary_release'.
+#
+# The '_just_gpl' distribution distributes 'gpl' entities, but it may also
+# distribute 'open' entities by license propagation. So we have to say that.
 the_distributions = { '_source_release' : ALL_LICENSE_CATEGORIES,
                       '_binary_release' : ALL_LICENSE_CATEGORIES,
-                      '_just_gpl':   ('gpl', ),
+                      '_just_gpl':   ('gpl', 'open' ),
                       '_all_open':   ('gpl', 'open'),
                       '_by_license': ('gpl', 'open', 'binary'),
                     }
@@ -238,8 +241,8 @@ def _assert_checkout_allowed_in_distribution(builder, co_label, name):
     if not checkout_license_allowed(builder, co_label, the_distributions[name]):
         license = builder.invocation.db.get_checkout_license(co_label, absent_is_None=True)
         raise GiveUp('Checkout %s is not allowed in distribution "%s"\n'
-                     '(checkout has license %s, distribution allows (%s)'%(co_label,
-                         name, license, ', '.join(the_distributions[name])))
+                     '(checkout has license %s, which is "%s", distribution allows (%s)'%(co_label,
+                         name, license, license.category, ', '.join(the_distributions[name])))
 
 def _distribute_checkout(builder, actual_names, label, copy_vcs=False):
     """The work of saying we should distribute a checkout.

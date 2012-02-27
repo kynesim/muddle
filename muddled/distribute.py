@@ -886,6 +886,7 @@ def _actually_distribute_build_desc(builder, label, target_dir, copy_vcs, secret
                 os.makedirs(tgt_dir)
 
             if src_path in secret_files:
+                print 'REPLACING SECRET FILE', src_path
                 with open(tgt_path, 'w') as fd:
                     fd.write("def describe_secret(builder, *args, **kwargs):\n    pass\n")
             else:

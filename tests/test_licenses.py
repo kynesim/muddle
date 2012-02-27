@@ -259,6 +259,11 @@ def describe_to(builder):
     for co_label in get_open_not_gpl_checkouts(builder):
         distribute_checkout(builder, 'just_open', co_label)
 
+    # And we mustn't forget to add this new distribution to our
+    # "don't propagate secret.py" as well, since it hadn't been
+    # declared yet when we did this earlier...
+    set_secret_build_files(builder, 'just_open', ['secret.py'])
+
     name_distribution(builder, 'binary_and_secret_source', ['binary', 'secret'])
     for co_label in get_binary_checkouts(builder):
         distribute_checkout(builder, 'binary_and_secret_source', co_label)
@@ -758,6 +763,9 @@ def main(args):
                                            # Nothing in the subdomains is GPL
                                            'domains',
                                           ])
+            # Check the "secret" build description file has been replaced
+            assert not same_content(d.join(target_dir, 'src', 'builds_multilicense', 'secret.py'),
+                                SECRET_BUILD_FILE)
 
             # Then test:
             #

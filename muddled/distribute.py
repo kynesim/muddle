@@ -75,8 +75,14 @@ def name_distribution(builder, name, categories=None):
     distribute") already exist, but otherwise must name a distribution before
     it is used.
 
-    It is not an error to name a distribution more than once, but it won't
-    have any effect, and the categories named must be identical.
+    It is not an error to name a distribution more than once (although it won't
+    have any effect), but the categories named must be identical.
+
+        >>> name_distribution(None, '_just_gpl', ['gpl'])  # same categories
+        >>> name_distribution(None, '_just_gpl', ['open']) # different categories
+        Traceback (most recent call last):
+        ...
+        GiveUp: Attempt to name distribution "_just_gpl" with categories (open) but it already has (gpl)
 
     It is an error to try to use a distribution before it has been named. This
     includes adding checkouts and packages to distributions. Wildcard
@@ -495,7 +501,7 @@ def set_secret_build_files(builder, name, secret_files):
     """Set some secret build files for the (current) build description.
 
     These are files within the build description directory that will replaced
-    by empty files when doing the distribution.
+    by dummy files when doing the distribution.
 
     - 'name' is the name of the distribution we're adding this checkout to,
       or a "shell pattern" matching existing (already named) distributions.
@@ -506,9 +512,17 @@ def set_secret_build_files(builder, name, secret_files):
             [seq]   matches any character in seq
             [!seq]  matches any char not in seq
 
-    - 'secret_files' is the list of the files that must be distributed as empty
+    - 'secret_files' is the list of the files that must be distributed as dummy
       files. They are relative to the build description checkout directory.
-      Each named file must actually exist.
+
+    The "original" secret files must exist and must work by providing a
+    function with signature::
+
+          def describe_secret(builder, *args, **kwargs):
+              ...
+
+    The dummy files will also containg such a function, but its body will be
+    ``pass`.
     """
     if DEBUG: print '.. set_secret_build_files(builder, %r, %s)'%(name, secret_files)
 
@@ -551,7 +565,10 @@ def set_secret_build_files(builder, name, secret_files):
         if isinstance(action, DistributeBuildDescription):
             if DEBUG: print '   exists as DistributeBuildDescrption: add/override'
             # It's the right sort of thing - just add these secret files
-            action.add_secret_files(name, secret_files)
+            if action.does_distribution(name):
+                action.add_secret_files(name, secret_files)
+            else:
+                action.update_distribution(name, False, secret_files)
         elif isinstance(action, DistributeCheckout):
             if DEBUG: print '   exists as DistributeCheckout: replace'
             # Ah, it's a generic checkout action - let's replace it with
@@ -847,14 +864,16 @@ def _actually_distribute_build_desc(builder, label, target_dir, copy_vcs, secret
                 continue
             src_path = os.path.join(dirpath, name)
 
-            if src_path in secret_files:            # XXX Needs testing!
-                continue
-
             tgt_dir = os.path.join(target_dir, dirpath)
             tgt_path = os.path.join(tgt_dir, name)
             if not os.path.exists(tgt_dir):
                 os.makedirs(tgt_dir)
-            copy_file(src_path, tgt_path, preserve=True)
+
+            if src_path in secret_files:
+                with open(tgt_path, 'w') as fd:
+                    fd.write("def describe_secret(builder, *args, **kwargs):\n    pass\n")
+            else:
+                copy_file(src_path, tgt_path, preserve=True)
 
         # Ignore VCS directories, if we were asked to do so
         directories_to_ignore = files_to_ignore.intersection(dirnames)

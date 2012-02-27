@@ -58,8 +58,10 @@ distclean:
 .PHONY: all config install clean distclean
 """
 
-MULTILICENSE_BUILD_DESC = """ \
+MULTILICENSE_BUILD_DESC_WITH_CLASHES = """ \
 # A build description with all sorts of licenses, and even a subdomain
+# The install/ directory gets secret and non-secret stuff installed to
+# role x86, i.e., we have clashes
 
 import os
 
@@ -149,6 +151,170 @@ def describe_to(builder):
     # The 'arm' role is *not* a default role
     builder.invocation.add_default_role(role)
     builder.by_default_deploy(deployment)
+"""
+
+MULTILICENSE_BUILD_DESC = """ \
+# A build description with all sorts of licenses, and even a subdomain
+# "Secret" stuff is segregated to a different role, and is described in
+# a different file
+
+import os
+
+import muddled
+import muddled.pkgs.make
+import muddled.deployments.cpio
+import muddled.checkouts.simple
+import muddled.deployments.collect as collect
+
+from muddled.mechanics import include_domain
+from muddled.depend import Label
+from muddled.utils import LabelType, LabelTag
+from muddled.repository import Repository
+from muddled.version_control import checkout_from_repo
+
+from muddled.distribute import distribute_checkout, distribute_package, \
+        get_distributions_not_for, set_secret_build_files
+from muddled.licenses import set_license, LicenseBinary, LicenseSecret
+
+# Our secret information
+from secret import describe_secret
+
+def add_package(builder, name, role, license=None, co_name=None, deps=None):
+    if not co_name:
+        co_name = name
+    muddled.pkgs.make.medium(builder, name, [role], co_name, deps=deps)
+
+    if license:
+        co_label = Label(LabelType.Checkout, co_name)
+        set_license(builder, co_label, license)
+
+def describe_to(builder):
+    role = 'x86'
+    deployment = 'everything'
+
+    another_license = LicenseSecret('ignore-this')
+
+    add_package(builder, 'apache', 'x86', 'apache')
+    add_package(builder, 'bsd',    'x86', 'bsd-new')
+    add_package(builder, 'gpl2',   'x86', 'gpl2')
+    add_package(builder, 'gpl2plus', 'x86', 'gpl2plus')
+    add_package(builder, 'gpl3',  'x86', 'gpl3')
+    add_package(builder, 'lgpl',  'x86', 'lgpl')
+    add_package(builder, 'mpl',   'x86', 'mpl')
+    add_package(builder, 'ukogl', 'x86', 'ukogl', deps=['lgpl'])
+    add_package(builder, 'zlib',  'x86', 'zlib')
+
+    add_package(builder, 'gnulibc', 'x86', 'lgpl-except')
+    add_package(builder, 'linux', 'x86', 'gpl2-except')
+    add_package(builder, 'busybox', 'x86', 'gpl2')
+
+    add_package(builder, 'binary1', 'x86', LicenseBinary('Customer'))
+    add_package(builder, 'binary2', 'x86', LicenseBinary('Customer'))
+    add_package(builder, 'binary3', 'x86', LicenseBinary('Customer'))
+    add_package(builder, 'binary4', 'x86', LicenseBinary('Customer'))
+    add_package(builder, 'binary5', 'x86', LicenseBinary('Customer'))
+
+    add_package(builder, 'not_licensed1', 'x86', deps=['gpl2', 'gpl3'])
+    add_package(builder, 'not_licensed2', 'x86')
+    add_package(builder, 'not_licensed3', 'x86')
+    add_package(builder, 'not_licensed4', 'x86')
+    add_package(builder, 'not_licensed5', 'x86')
+
+    collect.deploy(builder, deployment)
+    collect.copy_from_role_install(builder, deployment,
+                                   role = role,
+                                   rel = "", dest = "",
+                                   domain = None)
+
+    # We also have some secret stuff, described elsewhere
+    describe_secret(builder, deployment=deployment)
+
+    # So that "elsewhere" is secret - i.e., secret.py
+    # and we should never distribute it in non-secret distributions
+    for name in get_distributions_not_for(builder, ['secret']):
+        set_secret_build_files(builder, name, ['secret.py'])
+
+    # We have a subdomain.
+    include_domain(builder,
+                   domain_name = "subdomain",
+                   domain_repo = "git+file://{repo}/subdomain",
+                   domain_desc = "builds/01.py")
+
+    collect.copy_from_deployment(builder, deployment,
+                                 dep_name=deployment,   # always the same
+                                 rel='',
+                                 dest='sub',
+                                 domain='subdomain')
+
+    # The 'arm' role is *not* a default role
+    builder.invocation.add_default_role(role)
+    builder.by_default_deploy(deployment)
+"""
+
+SECRET_BUILD_FILE = """\
+# The part of a build dealing with "secret" licensed stuff
+
+import muddled.deployments.collect as collect
+import muddled.pkg as pkg
+import muddled.pkgs.make as make
+
+from muddled import pkgs
+from muddled.depend import Label
+from muddled.utils import LabelType, LabelTag
+from muddled.licenses import LicenseSecret, set_license, set_not_built_against
+
+# Really, this should be in another Python file, since we're using it from
+# two places. But for the moment this wil do.
+def add_package(builder, name, role, license=None, co_name=None, dep_tuples=None):
+    if not co_name:
+        co_name = name
+    make.medium(builder, name, [role], co_name)
+
+    if dep_tuples:
+        for other_name, other_role in dep_tuples:
+            pkg.do_depend(builder, name, [role], [( other_name , other_role )])
+
+    if license:
+        co_label = Label(LabelType.Checkout, co_name)
+        set_license(builder, co_label, license)
+
+def describe_secret(builder, *args, **kwargs):
+    # Secret packages
+
+    deployment = kwargs['deployment']
+
+    add_package(builder, 'secret1', 'x86-secret', LicenseSecret('Shh'),
+                dep_tuples=[('gnulibc', 'x86')])
+    add_package(builder, 'secret2', 'x86-secret', LicenseSecret('Shh'),
+                dep_tuples=[('gnulibc', 'x86'),
+                            ('gpl2plus', 'x86')])
+    add_package(builder, 'secret3', 'x86-secret', LicenseSecret('Shh'),
+                dep_tuples=[('secret2', 'x86-secret')])
+    add_package(builder, 'secret4', 'x86-secret', LicenseSecret('Shh'),
+                dep_tuples=[('secret2', 'x86-secret'),
+                            ('gpl2', 'x86')])
+    add_package(builder, 'secret5', 'x86-secret', LicenseSecret('Shh'))
+
+    # The following need to be true if we are not to be required to distribute
+    # under GPL propagation rules
+    set_not_built_against(builder,
+                          Label(LabelType.Package, 'secret2', 'x86-secret'),
+                          Label(LabelType.Checkout, 'gpl2plus'))
+    set_not_built_against(builder,
+                          Label(LabelType.Package, 'secret3', 'x86-secret'),
+                          Label(LabelType.Checkout, 'gpl2plus'))
+    set_not_built_against(builder,
+                          Label(LabelType.Package, 'secret4', 'x86-secret'),
+                          Label(LabelType.Checkout, 'gpl2plus'))
+    set_not_built_against(builder,
+                          Label(LabelType.Package, 'secret4', 'x86-secret'),
+                          Label(LabelType.Checkout, 'gpl2'))
+
+    collect.deploy(builder, deployment)
+    collect.copy_from_role_install(builder, deployment,
+                                   role = 'x86-secret',
+                                   rel = "", dest = "",
+                                   domain = None)
 """
 
 SUBDOMAIN_BUILD_DESC = """ \
@@ -250,8 +416,14 @@ def make_repos(root_dir):
     repo = os.path.join(root_dir, 'repo')
     with NewDirectory('repo'):
         with NewDirectory('main'):
+            with NewDirectory('builds_multilicense_with_clashes') as d:
+                make_build_desc(d.where, MULTILICENSE_BUILD_DESC_WITH_CLASHES.format(repo=repo))
+
             with NewDirectory('builds_multilicense') as d:
                 make_build_desc(d.where, MULTILICENSE_BUILD_DESC.format(repo=repo))
+                touch('secret.py', SECRET_BUILD_FILE)
+                git('add secret.py')
+                git('commit -m "Secret build desc"')
 
             new_repo('apache')
             new_repo('bsd')
@@ -304,10 +476,10 @@ def check_text(actual, wanted):
     if diffs:
         raise OurGiveUp('Text did not match')
 
-def actual_tests(root_dir, d):
+def check_checkout_licenses_with_clashes(root_dir, d):
     """Perform the actual tests.
     """
-    banner('STUFF')
+    banner('REPORT WITH CLASHES')
     text = captured_muddle(['query', 'checkout-licenses'])
     check_text(text, """\
 Checkout licenses are:
@@ -339,7 +511,84 @@ Checkout licenses are:
 
 The following checkouts do not have a license:
 
-* checkout:builds_multilicense/*
+* checkout:builds_multilicense_with_clashes/*
+* checkout:not_licensed1/*
+* checkout:not_licensed2/*
+* checkout:not_licensed3/*
+* checkout:not_licensed4/*
+* checkout:not_licensed5/*
+* checkout:(subdomain)builds/*
+
+The following checkouts have some sort of GPL license:
+
+* checkout:busybox/*              LicenseGPL('GPL v2')
+* checkout:gnulibc/*              LicenseLGPL('LGPL', with_exception=True)
+* checkout:gpl2/*                 LicenseGPL('GPL v2')
+* checkout:gpl2plus/*             LicenseGPL('GPL v2 and above')
+* checkout:gpl3/*                 LicenseGPL('GPL v3')
+* checkout:lgpl/*                 LicenseLGPL('LGPL')
+* checkout:linux/*                LicenseGPL('GPL v2', with_exception=True)
+
+Exceptions to "implicit" GPL licensing are:
+
+* package:(subdomain)manhattan{x86}/* is not built against checkout:(subdomain)xyzlib/*
+* package:secret2{x86}/* is not built against checkout:gpl2plus/*
+
+The following are "implicitly" GPL licensed for the given reasons:
+
+* checkout:not_licensed1/*  (was None)
+  - package:not_licensed1{x86}/* depends on checkout:gpl2/*
+  - package:not_licensed1{x86}/* depends on checkout:gpl3/*
+* checkout:secret3/*  (was LicenseSecret('Shh'))
+  - package:secret3{x86}/* depends on checkout:gpl2plus/*
+* checkout:secret4/*  (was LicenseSecret('Shh'))
+  - package:secret4{x86}/* depends on checkout:gpl2/*
+  - package:secret4{x86}/* depends on checkout:gpl2plus/*
+* checkout:ukogl/*  (was LicenseOpen('UK Open Government License'))
+  - package:ukogl{x86}/* depends on checkout:lgpl/*
+
+This means that the following have irreconcilable clashes:
+
+* checkout:secret3/*              LicenseSecret('Shh')
+* checkout:secret4/*              LicenseSecret('Shh')
+""")
+
+def check_checkout_licenses_without_clashes(root_dir, d):
+    """Perform the actual tests.
+    """
+    banner('REPORT WITHOUT CLASHES')
+    text = captured_muddle(['query', 'checkout-licenses'])
+    check_text(text, """\
+Checkout licenses are:
+
+* checkout:apache/*               LicenseOpen('Apache')
+* checkout:binary1/*              LicenseBinary('Customer')
+* checkout:binary2/*              LicenseBinary('Customer')
+* checkout:binary3/*              LicenseBinary('Customer')
+* checkout:binary4/*              LicenseBinary('Customer')
+* checkout:binary5/*              LicenseBinary('Customer')
+* checkout:bsd/*                  LicenseOpen('BSD 3-clause')
+* checkout:busybox/*              LicenseGPL('GPL v2')
+* checkout:gnulibc/*              LicenseLGPL('LGPL', with_exception=True)
+* checkout:gpl2/*                 LicenseGPL('GPL v2')
+* checkout:gpl2plus/*             LicenseGPL('GPL v2 and above')
+* checkout:gpl3/*                 LicenseGPL('GPL v3')
+* checkout:lgpl/*                 LicenseLGPL('LGPL')
+* checkout:linux/*                LicenseGPL('GPL v2', with_exception=True)
+* checkout:mpl/*                  LicenseOpen('MPL 1.1')
+* checkout:secret1/*              LicenseSecret('Shh')
+* checkout:secret2/*              LicenseSecret('Shh')
+* checkout:secret3/*              LicenseSecret('Shh')
+* checkout:secret4/*              LicenseSecret('Shh')
+* checkout:secret5/*              LicenseSecret('Shh')
+* checkout:ukogl/*                LicenseOpen('UK Open Government License')
+* checkout:zlib/*                 LicenseOpen('zlib')
+* checkout:(subdomain)manhattan/* LicenseSecret('Code Nightmare Green')
+* checkout:(subdomain)xyzlib/*    LicenseOpen('zlib')
+
+The following checkouts do not have a license:
+
+* checkout:builds_multilicense_with_clashes/*
 * checkout:not_licensed1/*
 * checkout:not_licensed2/*
 * checkout:not_licensed3/*
@@ -407,8 +656,19 @@ def main(args):
         banner('MAKE REPOSITORIES')
         make_repos(root_dir)
 
+        with NewDirectory('build_with_clashes') as d:
+            banner('CHECK REPOSITORIES OUT, WITH CLASHES')
+            muddle(['init', 'git+file://{repo}/main'.format(repo=root.join('repo')),
+                    'builds_multilicense_with_clashes/01.py'])
+            muddle(['checkout', '_all'])
+            banner('BUILD')
+            muddle([])
+            banner('STAMP VERSION')
+            muddle(['stamp', 'version'])
+            check_checkout_licenses_with_clashes(root_dir, d)
+
         with NewDirectory('build') as d:
-            banner('CHECK REPOSITORIES OUT')
+            banner('CHECK REPOSITORIES OUT, WITHOUT CLASHES')
             muddle(['init', 'git+file://{repo}/main'.format(repo=root.join('repo')),
                     'builds_multilicense/01.py'])
             muddle(['checkout', '_all'])
@@ -416,8 +676,7 @@ def main(args):
             muddle([])
             banner('STAMP VERSION')
             muddle(['stamp', 'version'])
-
-            actual_tests(root_dir, d)
+            check_checkout_licenses_without_clashes(root_dir, d)
 
 if __name__ == '__main__':
     args = sys.argv[1:]

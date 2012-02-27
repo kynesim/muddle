@@ -173,8 +173,10 @@ from muddled.repository import Repository
 from muddled.version_control import checkout_from_repo
 
 from muddled.distribute import distribute_checkout, distribute_package, \
-        get_distributions_not_for, set_secret_build_files
-from muddled.licenses import set_license, LicenseBinary, LicenseSecret
+        get_distributions_not_for, set_secret_build_files, name_distribution
+from muddled.licenses import set_license, LicenseBinary, LicenseSecret, \
+        get_open_not_gpl_checkouts, get_binary_checkouts, get_secret_checkouts, \
+        get_license
 
 # Our secret information
 from secret import describe_secret
@@ -249,6 +251,19 @@ def describe_to(builder):
     # The 'arm' role is *not* a default role
     builder.invocation.add_default_role(role)
     builder.by_default_deploy(deployment)
+
+    # Let's have some distributions of our own
+    # We rely on being at the end of the build description, so that all
+    # of our checkout labels have been defined for us
+    name_distribution(builder, 'just_open', ['open'])        # so, no 'gpl'
+    for co_label in get_open_not_gpl_checkouts(builder):
+        distribute_checkout(builder, 'just_open', co_label)
+
+    name_distribution(builder, 'binary_and_secret', ['binary', 'secret'])
+    for co_label in get_binary_checkouts(builder):
+        distribute_checkout(builder, 'binary_and_secret', co_label)
+    for co_label in get_secret_checkouts(builder):
+        distribute_checkout(builder, 'binary_and_secret', co_label)
 """
 
 SECRET_BUILD_FILE = """\
@@ -677,6 +692,24 @@ def main(args):
             banner('STAMP VERSION')
             muddle(['stamp', 'version'])
             check_checkout_licenses_without_clashes(root_dir, d)
+
+            # And we can try distributing some things
+
+            banner('TESTING DISTRIBUTE SOURCE RELEASE')
+            target_dir = os.path.join(root_dir, 'source')
+            muddle(['distribute', '_source_release', target_dir])
+            dt = DirTree(d.where, fold_dirs=['.git'])
+            dt.assert_same(target_dir, onedown=True,
+                           unwanted_files=['.git*',
+                                           'src/builds*/*.pyc',
+                                           'obj',
+                                           'install',
+                                           'deploy',
+                                           'versions',
+                                           '.muddle/instructions',
+                                           '.muddle/tags/package',
+                                           '.muddle/tags/deployment',
+                                          ])
 
 if __name__ == '__main__':
     args = sys.argv[1:]

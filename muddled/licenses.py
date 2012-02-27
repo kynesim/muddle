@@ -64,6 +64,8 @@ class License(object):
 
     def distribute_source(self):
         """Returns True if we should (must?) distribute source code.
+
+        XXX Should this only be True for 'gpl'???
         """
         return self.category in ('open', 'gpl')
 
@@ -74,13 +76,21 @@ class License(object):
         """
         return self.category in ('open', 'gpl')
 
+    def is_open_not_gpl(self):
+        """Returns True if this license is 'open' but not 'gpl'.
+        """
+        return self.category == 'open'
+
     def is_gpl(self):
         """Returns True if this is some sort of GPL license.
         """
-        return False
+        return self.category == 'gpl'
 
     def is_lgpl(self):
         """Returns True if this is some sort of LGPL license.
+
+        This *only* works for the LicenseLGpl class (and any subclasses of it,
+        of course).
         """
         return False
 
@@ -389,6 +399,20 @@ def get_open_checkouts(builder):
             gpl_licensed.add(co_label)
     return gpl_licensed
 
+def get_open_not_gpl_checkouts(builder):
+    """Return a set of all the open licensed checkouts that are not GPL.
+
+    Note sure why anyone would want this, but it's easy to provide.
+    """
+    all_checkouts = builder.invocation.all_checkout_labels()
+    get_checkout_license = builder.invocation.db.get_checkout_license
+    gpl_licensed = set()
+    for co_label in all_checkouts:
+        license = get_checkout_license(co_label, absent_is_None=True)
+        if license and license.category == 'open':
+            gpl_licensed.add(co_label)
+    return gpl_licensed
+
 def get_implicit_gpl_checkouts(builder):
     """Find all the checkouts to which GPL-ness propagates.
 
@@ -531,7 +555,7 @@ def checkout_license_allowed(builder, co_label, categories):
     the given categories.
     """
     license = builder.invocation.db.get_checkout_license(co_label, absent_is_None=True)
-    if license is None or license in categories:
+    if license is None or license.category in categories:
         return True
     else:
         return False

@@ -270,6 +270,7 @@ get_not_licensed_checkouts(builder)
 get_gpl_checkouts(builder)
 get_implicit_gpl_checkouts(builder)
 get_open_checkouts(builder)
+get_open_not_gpl_checkouts(builder)
 get_binary_checkouts(builder)
 get_secret_checkouts(builder)
 

@@ -17,6 +17,16 @@ Actions and mechanisms relating to distributing build trees
 # a different (incompatible) state for a checkout? Who wins? Or do
 # we just try to satisfy both?
 
+# XXX TODO
+# There's an issue with the whole 'copy_vcs' thing about when it is specified
+# and by whom.
+#
+# Perhaps when the user specifies it in a build file, they should be able to
+# say copy_vcs=None, True or False. True means definitely copy the VCS,
+# regardless of what else goes on. False means definitely don't, ditto. And
+# None means go with what the actual "muddle distribute" command used suggests.
+# This is probably worth doing, but maybe not in the first release...
+
 import os
 from fnmatch import fnmatchcase
 
@@ -273,7 +283,10 @@ def _distribute_checkout(builder, actual_names, label, copy_vcs=False):
         if DEBUG: print '   %s exists: add/override %s'%(action, name)
         # If it was already there, this will just override whatever it thought
         # it wanted to do before...
-        action.set_distribution(name, copy_vcs, just=None)
+        if isinstance(action, DistributeCheckout):
+            action.set_distribution(name, copy_vcs, just=None)
+        else:
+            action.set_distribution(name, copy_vcs, secret_files=None)
 
 def distribute_checkout(builder, name, label, copy_vcs=False):
     """Request the distribution of the specified checkout(s).
@@ -475,7 +488,7 @@ def distribute_build_desc(builder, name, label, copy_vcs=False):
         if isinstance(action, DistributeBuildDescription):
             if DEBUG: print '   exists as DistributeBuildDescrption: add/override'
             # It's the right sort of thing - just add this distribution name
-            action.update_distribution(name, copy_vcs, None)
+            action.set_distribution(name, copy_vcs, None)
         elif isinstance(action, DistributeCheckout):
             if DEBUG: print '   exists as DistributeCheckout: replace'
             # Ah, it's a generic checkout action - let's replace it with
@@ -568,7 +581,7 @@ def set_secret_build_files(builder, name, secret_files):
             if action.does_distribution(name):
                 action.add_secret_files(name, secret_files)
             else:
-                action.update_distribution(name, False, secret_files)
+                action.set_distribution(name, False, secret_files)
         elif isinstance(action, DistributeCheckout):
             if DEBUG: print '   exists as DistributeCheckout: replace'
             # Ah, it's a generic checkout action - let's replace it with
@@ -1030,7 +1043,8 @@ class DistributeAction(Action):
         try:
             return self.distributions[name]
         except KeyError:
-            raise MuddleBug('This Action does not have data for distribution "%s"'%name)
+            raise MuddleBug('Action %s does not have data for distribution "%s"'%(
+                self.__class__.__name__, name))
 
     def does_distribution(self, name):
         """Return True if we know this distribution name, False if not.
@@ -1218,21 +1232,11 @@ class DistributeBuildDescription(DistributeAction):
         return '%s: %s'%(self.__class__.__name__, ', '.join(sorted(parts)))
 
     def set_distribution(self, name, copy_vcs=False, secret_files=None):
-        """Set the information for the named distribution.
-
-        If this action already has information for that name, updates it.
-        """
-        copy_vcs, local_secret_files = self.get_distribution(name)
-
-        if secret_files is not None:
-            local_secret_files.update(secret_files)
-
-        self.distributions[name] = (copy_vcs, local_secret_files)
-
-    def update_distribution(self, name, copy_vcs=False, secret_files=None):
         """Update the information for the named distribution.
 
         Adds the new distribution if necessary.
+
+        If this action already has information for that name, updates it.
         """
         if name in self.distributions:
             copy_vcs, local_secret_files = self.get_distribution(name)
@@ -1617,11 +1621,7 @@ def distribute(builder, name, target_dir, with_versions_dir=False,
         # A source release is all the source directories alone, but with no VCS
         # This ignores licenses
         for label in all_checkouts:
-            print
-            print '===',label,'==='
-            print
             distribute_checkout(builder, name, label, copy_vcs=with_vcs)
-            print
         # No packages at all
         all_packages = set()
     elif name == '_binary_release':

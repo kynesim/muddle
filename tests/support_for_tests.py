@@ -2,7 +2,7 @@
 
 """Test support functions and stuff.
 
-For once, intended to be safe for use with ``from test_support import *``
+For once, intended to be safe for use with ``from support_for_tests import *``
 """
 
 import os

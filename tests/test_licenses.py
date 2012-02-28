@@ -728,8 +728,8 @@ def main(args):
                                           ])
 
             banner('TESTING DISTRIBUTE JUST GPL')
-            target_dir = os.path.join(root_dir, 'just_gpl')
-            muddle(['distribute', '_just_gpl', target_dir])
+            target_dir = os.path.join(root_dir, 'for_gpl')
+            muddle(['distribute', '_for_gpl', target_dir])
             dt = DirTree(d.where, fold_dirs=['.git'])
             dt.assert_same(target_dir, onedown=True,
                            unwanted_files=['.git*',
@@ -769,7 +769,7 @@ def main(args):
 
             # Then test:
             #
-            # - _just_gpl
+            # - _for_gpl
             # - _open
             # - _by_license
             # - just_open

@@ -3930,7 +3930,7 @@ class Distribute(Command):
           the muddle Makefiles needed by each package (as the only file in
           each appropriate checkout directory)
 
-        * "_just_gpl" is a distribution that satisfies the GPL licensing
+        * "_for_gpl" is a distribution that satisfies the GPL licensing
           requirements. It is all checkouts that have an explicit GPL
           license (including LGPL), plus any licenses which depend on them,
           and do not explicitly state that they do not need distributing
@@ -3940,10 +3940,10 @@ class Distribute(Command):
           licenses for any checkouts.
 
         * "_all_open" is a distribution of all open-source licensed checkouts.
-          It contains everything from "_just_gpl", plus any other open source
+          It contains everything from "_for_gpl", plus any other open source
           licensed checkouts.
 
-          It will fail for the same reasons that _just_gpl" fails.
+          It will fail for the same reasons that _for_gpl" fails.
 
         * "_by_license" is a distribution of everything that is not licensed
           with a "secret" license. It is equivalent to "_all_open" plus

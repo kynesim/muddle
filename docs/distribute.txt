@@ -80,7 +80,7 @@ Standard distributions include:
 
 * ``_source_release`` - discussed in `Case 1: Source distribution`
 * ``_binary_release`` - discussed in `Case 2: Binary distribution`
-* ``_just_gpl`` - discussed in `Case 3: The other standard distributions`
+* ``_for_gpl`` - discussed in `Case 3: The other standard distributions`
 * ``_all_open`` - ditto
 * ``_by_license`` - ditto
 

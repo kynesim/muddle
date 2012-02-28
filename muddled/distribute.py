@@ -49,11 +49,11 @@ DEBUG=False
 # the same thing as "distributing sources", as is evidenced by
 # '_binary_release'.
 #
-# The '_just_gpl' distribution distributes 'gpl' entities, but it may also
+# The '_for_gpl' distribution distributes 'gpl' entities, but it may also
 # distribute 'open' entities by license propagation. So we have to say that.
 the_distributions = { '_source_release' : ALL_LICENSE_CATEGORIES,
                       '_binary_release' : ALL_LICENSE_CATEGORIES,
-                      '_just_gpl':   ('gpl', 'open' ),
+                      '_for_gpl':    ('gpl', 'open' ),
                       '_all_open':   ('gpl', 'open'),
                       '_by_license': ('gpl', 'open', 'binary'),
                     }
@@ -91,11 +91,11 @@ def name_distribution(builder, name, categories=None):
     It is not an error to name a distribution more than once (although it won't
     have any effect), but the categories named must be identical.
 
-        >>> name_distribution(None, '_just_gpl', ['gpl'])  # same categories
-        >>> name_distribution(None, '_just_gpl', ['open']) # different categories
+        >>> name_distribution(None, '_for_gpl', ['gpl'])  # same categories
+        >>> name_distribution(None, '_for_gpl', ['open']) # different categories
         Traceback (most recent call last):
         ...
-        GiveUp: Attempt to name distribution "_just_gpl" with categories (open) but it already has (gpl)
+        GiveUp: Attempt to name distribution "_for_gpl" with categories (open) but it already has (gpl)
 
     It is an error to try to use a distribution before it has been named. This
     includes adding checkouts and packages to distributions. Wildcard
@@ -158,7 +158,7 @@ def get_distributions_for(builder, categories):
         True
         >>> '_binary_release' in dists
         True
-        >>> '_just_gpl' in dists
+        >>> '_for_gpl' in dists
         False
 
     'builder' is ignored at the moment, but should be the build tree "builder"
@@ -182,7 +182,7 @@ def get_distributions_not_for(builder, categories):
     for 'open' and 'secure':
 
         >>> dists = get_distributions_not_for(None, ['open', 'secure'])
-        >>> '_just_gpl' in dists
+        >>> '_for_gpl' in dists
         True
         >>> '_source_release' in dists
         False
@@ -1563,7 +1563,7 @@ def distribute(builder, name, target_dir, with_versions_dir=False,
 
       * _source_release (all checkout source directories)
       * _binary_release (all install directories, maybe plus extras)
-      * _just_gpl (just GPL and GPL-propagated source directories)
+      * _for_gpl (just GPL and GPL-propagated source directories)
       * _all_open (all open licensed source directories)
       * _by_license (source or install directories by license, no secrets)
 
@@ -1638,7 +1638,7 @@ def distribute(builder, name, target_dir, with_versions_dir=False,
         for label in all_packages:
             distribute_package(builder, name, label, obj=False, install=True,
                                with_muddle_makefile=(not no_muddle_makefile))
-    elif name == '_just_gpl':
+    elif name == '_for_gpl':
         # All GPL licensed checkouts, and anything that that has propagated to
         select_all_gpl_checkouts(builder, name, with_vcs)
         # No packages at all

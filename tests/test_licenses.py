@@ -72,8 +72,7 @@ import muddled.checkouts.simple
 import muddled.deployments.collect as collect
 
 from muddled.mechanics import include_domain
-from muddled.depend import Label
-from muddled.utils import LabelType, LabelTag
+from muddled.depend import checkout, package
 from muddled.repository import Repository
 from muddled.version_control import checkout_from_repo
 
@@ -86,7 +85,7 @@ def add_package(builder, name, role, license=None, co_name=None, deps=None):
     muddled.pkgs.make.medium(builder, name, [role], co_name, deps=deps)
 
     if license:
-        co_label = Label(LabelType.Checkout, co_name)
+        co_label = checkout(co_name)
         set_license(builder, co_label, license)
 
 def describe_to(builder):
@@ -127,8 +126,8 @@ def describe_to(builder):
     add_package(builder, 'not_licensed4', 'x86')
     add_package(builder, 'not_licensed5', 'x86')
 
-    builder.invocation.db.set_not_built_against(Label.from_string('package:secret2{{x86}}/*'),
-                                                Label.from_string('checkout:gpl2plus/*'))
+    builder.invocation.db.set_not_built_against(package('secret2', 'x86'),
+                                                checkout('gpl2plus'))
 
     collect.deploy(builder, deployment)
     collect.copy_from_role_install(builder, deployment,
@@ -167,8 +166,7 @@ import muddled.checkouts.simple
 import muddled.deployments.collect as collect
 
 from muddled.mechanics import include_domain
-from muddled.depend import Label
-from muddled.utils import LabelType, LabelTag
+from muddled.depend import checkout, package
 from muddled.repository import Repository
 from muddled.version_control import checkout_from_repo
 
@@ -187,7 +185,7 @@ def add_package(builder, name, role, license=None, co_name=None, deps=None):
     muddled.pkgs.make.medium(builder, name, [role], co_name, deps=deps)
 
     if license:
-        co_label = Label(LabelType.Checkout, co_name)
+        co_label = checkout(co_name)
         set_license(builder, co_label, license)
 
 def describe_to(builder):
@@ -290,8 +288,7 @@ import muddled.pkg as pkg
 import muddled.pkgs.make as make
 
 from muddled import pkgs
-from muddled.depend import Label
-from muddled.utils import LabelType, LabelTag
+from muddled.depend import checkout, package
 from muddled.licenses import LicenseSecret, set_license, set_not_built_against
 
 # Really, this should be in another Python file, since we're using it from
@@ -306,7 +303,7 @@ def add_package(builder, name, role, license=None, co_name=None, dep_tuples=None
             pkg.do_depend(builder, name, [role], [( other_name , other_role )])
 
     if license:
-        co_label = Label(LabelType.Checkout, co_name)
+        co_label = checkout(co_name)
         set_license(builder, co_label, license)
 
 def describe_secret(builder, *args, **kwargs):
@@ -328,18 +325,10 @@ def describe_secret(builder, *args, **kwargs):
 
     # The following need to be true if we are not to be required to distribute
     # under GPL propagation rules
-    set_not_built_against(builder,
-                          Label(LabelType.Package, 'secret2', 'x86-secret'),
-                          Label(LabelType.Checkout, 'gpl2plus'))
-    set_not_built_against(builder,
-                          Label(LabelType.Package, 'secret3', 'x86-secret'),
-                          Label(LabelType.Checkout, 'gpl2plus'))
-    set_not_built_against(builder,
-                          Label(LabelType.Package, 'secret4', 'x86-secret'),
-                          Label(LabelType.Checkout, 'gpl2plus'))
-    set_not_built_against(builder,
-                          Label(LabelType.Package, 'secret4', 'x86-secret'),
-                          Label(LabelType.Checkout, 'gpl2'))
+    set_not_built_against(builder, package('secret2', 'x86-secret'), checkout('gpl2plus'))
+    set_not_built_against(builder, package('secret3', 'x86-secret'), checkout('gpl2plus'))
+    set_not_built_against(builder, package('secret4', 'x86-secret'), checkout('gpl2plus'))
+    set_not_built_against(builder, package('secret4', 'x86-secret'), checkout('gpl2'))
 
     collect.deploy(builder, deployment)
     collect.copy_from_role_install(builder, deployment,
@@ -358,8 +347,7 @@ import muddled.pkgs.make
 import muddled.checkouts.simple
 import muddled.deployments.filedep
 
-from muddled.depend import Label
-from muddled.utils import LabelType, LabelTag
+from muddled.depend import checkout, package
 
 from muddled.distribute import distribute_checkout, distribute_package
 from muddled.licenses import set_license, LicenseBinary, LicenseSecret
@@ -370,7 +358,7 @@ def add_package(builder, name, role, license=None, co_name=None, deps=None):
     muddled.pkgs.make.medium(builder, name, [role], co_name, deps=deps)
 
     if license:
-        co_label = Label(LabelType.Checkout, co_name)
+        co_label = checkout(co_name)
         set_license(builder, co_label, license)
 
 def describe_to(builder):
@@ -380,8 +368,8 @@ def describe_to(builder):
     add_package(builder, 'xyzlib',  'x86', 'zlib')
     add_package(builder, 'manhattan', 'x86', 'code-nightmare-green')
 
-    builder.invocation.db.set_not_built_against(Label.from_string('package:manhattan{{x86}}/*'),
-                                                Label.from_string('checkout:xyzlib/*'))
+    builder.invocation.db.set_not_built_against(package('manhattan', 'x86'),
+                                                checkout('xyzlib'))
 
     # The 'everything' deployment is built from our single role, and goes
     # into deploy/everything.
@@ -792,6 +780,8 @@ def main(args):
                                            '.muddle/tags/checkout/binary*',
                                            '.muddle/tags/checkout/not_licensed[2345]',
                                            '.muddle/tags/checkout/secret*',
+                                           # And, in our subdomain
+                                           '.muddle/tags/checkout/manhattan',
                                           ])
             # Check the "secret" build description file has been replaced
             assert not same_content(d.join(target_dir, 'src', 'builds_multilicense', 'secret.py'),
@@ -799,7 +789,6 @@ def main(args):
 
             # Then test:
             #
-            # - _open
             # - _by_license
             # - just_open
             # - binary_and_secret_source

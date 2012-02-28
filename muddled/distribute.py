@@ -92,11 +92,11 @@ def name_distribution(builder, name, categories=None):
     It is not an error to name a distribution more than once (although it won't
     have any effect), but the categories named must be identical.
 
-        >>> name_distribution(None, '_for_gpl', ['gpl'])  # same categories
-        >>> name_distribution(None, '_for_gpl', ['open']) # different categories
+        >>> name_distribution(None, '_all_open', ['gpl', 'open'])  # same categories
+        >>> name_distribution(None, '_all_open', ['open']) # different categories
         Traceback (most recent call last):
         ...
-        GiveUp: Attempt to name distribution "_for_gpl" with categories (open) but it already has (gpl)
+        GiveUp: Attempt to name distribution "_all_open" with categories (open) but it already has (gpl, open)
 
     It is an error to try to use a distribution before it has been named. This
     includes adding checkouts and packages to distributions. Wildcard
@@ -122,8 +122,8 @@ def name_distribution(builder, name, categories=None):
             return
         else:
             raise GiveUp('Attempt to name distribution "%s" with categories'
-                         ' (%s) but it already has (%s)'%(name, ', '.join(new),
-                                                          ', '.join(old)))
+                         ' (%s) but it already has (%s)'%(name, ', '.join(sorted(new)),
+                                                          ', '.join(sorted(old))))
 
     # Arguably, we should remember distributions on the builder object,
     # but in fact I don't think it makes any difference whatsoever to
@@ -180,9 +180,9 @@ def get_distributions_not_for(builder, categories):
     does not, add its name to the result.
 
     For instance, we know that we have at least one distribution that is not
-    for 'open' and 'secure':
+    for 'binary' and 'secure':
 
-        >>> dists = get_distributions_not_for(None, ['open', 'secure'])
+        >>> dists = get_distributions_not_for(None, ['binary', 'secure'])
         >>> '_for_gpl' in dists
         True
         >>> '_source_release' in dists

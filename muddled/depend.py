@@ -1693,6 +1693,53 @@ def rule_target_str(rule):
     """
     return str(rule.target)
 
+# Some simple ways of constructing labels
+def checkout(name, tag='*', domain=None):
+    """A simple convenience function to return a checkout label
+
+    - 'name' is the checkout name
+    - 'tag' is the label tag, defaulting to "*"
+    - 'domain' is the label domain name, defaulting to None
+
+    For instance:
+
+        >>> l = checkout('fred')
+        >>> l == Label.from_string('checkout:fred/*')
+        True
+    """
+    return Label(LabelType.Checkout, name, tag=tag, domain=domain)
+
+def package(name, role, tag='*', domain=None):
+    """A simple convenience function to return a package label
+
+    - 'name' is the package name
+    - 'role' is the package role
+    - 'tag' is the label tag, defaulting to "*"
+    - 'domain' is the label domain name, defaulting to None
+
+    For instance:
+
+        >>> l = package('fred', 'jim')
+        >>> l == Label.from_string('package:fred{jim}/*')
+        True
+    """
+    return Label(LabelType.Package, name, role, tag=tag, domain=domain)
+
+def deployment(name, tag='*', domain=None):
+    """A simple convenience function to return a deployment label
+
+    - 'name' is the deployment name
+    - 'tag' is the label tag, defaulting to "*"
+    - 'domain' is the label domain name, defaulting to None
+
+    For instance:
+
+        >>> l = deployment('fred')
+        >>> l == Label.from_string('deployment:fred/*')
+        True
+    """
+    return Label(LabelType.Deployment, name, tag=tag, domain=domain)
+
 # End file.
 
 

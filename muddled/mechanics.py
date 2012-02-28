@@ -743,7 +743,7 @@ class Invocation(object):
             return set([label])
 
         if default_to_obvious_tag and label.tag == '*':
-            tag = utils.package_type_to_tag[label.type]
+            tag = utils.label_type_to_tag[label.type]
             label = label.copy_with_tag(tag)
 
         return self.ruleset.targets_match(label)

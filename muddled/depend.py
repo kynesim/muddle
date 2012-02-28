@@ -5,7 +5,7 @@ Dependency sets and dependency management
 import re
 import copy
 
-from muddled.utils import GiveUp, MuddleBug, package_type_to_tag, LabelType
+from muddled.utils import GiveUp, MuddleBug, label_type_to_tag, LabelType
 
 class Label(object):
     """
@@ -816,7 +816,7 @@ class Label(object):
         tag = m.group("tag")
         if tag is None:
             try:
-                tag = package_type_to_tag[type]
+                tag = label_type_to_tag[type]
             except KeyError:
                 raise GiveUp("Cannot guess tag for label fragment '%s'"
                              " (unrecognised label type '%s:')"%(fragment, type))

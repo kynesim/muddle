@@ -991,7 +991,8 @@ def _copy_without(src, dst, ignored_names, object_exactly, preserve, force):
     except OSError, why:
         raise GiveUp('Unable to copy properties of %s to %s: %s'%(src, dst, why))
 
-def copy_without(src, dst, without=None, object_exactly=True, preserve=False, force=False):
+def copy_without(src, dst, without=None, object_exactly=True, preserve=False,
+                 force=False, verbose=True):
     """
     Copy files from the 'src' directory to the 'dst' directory, without those in 'without'
 
@@ -1008,6 +1009,8 @@ def copy_without(src, dst, without=None, object_exactly=True, preserve=False, fo
     If 'force' is true, then if a target file is not writeable, try removing it
     and then copying it.
 
+    If 'verbose' is true (the default), print out what we're copying.
+
     Creates directories in the destination, if necessary.
 
     Uses copy_file() to copy each file.
@@ -1018,10 +1021,11 @@ def copy_without(src, dst, without=None, object_exactly=True, preserve=False, fo
     else:
         ignored_names = set()
 
-    print 'Copying %s to %s'%(src, dst),
-    if without:
-        print 'ignoring %s'%without
-    print
+    if verbose:
+        print 'Copying %s to %s'%(src, dst),
+        if without:
+            print 'ignoring %s'%without
+        print
 
     _copy_without(src, dst, ignored_names, object_exactly, preserve, force)
 

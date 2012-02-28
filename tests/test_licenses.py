@@ -20,7 +20,7 @@ import traceback
 
 from difflib import unified_diff
 
-from test_support import *
+from support_for_tests import *
 try:
     import muddled.cmdline
 except ImportError:
@@ -194,37 +194,37 @@ def describe_to(builder):
 
     another_license = LicenseSecret('ignore-this')
 
-    add_package(builder, 'apache', 'x86', 'apache')
-    add_package(builder, 'bsd',    'x86', 'bsd-new')
-    add_package(builder, 'gpl2',   'x86', 'gpl2')
-    add_package(builder, 'gpl2plus', 'x86', 'gpl2plus')
-    add_package(builder, 'gpl3',  'x86', 'gpl3')
-    add_package(builder, 'lgpl',  'x86', 'lgpl')
-    add_package(builder, 'mpl',   'x86', 'mpl')
-    add_package(builder, 'ukogl', 'x86', 'ukogl', deps=['lgpl'])
-    add_package(builder, 'zlib',  'x86', 'zlib')
+    add_package(builder, 'apache', role, 'apache')
+    add_package(builder, 'bsd',    role, 'bsd-new')
+    add_package(builder, 'gpl2',   role, 'gpl2')
+    add_package(builder, 'gpl2plus', role, 'gpl2plus')
+    add_package(builder, 'gpl3',  role, 'gpl3')
+    add_package(builder, 'lgpl',  role, 'lgpl')
+    add_package(builder, 'mpl',   role, 'mpl')
+    add_package(builder, 'ukogl', role, 'ukogl', deps=['lgpl'])
+    add_package(builder, 'zlib',  role, 'zlib')
 
-    add_package(builder, 'gnulibc', 'x86', 'lgpl-except')
-    add_package(builder, 'linux', 'x86', 'gpl2-except')
-    add_package(builder, 'busybox', 'x86', 'gpl2')
+    add_package(builder, 'gnulibc', role, 'lgpl-except')
+    add_package(builder, 'linux', role, 'gpl2-except')
+    add_package(builder, 'busybox', role, 'gpl2')
 
-    add_package(builder, 'binary1', 'x86', LicenseBinary('Customer'), deps=['zlib'])
-    add_package(builder, 'binary2', 'x86', LicenseBinary('Customer'))
-    add_package(builder, 'binary3', 'x86', LicenseBinary('Customer'))
-    add_package(builder, 'binary4', 'x86', LicenseBinary('Customer'))
-    add_package(builder, 'binary5', 'x86', LicenseBinary('Customer'))
+    add_package(builder, 'binary1', role, LicenseBinary('Customer'), deps=['zlib'])
+    add_package(builder, 'binary2', role, LicenseBinary('Customer'))
+    add_package(builder, 'binary3', role, LicenseBinary('Customer'))
+    add_package(builder, 'binary4', role, LicenseBinary('Customer'))
+    add_package(builder, 'binary5', role, LicenseBinary('Customer'))
 
-    add_package(builder, 'not_licensed1', 'x86', deps=['gpl2', 'gpl3'])
-    add_package(builder, 'not_licensed2', 'x86')
-    add_package(builder, 'not_licensed3', 'x86')
-    add_package(builder, 'not_licensed4', 'x86')
-    add_package(builder, 'not_licensed5', 'x86')
+    add_package(builder, 'not_licensed1', role, deps=['gpl2', 'gpl3'])
+    add_package(builder, 'not_licensed2', role)
+    add_package(builder, 'not_licensed3', role)
+    add_package(builder, 'not_licensed4', role)
+    add_package(builder, 'not_licensed5', role)
 
     collect.deploy(builder, deployment)
     collect.copy_from_role_install(builder, deployment,
-                                   role = role,
-                                   rel = "", dest = "",
-                                   domain = None)
+                                   role=role,
+                                   rel="", dest="",
+                                   domain=None)
 
     # We also have some secret stuff, described elsewhere
     describe_secret(builder, deployment=deployment)
@@ -246,8 +246,7 @@ def describe_to(builder):
                                  dest='sub',
                                  domain='subdomain')
 
-    # The 'arm' role is *not* a default role
-    builder.invocation.add_default_role(role)
+    builder.invocation.add_default_role(role) # The 'arm' role is *not* a default role
     builder.by_default_deploy(deployment)
 
     # Let's have some distributions of our own
@@ -330,7 +329,6 @@ def describe_secret(builder, *args, **kwargs):
     set_not_built_against(builder, package('secret4', 'x86-secret'), checkout('gpl2plus'))
     set_not_built_against(builder, package('secret4', 'x86-secret'), checkout('gpl2'))
 
-    collect.deploy(builder, deployment)
     collect.copy_from_role_install(builder, deployment,
                                    role = 'x86-secret',
                                    rel = "", dest = "",
@@ -362,21 +360,20 @@ def add_package(builder, name, role, license=None, co_name=None, deps=None):
         set_license(builder, co_label, license)
 
 def describe_to(builder):
-    role = 'x86'
     deployment = 'everything'
 
     add_package(builder, 'xyzlib',  'x86', 'zlib')
-    add_package(builder, 'manhattan', 'x86', 'code-nightmare-green')
+    add_package(builder, 'manhattan', 'x86-secret', 'code-nightmare-green')
 
-    builder.invocation.db.set_not_built_against(package('manhattan', 'x86'),
+    builder.invocation.db.set_not_built_against(package('manhattan', 'x86-secret'),
                                                 checkout('xyzlib'))
 
     # The 'everything' deployment is built from our single role, and goes
     # into deploy/everything.
-    muddled.deployments.filedep.deploy(builder, "", "everything", [role])
+    muddled.deployments.filedep.deploy(builder, "", "everything", ['x86', 'x86-secret'])
 
     # If no role is specified, assume this one
-    builder.invocation.add_default_role(role)
+    builder.invocation.add_default_role('x86')
     # muddle at the top level will default to building this deployment
     builder.by_default_deploy("everything")
 """
@@ -550,8 +547,8 @@ The following checkouts have some sort of GPL license:
 
 Exceptions to "implicit" GPL licensing are:
 
-* package:(subdomain)manhattan{x86}/* is not built against checkout:(subdomain)xyzlib/*
 * package:secret2{x86}/* is not built against checkout:gpl2plus/*
+* package:(subdomain)manhattan{x86-secret}/* is not built against checkout:(subdomain)xyzlib/*
 
 The following are "implicitly" GPL licensed for the given reasons:
 
@@ -627,8 +624,8 @@ The following checkouts have some sort of GPL license:
 
 Exceptions to "implicit" GPL licensing are:
 
-* package:(subdomain)manhattan{x86}/* is not built against checkout:(subdomain)xyzlib/*
 * package:secret2{x86}/* is not built against checkout:gpl2plus/*
+* package:(subdomain)manhattan{x86-secret}/* is not built against checkout:(subdomain)xyzlib/*
 
 The following are "implicitly" GPL licensed for the given reasons:
 
@@ -700,7 +697,7 @@ def main(args):
             # And we can try distributing some things
 
             banner('TESTING DISTRIBUTE SOURCE RELEASE')
-            target_dir = os.path.join(root_dir, 'source')
+            target_dir = os.path.join(root_dir, '_source_release')
             muddle(['distribute', '_source_release', target_dir])
             dt = DirTree(d.where, fold_dirs=['.git'])
             dt.assert_same(target_dir, onedown=True,
@@ -716,7 +713,7 @@ def main(args):
                                           ])
 
             banner('TESTING DISTRIBUTE FOR GPL')
-            target_dir = os.path.join(root_dir, 'for_gpl')
+            target_dir = os.path.join(root_dir, '_for_gpl')
             muddle(['distribute', '_for_gpl', target_dir])
             dt = DirTree(d.where, fold_dirs=['.git'])
             dt.assert_same(target_dir, onedown=True,
@@ -756,7 +753,7 @@ def main(args):
                                 SECRET_BUILD_FILE)
 
             banner('TESTING DISTRIBUTE FOR ALL OPEN')
-            target_dir = os.path.join(root_dir, 'all_open')
+            target_dir = os.path.join(root_dir, '_all_open')
             muddle(['distribute', '_all_open', target_dir])
             dt = DirTree(d.where, fold_dirs=['.git'])
             dt.assert_same(target_dir, onedown=True,
@@ -767,8 +764,8 @@ def main(args):
                                            # No secret things, they're very not GPL
                                            'src/secret*',
                                            'domains/subdomain/src/manhattan',
-                                           # No not licensed things, because they're not GPL,
-                                           # except for 1, by propagation
+                                           # No not licensed things, because they're not open,
+                                           # except for 1, by propagation from GPL
                                            'src/not_licensed[2345]',
                                            'obj',
                                            'install',
@@ -786,6 +783,64 @@ def main(args):
             # Check the "secret" build description file has been replaced
             assert not same_content(d.join(target_dir, 'src', 'builds_multilicense', 'secret.py'),
                                 SECRET_BUILD_FILE)
+
+
+            banner('TESTING DISTRIBUTE FOR BY LICENSE')
+            target_dir = os.path.join(root_dir, '_by_license')
+            muddle(['distribute', '_by_license', target_dir])
+            dt = DirTree(d.where, fold_dirs=['.git'])
+            dt.assert_same(target_dir, onedown=True,
+                           unwanted_files=['.git*',
+                                           'src/builds*/*.pyc',
+                                           # No secret things, they're very not GPL
+                                           'src/secret*',
+                                           'obj/*/x86-secret',
+                                           'install/x86-secret',
+                                           # No not licensed things, because they're not
+                                           # licensed(!), except for 1, by propagation from GPL
+                                           'src/not_licensed[2345]',
+                                           #
+                                           'src/binary*/*.c',   # just the muddle makefiles
+                                           #
+                                           'obj',
+                                           'deploy',
+                                           'versions',
+                                           '.muddle/instructions',
+                                           '.muddle/tags/checkout/secret*',
+                                           '.muddle/tags/checkout/not_licensed[2345]',
+                                           '.muddle/tags/package/secret*',
+                                           '.muddle/tags/package/not_licensed*',
+                                           # No package tags for source-only things
+                                           '.muddle/tags/package/apache',
+                                           '.muddle/tags/package/bsd',
+                                           '.muddle/tags/package/gpl*',
+                                           '.muddle/tags/package/lgpl',
+                                           '.muddle/tags/package/mpl',
+                                           '.muddle/tags/package/ukogl',
+                                           '.muddle/tags/package/zlib',
+                                           '.muddle/tags/package/gnulibc',
+                                           '.muddle/tags/package/linux',
+                                           '.muddle/tags/package/busybox',
+                                           # We don't do deployment...
+                                           '.muddle/tags/deployment',
+                                           # And, in our subdomain
+                                           'domains/subdomain/src/manhattan',
+                                           'domains/subdomain/install',
+                                           'domains/subdomain/.muddle/tags/checkout/manhattan',
+                                           'domains/subdomain/.muddle/tags/package',
+                                           'domains/subdomain/.muddle/tags/deploy',
+                                          ])
+            # Check the "secret" build description file has been replaced
+            assert not same_content(d.join(target_dir, 'src', 'builds_multilicense', 'secret.py'),
+                                SECRET_BUILD_FILE)
+            # Check we have the right files in our install directory
+            with Directory(root.join('_by_license', 'install', 'x86')):
+                check_specific_files_in_this_dir(['apache',
+                    'binary1', 'binary2', 'binary3', 'binary4', 'binary5',
+                    'bsd', 'busybox', 'gnulibc', 'gpl2', 'gpl2plus', 'gpl3',
+                    'lgpl', 'linux', 'mpl',
+                    'not_licensed1', 'not_licensed2', 'not_licensed3',
+                    'not_licensed4', 'not_licensed5', 'ukogl', 'zlib'])
 
             # Then test:
             #

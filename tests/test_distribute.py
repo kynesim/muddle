@@ -16,7 +16,7 @@ import subprocess
 import sys
 import traceback
 
-from test_support import *
+from support_for_tests import *
 try:
     import muddled.cmdline
 except ImportError:
@@ -692,11 +692,7 @@ def main(args):
                                            '.muddle/instructions/second_pkg/arm.xml',
                                            '.muddle/instructions/second_pkg/fred.xml',
                                            # We only want role x86, not role arm
-                                           '.muddle/tags/package/main_pkg/arm-built',
-                                           '.muddle/tags/package/main_pkg/arm-configured',
-                                           '.muddle/tags/package/main_pkg/arm-installed',
-                                           '.muddle/tags/package/main_pkg/arm-postinstalled',
-                                           '.muddle/tags/package/main_pkg/arm-preconfig',
+                                           '.muddle/tags/package/main_pkg/arm-*',
                                            'obj/main_pkg/arm',
                                            'install/arm',
                                           ])

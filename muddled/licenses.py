@@ -722,7 +722,7 @@ def report_license_clashes_in_role(builder, role, just_report_secret=True):
     """
     binary_items, secret_items = get_license_clashes_in_role(builder, role)
 
-    if not binary_items and not secret_items:
+    if not (binary_items and secret_items):
         return False
 
     binary_keys = binary_items.keys()

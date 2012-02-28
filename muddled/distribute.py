@@ -43,6 +43,7 @@ from muddled.licenses import get_gpl_checkouts, get_implicit_gpl_checkouts, \
         ALL_LICENSE_CATEGORIES
 
 DEBUG=False
+VERBOSE=False       # should copy_without be quiet
 
 # Distribution names, with the license categories they distribute something
 # from. Note that distributing something from 'gpl' or 'open' doesn't mean
@@ -268,6 +269,7 @@ def _distribute_checkout(builder, actual_names, label, copy_vcs=False):
         rule = builder.invocation.ruleset.map[target_label]
         action = rule.action
         if DEBUG: print '   %s exists: add/override %s'%(action, actual_names[0])
+        # but don't *do* anything to that first action yet
     else:
         # No - we need to create one
         if DEBUG: print '   adding %s anew'%actual_names[0]
@@ -286,10 +288,9 @@ def _distribute_checkout(builder, actual_names, label, copy_vcs=False):
         if DEBUG: print '   %s exists: add/override %s'%(action, name)
         # If it was already there, this will just override whatever it thought
         # it wanted to do before...
-        if isinstance(action, DistributeCheckout):
-            action.set_distribution(name, copy_vcs, just=None)
-        else:
-            action.set_distribution(name, copy_vcs, secret_files=None)
+        # NB: This call should work whether the existing Action is a
+        #     DistributeCheckout or DistributeBuildDescription
+        action.set_distribution(name, copy_vcs)
 
 def distribute_checkout(builder, name, label, copy_vcs=False):
     """Request the distribution of the specified checkout(s).
@@ -412,9 +413,12 @@ def distribute_checkout_files(builder, name, label, source_files):
         rule = builder.invocation.ruleset.map[target_label]
         action = rule.action
         if DEBUG: print '   %s exists: add/override %s'%(action, actual_names[0])
+        # but don't *do* anything to that first action yet
     else:
         # No - we need to create one
         if DEBUG: print '   adding %s anew'%actual_names[0]
+        # We don't want to copy VCS, as we're not copying all of the
+        # checkout (and VCS contains information about the other files!)
         action = DistributeCheckout(actual_names[0], False, source_files)
 
         rule = Rule(target_label, action)   # to build target_label, run action
@@ -435,6 +439,8 @@ def distribute_checkout_files(builder, name, label, source_files):
             if not action.copying_all_source_files(name):
                 action.add_source_files(name, source_files)
         else:
+            # We don't want to copy VCS, as we're not copying all of the
+            # checkout (and VCS contains information about the other files!)
             action.set_distribution(name, False, source_files)
 
 def distribute_build_desc(builder, name, label, copy_vcs=False):
@@ -491,12 +497,12 @@ def distribute_build_desc(builder, name, label, copy_vcs=False):
         if isinstance(action, DistributeBuildDescription):
             if DEBUG: print '   exists as DistributeBuildDescrption: add/override'
             # It's the right sort of thing - just add this distribution name
-            action.set_distribution(name, copy_vcs, None)
+            action.set_distribution(name, copy_vcs)
         elif isinstance(action, DistributeCheckout):
             if DEBUG: print '   exists as DistributeCheckout: replace'
             # Ah, it's a generic checkout action - let's replace it with
             # a build description action
-            new_action = DistributeBuildDescription(name, copy_vcs, None)
+            new_action = DistributeBuildDescription(name, copy_vcs)
             # And copy over any names we don't yet have
             new_action.merge_names(action)
             rule.action = new_action
@@ -506,7 +512,7 @@ def distribute_build_desc(builder, name, label, copy_vcs=False):
     else:
         # No - we need to create one
         if DEBUG: print '   adding anew'
-        action = DistributeBuildDescription(name, copy_vcs, None)
+        action = DistributeBuildDescription(name, copy_vcs)
 
         rule = Rule(target_label, action)       # to build target_label, run action
         rule.add(source_label)                  # after we've built source_label
@@ -584,13 +590,13 @@ def set_secret_build_files(builder, name, secret_files):
             if action.does_distribution(name):
                 action.add_secret_files(name, secret_files)
             else:
-                action.set_distribution(name, False, secret_files)
+                action.set_distribution(name, None, secret_files)
         elif isinstance(action, DistributeCheckout):
             if DEBUG: print '   exists as DistributeCheckout: replace'
             # Ah, it's a generic checkout action - let's replace it with
             # a new build description action
             old_action = action
-            action = DistributeBuildDescription(name, old_action.copying_vcs(),
+            action = DistributeBuildDescription(name, old_action.copying_vcs(), # XXX or None?
                                                 secret_files)
             # And copy over any existing names we don't yet have
             action.merge_names(old_action)
@@ -602,7 +608,7 @@ def set_secret_build_files(builder, name, secret_files):
         # No - we need to create one
         if DEBUG: print '   adding anew'
         # We have to guess at 'copy_vcs', but someone later on can override us
-        action = DistributeBuildDescription(name, False, secret_files)
+        action = DistributeBuildDescription(name, None, secret_files)
 
         rule = Rule(target_label, action)       # to build target_label, run action
         rule.add(source_label)                  # after we've built source_label
@@ -748,7 +754,7 @@ def _set_checkout_tags(builder, label, target_dir):
     if DEBUG:
         print '..copying %s'%src_tags_dir
         print '       to %s'%tgt_tags_dir
-    copy_without(src_tags_dir, tgt_tags_dir, preserve=True)
+    copy_without(src_tags_dir, tgt_tags_dir, preserve=True, verbose=VERBOSE)
 
 def _set_package_tags(builder, label, target_dir, which_tags):
     """Copy package tags.
@@ -831,7 +837,7 @@ def _actually_distribute_checkout(builder, label, target_dir, copy_vcs):
         print '  to   %s'%co_tgt_dir
         if without:
             print '  without %s'%without
-    copy_without(co_src_dir, co_tgt_dir, without, preserve=True)
+    copy_without(co_src_dir, co_tgt_dir, without, preserve=True, verbose=VERBOSE)
 
     # We mustn't forget to set the appropriate tags in the target .muddle/
     # directory
@@ -863,6 +869,15 @@ def _actually_distribute_build_desc(builder, label, target_dir, copy_vcs, secret
         print '  to   %s'%co_tgt_dir
         if files_to_ignore:
             print '  without %s'%files_to_ignore
+        if secret_files:
+            print '  secret files %s'%secret_files
+
+    # Make all the secret files (which may be paths within our checkout)
+    # be paths relative to the root of the build tree
+    new_secret_files = set()
+    for name in secret_files:
+        new_secret_files.add(os.path.join(co_src_dir, name))
+    secret_files = new_secret_files
 
     files_to_ignore = set(files_to_ignore)
 
@@ -873,6 +888,7 @@ def _actually_distribute_build_desc(builder, label, target_dir, copy_vcs, secret
     for dirpath, dirnames, filenames in os.walk(co_src_dir):
 
         for name in filenames:
+            if DEBUG: print '--', name
             if name in files_to_ignore:           # Maybe ignore VCS files
                 continue
             base, ext = os.path.splitext(name)
@@ -886,7 +902,7 @@ def _actually_distribute_build_desc(builder, label, target_dir, copy_vcs, secret
                 os.makedirs(tgt_dir)
 
             if src_path in secret_files:
-                print 'REPLACING SECRET FILE', src_path
+                if DEBUG: print 'Replacing secret file', src_path
                 with open(tgt_path, 'w') as fd:
                     fd.write("def describe_secret(builder, *args, **kwargs):\n    pass\n")
             else:
@@ -956,7 +972,7 @@ def _actually_distribute_obj(builder, label, target_dir):
         print '    from %s'%obj_dir
         print '    to   %s'%tgt_obj_dir
 
-    copy_without(obj_dir, tgt_obj_dir, preserve=True)
+    copy_without(obj_dir, tgt_obj_dir, preserve=True, verbose=VERBOSE)
 
     # We mustn't forget to set the appropriate package tags
     _set_package_tags(builder, label, target_dir,
@@ -994,7 +1010,7 @@ def _actually_distribute_install(builder, label, target_dir):
         if DEBUG:
             print 'and from %s'%install_dir
             print '      to %s'%tgt_install_dir
-        copy_without(install_dir, tgt_install_dir, preserve=True)
+        copy_without(install_dir, tgt_install_dir, preserve=True, verbose=VERBOSE)
 
     # Set the appropriate package tags
     _set_package_tags(builder, label, target_dir,
@@ -1034,10 +1050,24 @@ class DistributeAction(Action):
         return '%s: %s'%(self.__class__.__name__,
                 ', '.join(sorted(self.distributions.keys())))
 
+    def add_distribution(self, name, copy_vcs=None, secret_files=None):
+        """Add a new named distribution.
+
+        It is an error if there is already a distribution of this name.
+        """
+        if name in self.distributions:
+            raise GiveUp('Distribution "%s" is already present in %s'%(name,
+                self.__class__.__name__))
+
+        self.distributions[name] = data
+
     def set_distribution(self, name, data):
         """Set the information for the named distribution.
 
         If this action already has information for that name, overwrites it.
+
+        (Subclasses may instead choose to merge appropriate parts of the
+        data).
         """
         self.distributions[name] = data
 
@@ -1107,13 +1137,16 @@ class DistributeCheckout(DistributeAction):
         (['.git', '.gitignore', ...] or ['.bzr'], etc., depending on the VCS
         used for this checkout).
 
+        If 'just' is None, then we wish to distribute all the source files
+        in the checkout (apart from VCS files, for which see 'copy_vcs').
+
         If 'just' is not None, then it must be a sequence of source paths,
         relative to the checkout directory, which are the specific files
         to be distributed for this checkout.
 
-        Note that that means we distinguish between 'just=None' and 'just=[]' -
-        the former instructs us to distribute all source files, the latter
-        instructs us to distribute no source files.
+        Note that we distinguish between 'just=None' and 'just=[]': the former
+        instructs us to distribute all source files, the latter instructs us to
+        distribute no source files.
         """
         if just is not None:
             just = set(just)
@@ -1133,15 +1166,55 @@ class DistributeCheckout(DistributeAction):
             parts.append('%s[%s]'%(key, ','.join(inner)))
         return '%s: %s'%(self.__class__.__name__, ', '.join(sorted(parts)))
 
-    def set_distribution(self, name, copy_vcs=False, just=None):
-        """Set the information for the named distribution.
+    def add_distribution(self, name, copy_vcs=None, just=None):
+        """Add a new named distribution.
 
-        If this action already has information for that name, overwrites it.
+        The arguments are interpreted as when creating an instance.
+
+        It is an error if there is already a distribution of this name.
         """
+        if name in self.distributions:
+            raise GiveUp('Distribution "%s" is already present in %s'%(name,
+                self.__class__.__name__))
+
         if just is not None:
             just = set(just)
 
         self.distributions[name] = (copy_vcs, just)
+
+    def set_distribution(self, name, copy_vcs=False, just=None):
+        """Add a distribution if it's not there, or update it if it is.
+
+        If the distribution does not exist, then the arguments are treated
+        as when creating an instance.
+
+        Otherwise:
+
+            'copy_vcs' gets replaced by the given value.
+
+            If 'just' is not None, then its contents gets added to the existing
+            set of secret files.
+
+            If 'just' is None, then the files being distributed are not
+            altered.
+
+        This call cannot be used to set 'just' back to None if it had already
+        been set to a sequence of files.
+        """
+        if name in self.distributions:
+            local_copy_vcs, local_just = self.get_distribution(name)
+            if just is not None:
+                if local_just is None:
+                    local_just = set(just)
+                else:
+                    local_just.update(just)
+        else:
+            if just is None:
+                local_just = None
+            else:
+                local_just = set(just)
+
+        self.distributions[name] = (copy_vcs, local_just)
 
     def add_source_files(self, name, source_files):
         """Add some specific source files to distribution 'name'.
@@ -1160,7 +1233,8 @@ class DistributeCheckout(DistributeAction):
             return
 
         just.update(source_files)
-        self.set_distribution(name, copy_vcs, just)
+
+        self.distributions[name] = (copy_vcs, just)
 
     def request_all_source_files(self, name):
         """Request that distribution 'name' distribute all source files.
@@ -1173,7 +1247,7 @@ class DistributeCheckout(DistributeAction):
             # Nothing to do, we're already copying all files
             return
 
-        self.set_distribution(name, copy_vcs, None)
+        self.distributions[name] = (copy_vcs, None)
 
     def copying_all_source_files(self, name):
         """Are we distributing all the soruce files?
@@ -1205,22 +1279,32 @@ class DistributeBuildDescription(DistributeAction):
     """This is a bit like DistributeCheckoutAction, but without 'just'.
     """
 
-    def __init__(self, name, copy_vcs=False, secret_files=None):
+    def __init__(self, name, copy_vcs=None, secret_files=None):
         """
         'name' is the name of a DistributionContext. When created, we are
         told which DistributionContext we can be distributed by. Later on,
         other names may be added...
 
-        If 'copy_vcs' is false, then don't copy any VCS "special" files
+        If 'copy_vcs' is False, then don't copy any VCS "special" files
         (['.git', '.gitignore', ...] or ['.bzr'], etc., depending on the VCS
         used for this checkout).
 
+        If 'copy_vcs' is True, then always copy such files.
+
+        If 'copy_vcs' is None, then do whatever "muddle distribute" indicates.
+
+        .. note:: *Note that copy_vcs may only distinguish true and false for
+                  the moment, so None may be equivalvent to False.*
+
         If 'secret_files' is given, it is a sequence of Python files, relative
         to the build description checkout directory, that must be replaced by
-        empty files when the distribution is done.
+        empty files when the distribution is done. It is always copied (as a
+        set). If it is None, then an empty set will be used.
         """
         if secret_files is None:
             secret_files = set()
+        else:
+            secret_files = set(secret_files)
 
         super(DistributeBuildDescription, self).__init__(name, (copy_vcs, secret_files))
 
@@ -1235,32 +1319,55 @@ class DistributeBuildDescription(DistributeAction):
             parts.append('%s[%s]'%(key, ','.join(inner)))
         return '%s: %s'%(self.__class__.__name__, ', '.join(sorted(parts)))
 
-    def set_distribution(self, name, copy_vcs=False, secret_files=None):
-        """Update the information for the named distribution.
+    def add_distribution(self, name, copy_vcs=None, secret_files=None):
+        """Add a new named distribution.
 
-        Adds the new distribution if necessary.
-
-        If this action already has information for that name, updates it.
+        It is an error if there is already a distribution of this name.
         """
         if name in self.distributions:
-            copy_vcs, local_secret_files = self.get_distribution(name)
-        else:
-            copy_vcs, local_secret_files = False, set()
+            raise GiveUp('Distribution "%s" is already present in %s'%(name,
+                self.__class__.__name__))
 
-        if secret_files is not None:
-            local_secret_files.update(secret_files)
+        if secret_files is None:
+            secret_files = set()
+        else:
+            secret_files = set(secret_files)
+
+        self.distributions[name] = (copy_vcs, secret_files)
+
+    def set_distribution(self, name, copy_vcs=None, secret_files=None):
+        """Add a distribution if it's not there, or update it if it is.
+
+        'copy_vcs' gets replaced by the given value.
+
+        'secret_files' get added to the existing set of secret files.
+        """
+        if name in self.distributions:
+            local_copy_vcs, local_secret_files = self.get_distribution(name)
+            if secret_files:
+                local_secret_files.update(secret_files)
+        else:
+            if secret_files is None:
+                local_secret_files = set()
+            else:
+                local_secret_files = set(secret_files)
 
         self.distributions[name] = (copy_vcs, local_secret_files)
 
     def add_secret_files(self, name, secret_files):
         """Add some specific secret files to distribution 'name'.
 
+        Distribution 'name' must already be present on this action.
+
         Does nothing if the files are already added
         """
         copy_vcs, local_secret_files = self.get_distribution(name)
 
-        local_secret_files.update(secret_files)
-        self.set_distribution(name, copy_vcs, local_secret_files)
+        if secret_files:
+            # We know this is already a set
+            local_secret_files.update(secret_files)
+
+        self.distributions[name] = (copy_vcs, local_secret_files)
 
     def build_label(self, builder, label):
         name, target_dir = builder.get_distribution()
@@ -1324,10 +1431,21 @@ class DistributePackage(DistributeAction):
                 parts.append(key)
         return '%s: %s'%(self.__class__.__name__, ', '.join(sorted(parts)))
 
-    def set_distribution(self, name, obj=True, install=True):
-        """Set the information for the named distribution.
+    def add_distribution(self, name, obj=True, install=True):
+        """Add a new named distribution.
 
-        If this action already has information for that name, overwrites it.
+        It is an error if there is already a distribution of this name.
+        """
+        if name in self.distributions:
+            raise GiveUp('Distribution "%s" is already present in %s'%(name,
+                self.__class__.__name__))
+
+        self.distributions[name] = (obj, install)
+
+    def set_distribution(self, name, obj=True, install=True):
+        """Add a distribution if it's not there, or update it if it is.
+
+        If the distribution already exists, just overwrites its values.
         """
         self.distributions[name] = (obj, install)
 
@@ -1459,7 +1577,7 @@ def _copy_versions_dir(builder, name, target_dir, copy_vcs=False):
         if without:
             print '  without %s'%without
 
-    copy_without(src_dir, tgt_dir, without, preserve=True)
+    copy_without(src_dir, tgt_dir, without, preserve=True, verbose=VERBOSE)
 
 def select_all_gpl_checkouts(builder, name, with_vcs):
     """Select all checkouts with some sort of "gpl" license for distribution

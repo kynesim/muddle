@@ -727,7 +727,7 @@ def main(args):
                                            '.muddle/tags/deployment',
                                           ])
 
-            banner('TESTING DISTRIBUTE JUST GPL')
+            banner('TESTING DISTRIBUTE FOR GPL')
             target_dir = os.path.join(root_dir, 'for_gpl')
             muddle(['distribute', '_for_gpl', target_dir])
             dt = DirTree(d.where, fold_dirs=['.git'])
@@ -767,9 +767,38 @@ def main(args):
             assert not same_content(d.join(target_dir, 'src', 'builds_multilicense', 'secret.py'),
                                 SECRET_BUILD_FILE)
 
+            banner('TESTING DISTRIBUTE FOR ALL OPEN')
+            target_dir = os.path.join(root_dir, 'all_open')
+            muddle(['distribute', '_all_open', target_dir])
+            dt = DirTree(d.where, fold_dirs=['.git'])
+            dt.assert_same(target_dir, onedown=True,
+                           unwanted_files=['.git*',
+                                           'src/builds*/*.pyc',
+                                           # No binary things, because they're GPL
+                                           'src/binary*',
+                                           # No secret things, they're very not GPL
+                                           'src/secret*',
+                                           'domains/subdomain/src/manhattan',
+                                           # No not licensed things, because they're not GPL,
+                                           # except for 1, by propagation
+                                           'src/not_licensed[2345]',
+                                           'obj',
+                                           'install',
+                                           'deploy',
+                                           'versions',
+                                           '.muddle/instructions',
+                                           '.muddle/tags/package',
+                                           '.muddle/tags/deployment',
+                                           '.muddle/tags/checkout/binary*',
+                                           '.muddle/tags/checkout/not_licensed[2345]',
+                                           '.muddle/tags/checkout/secret*',
+                                          ])
+            # Check the "secret" build description file has been replaced
+            assert not same_content(d.join(target_dir, 'src', 'builds_multilicense', 'secret.py'),
+                                SECRET_BUILD_FILE)
+
             # Then test:
             #
-            # - _for_gpl
             # - _open
             # - _by_license
             # - just_open

@@ -786,7 +786,6 @@ def main(args):
             assert not same_content(d.join(target_dir, 'src', 'builds_multilicense', 'secret.py'),
                                 SECRET_BUILD_FILE)
 
-
             banner('TESTING DISTRIBUTE FOR BY LICENSE')
             target_dir = os.path.join(root_dir, '_by_license')
             muddle(['distribute', '_by_license', target_dir])
@@ -920,9 +919,59 @@ package:zlib{x86}/distributed              DistributePackage: just_open_src_and_
 package:(subdomain)xyzlib{x86}/distributed DistributePackage: just_open_src_and_bin[install]
 """)
 
+            banner('TESTING DISTRIBUTE FOR BINARY AND SECRET SOURCE')
+            target_dir = os.path.join(root_dir, 'binary_and_secret_source')
+            muddle(['distribute', 'binary_and_secret_source', target_dir])
+            dt = DirTree(d.where, fold_dirs=['.git'])
+            dt.assert_same(target_dir, onedown=True,
+                           unwanted_files=['.git*',
+                                           'src/builds*/*.pyc',
+                                           # No open things (including 'gpl')
+                                           'src/apache',
+                                           'src/bsd',
+                                           'src/busybox',
+                                           'src/gnulibc',
+                                           'src/gpl*',
+                                           'src/lgpl',
+                                           'src/linux',
+                                           'src/mpl',
+                                           'src/ukogl',
+                                           'src/zlib',
+                                           # No not licensed things
+                                           'src/not_licensed*',
+                                           # No binaries
+                                           'obj',
+                                           'install',
+                                           #
+                                           'deploy',
+                                           'versions',
+                                           #
+                                           '.muddle/instructions',
+                                           '.muddle/tags/checkout/apache',
+                                           '.muddle/tags/checkout/bsd',
+                                           '.muddle/tags/checkout/busybox',
+                                           '.muddle/tags/checkout/gnulibc',
+                                           '.muddle/tags/checkout/gpl*',
+                                           '.muddle/tags/checkout/lgpl',
+                                           '.muddle/tags/checkout/linux',
+                                           '.muddle/tags/checkout/mpl',
+                                           '.muddle/tags/checkout/ukogl',
+                                           '.muddle/tags/checkout/zlib',
+                                           '.muddle/tags/checkout/not_licensed*',
+                                           # No package tags because we're only doing source
+                                           '.muddle/tags/package',
+                                           # We don't do deployment...
+                                           '.muddle/tags/deployment',
+                                           # And, in our subdomain
+                                           'domains/subdomain/src/xyzlib',
+                                           'domains/subdomain/.muddle/tags/checkout/xyzlib',
+                                          ])
+            # Check the "secret" build description file has NOT been replaced
+            assert same_content(d.join(target_dir, 'src', 'builds_multilicense', 'secret.py'),
+                                SECRET_BUILD_FILE)
+
             # Then test:
             #
-            # - binary_and_secret_source
             # - binary_and_secret_install
 
 if __name__ == '__main__':

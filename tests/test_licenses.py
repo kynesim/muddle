@@ -277,6 +277,10 @@ def describe_to(builder):
     for co_label in get_secret_checkouts(builder):
         distribute_checkout(builder, 'binary_and_secret_source', co_label)
 
+    # This one sounds like it should work as you'd expect, but again there's
+    # the problem of distribute not having enough information about what is
+    # in the 'install/' directory, and thus distributing all the binaries
+    # from 'install/x86/'. So much the same caveats as just_open_src_and_bin.
     name_distribution(builder, 'binary_and_secret_install', ['binary', 'secret'])
     for co_label in get_binary_checkouts(builder):
         # Get the package(s) directly using this checkout
@@ -970,9 +974,72 @@ package:(subdomain)xyzlib{x86}/distributed DistributePackage: just_open_src_and_
             assert same_content(d.join(target_dir, 'src', 'builds_multilicense', 'secret.py'),
                                 SECRET_BUILD_FILE)
 
-            # Then test:
-            #
-            # - binary_and_secret_install
+            banner('TESTING DISTRIBUTE FOR BINARY AND SECRET INSTALL')
+            # Again, since we're distributing 'install/', we don't have enough
+            # information to discriminate *what* from 'install/' gets distributed.
+            # So this is, again, a test of what we can't do as well as what we can.
+            target_dir = os.path.join(root_dir, 'binary_and_secret_install')
+            muddle(['distribute', 'binary_and_secret_install', target_dir])
+            dt = DirTree(d.where, fold_dirs=['.git'])
+            dt.assert_same(target_dir, onedown=True,
+                           unwanted_files=['.git*',
+                                           'src/builds*/*.pyc',
+                                           # No open things (including 'gpl')
+                                           'src/apache',
+                                           'src/bsd',
+                                           'src/busybox',
+                                           'src/gnulibc',
+                                           'src/gpl*',
+                                           'src/lgpl',
+                                           'src/linux',
+                                           'src/mpl',
+                                           'src/ukogl',
+                                           'src/zlib',
+                                           # No not licensed things
+                                           'src/not_licensed*',
+                                           # No source files
+                                           'src/*.c',
+                                           # All the binaries (because distribute can't
+                                           # tell which are whose in install/x86)
+                                           #
+                                           'obj',
+                                           'deploy',
+                                           'versions',
+                                           #
+                                           '.muddle/tags/checkout/apache',
+                                           '.muddle/tags/checkout/bsd',
+                                           '.muddle/tags/checkout/busybox',
+                                           '.muddle/tags/checkout/gnulibc',
+                                           '.muddle/tags/checkout/gpl*',
+                                           '.muddle/tags/checkout/lgpl',
+                                           '.muddle/tags/checkout/linux',
+                                           '.muddle/tags/checkout/mpl',
+                                           '.muddle/tags/checkout/ukogl',
+                                           '.muddle/tags/checkout/zlib',
+                                           '.muddle/tags/checkout/not_licensed*',
+                                           # No package tags for unwanted things
+                                           '.muddle/tags/package/apache',
+                                           '.muddle/tags/package/bsd',
+                                           '.muddle/tags/package/busybox',
+                                           '.muddle/tags/package/gnulibc',
+                                           '.muddle/tags/package/gpl*',
+                                           '.muddle/tags/package/lgpl',
+                                           '.muddle/tags/package/linux',
+                                           '.muddle/tags/package/mpl',
+                                           '.muddle/tags/package/ukogl',
+                                           '.muddle/tags/package/zlib',
+                                           '.muddle/tags/package/not_licensed*',
+                                           # We don't do deployment...
+                                           '.muddle/tags/deployment',
+                                           # And, in our subdomain
+                                           'domains/subdomain/src/xyzlib',
+                                           'domains/subdomain/.muddle/tags/checkout/xyzlib',
+                                           'domains/subdomain/.muddle/tags/package/xyzlib',
+                                           'domains/subdomain/install/x86',
+                                          ])
+            # Check the "secret" build description file has NOT been replaced
+            assert same_content(d.join(target_dir, 'src', 'builds_multilicense', 'secret.py'),
+                                SECRET_BUILD_FILE)
 
 if __name__ == '__main__':
     args = sys.argv[1:]

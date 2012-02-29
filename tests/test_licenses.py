@@ -60,7 +60,7 @@ distclean:
 
 MULTILICENSE_BUILD_DESC_WITH_CLASHES = """ \
 # A build description with all sorts of licenses, and even a subdomain
-# The install/ directory gets secret and non-secret stuff installed to
+# The install/ directory gets private and non-private stuff installed to
 # role x86, i.e., we have clashes
 
 import os
@@ -77,7 +77,7 @@ from muddled.repository import Repository
 from muddled.version_control import checkout_from_repo
 
 from muddled.distribute import distribute_checkout, distribute_package
-from muddled.licenses import set_license, LicenseBinary, LicenseSecret
+from muddled.licenses import set_license, LicenseBinary, LicensePrivate
 
 def add_package(builder, name, role, license=None, co_name=None, deps=None):
     if not co_name:
@@ -92,7 +92,7 @@ def describe_to(builder):
     role = 'x86'
     deployment = 'everything'
 
-    another_license = LicenseSecret('ignore-this')
+    another_license = LicensePrivate('ignore-this')
 
     add_package(builder, 'apache', 'x86', 'apache')
     add_package(builder, 'bsd',    'x86', 'bsd-new')
@@ -114,11 +114,11 @@ def describe_to(builder):
     add_package(builder, 'binary4', 'x86', LicenseBinary('Customer'))
     add_package(builder, 'binary5', 'x86', LicenseBinary('Customer'))
 
-    add_package(builder, 'secret1', 'x86', LicenseSecret('Shh'), deps=['gnulibc'])
-    add_package(builder, 'secret2', 'x86', LicenseSecret('Shh'), deps=['gnulibc', 'gpl2plus'])
-    add_package(builder, 'secret3', 'x86', LicenseSecret('Shh'), deps=['secret2'])
-    add_package(builder, 'secret4', 'x86', LicenseSecret('Shh'), deps=['secret2', 'gpl2'])
-    add_package(builder, 'secret5', 'x86', LicenseSecret('Shh'))
+    add_package(builder, 'private1', 'x86', LicensePrivate('Shh'), deps=['gnulibc'])
+    add_package(builder, 'private2', 'x86', LicensePrivate('Shh'), deps=['gnulibc', 'gpl2plus'])
+    add_package(builder, 'private3', 'x86', LicensePrivate('Shh'), deps=['private2'])
+    add_package(builder, 'private4', 'x86', LicensePrivate('Shh'), deps=['private2', 'gpl2'])
+    add_package(builder, 'private5', 'x86', LicensePrivate('Shh'))
 
     add_package(builder, 'not_licensed1', 'x86', deps=['gpl2', 'gpl3'])
     add_package(builder, 'not_licensed2', 'x86')
@@ -126,7 +126,7 @@ def describe_to(builder):
     add_package(builder, 'not_licensed4', 'x86')
     add_package(builder, 'not_licensed5', 'x86')
 
-    builder.invocation.db.set_not_built_against(package('secret2', 'x86'),
+    builder.invocation.db.set_not_built_against(package('private2', 'x86'),
                                                 checkout('gpl2plus'))
 
     collect.deploy(builder, deployment)
@@ -154,7 +154,7 @@ def describe_to(builder):
 
 MULTILICENSE_BUILD_DESC = """ \
 # A build description with all sorts of licenses, and even a subdomain
-# "Secret" stuff is segregated to a different role, and is described in
+# "Private" stuff is segregated to a different role, and is described in
 # a different file
 
 import os
@@ -171,13 +171,13 @@ from muddled.repository import Repository
 from muddled.version_control import checkout_from_repo
 
 from muddled.distribute import distribute_checkout, distribute_package, \
-        get_distributions_not_for, set_secret_build_files, name_distribution
-from muddled.licenses import set_license, LicenseBinary, LicenseSecret, \
-        get_open_not_gpl_checkouts, get_binary_checkouts, get_secret_checkouts, \
+        get_distributions_not_for, set_private_build_files, name_distribution
+from muddled.licenses import set_license, LicenseBinary, LicensePrivate, \
+        get_open_not_gpl_checkouts, get_binary_checkouts, get_private_checkouts, \
         get_license
 
-# Our secret information
-from secret import describe_secret
+# Our private information
+from private import describe_private
 
 def add_package(builder, name, role, license=None, co_name=None, deps=None):
     if not co_name:
@@ -192,7 +192,7 @@ def describe_to(builder):
     role = 'x86'
     deployment = 'everything'
 
-    another_license = LicenseSecret('ignore-this')
+    another_license = LicensePrivate('ignore-this')
 
     add_package(builder, 'apache', role, 'apache')
     add_package(builder, 'bsd',    role, 'bsd-new')
@@ -226,13 +226,13 @@ def describe_to(builder):
                                    rel="", dest="",
                                    domain=None)
 
-    # We also have some secret stuff, described elsewhere
-    describe_secret(builder, deployment=deployment)
+    # We also have some private stuff, described elsewhere
+    describe_private(builder, deployment=deployment)
 
-    # So that "elsewhere" is secret - i.e., secret.py
-    # and we should never distribute it in non-secret distributions
-    for name in get_distributions_not_for(builder, ['secret']):
-        set_secret_build_files(builder, name, ['secret.py'])
+    # So that "elsewhere" is private - i.e., private.py
+    # and we should never distribute it in non-private distributions
+    for name in get_distributions_not_for(builder, ['private']):
+        set_private_build_files(builder, name, ['private.py'])
 
     # We have a subdomain.
     include_domain(builder,
@@ -258,7 +258,7 @@ def describe_to(builder):
     # NOTE that this means we will distribute everything in install/x86, because
     # we have no way of knowing (at distribute time) what came from where. If we
     # did care, we'd need to put things into different roles according to their
-    # license (as we do for x86-secret)
+    # license (as we do for x86-private)
     name_distribution(builder, 'just_open_src_and_bin', ['open']) # so, no 'gpl'
     for co_label in get_open_not_gpl_checkouts(builder):
         distribute_checkout(builder, 'just_open_src_and_bin', co_label)
@@ -267,34 +267,34 @@ def describe_to(builder):
         for label in pkg_labels:
             distribute_package(builder, 'just_open_src_and_bin', label)
     # And we mustn't forget to add this new distribution to our
-    # "don't propagate secret.py" as well, since it hadn't been
+    # "don't propagate private.py" as well, since it hadn't been
     # declared yet when we did this earlier...
-    set_secret_build_files(builder, 'just_open_src_and_bin', ['secret.py'])
+    set_private_build_files(builder, 'just_open_src_and_bin', ['private.py'])
 
-    name_distribution(builder, 'binary_and_secret_source', ['binary', 'secret'])
+    name_distribution(builder, 'binary_and_private_source', ['binary', 'private'])
     for co_label in get_binary_checkouts(builder):
-        distribute_checkout(builder, 'binary_and_secret_source', co_label)
-    for co_label in get_secret_checkouts(builder):
-        distribute_checkout(builder, 'binary_and_secret_source', co_label)
+        distribute_checkout(builder, 'binary_and_private_source', co_label)
+    for co_label in get_private_checkouts(builder):
+        distribute_checkout(builder, 'binary_and_private_source', co_label)
 
     # This one sounds like it should work as you'd expect, but again there's
     # the problem of distribute not having enough information about what is
     # in the 'install/' directory, and thus distributing all the binaries
     # from 'install/x86/'. So much the same caveats as just_open_src_and_bin.
-    name_distribution(builder, 'binary_and_secret_install', ['binary', 'secret'])
+    name_distribution(builder, 'binary_and_private_install', ['binary', 'private'])
     for co_label in get_binary_checkouts(builder):
         # Get the package(s) directly using this checkout
         pkg_labels = builder.invocation.packages_using_checkout(co_label)
         for label in pkg_labels:
-            distribute_package(builder, 'binary_and_secret_install', label)
-    for co_label in get_secret_checkouts(builder):
+            distribute_package(builder, 'binary_and_private_install', label)
+    for co_label in get_private_checkouts(builder):
         pkg_labels = builder.invocation.packages_using_checkout(co_label)
         for label in pkg_labels:
-            distribute_package(builder, 'binary_and_secret_install', label)
+            distribute_package(builder, 'binary_and_private_install', label)
 """
 
-SECRET_BUILD_FILE = """\
-# The part of a build dealing with "secret" licensed stuff
+PRIVATE_BUILD_FILE = """\
+# The part of a build dealing with "private" licensed stuff
 
 import muddled.deployments.collect as collect
 import muddled.pkg as pkg
@@ -302,7 +302,7 @@ import muddled.pkgs.make as make
 
 from muddled import pkgs
 from muddled.depend import checkout, package
-from muddled.licenses import LicenseSecret, set_license, set_not_built_against
+from muddled.licenses import LicensePrivate, set_license, set_not_built_against
 
 # Really, this should be in another Python file, since we're using it from
 # two places. But for the moment this wil do.
@@ -319,32 +319,32 @@ def add_package(builder, name, role, license=None, co_name=None, dep_tuples=None
         co_label = checkout(co_name)
         set_license(builder, co_label, license)
 
-def describe_secret(builder, *args, **kwargs):
-    # Secret packages
+def describe_private(builder, *args, **kwargs):
+    # Private packages
 
     deployment = kwargs['deployment']
 
-    add_package(builder, 'secret1', 'x86-secret', LicenseSecret('Shh'),
+    add_package(builder, 'private1', 'x86-private', LicensePrivate('Shh'),
                 dep_tuples=[('gnulibc', 'x86')])
-    add_package(builder, 'secret2', 'x86-secret', LicenseSecret('Shh'),
+    add_package(builder, 'private2', 'x86-private', LicensePrivate('Shh'),
                 dep_tuples=[('gnulibc', 'x86'),
                             ('gpl2plus', 'x86')])
-    add_package(builder, 'secret3', 'x86-secret', LicenseSecret('Shh'),
-                dep_tuples=[('secret2', 'x86-secret')])
-    add_package(builder, 'secret4', 'x86-secret', LicenseSecret('Shh'),
-                dep_tuples=[('secret2', 'x86-secret'),
+    add_package(builder, 'private3', 'x86-private', LicensePrivate('Shh'),
+                dep_tuples=[('private2', 'x86-private')])
+    add_package(builder, 'private4', 'x86-private', LicensePrivate('Shh'),
+                dep_tuples=[('private2', 'x86-private'),
                             ('gpl2', 'x86')])
-    add_package(builder, 'secret5', 'x86-secret', LicenseSecret('Shh'))
+    add_package(builder, 'private5', 'x86-private', LicensePrivate('Shh'))
 
     # The following need to be true if we are not to be required to distribute
     # under GPL propagation rules
-    set_not_built_against(builder, package('secret2', 'x86-secret'), checkout('gpl2plus'))
-    set_not_built_against(builder, package('secret3', 'x86-secret'), checkout('gpl2plus'))
-    set_not_built_against(builder, package('secret4', 'x86-secret'), checkout('gpl2plus'))
-    set_not_built_against(builder, package('secret4', 'x86-secret'), checkout('gpl2'))
+    set_not_built_against(builder, package('private2', 'x86-private'), checkout('gpl2plus'))
+    set_not_built_against(builder, package('private3', 'x86-private'), checkout('gpl2plus'))
+    set_not_built_against(builder, package('private4', 'x86-private'), checkout('gpl2plus'))
+    set_not_built_against(builder, package('private4', 'x86-private'), checkout('gpl2'))
 
     collect.copy_from_role_install(builder, deployment,
-                                   role = 'x86-secret',
+                                   role = 'x86-private',
                                    rel = "", dest = "",
                                    domain = None)
 """
@@ -362,7 +362,7 @@ import muddled.deployments.filedep
 from muddled.depend import checkout, package
 
 from muddled.distribute import distribute_checkout, distribute_package
-from muddled.licenses import set_license, LicenseBinary, LicenseSecret
+from muddled.licenses import set_license, LicenseBinary, LicensePrivate
 
 def add_package(builder, name, role, license=None, co_name=None, deps=None):
     if not co_name:
@@ -377,14 +377,14 @@ def describe_to(builder):
     deployment = 'everything'
 
     add_package(builder, 'xyzlib',  'x86', 'zlib')
-    add_package(builder, 'manhattan', 'x86-secret', 'code-nightmare-green')
+    add_package(builder, 'manhattan', 'x86-private', 'code-nightmare-green')
 
-    builder.invocation.db.set_not_built_against(package('manhattan', 'x86-secret'),
+    builder.invocation.db.set_not_built_against(package('manhattan', 'x86-private'),
                                                 checkout('xyzlib'))
 
     # The 'everything' deployment is built from our single role, and goes
     # into deploy/everything.
-    muddled.deployments.filedep.deploy(builder, "", "everything", ['x86', 'x86-secret'])
+    muddled.deployments.filedep.deploy(builder, "", "everything", ['x86', 'x86-private'])
 
     # If no role is specified, assume this one
     builder.invocation.add_default_role('x86')
@@ -451,9 +451,9 @@ def make_repos(root_dir):
 
             with NewDirectory('builds_multilicense') as d:
                 make_build_desc(d.where, MULTILICENSE_BUILD_DESC.format(repo=repo))
-                touch('secret.py', SECRET_BUILD_FILE)
-                git('add secret.py')
-                git('commit -m "Secret build desc"')
+                touch('private.py', PRIVATE_BUILD_FILE)
+                git('add private.py')
+                git('commit -m "Private build desc"')
 
             new_repo('apache')
             new_repo('bsd')
@@ -475,11 +475,11 @@ def make_repos(root_dir):
             new_repo('binary4')
             new_repo('binary5')
 
-            new_repo('secret1')
-            new_repo('secret2')
-            new_repo('secret3')
-            new_repo('secret4')
-            new_repo('secret5')
+            new_repo('private1')
+            new_repo('private2')
+            new_repo('private3')
+            new_repo('private4')
+            new_repo('private5')
 
             new_repo('not_licensed1')
             new_repo('not_licensed2')
@@ -529,14 +529,14 @@ Checkout licenses are:
 * checkout:lgpl/*                 LicenseLGPL('LGPL')
 * checkout:linux/*                LicenseGPL('GPL v2', with_exception=True)
 * checkout:mpl/*                  LicenseOpen('MPL 1.1')
-* checkout:secret1/*              LicenseSecret('Shh')
-* checkout:secret2/*              LicenseSecret('Shh')
-* checkout:secret3/*              LicenseSecret('Shh')
-* checkout:secret4/*              LicenseSecret('Shh')
-* checkout:secret5/*              LicenseSecret('Shh')
+* checkout:private1/*             LicensePrivate('Shh')
+* checkout:private2/*             LicensePrivate('Shh')
+* checkout:private3/*             LicensePrivate('Shh')
+* checkout:private4/*             LicensePrivate('Shh')
+* checkout:private5/*             LicensePrivate('Shh')
 * checkout:ukogl/*                LicenseOpen('UK Open Government License')
 * checkout:zlib/*                 LicenseOpen('zlib')
-* checkout:(subdomain)manhattan/* LicenseSecret('Code Nightmare Green')
+* checkout:(subdomain)manhattan/* LicensePrivate('Code Nightmare Green')
 * checkout:(subdomain)xyzlib/*    LicenseOpen('zlib')
 
 The following checkouts do not have a license:
@@ -561,26 +561,26 @@ The following checkouts have some sort of GPL license:
 
 Exceptions to "implicit" GPL licensing are:
 
-* package:secret2{x86}/* is not built against checkout:gpl2plus/*
-* package:(subdomain)manhattan{x86-secret}/* is not built against checkout:(subdomain)xyzlib/*
+* package:private2{x86}/* is not built against checkout:gpl2plus/*
+* package:(subdomain)manhattan{x86-private}/* is not built against checkout:(subdomain)xyzlib/*
 
 The following are "implicitly" GPL licensed for the given reasons:
 
 * checkout:not_licensed1/*  (was None)
   - package:not_licensed1{x86}/* depends on checkout:gpl2/*
   - package:not_licensed1{x86}/* depends on checkout:gpl3/*
-* checkout:secret3/*  (was LicenseSecret('Shh'))
-  - package:secret3{x86}/* depends on checkout:gpl2plus/*
-* checkout:secret4/*  (was LicenseSecret('Shh'))
-  - package:secret4{x86}/* depends on checkout:gpl2/*
-  - package:secret4{x86}/* depends on checkout:gpl2plus/*
+* checkout:private3/*  (was LicensePrivate('Shh'))
+  - package:private3{x86}/* depends on checkout:gpl2plus/*
+* checkout:private4/*  (was LicensePrivate('Shh'))
+  - package:private4{x86}/* depends on checkout:gpl2/*
+  - package:private4{x86}/* depends on checkout:gpl2plus/*
 * checkout:ukogl/*  (was LicenseOpen('UK Open Government License'))
   - package:ukogl{x86}/* depends on checkout:lgpl/*
 
 This means that the following have irreconcilable clashes:
 
-* checkout:secret3/*              LicenseSecret('Shh')
-* checkout:secret4/*              LicenseSecret('Shh')
+* checkout:private3/*             LicensePrivate('Shh')
+* checkout:private4/*             LicensePrivate('Shh')
 """)
 
 def check_checkout_licenses_without_clashes(root_dir, d):
@@ -606,14 +606,14 @@ Checkout licenses are:
 * checkout:lgpl/*                 LicenseLGPL('LGPL')
 * checkout:linux/*                LicenseGPL('GPL v2', with_exception=True)
 * checkout:mpl/*                  LicenseOpen('MPL 1.1')
-* checkout:secret1/*              LicenseSecret('Shh')
-* checkout:secret2/*              LicenseSecret('Shh')
-* checkout:secret3/*              LicenseSecret('Shh')
-* checkout:secret4/*              LicenseSecret('Shh')
-* checkout:secret5/*              LicenseSecret('Shh')
+* checkout:private1/*             LicensePrivate('Shh')
+* checkout:private2/*             LicensePrivate('Shh')
+* checkout:private3/*             LicensePrivate('Shh')
+* checkout:private4/*             LicensePrivate('Shh')
+* checkout:private5/*             LicensePrivate('Shh')
 * checkout:ukogl/*                LicenseOpen('UK Open Government License')
 * checkout:zlib/*                 LicenseOpen('zlib')
-* checkout:(subdomain)manhattan/* LicenseSecret('Code Nightmare Green')
+* checkout:(subdomain)manhattan/* LicensePrivate('Code Nightmare Green')
 * checkout:(subdomain)xyzlib/*    LicenseOpen('zlib')
 
 The following checkouts do not have a license:
@@ -638,10 +638,10 @@ The following checkouts have some sort of GPL license:
 
 Exceptions to "implicit" GPL licensing are:
 
-* package:secret2{x86-secret}/* is not built against checkout:gpl2plus/*
-* package:secret3{x86-secret}/* is not built against checkout:gpl2plus/*
-* package:(subdomain)manhattan{x86-secret}/* is not built against checkout:(subdomain)xyzlib/*
-* package:secret4{x86-secret}/* is not built against checkout:gpl2/*, checkout:gpl2plus/*
+* package:private2{x86-private}/* is not built against checkout:gpl2plus/*
+* package:private3{x86-private}/* is not built against checkout:gpl2plus/*
+* package:private4{x86-private}/* is not built against checkout:gpl2/*, checkout:gpl2plus/*
+* package:(subdomain)manhattan{x86-private}/* is not built against checkout:(subdomain)xyzlib/*
 
 The following are "implicitly" GPL licensed for the given reasons:
 
@@ -732,8 +732,8 @@ def main(args):
                                            'src/zlib',
                                            # No binary things, because they're not GPL
                                            'src/binary*',
-                                           # No secret things, they're very not GPL
-                                           'src/secret*',
+                                           # No private things, they're very not GPL
+                                           'src/private*',
                                            # No not licensed things, because they're not GPL,
                                            # except for 1, by propagation
                                            'src/not_licensed[2345]',
@@ -750,13 +750,13 @@ def main(args):
                                            '.muddle/tags/checkout/zlib',
                                            '.muddle/tags/checkout/binary*',
                                            '.muddle/tags/checkout/not_licensed[2345]',
-                                           '.muddle/tags/checkout/secret*',
+                                           '.muddle/tags/checkout/private*',
                                            # Nothing in the subdomains is GPL
                                            'domains',
                                           ])
-            # Check the "secret" build description file has been replaced
-            assert not same_content(d.join(target_dir, 'src', 'builds_multilicense', 'secret.py'),
-                                SECRET_BUILD_FILE)
+            # Check the "private" build description file has been replaced
+            assert not same_content(d.join(target_dir, 'src', 'builds_multilicense', 'private.py'),
+                                PRIVATE_BUILD_FILE)
 
             banner('TESTING DISTRIBUTE FOR ALL OPEN')
             target_dir = os.path.join(root_dir, '_all_open')
@@ -767,8 +767,8 @@ def main(args):
                                            'src/builds*/*.pyc',
                                            # No binary things, because they're not GPL
                                            'src/binary*',
-                                           # No secret things, they're very not GPL
-                                           'src/secret*',
+                                           # No private things, they're very not GPL
+                                           'src/private*',
                                            'domains/subdomain/src/manhattan',
                                            # No not licensed things, because they're not open,
                                            # except for 1, by propagation from GPL
@@ -782,13 +782,13 @@ def main(args):
                                            '.muddle/tags/deployment',
                                            '.muddle/tags/checkout/binary*',
                                            '.muddle/tags/checkout/not_licensed[2345]',
-                                           '.muddle/tags/checkout/secret*',
+                                           '.muddle/tags/checkout/private*',
                                            # And, in our subdomain
                                            '.muddle/tags/checkout/manhattan',
                                           ])
-            # Check the "secret" build description file has been replaced
-            assert not same_content(d.join(target_dir, 'src', 'builds_multilicense', 'secret.py'),
-                                SECRET_BUILD_FILE)
+            # Check the "private" build description file has been replaced
+            assert not same_content(d.join(target_dir, 'src', 'builds_multilicense', 'private.py'),
+                                PRIVATE_BUILD_FILE)
 
             banner('TESTING DISTRIBUTE FOR BY LICENSE')
             target_dir = os.path.join(root_dir, '_by_license')
@@ -797,10 +797,10 @@ def main(args):
             dt.assert_same(target_dir, onedown=True,
                            unwanted_files=['.git*',
                                            'src/builds*/*.pyc',
-                                           # No secret things, they're very not GPL
-                                           'src/secret*',
-                                           'obj/*/x86-secret',
-                                           'install/x86-secret',
+                                           # No private things, they're very not GPL
+                                           'src/private*',
+                                           'obj/*/x86-private',
+                                           'install/x86-private',
                                            # No not licensed things, because they're not
                                            # licensed(!), except for 1, by propagation from GPL
                                            'src/not_licensed[2345]',
@@ -811,9 +811,9 @@ def main(args):
                                            'deploy',
                                            'versions',
                                            '.muddle/instructions',
-                                           '.muddle/tags/checkout/secret*',
+                                           '.muddle/tags/checkout/private*',
                                            '.muddle/tags/checkout/not_licensed[2345]',
-                                           '.muddle/tags/package/secret*',
+                                           '.muddle/tags/package/private*',
                                            '.muddle/tags/package/not_licensed*',
                                            # No package tags for source-only things
                                            '.muddle/tags/package/apache',
@@ -835,9 +835,9 @@ def main(args):
                                            'domains/subdomain/.muddle/tags/package',
                                            'domains/subdomain/.muddle/tags/deploy',
                                           ])
-            # Check the "secret" build description file has been replaced
-            assert not same_content(d.join(target_dir, 'src', 'builds_multilicense', 'secret.py'),
-                                SECRET_BUILD_FILE)
+            # Check the "private" build description file has been replaced
+            assert not same_content(d.join(target_dir, 'src', 'builds_multilicense', 'private.py'),
+                                PRIVATE_BUILD_FILE)
 
             banner('TESTING DISTRIBUTE FOR JUST OPEN')
             # As it says in the build description, this is an odd one, and
@@ -858,9 +858,9 @@ def main(args):
             dt.assert_same(target_dir, onedown=True,
                            unwanted_files=['.git*',
                                            'src/builds*/*.pyc',
-                                           # No binary or secret things
+                                           # No binary or private things
                                            'src/binary*',
-                                           'src/secret*',
+                                           'src/private*',
                                            'domains/subdomain/src/manhattan',
                                            # No GPL things
                                            'src/gpl*',
@@ -871,8 +871,8 @@ def main(args):
                                            # No not licensed things, because they're not open
                                            'src/not_licensed*',
                                            # But we end up with all of install/x86 - see above
-                                           # We don't want any of install/x86-secret, of course
-                                           'install/x86-secret',
+                                           # We don't want any of install/x86-private, of course
+                                           'install/x86-private',
                                            'obj',
                                            'deploy',
                                            'versions',
@@ -884,7 +884,7 @@ def main(args):
                                            '.muddle/tags/checkout/lgpl',
                                            '.muddle/tags/checkout/linux',
                                            '.muddle/tags/checkout/not_licensed*',
-                                           '.muddle/tags/checkout/secret*',
+                                           '.muddle/tags/checkout/private*',
                                            '.muddle/tags/package/binary*',
                                            '.muddle/tags/package/busybox',
                                            '.muddle/tags/package/gnulibc',
@@ -892,16 +892,16 @@ def main(args):
                                            '.muddle/tags/package/lgpl',
                                            '.muddle/tags/package/linux',
                                            '.muddle/tags/package/not_licensed*',
-                                           '.muddle/tags/package/secret*',
+                                           '.muddle/tags/package/private*',
                                            '.muddle/tags/deployment',
                                            # And, in our subdomain
                                            'domains/subdomain/src/manhattan',
                                            'domains/subdomain/.muddle/tags/checkout/manhattan',
                                            'domains/subdomain/.muddle/tags/package/manhattan',
                                           ])
-            # Check the "secret" build description file has been replaced
-            assert not same_content(d.join(target_dir, 'src', 'builds_multilicense', 'secret.py'),
-                                SECRET_BUILD_FILE)
+            # Check the "private" build description file has been replaced
+            assert not same_content(d.join(target_dir, 'src', 'builds_multilicense', 'private.py'),
+                                PRIVATE_BUILD_FILE)
 
             # See, it does say that it is doing what we asked...
             text = captured_muddle(['-n', 'distribute', 'just_open_src_and_bin', '../fred'])
@@ -923,9 +923,9 @@ package:zlib{x86}/distributed              DistributePackage: just_open_src_and_
 package:(subdomain)xyzlib{x86}/distributed DistributePackage: just_open_src_and_bin[install]
 """)
 
-            banner('TESTING DISTRIBUTE FOR BINARY AND SECRET SOURCE')
-            target_dir = os.path.join(root_dir, 'binary_and_secret_source')
-            muddle(['distribute', 'binary_and_secret_source', target_dir])
+            banner('TESTING DISTRIBUTE FOR BINARY AND PRIVATE SOURCE')
+            target_dir = os.path.join(root_dir, 'binary_and_private_source')
+            muddle(['distribute', 'binary_and_private_source', target_dir])
             dt = DirTree(d.where, fold_dirs=['.git'])
             dt.assert_same(target_dir, onedown=True,
                            unwanted_files=['.git*',
@@ -970,16 +970,16 @@ package:(subdomain)xyzlib{x86}/distributed DistributePackage: just_open_src_and_
                                            'domains/subdomain/src/xyzlib',
                                            'domains/subdomain/.muddle/tags/checkout/xyzlib',
                                           ])
-            # Check the "secret" build description file has NOT been replaced
-            assert same_content(d.join(target_dir, 'src', 'builds_multilicense', 'secret.py'),
-                                SECRET_BUILD_FILE)
+            # Check the "private" build description file has NOT been replaced
+            assert same_content(d.join(target_dir, 'src', 'builds_multilicense', 'private.py'),
+                                PRIVATE_BUILD_FILE)
 
-            banner('TESTING DISTRIBUTE FOR BINARY AND SECRET INSTALL')
+            banner('TESTING DISTRIBUTE FOR BINARY AND PRIVATE INSTALL')
             # Again, since we're distributing 'install/', we don't have enough
             # information to discriminate *what* from 'install/' gets distributed.
             # So this is, again, a test of what we can't do as well as what we can.
-            target_dir = os.path.join(root_dir, 'binary_and_secret_install')
-            muddle(['distribute', 'binary_and_secret_install', target_dir])
+            target_dir = os.path.join(root_dir, 'binary_and_private_install')
+            muddle(['distribute', 'binary_and_private_install', target_dir])
             dt = DirTree(d.where, fold_dirs=['.git'])
             dt.assert_same(target_dir, onedown=True,
                            unwanted_files=['.git*',
@@ -1037,9 +1037,9 @@ package:(subdomain)xyzlib{x86}/distributed DistributePackage: just_open_src_and_
                                            'domains/subdomain/.muddle/tags/package/xyzlib',
                                            'domains/subdomain/install/x86',
                                           ])
-            # Check the "secret" build description file has NOT been replaced
-            assert same_content(d.join(target_dir, 'src', 'builds_multilicense', 'secret.py'),
-                                SECRET_BUILD_FILE)
+            # Check the "private" build description file has NOT been replaced
+            assert same_content(d.join(target_dir, 'src', 'builds_multilicense', 'private.py'),
+                                PRIVATE_BUILD_FILE)
 
 if __name__ == '__main__':
     args = sys.argv[1:]

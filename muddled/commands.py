@@ -1978,7 +1978,7 @@ class QueryCheckoutLicenses(QueryCommand):
             print
             print 'Exceptions to "implicit" GPL licensing are:'
             print
-            for key, value in builder.invocation.db.not_built_against.items():
+            for key, value in sorted(builder.invocation.db.not_built_against.items()):
                 print '* %s is not built against %s'%(key,
                                     label_list_to_string(value, join_with=', '))
 
@@ -1996,14 +1996,14 @@ class QueryCheckoutLicenses(QueryCommand):
                 for reason in sorted(reasons):
                     print '  - %s'%(reason)
 
-        bad_binary, bad_secret = get_license_clashes(builder, implicit_gpl_licensed)
-        if bad_binary or bad_secret:
+        bad_binary, bad_private = get_license_clashes(builder, implicit_gpl_licensed)
+        if bad_binary or bad_private:
             print
             print 'This means that the following have irreconcilable clashes:'
             print
             for label in sorted(bad_binary):
                 print '* %-*s %r'%(maxlen, label, get_co_license(label))
-            for label in sorted(bad_secret):
+            for label in sorted(bad_private):
                 print '* %-*s %r'%(maxlen, label, get_co_license(label))
 
 @subcommand('query', 'role-licenses', CAT_QUERY)
@@ -2014,7 +2014,7 @@ class QueryRoleLicenses(QueryCommand):
     Print the known roles and the licenses used within them
     (i.e., by checkouts used by packages with those roles).
 
-    If -no-clashes is given, then don't report binary/secret license clashes
+    If -no-clashes is given, then don't report binary/private license clashes
     (which might cause problems when doing a "_by_license" distribution).
 
     See also "muddle query checkout-licenses" for information on licenses
@@ -2051,13 +2051,13 @@ class QueryRoleLicenses(QueryCommand):
 
             clashes = {}
             for role in roles:
-                binary_items, secret_items = get_license_clashes_in_role(builder, role)
-                if binary_items and secret_items:
+                binary_items, private_items = get_license_clashes_in_role(builder, role)
+                if binary_items and private_items:
                     # We have a clash in the licensing of the "install/" directory
-                    clashes[role] = (binary_items, secret_items)
+                    clashes[role] = (binary_items, private_items)
             if clashes:
                 print
-                print 'The following roles have both "binary" and "secret" licenses,'
+                print 'The following roles have both "binary" and "private" licenses,'
                 print 'which would cause problems with a "_by_license" distribution:'
                 print
                 for role, (bin, sec) in sorted(clashes.items()):
@@ -3947,12 +3947,12 @@ class Distribute(Command):
           It will fail for the same reasons that _for_gpl" fails.
 
         * "_by_license" is a distribution of everything that is not licensed
-          with a "secret" license. It is equivalent to "_all_open" plus
-          those parts of a "_binary_release" that are not licensed "secret".
+          with a "private" license. It is equivalent to "_all_open" plus
+          those parts of a "_binary_release" that are not licensed "private".
 
           It will fail if "_all_open" would fail, or if any of the install
           directories to be distributed could contain results from building
-          "secret" packages (as determined by which packages are in the
+          "private" packages (as determined by which packages are in the
           appropriate role).
 
     - <target_directory> is where to distribute to. If it already exists,

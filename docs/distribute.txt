@@ -35,13 +35,13 @@ That third case was actually the driving force of the development of muddle
 distribution support, as we wanted to be able to produce a build tree
 containing source code for any open-source packages, binary blobs for
 proprietary packages whose source code is private, and omitting
-entirely packages that are "secret" (i.e., typilcally for proprietary
+entirely packages that are "private" (i.e., typilcally for proprietary
 reasons).
 
 The desired intent is that, whatever means (1 through 3) is used, the result
 should be a functioning muddle build tree. Clearly this might not always be
 possible for some of the more extreme values of case 3 (if too much of the
-build tree is not distributed because it is "secret"), but even in such cases
+build tree is not distributed because it is "private"), but even in such cases
 it should ideally be possible to write the build description(s) in such a
 manner that something useful can be built.
 
@@ -241,14 +241,14 @@ Licenses
 
 import muddled.licenses
 
-License categories: gpl, open, binary, secret
+License categories: gpl, open, binary, private
 
 ALL_LICENSE_CATEGORIES
 
 License
 LicenseOpen
 LicenseBinary
-LicenseSecret
+LicensePrivate
 LicenseGPL
 LicenseLGPL
 
@@ -272,7 +272,7 @@ get_implicit_gpl_checkouts(builder)
 get_open_checkouts(builder)
 get_open_not_gpl_checkouts(builder)
 get_binary_checkouts(builder)
-get_secret_checkouts(builder)
+get_private_checkouts(builder)
 
     builder.invocation.db.checkout_has_license(co_label)
 
@@ -296,7 +296,7 @@ distribute_package(builder, name, label, obj=False, install=False,
                    with_muddle_makefile=False)
 
 distribute_checkout_files(builder, name, label, source_files)
-set_secret_build_files(builder, name, secret_files)
+set_private_build_files(builder, name, private_files)
 
 get_distribution_names(builder)
 get_distribution_names_for(builder, categories)
@@ -306,13 +306,17 @@ get_used_distribution_names(builder)
   for name in get_distributions_for(['gpl', 'open']):
       distribute_checkout_files(builder, name, co_label, 'Makefile')
 
-  for name in get_distributions_not_for(['secret']):
-      set_secret_build_files(builder, name, ['secret_app.py'])
+  for name in get_distributions_not_for(['private']):
+      set_private_build_files(builder, name, ['private_app.py'])
 
 muddle query distributions
 
 
+Caveat on distributing packages and the "install/<role>" directory, and the
+fact "muddle distribute" has no way of knowing who put what in there. On
+segregating things by role, as necessary, and "muddle query role-licenses".
 
+How to handle "private" stuff.
 
 
 It is possible to define a distribution within the muddle build description.
@@ -572,7 +576,7 @@ choose what to distribute by its license. The following thoughts occur:
 
    * Open. These can be freely distributed as source.
    * Closed. These can only be distributed as binary.
-   * Secret. These must not be distributed at all, and may also need a
+   * Private. These must not be distributed at all, and may also need a
      mechanism to prevent distributing the relevant part of the build
      description as well.
 
@@ -714,7 +718,7 @@ Brief notes, to be expanded:
 
 Licenses are of four broad types:
 
-* *secret*. Checkouts with this license (and thus also their packages) are not
+* *private*. Checkouts with this license (and thus also their packages) are not
   to be distributed as part of a normal license-driven distribution.
 
 * *binary*. Checkouts with this license (and thus also their packages) are to

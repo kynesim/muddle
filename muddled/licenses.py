@@ -10,7 +10,7 @@ from muddled.utils import GiveUp, LabelType, wrap
 
 DEBUG=False
 
-ALL_LICENSE_CATEGORIES = ('gpl', 'open', 'binary', 'secret')
+ALL_LICENSE_CATEGORIES = ('gpl', 'open', 'binary', 'private')
 
 class License(object):
     """The representation of a source license.
@@ -41,7 +41,7 @@ class License(object):
             * 'binary' - a binary license, indicating that the source code is
               not to be distributed, but binary (the contents of the "install"
               directory) may be.
-            * 'secret' - a marker that the checkout should not be distributed
+            * 'private' - a marker that the checkout should not be distributed
               at all.
         """
         self.name = name
@@ -99,10 +99,10 @@ class License(object):
         """
         return self.category == 'binary'
 
-    def is_secret(self):
-        """Is this a secret-do-not-distribute license?
+    def is_private(self):
+        """Is this a private-do-not-distribute license?
         """
-        return self.category == 'secret'
+        return self.category == 'private'
 
     def propagates(self):
         """Does this license "propagate" to other checkouts?
@@ -129,12 +129,12 @@ class License(object):
         """
         return False
 
-class LicenseSecret(License):
-    """A "secret" license - we do not want to distribute anything
+class LicensePrivate(License):
+    """A "private" license - we do not want to distribute anything
     """
 
     def __init__(self, name):
-        super(LicenseSecret, self).__init__(name=name, category='secret')
+        super(LicensePrivate, self).__init__(name=name, category='private')
 
     def __repr__(self):
         return '%s(%r)'%(self.__class__.__name__, self.name)
@@ -251,7 +251,7 @@ for mnemonic, license in (
         ('mpl1_1',          LicenseOpen('MPL 1.1')),
         ('ukogl',           LicenseOpen('UK Open Government License')),
         ('zlib',            LicenseOpen('zlib')), # ZLIB has its own license
-        ('code-nightmare-green', LicenseSecret('Code Nightmare Green')),
+        ('code-nightmare-green', LicensePrivate('Code Nightmare Green')),
         ):
     standard_licenses[mnemonic] = license
 
@@ -262,7 +262,7 @@ def print_standard_licenses():
     gpl_keys = []
     open_keys = []
     binary_keys = []
-    secret_keys = []
+    private_keys = []
     other_keys = []
 
     for key in keys:
@@ -273,14 +273,14 @@ def print_standard_licenses():
             open_keys.append((key, license))
         elif license.is_binary():
             binary_keys.append((key, license))
-        elif license.is_secret():
-            secret_keys.append((key, license))
+        elif license.is_private():
+            private_keys.append((key, license))
         else:
             other_keys.append((key, license))
 
     print 'Standard licenses are:'
 
-    for thing in (gpl_keys, open_keys, binary_keys, secret_keys, other_keys):
+    for thing in (gpl_keys, open_keys, binary_keys, private_keys, other_keys):
         if thing:
             print
             for key, license in sorted(thing):
@@ -533,17 +533,17 @@ def get_binary_checkouts(builder):
             binary_licensed.add(co_label)
     return binary_licensed
 
-def get_secret_checkouts(builder):
-    """Return a set of all the "secret" licensed checkouts.
+def get_private_checkouts(builder):
+    """Return a set of all the "private" licensed checkouts.
     """
     all_checkouts = builder.invocation.all_checkout_labels()
     get_checkout_license = builder.invocation.db.get_checkout_license
-    secret_licensed = set()
+    private_licensed = set()
     for co_label in all_checkouts:
         license = get_checkout_license(co_label, absent_is_None=True)
-        if license and license.is_secret():
-            secret_licensed.add(co_label)
-    return secret_licensed
+        if license and license.is_private():
+            private_licensed.add(co_label)
+    return private_licensed
 
 def checkout_license_allowed(builder, co_label, categories):
     """Does this checkout have a license in the given categories?
@@ -565,16 +565,16 @@ def get_license_clashes(builder, implicit_gpl_checkouts):
 
     ``get_implicit_gpl_checkouts()`` returns those checkouts that are
     implicitly "made" GPL by propagation. However, if the checkouts concerned
-    were already licensed with either "binary" or "secret" licenses, then it
+    were already licensed with either "binary" or "private" licenses, then it
     is likely that the caller would like to know about it, as it is probably
     a mistake (or at best an infelicity).
 
-    This function returns two sets, (bad_binary, bad_secret), of checkouts
+    This function returns two sets, (bad_binary, bad_private), of checkouts
     named in ``implicit_gpl_checkouts`` that have an explicit "binary" or
-    "secret" license.
+    "private" license.
     """
     bad_binary = set()
-    bad_secret = set()
+    bad_private = set()
 
     get_checkout_license = builder.invocation.db.get_checkout_license
     for co_label in implicit_gpl_checkouts:
@@ -583,12 +583,12 @@ def get_license_clashes(builder, implicit_gpl_checkouts):
             continue
         elif license.is_binary():
             bad_binary.add(co_label)
-        elif license.is_secret():
-            bad_secret.add(co_label)
+        elif license.is_private():
+            bad_private.add(co_label)
 
-    return bad_binary, bad_secret
+    return bad_binary, bad_private
 
-def report_license_clashes(builder, report_binary=True, report_secret=True):
+def report_license_clashes(builder, report_binary=True, report_private=True):
     """Report any license clashes.
 
     This wraps get_implicit_gpl_checkouts() and check_for_license_clashes(),
@@ -598,7 +598,7 @@ def report_license_clashes(builder, report_binary=True, report_secret=True):
 
     It reports clashes with "binary" licenses if 'report_binary' is True.
 
-    It reports clashes with "secret" licenses if 'report_secret' is True.
+    It reports clashes with "private" licenses if 'report_private' is True.
 
     If both are False, it is silent.
     """
@@ -607,9 +607,9 @@ def report_license_clashes(builder, report_binary=True, report_secret=True):
     if not implicit_gpl:
         return False
 
-    bad_binary, bad_secret = get_license_clashes(builder, implicit_gpl)
+    bad_binary, bad_private = get_license_clashes(builder, implicit_gpl)
 
-    if not bad_binary and not bad_secret:
+    if not bad_binary and not bad_private:
         return False
 
     def report(co_label):
@@ -622,7 +622,7 @@ def report_license_clashes(builder, report_binary=True, report_secret=True):
             print '  - %s'%reason
         print
 
-    if report_binary or report_secret:
+    if report_binary or report_private:
         print
         print 'The following GPL license clashes occur:'
         print
@@ -633,8 +633,8 @@ def report_license_clashes(builder, report_binary=True, report_secret=True):
                 length = len(str(label))
                 if length > maxlen:
                     maxlen = length
-        if report_secret:
-            for label in bad_secret:
+        if report_private:
+            for label in bad_private:
                 length = len(str(label))
                 if length > maxlen:
                     maxlen = length
@@ -645,8 +645,8 @@ def report_license_clashes(builder, report_binary=True, report_secret=True):
             for co_label in sorted(bad_binary):
                 report(co_label)
 
-        if report_secret:
-            for co_label in sorted(bad_secret):
+        if report_private:
+            for co_label in sorted(bad_private):
                 report(co_label)
 
     return True
@@ -675,18 +675,18 @@ def licenses_in_role(builder, role):
 def get_license_clashes_in_role(builder, role):
     """Find license clashes in the install/ directory of 'role'.
 
-    Returns two dictionaries (binary_items, secret_items)
+    Returns two dictionaries (binary_items, private_items)
 
     'binary_items' is a dictionary of {checkout_label : binary_license}
 
-    'secret_items' is a dictionary of {checkout_label : secret_license}
+    'private_items' is a dictionary of {checkout_label : private_license}
 
-    If secret_items has content, then there is a licensing clash in the given
-    role, as one cannot do a binary distribution of both "binary" and "secret"
+    If private_items has content, then there is a licensing clash in the given
+    role, as one cannot do a binary distribution of both "binary" and "private"
     licensed content in the same "install" directory.
     """
     binary_items = {}
-    secret_items = {}
+    private_items = {}
 
     get_checkout_license = builder.invocation.db.get_checkout_license
     normalise_checkout_label = builder.invocation.db.normalise_checkout_label
@@ -702,51 +702,51 @@ def get_license_clashes_in_role(builder, role):
             if license:
                 if license.is_binary():
                     binary_items[normalise_checkout_label(co_label)] = license
-                elif license.is_secret():
-                    secret_items[normalise_checkout_label(co_label)] = license
+                elif license.is_private():
+                    private_items[normalise_checkout_label(co_label)] = license
 
-    return binary_items, secret_items
+    return binary_items, private_items
 
-def report_license_clashes_in_role(builder, role, just_report_secret=True):
+def report_license_clashes_in_role(builder, role, just_report_private=True):
     """Report license clashes in the install/ directory of 'role'.
 
     Basically, this function allows us to be unhappy if there are a mixture of
-    "binary" and "secret" things being put into the same "install/" directory.
+    "binary" and "private" things being put into the same "install/" directory.
 
-    If 'just_report_secret' is true, then we will only talk about the
-    secret entities, otherwise we'll report the "binary" licensed packages
+    If 'just_report_private' is true, then we will only talk about the
+    private entities, otherwise we'll report the "binary" licensed packages
     that end up there as well.
 
     If there was a clash reported, we return True, and otherwise we return
     False.
     """
-    binary_items, secret_items = get_license_clashes_in_role(builder, role)
+    binary_items, private_items = get_license_clashes_in_role(builder, role)
 
-    if not (binary_items and secret_items):
+    if not (binary_items and private_items):
         return False
 
     binary_keys = binary_items.keys()
-    secret_keys = secret_items.keys()
+    private_keys = private_items.keys()
 
     maxlen = 0
-    for label in secret_keys:
+    for label in private_keys:
         length = len(str(label))
         if length > maxlen:
             maxlen = length
 
-    if just_report_secret:
-        print 'There are both binary and secret licenses in role %s:'%(role)
-        for key in sorted(secret_keys):
-            print '* %-*s is %r'%(maxlen, key, secret_items[key])
+    if just_report_private:
+        print 'There are both binary and private licenses in role %s:'%(role)
+        for key in sorted(private_keys):
+            print '* %-*s is %r'%(maxlen, key, private_items[key])
     else:
         for label in binary_keys:
             length = len(str(label))
             if length > maxlen:
                 maxlen = length
-        print 'There are both binary and secret licenses in role %s:'%(role)
+        print 'There are both binary and private licenses in role %s:'%(role)
         for key in sorted(binary_keys):
             print '* %-*s is %r'%(maxlen, key, binary_items[key])
-        for key in sorted(secret_keys):
-            print '* %-*s is %r'%(maxlen, key, secret_items[key])
+        for key in sorted(private_keys):
+            print '* %-*s is %r'%(maxlen, key, private_items[key])
 
     return True

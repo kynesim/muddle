@@ -83,7 +83,7 @@ def name_distribution(builder, name, categories=None):
     If 'categories' is None, then all license categories are distributed.
 
     Otherwise 'categories' must be a sequence of category names, taken
-    from 'gpl', 'open', binary' and 'secret'.
+    from 'gpl', 'open', binary' and 'private'.
 
     The user may assume that the standard distributions (see "muddle help
     distribute") already exist, but otherwise must name a distribution before
@@ -509,7 +509,7 @@ def distribute_build_desc(builder, name, label, copy_vcs=False):
             # It's the right sort of thing
             if action.does_distribution(name):
                 # If the action already know about this distribution, just
-                # overwrite any value for copy_vcs (leave any secret_files
+                # overwrite any value for copy_vcs (leave any private_files
                 # intact)
                 action.set_copy_vcs(name, copy_vcs)
             else:
@@ -536,8 +536,8 @@ def distribute_build_desc(builder, name, label, copy_vcs=False):
 
         builder.invocation.ruleset.add(rule)
 
-def set_secret_build_files(builder, name, secret_files):
-    """Set some secret build files for the (current) build description.
+def set_private_build_files(builder, name, private_files):
+    """Set some private build files for the (current) build description.
 
     These are files within the build description directory that will replaced
     by dummy files when doing the distribution.
@@ -551,19 +551,19 @@ def set_secret_build_files(builder, name, secret_files):
             [seq]   matches any character in seq
             [!seq]  matches any char not in seq
 
-    - 'secret_files' is the list of the files that must be distributed as dummy
+    - 'private_files' is the list of the files that must be distributed as dummy
       files. They are relative to the build description checkout directory.
 
-    The "original" secret files must exist and must work by providing a
+    The "original" private files must exist and must work by providing a
     function with signature::
 
-          def describe_secret(builder, *args, **kwargs):
+          def describe_private(builder, *args, **kwargs):
               ...
 
     The dummy files will also containg such a function, but its body will be
     ``pass`.
     """
-    if DEBUG: print '.. set_secret_build_files(builder, %r, %s)'%(name, secret_files)
+    if DEBUG: print '.. set_private_build_files(builder, %r, %s)'%(name, private_files)
 
     actual_names = _filter(the_distributions.keys(), name)
     if not actual_names:
@@ -578,13 +578,13 @@ def set_secret_build_files(builder, name, secret_files):
     for name in actual_names:
         _assert_checkout_allowed_in_distribution(builder, label, name)
 
-    for file in secret_files:
+    for file in private_files:
         base, ext = os.path.splitext(file)
         if ext != '.py':
-            raise GiveUp('Secret file "%s" does not end in ".py"'%file)
+            raise GiveUp('Private file "%s" does not end in ".py"'%file)
         file_path = os.path.join(our_dir, file)
         if not os.path.exists(file_path):
-            raise GiveUp('Secret file "%s" does not exist'%file_path)
+            raise GiveUp('Private file "%s" does not exist'%file_path)
 
     source_label = label.copy_with_tag(LabelTag.CheckedOut)
     target_label = label.copy_with_tag(LabelTag.Distributed, transient=True)
@@ -603,18 +603,18 @@ def set_secret_build_files(builder, name, secret_files):
         action = rule.action
         if isinstance(action, DistributeBuildDescription):
             if DEBUG: print '   exists as DistributeBuildDescrption: add/override'
-            # It's the right sort of thing - just add these secret files
+            # It's the right sort of thing - just add these private files
             if action.does_distribution(name):
-                action.add_secret_files(name, secret_files)
+                action.add_private_files(name, private_files)
             else:
-                action.add_distribution(name, None, secret_files)
+                action.add_distribution(name, None, private_files)
         elif isinstance(action, DistributeCheckout):
             if DEBUG: print '   exists as DistributeCheckout: replace'
             # Ah, it's a generic checkout action - let's replace it with
             # a new build description action
             old_action = action
             action = DistributeBuildDescription(name, old_action.copying_vcs(), # XXX or None?
-                                                secret_files)
+                                                private_files)
             # And copy over any existing names we don't yet have
             action.merge_names(old_action)
             rule.action = action
@@ -625,7 +625,7 @@ def set_secret_build_files(builder, name, secret_files):
         # No - we need to create one
         if DEBUG: print '   adding anew'
         # We have to guess at 'copy_vcs', but someone later on can override us
-        action = DistributeBuildDescription(name, None, secret_files)
+        action = DistributeBuildDescription(name, None, private_files)
 
         rule = Rule(target_label, action)       # to build target_label, run action
         rule.add(source_label)                  # after we've built source_label
@@ -635,7 +635,7 @@ def set_secret_build_files(builder, name, secret_files):
     # Sort out the other distribution names
     for name in actual_names[1:]:
         if DEBUG: print '   %s exists: add/override %s'%(action, name)
-        action.add_secret_files(name, secret_files)
+        action.add_private_files(name, private_files)
 
 def distribute_package(builder, name, label, obj=False, install=True,
                        with_muddle_makefile=True):
@@ -860,8 +860,8 @@ def _actually_distribute_checkout(builder, label, target_dir, copy_vcs):
     # directory
     _set_checkout_tags(builder, label, target_dir)
 
-def _actually_distribute_build_desc(builder, label, target_dir, copy_vcs, secret_files):
-    """Very similar to what we do for any other checkout, but with secret_files
+def _actually_distribute_build_desc(builder, label, target_dir, copy_vcs, private_files):
+    """Very similar to what we do for any other checkout, but with private_files
     """
     # Get the actual directory of the checkout
     co_src_dir = builder.invocation.db.get_checkout_location(label)
@@ -870,7 +870,7 @@ def _actually_distribute_build_desc(builder, label, target_dir, copy_vcs, secret
     #
     #   * no .pyc files
     #   * MAYBE no VCS files, depending
-    #   * no secret files
+    #   * no private files
 
     if copy_vcs:
         files_to_ignore = []
@@ -886,20 +886,20 @@ def _actually_distribute_build_desc(builder, label, target_dir, copy_vcs, secret
         print '  to   %s'%co_tgt_dir
         if files_to_ignore:
             print '  without %s'%files_to_ignore
-        if secret_files:
-            print '  secret files %s'%secret_files
+        if private_files:
+            print '  private files %s'%private_files
 
-    # Make all the secret files (which may be paths within our checkout)
+    # Make all the private files (which may be paths within our checkout)
     # be paths relative to the root of the build tree
-    new_secret_files = set()
-    for name in secret_files:
-        new_secret_files.add(os.path.join(co_src_dir, name))
-    secret_files = new_secret_files
+    new_private_files = set()
+    for name in private_files:
+        new_private_files.add(os.path.join(co_src_dir, name))
+    private_files = new_private_files
 
     files_to_ignore = set(files_to_ignore)
 
     # files_to_ignore may be specified as a filename or as a path
-    # secret_files, however, must be a specific path relative to our checkout,
+    # private_files, however, must be a specific path relative to our checkout,
     # and is also not a directory.
 
     for dirpath, dirnames, filenames in os.walk(co_src_dir):
@@ -918,10 +918,10 @@ def _actually_distribute_build_desc(builder, label, target_dir, copy_vcs, secret
             if not os.path.exists(tgt_dir):
                 os.makedirs(tgt_dir)
 
-            if src_path in secret_files:
-                if DEBUG: print 'Replacing secret file', src_path
+            if src_path in private_files:
+                if DEBUG: print 'Replacing private file', src_path
                 with open(tgt_path, 'w') as fd:
-                    fd.write("def describe_secret(builder, *args, **kwargs):\n    pass\n")
+                    fd.write("def describe_private(builder, *args, **kwargs):\n    pass\n")
             else:
                 copy_file(src_path, tgt_path, preserve=True)
 
@@ -1067,7 +1067,7 @@ class DistributeAction(Action):
         return '%s: %s'%(self.__class__.__name__,
                 ', '.join(sorted(self.distributions.keys())))
 
-    def add_distribution(self, name, copy_vcs=None, secret_files=None):
+    def add_distribution(self, name, copy_vcs=None, private_files=None):
         """Add a new named distribution.
 
         It is an error if there is already a distribution of this name.
@@ -1266,7 +1266,7 @@ class DistributeBuildDescription(DistributeAction):
     """This is a bit like DistributeCheckoutAction, but without 'just'.
     """
 
-    def __init__(self, name, copy_vcs=None, secret_files=None):
+    def __init__(self, name, copy_vcs=None, private_files=None):
         """
         'name' is the name of a DistributionContext. When created, we are
         told which DistributionContext we can be distributed by. Later on,
@@ -1283,30 +1283,30 @@ class DistributeBuildDescription(DistributeAction):
         .. note:: *Note that copy_vcs may only distinguish true and false for
                   the moment, so None may be equivalvent to False.*
 
-        If 'secret_files' is given, it is a sequence of Python files, relative
+        If 'private_files' is given, it is a sequence of Python files, relative
         to the build description checkout directory, that must be replaced by
         empty files when the distribution is done. It is always copied (as a
         set). If it is None, then an empty set will be used.
         """
-        if secret_files is None:
-            secret_files = set()
+        if private_files is None:
+            private_files = set()
         else:
-            secret_files = set(secret_files)
+            private_files = set(private_files)
 
-        super(DistributeBuildDescription, self).__init__(name, (copy_vcs, secret_files))
+        super(DistributeBuildDescription, self).__init__(name, (copy_vcs, private_files))
 
     def __str__(self):
         parts = []
-        for key, (copy_vcs, secret_files) in self.distributions.items():
+        for key, (copy_vcs, private_files) in self.distributions.items():
             inner = []
             if copy_vcs:
                 inner.append('vcs')
-            if secret_files:
-                inner.append('-%d'%len(secret_files))
+            if private_files:
+                inner.append('-%d'%len(private_files))
             parts.append('%s[%s]'%(key, ','.join(inner)))
         return '%s: %s'%(self.__class__.__name__, ', '.join(sorted(parts)))
 
-    def add_distribution(self, name, copy_vcs=None, secret_files=None):
+    def add_distribution(self, name, copy_vcs=None, private_files=None):
         """Add a new named distribution.
 
         It is an error if there is already a distribution of this name.
@@ -1315,51 +1315,51 @@ class DistributeBuildDescription(DistributeAction):
             raise GiveUp('Distribution "%s" is already present in %s'%(name,
                 self.__class__.__name__))
 
-        if secret_files is None:
-            secret_files = set()
+        if private_files is None:
+            private_files = set()
         else:
-            secret_files = set(secret_files)
+            private_files = set(private_files)
 
-        self.distributions[name] = (copy_vcs, secret_files)
+        self.distributions[name] = (copy_vcs, private_files)
 
-    def add_secret_files(self, name, secret_files):
-        """Add some specific secret files to distribution 'name'.
+    def add_private_files(self, name, private_files):
+        """Add some specific private files to distribution 'name'.
 
         Distribution 'name' must already be present on this action.
 
         Does nothing if the files are already added
         """
-        copy_vcs, local_secret_files = self.get_distribution(name)
+        copy_vcs, local_private_files = self.get_distribution(name)
 
-        if secret_files:
+        if private_files:
             # We know this is already a set
-            local_secret_files.update(secret_files)
+            local_private_files.update(private_files)
 
-        self.distributions[name] = (copy_vcs, local_secret_files)
+        self.distributions[name] = (copy_vcs, local_private_files)
 
     def copying_vcs(self, name):
         """Are we distributing the VCS directory?
         """
-        copy_vcs, secret_files = self.get_distribution(name)
+        copy_vcs, private_files = self.get_distribution(name)
         return copy_vcs
 
     def set_copy_vcs(self, name, copy_vcs):
         """Change the value of copy_vcs for distribution 'name'.
         """
-        old_copy_vcs, secret_files = self.get_distribution(name)
-        self.distributions[name] = (copy_vcs, secret_files)
+        old_copy_vcs, private_files = self.get_distribution(name)
+        self.distributions[name] = (copy_vcs, private_files)
 
     def build_label(self, builder, label):
         name, target_dir = builder.get_distribution()
 
-        copy_vcs, secret_files = self.distributions[name]
+        copy_vcs, private_files = self.distributions[name]
 
         if DEBUG:
             print 'DistributeBuildDescription %s (%s VCS) to %s'%(label,
                     'without' if copy_vcs else 'with', target_dir)
 
         _actually_distribute_build_desc(builder, label, target_dir, copy_vcs,
-                                        secret_files)
+                                        private_files)
 
 class DistributePackage(DistributeAction):
     """
@@ -1603,7 +1603,7 @@ def select_all_open_checkouts(builder, name, with_vcs):
     for co_label in all_checkouts:
         distribute_checkout(builder, name, co_label, copy_vcs=with_vcs)
 
-def select_all_binary_nonsecret_packages(builder, name, with_muddle_makefile):
+def select_all_binary_nonprivate_packages(builder, name, with_muddle_makefile):
     """Select all packages with a "binary" license for distribution.
 
     'name' is the name of our distribution, for error reporting.
@@ -1612,8 +1612,8 @@ def select_all_binary_nonsecret_packages(builder, name, with_muddle_makefile):
     distribution information for each package's muddle Makefile (in the
     appropriate checkout)
 
-    We do *not* want "secret" packages, and as such this function checks to
-    see if any "secret" packages may be present in the install/ directories
+    We do *not* want "private" packages, and as such this function checks to
+    see if any "private" packages may be present in the install/ directories
     that we are proposing to distribute.
 
     Raises GiveUp if we have license clashes
@@ -1632,13 +1632,13 @@ def select_all_binary_nonsecret_packages(builder, name, with_muddle_makefile):
         distribute_package(builder, name, pkg_label, obj=False, install=True,
                            with_muddle_makefile=with_muddle_makefile)
         roles.add(pkg_label.role)
-    # Check if there is a binary/secret clash in any of those roles
+    # Check if there is a binary/private clash in any of those roles
     role_clash = False
     for role in roles:
-        problem = report_license_clashes_in_role(builder, role, just_report_secret=True)
+        problem = report_license_clashes_in_role(builder, role, just_report_private=True)
         if problem:
             role_clash = True
-            print 'which means there will probably be secret binaries in install/%s'%role
+            print 'which means there will probably be private binaries in install/%s'%role
             print
     if role_clash:
         raise GiveUp('License clashes prevent "%s" distribution'%name)
@@ -1658,7 +1658,7 @@ def distribute(builder, name, target_dir, with_versions_dir=False,
       * _binary_release (all install directories, maybe plus extras)
       * _for_gpl (just GPL and GPL-propagated source directories)
       * _all_open (all open licensed source directories)
-      * _by_license (source or install directories by license, no secrets)
+      * _by_license (source or install directories by license, nothing private)
 
     are always recognised. See the code or "muddle help distribute" for a more
     complete description of these.
@@ -1725,7 +1725,7 @@ def distribute(builder, name, target_dir, with_versions_dir=False,
         # A binary release is the install directories for all packages,
         # plus muddle Makefiles and any other "selected" source files
         # This ignores licenses
-        # XXX If there are things marked "secret" in what we're distributing,
+        # XXX If there are things marked "private" in what we're distributing,
         # XXX should we (a) mention it, or (b) refuse to continue without '-f',
         # XXX or (c) just ignore it, as we're doing now?
         for label in all_packages:
@@ -1743,10 +1743,10 @@ def distribute(builder, name, target_dir, with_versions_dir=False,
         all_packages = set()
     elif name == '_by_license':
         # All checkouts in _all_open, and any install/ directories for anything
-        # with a "binary" license. Nothing at all for "secret" licenses.
+        # with a "binary" license. Nothing at all for "private" licenses.
         select_all_open_checkouts(builder, name, with_vcs)
         # Note we always output muddle Makefiles with this distribution
-        select_all_binary_nonsecret_packages(builder, name, with_muddle_makefile=True)
+        select_all_binary_nonprivate_packages(builder, name, with_muddle_makefile=True)
     # ==============
 
     # *All* distributions then scan through the labels looking to see what

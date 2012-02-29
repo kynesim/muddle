@@ -50,8 +50,10 @@ MUDDLE_BINARY = os.path.join(MUDDLE_BINARY_DIR, 'muddle')
 MUDDLE_PATCH_COMMAND = '%s/muddle_patch.py'%(PARENT_DIR)
 
 class ShellError(GiveUp):
-    def __init__(self, cmd, retcode):
+    def __init__(self, cmd, retcode, text=None):
         msg = "Shell command '%s' failed with retcode %d"%(cmd, retcode)
+        if text:
+            msg = '%s\n%s'%(msg, text)
         super(GiveUp, self).__init__(msg)
         self.retcode=retcode
 
@@ -91,7 +93,7 @@ def get_stdout2(cmd, verbose=True):
     return retcode, stdoutdata
 
 
-def muddle(args, verbose=True):
+def run_muddle_directly(args, verbose=True):
     """Pretend to be muddle
 
     I already know it's going to be a pain remembering that the first
@@ -115,6 +117,19 @@ def muddle(args, verbose=True):
         if old_pwd:
             os.environ['PWD'] = old_pwd
 
+def muddle(args, verbose=True):
+    """Run a muddle command
+    """
+    if verbose:
+        print '++ muddle %s'%(' '.join(args))
+    cmd_seq = [MUDDLE_BINARY] + args
+    if verbose:
+        print ">> muddle %s"%(' '.join(args))
+    p = subprocess.Popen(cmd_seq)
+    pid, retcode = os.waitpid(p.pid, 0)
+    if retcode:
+        raise ShellError(' '.join(cmd_seq), retcode)
+
 def captured_muddle(args, verbose=True):
     """Grab the output from a muddle command.
 
@@ -129,7 +144,7 @@ def captured_muddle(args, verbose=True):
     stdoutdata, stderrdata = p.communicate()
     retcode = p.returncode
     if retcode:
-        raise ShellError(' '.join(cmd_seq), retcode)
+        raise ShellError(' '.join(cmd_seq), retcode, stdoutdata)
     return stdoutdata
 
 def git(cmd, verbose=True):
@@ -507,7 +522,7 @@ class DirTree(object):
 if __name__ == '__main__':
     # Pretend to be muddle the command line program
     try:
-        muddle(sys.argv[1:])
+        run_muddle_directly(sys.argv[1:])
         sys.exit(0)
     except MuddleBug, why:
         print "%s"%why

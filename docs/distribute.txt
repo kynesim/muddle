@@ -297,13 +297,13 @@ For this purpose, licenses come in four broad categories:
         To allow for this, when defining a GPL license, muddle allows the
         license to be marked with or without such excemption.
 
-      b. When muddle is told that package:B depends on package:A, there may be
-         several reasons for this, not all of which trigger GPL "propagation.
-         (Perhaps it depends on a file having been created by package:A, and
-         that file itself is not GPL).
+     b. When muddle is told that package:B depends on package:A, there may be
+        several reasons for this, not all of which trigger GPL "propagation.
+        (Perhaps it depends on a file having been created by package:A, and
+        that file itself is not GPL).
 
-         A function is thus provided to allow a build description to say that
-         this is in fact the case.
+        A function is thus provided to allow a build description to say that
+        this is in fact the case.
 
       In either case, not that muddle is not trying to describe the fine
       details of how GPL licenses work, and nor is the above meant to be an
@@ -341,6 +341,35 @@ short names (such as "gpl3", "bsd-new" and "mpl"). A list of the standard
 licenses can be printed out with::
 
   $ muddle query licenses
+
+For instance::
+
+  $ muddle query licenses
+  Standard licenses are:
+
+  gpl2                 LicenseGPL('GPL v2')
+  gpl2-except          LicenseGPL('GPL v2', with_exception=True)
+  gpl2plus             LicenseGPL('GPL v2 and above')
+  gpl2plus-except      LicenseGPL('GPL v2 and above', with_exception=True)
+  gpl3                 LicenseGPL('GPL v3')
+  gpl3-except          LicenseGPL('GPL v3', with_exception=True)
+  lgpl                 LicenseLGPL('LGPL')
+  lgpl-except          LicenseLGPL('LGPL', with_exception=True)
+
+  apache               LicenseOpen('Apache')
+  apache2              LicenseOpen('Apache 2.0')
+  bsd-new              LicenseOpen('BSD 3-clause')
+  bsd-original         LicenseOpen('BSD 4-clause')
+  bsd-simplified       LicenseOpen('BSD 2-clause')
+  common               LicenseOpen('Common Public License')
+  eclipse              LicenseOpen('Eclipse Public License 1.0')
+  mpl                  LicenseOpen('MPL 1.1')
+  mpl1_1               LicenseOpen('MPL 1.1')
+  ukogl                LicenseOpen('UK Open Government License')
+  zlib                 LicenseOpen('zlib')
+
+  code-nightmare-green LicensePrivate('Code Nightmare Green')
+
 
 Licensing a checkout
 --------------------
@@ -444,9 +473,9 @@ observed. These are:
 
 .. note:: None of these distribute "private" licensed checkouts. This
    means that if there are such checkouts in the build tree, and the build
-  description is meant to *work* when distributed, then some case must be
-  taken in its construction - see `Keeping parts of the build description
-  private`_ below.
+   description is meant to *work* when distributed, then some case must be
+   taken in its construction - see `Keeping parts of the build description
+   private`_ below.
 
 GPL source distribution
 -----------------------
@@ -523,8 +552,8 @@ So, for instance, we might have::
   muddled.pkgs.make.medium(builder, 'program', ['x86'], 'program-4.9',
                            deps=['libProp'])
 
-  set_license(builder, 'libProp-2.3', 'lgpl')
-  set_license(builder, 'program-4.9', 'top-secret')
+  set_license(builder, checkout('libProp-2.3'), 'lgpl')
+  set_license(builder, checkout('program-4.9'), 'top-secret')
 
   # 'program' links dynamically to 'libProp', and thus doesn't need
   # to be distributed as source
@@ -544,33 +573,174 @@ but none of these will hurt if incorrect.
 
 Adding extra files
 ------------------
+When doing binary distributions, "muddle distribute" will generally include
+the necessary muddle Makefiles, so that the data in ``install/<role>/`` can be
+processed to give a deployment in the normal manner.
 
+Sometimes, however, the muddle Makefile is not sufficient - typically because
+it calls out to the "original" Makefile or files from a checkout.
 
+Thus there is a way to say that extra files should be included, for a given
+checkout, in a particular distribution::
 
+  distribute_checkout_files(builder, name, label, source_files)
+
+In this, we have:
+
+* ``name`` is the name of a distribution, or a wildcard string matching one or
+  more distributions (see `Distribution names and wildcards`_ below).
+* ``label`` is a checkout label. The label tag is ignored.
+* ``source_files`` is a list of extra source files, relative to the checkout
+  directory.
+
+So, for instance::
+
+  muddled.pkgs.make.medium(builder, 'binapp', ['x86'], 'binapp-1.2')
+  distribute_package(builder, 'marmalade', package('binapp', 'x86'))
+  distribute_checkout(builder, 'marmalade', checkout('binapp-1.2'),
+                      ['Makefile', 'src/Makefile', 'src/rules'])
+
+causes the distribution "marmalade" to include the extra files as named.
+
+In fact, sometimes one wants to assert this for a whole range of
+distributions, and so it is perhaps more likely that one woud write::
+
+  for name in get_distributions_for(['binary']):
+    distribute_checkout(builder, name, checkout('binapp-1.2'),
+                        ['Makefile', 'src/Makefile', 'src/rules'])
+
+which loops over all the distributions that distribute anything with a
+"binary" license, and set them to distribute the extra files.
 
 Keeping parts of the build description private
 ----------------------------------------------
+There are two reasons to keep part of the build description private:
 
+* describing how to build private checkouts/packages may itself be something
+  that should not be advertised, and
+* once the build tree has been distributed *without* private checkouts, any
+  part of the build description that relies on them won't work.
 
+The solution to this is to construct the build description so that "private"
+checkouts and packages are kept separate:
+
+1. separate in role
+2. separate in build description
+
+The first is necessary so that a binary distribution won't try to distribute a
+role that includes "binary" and "private" files (which would cause a clash,
+and thus won't work).
+
+The second essentially means organising the build description so that the
+"private" parts are in a separate file, coded to a particular API.
+
+This is best illustrated with an example.
+
+Assuming that our build description lives in ``src/builds``, then we put
+our private description into a separate Python file,
+``src/builds/private.py``::
+
+  # How to build our private code
+
+  import muddled.deployments.collect as collect
+  import muddled.pkgs.make as make
+
+  from muddled.depend import checkout
+  from muddled.licenses import LicensePrivate, set_license
+
+  def describe_private(builder, *args, **kwargs):
+      """This describes how to do the private part of our build.
+
+      We require it to be called as:
+
+          describe_private(builder, deployment='<deployment-name>')
+      """
+      deployment = kwargs['deployment']
+
+      make.medium(builder, 'secret-thing', ['x86-private'], 'secretThing-0.1')
+
+      set_license(builder, checkout('secretThing-0.1'),
+                  LicensePrivate('Do Not Distribute'))
+
+      collect.copy_from_role_install(builder, deployment, role='x86-private',
+                                     rel='', dest='')
+
+and then in the "normal" build description (typically ``src/builds/01.py``),
+import the function from that file::
+
+  from private import describe_private
+  
+and call it in the body of the build description ``describe_to`` - for
+instance::
+
+  # We also have some private stuff, described elsewhere
+  describe_private(builder, deployment=deployment)
+
+and also tell muddle that ``private.py`` is not to be distributed as-is::
+
+  # So that "elsewhere" is private - i.e., private.py
+  # and we should never distribute it in non-private distributions
+  for name in get_distributions_not_for(builder, ['private']):
+      set_private_build_files(builder, name, ['private.py'])
+
+This last tells muddle that when ``muddle distribute`` is called to distribute
+something that does not distribute "private" licensed checkouts, the content of 
+``private.py`` is to be replaced by a "stub" file, which just contains::
+
+  def describe_private(builder, *args, **kwargs):
+      pass
+
+This means that the build description will continue to work, but when it calls
+the ``describe_private()`` function, nothing will happen, and no information
+on the original content of ``private.py`` is leaked.
+
+In summary, the *name* of the private file (or files) does not
+matter, but their API must be a single function with signature::
+
+   describe_private(builder, *args, **kwargs)
 
 Not distributing too many binaries
 ----------------------------------
+Binary distributions distribute the content of ``install/<role>`` directories.
+Muddle has no way of telling which packages have actually put content into a
+particular ``install/<role>`` directory - just because a package is in role
+``<role>`` does not necessarily mean that it does so.
 
+So when a particular package is distributed as binary, and causes its
+``install/<role>`` directory to be distributed, it may "drag along" other
+content, from other packages in the same role, that is not wanted.
+
+In order to avoid this, a build description may need the roles it uses to be
+fine-tuned to match the licensing of its checkouts.
+
+Moreover, when first creating a new distribution, make sure to look hard at
+the content of any ``install`` directories that are being distributed, to
+check for unexpected files.
+
+The commands::
+
+  $ muddle query role-licenses
+  $ muddle -n distribute <name> ../fred
+
+may be useful in working out what is going on.
 
 .. note:: It is arguable that a role that contains binaries from "binary" and
    "open" or "gpl" checkouts should be regarded as a clash in the same way
    that "binary" and "secret" is. This may be implemented in a future version
    of muddle.
 
-
 Creating your own distributions
 ===============================
 
+THIS FAR
 
+-------------------------------------------------------------------------------
+
+AND NO FARTHER, AS YET
 
 
 More license stuff -- PUT THIS AT THE END
-------------------
+-----------------------------------------
 A tuple containing all of the license categories is provided::
 
   ALL_LICENSE_CATEGORIES
@@ -584,28 +754,29 @@ you can change that to raising a ``GiveUp`` exception by calling it as::
 
   get_license(builder, co_label, absent_is_None=True)
 
+... ::
 
-set_not_built_against(builder, pkg_label, co_label)
+  set_not_built_against(builder, pkg_label, co_label)
 
-get_not_licensed_checkouts(builder)
-get_gpl_checkouts(builder)
-get_implicit_gpl_checkouts(builder)
-get_open_checkouts(builder)
-get_open_not_gpl_checkouts(builder)
-get_binary_checkouts(builder)
-get_private_checkouts(builder)
+  get_not_licensed_checkouts(builder)
+  get_gpl_checkouts(builder)
+  get_implicit_gpl_checkouts(builder)
+  get_open_checkouts(builder)
+  get_open_not_gpl_checkouts(builder)
+  get_binary_checkouts(builder)
+  get_private_checkouts(builder)
 
-checkout_license_allowed(builder, co_label, categories)
+  checkout_license_allowed(builder, co_label, categories)
 
-licenses_in_role(builder, role)
+  licenses_in_role(builder, role)
 
-get_license_clashes(builder, implicit_gpl_checkouts)
-get_license_clashes_in_role(builder, role)
+  get_license_clashes(builder, implicit_gpl_checkouts)
+  get_license_clashes_in_role(builder, role)
 
-report_license_clashes(builder, report_binary=True, report_private=True)
-report_license_clashes_in_role(builder, role, just_report_private=True)
+  report_license_clashes(builder, report_binary=True, report_private=True)
+  report_license_clashes_in_role(builder, role, just_report_private=True)
 
-
+...
 
 .. note:: Some of these functions are useful wrappers around calls of
    ``builder.invocation.db`` methods. Specifically:
@@ -623,52 +794,56 @@ report_license_clashes_in_role(builder, role, just_report_private=True)
    which doesn't currently have a wrapper function.
 
 
+... ::
 
-
-$ muddle query licenses
-$ muddle query checkout-licenses
-$ muddle query role-licenses
+  $ muddle query licenses
+  $ muddle query checkout-licenses
+  $ muddle query role-licenses
 
 Working with distributions
 ==========================
 
-import muddled.distribute
+... ::
 
-name_distribution(builder, name, categories=None)
+  import muddled.distribute
+
+  name_distribution(builder, name, categories=None)
+
+...
 
 .. note:: When listing the categories that a distribution uses, 'gpl' and
    'open' are distinct and separate - there is no assumption that 'open'
    includes 'gpl'. In this instance 'open' means "open but not GPL".
 
-get_distribution_names(builder)
-get_distribution_names_for(builder, categories)
-get_distribution_names_not_for(builder, categories)
-get_used_distribution_names(builder)
+... ::
 
-  for name in get_distributions_for(['gpl', 'open']):
-      distribute_checkout_files(builder, name, co_label, 'Makefile')
+  get_distribution_names(builder)
+  get_distribution_names_for(builder, categories)
+  get_distribution_names_not_for(builder, categories)
+  get_used_distribution_names(builder)
 
-  for name in get_distributions_not_for(['private']):
-      set_private_build_files(builder, name, ['private_app.py'])
+    for name in get_distributions_for(['gpl', 'open']):
+        distribute_checkout_files(builder, name, co_label, 'Makefile')
 
-distribute_checkout(builder, name, label, copy_vcs=False)
-distribute_package(builder, name, label, obj=False, install=False,
-                   with_muddle_makefile=False)
+    for name in get_distributions_not_for(['private']):
+        set_private_build_files(builder, name, ['private_app.py'])
 
-distribute_checkout_files(builder, name, label, source_files)
-set_private_build_files(builder, name, private_files)
+  distribute_checkout(builder, name, label, copy_vcs=False)
+  distribute_package(builder, name, label, obj=False, install=False,
+                     with_muddle_makefile=False)
 
-((distribute_build_desc))
+  distribute_checkout_files(builder, name, label, source_files)
+  set_private_build_files(builder, name, private_files)
 
-"muddle query distributions" - calls "distribute" function
+  ((distribute_build_desc))
 
+  "muddle query distributions" - calls "distribute" function
 
 Caveat on distributing packages and the "install/<role>" directory, and the
 fact "muddle distribute" has no way of knowing who put what in there. On
 segregating things by role, as necessary, and "muddle query role-licenses".
 
 How to handle "private" stuff.
-
 
 It is possible to define a distribution within the muddle build description.
 

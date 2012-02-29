@@ -252,14 +252,24 @@ def describe_to(builder):
     # Let's have some distributions of our own
     # We rely on being at the end of the build description, so that all
     # of our checkout labels have been defined for us
-    name_distribution(builder, 'just_open', ['open'])        # so, no 'gpl'
-    for co_label in get_open_not_gpl_checkouts(builder):
-        distribute_checkout(builder, 'just_open', co_label)
 
+    # This is an odd one - anything that is in 'open' (but not 'gpl'),
+    # and we shall distribute both the checkout source and the package binary
+    # NOTE that this means we will distribute everything in install/x86, because
+    # we have no way of knowing (at distribute time) what came from where. If we
+    # did care, we'd need to put things into different roles according to their
+    # license (as we do for x86-secret)
+    name_distribution(builder, 'just_open_src_and_bin', ['open']) # so, no 'gpl'
+    for co_label in get_open_not_gpl_checkouts(builder):
+        distribute_checkout(builder, 'just_open_src_and_bin', co_label)
+        # Get the package(s) directly using this checkout
+        pkg_labels = builder.invocation.packages_using_checkout(co_label)
+        for label in pkg_labels:
+            distribute_package(builder, 'just_open_src_and_bin', label)
     # And we mustn't forget to add this new distribution to our
     # "don't propagate secret.py" as well, since it hadn't been
     # declared yet when we did this earlier...
-    set_secret_build_files(builder, 'just_open', ['secret.py'])
+    set_secret_build_files(builder, 'just_open_src_and_bin', ['secret.py'])
 
     name_distribution(builder, 'binary_and_secret_source', ['binary', 'secret'])
     for co_label in get_binary_checkouts(builder):
@@ -604,7 +614,7 @@ Checkout licenses are:
 
 The following checkouts do not have a license:
 
-* checkout:builds_multilicense_with_clashes/*
+* checkout:builds_multilicense/*
 * checkout:not_licensed1/*
 * checkout:not_licensed2/*
 * checkout:not_licensed3/*
@@ -624,26 +634,18 @@ The following checkouts have some sort of GPL license:
 
 Exceptions to "implicit" GPL licensing are:
 
-* package:secret2{x86}/* is not built against checkout:gpl2plus/*
+* package:secret2{x86-secret}/* is not built against checkout:gpl2plus/*
+* package:secret3{x86-secret}/* is not built against checkout:gpl2plus/*
 * package:(subdomain)manhattan{x86-secret}/* is not built against checkout:(subdomain)xyzlib/*
+* package:secret4{x86-secret}/* is not built against checkout:gpl2/*, checkout:gpl2plus/*
 
 The following are "implicitly" GPL licensed for the given reasons:
 
 * checkout:not_licensed1/*  (was None)
   - package:not_licensed1{x86}/* depends on checkout:gpl2/*
   - package:not_licensed1{x86}/* depends on checkout:gpl3/*
-* checkout:secret3/*  (was LicenseSecret('Shh'))
-  - package:secret3{x86}/* depends on checkout:gpl2plus/*
-* checkout:secret4/*  (was LicenseSecret('Shh'))
-  - package:secret4{x86}/* depends on checkout:gpl2/*
-  - package:secret4{x86}/* depends on checkout:gpl2plus/*
 * checkout:ukogl/*  (was LicenseOpen('UK Open Government License'))
   - package:ukogl{x86}/* depends on checkout:lgpl/*
-
-This means that the following have irreconcilable clashes:
-
-* checkout:secret3/*              LicenseSecret('Shh')
-* checkout:secret4/*              LicenseSecret('Shh')
 """)
 
 def main(args):
@@ -724,7 +726,7 @@ def main(args):
                                            'src/bsd',
                                            'src/mpl',
                                            'src/zlib',
-                                           # No binary things, because they're GPL
+                                           # No binary things, because they're not GPL
                                            'src/binary*',
                                            # No secret things, they're very not GPL
                                            'src/secret*',
@@ -759,7 +761,7 @@ def main(args):
             dt.assert_same(target_dir, onedown=True,
                            unwanted_files=['.git*',
                                            'src/builds*/*.pyc',
-                                           # No binary things, because they're GPL
+                                           # No binary things, because they're not GPL
                                            'src/binary*',
                                            # No secret things, they're very not GPL
                                            'src/secret*',
@@ -833,19 +835,93 @@ def main(args):
             # Check the "secret" build description file has been replaced
             assert not same_content(d.join(target_dir, 'src', 'builds_multilicense', 'secret.py'),
                                 SECRET_BUILD_FILE)
-            # Check we have the right files in our install directory
-            with Directory(root.join('_by_license', 'install', 'x86')):
-                check_specific_files_in_this_dir(['apache',
-                    'binary1', 'binary2', 'binary3', 'binary4', 'binary5',
-                    'bsd', 'busybox', 'gnulibc', 'gpl2', 'gpl2plus', 'gpl3',
-                    'lgpl', 'linux', 'mpl',
-                    'not_licensed1', 'not_licensed2', 'not_licensed3',
-                    'not_licensed4', 'not_licensed5', 'ukogl', 'zlib'])
+
+            banner('TESTING DISTRIBUTE FOR JUST OPEN')
+            # As it says in the build description, this is an odd one, and
+            # not a "proper" useful distribution. We've selected all
+            # checkouts that are 'open' (not including 'gpl'), and also
+            # asked for a binary distribution (the "install/" directory)
+            # for their packages. However, since the distribution code can't
+            # know who put what into "install/x86/", we also end up distributing
+            # stuff that is *not* from 'open' checkouts. This is not a bug, it
+            # is a limitation of the mechanism, and the correct work around
+            # would be to split the build up into more roles of the correct
+            # granularity.
+            # So why this test? Mainly to show the "problem" and verify that
+            # it is indeed working as expected...
+            target_dir = os.path.join(root_dir, 'just_open_src_and_bin')
+            muddle(['distribute', 'just_open_src_and_bin', target_dir])
+            dt = DirTree(d.where, fold_dirs=['.git'])
+            dt.assert_same(target_dir, onedown=True,
+                           unwanted_files=['.git*',
+                                           'src/builds*/*.pyc',
+                                           # No binary or secret things
+                                           'src/binary*',
+                                           'src/secret*',
+                                           'domains/subdomain/src/manhattan',
+                                           # No GPL things
+                                           'src/gpl*',
+                                           'src/lgpl',
+                                           'src/gnulibc',
+                                           'src/linux',
+                                           'src/busybox',
+                                           # No not licensed things, because they're not open
+                                           'src/not_licensed*',
+                                           # But we end up with all of install/x86 - see above
+                                           # We don't want any of install/x86-secret, of course
+                                           'install/x86-secret',
+                                           'obj',
+                                           'deploy',
+                                           'versions',
+                                           '.muddle/instructions',
+                                           '.muddle/tags/checkout/binary*',
+                                           '.muddle/tags/checkout/busybox',
+                                           '.muddle/tags/checkout/gnulibc',
+                                           '.muddle/tags/checkout/gpl*',
+                                           '.muddle/tags/checkout/lgpl',
+                                           '.muddle/tags/checkout/linux',
+                                           '.muddle/tags/checkout/not_licensed*',
+                                           '.muddle/tags/checkout/secret*',
+                                           '.muddle/tags/package/binary*',
+                                           '.muddle/tags/package/busybox',
+                                           '.muddle/tags/package/gnulibc',
+                                           '.muddle/tags/package/gpl*',
+                                           '.muddle/tags/package/lgpl',
+                                           '.muddle/tags/package/linux',
+                                           '.muddle/tags/package/not_licensed*',
+                                           '.muddle/tags/package/secret*',
+                                           '.muddle/tags/deployment',
+                                           # And, in our subdomain
+                                           'domains/subdomain/src/manhattan',
+                                           'domains/subdomain/.muddle/tags/checkout/manhattan',
+                                           'domains/subdomain/.muddle/tags/package/manhattan',
+                                          ])
+            # Check the "secret" build description file has been replaced
+            assert not same_content(d.join(target_dir, 'src', 'builds_multilicense', 'secret.py'),
+                                SECRET_BUILD_FILE)
+
+            # See, it does say that it is doing what we asked...
+            text = captured_muddle(['-n', 'distribute', 'just_open_src_and_bin', '../fred'])
+            check_text(text, """\
+Writing distribution just_open_src_and_bin to ../fred
+checkout:apache/distributed                DistributeCheckout: just_open_src_and_bin[*]
+checkout:bsd/distributed                   DistributeCheckout: just_open_src_and_bin[*]
+checkout:builds_multilicense/distributed   DistributeBuildDescription: _all_open[-1], _by_license[-1], _for_gpl[-1], just_open_src_and_bin[-1]
+checkout:mpl/distributed                   DistributeCheckout: just_open_src_and_bin[*]
+checkout:ukogl/distributed                 DistributeCheckout: just_open_src_and_bin[*]
+checkout:zlib/distributed                  DistributeCheckout: just_open_src_and_bin[*]
+checkout:(subdomain)builds/distributed     DistributeBuildDescription: just_open_src_and_bin[]
+checkout:(subdomain)xyzlib/distributed     DistributeCheckout: just_open_src_and_bin[*]
+package:apache{x86}/distributed            DistributePackage: just_open_src_and_bin[install]
+package:bsd{x86}/distributed               DistributePackage: just_open_src_and_bin[install]
+package:mpl{x86}/distributed               DistributePackage: just_open_src_and_bin[install]
+package:ukogl{x86}/distributed             DistributePackage: just_open_src_and_bin[install]
+package:zlib{x86}/distributed              DistributePackage: just_open_src_and_bin[install]
+package:(subdomain)xyzlib{x86}/distributed DistributePackage: just_open_src_and_bin[install]
+""")
 
             # Then test:
             #
-            # - _by_license
-            # - just_open
             # - binary_and_secret_source
             # - binary_and_secret_install
 

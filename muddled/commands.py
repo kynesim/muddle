@@ -3938,7 +3938,7 @@ class Distribute(Command):
           under the GPL terms, plus appropriate build descriptions.
 
           It will fail if "propagated" GPL-ness clashes with declared "binary"
-          licenses for any checkouts.
+          or "private" licenses for any checkouts.
 
         * "_all_open" is a distribution of all open-source licensed checkouts.
           It contains everything from "_for_gpl", plus any other open source
@@ -4011,9 +4011,11 @@ class Distribute(Command):
     See also "muddle query checkout-licenses" for general information on the
     licenses in the current build, and any clashes that may exist.
 
-    BEWARE: THIS COMMAND IS STILL UNDER DEVELOPMENT.
-        In particular, the "-no-muddle-makefile" switch may go away,
-        and the standard distribution names may change.
+    BEWARE: THIS COMMAND IS STILL NEW, AND DETAILS MAY CHANGE
+
+        In particular, the "-no-muddle-makefile" switch may go away, the
+        details of use of the "-copy-vcs" switch may change. and the standard
+        distribution names may change.
     """
 
     allowed_switches = {'-with-vcs':'with-vcs',

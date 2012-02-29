@@ -1979,7 +1979,8 @@ class QueryCheckoutLicenses(QueryCommand):
             print 'Exceptions to "implicit" GPL licensing are:'
             print
             for key, value in builder.invocation.db.not_built_against.items():
-                print '* %s is not built against %s'%(key, label_list_to_string(value))
+                print '* %s is not built against %s'%(key,
+                                    label_list_to_string(value, join_with=', '))
 
         implicit_gpl_licensed, because = get_implicit_gpl_checkouts(builder)
         if implicit_gpl_licensed:

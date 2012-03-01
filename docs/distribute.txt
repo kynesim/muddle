@@ -244,6 +244,8 @@ Muddle does not try to capture the whole essence of what a "license" means,
 but simply allows the associate of a checkout with a license name and some
 basic properties.
 
+The licenses module
+-------------------
 Stuff to do with licensing is conveniently packaged in the
 ``muddled.licenses`` module, so one might typically do::
 
@@ -559,9 +561,6 @@ So, for instance, we might have::
   # to be distributed as source
   set_not_built_against(builder, package('program', 'x86'), checkout('libProp-2.3'))
 
-| XXX Is lgpl propagation handled correctly by the current code base? Do I have
-| XXX a specific test for that? I should have...
-
 Note that this function does not check that:
 
 * ``pkg_label`` actually depends on ``co_label``
@@ -731,6 +730,221 @@ may be useful in working out what is going on.
 
 Creating your own distributions
 ===============================
+It is also possible to create new distributions, by specifying them in the
+build description.
+
+The distribution module
+-----------------------
+Stuff to do with distributions is conveniently packaged in the
+``muddled.distribe`` module, so one might typically do::
+
+  from muddled.distribute import name_distribution
+
+(and so on for any other items needed from it), or just::
+
+  import muddled.distribute
+
+or::
+
+  import muddled.distribute as distribute
+
+The muddle documentation command can be used to get docstrings from the source
+code::
+
+  muddle doc distribute
+  muddle doc distribute.name_distribution
+
+Name a distribution first
+-------------------------
+Before you can use a new distribution, it must be "named"::
+
+  name_distribution(builder, name)
+  name_distribution(builder, name, categories)
+
+``name`` is the name for the new distribution. It should not start with an
+underscore, as such names are reserved for the standard distributions (which
+muddle has already defined, before reading the build description).
+
+If ``categories`` is given, then it is a sequence of license categories (so,
+taken from "gpl", "open", "binary" and "static"). Only checkouts with those
+categories will be allowed to be distributed with this new distribution.
+
+If ``categories`` is not given (or is None), then all license categories are
+allowed.
+
+All non-standard distributions must be named before they can be used. It is
+not an error to name a distribution more than once, but the categories must
+match each time it is named.
+
+.. note:: If a subdomain names distribution "Fred", and then the parent domain
+   refers to domain "Fred" after including that subdomain, that will work, as
+   the naming of "Fred" (in the subdomain) did come before its use (in the
+   parent domain). However, we don't recommend writing this sort of code in
+   a build description - it would generally be better to re-name the
+   distribution in the parent domain as well, so anyone reading the
+   description can easily tell how it is defined.
+
+Distribution names and wildcards
+--------------------------------
+The functions that add checkouts, packages and checkout files to distributions
+can all take a shell-style wildcard instead of a specific distribution name.
+They will then add the relevant entity to all distributions with names that
+match that wildcard.
+
+Only distributions that have already been named will be considered in
+"expanding" the wildcard.
+
+Wildcarding is done with ``fnmatchcase`` from the Python ``fnmatch`` module,
+so::
+
+            *       matches everything
+            ?       matches any single character
+            [seq]   matches any character in seq
+            [!seq]  matches any char not in seq
+
+Distribute a checkout
+---------------------
+::
+
+  distribute_checkout(builder, name, label, copy_vcs=False)
+
+This is used to say that a particular checkout (identified by ``label``) is to
+be part of the distribution called ``name``. If ``name`` is wildcarded (see
+`Distribution names and wildcards`_, then the checkout will be added to each
+distribution that matches the wildcard.
+
+If ``copy_vcs`` is true, then the checkouts VCS "special" files should be
+distributed. The default is not to do so.
+
+Note that:
+
+a. the label name may also be a wildcard ('*'), in which case all matching
+   checkouts will be distributed.
+b. the label tag is ignored.
+
+The function creates a rule saying that ``checkout:<name>/distributed`` is
+build from ``checkout:<name>/checked_out`` using the DistributeCheckout action.
+
+Adding a checkout to the same distribution more than once has no special
+effect, except that it is the last call that sets the value of ``copy_vcs``
+that will be used.
+
+.. note:: All checkouts in the build description are implicitly part of
+   distribution ``_source_release``. The ``muddle distribute`` command itself
+   calls ``distribute_checkout`` to add them to this distribution, after the
+   build description has been read. Thus there is never any point in
+   explicitly adding a checkout to ``_source_release`` in the build
+   description itself, as that will be ignored.
+
+Distribute specific files from a checkout
+-----------------------------------------
+::
+
+  distribute_checkout_files(builder, name, label, source_files)
+
+This is used to say that the files in sequence ``source_files``, named
+relative to the source directory of checkout ``label``, should be distributed
+as part of distribution ``name``.
+
+If ``name`` is wildcarded (see `Distribution names and wildcards`_, then the
+files will be added to each distribution that matches the wildcard.
+
+Note that the label name may *not* be wildcarded, but the label tag is
+ignored.
+
+This is the function that is used internally to add muddle Makefiles for
+packages. It can also be used directly to specify that other files must also
+be distributed.
+
+Multiple calls with the same ``builder, ``name`` and ``label`` will just add
+the specified files to the same distribution.
+
+Calling ``distribute_checkout_files`` after calling ``distribute_checkout``
+for the same distribution and checkout has no effect - the latter call has
+already selected all files.
+
+Calling ``distribute_checkout`` after calling ``distribute_checkout_files``
+for the same distribution and checkout means that the calls of the latter are
+essentially ignored, because ``distribute_checkout`` is choosing all files.
+
+Build descriptions
+------------------
+Build description checkouts are treated specially.
+
+The ``muddle distribute`` command adds the necessary rules itself, by calling
+``distribute_build_description``, saying that each
+``checkout:<build-desc>/distributed`` is built from
+``checkout:<build-desc>/checked_out`` using the DistributeBuildDescription
+action (which is actually very similar to the DistributeCheckout action, of
+course).
+
+There's never any reason to call ``distribute_build_description`` directly,
+as ``muddle distribute`` will always override it.
+
+If you do call ``distribute_checkout()`` on a build description checkout, the
+rule you add will be replaced by ``muddle distribute``.
+
+Distribute a package
+--------------------
+::
+
+  distribute_package(builder, name, label, obj=False, install=True,
+                     with_muddle_makefile=True)
+
+
+This is used to say that a particular package (identified by ``label``) is to
+be part of the distribution called ``name``. If ``name`` is wildcarded (see
+`Distribution names and wildcards`_, then the package will be added to each
+distribution that matches the wildcard.
+
+Note that:
+
+a. the label name and role may also be wildcards ('*'), in which case all
+   matching packages will be distributed.
+b. the label tag is ignored.
+
+If ``obj`` is true, then the ``obj/<package-name>/<role>`` directory for
+``label`` will be distributed.
+
+If ``install`` is true, then the ``install/<role>`` directory for
+``label`` will be distributed.
+
+If ``with_muddle_makefile`` is true, then the muddle Makefile for this
+package will also be distributed.
+ 
+For instance, if ``package:zlib{x86}/*`` is built from
+``checkout:zlib-3.0/checked_out``, using muddle Makefile ``Makefile.muddle``
+in ``src/libs/zlib-3.0``, then the user will receive a directory called
+``src/libs/zlib-3.0`` that just contains ``Makefile.muddle``.
+
+Note that this is *not* always enough to allow deployment, and sometimes other
+support files will need to be (epxlicitly) added via the build description.
+
+If both ``obj`` and ``install`` are false, nothing much is going to be done
+for this package. The current implementation doesn't grumble about that.
+
+The function creates a rule saying that`
+`package:<name>{<role>)/distributed`` is built from
+``package:<name>{<role>}/postinstalled`` using the DistributePackage action.
+
+Adding a package to the same distribution more than once has no special
+effect, except that it is the last call that sets the value of ``obj``,
+``install`` and ``with_muddle_makefile`` that will be used for that
+distribution.
+
+.. note:: All packages in the build description are implicitly part of
+   distribution ``_binary_release``. The ``muddle distribute`` command itself
+   calls ``distribute_package`` to add them to this distribution, after the
+   build description has been read. Thus there is never any point in
+   explicitly adding a package to ``_binary_release`` in the build
+   description itself, as that will be ignored.
+
+
+
+
+
+
+
 
 THIS FAR
 
@@ -843,190 +1057,8 @@ Caveat on distributing packages and the "install/<role>" directory, and the
 fact "muddle distribute" has no way of knowing who put what in there. On
 segregating things by role, as necessary, and "muddle query role-licenses".
 
-How to handle "private" stuff.
-
-It is possible to define a distribution within the muddle build description.
-
-Name a distribution
--------------------
-::
-
-  name_distribution(builder, name)
-
-Before you can use a distribution, it must be "named". Essentially, the name
-of a distribution must be declared before it is used. It is not an error to
-name a distribution more than once.
-
-The standard distributions (those whose names start with an underscore) will
-already have been named before the build description is read.
-
-.. note:: *Before* in this sense means "in time", so if a subdomain is
-   included, and names distribution "Fred", and then the parent domain
-   refers to domain "Fred" after the subdomain inclusion, then that will
-   work. Of course, it will not be very friendly, as the user is unlikely
-   to realise what is going on, so we strongly recommend naming a distribution
-   within each build description using it!
-
-Distribution names and wildcards
---------------------------------
-The functions that add checkouts, packages and checkout files to distributions
-can all take a shell-style wildcard instead of a specific distribution name.
-They will then add the relevant entity to all distributions with names that
-match that wildcard.
-
-Only distributions that have already been named will be considered in
-"expanding" the wildcard.
-
-Wildcarding is done with ``fnmatchcase`` from the Python ``fnmatch`` module,
-so::
-
-            *       matches everything
-            ?       matches any single character
-            [seq]   matches any character in seq
-            [!seq]  matches any char not in seq
-
-Distribute a checkout
----------------------
-::
-
-  distribute_checkout(builder, name, label, copy_vcs=False)
-
-This is used to say that a particular checkout (identified by ``label``) is to
-be part of the distribution called ``name``. If ``name`` is wildcarded (see
-`Distribution names and wildcards`_, then the checkout will be added to each
-distribution that matches the wildcard.
-
-If ``copy_vcs`` is true, then the checkouts VCS "special" files should be
-distributed.
-
-Note that:
-
-a. the label name may also be a wildcard ('*'), in which case all matching
-   checkouts will be distributed.
-b. the label tag is ignored.
-
-The function creates a rule saying that ``checkout:<name>/distributed`` is
-build from ``checkout:<name>/checked_out`` using the DistributeCheckout action.
-
-Adding a checkout to the same distribution more than once has no special
-effect, except that it is the last call that sets the value of ``copy_vcs``
-that will be used.
-
-.. note:: All checkouts in the build description are implicitly part of
-   distribution ``_source_release``. The ``muddle distribute`` command itself
-   calls ``distribute_checkout`` to add them to this distribution, after the
-   build description has been read. Thus there is never any point in
-   explicitly adding a checkout to ``_source_release`` in the build
-   description itself, as that will be ignored.
-
-Distribute specific files from a checkout
------------------------------------------
-::
-
-  distribute_checkout_files(builder, name, label, source_files)
-
-This is used to say that the files in sequence ``source_files``, named
-relative to the source directory of checkout ``label``, should be distributed
-as part of distribution ``name``.
-
-If ``name`` is wildcarded (see `Distribution names and wildcards`_, then the
-files will be added to each distribution that matches the wildcard.
-
-Note that the label name may *not* be wildcarded, but the label tag is
-ignored.
-
-This is the function that is used internally to add muddle Makefiles for
-packages. It can also be used directly to specify that other files must also
-be distributed.
-
-Multiple calls with the same ``builder, ``name`` and ``label`` will just add
-the specified files to the same distribution.
-
-Calling ``distribute_checkout_files`` after calling ``distribute_checkout``
-for the same distribution and checkout has no effect - the latter call has
-already selected all files.
-
-Calling ``distribute_checkout`` after calling ``distribute_checkout_files``
-for the same distribution and checkout means that the calls of the latter are
-essentially ignored, for the same reason (``distribute_checkout`` is choosing
-all files).
-
-Build descriptions
-------------------
-Build description checkouts are treated specially.
-
-The ``muddle distribute`` command adds the necessary rules itself, by calling
-``distribute_build_description``, saying that each
-``checkout:<build-desc>/distributed`` is built from
-``checkout:<build-desc>/checked_out`` using the DistributeBuildDescription
-action (which is actually very similar to the DistributeCheckout action, of
-course).
-
-There's never any reason to call ``distribute_build_description`` directly,
-as ``muddle distribute`` will always override it.
-
-If you do call ``distribute_checkout()`` on a build description checkout, the
-rule you add will actually be replaced by ``muddle distribute``.
-
-Distribute a package
---------------------
-::
-
-  distribute_package(builder, name, label, obj=False, install=True,
-                     with_muddle_makefile=True)
-
-
-This is used to say that a particular package (identified by ``label``) is to
-be part of the distribution called ``name``. If ``name`` is wildcarded (see
-`Distribution names and wildcards`_, then the package will be added to each
-distribution that matches the wildcard.
-
-Note that:
-
-a. the label name and role may also be wildcards ('*'), in which case all
-   matching packages will be distributed.
-b. the label tag is ignored.
-
-If ``obj`` is true, then the ``obj/<package-name>/<role>`` directory for
-``label`` will be distributed.
-
-If ``install`` is true, then the ``install/<role>`` directory for
-``label`` will be distributed.
-
-If ``with_muddle_makefile`` is true, then the muddle Makefile for this
-package will also be distributed.
- 
-For instance, if ``package:zlib{x86}/*`` is built from
-``checkout:zlib-3.0/checked_out``, using muddle Makefile ``Makefile.muddle``
-in ``src/libs/zlib-3.0``, then the user will receive a directory called
-``src/libs/zlib-3.0`` that just contains ``Makefile.muddle``.
-
-Note that this is *not* always enough to allow deployment, and sometimes other
-support files will need to be (epxlicitly) added via the build description.
-
-If both ``obj`` and ``install`` are false, nothing much is going to be done
-for this package. The current implementation doesn't grumble about that.
-
-The function creates a rule saying that`
-`package:<name>{<role>)/distributed`` is built from
-``package:<name>{<role>}/postinstalled`` using the DistributePackage action.
-
-Adding a package to the same distribution more than once has no special
-effect, except that it is the last call that sets the value of ``obj``,
-``install`` and ``with_muddle_makefile`` that will be used for that
-distribution.
-
-.. note:: All packages in the build description are implicitly part of
-   distribution ``_binary_release``. The ``muddle distribute`` command itself
-   calls ``distribute_package`` to add them to this distribution, after the
-   build description has been read. Thus there is never any point in
-   explicitly adding a package to ``_binary_release`` in the build
-   description itself, as that will be ignored.
-
-
 Still to consider
 -----------------
-* Can the function calls be made more concise.
 * what is meant to happen if contradictory rules are made for a checkout,
   one via ``distribute_checkout()`` and another via ``distribute_package(...,
   source=True)``?
@@ -1086,65 +1118,6 @@ the build tree.)
 
 Licenses
 ========
-.. note:: This is work in progress.
-
-We want to be able to say what licence applies to a checkout, so that we can
-choose what to distribute by its license. The following thoughts occur:
-
-1. We might only want a single license for a piece of source code, but
-   in practice some are multi-licensed, and thus we really should support
-   multiple licenses per checkout (if only to make the user happy).
-
-    RESOLVED: No, just the one license we're working to in this build
-    description
-
-2. There are three types of license (broadly):
-
-   * Open. These can be freely distributed as source.
-   * Closed. These can only be distributed as binary.
-   * Private. These must not be distributed at all, and may also need a
-     mechanism to prevent distributing the relevant part of the build
-     description as well.
-
-   RESOLVED: open is split into GPL and (other) open
-
-3. There's a suggestion that we should be able to attach a license to a
-   package as well. Whilst it might be useful to specify an overall license
-   for a package, I think this should be seen as really being a license for
-   the checkouts used by the package. Reasons for this include:
-
-   * I don't think different licenses for differend roles make sense
-   * our "unit of distribution" for source code is the checkout
-
-   RESOLVED: licenses belong to checkouts, but can be specified via a package
-   label, much as one can "checkout" a muddle package on the command line
-
-I do not propose that muddle should help with the "contamination" problem.
-That is, if a package contains components that are statically linked against a
-GPL component, then that package must also be GPL. Trying to work this out
-would be a non-trivial problem involving inspection of Makefiles and other
-such complicated stuff. It's better to leave it up to humans to work out - and
-they need to do so anyway.
-
-Next iteration
---------------
-Richard would like active licenses.
-
-So declaring a checkout (or package) as having a particular license adds it to
-the distribution of the same name. For "propagating" licenses like LGPL and
-GPL, we also want a mechanism for saying that another checkout must also be
-released as source, because it depends on that library. In which case we
-*also* want a way to say "but actually, even though we 'depend' on it, that
-doesn't mean we're linking to it in a GPL-relevant manner, so the license does
-not propagate to this checkout".
-
-Most open source licenses (?) don't actually *require* source code
-distribution, it's just the GPL related licenses (of course, this needs
-checking).
-
-All of this still needs some thought...
-
-...more thought...
 
 So, specifically looking at GPL stuff.
 

@@ -101,9 +101,23 @@ class Database(object):
       This sort of thing is necessary because muddle itself has no way of
       telling.
 
-      Note that ALL labels in this dictionary and its constituent sets should
-      have their tags set to '*', so it is expected that this dictionary will
-      be accessed using set_not_built_against() and get_not_built_against().
+    * self.upstream_repositories is a dictionary of the form:
+
+        { repo : { repo, set(names) } }
+
+      That is, the key is a Repository instance (normally expected to be
+      the same as one of the values in the checkout_repos dictionary), and
+      the value is a dictionary whose keys are other repositories ("upstream"
+      repositories) and some names associated with them.
+
+      The same names may be associated with more than one upstream repository.
+      It is also conceivable that an upstream repository might also act as a
+      key, if it in turn has upstream repositories (whether this is strictly
+      necessary is unclear - XXX still to decide whether to support this).
+
+    Note that ALL labels in this dictionary and its constituent sets should
+    have their tags set to '*', so it is expected that this dictionary will
+    be accessed using set_not_built_against() and get_not_built_against().
     """
 
     def __init__(self, root_path):
@@ -124,6 +138,9 @@ class Database(object):
 
         # A set of "asserted" labels
         self.local_tags = set()
+
+        # Upstream repositories
+        self.upstream_repositories = {}
 
     def setup(self, repo_location, build_desc, versions_repo=None):
         """
@@ -484,6 +501,96 @@ class Database(object):
             return self.not_built_against[key]
         except KeyError:
             return set()
+
+    def add_upstream_repo(self, orig_repo, upstream_repo, names=None):
+        """Add an upstream repo to 'orig_repo'.
+
+        - 'orig_repo' is the original Repository that we are adding an
+          upstream for.
+        - 'upstream_repo' is the upstream Repository. It is an error if
+          that repository is already an upstream of 'orig_repo'.
+        - 'names' is a sequence of strings that can be used to select
+          this (and possibly other) upstream repositories.
+        """
+        if orig_repo in self.upstream_repositories:
+            upstream_dict = self.upstream_repositories[orig_repo]
+            if upstream_repo in upstream_dict:
+                raise utils.GiveUp('Repository %r is already upstream'
+                                   ' of %r'%(upstream_repo, orig_repo))
+        else:
+            upstream_dict = {}
+
+        upstream_dict[upstream_repo] = set(names)
+
+        self.upstream_repositories[orig_repo] = upstream_dict
+
+    def get_upstream_repos(self, orig_repo, names=None):
+        """Retrieve the upstream repositories for 'orig_repo'
+
+        If 'names' is given, it must be a sequence of strings, in which
+        case only those upstream repositories annotated with any of the
+        names will be returned.
+
+        Returns a set of upstream repositories. This will be empty if there
+        are no upstream repositories for 'orig_repo', or none with any of the
+        names in 'names' (if given).
+        """
+        results = set()
+        try:
+            upstream_dict = self.upstream_repositories[orig_repo]
+        except KeyError:
+            return results
+
+        if names:
+            for upstream_repo, upstream_names in upstream_dict.items():
+                if upstream_names.intersection(names):
+                    results.add(upstream_repo)
+        else:
+            results.update(upstream_dict.keys())
+        return result
+
+    def dump_upstream_repos(self, just_url=False):
+        """
+        Report on the upstream repositories associated "default" repositories
+
+        If 'just_url' is true, then report the repository URL, otherwise
+        report the full Repository definition (which shows branch and revision
+        as well).
+        """
+        print "> Upstream repositories .."
+        if just_url:
+            format1 = "%s used by %s"
+            format2 = "%s"
+            format3 = "    %s  %s"
+        else:
+            format1 = "%r used by %s"
+            format2 = "%r"
+            format3 = "    %r  %s"
+
+        keys = self.upstream_repositories.keys()
+        keys.sort()
+
+        def find_checkout_for(repo):
+            results = set()
+            if repo in self.checkout_repositories.values():
+                # Do we really believe we're going to have the same
+                # repository used by more than one checkout?
+                for co_label, co_repo in self.checkout_repositories.items():
+                    if co_repo == repo:
+                        results.add(co_label)
+            return results
+
+        # This will be slow...
+        for orig in keys:
+            co_labels = find_checkout_for(orig)
+            if co_labels:
+                print format1%(orig, depend.label_list_to_string(co_labels))
+            else:
+                print format2%orig
+            upstream_dict = self.upstream_repositories[orig]
+            for upstream_repo in sorted(upstream_dict.keys()):
+                print format3%(upstream_repo,
+                               ', '.join(upstream_dict[upstream_repo]))
 
     def build_desc_file_name(self):
         """

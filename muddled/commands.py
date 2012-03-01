@@ -1895,6 +1895,33 @@ class QueryCheckoutDirs(QueryCommand):
     def with_build_tree(self, builder, current_dir, args):
         builder.invocation.db.dump_checkout_paths()
 
+@subcommand('query', 'upstream-repos', CAT_QUERY)
+class QueryUpstreamRepos(QueryCommand):
+    """
+    :Syntax: muddle query upstream-repos [-u[rl]]
+
+    For those repositories that have upstream repositories, print the details.
+
+    With '-u' or '-url', print repository URLs. Otherwise, print the
+    full spec of each Repository instance.
+
+    So, for instance, the standard printout produces lines of the form::
+
+        checkout:kernel/* -> Repository('git', 'ssh://git@server/project99/src', 'kernel', prefix='linuxbase', branch='linux-3.2.0')
+
+    but with '-u' one would instead see::
+
+        checkout:kernel/* -> ssh://git@server/project99/src/linuxbase/kernel
+    """
+
+    allowed_switches = {'-u':'url', '-url':'url'}
+
+    def with_build_tree(self, builder, current_dir, args):
+        args = self.remove_switches(args, allowed_more=False)
+
+        just_url = ('url' in self.switches)
+        builder.invocation.db.dump_upstream_repos(just_url=just_url)
+
 @subcommand('query', 'checkout-repos', CAT_QUERY)
 class QueryCheckoutRepos(QueryCommand):
     """

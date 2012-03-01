@@ -927,6 +927,10 @@ class Builder(object):
         then loading it.
 
         Returns True on success, False on failure.
+
+        We store the build description repository as self.build_desc_repo,
+        since users may want to use it to determine other, relative,
+        repositories.
         """
 
         # The build description is a bit odd, but we still set it up as a

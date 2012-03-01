@@ -55,7 +55,7 @@ import muddled.pkgs.make
 import muddled.deployments.collect as collect
 
 from muddled.depend import checkout, package
-from muddled.repository import Repository, add_upstream_repo
+from muddled.repository import get_checkout_repo, add_upstream_repo
 
 def add_package(builder, name, role, co_name=None):
     if not co_name:
@@ -73,9 +73,13 @@ def describe_to(builder):
     root_repo = builder.build_desc_repo
     # but it would have been just as sensible to use that for 'repo1'
     repo1_1 = root_repo.copy_with_changes('repo1.1')
+    repo1_2 = root_repo.copy_with_changes('repo1.2', push=False)
+    repo1_3 = root_repo.copy_with_changes('repo1.3', pull=False)
 
-    repo1 = builder.invocation.db.get_checkout_repo(checkout('repo1'))
+    repo1 = get_checkout_repo(builder, checkout('repo1'))
     add_upstream_repo(builder, repo1, repo1_1, ('wombat', 'rhubarb'))
+    add_upstream_repo(builder, repo1, repo1_2, ('wombat', 'insignificance'))
+    add_upstream_repo(builder, repo1, repo1_3, ('platypus', 'rhubarb'))
 
     collect.deploy(builder, deployment)
     collect.copy_from_role_install(builder, deployment,

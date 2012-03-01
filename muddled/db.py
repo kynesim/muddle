@@ -590,7 +590,7 @@ class Database(object):
             upstream_dict = self.upstream_repositories[orig]
             for upstream_repo in sorted(upstream_dict.keys()):
                 print format3%(upstream_repo,
-                               ', '.join(upstream_dict[upstream_repo]))
+                               ', '.join(sorted(upstream_dict[upstream_repo])))
 
     def build_desc_file_name(self):
         """

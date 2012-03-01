@@ -359,9 +359,19 @@ class Repository(object):
         return True
 
     def __hash__(self):
-        """We need this if we want to be in sets.
+        """We need this if we want to be in sets, or as dictionary keys.
         """
         return hash(self._comparables())
+
+    def __lt__(self, other):
+        """We need this if we're to be sorted, which can be nice when printing.
+        """
+        for this, that in zip(self._comparables(), other._comparables()):
+            if this < that:
+                return True
+            elif this > that:
+                return False
+        return False
 
     def _comparables(self):
         """What we use to identify ourself...
@@ -670,6 +680,13 @@ def google_code_handler(repo):
 Repository.register_path_handler('git', 'code.google.com', google_code_handler)
 
 # Some convenience functions
+def get_checkout_repo(builder, co_label):
+    """Returns the Repository instance for this checkout label
+
+    A convenience wrapper around 'builder.invocation.db.get_checkout_repo'.
+    """
+    return builder.invocation.db.get_checkout_repo(co_label)
+
 def add_upstream_repo(builder, orig_repo, upstream_repo, names):
     """Add an upstream repo to 'orig_repo'.
 

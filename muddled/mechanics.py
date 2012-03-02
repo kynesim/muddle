@@ -19,6 +19,13 @@ from muddled.utils import domain_subpath, GiveUp, MuddleBug, LabelType, LabelTag
 from muddled.repository import Repository
 from muddled.version_control import split_vcs_url, checkout_from_repo
 
+class ErrorInBuildDescription(GiveUp):
+    """We want to be able to distinguish this exception *in this module*
+
+    We don't expect anyone outside this module to care.
+    """
+    pass
+
 build_name_re = re.compile(r"[A-Za-z0-9_-]+")
 
 def check_build_name(name):
@@ -981,8 +988,16 @@ class Builder(object):
         # .. and load the build description.
         try:
             self.build_label(loaded, silent=True)
+        except ErrorInBuildDescription as e:
+            # Ah, an error in a subdomain build description
+            raise ErrorInBuildDescription('Error in build description for %s\n'
+                                          '%s'%(self.invocation.db.root_path, e))
         except Exception:
-            raise GiveUp('Error in build description\n%s'%traceback.format_exc())
+            raise ErrorInBuildDescription('Error in build description for %s\n'
+                                          '%s'%(self.invocation.db.root_path,
+                                                traceback.format_exc()))
+            #raise ErrorInBuildDescription('Error in build description\n'
+            #                              '%s'%traceback.format_exc())
 
         return True
 

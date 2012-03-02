@@ -82,6 +82,15 @@ def describe_to(builder):
     collect.copy_from_role_install(builder, deployment,
                                    role=role, rel="", dest="", domain=None)
 
+    # This is a weird thing to do, but I test it...
+    # We are allowed unattached repository-with-upstream instances
+    # (mainly because they might be useful later on, perhaps if we allow
+    # upstream repositories to have their own upstreams, and also perhaps this
+    # is a useful sort of assertion to be able to make.
+    unused_repo1 = Repository('git', 'http://example.com', 'repo99')
+    unused_repo2 = Repository('git', 'http://example.com', 'repo99-upstream')
+    add_upstream_repo(builder, unused_repo1, unused_repo2, ['abacus'])
+
     # Some subdomains
     include_domain(builder,
                    domain_name = '{subdomain1}',
@@ -238,6 +247,12 @@ def describe_to(builder):
     add_upstream_repo(builder, repo, repo1_1, ('wombat', 'rhubarb'))
     add_upstream_repo(builder, repo, repo1_2, ('wombat', 'insignificance'))
     add_upstream_repo(builder, repo, repo1_3, ('platypus', 'rhubarb'))
+
+    # We also test that we can have an unattached repository-and-upstream
+    # here, and that subdomain inclusion doesn't worry about it
+    unused_repo1 = Repository('git', 'http://example.com', 'repoFred')
+    unused_repo2 = Repository('git', 'http://example.com', 'repoFred-upstream')
+    add_upstream_repo(builder, unused_repo1, unused_repo2, ['abacus'])
 
     collect.deploy(builder, deployment)
     collect.copy_from_role_install(builder, deployment,
@@ -501,6 +516,10 @@ Repository('git', 'file://{root_dir}/repo/main', 'repo1') used by checkout:(subd
     Repository('git', 'file://{root_dir}/repo/main', 'repo1.1')  rhubarb, wombat
     Repository('git', 'file://{root_dir}/repo/main', 'repo1.2', push=False)  insignificance, wombat
     Repository('git', 'file://{root_dir}/repo/main', 'repo1.3', pull=False)  platypus, rhubarb
+Repository('git', 'http://example.com', 'repo99')
+    Repository('git', 'http://example.com', 'repo99-upstream')  abacus
+Repository('git', 'http://example.com', 'repoFred')
+    Repository('git', 'http://example.com', 'repoFred-upstream')  abacus
 """.format(root_dir=root_dir))
 
         with NewDirectory('builds_ok_upstream_2') as d:
@@ -515,6 +534,8 @@ Repository('git', 'file://{root_dir}/repo/main', 'repo1') used by checkout:(subd
     Repository('git', 'file://{root_dir}/repo/main', 'repo1.1')  rhubarb, wombat
     Repository('git', 'file://{root_dir}/repo/main', 'repo1.2', push=False)  insignificance, wombat
     Repository('git', 'file://{root_dir}/repo/main', 'repo1.3', pull=False)  platypus, rhubarb
+Repository('git', 'http://example.com', 'repo99')
+    Repository('git', 'http://example.com', 'repo99-upstream')  abacus
 """.format(root_dir=root_dir))
 
         with NewDirectory('builds_ok_upstream_3') as d:
@@ -529,6 +550,8 @@ Repository('git', 'file://{root_dir}/repo/main', 'repo1') used by checkout:co_re
     Repository('git', 'file://{root_dir}/repo/main', 'repo1.1')  rhubarb, wombat
     Repository('git', 'file://{root_dir}/repo/main', 'repo1.2', push=False)  insignificance, manhattan, platypus, wombat
     Repository('git', 'file://{root_dir}/repo/main', 'repo1.3', pull=False)  platypus, rhubarb
+Repository('git', 'http://example.com', 'repo99')
+    Repository('git', 'http://example.com', 'repo99-upstream')  abacus
 """.format(root_dir=root_dir))
 
         with NewDirectory('builds_bad_upstream_1') as d:

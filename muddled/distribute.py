@@ -1076,7 +1076,7 @@ class DistributeAction(Action):
             raise GiveUp('Distribution "%s" is already present in %s'%(name,
                 self.__class__.__name__))
 
-        self.distributions[name] = data
+        self.distributions[name] = (copy_vcs, private_files)
 
     def get_distribution(self, name):
         """Return the data for distribution 'name', or raise MuddleBug

@@ -190,17 +190,21 @@ class Database(object):
         """
         Include data from other_builder, built in other_domain_name
 
-        This is mainly checkout locations.
+        This method is the main reason why this class gets to hold so much
+        information - it gives us a single place to concentrate much of the
+        knowledge about including subdomains.
         """
 
         other_db = other_builder.invocation.db
 
+        # Merging dictionaries keyed off checkout labels
+        # ==============================================
         keys = set()
         keys.update(other_db.checkout_locations.keys())
         keys.update(other_db.checkout_repositories.keys())
         keys.update(other_db.checkout_licenses.keys())
         keys.update(other_db.not_built_against.keys())
-        # Don't forget the labels in its sets
+        # Don't forget the labels in the not_built_against values
         for not_against in other_db.not_built_against.values():
             keys.update(not_against)
 
@@ -212,12 +216,10 @@ class Database(object):
             new_label._change_domain(other_domain_name)
             new_labels[label] = new_label
 
-        #print 'include domain:', other_domain_name
         for co_label, co_dir in other_db.checkout_locations.items():
             #print "Including %s -> %s -- %s"%(co_label,co_dir, other_domain_name)
             new_label = new_labels[co_label]
             new_dir = os.path.join(utils.domain_subpath(other_domain_name), co_dir)
-            #print "          %s -> %s"%(new_label, new_dir)
             self.checkout_locations[new_label] = new_dir
 
         for co_label, repo in other_db.checkout_repositories.items():
@@ -239,6 +241,94 @@ class Database(object):
                 self.not_built_against[new_label].update(new_set)
             else:
                 self.not_built_against[new_label] = new_set
+
+        # Merging upstream repository knowledge
+        # =====================================
+        # XXX TO BE TESTED AND DEBUGGED
+        for orig_repo, that_upstream_dict in other_db.upstream_repositories.items():
+            print 'Looking at %r'%orig_repo
+            if orig_repo in self.upstream_repositories:
+                print '  already known'
+                # Oh dear, we already think we know about this repository
+                # and its upstreams...
+                this_upstream_dict = self.upstream_repositories[orig_repo]
+
+                for upstream_repo, that_names in that_upstream_dict.items():
+                    print '  upstream %r'%upstream_repo
+                    if upstream_repo in this_upstream_dict:
+                        print '    already known'
+                        # And this is one of the upstreams we already recognise
+                        this_names = this_upstream_dict[upstream_repo]
+                        if that_names != this_names:
+                            print '      adding extra names'
+                            # If there are *extra* names, we'll just add them
+                            this_names.update(that_names)
+                            this_upstream_dict[upstream_repo] = this_names
+                    else:
+                        print '    never heard of it'
+                        # This is not an upstream we already knew about
+                        self._subdomain_new_upstream(other_domain_name, orig_repo, other_db)
+
+
+            else:
+                print '  new to us'
+                # OK, so we don't have an existing upstream for it
+                # - but do we know about it without any?
+                if orig_repo in self.checkout_repositories.values():
+                    # Oh dear, we've got a checkout using it, and we're being
+                    # asked to add new upstreams
+                    print '    but we already have a checkout using it!'
+                    this_upstream_dict = self.upstream_repositories[orig_repo]
+                    self._subdomain_new_upstream(other_domain_name, orig_repo, other_db)
+                else:
+                    # No, so it's safe to just add it
+                    self.upstream_repositories[orig_repo] = that_upstream_dict
+
+    def _subdomain_new_upstream(self, domain_name, orig_repo, other_db):
+        """A subdomain introduces a new upstream on a repo we already know
+
+        It's not entirely clear whether a subdomain should be able to add a new
+        upstream that the main domain had not explicitly asked for. We could:
+
+        1. just add this new upstream, or
+        2. cause an error and force the user to amend the build descriptions to
+           avoid it, or
+        3. ignore the new upstream
+
+        I think (2) is perhaps acceptable. The user may not be able to change
+        the subdomain build description (it may have come from elsewhere, and
+        subdomain builds are valid top-level builds as well). But they could
+        arguably alter the top-level build to have the same remotes as the
+        subdomain. Of course, if the subdomain *is* from elsewhere, it may
+        change, and then the top-level build would be forever changing to keep
+        up.  But perhaps that is another argument...
+
+        I think (3) is just unacceptable - there was some reason for including
+        the upstream. We shouldn't throw the information away.
+
+        If we follow (1), then we potentially risk pushing to an upstream that
+        we didn't expect to (since the new upstream may share names with an
+        existing one).  So I think perhaps we should not allow this option,
+        tempting as it is.
+
+        Which leaves us with (2) as the least worst choice.
+        """
+        this_upstream = self.upstream_repositories[orig_repo]
+        that_upstream = other_db.upstream_repositories[orig_repo]
+        details = ['Subdomain %s adds a new upstream to\n'
+                   '  %r'%(domain_name, orig_repo)]
+
+        details.append('  Original upstreams:')
+        for upstream_repo in sorted(this_upstream.keys()):
+            details.append('    %r  %s'%(upstream_repo,
+                           ', '.join(sorted(this_upstream[upstream_repo]))))
+
+        details.append('  Subdomain %s has:'%domain_name)
+        for upstream_repo in sorted(that_upstream.keys()):
+            details.append('    %r  %s'%(upstream_repo,
+                           ', '.join(sorted(that_upstream[upstream_repo]))))
+
+        raise utils.GiveUp('\n'.join(details))
 
     def set_domain_marker(self, domain_name):
         """
@@ -558,6 +648,44 @@ class Database(object):
         as well).
         """
         print "> Upstream repositories .."
+        keys = self.upstream_repositories.keys()
+        keys.sort()
+
+        def find_checkouts_for(repo):
+            results = set()
+            if repo in self.checkout_repositories.values():
+                # Do we really believe we're going to have the same
+                # repository used by more than one checkout? We certainly
+                # can't rule it out (it is particularly likely if we have
+                # similar checkouts in different domains, and they've not
+                # been unified). On the other hand, checking for *everything*
+                # every time slows us down a lot, so if this happens often
+                # we might want to consider a cache...
+                for co_label, co_repo in self.checkout_repositories.items():
+                    if co_repo == repo:
+                        results.add(co_label)
+            return results
+
+        for orig_repo in keys:
+            # Calling find_checkout_for to do a linear search through the
+            # checkout_repositories dictionary for every repository is
+            # likely to be, well, a bit slow. So let's hope we don't do this
+            # too often...
+            co_labels = find_checkouts_for(orig_repo)
+            self.print_upstream_repo_info(orig_repo, co_labels, just_url)
+
+    def print_upstream_repo_info(self, orig_repo, co_labels, just_url):
+        """Print upstream repository information.
+
+        'orig_repo' is the "main" repository, the one that is not upstream
+
+        'co_labels' is a sequence of 0 or more checkout labels, which are
+        associated with that repository.
+
+        If 'just_url' is true, then report the repository URL, otherwise
+        report the full Repository definition (which shows branch and revision
+        as well).
+        """
         if just_url:
             format1 = "%s used by %s"
             format2 = "%s"
@@ -567,30 +695,14 @@ class Database(object):
             format2 = "%r"
             format3 = "    %r  %s"
 
-        keys = self.upstream_repositories.keys()
-        keys.sort()
-
-        def find_checkout_for(repo):
-            results = set()
-            if repo in self.checkout_repositories.values():
-                # Do we really believe we're going to have the same
-                # repository used by more than one checkout?
-                for co_label, co_repo in self.checkout_repositories.items():
-                    if co_repo == repo:
-                        results.add(co_label)
-            return results
-
-        # This will be slow...
-        for orig in keys:
-            co_labels = find_checkout_for(orig)
-            if co_labels:
-                print format1%(orig, depend.label_list_to_string(co_labels))
-            else:
-                print format2%orig
-            upstream_dict = self.upstream_repositories[orig]
-            for upstream_repo in sorted(upstream_dict.keys()):
-                print format3%(upstream_repo,
-                               ', '.join(sorted(upstream_dict[upstream_repo])))
+        if co_labels:
+            print format1%(orig_repo, depend.label_list_to_string(co_labels))
+        else:
+            print format2%orig_repo
+        upstream_dict = self.upstream_repositories[orig_repo]
+        for upstream_repo in sorted(upstream_dict.keys()):
+            print format3%(upstream_repo,
+                           ', '.join(sorted(upstream_dict[upstream_repo])))
 
     def build_desc_file_name(self):
         """

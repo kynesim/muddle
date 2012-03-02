@@ -1698,12 +1698,11 @@ class QueryCommand(Command):
     def requires_build_tree(self):
         return True
 
-    def get_label_from_fragment(self, builder, args):
+    def get_label_from_fragment(self, builder, args, default_type=LabelType.Package):
         if len(args) != 1:
-            raise GiveUp("Command '%s' needs a label"%(self.cmd_name))
+            raise GiveUp("Command '%s' needs a (single) label"%(self.cmd_name))
 
-        label = Label.from_fragment(args[0],
-                                    default_type=LabelType.Package)
+        label = Label.from_fragment(args[0], default_type=default_type)
 
         if label.type == LabelType.Package and not label.role:
             raise GiveUp('A package label needs a role, not just %s'%label)
@@ -1712,7 +1711,7 @@ class QueryCommand(Command):
 
     def get_label(self, builder, args):
         if len(args) != 1:
-            raise GiveUp("Command '%s' needs a label"%(self.cmd_name))
+            raise GiveUp("Command '%s' needs a (single) label"%(self.cmd_name))
 
         try:
             label = Label.from_string(args[0])
@@ -1752,7 +1751,7 @@ class QueryDepend(QueryCommand):
 
     def with_build_tree(self, builder, current_dir, args):
         if len(args) != 1 and len(args) != 2:
-            print "Syntax: dependencies [system|user|all][-short] [<label>]"
+            print "Syntax: muddle query dependencies [system|user|all][-short] [<label>]"
             print self.__doc__
             return
 
@@ -1898,29 +1897,46 @@ class QueryCheckoutDirs(QueryCommand):
 @subcommand('query', 'upstream-repos', CAT_QUERY)
 class QueryUpstreamRepos(QueryCommand):
     """
-    :Syntax: muddle query upstream-repos [-u[rl]]
+    :Syntax: muddle query upstream-repos [-u[rl]] [<co_label>]
 
-    For those repositories that have upstream repositories, print the details.
+    Print information about upstream repositories.
+
+    If <co_label> is given then it should be a checkout label or label fragment
+    (see "muddle help labels").
+
+    If a label or labels are given, then the repositories, and any upstream
+    repositories, for those labels are reported. Otherwise, those
+    repositories that have upstream repositories are reported.
 
     With '-u' or '-url', print repository URLs. Otherwise, print the
     full spec of each Repository instance.
 
-    So, for instance, the standard printout produces lines of the form::
-
-        checkout:kernel/* -> Repository('git', 'ssh://git@server/project99/src', 'kernel', prefix='linuxbase', branch='linux-3.2.0')
-
-    but with '-u' one would instead see::
-
-        checkout:kernel/* -> ssh://git@server/project99/src/linuxbase/kernel
+    XXX Examples to be provided
     """
 
     allowed_switches = {'-u':'url', '-url':'url'}
 
     def with_build_tree(self, builder, current_dir, args):
-        args = self.remove_switches(args, allowed_more=False)
+        if len(args) not in (0, 1, 2):
+            print "Syntax: muddle query upstream-repos [-u[rl]] [<label>]"
+            print self.__doc__
+            return
 
+        args = self.remove_switches(args, allowed_more=True)
         just_url = ('url' in self.switches)
-        builder.invocation.db.dump_upstream_repos(just_url=just_url)
+
+        if args:
+            co_label = self.get_label_from_fragment(builder, args,
+                                                    default_type=LabelType.Checkout)
+            if co_label.type != LabelType.Checkout:
+                raise GiveUp('"muddle query upstream-repos" takes a checkout:'
+                             ' label as argument, not %s'%co_label)
+
+            orig_repo = builder.invocation.db.get_checkout_repo(co_label)
+            builder.invocation.db.print_upstream_repo_info(orig_repo, [co_label], just_url)
+        else:
+            # Report on all the upstream repositories
+            builder.invocation.db.dump_upstream_repos(just_url=just_url)
 
 @subcommand('query', 'checkout-repos', CAT_QUERY)
 class QueryCheckoutRepos(QueryCommand):

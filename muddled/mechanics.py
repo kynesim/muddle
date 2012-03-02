@@ -992,6 +992,10 @@ class Builder(object):
             # Ah, an error in a subdomain build description
             raise ErrorInBuildDescription('Error in build description for %s\n'
                                           '%s'%(self.invocation.db.root_path, e))
+        except GiveUp as e:
+            # We don't normally want tracebacks for GiveUp exceptions, so
+            # just pass it on up...
+            raise
         except Exception:
             raise ErrorInBuildDescription('Error in build description for %s\n'
                                           '%s'%(self.invocation.db.root_path,

@@ -21,9 +21,6 @@ from muddled.utils import GiveUp, normalise_dir, LabelType, LabelTag
 from muddled.utils import Directory, NewDirectory, TransientDirectory
 from muddled.licenses import standard_licenses
 
-class OurGiveUp(Exception):
-    pass
-
 MUDDLE_MAKEFILE = """\
 # Trivial muddle makefile
 all:
@@ -493,39 +490,69 @@ def main(args):
             muddle(['stamp', 'version'])
 
         with NewDirectory('builds_ok_upstream_1') as d:
-            banner('CHECK REPOSITORIES OUT (OK UPSTREAM 1)')
+            banner('CHECK REPOSITORIES OUT (OK UPSTREAM 1) subdomain has identical upstreams')
             muddle(['init', 'git+file://{repo}/main'.format(repo=root.join('repo')),
                     'builds_ok_upstream_1/01.py'])
 
+            err, text = captured_muddle(['query', 'upstream-repos'])
+            check_text_endswith(text, """\
+> Upstream repositories ..
+Repository('git', 'file://{root_dir}/repo/main', 'repo1') used by checkout:(subdomain_ok_upstream_1)co_repo1/*, checkout:co_repo1/*
+    Repository('git', 'file://{root_dir}/repo/main', 'repo1.1')  rhubarb, wombat
+    Repository('git', 'file://{root_dir}/repo/main', 'repo1.2', push=False)  insignificance, wombat
+    Repository('git', 'file://{root_dir}/repo/main', 'repo1.3', pull=False)  platypus, rhubarb
+""".format(root_dir=root_dir))
+
         with NewDirectory('builds_ok_upstream_2') as d:
-            banner('CHECK REPOSITORIES OUT (OK UPSTREAM 2)')
+            banner('CHECK REPOSITORIES OUT (OK UPSTREAM 2) subdomain has subset of upstreams')
             muddle(['init', 'git+file://{repo}/main'.format(repo=root.join('repo')),
                     'builds_ok_upstream_2/01.py'])
 
+            err, text = captured_muddle(['query', 'upstream-repos'])
+            check_text_endswith(text, """\
+> Upstream repositories ..
+Repository('git', 'file://{root_dir}/repo/main', 'repo1') used by checkout:(subdomain_ok_upstream_2)co_repo1/*, checkout:co_repo1/*
+    Repository('git', 'file://{root_dir}/repo/main', 'repo1.1')  rhubarb, wombat
+    Repository('git', 'file://{root_dir}/repo/main', 'repo1.2', push=False)  insignificance, wombat
+    Repository('git', 'file://{root_dir}/repo/main', 'repo1.3', pull=False)  platypus, rhubarb
+""".format(root_dir=root_dir))
+
         with NewDirectory('builds_ok_upstream_3') as d:
-            banner('CHECK REPOSITORIES OUT (OK UPSTREAM 3)')
+            banner('CHECK REPOSITORIES OUT (OK UPSTREAM 3) subdomain has extra upstream names')
             muddle(['init', 'git+file://{repo}/main'.format(repo=root.join('repo')),
                     'builds_ok_upstream_3/01.py'])
 
-            upstream_text = captured_muddle(['query', 'upstream-repos'])
-#            same_as(upstream_text, """\
-#Repository('git', '{root_dir}/repo/main', 'repo1') used by checkout:co_repo1/* checkout:(subdomain_ok_upstream_3)co_repo1/*
-#    Repository('git', '{root_dir}/repo/main', 'repo1.1')  rhubarb, wombat
-#    Repository('git', '{root_dir}/repo/main', 'repo1.2', push=False)  insignificance, manhattan, platypus, wombat
-#    Repository('git', '{root_dir}/repo/main', 'repo1.3', pull=False)  platypus, rhubarb
-#""".format(root_dir=root_dir))
+            err, text = captured_muddle(['query', 'upstream-repos'])
+            check_text_endswith(text, """\
+> Upstream repositories ..
+Repository('git', 'file://{root_dir}/repo/main', 'repo1') used by checkout:co_repo1/*, checkout:(subdomain_ok_upstream_3)co_repo1/*
+    Repository('git', 'file://{root_dir}/repo/main', 'repo1.1')  rhubarb, wombat
+    Repository('git', 'file://{root_dir}/repo/main', 'repo1.2', push=False)  insignificance, manhattan, platypus, wombat
+    Repository('git', 'file://{root_dir}/repo/main', 'repo1.3', pull=False)  platypus, rhubarb
+""".format(root_dir=root_dir))
 
         with NewDirectory('builds_bad_upstream_1') as d:
-            banner('CHECK REPOSITORIES OUT (BAD UPSTREAM 1)')
-            muddle(['init', 'git+file://{repo}/main'.format(repo=root.join('repo')),
-                    'builds_bad_upstream_1/01.py'])
+            banner('CHECK REPOSITORIES OUT (BAD UPSTREAM 1) subdomain has extra upstreams')
+            err, text = captured_muddle(['init', 'git+file://{repo}/main'.format(repo=root.join('repo')),
+                                       'builds_bad_upstream_1/01.py'], error_fails=False)
+            check_text_endswith(text, """\
+Subdomain subdomain_bad_upstream_1 adds a new upstream to
+  Repository('git', 'file://{root_dir}/repo/main', 'repo1')
+  (used by checkout:co_repo1/*, checkout:(subdomain_bad_upstream_1)co_repo1/*)
+  Original upstreams:
+    Repository('git', 'file://{root_dir}/repo/main', 'repo1.1')  rhubarb, wombat
+    Repository('git', 'file://{root_dir}/repo/main', 'repo1.2', push=False)  insignificance, wombat
+    Repository('git', 'file://{root_dir}/repo/main', 'repo1.3', pull=False)  platypus, rhubarb
+  Subdomain subdomain_bad_upstream_1 has:
+    Repository('git', 'file://{root_dir}/repo/main', 'repo1.X')  fruitbat, rhubarb, wombat
+""".format(root_dir=root_dir))
 
 if __name__ == '__main__':
     args = sys.argv[1:]
     try:
         main(args)
         print '\nGREEN light\n'
-    except OurGiveUp as e:
+    except GiveUp as e:
         print
         print e
         print '\nRED light\n'

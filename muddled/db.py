@@ -185,7 +185,6 @@ class Database(object):
 
         return (repo_file.get(), desc_file.get())
 
-
     def include_domain(self, other_builder, other_domain_name):
         """
         Include data from other_builder, built in other_domain_name
@@ -197,8 +196,12 @@ class Database(object):
 
         other_db = other_builder.invocation.db
 
-        # Merging dictionaries keyed off checkout labels
-        # ==============================================
+        self._merge_subdomain_labels(other_domain_name, other_db)
+        self._merge_subdomain_upstreams(other_domain_name, other_db)
+
+    def _merge_subdomain_labels(self, other_domain_name, other_db):
+        """Merge things from the subdomain that contain labels.
+        """
         keys = set()
         keys.update(other_db.checkout_locations.keys())
         keys.update(other_db.checkout_repositories.keys())
@@ -242,49 +245,55 @@ class Database(object):
             else:
                 self.not_built_against[new_label] = new_set
 
-        # Merging upstream repository knowledge
-        # =====================================
-        # XXX TO BE TESTED AND DEBUGGED
+    def _merge_subdomain_upstreams(self, other_domain_name, other_db):
+        """Merge things from the subdomain that contain upstream repositories.
+        """
         for orig_repo, that_upstream_dict in other_db.upstream_repositories.items():
-            print 'Looking at %r'%orig_repo
+            ##print 'Looking at %r'%orig_repo
             if orig_repo in self.upstream_repositories:
-                print '  already known'
+                ##print '  already known'
                 # Oh dear, we already think we know about this repository
                 # and its upstreams...
                 this_upstream_dict = self.upstream_repositories[orig_repo]
 
                 for upstream_repo, that_names in that_upstream_dict.items():
-                    print '  upstream %r'%upstream_repo
+                    ##print '  upstream %r'%upstream_repo
                     if upstream_repo in this_upstream_dict:
-                        print '    already known'
+                        ##print '    already known'
                         # And this is one of the upstreams we already recognise
                         this_names = this_upstream_dict[upstream_repo]
                         if that_names != this_names:
-                            print '      adding extra names'
+                            ##print '      adding extra names'
                             # If there are *extra* names, we'll just add them
                             this_names.update(that_names)
                             this_upstream_dict[upstream_repo] = this_names
                     else:
-                        print '    never heard of it'
+                        ##print '    never heard of it'
                         # This is not an upstream we already knew about
                         self._subdomain_new_upstream(other_domain_name, orig_repo, other_db)
 
 
             else:
-                print '  new to us'
+                ##print '  new to us'
                 # OK, so we don't have an existing upstream for it
                 # - but do we know about it without any?
                 if orig_repo in self.checkout_repositories.values():
                     # Oh dear, we've got a checkout using it, and we're being
                     # asked to add new upstreams
-                    print '    but we already have a checkout using it!'
+                    ##print '    but we already have a checkout using it!'
                     this_upstream_dict = self.upstream_repositories[orig_repo]
                     self._subdomain_new_upstream(other_domain_name, orig_repo, other_db)
                 else:
                     # No, so it's safe to just add it
+                    # XXX Is this correct? We know about the original repository,
+                    # XXX but we don't have a checkout associated with it. So
+                    # XXX why do we know about it? If it's because it was an
+                    # XXX upstream of another upstream (!) then presumably
+                    # XXX that is as bad as the checkout case? So should we
+                    # XXX ever allow this?
                     self.upstream_repositories[orig_repo] = that_upstream_dict
 
-    def _subdomain_new_upstream(self, domain_name, orig_repo, other_db):
+    def _subdomain_new_upstream(self, other_domain_name, orig_repo, other_db):
         """A subdomain introduces a new upstream on a repo we already know
 
         It's not entirely clear whether a subdomain should be able to add a new
@@ -316,14 +325,19 @@ class Database(object):
         this_upstream = self.upstream_repositories[orig_repo]
         that_upstream = other_db.upstream_repositories[orig_repo]
         details = ['Subdomain %s adds a new upstream to\n'
-                   '  %r'%(domain_name, orig_repo)]
+                   '  %r'%(other_domain_name, orig_repo)]
+
+        co_labels = self._find_checkouts_for_repo(orig_repo)
+        if co_labels:
+            details.append('  (used by %s)'%(depend.label_list_to_string(co_labels,
+                                                                         join_with=', ')))
 
         details.append('  Original upstreams:')
         for upstream_repo in sorted(this_upstream.keys()):
             details.append('    %r  %s'%(upstream_repo,
                            ', '.join(sorted(this_upstream[upstream_repo]))))
 
-        details.append('  Subdomain %s has:'%domain_name)
+        details.append('  Subdomain %s has:'%other_domain_name)
         for upstream_repo in sorted(that_upstream.keys()):
             details.append('    %r  %s'%(upstream_repo,
                            ', '.join(sorted(that_upstream[upstream_repo]))))
@@ -637,7 +651,27 @@ class Database(object):
                     results.add(upstream_repo)
         else:
             results.update(upstream_dict.keys())
-        return result
+        return results
+
+    def _find_checkouts_for_repo(self, repo):
+        """Find the checkout(s) that use a repository.
+
+        Do we really believe we're going to have the same repository used by
+        more than one checkout? We certainly can't rule it out (it is
+        particularly likely if we have similar checkouts in different domains,
+        and they've not been unified).
+
+        On the other hand, checking for *everything* every time slows us down a
+        lot, so if this happens often we might want to consider a cache...
+
+        Returns a (possibly empty) set of checkout labels.
+        """
+        results = set()
+        if repo in self.checkout_repositories.values():
+            for co_label, co_repo in self.checkout_repositories.items():
+                if co_repo == repo:
+                    results.add(co_label)
+        return results
 
     def dump_upstream_repos(self, just_url=False):
         """
@@ -651,27 +685,12 @@ class Database(object):
         keys = self.upstream_repositories.keys()
         keys.sort()
 
-        def find_checkouts_for(repo):
-            results = set()
-            if repo in self.checkout_repositories.values():
-                # Do we really believe we're going to have the same
-                # repository used by more than one checkout? We certainly
-                # can't rule it out (it is particularly likely if we have
-                # similar checkouts in different domains, and they've not
-                # been unified). On the other hand, checking for *everything*
-                # every time slows us down a lot, so if this happens often
-                # we might want to consider a cache...
-                for co_label, co_repo in self.checkout_repositories.items():
-                    if co_repo == repo:
-                        results.add(co_label)
-            return results
-
         for orig_repo in keys:
             # Calling find_checkout_for to do a linear search through the
             # checkout_repositories dictionary for every repository is
             # likely to be, well, a bit slow. So let's hope we don't do this
             # too often...
-            co_labels = find_checkouts_for(orig_repo)
+            co_labels = self._find_checkouts_for_repo(orig_repo)
             self.print_upstream_repo_info(orig_repo, co_labels, just_url)
 
     def print_upstream_repo_info(self, orig_repo, co_labels, just_url):
@@ -696,7 +715,7 @@ class Database(object):
             format3 = "    %r  %s"
 
         if co_labels:
-            print format1%(orig_repo, depend.label_list_to_string(co_labels))
+            print format1%(orig_repo, depend.label_list_to_string(co_labels, join_with=', '))
         else:
             print format2%orig_repo
         upstream_dict = self.upstream_repositories[orig_repo]

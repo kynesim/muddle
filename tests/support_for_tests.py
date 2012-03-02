@@ -12,6 +12,7 @@ import sys
 import traceback
 import stat
 
+from difflib import unified_diff
 from fnmatch import fnmatchcase
 from StringIO import StringIO
 
@@ -130,12 +131,17 @@ def muddle(args, verbose=True):
     if retcode:
         raise ShellError(' '.join(cmd_seq), retcode)
 
-def captured_muddle(args, verbose=True):
+def captured_muddle(args, verbose=True, error_fails=True):
     """Grab the output from a muddle command.
 
     We can't just capture sys.stdout/stderr, because some things (notably
     help) are output via a subprocess paging. So we need to run muddle
     just like any other command...
+
+    If 'error_fails' is true, then we raise a ShellError if the command
+    has a non-zero return code.
+
+    Returns (retcode, text)
     """
     cmd_seq = [MUDDLE_BINARY] + args
     if verbose:
@@ -143,9 +149,9 @@ def captured_muddle(args, verbose=True):
     p = subprocess.Popen(cmd_seq, stdout=subprocess.PIPE, stderr=subprocess.STDOUT)
     stdoutdata, stderrdata = p.communicate()
     retcode = p.returncode
-    if retcode:
+    if retcode and error_fails:
         raise ShellError(' '.join(cmd_seq), retcode, stdoutdata)
-    return stdoutdata
+    return retcode, stdoutdata
 
 def git(cmd, verbose=True):
     """Run a git command
@@ -257,6 +263,32 @@ def banner(text):
     print delim
     print '* %s *'%text
     print delim
+
+def check_text(actual, wanted):
+    """Check two pieces of text are the same.
+
+    Prints out the differences (if any) and then raises a GiveUp if there
+    *were* differences
+    """
+    if actual == wanted:
+        return
+
+    actual_lines = actual.splitlines(True)
+    wanted_lines = wanted.splitlines(True)
+    diffs = unified_diff(wanted_lines, actual_lines, fromfile='Expected', tofile='Got')
+    for line in diffs:
+        sys.stdout.write(line)
+    if diffs:
+        raise GiveUp('Text did not match')
+
+def check_text_endswith(text, should_end_with):
+    """Check a text ends with another.
+
+    Prints out the differences (if any) and then raises a GiveUp if there
+    *were* differences
+    """
+    if not text.endswith(should_end_with):
+        check_text(text, should_end_with)  # which we thus know will fail
 
 class DirTree(object):
     """A tool for representing a directory tree in ASCII.

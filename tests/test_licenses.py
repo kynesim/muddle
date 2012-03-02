@@ -18,8 +18,6 @@ import subprocess
 import sys
 import traceback
 
-from difflib import unified_diff
-
 from support_for_tests import *
 try:
     import muddled.cmdline
@@ -494,23 +492,11 @@ def make_repos(root_dir):
             new_repo('xyzlib')
             new_repo('manhattan')
 
-def check_text(actual, wanted):
-    if actual == wanted:
-        return
-
-    actual_lines = actual.splitlines(True)
-    wanted_lines = wanted.splitlines(True)
-    diffs = unified_diff(wanted_lines, actual_lines, fromfile='Expected', tofile='Got')
-    for line in diffs:
-        sys.stdout.write(line)
-    if diffs:
-        raise OurGiveUp('Text did not match')
-
 def check_checkout_licenses_with_clashes(root_dir, d):
     """Perform the actual tests.
     """
     banner('REPORT WITH CLASHES')
-    text = captured_muddle(['query', 'checkout-licenses'])
+    err, text = captured_muddle(['query', 'checkout-licenses'])
     check_text(text, """\
 Checkout licenses are:
 
@@ -587,7 +573,7 @@ def check_checkout_licenses_without_clashes(root_dir, d):
     """Perform the actual tests.
     """
     banner('REPORT WITHOUT CLASHES')
-    text = captured_muddle(['query', 'checkout-licenses'])
+    err, text = captured_muddle(['query', 'checkout-licenses'])
     check_text(text, """\
 Checkout licenses are:
 
@@ -904,7 +890,7 @@ def main(args):
                                 PRIVATE_BUILD_FILE)
 
             # See, it does say that it is doing what we asked...
-            text = captured_muddle(['-n', 'distribute', 'just_open_src_and_bin', '../fred'])
+            err, text = captured_muddle(['-n', 'distribute', 'just_open_src_and_bin', '../fred'])
             check_text(text, """\
 Writing distribution just_open_src_and_bin to ../fred
 checkout:apache/distributed                DistributeCheckout: just_open_src_and_bin[*]

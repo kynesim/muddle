@@ -269,28 +269,35 @@ class Database(object):
                             this_upstream_dict[upstream_repo] = this_names
                     else:
                         ##print '    never heard of it'
-                        # This is not an upstream we already knew about
+                        # So we already had some upstreams on this repository,
+                        # and this subdomain is wanting to add more. Deal with
+                        # it appropriately.
                         self._subdomain_new_upstream(other_domain_name, orig_repo, other_db)
-
-
             else:
                 ##print '  new to us'
-                # OK, so we don't have an existing upstream for it
-                # - but do we know about it without any?
+                # This repository is not in our dictionary of "repositories
+                # that have upstreams". However, we don't keep repositories
+                # that *don't* have upstreams in there, so we need to check
+                # for that.
+                #
+                # The obvious case is a repository that is being used by a
+                # checkout, and we *do* have a dictionary for that.
+                #
+                # So we can tell if this is a repository (associated with a
+                # checkout) that we already know about, or if it is a
+                # repository we have no idea about (and which we therefore
+                # hope is being remembered for some good reason - but ours
+                # is not to reason why).
                 if orig_repo in self.checkout_repositories.values():
-                    # Oh dear, we've got a checkout using it, and we're being
-                    # asked to add new upstreams
+                    # So, we've got a checkout using it, *without* upstreams,
+                    # and this is therefore the same as the case where we
+                    # were adding (new) upstreams to a repository that already
+                    # had them. So we do the same thing...
                     ##print '    but we already have a checkout using it!'
-                    this_upstream_dict = self.upstream_repositories[orig_repo]
                     self._subdomain_new_upstream(other_domain_name, orig_repo, other_db)
                 else:
-                    # No, so it's safe to just add it
-                    # XXX Is this correct? We know about the original repository,
-                    # XXX but we don't have a checkout associated with it. So
-                    # XXX why do we know about it? If it's because it was an
-                    # XXX upstream of another upstream (!) then presumably
-                    # XXX that is as bad as the checkout case? So should we
-                    # XXX ever allow this?
+                    # We have no record of this repository, with or without
+                    # upstreams, so let's record it...
                     self.upstream_repositories[orig_repo] = that_upstream_dict
 
     def _subdomain_new_upstream(self, other_domain_name, orig_repo, other_db):

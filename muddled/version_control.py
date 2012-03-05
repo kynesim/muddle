@@ -273,6 +273,11 @@ class VersionControlHandler(object):
         # We want to be in the checkout's parent directory
         parent_dir, rest = os.path.split(self.get_my_absolute_checkout_path())
 
+        if not self.repo.pull:
+            raise utils.GiveUp('Failure checking out %s in %s:\n'
+                               '  %s does not allow "pull"'%(self.checkout_label,
+                               parent_dir, self.repo))
+
         # Be careful - if the parent is 'src/', then it may well exist by now
         if not os.path.exists(parent_dir):
             os.makedirs(parent_dir)
@@ -294,17 +299,22 @@ class VersionControlHandler(object):
         the local working copy, but not if a merge operation would be
         required, in which case an exception shall be raised.
         """
+        if not self.repo.pull:
+            raise utils.GiveUp('Failure pulling %s in %s:\n'
+                               '  %s does not allow "pull"'%(self.checkout_label,
+                               self.src_rel_dir(), self.repo))
+
         with utils.Directory(self.get_my_absolute_checkout_path()):
             try:
                 self.vcs_handler.fetch(self.repo, self.options, verbose)
             except utils.MuddleBug as err:
-                raise utils.MuddleBug('Error fetching %s in %s:\n%s'%(self.checkout_label,
+                raise utils.MuddleBug('Error pulling %s in %s:\n%s'%(self.checkout_label,
                                   self.src_rel_dir(), err))
             except utils.Unsupported as err:
-                raise utils.Unsupported('Not fetching %s in %s:\n%s'%(self.checkout_label,
+                raise utils.Unsupported('Not pulling %s in %s:\n%s'%(self.checkout_label,
                                      self.src_rel_dir(), err))
             except utils.GiveUp as err:
-                raise utils.GiveUp('Failure fetching %s in %s:\n%s'%(self.checkout_label,
+                raise utils.GiveUp('Failure pulling %s in %s:\n%s'%(self.checkout_label,
                                     self.src_rel_dir(), err))
 
     def merge(self, verbose=True):
@@ -312,6 +322,11 @@ class VersionControlHandler(object):
         Retrieve changes from the remote repository, and apply them to
         the local working copy, performing a merge operation if necessary.
         """
+        if not self.repo.pull:
+            raise utils.GiveUp('Failure merging %s in %s:\n'
+                               '  %s does not allow "pull"'%(self.checkout_label,
+                               self.src_rel_dir(), self.repo))
+
         with utils.Directory(self.get_my_absolute_checkout_path()):
             try:
                 self.vcs_handler.merge(self.repo, self.options, verbose)
@@ -351,6 +366,11 @@ class VersionControlHandler(object):
 
         This operaton does not do a 'commit'.
         """
+        if not self.repo.push:
+            raise utils.GiveUp('Failure pushing %s in %s:\n'
+                               '  %s does not allow "push"'%(self.checkout_label,
+                               self.src_rel_dir(), self.repo))
+
         with utils.Directory(self.get_my_absolute_checkout_path()):
             try:
                 self.vcs_handler.push(self.repo, self.options, verbose)
@@ -638,6 +658,12 @@ def checkout_from_repo(builder, co_label, repo, co_dir=None, co_leaf=None):
     depending on whether <co_dir> and/or <co_leaf> are given. We will assign
     the label <co_label> to this directory/repository combination.
     """
+
+    # It's difficult to see how we could use a non-pull repository to
+    # check our source out of...
+    if not repo.pull:
+        raise GiveUp('Checkout %s cannot use %r\n'
+                     '  as its main repository, as "pull" is not allowed'%(co_label, repo))
 
     if co_dir:
         if co_leaf:

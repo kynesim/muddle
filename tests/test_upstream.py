@@ -631,36 +631,36 @@ def main(args):
         print __doc__
         raise GiveUp('Unexpected arguments %s'%' '.join(args))
 
+    # This test is independent
+    check_push_pull_permissions()
+
     # Working in a local transient directory seems to work OK
     # although if it's anyone other than me they might prefer
     # somewhere in $TMPDIR...
     root_dir = normalise_dir(os.path.join(os.getcwd(), 'transient'))
 
-    if False:
-        #with TransientDirectory(root_dir):     # XXX
-        with NewDirectory(root_dir) as root:
+    #with TransientDirectory(root_dir):     # XXX
+    with NewDirectory(root_dir) as root:
 
-            banner('MAKE REPOSITORIES')
-            make_repos(root_dir)
+        banner('MAKE REPOSITORIES')
+        make_repos(root_dir)
 
-            with NewDirectory('build') as d:
-                banner('CHECK REPOSITORIES OUT')
-                muddle(['init', 'git+file://{repo}/main'.format(repo=root.join('repo')),
-                        'builds/01.py'])
-                muddle(['checkout', '_all'])
-                banner('BUILD')
-                muddle([])
-                banner('STAMP VERSION')
-                muddle(['stamp', 'version'])
+        with NewDirectory('build') as d:
+            banner('CHECK REPOSITORIES OUT')
+            muddle(['init', 'git+file://{repo}/main'.format(repo=root.join('repo')),
+                    'builds/01.py'])
+            muddle(['checkout', '_all'])
+            banner('BUILD')
+            muddle([])
+            banner('STAMP VERSION')
+            muddle(['stamp', 'version'])
 
 
-            test_builds_ok_upstream_1(root)
-            test_builds_ok_upstream_2(root)
-            test_builds_ok_upstream_3(root)
+        test_builds_ok_upstream_1(root)
+        test_builds_ok_upstream_2(root)
+        test_builds_ok_upstream_3(root)
 
-            test_builds_bad_upstream_1(root)
-
-    check_push_pull_permissions()
+        test_builds_bad_upstream_1(root)
 
 if __name__ == '__main__':
     args = sys.argv[1:]

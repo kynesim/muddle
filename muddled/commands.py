@@ -4922,6 +4922,204 @@ class Checkout(CheckoutCommand):
             builder.build_label(co)
 
 # -----------------------------------------------------------------------------
+# Checkout "upstream" commands
+# -----------------------------------------------------------------------------
+class UpstreamCommand(CheckoutCommand):
+    """The parent class for the push/pull-upstream commands.
+    """
+
+    required_tag = LabelTag.CheckedOut
+    allowed_switches = {}
+
+    verb = 'push'
+    verbing = 'Pushing'
+    direction = 'to'
+
+    def with_build_tree(self, builder, current_dir, args):
+        """Our command line is somewhat differently shaped.
+
+        So we have to handle it ourselves.
+        """
+
+        labels = []
+        upstream_names = []
+        had_upstream_switch = False
+        for word in args:
+            if word in ('-u', '-upstream'):
+                if had_upstream_switch:
+                    raise GiveUp('The -upstream switch should only occur once')
+                else:
+                    had_upstream_switch = True
+            elif had_upstream_switch:
+                upstream_names.append(word)
+            else:
+                labels.append(word)
+
+        if labels:
+            # Expand out any labels that need it
+            labels = self.decode_args(builder, labels, current_dir)
+        else:
+            # Decide what to do based on where we are
+            labels = self.default_args(builder, current_dir)
+
+        if not upstream_names:
+            raise GiveUp('"muddle %s" needs at least one upstream name'%self.cmd_name)
+
+        # We promised a sorted list
+        labels.sort()
+
+        no_op = self.no_op()
+        if no_op:
+            print 'Asked to %s:\n  %s'%(self.cmd_name,
+                    label_list_to_string(labels, join_with='\n  '))
+            print 'for: %s'%(', '.join(upstream_names))
+            # And fall through for our method to tell us more
+
+        self.build_these_labels(builder, labels, upstream_names, no_op)
+
+    def build_these_labels(self, builder, labels, upstream_names, no_op):
+        get_checkout_repo = builder.invocation.db.get_checkout_repo
+        get_upstream_repos = builder.invocation.db.get_upstream_repos
+        get_checkout_location = builder.invocation.db.get_checkout_location
+        for co in labels:
+            orig_repo = get_checkout_repo(co)
+            upstream_repos = get_upstream_repos(orig_repo, upstream_names)
+            if upstream_repos:
+                # Make sure we've got our checkout checked out (!)
+                builder.build_label(co)
+
+                # And then we can do the actual work
+                for repo in upstream_repos:
+                    if no_op:
+                        print 'Would %s %s %s %s'%(self.verb, co, self.direction, repo)
+                        continue
+                    else:
+                        print
+                        print '%s %s %s %s'%(self.verbing, co, self.direction, repo)
+                        co_locn = get_checkout_location(co)
+                        self.handle_label(builder, co, repo, co_locn)
+
+            else:
+                if not no_op:
+                    print
+                print 'Nowhere to %s %s %s'%(self.verb, co, self.direction)
+
+    def handle_label(self, builder, co_label, repo, co_locn):
+        src_dir, rest = utils.split_path_left(co_locn)
+        if src_dir != 'src':
+            raise MuddleBug('Splitting location for %s, but %s does not'
+                            ' start "src"'%(co_label, co_locn))
+        co_dir, co_leaf = os.path.split(rest)
+
+        # And from *that*, we can build the handler we actually want
+        vcs_handler = version_control.vcs_handler_for(builder, co_label,
+                                                      co_leaf, repo, co_dir)
+
+        # And do whatever we need to do
+        self.do_our_verb(vcs_handler)
+
+@command('push-upstream', CAT_CHECKOUT)
+class PushUpstream(UpstreamCommand):
+    """
+    :Syntax: muddle push-upstream [ <checkout> ... ] -u[pstream] <name> ...
+
+    For each checkout, push to the named upstream repositories.
+
+    This updates the content of the remote repositories to match the local
+    checkout.
+
+    <checkout> should be a label fragment specifying a checkout, or one of
+    _all and friends, as for any checkout command. The <type> defaults to
+    "checkout", and the checkout <tag> will be "/checked_out". See "muddle
+    help labels" for more information.
+
+    If no checkouts are named, what we do depends on where we are in the
+    build tree. See "muddle help labels".
+
+    The -u or -upstream switch is required, and must be followed by at least
+    one upstream repository name. If a checkout does not have an upstream of
+    that name, it will be ignored.
+
+    So, for instance::
+
+        pushd src/checkout1
+        muddle push-upstream -u upstream1 upstream2
+
+    or::
+
+        muddle push-upstream package:android{x86} -u upstream-android
+
+    Note that, unlike the normal "muddle push" command, there is no -stop
+    switch. Instead, we always stop at the first problem. Not finding an
+    upstream with the right name does not count as a "problem" for this
+    purpose.
+    """
+
+    required_tag = LabelTag.CheckedOut
+    allowed_switches = {}
+
+    verb = 'push'
+    verbing = 'Pushing'
+    direction = 'to'
+
+    def do_our_verb(self, vcs_handler):
+        # And we can then use that to do the push
+        # (in the happy knowledge that *it* will grumble if we're not allowed to)
+        vcs_handler.push()
+
+@command('pull-upstream', CAT_CHECKOUT)
+class PullUpstream(UpstreamCommand):
+    """
+    :Syntax: muddle pull-upstream [ <checkout> ... ] -u[pstream] <name> ...
+
+    For each checkout, pull from the named upstream repositories.
+
+    Specifically, retrieve changes from the corresponding remote repository,
+    and apply them (to the checkout), but *not* if a merge would be required.
+
+        (For a VCS such as git, this actually means "not if a user-assisted
+        merge would be required" - i.e., fast-forwards will be done.)
+
+    <checkout> should be a label fragment specifying a checkout, or one of
+    _all and friends, as for any checkout command. The <type> defaults to
+    "checkout", and the checkout <tag> will be "/checked_out". See "muddle
+    help labels" for more information.
+
+    If no checkouts are named, what we do depends on where we are in the
+    build tree. See "muddle help labels".
+
+    The -u or -upstream switch is required, and must be followed by at least
+    one upstream repository name. If a checkout does not have an upstream of
+    that name, it will be ignored.
+
+    So, for instance::
+
+        pushd src/checkout1
+        muddle pull-upstream -u upstream1 upstream2
+
+    or::
+
+        muddle pull-upstream package:android{x86} -u upstream-android
+
+    Note that, unlike the normal "muddle pull" command, there is no -stop
+    switch. Instead, we always stop at the first problem. Not finding an
+    upstream with the right name does not count as a "problem" for this
+    purpose.
+    """
+
+    required_tag = LabelTag.CheckedOut
+    allowed_switches = {}
+
+    verb = 'pull'
+    verbing = 'Pulling'
+    direction = 'from'
+
+    def do_our_verb(self, vcs_handler):
+        # And we can then use that to do the pull
+        # (in the happy knowledge that *it* will grumble if we're not allowed to)
+        vcs_handler.fetch()
+
+# -----------------------------------------------------------------------------
 # AnyLabel commands
 # -----------------------------------------------------------------------------
 @command('buildlabel', CAT_ANYLABEL)

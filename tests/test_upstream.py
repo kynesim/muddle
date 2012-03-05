@@ -547,6 +547,84 @@ Subdomain subdomain_bad_upstream_1 adds a new upstream to
     Repository('git', 'file://{root_dir}/repo/main', 'repo1.X')  fruitbat, rhubarb, wombat
 """.format(root_dir=root.where))
 
+def check_exception(testing, fn, args, exception=GiveUp, startswith=None, endswith=None):
+    """Check we get the right sort of exception.
+    """
+    if not startswith and not endswith:
+        raise ValueError('ERROR TESTING: need startswith or endswith')
+
+    print testing
+    ok = False
+    try:
+        fn(*args)
+    except exception as e:
+        if startswith:
+            if str(e).startswith(startswith):
+                ok = True
+            else:
+                raise GiveUp('Unexpected %s exception: %s\n'
+                             '  (does not start with %r)'%(e.__class__.__name__,
+                                 e, startswith))
+        if endswith:
+            if str(e).endswith(endswith):
+                ok = True
+            else:
+                raise GiveUp('Unexpected %s exception: %s\n'
+                             '  (does not end with %r)'%(e.__class__.__name__,
+                                 e, endswith))
+    if ok:
+        print 'Fails OK'
+    else:
+        if startswith:
+            raise GiveUp('Did not get an exception, so not starting %r'%startswith)
+        else:
+            raise GiveUp('Did not get an exception, so not ending %r'%endswith)
+
+def check_push_pull_permissions():
+
+    class DummyInvocation(object):
+        def __init__(self):
+            pass
+        def checkout_path(self, anything):
+            return ''
+
+    class DummyBuilder(object):
+        def __init__(self):
+            self.invocation = DummyInvocation()
+
+    dummy_builder = DummyBuilder()
+
+    banner('CHECK PUSH/PULL PERMISSIONS')
+    from muddled.repository import Repository
+    from muddled.depend import Label
+    from muddled.version_control import VersionControlHandler, checkout_from_repo
+
+    fred = Label.from_string('checkout:fred/*')
+    repo = Repository.from_url('git', 'http://example.com/Fred.git', pull=False)
+
+    check_exception('Test checkout_from_repo with %r'%repo,
+                    checkout_from_repo, (None, fred, repo),
+                    startswith='Checkout checkout:fred/* cannot use')
+
+    vcs = VersionControlHandler(dummy_builder, vcs_handler=None, co_label=fred,
+                                co_leaf='fred', repo=repo)
+    check_exception('Test checkout from repo %r'%repo,
+                     vcs.checkout, (),
+                     endswith='does not allow "pull"')
+    check_exception('Test pull (well, ok, fetch) from repo %r'%repo,
+                     vcs.fetch, (),
+                     endswith='does not allow "pull"')
+    check_exception('Test merge from repo %r'%repo,
+                     vcs.merge, (),
+                     endswith='does not allow "pull"')
+
+    repo = Repository.from_url('git', 'http://example.com/Fred.git', push=False)
+    vcs = VersionControlHandler(dummy_builder, vcs_handler=None, co_label=fred,
+                                co_leaf='fred', repo=repo)
+    check_exception('Test push to repo %r'%repo,
+                     vcs.push, (),
+                     endswith='does not allow "push"')
+
 def main(args):
 
     if args:
@@ -558,28 +636,31 @@ def main(args):
     # somewhere in $TMPDIR...
     root_dir = normalise_dir(os.path.join(os.getcwd(), 'transient'))
 
-    #with TransientDirectory(root_dir):     # XXX
-    with NewDirectory(root_dir) as root:
+    if False:
+        #with TransientDirectory(root_dir):     # XXX
+        with NewDirectory(root_dir) as root:
 
-        banner('MAKE REPOSITORIES')
-        make_repos(root_dir)
+            banner('MAKE REPOSITORIES')
+            make_repos(root_dir)
 
-        with NewDirectory('build') as d:
-            banner('CHECK REPOSITORIES OUT')
-            muddle(['init', 'git+file://{repo}/main'.format(repo=root.join('repo')),
-                    'builds/01.py'])
-            muddle(['checkout', '_all'])
-            banner('BUILD')
-            muddle([])
-            banner('STAMP VERSION')
-            muddle(['stamp', 'version'])
+            with NewDirectory('build') as d:
+                banner('CHECK REPOSITORIES OUT')
+                muddle(['init', 'git+file://{repo}/main'.format(repo=root.join('repo')),
+                        'builds/01.py'])
+                muddle(['checkout', '_all'])
+                banner('BUILD')
+                muddle([])
+                banner('STAMP VERSION')
+                muddle(['stamp', 'version'])
 
 
-        test_builds_ok_upstream_1(root)
-        test_builds_ok_upstream_2(root)
-        test_builds_ok_upstream_3(root)
+            test_builds_ok_upstream_1(root)
+            test_builds_ok_upstream_2(root)
+            test_builds_ok_upstream_3(root)
 
-        test_builds_bad_upstream_1(root)
+            test_builds_bad_upstream_1(root)
+
+    check_push_pull_permissions()
 
 if __name__ == '__main__':
     args = sys.argv[1:]

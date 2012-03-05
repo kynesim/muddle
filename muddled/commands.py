@@ -5053,6 +5053,9 @@ class PushUpstream(UpstreamCommand):
     switch. Instead, we always stop at the first problem. Not finding an
     upstream with the right name does not count as a "problem" for this
     purpose.
+
+    Use "muddle upstream-repos [<checkout>]" to find out about the available
+    upstream repositories.
     """
 
     required_tag = LabelTag.CheckedOut
@@ -5105,6 +5108,9 @@ class PullUpstream(UpstreamCommand):
     switch. Instead, we always stop at the first problem. Not finding an
     upstream with the right name does not count as a "problem" for this
     purpose.
+
+    Use "muddle upstream-repos [<checkout>]" to find out about the available
+    upstream repositories.
     """
 
     required_tag = LabelTag.CheckedOut

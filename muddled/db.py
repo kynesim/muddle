@@ -379,6 +379,11 @@ class Database(object):
         was already normalised. However, don't assume it is *not* a new
         instance either...)
         """
+        if label.type != utils.LabelType.Checkout:
+            # The user probably needs an exception to spot why this is
+            # happening
+            raise MuddleBug('Cannot "normalise" a non-checkout label: %s'%label)
+
         new = depend.Label(label.type, label.name,
                            role=None,
                            tag='*',
@@ -386,7 +391,6 @@ class Database(object):
         return new
 
     def set_checkout_path(self, checkout_label, dir):
-        assert checkout_label.type == utils.LabelType.Checkout
         key = self.normalise_checkout_label(checkout_label)
 
 	#print '### set_checkout_path for %s'%checkout_label
@@ -421,8 +425,6 @@ class Database(object):
         if checkout_label is None:
             return os.path.join(self.root_path, "src")
 
-        assert checkout_label.type == utils.LabelType.Checkout
-
         root = self.root_path
 
         key = self.normalise_checkout_label(checkout_label)
@@ -448,8 +450,6 @@ class Database(object):
         if checkout_label is None:
             return 'src'
 
-        assert checkout_label.type == utils.LabelType.Checkout
-
         key = self.normalise_checkout_label(checkout_label)
         try:
             return self.checkout_locations[key]
@@ -457,7 +457,6 @@ class Database(object):
             raise utils.GiveUp('There is no checkout path registered for label %s'%checkout_label)
 
     def set_checkout_repo(self, checkout_label, repo):
-        assert checkout_label.type == utils.LabelType.Checkout
         key = self.normalise_checkout_label(checkout_label)
         self.checkout_repositories[key] = repo
 
@@ -488,7 +487,6 @@ class Database(object):
         """
         Returns the Repository instance for this checkout label
         """
-        assert checkout_label.type == utils.LabelType.Checkout
         key = self.normalise_checkout_label(checkout_label)
         try:
             return self.checkout_repositories[key]
@@ -496,7 +494,6 @@ class Database(object):
             raise utils.GiveUp('There is no repository registered for label %s'%checkout_label)
 
     def set_checkout_license(self, checkout_label, lic):
-        assert checkout_label.type == utils.LabelType.Checkout
         key = self.normalise_checkout_label(checkout_label)
         self.checkout_licenses[key] = lic
 
@@ -531,7 +528,6 @@ class Database(object):
         an entry in the licenses dictionary, None will be returned. Otherwise,
         an appropriate GiveUp exception will be raised.
         """
-        assert checkout_label.type == utils.LabelType.Checkout
         key = self.normalise_checkout_label(checkout_label)
         try:
             return self.checkout_licenses[key]

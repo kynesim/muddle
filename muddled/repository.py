@@ -313,6 +313,10 @@ class Repository(object):
                 parts.append('revision=%s'%repr(self.revision))
             if self.branch:
                 parts.append('branch=%s'%repr(self.branch))
+            if not self.push:
+                parts.append('push=False')
+            if not self.pull:
+                parts.append('pull=False')
             return 'Repository.from_url(%s)'%(', '.join(parts))
         else:
             parts = [repr(self.vcs), repr(self.base_url), repr(self.repo_name)]

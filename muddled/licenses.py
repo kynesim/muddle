@@ -357,6 +357,18 @@ def set_not_built_against(builder, pkg_label, co_label):
     """
     builder.invocation.db.set_not_built_against(pkg_label, co_label)
 
+def _normalise_checkout_label(co_label):
+    """Normalise a checkout label.
+
+    Only takes a copy if it needs to.
+    """
+    if co_label.tag == '*' and co_label.role is None and \
+       not co_label.system and not co_label.transient:
+       return co_label
+    else:
+       return Label(LabelType.Checkout, co_label.name,
+                    role=None, tag='*', domain=co_label.domain)
+
 def get_not_licensed_checkouts(builder):
     """Return the set of all checkouts which do not have a license.
 
@@ -365,10 +377,9 @@ def get_not_licensed_checkouts(builder):
     all_checkouts = builder.invocation.all_checkout_labels()
     result = set()
     checkout_has_license = builder.invocation.db.checkout_has_license
-    normalise_checkout_label = builder.invocation.db.normalise_checkout_label
     for co_label in all_checkouts:
         if not checkout_has_license(co_label):
-            result.add(normalise_checkout_label(co_label))
+            result.add(_normalise_checkout_label(co_label))
     return result
 
 def get_gpl_checkouts(builder):
@@ -689,7 +700,6 @@ def get_license_clashes_in_role(builder, role):
     private_items = {}
 
     get_checkout_license = builder.invocation.db.get_checkout_license
-    normalise_checkout_label = builder.invocation.db.normalise_checkout_label
 
     lbl = Label(LabelType.Package, "*", role, "*", domain="*")
     all_rules = builder.invocation.ruleset.rules_for_target(lbl)
@@ -701,9 +711,9 @@ def get_license_clashes_in_role(builder, role):
             license = get_checkout_license(co_label, absent_is_None=True)
             if license:
                 if license.is_binary():
-                    binary_items[normalise_checkout_label(co_label)] = license
+                    binary_items[_normalise_checkout_label(co_label)] = license
                 elif license.is_private():
-                    private_items[normalise_checkout_label(co_label)] = license
+                    private_items[_normalise_checkout_label(co_label)] = license
 
     return binary_items, private_items
 

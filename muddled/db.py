@@ -364,31 +364,35 @@ class Database(object):
         """
         Given a checkout label with random "other" fields, normalise it.
 
-        NB: We assume that the caller has made sure that its label
-        type really is "checkout:".
+        Returns a normalised checkout label, with the role unset and the
+        tag set to '*'.
 
-        For instance, if the caller filled in the role (which we don't
-        care about), we need to remove it. Similarly, they might have
-        given us various tags, and we want to reduce that to '*' for
-        the purpose of using our label as a key.
+        Raise a MuddleBug exception if the label is not a checkout label.
 
-        Returns a normalised label.
+        Note that:
 
-        (NB: This is not guaranteed to be a different Label instance,
-        since in theory this method need not do anything if the label
-        was already normalised. However, don't assume it is *not* a new
-        instance either...)
+        1. this *always* copies the label, and
+        2. any label stored by a method in this class is created by this
+           methor, and thus
+        3. when _merge_subdomain_labels is called, we know that all the
+           labels it manipulates are unique to this class, so can't have
+           had their domains (already) altered by code anywhere else.
+
+        The downside, of course, is that we always take a copy...
+
+        (so ideally, all stored labels would be held by us, and then we
+        could reliably be in charge of their domains, and then we'd only
+        need to return a new label if it wasn't exactly what we want).
         """
         if label.type != utils.LabelType.Checkout:
             # The user probably needs an exception to spot why this is
             # happening
             raise MuddleBug('Cannot "normalise" a non-checkout label: %s'%label)
 
-        new = depend.Label(label.type, label.name,
+        return depend.Label(label.type, label.name,
                            role=None,
                            tag='*',
                            domain=label.domain)
-        return new
 
     def set_checkout_path(self, checkout_label, dir):
         key = self.normalise_checkout_label(checkout_label)

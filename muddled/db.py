@@ -725,10 +725,13 @@ class Database(object):
             print format1%(orig_repo, depend.label_list_to_string(co_labels, join_with=', '))
         else:
             print format2%orig_repo
-        upstream_dict = self.upstream_repositories[orig_repo]
-        for upstream_repo in sorted(upstream_dict.keys()):
-            print format3%(upstream_repo,
-                           ', '.join(sorted(upstream_dict[upstream_repo])))
+        try:
+            upstream_dict = self.upstream_repositories[orig_repo]
+            for upstream_repo in sorted(upstream_dict.keys()):
+                print format3%(upstream_repo,
+                               ', '.join(sorted(upstream_dict[upstream_repo])))
+        except KeyError:
+            print '  Has no upstream repositories'
 
     def build_desc_file_name(self):
         """

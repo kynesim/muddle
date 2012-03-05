@@ -662,8 +662,10 @@ def checkout_from_repo(builder, co_label, repo, co_dir=None, co_leaf=None):
     # It's difficult to see how we could use a non-pull repository to
     # check our source out of...
     if not repo.pull:
-        raise utils.GiveUp('Checkout %s cannot use %r\n'
-                           '  as its main repository, as "pull" is not allowed'%(co_label, repo))
+        # Use a MuddleBug, because the user probably wants a traceback to see
+        # where this is actually coming from
+        raise utils.MuddleBug('Checkout %s cannot use %r\n'
+                              '  as its main repository, as "pull" is not allowed'%(co_label, repo))
 
     if co_dir:
         if co_leaf:

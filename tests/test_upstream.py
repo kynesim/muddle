@@ -17,7 +17,7 @@ except ImportError:
     sys.path.insert(0, get_parent_file(__file__))
     import muddled.cmdline
 
-from muddled.utils import GiveUp, normalise_dir, LabelType, LabelTag
+from muddled.utils import GiveUp, MuddleBug, normalise_dir, LabelType, LabelTag
 from muddled.utils import Directory, NewDirectory, TransientDirectory
 from muddled.licenses import standard_licenses
 
@@ -603,7 +603,7 @@ def check_push_pull_permissions():
     repo = Repository.from_url('git', 'http://example.com/Fred.git', pull=False)
 
     check_exception('Test checkout_from_repo with %r'%repo,
-                    checkout_from_repo, (None, fred, repo),
+                    checkout_from_repo, (None, fred, repo), exception=MuddleBug,
                     startswith='Checkout checkout:fred/* cannot use')
 
     vcs = VersionControlHandler(dummy_builder, vcs_handler=None, co_label=fred,

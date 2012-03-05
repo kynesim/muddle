@@ -477,6 +477,76 @@ def make_repos(root_dir):
             with NewDirectory('builds') as d:
                 make_build_desc(d.where, SUBDOMAIN_BAD_UPSTREAM_1_BUILD_DESC.format(repo=repo))
 
+def test_builds_ok_upstream_1(root):
+    with NewDirectory('builds_ok_upstream_1') as d:
+        banner('CHECK REPOSITORIES OUT (OK UPSTREAM 1) subdomain has identical upstreams')
+        muddle(['init', 'git+file://{repo}/main'.format(repo=root.join('repo')),
+                'builds_ok_upstream_1/01.py'])
+
+        err, text = captured_muddle(['query', 'upstream-repos'])
+        check_text_endswith(text, """\
+> Upstream repositories ..
+Repository('git', 'file://{root_dir}/repo/main', 'repo1') used by checkout:(subdomain_ok_upstream_1)co_repo1/*, checkout:co_repo1/*
+    Repository('git', 'file://{root_dir}/repo/main', 'repo1.1')  rhubarb, wombat
+    Repository('git', 'file://{root_dir}/repo/main', 'repo1.2', push=False)  insignificance, wombat
+    Repository('git', 'file://{root_dir}/repo/main', 'repo1.3', pull=False)  platypus, rhubarb
+Repository('git', 'http://example.com', 'repo99')
+    Repository('git', 'http://example.com', 'repo99-upstream')  abacus
+Repository('git', 'http://example.com', 'repoFred')
+    Repository('git', 'http://example.com', 'repoFred-upstream')  abacus
+""".format(root_dir=root.where))
+
+def test_builds_ok_upstream_2(root):
+    with NewDirectory('builds_ok_upstream_2') as d:
+        banner('CHECK REPOSITORIES OUT (OK UPSTREAM 2) subdomain has subset of upstreams')
+        muddle(['init', 'git+file://{repo}/main'.format(repo=root.join('repo')),
+                'builds_ok_upstream_2/01.py'])
+
+        err, text = captured_muddle(['query', 'upstream-repos'])
+        check_text_endswith(text, """\
+> Upstream repositories ..
+Repository('git', 'file://{root_dir}/repo/main', 'repo1') used by checkout:(subdomain_ok_upstream_2)co_repo1/*, checkout:co_repo1/*
+    Repository('git', 'file://{root_dir}/repo/main', 'repo1.1')  rhubarb, wombat
+    Repository('git', 'file://{root_dir}/repo/main', 'repo1.2', push=False)  insignificance, wombat
+    Repository('git', 'file://{root_dir}/repo/main', 'repo1.3', pull=False)  platypus, rhubarb
+Repository('git', 'http://example.com', 'repo99')
+    Repository('git', 'http://example.com', 'repo99-upstream')  abacus
+""".format(root_dir=root.where))
+
+def test_builds_ok_upstream_3(root):
+    with NewDirectory('builds_ok_upstream_3') as d:
+        banner('CHECK REPOSITORIES OUT (OK UPSTREAM 3) subdomain has extra upstream names')
+        muddle(['init', 'git+file://{repo}/main'.format(repo=root.join('repo')),
+                'builds_ok_upstream_3/01.py'])
+
+        err, text = captured_muddle(['query', 'upstream-repos'])
+        check_text_endswith(text, """\
+> Upstream repositories ..
+Repository('git', 'file://{root_dir}/repo/main', 'repo1') used by checkout:co_repo1/*, checkout:(subdomain_ok_upstream_3)co_repo1/*
+    Repository('git', 'file://{root_dir}/repo/main', 'repo1.1')  rhubarb, wombat
+    Repository('git', 'file://{root_dir}/repo/main', 'repo1.2', push=False)  insignificance, manhattan, platypus, wombat
+    Repository('git', 'file://{root_dir}/repo/main', 'repo1.3', pull=False)  platypus, rhubarb
+Repository('git', 'http://example.com', 'repo99')
+    Repository('git', 'http://example.com', 'repo99-upstream')  abacus
+""".format(root_dir=root.where))
+
+def test_builds_bad_upstream_1(root):
+    with NewDirectory('builds_bad_upstream_1') as d:
+        banner('CHECK REPOSITORIES OUT (BAD UPSTREAM 1) subdomain has extra upstreams')
+        err, text = captured_muddle(['init', 'git+file://{repo}/main'.format(repo=root.join('repo')),
+                                   'builds_bad_upstream_1/01.py'], error_fails=False)
+        check_text_endswith(text, """\
+Subdomain subdomain_bad_upstream_1 adds a new upstream to
+  Repository('git', 'file://{root_dir}/repo/main', 'repo1')
+  (used by checkout:co_repo1/*, checkout:(subdomain_bad_upstream_1)co_repo1/*)
+  Original upstreams:
+    Repository('git', 'file://{root_dir}/repo/main', 'repo1.1')  rhubarb, wombat
+    Repository('git', 'file://{root_dir}/repo/main', 'repo1.2', push=False)  insignificance, wombat
+    Repository('git', 'file://{root_dir}/repo/main', 'repo1.3', pull=False)  platypus, rhubarb
+  Subdomain subdomain_bad_upstream_1 has:
+    Repository('git', 'file://{root_dir}/repo/main', 'repo1.X')  fruitbat, rhubarb, wombat
+""".format(root_dir=root.where))
+
 def main(args):
 
     if args:
@@ -504,71 +574,12 @@ def main(args):
             banner('STAMP VERSION')
             muddle(['stamp', 'version'])
 
-        with NewDirectory('builds_ok_upstream_1') as d:
-            banner('CHECK REPOSITORIES OUT (OK UPSTREAM 1) subdomain has identical upstreams')
-            muddle(['init', 'git+file://{repo}/main'.format(repo=root.join('repo')),
-                    'builds_ok_upstream_1/01.py'])
 
-            err, text = captured_muddle(['query', 'upstream-repos'])
-            check_text_endswith(text, """\
-> Upstream repositories ..
-Repository('git', 'file://{root_dir}/repo/main', 'repo1') used by checkout:(subdomain_ok_upstream_1)co_repo1/*, checkout:co_repo1/*
-    Repository('git', 'file://{root_dir}/repo/main', 'repo1.1')  rhubarb, wombat
-    Repository('git', 'file://{root_dir}/repo/main', 'repo1.2', push=False)  insignificance, wombat
-    Repository('git', 'file://{root_dir}/repo/main', 'repo1.3', pull=False)  platypus, rhubarb
-Repository('git', 'http://example.com', 'repo99')
-    Repository('git', 'http://example.com', 'repo99-upstream')  abacus
-Repository('git', 'http://example.com', 'repoFred')
-    Repository('git', 'http://example.com', 'repoFred-upstream')  abacus
-""".format(root_dir=root_dir))
+        test_builds_ok_upstream_1(root)
+        test_builds_ok_upstream_2(root)
+        test_builds_ok_upstream_3(root)
 
-        with NewDirectory('builds_ok_upstream_2') as d:
-            banner('CHECK REPOSITORIES OUT (OK UPSTREAM 2) subdomain has subset of upstreams')
-            muddle(['init', 'git+file://{repo}/main'.format(repo=root.join('repo')),
-                    'builds_ok_upstream_2/01.py'])
-
-            err, text = captured_muddle(['query', 'upstream-repos'])
-            check_text_endswith(text, """\
-> Upstream repositories ..
-Repository('git', 'file://{root_dir}/repo/main', 'repo1') used by checkout:(subdomain_ok_upstream_2)co_repo1/*, checkout:co_repo1/*
-    Repository('git', 'file://{root_dir}/repo/main', 'repo1.1')  rhubarb, wombat
-    Repository('git', 'file://{root_dir}/repo/main', 'repo1.2', push=False)  insignificance, wombat
-    Repository('git', 'file://{root_dir}/repo/main', 'repo1.3', pull=False)  platypus, rhubarb
-Repository('git', 'http://example.com', 'repo99')
-    Repository('git', 'http://example.com', 'repo99-upstream')  abacus
-""".format(root_dir=root_dir))
-
-        with NewDirectory('builds_ok_upstream_3') as d:
-            banner('CHECK REPOSITORIES OUT (OK UPSTREAM 3) subdomain has extra upstream names')
-            muddle(['init', 'git+file://{repo}/main'.format(repo=root.join('repo')),
-                    'builds_ok_upstream_3/01.py'])
-
-            err, text = captured_muddle(['query', 'upstream-repos'])
-            check_text_endswith(text, """\
-> Upstream repositories ..
-Repository('git', 'file://{root_dir}/repo/main', 'repo1') used by checkout:co_repo1/*, checkout:(subdomain_ok_upstream_3)co_repo1/*
-    Repository('git', 'file://{root_dir}/repo/main', 'repo1.1')  rhubarb, wombat
-    Repository('git', 'file://{root_dir}/repo/main', 'repo1.2', push=False)  insignificance, manhattan, platypus, wombat
-    Repository('git', 'file://{root_dir}/repo/main', 'repo1.3', pull=False)  platypus, rhubarb
-Repository('git', 'http://example.com', 'repo99')
-    Repository('git', 'http://example.com', 'repo99-upstream')  abacus
-""".format(root_dir=root_dir))
-
-        with NewDirectory('builds_bad_upstream_1') as d:
-            banner('CHECK REPOSITORIES OUT (BAD UPSTREAM 1) subdomain has extra upstreams')
-            err, text = captured_muddle(['init', 'git+file://{repo}/main'.format(repo=root.join('repo')),
-                                       'builds_bad_upstream_1/01.py'], error_fails=False)
-            check_text_endswith(text, """\
-Subdomain subdomain_bad_upstream_1 adds a new upstream to
-  Repository('git', 'file://{root_dir}/repo/main', 'repo1')
-  (used by checkout:co_repo1/*, checkout:(subdomain_bad_upstream_1)co_repo1/*)
-  Original upstreams:
-    Repository('git', 'file://{root_dir}/repo/main', 'repo1.1')  rhubarb, wombat
-    Repository('git', 'file://{root_dir}/repo/main', 'repo1.2', push=False)  insignificance, wombat
-    Repository('git', 'file://{root_dir}/repo/main', 'repo1.3', pull=False)  platypus, rhubarb
-  Subdomain subdomain_bad_upstream_1 has:
-    Repository('git', 'file://{root_dir}/repo/main', 'repo1.X')  fruitbat, rhubarb, wombat
-""".format(root_dir=root_dir))
+        test_builds_bad_upstream_1(root)
 
 if __name__ == '__main__':
     args = sys.argv[1:]

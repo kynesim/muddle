@@ -146,12 +146,17 @@ def captured_muddle(args, verbose=True, error_fails=True):
     cmd_seq = [MUDDLE_BINARY] + args
     if verbose:
         print ">> muddle %s"%(' '.join(args))
-    p = subprocess.Popen(cmd_seq, stdout=subprocess.PIPE, stderr=subprocess.STDOUT)
-    stdoutdata, stderrdata = p.communicate()
-    retcode = p.returncode
-    if retcode and error_fails:
-        raise ShellError(' '.join(cmd_seq), retcode, stdoutdata)
-    return retcode, stdoutdata
+
+    # Ask what we call not to use buffering on its outputs, so that we get
+    # stdout and stderr folded together correctly, despite the fact that our
+    # output is not to a console
+    env = os.environ
+    env['PYTHONUNBUFFERED'] = 'anything'
+    try:
+        output = subprocess.check_output(cmd_seq, env=env, stderr=subprocess.STDOUT)
+        return 0, output
+    except subprocess.CalledProcessError as e:
+        return e.returncode, e.output
 
 def git(cmd, verbose=True):
     """Run a git command

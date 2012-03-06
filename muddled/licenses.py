@@ -69,10 +69,12 @@ class License(object):
             return '%s(%r, %r)'%(self.__class__.__name__, self.name, self.category)
 
     def __eq__(self, other):
-        return (self.name == other.name and self.category == other.category)
+        return (self.name == other.name and
+                self.category == other.category and
+                self.version == other.version)
 
     def __hash__(self):
-        return hash((self.name, self.category))
+        return hash((self.name, self.category, self.version))
 
     def copy_with_version(self, version):
         """Make a copy of this license with a different version string.

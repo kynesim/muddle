@@ -39,13 +39,13 @@ That third case was actually the driving force of the development of muddle
 distribution support, as we wanted to be able to produce a build tree
 containing source code for any open-source packages, binary blobs for
 proprietary packages whose source code is private, and omitting
-entirely packages that are "private" (i.e., typilcally for proprietary
+entirely packages that are **private** (i.e., typilcally for proprietary
 reasons).
 
 The desired intent is that, whatever means (1 through 3) is used, the result
 should be a functioning muddle build tree. Clearly this might not always be
 possible for some of the more extreme values of case 3 (if too much of the
-build tree is not distributed because it is "private"), but even in such cases
+build tree is not distributed because it is **private**), but even in such cases
 it should ideally be possible to write the build description(s) in such a
 manner that something useful can be built.
 
@@ -90,38 +90,36 @@ Standard distributions include:
 License categories are the board classification of license type, and are
 discussed below.
 
-How does it work?
-=================
-.. note:: Ignore this little section if you want.
+.. topic:: How does it work?  *(you can safely ignore this bit)*
 
-More-or-less as you might expect, with labels and tags and actions.
+  More-or-less as you might expect, with labels and tags and actions.
 
-Basically, for those checkouts or packages that are to be distributed, a rule
-is added to "build" label ``checkout:<name>/distributed`` from
-``checkout:<name>/checked_out`` using the DistributeCheckout action, or
-``package:<name>{<role>)/distributed`` from
-``package:<name>{<role>}/postinstalled`` using the DistributePackage action.
+  Basically, for those checkouts or packages that are to be distributed, a rule
+  is added to "build" label ``checkout:<name>/distributed`` from
+  ``checkout:<name>/checked_out`` using the DistributeCheckout action, or
+  ``package:<name>{<role>)/distributed`` from
+  ``package:<name>{<role>}/postinstalled`` using the DistributePackage action.
 
-.. note:: *Technically* doing a DistributePackage of just the ``obj``
-   directories doesn't require that the package(s) be ``/postinstalled``,
-   as ``/built`` would suffice. I don't think that's worth worrying about
-   at the moment, especially as ``muddle`` always builds through to
-   ``/postinstalled`` if at all posible (i.e., that's what ``muddle build``
-   does, and see what it says in ``muddle help build`` about depending
-   on ``/postinstalled`` being the norm).
+  .. note:: *Technically* doing a DistributePackage of just the ``obj``
+     directories doesn't require that the package(s) be ``/postinstalled``,
+     as ``/built`` would suffice. I don't think that's worth worrying about
+     at the moment, especially as ``muddle`` always builds through to
+     ``/postinstalled`` if at all posible (i.e., that's what ``muddle build``
+     does, and see what it says in ``muddle help build`` about depending
+     on ``/postinstalled`` being the norm).
 
-For source and binary releases (cases 1 and 2) the ``muddle distribute``
-command itself organises this. For case 3, appropriate code in the build
-description causes the rules to be added, or sets the conditions that allow
-``muddle distribute`` to do it.
+  For source and binary releases (cases 1 and 2) the ``muddle distribute``
+  command itself organises this. For case 3, appropriate code in the build
+  description causes the rules to be added, or sets the conditions that allow
+  ``muddle distribute`` to do it.
 
-You won't, however, see any ``/distribute`` tags in the ``.muddle`` tags
-directories, as the ``/distribute`` tag is treated as "transient" - i.e., it
-doesn't get recorded on disk. This avoids problems if one (for instance) does
-a source distribution with VCS to one directory, and then without to another,
-followed by a partial distribution to yet another - it would not be clear what
-the ``/distribute`` tags meant, and it would always be necessary to clear them
-before each ``muddle distribute``.
+  You won't, however, see any ``/distribute`` tags in the ``.muddle`` tags
+  directories, as the ``/distribute`` tag is treated as "transient" - i.e., it
+  doesn't get recorded on disk. This avoids problems if one (for instance) does
+  a source distribution with VCS to one directory, and then without to another,
+  followed by a partial distribution to yet another - it would not be clear what
+  the ``/distribute`` tags meant, and it would always be necessary to clear them
+  before each ``muddle distribute``.
 
 Source distribution
 ===================
@@ -270,9 +268,7 @@ License categories
 ------------------
 For this purpose, licenses come in four broad categories:
 
-*gpl*
-
-  This category includes all of the FSF GPL licenses.
+* **gpl**. This category includes all of the FSF GPL licenses.
 
   For our purposes, they are distinguished by two properties:
 
@@ -297,7 +293,9 @@ For this purpose, licenses come in four broad categories:
         whose header files can be included.
 
         To allow for this, when defining a GPL license, muddle allows the
-        license to be marked with or without such excemption.
+        license to be marked with or without such exemption. There are several
+        examples in the standard licenses - for instance,
+        ``GPL-2.0-with-GCC-exception``.
 
      b. When muddle is told that package:B depends on package:A, there may be
         several reasons for this, not all of which trigger GPL "propagation.
@@ -313,28 +311,23 @@ For this purpose, licenses come in four broad categories:
       build description to use the facilities available to do what is required
       by law.
 
-* *open*
+* **open**. This category includes all open-source licenses which are not
+  GPL-like - i.e,, they do not *require* source code distribution, nor do they
+  propagate.
 
-  This category inclused all open-source licenses which are not GPL-like - i.e,,
-  they do not *require* source code distribution, nor do they propagate.
-
-* *binary*
-
-  This category is used for checkouts (and thus packages using them) that are
-  only to be distributed as binary.
+* **binary**. This category is used for checkouts (and thus packages using them)
+  that are only to be distributed as binary.
  
   Note that this will still (normally) distribute the appropriate muddle
   Makefile, and possibly other user-nominated files.
 
-* *private*
+* **private**. This category is used for checkouts (and thus packages using
+  them) that should not, in general, be distributed. Some provision is also
+  made for not distributing the build description for such packages, as well.
 
-  This category is used for checkouts (and thus packages using them) that
-  should not, in general, be distributed. Some provision is also made for
-  not distributing the build description for such packages, as well.
-
-There is also a "meta" type, *not licensed*. Any checkout that has not had its
-license specified is regarded as not licensed. In many cases, such checkouts
-will be treated as if they had "open" licenses.
+There is also a "meta" type, **not licensed**. Any checkout that has not had
+its license specified is regarded as not licensed. In many cases, such
+checkouts will be treated as if they had **open** licenses.
 
 Standard licenses
 -----------------
@@ -392,6 +385,14 @@ For instance::
   Zlib                             LicenseOpen('zlib/libpng license')
 
   code-nightmare-green             LicensePrivate('Code Nightmare Green')
+
+The list of standard licenses has been inspired by some of the content at the
+Open Source Initiative, specifically by the lists at
+http://opensource.org/licenses/alphabetical and
+http://opensource.org/licenses/category.
+ 
+The key for each license is its the SPDX short-form identifier, as described
+at http://www.spdx.org/licenses/.
 
 Licensing a checkout
 --------------------
@@ -452,8 +453,8 @@ to be used directly.
 
 All ``License`` subclass instances have the following values and methods:
 
-* ``category`` is a string containing the category, one of "gpl",
-  "open", "binary" or "private".
+* ``category`` is a string containing the category, one of **gpl**,
+  **open**, **binary** or **private**.
 
 * ``version`` is None or a string containing the license version.
 
@@ -465,16 +466,16 @@ All ``License`` subclass instances have the following values and methods:
 
   Most, but not all, of the standard licenses have versions.
 
-* ``is_gpl()`` returns True if this is license has category "gpl".
-* ``is_lgpl()`` returns True if this license has category "gpl" and is LGPL.
+* ``is_gpl()`` returns True if this is license has category **gpl**.
+* ``is_lgpl()`` returns True if this license has category **gpl** and is LGPL.
   This is true for the ``LicenseLGPL`` class.
-* ``is_open()`` returns True if this license has category "open" or "gpl".
-* ``is_open_not_gpl()`` returns True if this license has category "open" (but
-  not if it has category "gpl")
-* ``is_binary()`` returns True if this license has category "binary"
-* ``is_private()`` returns True if this license has category "private"
+* ``is_open()`` returns True if this license has category **open** or **gpl**.
+* ``is_open_not_gpl()`` returns True if this license has category **open** (but
+  not if it has category **gpl**)
+* ``is_binary()`` returns True if this license has category **binary**
+* ``is_private()`` returns True if this license has category **private**
 * ``propagates()`` returns True if the license "propagates" to other
-  checkouts. This will be True for licenses in category "gpl" which have
+  checkouts. This will be True for licenses in category **gpl** which have
   ``with_exception`` set to False.
 
 So, for instance::
@@ -484,12 +485,13 @@ So, for instance::
   CC-ASA = LicenseOpen('Creative Commons Attribution-ShareAlike'
                        ' Unported License', version='3.0')
 
-Note that ``str`` of a License give back the license name::
+Note that ``str`` of a License gives back the license name and version (if
+any)::
 
   >>> str(top_secret)
   'Top Secret 3.14'
 
-whilst ``repr`` will give back how to create it::
+whilst ``repr`` will give back how it was created::
 
   >>> repr(top_secret)
   "LicensePrivate('Top Secret', version='3.14')"
@@ -505,7 +507,7 @@ observed. These are:
 * "_all_open"
 * "_by_license"
 
-.. note:: None of these distribute "private" licensed checkouts. This
+.. warning:: None of these distribute **private** licensed checkouts. This
    means that if there are such checkouts in the build tree, and the build
    description is meant to *work* when distributed, then some case must be
    taken in its construction - see `Keeping parts of the build description
@@ -528,7 +530,7 @@ It distributes
 * any necessary build descriptions
 
 It will fail if GPL "propagation" affects checkouts that have declared
-"binary" or "private" licenses.
+**binary** or **private** licenses.
 
 Open source distribution
 ------------------------
@@ -538,10 +540,10 @@ The command::
 
 is meant to help with creating a release of all the open-source checkouts in a
 build tree. As such, it distributes everything that "_for_gpl" does, plus any
-checkouts that have licenses in the "open" category.
+checkouts that have licenses in the **open** category.
 
 Since it includes the "_for_gpl" distribution, it will also fail if GPL
-"propagation" affects checkouts that have declared "binary" or "private"
+"propagation" affects checkouts that have declared **binary** or **private**
 licenses.
 
 By license source/binary distribution
@@ -553,14 +555,14 @@ The command::
 attempts to distribute as much of the build tree as it can in a
 license-appropriate manner. Thus it attempts to distribute:
 
-* source code for "gpl" and "open" licensed checkouts
-* binaries for "binary" licensed checkouts
-* nothing at all for "private" licensed checkouts
+* source code for **gpl** and **open** licensed checkouts
+* binaries for **binary** licensed checkouts
+* nothing at all for **private** licensed checkouts
 
 It starts by including the source code content of an "_all_open" distribution
 (and can fail for the same reason).
 
-For checkouts with a "binary" license, it determines which packages are built
+For checkouts with a **binary** license, it determines which packages are built
 (directly) from them, and then which role those packages are in. It then
 distributes the entirety of the ``install/<role>`` directory for each such
 role.
@@ -593,7 +595,7 @@ So, for instance, we might have::
   # to be distributed as source
   set_not_built_against(builder, package('program', 'x86'), checkout('libProp-2.3'))
 
-Note that this function does not check that:
+This function does not check that:
 
 * ``pkg_label`` actually depends on ``co_label``
 * ``co_label`` is GPL licensed
@@ -601,6 +603,11 @@ Note that this function does not check that:
   that it is a "propagating" license)
 
 but none of these will hurt if incorrect.
+
+.. note:: If checkout A depends on B depends on C which depends on a GPL
+   checkout D, saying that B is "not built against" D doesn't say anything
+   about A or C, so you will have to address A and C with separate function
+   calls, if appropriate.
 
 Adding extra files
 ------------------
@@ -641,7 +648,7 @@ distributions, and so it is perhaps more likely that one woud write::
                         ['Makefile', 'src/Makefile', 'src/rules'])
 
 which loops over all the distributions that distribute anything with a
-"binary" license, and set them to distribute the extra files.
+**binary** license, and set them to distribute the extra files.
 
 Keeping parts of the build description private
 ----------------------------------------------
@@ -652,18 +659,18 @@ There are two reasons to keep part of the build description private:
 * once the build tree has been distributed *without* private checkouts, any
   part of the build description that relies on them won't work.
 
-The solution to this is to construct the build description so that "private"
+The solution to this is to construct the build description so that **private**
 checkouts and packages are kept separate:
 
 1. separate in role
 2. separate in build description
 
 The first is necessary so that a binary distribution won't try to distribute a
-role that includes "binary" and "private" files (which would cause a clash,
+role that includes **binary** and **private** files (which would cause a clash,
 and thus won't work).
 
 The second essentially means organising the build description so that the
-"private" parts are in a separate file, coded to a particular API.
+**private** parts are in a separate file, coded to a particular API.
 
 This is best illustrated with an example.
 
@@ -715,7 +722,7 @@ and also tell muddle that ``private.py`` is not to be distributed as-is::
       set_private_build_files(builder, name, ['private.py'])
 
 This last tells muddle that when ``muddle distribute`` is called to distribute
-something that does not distribute "private" licensed checkouts, the content of 
+something that does not distribute **private** licensed checkouts, the content of 
 ``private.py`` is to be replaced by a "stub" file, which just contains::
 
   def describe_private(builder, *args, **kwargs):
@@ -755,9 +762,9 @@ The commands::
 
 may be useful in working out what is going on.
 
-.. note:: It is arguable that a role that contains binaries from "binary" and
-   "open" or "gpl" checkouts should be regarded as a clash in the same way
-   that "binary" and "secret" is. This may be implemented in a future version
+.. note:: It is arguable that a role that contains binaries from **binary** and
+   **open** or **gpl** checkouts should be regarded as a clash in the same way
+   that **binary** and "secret" is. This may be implemented in a future version
    of muddle.
 
 Creating your own distributions
@@ -798,8 +805,13 @@ underscore, as such names are reserved for the standard distributions (which
 muddle has already defined, before reading the build description).
 
 If ``categories`` is given, then it is a sequence of license categories (so,
-taken from "gpl", "open", "binary" and "static"). Only checkouts with those
+taken from **gpl**, **open**, **binary** and "static"). Only checkouts with those
 categories will be allowed to be distributed with this new distribution.
+
+.. warning:: When naming the license categories that a distribution uses,
+   **gpl** and **open** are distinct and separate - there is no assumption
+   that **open** includes **gpl**. In this instance **open** means "open but
+   not GPL".
 
 If ``categories`` is not given (or is None), then all license categories are
 allowed.
@@ -899,8 +911,8 @@ Calling ``distribute_checkout`` after calling ``distribute_checkout_files``
 for the same distribution and checkout means that the calls of the latter are
 essentially ignored, because ``distribute_checkout`` is choosing all files.
 
-Build descriptions
-------------------
+Build description checkouts
+---------------------------
 Build description checkouts are treated specially.
 
 The ``muddle distribute`` command adds the necessary rules itself, by calling
@@ -971,61 +983,106 @@ distribution.
    explicitly adding a package to ``_binary_release`` in the build
    description itself, as that will be ignored.
 
+Finding out about distributions
+===============================
+A variety of useful functions are provided by the ``distributions`` module.
 
+You can use::
 
+  get_distribution_names(builder)
 
+to return the names of all the distributions that are currently
+defined, or::
 
+  get_distribution_names_for(builder, categories)
 
+to return the names of any distributions that have *all* of the license
+categories in ``categories``. So, for instance::
 
+    for name in get_distributions_for(['gpl', 'open']):
+        distribute_checkout_files(builder, name, co_label, 'Makefile')
 
-THIS FAR
+Contrariwise::
 
--------------------------------------------------------------------------------
+  get_distribution_names_not_for(builder, categories)
 
-AND NO FARTHER, AS YET
+returns the names of any distributions that do not have *any* of the license
+categories in ``categories``. So, for instance::
 
+    for name in get_distributions_not_for(['private']):
+        set_private_build_files(builder, name, ['private_app.py'])
 
-More license stuff -- PUT THIS AT THE END
------------------------------------------
+Finally::
+
+  get_used_distribution_names(builder)
+
+returns the names of all the distributions that are "in use", i.e., referenced
+by some action in the dependency tree. This will not normally return any of the
+"standard" distributions, because they are set up by "muddle distribute" after
+the build description has been read.
+
+Muddle commands
+================
+* ``muddle distribute`` handles distribution.
+
+* ``muddle help distribute`` gives the help text for ``muddle distribute``,
+  which summarises some of this document.
+
+* ``muddle query distributions`` lists the names of the distributions that
+  exist, either because they are defined in the build description, or because
+  they are predefined.
+
+* ``muddle query licenses`` prints out the standard licenses
+
+* ``muddle query checkout-licenses`` prints the licenses for the checkouts in
+  the dependency tree, and other related information it has deduced. This is
+  deliberately verbose, giving as much information as possible.
+
+* ``muddle query role-licenses`` prints the licenses used in each role, and
+  whether there are any obvious clashes.
+
+More license stuff
+==================
+
+The ``licenses`` module provides more functions, mostly aimed at the muddle
+developer. See their docstrings for details on how to use them.
+
 A tuple containing all of the license categories is provided::
 
-  ALL_LICENSE_CATEGORIES
+    ALL_LICENSE_CATEGORIES
 
-You can find out the license for a particular checkout using::
+There are some useful query functions::
 
-  get_license(builder, co_label)
+    get_gpl_checkouts(builder)
+    get_implicit_gpl_checkouts(builder)
+    get_open_checkouts(builder)
+    get_open_not_gpl_checkouts(builder)
+    get_binary_checkouts(builder)
+    get_private_checkouts(builder)
+    get_not_licensed_checkouts(builder)
 
-By default this returns None if the checkout does not have a license, however
-you can change that to raising a ``GiveUp`` exception by calling it as::
+for finding out which checkouts have particular categories of licenses.
 
-  get_license(builder, co_label, absent_is_None=True)
+You can find out if a checkout has a license using::
 
-... ::
+    builder.invocation.db.checkout_has_license(co_label)
 
-  set_not_built_against(builder, pkg_label, co_label)
+You can retrieve the particular license using::
 
-  get_not_licensed_checkouts(builder)
-  get_gpl_checkouts(builder)
-  get_implicit_gpl_checkouts(builder)
-  get_open_checkouts(builder)
-  get_open_not_gpl_checkouts(builder)
-  get_binary_checkouts(builder)
-  get_private_checkouts(builder)
+    get_license(builder, co_label)
+
+which will return None if the checkout does not have a license. If you'd
+prefer an exception in that case, you can call it as::
+
+    get_license(builder, co_label, absent_is_None=False)
+
+You can find out if a checkout has a license that is in a particular category
+(or categorie) with::
 
   checkout_license_allowed(builder, co_label, categories)
 
-  licenses_in_role(builder, role)
-
-  get_license_clashes(builder, implicit_gpl_checkouts)
-  get_license_clashes_in_role(builder, role)
-
-  report_license_clashes(builder, report_binary=True, report_private=True)
-  report_license_clashes_in_role(builder, role, just_report_private=True)
-
-...
-
-.. note:: Some of these functions are useful wrappers around calls of
-   ``builder.invocation.db`` methods. Specifically:
+.. note:: Some of the functions in the ``licenses`` module are just wrappers
+   around calls of ``builder.invocation.db`` methods. Specifically:
 
    * ``set_license`` is a wrapper for ``builder.invocation.db.set_checkout_license``
    * ``get_license`` is a wrapper for ``builder.invocation.db.get_checkout_license``
@@ -1039,65 +1096,12 @@ you can change that to raising a ``GiveUp`` exception by calling it as::
 
    which doesn't currently have a wrapper function.
 
+Questions
+=========
 
-... ::
-
-  $ muddle query licenses
-  $ muddle query checkout-licenses
-  $ muddle query role-licenses
-
-Working with distributions
-==========================
-
-... ::
-
-  import muddled.distribute
-
-  name_distribution(builder, name, categories=None)
-
-...
-
-.. note:: When listing the categories that a distribution uses, 'gpl' and
-   'open' are distinct and separate - there is no assumption that 'open'
-   includes 'gpl'. In this instance 'open' means "open but not GPL".
-
-... ::
-
-  get_distribution_names(builder)
-  get_distribution_names_for(builder, categories)
-  get_distribution_names_not_for(builder, categories)
-  get_used_distribution_names(builder)
-
-    for name in get_distributions_for(['gpl', 'open']):
-        distribute_checkout_files(builder, name, co_label, 'Makefile')
-
-    for name in get_distributions_not_for(['private']):
-        set_private_build_files(builder, name, ['private_app.py'])
-
-  distribute_checkout(builder, name, label, copy_vcs=False)
-  distribute_package(builder, name, label, obj=False, install=False,
-                     with_muddle_makefile=False)
-
-  distribute_checkout_files(builder, name, label, source_files)
-  set_private_build_files(builder, name, private_files)
-
-  ((distribute_build_desc))
-
-  "muddle query distributions" - calls "distribute" function
-
-Caveat on distributing packages and the "install/<role>" directory, and the
-fact "muddle distribute" has no way of knowing who put what in there. On
-segregating things by role, as necessary, and "muddle query role-licenses".
-
-Still to consider
------------------
-* what is meant to happen if contradictory rules are made for a checkout,
-  one via ``distribute_checkout()`` and another via ``distribute_package(...,
-  source=True)``?
-
-* Should we worry about attempts to (re)build in a binary distributon?
-
-  ::
+What happens if we rebuild in a binary distribution?
+----------------------------------------------------
+Experimenting shows::
 
     $ m3 distrebuild package:main_pkg{x86}
     Building: package:main_pkg{x86}/distclean .. 
@@ -1106,7 +1110,7 @@ Still to consider
       package:main_pkg{x86}/distclean[T] depends on checkout:main_co/*
       Directory /home/tibs/sw/m3/tests/transient/binary/src/main_co does not exist
 
-  And that's OK. Unfortunately, though::
+but, unfortunately::
 
     $ m3 rebuild main_pkg
     Killing package:main_pkg{x86}/built
@@ -1120,23 +1124,10 @@ Still to consider
       package:main_pkg{x86}/built depends on checkout:main_co/*
       Directory /home/tibs/sw/m3/tests/transient/binary/src/main_co does not exist
 
-  so we've now lost our tags. Oh well. At least it told us.
+so we've now lost our "built" tags. Oh well. At least it told us.
 
-Related commands
-================
-* ``muddle help distribute`` gives the help text for ``muddle distribute``,
-  which summarises some of the above.
-
-* ``muddle query distributions`` lists the names of the distributions that
-  exist, either because they are defined in the build description, or because
-  they are predefined.
-
-* ``muddle query localroot <label>`` was provided for development purposes in
-  this project - it reports on the "local root" for a label, which for a label
-  containing a subdomain name will be the "root" of the subdomain.
-
-Deployments
-===========
+Why aren't deployments distributed?
+-----------------------------------
 We deliberately do not address distribution of the ``deploy`` directory.
 
 Deployments are already their own distribution mechanism - if a user wants to
@@ -1147,221 +1138,5 @@ outside the build tree. Also, just copying the ``deploy`` directory (with
 (muddle strongly encourages creation of the ``deploy`` directory content in a
 way that means it does not have trailing dependencies back into the rest of
 the build tree.)
-
-Licenses
-========
-
-So, specifically looking at GPL stuff.
-
-* There is an exemption for system libraries. So when we mark a system library
-  as GPL, we may also want to mark it as EXEMPT (if that is so, of course!),
-  and then we're specifically free to link against it willy-nilly. An example
-  is libgcc.
-
-* If a program is GPL then it can propagate GPL-ness to things it depends on
-  if it builds against them. So we may need a way of saying "yes, I depend on
-  that, but no I don't propagate license to it".
-
-* If a library is GPL and is depended upon, and the thing depending on it is
-  building against it (using header files, inheriting from it, linking againt
-  it) then propagation happens. But if we just depend on it being built for
-  some other reasons (not sure what), then we also need a mechanism to say
-  that we depend upn the library, but do not "use" it.
-
-* If a library is LGPL, then we're explicitly allowed to link to it in a
-  shared/dynamic manner. But muddle can't tell this, so we need the same
-  mechanism as for a GPL library.
-
-* Bison is special, since it incorporates chunks of itself into its output,
-  and that is explicitly allowed for.
-
-So, we need some propagation control mechanisms:
-
-1. If we depend on a GPL entity, or an LGPL entity, then it is assumed that we
-   need to distribute our source code unless we declare that we are not doing
-   "the thing that requires that".
-
-   So we need an annotation on a checkout that says "I depend on GPL entity X,
-   but not in a way that means I need my source distributing".
-
-2. If a GPL entity depends on other checkouts, then we may need to distribute
-   the source of those other checkouts.
-
-   So we need an annotation on a checkout saying "I'm GPL, and depend on X,
-   but not in a way that means X needs source distributing".
-
-None of which, of course, stop us distributing the source code anyway, if we
-want to.
-
-Do other licenses have equivalent requirements?
-
-Some licenses
--------------
-From http://opensource.org/licenses/category, with "uninteresting" ones
-removed:
-
-* License that are popular and widely used or with strong communities
-
-  - Apache License, 2.0 (Apache-2.0)
-  - BSD 3-Clause "New" or "Revised" license (BSD-3-Clause)
-  - BSD 3-Clause "Simplified" or "FreeBSD" license (BSD-2-Clause)
-  - GNU General Public License (GPL)
-  - GNU Library or "Lesser" General Public License (LGPL)
-  - MIT license (MIT)
-  - Mozilla Public License 2.0 (MPL-2.0)
-  - Common Development and Distribution License (CDDL-1.0)
-  - Eclipse Public License (EPL-1.0)
-
-* Other/Miscellaneous licenses
-
-  - Adaptive Public License (APL-1.0)
-  - Artistic license 2.0 (Artistic-2.0)
-  - Open Software License (OSL-3.0)
-  - Q Public License (QPL-1.0)
-  - zlib/libpng license (Zlib)
-
-* Licenses that are redundant with more popular licenses
-
-  - Academic Free License (AFL-3.0)
-  - Attribution Assurance Licenses (AAL)
-  - The PostgreSQL License (PostgreSQL)
-
-* Superseded licenses
-
-  - Apache Software License 1.1
-  - Common Public License 1.0
-  - Artistic license 1.0
-  - Mozilla Public License 1.1 (MPL 1.1)
-  - Mozilla Public License 1.0 (MPL 1.0)
-
-* Uncategorized Licenses
-
-  - Boost Software License (BSL1.0)
-
-Then there's the UK Open Government License (RAW, not a problem), and perhaps
-the Python license (again, not a problem, I think).
-
-Which/where is "BSD with advertising"?
-
-Licenses and distributions
-==========================
-Brief notes, to be expanded:
-
-Licenses are of four broad types:
-
-* *private*. Checkouts with this license (and thus also their packages) are not
-  to be distributed as part of a normal license-driven distribution.
-
-* *binary*. Checkouts with this license (and thus also their packages) are to
-  be distributed as binary, not as source. Note that this still distributes
-  their muddle Makefile, and any other specific files, as for a "binary"
-  release.
-
-* *open*. Checkouts with this license are open-source, but do not *require*
-  distribution of their source code.
-
-* *gpl*. Checkouts with this license are open-source, but (a) require
-  distribution of their source code, and (b) may or may not propagate that
-  requirement to other checkouts whose packages depend on them.
-
-  All *gpl* licenses may have the "with exception" flag set, which implies a
-  "linking" exception that stops them "propagating". Otherwise, any checkout
-  that depends (whose package depends) on a *gpl* package is a candidate for
-  also needing to be distributed as source, unless it is marked (with:
-
-There is also a "meta" type, *not licensed*. Any checkout that has not
-had its license declared is *not licensed*, and all such checkouts are assumed to
-be equivalent to *open* checkouts. 
-
-We have:
-
-* Various classes, all based off ``License`` (use the subclasses by
-  preference, to get their individual behaviours).
-
-* A dictionary of ``standard_licenses``
-
-  This has been inspired by some of the content at the Open Source Initiative,
-  specifically by the lists at http://opensource.org/licenses/alphabetical and
-  http://opensource.org/licenses/category.
- 
-  The key for each license is its the SPDX short-form identifier, as described
-  at http://www.spdx.org/licenses/.
-
-* Tell a checkout its license::
-
-    set_license(builder, co_label, license)
-
-  where ``license`` is a key from ``standard_licenses`` or a ``License``
-  instance.
-
-* Useful query functions::
-
-    get_not_licensed_checkouts(builder)
-    get_gpl_checkouts(builder)
-    get_implicit_gpl_checkouts(builder)
-    check_for_license_clashes(builder, implicit_gpl_checkouts)
-
-  obviously mainly aimed at the muddle developer. See their docstrings for how
-  to use them.
-
-* You can find out if a checkout has a license using::
-
-    builder.invocation.db.checkout_has_license(co_label)
-
-  and retrieve a checkout's license wth::
-
-    builder.invocation.db.get_checkout_license(co_label)
-
-  If you think it might not have a license, and don't want a ``GiveUp``
-  exception, use::
-
-    builder.invocation.db.get_checkout_license(co_label, absent_is_None=True)
-
-  which returns ``None`` if ``co_label`` does not have a license.
-
-  Setting a license is done with::
-
-    builder.invocation.db.set_checkout_license(co_label, license)
-
-  where ``license`` is either a ``License`` instance, or the name (key) of one
-  of the standard licenses.
-
-* Checkouts with GPL-style licenses "propagate" their license to checkouts
-  whose packages depend upon them (unless the GPL-style license has
-  ``with_exception`` set). This doesn't, however, take account of the fact
-  that "depends upon" doesn't necessarily mean "links with" (or "uses header
-  files from"). You can tell muddle that a checkout does not need to be
-  "propagated to" by a GPL checkout using::
-
-    builder.invocation.db.set_not_built_against(pkg_label, co_label)
-
-  This says that the package named by ``pkg_label`` may depend on the checkout
-  named by ``co_label``, but it doesn't do so in a way to trigger GPL
-  propagation. Exactly what that means depends upon the package and checkout
-  concerned (it may mean not statically linking to an LGPL library, it may
-  mean not using classes from a GPL Java class, it may mean depending on a
-  side-effect of building the checkout, that itself is not the business of GPL
-  licensing).
-
-  Note that if A depends on B depends on C which depends on a GPL checkout D,
-  saying that B is "not built against" D doesn't say anything about A or C.
-
-  Also, this call does not check that ``co_label`` has a GPL-style license,
-  not least because it may be called before code defining the license for
-  ``co_label`` has itself been called. Indeed, we also don't check that
-  ``pkg_label`` actually depends on ``co_label``, or that either exists...
-
-* Commands:
-
-  - ``muddle query licenses``
-
-    Prints out the standard licenses
-
-  - ``muddle query checkout-licenses``
-
-     Prints the licenses for the checkouts in the dependency tree, and other
-     related information it has deduced. This is deliberately verbose, giving
-     as much information as possible.
-
 
 .. vim: set filetype=rst tabstop=8 softtabstop=2 shiftwidth=2 expandtab:

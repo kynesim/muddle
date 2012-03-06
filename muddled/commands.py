@@ -4989,7 +4989,7 @@ class UpstreamCommand(CheckoutCommand):
                 builder.build_label(co)
 
                 # And then we can do the actual work
-                for repo, names in sorted(upstreams):
+                for repo, names in upstreams:
                     if no_op:
                         print 'Would %s %s %s %s (%s)'%(self.verb,
                                 co, self.direction, repo, ', '.join(names))

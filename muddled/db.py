@@ -651,6 +651,9 @@ class Database(object):
 
         In the case of 'names' being empty, 'matching names' will contain
         the names registered for that upstream repository.
+
+        NB: 'matching names' is a tuple with the names sorted, and the list
+        returned is also sorted.
         """
         results = []
         try:
@@ -659,13 +662,15 @@ class Database(object):
             return results
 
         if names:
-            for upstream_repo, upstream_names in upstream_dict.items():
+            for upstream_repo, upstream_names in sorted(upstream_dict.items()):
                 found_names = upstream_names.intersection(names)
                 if found_names:
-                    results.append((upstream_repo, found_names))
+                    results.append((upstream_repo,
+                                   tuple(sorted(found_names))))
         else:
-            for upstream_repo, upstream_names in upstream_dict.items():
-                results.append((upstream_repo, upstream_names))
+            for upstream_repo, upstream_names in sorted(upstream_dict.items()):
+                results.append((upstream_repo,
+                                tuple(sorted(upstream_names))))
         return results
 
     def _find_checkouts_for_repo(self, repo):

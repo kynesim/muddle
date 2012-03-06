@@ -687,7 +687,7 @@ Repository('git', 'file:///home/tibs/sw/m3/tests/transient/repo/main', 'repo1') 
 
 Nowhere to pull checkout:builds/checked_out from
 
-Pulling checkout:co_repo1/checked_out from file:///home/tibs/sw/m3/tests/transient/repo/main/repo1.1 (wombat, rhubarb)
+Pulling checkout:co_repo1/checked_out from file:///home/tibs/sw/m3/tests/transient/repo/main/repo1.1 (rhubarb, wombat)
 ++ pushd to /home/tibs/sw/m3/tests/transient/build/src/co_repo1
 > git config remote.origin.url file:///home/tibs/sw/m3/tests/transient/repo/main/repo1.1
 > git fetch origin
@@ -712,7 +712,7 @@ Failure pulling checkout:co_repo1/checked_out in src/co_repo1:
 
 Nowhere to push checkout:builds/checked_out to
 
-Pushing checkout:co_repo1/checked_out to file:///home/tibs/sw/m3/tests/transient/repo/main/repo1.1 (wombat, rhubarb)
+Pushing checkout:co_repo1/checked_out to file:///home/tibs/sw/m3/tests/transient/repo/main/repo1.1 (rhubarb, wombat)
 ++ pushd to /home/tibs/sw/m3/tests/transient/build/src/co_repo1
 > git push origin master
 Everything up-to-date
@@ -722,7 +722,19 @@ Pushing checkout:co_repo1/checked_out to file:///home/tibs/sw/m3/tests/transient
 Failure pushing checkout:co_repo1/checked_out in src/co_repo1:
   file:///home/tibs/sw/m3/tests/transient/repo/main/repo1.2 does not allow "push"
 """)
-#  m3    push-upstream package:package1 builds -u rhubarb wombat
+
+            err, text = captured_muddle(['-n', 'pull-upstream', 'package:package1', 'builds', '-u', 'rhubarb', 'wombat'])
+            assert err == 0
+            check_text(text, """\
+Asked to pull-upstream:
+  checkout:builds/checked_out
+  checkout:co_repo1/checked_out
+for: rhubarb, wombat
+Nowhere to pull checkout:builds/checked_out from
+Would pull checkout:co_repo1/checked_out from file:///home/tibs/sw/m3/tests/transient/repo/main/repo1.1 (rhubarb, wombat)
+Would pull checkout:co_repo1/checked_out from file:///home/tibs/sw/m3/tests/transient/repo/main/repo1.2 (wombat)
+Would pull checkout:co_repo1/checked_out from file:///home/tibs/sw/m3/tests/transient/repo/main/repo1.3 (rhubarb)
+""")
 #  m3 -n pull-upstream package:package1 builds -u rhubarb wombat
 #  m3 -n push-upstream package:package1 builds -u rhubarb wombat
 

@@ -4983,19 +4983,21 @@ class UpstreamCommand(CheckoutCommand):
         get_checkout_location = builder.invocation.db.get_checkout_location
         for co in labels:
             orig_repo = get_checkout_repo(co)
-            upstream_repos = get_upstream_repos(orig_repo, upstream_names)
-            if upstream_repos:
+            upstreams = get_upstream_repos(orig_repo, upstream_names)
+            if upstreams:
                 # Make sure we've got our checkout checked out (!)
                 builder.build_label(co)
 
                 # And then we can do the actual work
-                for repo in upstream_repos:
+                for repo, names in sorted(upstreams):
                     if no_op:
-                        print 'Would %s %s %s %s'%(self.verb, co, self.direction, repo)
+                        print 'Would %s %s %s %s (%s)'%(self.verb,
+                                co, self.direction, repo, ', '.join(names))
                         continue
                     else:
                         print
-                        print '%s %s %s %s'%(self.verbing, co, self.direction, repo)
+                        print '%s %s %s %s (%s)'%(self.verbing,
+                                co, self.direction, repo, ', '.join(names))
                         co_locn = get_checkout_location(co)
                         self.handle_label(builder, co, repo, co_locn)
 

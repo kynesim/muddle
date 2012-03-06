@@ -642,11 +642,17 @@ class Database(object):
         case only those upstream repositories annotated with any of the
         names will be returned.
 
-        Returns a set of upstream repositories. This will be empty if there
-        are no upstream repositories for 'orig_repo', or none with any of the
-        names in 'names' (if given).
+        Returns a list of tuples of the form:
+
+            (upstream repositories, matching names)
+
+        This will be empty if there are no upstream repositories for
+        'orig_repo', or none with any of the names in 'names' (if given).
+
+        In the case of 'names' being empty, 'matching names' will contain
+        the names registered for that upstream repository.
         """
-        results = set()
+        results = []
         try:
             upstream_dict = self.upstream_repositories[orig_repo]
         except KeyError:
@@ -654,10 +660,12 @@ class Database(object):
 
         if names:
             for upstream_repo, upstream_names in upstream_dict.items():
-                if upstream_names.intersection(names):
-                    results.add(upstream_repo)
+                found_names = upstream_names.intersection(names)
+                if found_names:
+                    results.append((upstream_repo, found_names))
         else:
-            results.update(upstream_dict.keys())
+            for upstream_repo, upstream_names in upstream_dict.items():
+                results.append((upstream_repo, upstream_names))
         return results
 
     def _find_checkouts_for_repo(self, repo):

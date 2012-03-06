@@ -17,9 +17,12 @@ except ImportError:
     sys.path.insert(0, get_parent_file(__file__))
     import muddled.cmdline
 
-from muddled.utils import GiveUp, MuddleBug, normalise_dir, LabelType, LabelTag
-from muddled.utils import Directory, NewDirectory, TransientDirectory
+from muddled.depend import Label
 from muddled.licenses import standard_licenses
+from muddled.repository import Repository
+from muddled.utils import Directory, NewDirectory, TransientDirectory, \
+        GiveUp, MuddleBug, normalise_dir, LabelType, LabelTag
+from muddled.version_control import VersionControlHandler, checkout_from_repo
 
 MUDDLE_MAKEFILE = """\
 # Trivial muddle makefile
@@ -477,6 +480,7 @@ def make_repos(root_dir):
             with NewDirectory('builds') as d:
                 make_build_desc(d.where, SUBDOMAIN_BAD_UPSTREAM_1_BUILD_DESC.format(repo=repo))
 
+
 def test_builds_ok_upstream_1(root):
     with NewDirectory('builds_ok_upstream_1') as d:
         banner('CHECK REPOSITORIES OUT (OK UPSTREAM 1) subdomain has identical upstreams')
@@ -496,6 +500,7 @@ Repository('git', 'http://example.com', 'repoFred')
     Repository('git', 'http://example.com', 'repoFred-upstream')  abacus
 """.format(root_dir=root.where))
 
+
 def test_builds_ok_upstream_2(root):
     with NewDirectory('builds_ok_upstream_2') as d:
         banner('CHECK REPOSITORIES OUT (OK UPSTREAM 2) subdomain has subset of upstreams')
@@ -512,6 +517,7 @@ Repository('git', 'file://{root_dir}/repo/main', 'repo1') used by checkout:(subd
 Repository('git', 'http://example.com', 'repo99')
     Repository('git', 'http://example.com', 'repo99-upstream')  abacus
 """.format(root_dir=root.where))
+
 
 def test_builds_ok_upstream_3(root):
     with NewDirectory('builds_ok_upstream_3') as d:
@@ -530,6 +536,7 @@ Repository('git', 'http://example.com', 'repo99')
     Repository('git', 'http://example.com', 'repo99-upstream')  abacus
 """.format(root_dir=root.where))
 
+
 def test_builds_bad_upstream_1(root):
     with NewDirectory('builds_bad_upstream_1') as d:
         banner('CHECK REPOSITORIES OUT (BAD UPSTREAM 1) subdomain has extra upstreams')
@@ -546,6 +553,7 @@ Subdomain subdomain_bad_upstream_1 adds a new upstream to
   Subdomain subdomain_bad_upstream_1 has:
     Repository('git', 'file://{root_dir}/repo/main', 'repo1.X')  fruitbat, rhubarb, wombat
 """.format(root_dir=root.where))
+
 
 def check_exception(testing, fn, args, exception=GiveUp, startswith=None, endswith=None):
     """Check we get the right sort of exception.
@@ -595,9 +603,6 @@ def check_push_pull_permissions():
     dummy_builder = DummyBuilder()
 
     banner('CHECK PUSH/PULL PERMISSIONS')
-    from muddled.repository import Repository
-    from muddled.depend import Label
-    from muddled.version_control import VersionControlHandler, checkout_from_repo
 
     fred = Label.from_string('checkout:fred/*')
     repo = Repository.from_url('git', 'http://example.com/Fred.git', pull=False)
@@ -656,11 +661,71 @@ def main(args):
             muddle(['stamp', 'version'])
 
 
-        test_builds_ok_upstream_1(root)
-        test_builds_ok_upstream_2(root)
-        test_builds_ok_upstream_3(root)
+        if False:
+            test_builds_ok_upstream_1(root)
+            test_builds_ok_upstream_2(root)
+            test_builds_ok_upstream_3(root)
 
-        test_builds_bad_upstream_1(root)
+            test_builds_bad_upstream_1(root)
+
+        with Directory('build') as d:
+            err, text = captured_muddle(['query', 'upstream-repos', 'co_label1'],
+                                        error_fails=False)
+            check_text(text, "\nThere is no repository registered for label checkout:co_label1/checked_out\n")
+            assert err == 1
+            err, text = captured_muddle(['query', 'upstream-repos', 'co_repo1'])
+            check_text(text, """\
+Repository('git', 'file:///home/tibs/sw/m3/tests/transient/repo/main', 'repo1') used by checkout:co_repo1/checked_out
+    Repository('git', 'file:///home/tibs/sw/m3/tests/transient/repo/main', 'repo1.1')  rhubarb, wombat
+    Repository('git', 'file:///home/tibs/sw/m3/tests/transient/repo/main', 'repo1.2', push=False)  insignificance, wombat
+    Repository('git', 'file:///home/tibs/sw/m3/tests/transient/repo/main', 'repo1.3', pull=False)  platypus, rhubarb
+""")
+
+            err, text = captured_muddle(['pull-upstream', 'package:package1', 'builds', '-u', 'rhubarb', 'wombat'])
+            assert err == 1
+            check_text(text, """\
+
+Nowhere to pull checkout:builds/checked_out from
+
+Pulling checkout:co_repo1/checked_out from file:///home/tibs/sw/m3/tests/transient/repo/main/repo1.1 (wombat, rhubarb)
+++ pushd to /home/tibs/sw/m3/tests/transient/build/src/co_repo1
+> git config remote.origin.url file:///home/tibs/sw/m3/tests/transient/repo/main/repo1.1
+> git fetch origin
+> git merge --ff-only remotes/origin/master
+Already up-to-date.
+
+Pulling checkout:co_repo1/checked_out from file:///home/tibs/sw/m3/tests/transient/repo/main/repo1.2 (wombat)
+++ pushd to /home/tibs/sw/m3/tests/transient/build/src/co_repo1
+> git config remote.origin.url file:///home/tibs/sw/m3/tests/transient/repo/main/repo1.2
+> git fetch origin
+> git merge --ff-only remotes/origin/master
+Already up-to-date.
+
+Pulling checkout:co_repo1/checked_out from file:///home/tibs/sw/m3/tests/transient/repo/main/repo1.3 (rhubarb)
+
+Failure pulling checkout:co_repo1/checked_out in src/co_repo1:
+  file:///home/tibs/sw/m3/tests/transient/repo/main/repo1.3 does not allow "pull"
+""")
+            err, text = captured_muddle(['push-upstream', 'package:package1', 'builds', '-u', 'rhubarb', 'wombat'])
+            assert err == 1
+            check_text(text, """\
+
+Nowhere to push checkout:builds/checked_out to
+
+Pushing checkout:co_repo1/checked_out to file:///home/tibs/sw/m3/tests/transient/repo/main/repo1.1 (wombat, rhubarb)
+++ pushd to /home/tibs/sw/m3/tests/transient/build/src/co_repo1
+> git push origin master
+Everything up-to-date
+
+Pushing checkout:co_repo1/checked_out to file:///home/tibs/sw/m3/tests/transient/repo/main/repo1.2 (wombat)
+
+Failure pushing checkout:co_repo1/checked_out in src/co_repo1:
+  file:///home/tibs/sw/m3/tests/transient/repo/main/repo1.2 does not allow "push"
+""")
+#  m3    push-upstream package:package1 builds -u rhubarb wombat
+#  m3 -n pull-upstream package:package1 builds -u rhubarb wombat
+#  m3 -n push-upstream package:package1 builds -u rhubarb wombat
+
 
 if __name__ == '__main__':
     args = sys.argv[1:]

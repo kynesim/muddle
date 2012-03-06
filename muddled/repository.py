@@ -11,7 +11,7 @@ from urlparse import urlparse, urljoin, urlunparse
 
 from muddled.utils import GiveUp
 
-branch_and_revision_re = re.compile("([^:]*):(.*)$")
+_branch_and_revision_re = re.compile("([^:]*):(.*)$")
 
 class Repository(object):
     """The representation of a single repository.
@@ -297,7 +297,7 @@ class Repository(object):
         If the given string *does* include a <branch> component, then
         it overrides any 'branch' argument we may be given.
         """
-        m = branch_and_revision_re.match(revision)
+        m = _branch_and_revision_re.match(revision)
         if m:
             branch = m.group(1)
             revision = m.group(2)
@@ -654,6 +654,8 @@ def google_code_handler(repo):
 
         * https://code.google.com/p/<project> for the default repository
         * https://code.google.com/p/<project>.<repo> for any other repository
+
+    This is registered as the "code.google.com" handler for "git".
     """
 
     # Note that error messages must use %r for the 'repo' representation,

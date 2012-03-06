@@ -349,29 +349,49 @@ For instance::
   $ muddle query licenses
   Standard licenses are:
 
-  gpl2                 LicenseGPL('GPL v2')
-  gpl2-except          LicenseGPL('GPL v2', with_exception=True)
-  gpl2plus             LicenseGPL('GPL v2 and above')
-  gpl2plus-except      LicenseGPL('GPL v2 and above', with_exception=True)
-  gpl3                 LicenseGPL('GPL v3')
-  gpl3-except          LicenseGPL('GPL v3', with_exception=True)
-  lgpl                 LicenseLGPL('LGPL')
-  lgpl-except          LicenseLGPL('LGPL', with_exception=True)
+  GPL-2.0                          LicenseGPL('GPL', version='v2.0 only')
+  GPL-2.0+                         LicenseGPL('GPL', version='v2.0 or later')
+  GPL-2.0-linux                    LicenseGPL('GPL', version='v2.0', with_exception=True)
+  GPL-2.0-with-GCC-exception       LicenseGPL('GPL with GCC Runtime Library exception', version='v2.0', with_exception=True)
+  GPL-2.0-with-autoconf-exception  LicenseGPL('GPL with Autoconf exception', version='v2.0', with_exception=True)
+  GPL-2.0-with-bison-exception     LicenseGPL('GPL with Bison exception', version='v2.0', with_exception=True)
+  GPL-2.0-with-classpath-exception LicenseGPL('GPL with Classpath exception', version='v2.0', with_exception=True)
+  GPL-2.0-with-font-exception      LicenseGPL('GPL with Font exception', version='v2.0', with_exception=True)
+  GPL-3.0                          LicenseGPL('GPL', version='v3.0 only')
+  GPL-3.0+                         LicenseGPL('GPL', version='v3.0 or later')
+  GPL-3.0-with-GCC-exception       LicenseGPL('GPL with GCC Runtime Library exception', version='v3.0', with_exception=True)
+  GPL-3.0-with-autoconf-exception  LicenseGPL('GPL with Autoconf exception', version='v3.0', with_exception=True)
+  GPL-3.0-with-bison-exception     LicenseGPL('GPL with Bison exception', version='v3.0', with_exception=True)
+  GPL-3.0-with-classpath-exception LicenseGPL('GPL with Classpath exception', version='v3.0', with_exception=True)
+  GPL-3.0-with-font-exception      LicenseGPL('GPL with Font exception', version='v3.0', with_exception=True)
+  LGPL-2.0                         LicenseLGPL('Lesser GPL', version='v2.0 only')
+  LGPL-2.0+                        LicenseLGPL('Lesser GPL', version='v2.0 or later')
+  LGPL-2.1                         LicenseLGPL('Lesser GPL', version='v2.1 only')
+  LGPL-2.1+                        LicenseLGPL('Lesser GPL', version='v2.1 or later')
+  LGPL-3.0                         LicenseLGPL('Lesser GPL', version='v3.0 only')
+  LGPL-3.0+                        LicenseLGPL('Lesser GPL', version='v3.0 or later')
 
-  apache               LicenseOpen('Apache')
-  apache2              LicenseOpen('Apache 2.0')
-  bsd-new              LicenseOpen('BSD 3-clause')
-  bsd-original         LicenseOpen('BSD 4-clause')
-  bsd-simplified       LicenseOpen('BSD 2-clause')
-  common               LicenseOpen('Common Public License')
-  eclipse              LicenseOpen('Eclipse Public License 1.0')
-  mpl                  LicenseOpen('MPL 1.1')
-  mpl1_1               LicenseOpen('MPL 1.1')
-  ukogl                LicenseOpen('UK Open Government License')
-  zlib                 LicenseOpen('zlib')
+  APL-1.0                          LicenseOpen('Adaptive Public License', version='1.0')
+  Apache-2.0                       LicenseOpen('Apache', version='2.0')
+  Artistic-2.0                     LicenseOpen('Artistic License', version='2.0')
+  BSD-2-Clause                     LicenseOpen('BSD 2-clause "Simplified" or "FreeBSD"')
+  BSD-3-Clause                     LicenseOpen('BSD 3-clause "New" or "Revised" license')
+  BSD-4-Clause                     LicenseOpen('BSD 4-clause "Original" license ("with advertising")')
+  BSL-1.0                          LicenseOpen('Boost Software License', version='1.0')
+  CDDL-1.0                         LicenseOpen('Common Development and Distribution License')
+  EPL-1.0                          LicenseOpen('Eclipse Public License', version='1.0')
+  IPA                              LicenseOpen('IPA Font License')
+  MIT                              LicenseOpen('MIT License')
+  MPL-1.1                          LicenseOpen('Mozilla Public License', version='1.1')
+  MPL-2.0                          LicenseOpen('Mozilla Public License', version='2.0')
+  OFL-1.1                          LicenseOpen('Open Font License', version='1.1')
+  OSL-3.0                          LicenseOpen('Open Software License', version='3.0')
+  Python-2.0                       LicenseOpen('Python License', version='2.0')
+  QPL-1.0                          LicenseOpen('Q Public License', version='1.0')
+  UKOGL                            LicenseOpen('UK Open Government License')
+  Zlib                             LicenseOpen('zlib/libpng license')
 
-  code-nightmare-green LicensePrivate('Code Nightmare Green')
-
+  code-nightmare-green             LicensePrivate('Code Nightmare Green')
 
 Licensing a checkout
 --------------------
@@ -397,7 +417,7 @@ that it does mean that the checkouts cannot be in a different domain.
 
 So, for instance::
 
-  set_license(builder, checkout('zlib'), 'zlib')
+  set_license(builder, checkout('zlib'), 'Zlib')
 
   set_license_for_names(builder, ['docs', 'specs'],
                         LicenseOpen('Creative Commons Attribution 2.0'
@@ -409,11 +429,12 @@ There are license classes corresponding to each of the license categories.
 They are all subclasses of ``License``, but ``License`` itself is not intended
 to be used directly.
 
-* ``LicenseGPL(name, with_exception=False)``
+* ``LicenseGPL(name, version='v3.1', with_exception=False)``
 
-  This creates a GPL license. If ``with_exception`` is True, then the license
-  does not automatically "propagate" to other packages/checkouts that depend
-  on it.
+  This creates a GPL license, version ``v3.1``.
+ 
+  If ``with_exception`` is True, then the license does not automatically
+  "propagate" to other packages/checkouts that depend on it.
 
 * ``LicenseLGPL(name, with_exception=False)``
 
@@ -433,6 +454,17 @@ All ``License`` subclass instances have the following values and methods:
 
 * ``category`` is a string containing the category, one of "gpl",
   "open", "binary" or "private".
+
+* ``version`` is None or a string containing the license version.
+
+  All licenses can be given a version, using the ``version=<string>``
+  argument to the initialised.
+
+  If no version is specified for a license, then it has no specific version,
+  and the version will not be shown when it is printed.
+
+  Most, but not all, of the standard licenses have versions.
+
 * ``is_gpl()`` returns True if this is license has category "gpl".
 * ``is_lgpl()`` returns True if this license has category "gpl" and is LGPL.
   This is true for the ``LicenseLGPL`` class.
@@ -447,20 +479,20 @@ All ``License`` subclass instances have the following values and methods:
 
 So, for instance::
 
-  top_secret = LicensePrivate('Top Secret')
+  top_secret = LicensePrivate('Top Secret', version='3.14')
   only_works_on_my_machine = LicensePrivate('Local')
-  CC-ASA = LicenseOpen('Creative Commons Attribution-ShareAlike 3.0'
-                       ' Unported License')
+  CC-ASA = LicenseOpen('Creative Commons Attribution-ShareAlike'
+                       ' Unported License', version='3.0')
 
 Note that ``str`` of a License give back the license name::
 
   >>> str(top_secret)
-  'Top Secret'
+  'Top Secret 3.14'
 
 whilst ``repr`` will give back how to create it::
 
   >>> repr(top_secret)
-  "LicensePrivate('Top Secret')"
+  "LicensePrivate('Top Secret', version='3.14')"
 
 The other standard distributions
 ================================
@@ -554,8 +586,8 @@ So, for instance, we might have::
   muddled.pkgs.make.medium(builder, 'program', ['x86'], 'program-4.9',
                            deps=['libProp'])
 
-  set_license(builder, checkout('libProp-2.3'), 'lgpl')
-  set_license(builder, checkout('program-4.9'), 'top-secret')
+  set_license(builder, checkout('libProp-2.3'), 'LGPL-3.0')
+  set_license(builder, checkout('program-4.9'), 'code-nightmare-green')
 
   # 'program' links dynamically to 'libProp', and thus doesn't need
   # to be distributed as source
@@ -1247,6 +1279,13 @@ We have:
   preference, to get their individual behaviours).
 
 * A dictionary of ``standard_licenses``
+
+  This has been inspired by some of the content at the Open Source Initiative,
+  specifically by the lists at http://opensource.org/licenses/alphabetical and
+  http://opensource.org/licenses/category.
+ 
+  The key for each license is its the SPDX short-form identifier, as described
+  at http://www.spdx.org/licenses/.
 
 * Tell a checkout its license::
 

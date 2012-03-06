@@ -2,6 +2,7 @@
 Matters relating to attributing licenses to checkouts
 """
 
+import copy
 import os
 import fnmatch
 
@@ -26,7 +27,7 @@ class License(object):
     can use any appropriate extra methods...
     """
 
-    def __init__(self, name, category):
+    def __init__(self, name, category, version=None):
         """Initialise a new License.
 
         The 'name' is the name of this license, as it is normally recognised.
@@ -43,24 +44,42 @@ class License(object):
               directory) may be.
             * 'private' - a marker that the checkout should not be distributed
               at all.
+
+        'version' may be a version string. If it is None, then it will not be
+        shown in the str() or repr() for a license.
         """
         self.name = name
         if category not in ALL_LICENSE_CATEGORIES:
             raise GiveUp("Attempt to create License '%s' with unrecognised"
                          " category '%s'"%(name, category))
         self.category = category
+        self.version = version
 
     def __str__(self):
-        return self.name
+        if self.version:
+            return '%s %s'%(self.name, self.version)
+        else:
+            return self.name
 
     def __repr__(self):
-        return '%s(%r, %r)'%(self.__class__.__name__, self.name, self.category)
+        if self.version:
+            return '%s(%r, %r, version=%r)'%(self.__class__.__name__,
+                    self.name, self.category, self.version)
+        else:
+            return '%s(%r, %r)'%(self.__class__.__name__, self.name, self.category)
 
     def __eq__(self, other):
         return (self.name == other.name and self.category == other.category)
 
     def __hash__(self):
         return hash((self.name, self.category))
+
+    def copy_with_version(self, version):
+        """Make a copy of this license with a different version string.
+        """
+        new = copy.copy(self)
+        new.version = version
+        return new
 
     def distribute_source(self):
         """Returns True if we should (must?) distribute source code.
@@ -133,31 +152,40 @@ class LicensePrivate(License):
     """A "private" license - we do not want to distribute anything
     """
 
-    def __init__(self, name):
-        super(LicensePrivate, self).__init__(name=name, category='private')
+    def __init__(self, name, version=None):
+        super(LicensePrivate, self).__init__(name=name, category='private', version=version)
 
     def __repr__(self):
-        return '%s(%r)'%(self.__class__.__name__, self.name)
+        if self.version:
+            return '%s(%r, version=%r)'%(self.__class__.__name__, self.name, self.version)
+        else:
+            return '%s(%r)'%(self.__class__.__name__, self.name)
 
 class LicenseBinary(License):
     """A binary license - we distribute binary only, not source code
     """
 
-    def __init__(self, name):
-        super(LicenseBinary, self).__init__(name=name, category='binary')
+    def __init__(self, name, version=None):
+        super(LicenseBinary, self).__init__(name=name, category='binary', version=version)
 
     def __repr__(self):
-        return '%s(%r)'%(self.__class__.__name__, self.name)
+        if self.version:
+            return '%s(%r, version=%r)'%(self.__class__.__name__, self.name, self.version)
+        else:
+            return '%s(%r)'%(self.__class__.__name__, self.name)
 
 class LicenseOpen(License):
     """Some non-GPL open source license.
     """
 
-    def __init__(self, name):
-        super(LicenseOpen, self).__init__(name=name, category='open')
+    def __init__(self, name, version=None):
+        super(LicenseOpen, self).__init__(name=name, category='open', version=version)
 
     def __repr__(self):
-        return '%s(%r)'%(self.__class__.__name__, self.name)
+        if self.version:
+            return '%s(%r, version=%r)'%(self.__class__.__name__, self.name, self.version)
+        else:
+            return '%s(%r)'%(self.__class__.__name__, self.name)
 
 class LicenseGPL(License):
     """Some sort of GPL license.
@@ -166,7 +194,7 @@ class LicenseGPL(License):
     confusing with the adjacent 'L's, and I want to keep GPL uppercase...)
     """
 
-    def __init__(self, name, with_exception=False):
+    def __init__(self, name, version=None, with_exception=False):
         """Initialise a new GPL License.
 
         The 'name' is the name of this license, as it is normally recognised.
@@ -179,14 +207,21 @@ class LicenseGPL(License):
 
         .. _`linking exception`: http://en.wikipedia.org/wiki/GPL_linking_exception
         """
-        super(LicenseGPL, self).__init__(name=name, category='gpl')
+        super(LicenseGPL, self).__init__(name=name, category='gpl', version=version)
         self.with_exception = with_exception
 
     def __repr__(self):
         if self.with_exception:
-            return '%s(%r, with_exception=True)'%(self.__class__.__name__, self.name)
+            if self.version:
+                return '%s(%r, version=%r, with_exception=True)'%(self.__class__.__name__,
+                        self.name, self.version)
+            else:
+                return '%s(%r, with_exception=True)'%(self.__class__.__name__, self.name)
         else:
-            return '%s(%r)'%(self.__class__.__name__, self.name)
+            if self.version:
+                return '%s(%r, version=%r)'%(self.__class__.__name__, self.name, self.version)
+            else:
+                return '%s(%r)'%(self.__class__.__name__, self.name)
 
     def __eq__(self, other):
         # Doing the super-comparison first guarantees we're both some sort of GPL
@@ -217,43 +252,85 @@ class LicenseLGPL(LicenseGPL):
     this license is affected by our GPL-ness.
     """
 
-    def __init__(self, name, with_exception=False):
+    def __init__(self, name, version=None, with_exception=False):
         """Initialise a new LGPL License.
 
         The 'name' is the name of this license, as it is normally recognised.
         """
-        super(LicenseLGPL, self).__init__(name=name, with_exception=with_exception)
+        super(LicenseLGPL, self).__init__(name=name, version=version, with_exception=with_exception)
 
     def is_lgpl(self):
         """Returns True if this is some sort of LGPL license.
         """
         return True
 
-# Let's define some standard licenses:
-standard_licenses = {}
-for mnemonic, license in (
-        ('apache',  LicenseOpen('Apache')),
-        ('apache2', LicenseOpen('Apache 2.0')),
-        ('bsd-new',     LicenseOpen('BSD 3-clause')),
-        ('bsd-original', LicenseOpen('BSD 4-clause')), # "with advertising"
-        ('bsd-simplified',     LicenseOpen('BSD 2-clause')), # as used by FreeBSD
-        ('common',          LicenseOpen('Common Public License')), # Some JAVA stuff
-        ('eclipse',         LicenseOpen('Eclipse Public License 1.0')),
-        ('gpl2',            LicenseGPL('GPL v2')),
-        ('gpl2-except',     LicenseGPL('GPL v2', with_exception=True)),
-        ('gpl2plus',        LicenseGPL('GPL v2 and above')),
-        ('gpl2plus-except', LicenseGPL('GPL v2 and above', with_exception=True)),
-        ('gpl3',            LicenseGPL('GPL v3')), # Implicit "and above"?
-        ('gpl3-except',     LicenseGPL('GPL v3', with_exception=True)),
-        ('lgpl',            LicenseLGPL('LGPL')),
-        ('lgpl-except',     LicenseLGPL('LGPL', with_exception=True)),
-        ('mpl',             LicenseOpen('MPL 1.1')),
-        ('mpl1_1',          LicenseOpen('MPL 1.1')),
-        ('ukogl',           LicenseOpen('UK Open Government License')),
-        ('zlib',            LicenseOpen('zlib')), # ZLIB has its own license
-        ('code-nightmare-green', LicensePrivate('Code Nightmare Green')),
-        ):
-    standard_licenses[mnemonic] = license
+# Let's define some standard licenses
+# We'll try to use the names from http://www.spdx.org/licenses/ as the
+# dictionary keys. Also see http://opensource.org/licenses/alphabetical for
+# a list of actual open source licenses.
+standard_licenses = {
+        'Apache-2.0':      LicenseOpen('Apache', version='2.0'),
+        'APL-1.0':         LicenseOpen('Adaptive Public License', version='1.0'),
+        'Artistic-2.0':    LicenseOpen('Artistic License', version='2.0'),
+        'BSD-3-Clause':    LicenseOpen('BSD 3-clause "New" or "Revised" license'),
+        'BSD-4-Clause':    LicenseOpen('BSD 4-clause "Original" license ("with advertising")'),
+        'BSD-2-Clause':    LicenseOpen('BSD 2-clause "Simplified" or "FreeBSD"'),
+
+        'BSL-1.0':         LicenseOpen('Boost Software License', version='1.0'),
+        'CDDL-1.0':        LicenseOpen('Common Development and Distribution License'),
+        'EPL-1.0':         LicenseOpen('Eclipse Public License', version='1.0'),
+        'IPA':             LicenseOpen('IPA Font License'),
+        'MIT':             LicenseOpen('MIT License'),
+        'MPL-1.1':         LicenseOpen('Mozilla Public License', version='1.1'),
+        'MPL-2.0':         LicenseOpen('Mozilla Public License', version='2.0'),
+        'OFL-1.1':         LicenseOpen('Open Font License', version='1.1'),
+        'OSL-3.0':         LicenseOpen('Open Software License', version='3.0'),
+        'Python-2.0':      LicenseOpen('Python License', version='2.0'),
+        'QPL-1.0':         LicenseOpen('Q Public License', version='1.0'),
+        'UKOGL':           LicenseOpen('UK Open Government License'),
+        'Zlib':            LicenseOpen('zlib/libpng license'), # ZLIB has its own license
+
+        'GPL-2.0-linux':   LicenseGPL('GPL', version='v2.0', with_exception=True),
+
+        'GPL-2.0':         LicenseGPL('GPL', version='v2.0 only'),
+        'GPL-2.0+':        LicenseGPL('GPL', version='v2.0 or later'),
+
+        'GPL-2.0-with-autoconf-exception':  LicenseGPL('GPL with Autoconf exception',
+                                                       version='v2.0', with_exception=True),
+        'GPL-2.0-with-bison-exception':     LicenseGPL('GPL with Bison exception',
+                                                       version='v2.0', with_exception=True),
+        'GPL-2.0-with-classpath-exception': LicenseGPL('GPL with Classpath exception',
+                                                       version='v2.0', with_exception=True),
+        'GPL-2.0-with-font-exception':      LicenseGPL('GPL with Font exception',
+                                                       version='v2.0', with_exception=True),
+        'GPL-2.0-with-GCC-exception':       LicenseGPL('GPL with GCC Runtime Library exception',
+                                                       version='v2.0', with_exception=True),
+
+        'GPL-3.0':         LicenseGPL('GPL', version='v3.0 only'),
+        'GPL-3.0+':        LicenseGPL('GPL', version='v3.0 or later'),
+
+        'GPL-3.0-with-autoconf-exception':  LicenseGPL('GPL with Autoconf exception',
+                                                       version='v3.0', with_exception=True),
+        'GPL-3.0-with-bison-exception':     LicenseGPL('GPL with Bison exception',
+                                                       version='v3.0', with_exception=True),
+        'GPL-3.0-with-classpath-exception': LicenseGPL('GPL with Classpath exception',
+                                                       version='v3.0', with_exception=True),
+        'GPL-3.0-with-font-exception':      LicenseGPL('GPL with Font exception',
+                                                       version='v3.0', with_exception=True),
+        'GPL-3.0-with-GCC-exception':       LicenseGPL('GPL with GCC Runtime Library exception',
+                                                       version='v3.0', with_exception=True),
+
+        'LGPL-2.0':        LicenseLGPL('Lesser GPL', version='v2.0 only'),
+        'LGPL-2.0+':       LicenseLGPL('Lesser GPL', version='v2.0 or later'),
+
+        'LGPL-2.1':        LicenseLGPL('Lesser GPL', version='v2.1 only'),
+        'LGPL-2.1+':       LicenseLGPL('Lesser GPL', version='v2.1 or later'),
+
+        'LGPL-3.0':        LicenseLGPL('Lesser GPL', version='v3.0 only'),
+        'LGPL-3.0+':       LicenseLGPL('Lesser GPL', version='v3.0 or later'),
+
+        'code-nightmare-green': LicensePrivate('Code Nightmare Green'),
+        }
 
 def print_standard_licenses():
     keys = standard_licenses.keys()

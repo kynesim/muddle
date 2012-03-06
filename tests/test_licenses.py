@@ -92,19 +92,19 @@ def describe_to(builder):
 
     another_license = LicensePrivate('ignore-this')
 
-    add_package(builder, 'apache', 'x86', 'apache')
-    add_package(builder, 'bsd',    'x86', 'bsd-new')
-    add_package(builder, 'gpl2',   'x86', 'gpl2')
-    add_package(builder, 'gpl2plus', 'x86', 'gpl2plus')
-    add_package(builder, 'gpl3',  'x86', 'gpl3')
-    add_package(builder, 'lgpl',  'x86', 'lgpl')
-    add_package(builder, 'mpl',   'x86', 'mpl')
-    add_package(builder, 'ukogl', 'x86', 'ukogl', deps=['lgpl'])
-    add_package(builder, 'zlib',  'x86', 'zlib')
+    add_package(builder, 'apache', 'x86', 'Apache-2.0')
+    add_package(builder, 'bsd',    'x86', 'BSD-3-Clause')
+    add_package(builder, 'gpl2',   'x86', 'GPL-2.0')
+    add_package(builder, 'gpl2plus', 'x86', 'GPL-2.0+')
+    add_package(builder, 'gpl3',  'x86', 'GPL-3.0')
+    add_package(builder, 'lgpl',  'x86', 'LGPL-3.0')
+    add_package(builder, 'mpl',   'x86', 'MPL-2.0')
+    add_package(builder, 'ukogl', 'x86', 'UKOGL', deps=['lgpl'])
+    add_package(builder, 'zlib',  'x86', 'Zlib')
 
-    add_package(builder, 'gnulibc', 'x86', 'lgpl-except')
-    add_package(builder, 'linux', 'x86', 'gpl2-except')
-    add_package(builder, 'busybox', 'x86', 'gpl2')
+    add_package(builder, 'gnulibc', 'x86', 'GPL-3.0-with-GCC-exception')
+    add_package(builder, 'linux', 'x86', 'GPL-2.0-linux')
+    add_package(builder, 'busybox', 'x86', 'GPL-2.0')
 
     add_package(builder, 'binary1', 'x86', LicenseBinary('Customer'))
     add_package(builder, 'binary2', 'x86', LicenseBinary('Customer'))
@@ -118,7 +118,7 @@ def describe_to(builder):
     add_package(builder, 'private4', 'x86', LicensePrivate('Shh'), deps=['private2', 'gpl2'])
     add_package(builder, 'private5', 'x86', LicensePrivate('Shh'))
 
-    add_package(builder, 'not_licensed1', 'x86', deps=['gpl2', 'gpl3'])
+    add_package(builder, 'not_licensed1', role, deps=['gpl2', 'gpl3'])
     add_package(builder, 'not_licensed2', 'x86')
     add_package(builder, 'not_licensed3', 'x86')
     add_package(builder, 'not_licensed4', 'x86')
@@ -192,19 +192,19 @@ def describe_to(builder):
 
     another_license = LicensePrivate('ignore-this')
 
-    add_package(builder, 'apache', role, 'apache')
-    add_package(builder, 'bsd',    role, 'bsd-new')
-    add_package(builder, 'gpl2',   role, 'gpl2')
-    add_package(builder, 'gpl2plus', role, 'gpl2plus')
-    add_package(builder, 'gpl3',  role, 'gpl3')
-    add_package(builder, 'lgpl',  role, 'lgpl')
-    add_package(builder, 'mpl',   role, 'mpl')
-    add_package(builder, 'ukogl', role, 'ukogl', deps=['lgpl'])
-    add_package(builder, 'zlib',  role, 'zlib')
+    add_package(builder, 'apache', 'x86', 'Apache-2.0')
+    add_package(builder, 'bsd',    'x86', 'BSD-3-Clause')
+    add_package(builder, 'gpl2',   'x86', 'GPL-2.0')
+    add_package(builder, 'gpl2plus', 'x86', 'GPL-2.0+')
+    add_package(builder, 'gpl3',  'x86', 'GPL-3.0')
+    add_package(builder, 'lgpl',  'x86', 'LGPL-3.0')
+    add_package(builder, 'mpl',   'x86', 'MPL-2.0')
+    add_package(builder, 'ukogl', 'x86', 'UKOGL', deps=['lgpl'])
+    add_package(builder, 'zlib',  'x86', 'Zlib')
 
-    add_package(builder, 'gnulibc', role, 'lgpl-except')
-    add_package(builder, 'linux', role, 'gpl2-except')
-    add_package(builder, 'busybox', role, 'gpl2')
+    add_package(builder, 'gnulibc', 'x86', 'GPL-3.0-with-GCC-exception')
+    add_package(builder, 'linux', 'x86', 'GPL-2.0-linux')
+    add_package(builder, 'busybox', 'x86', 'GPL-2.0')
 
     add_package(builder, 'binary1', role, LicenseBinary('Customer'), deps=['zlib'])
     add_package(builder, 'binary2', role, LicenseBinary('Customer'))
@@ -374,7 +374,7 @@ def add_package(builder, name, role, license=None, co_name=None, deps=None):
 def describe_to(builder):
     deployment = 'everything'
 
-    add_package(builder, 'xyzlib',  'x86', 'zlib')
+    add_package(builder, 'xyzlib',  'x86', 'Zlib')
     add_package(builder, 'manhattan', 'x86-private', 'code-nightmare-green')
 
     builder.invocation.db.set_not_built_against(package('manhattan', 'x86-private'),
@@ -404,10 +404,6 @@ int main(int argc, char **argv)
     return 0;
 }}
 """
-
-def test_equalities():
-    assert standard_licenses['mpl'] == standard_licenses['mpl1_1']
-    assert standard_licenses['gpl2'] != standard_licenses['gpl2-except']
 
 def make_build_desc(co_dir, file_content):
     """Take some of the repetition out of making build descriptions.
@@ -500,30 +496,30 @@ def check_checkout_licenses_with_clashes(root_dir, d):
     check_text(text, """\
 Checkout licenses are:
 
-* checkout:apache/*               LicenseOpen('Apache')
+* checkout:apache/*               LicenseOpen('Apache', version='2.0')
 * checkout:binary1/*              LicenseBinary('Customer')
 * checkout:binary2/*              LicenseBinary('Customer')
 * checkout:binary3/*              LicenseBinary('Customer')
 * checkout:binary4/*              LicenseBinary('Customer')
 * checkout:binary5/*              LicenseBinary('Customer')
-* checkout:bsd/*                  LicenseOpen('BSD 3-clause')
-* checkout:busybox/*              LicenseGPL('GPL v2')
-* checkout:gnulibc/*              LicenseLGPL('LGPL', with_exception=True)
-* checkout:gpl2/*                 LicenseGPL('GPL v2')
-* checkout:gpl2plus/*             LicenseGPL('GPL v2 and above')
-* checkout:gpl3/*                 LicenseGPL('GPL v3')
-* checkout:lgpl/*                 LicenseLGPL('LGPL')
-* checkout:linux/*                LicenseGPL('GPL v2', with_exception=True)
-* checkout:mpl/*                  LicenseOpen('MPL 1.1')
+* checkout:bsd/*                  LicenseOpen('BSD 3-clause "New" or "Revised" license')
+* checkout:busybox/*              LicenseGPL('GPL', version='v2.0 only')
+* checkout:gnulibc/*              LicenseGPL('GPL with GCC Runtime Library exception', version='v3.0', with_exception=True)
+* checkout:gpl2/*                 LicenseGPL('GPL', version='v2.0 only')
+* checkout:gpl2plus/*             LicenseGPL('GPL', version='v2.0 or later')
+* checkout:gpl3/*                 LicenseGPL('GPL', version='v3.0 only')
+* checkout:lgpl/*                 LicenseLGPL('Lesser GPL', version='v3.0 only')
+* checkout:linux/*                LicenseGPL('GPL', version='v2.0', with_exception=True)
+* checkout:mpl/*                  LicenseOpen('Mozilla Public License', version='2.0')
 * checkout:private1/*             LicensePrivate('Shh')
 * checkout:private2/*             LicensePrivate('Shh')
 * checkout:private3/*             LicensePrivate('Shh')
 * checkout:private4/*             LicensePrivate('Shh')
 * checkout:private5/*             LicensePrivate('Shh')
 * checkout:ukogl/*                LicenseOpen('UK Open Government License')
-* checkout:zlib/*                 LicenseOpen('zlib')
+* checkout:zlib/*                 LicenseOpen('zlib/libpng license')
 * checkout:(subdomain)manhattan/* LicensePrivate('Code Nightmare Green')
-* checkout:(subdomain)xyzlib/*    LicenseOpen('zlib')
+* checkout:(subdomain)xyzlib/*    LicenseOpen('zlib/libpng license')
 
 The following checkouts do not have a license:
 
@@ -537,13 +533,13 @@ The following checkouts do not have a license:
 
 The following checkouts have some sort of GPL license:
 
-* checkout:busybox/*              LicenseGPL('GPL v2')
-* checkout:gnulibc/*              LicenseLGPL('LGPL', with_exception=True)
-* checkout:gpl2/*                 LicenseGPL('GPL v2')
-* checkout:gpl2plus/*             LicenseGPL('GPL v2 and above')
-* checkout:gpl3/*                 LicenseGPL('GPL v3')
-* checkout:lgpl/*                 LicenseLGPL('LGPL')
-* checkout:linux/*                LicenseGPL('GPL v2', with_exception=True)
+* checkout:busybox/*              LicenseGPL('GPL', version='v2.0 only')
+* checkout:gnulibc/*              LicenseGPL('GPL with GCC Runtime Library exception', version='v3.0', with_exception=True)
+* checkout:gpl2/*                 LicenseGPL('GPL', version='v2.0 only')
+* checkout:gpl2plus/*             LicenseGPL('GPL', version='v2.0 or later')
+* checkout:gpl3/*                 LicenseGPL('GPL', version='v3.0 only')
+* checkout:lgpl/*                 LicenseLGPL('Lesser GPL', version='v3.0 only')
+* checkout:linux/*                LicenseGPL('GPL', version='v2.0', with_exception=True)
 
 Exceptions to "implicit" GPL licensing are:
 
@@ -577,30 +573,30 @@ def check_checkout_licenses_without_clashes(root_dir, d):
     check_text(text, """\
 Checkout licenses are:
 
-* checkout:apache/*               LicenseOpen('Apache')
+* checkout:apache/*               LicenseOpen('Apache', version='2.0')
 * checkout:binary1/*              LicenseBinary('Customer')
 * checkout:binary2/*              LicenseBinary('Customer')
 * checkout:binary3/*              LicenseBinary('Customer')
 * checkout:binary4/*              LicenseBinary('Customer')
 * checkout:binary5/*              LicenseBinary('Customer')
-* checkout:bsd/*                  LicenseOpen('BSD 3-clause')
-* checkout:busybox/*              LicenseGPL('GPL v2')
-* checkout:gnulibc/*              LicenseLGPL('LGPL', with_exception=True)
-* checkout:gpl2/*                 LicenseGPL('GPL v2')
-* checkout:gpl2plus/*             LicenseGPL('GPL v2 and above')
-* checkout:gpl3/*                 LicenseGPL('GPL v3')
-* checkout:lgpl/*                 LicenseLGPL('LGPL')
-* checkout:linux/*                LicenseGPL('GPL v2', with_exception=True)
-* checkout:mpl/*                  LicenseOpen('MPL 1.1')
+* checkout:bsd/*                  LicenseOpen('BSD 3-clause "New" or "Revised" license')
+* checkout:busybox/*              LicenseGPL('GPL', version='v2.0 only')
+* checkout:gnulibc/*              LicenseGPL('GPL with GCC Runtime Library exception', version='v3.0', with_exception=True)
+* checkout:gpl2/*                 LicenseGPL('GPL', version='v2.0 only')
+* checkout:gpl2plus/*             LicenseGPL('GPL', version='v2.0 or later')
+* checkout:gpl3/*                 LicenseGPL('GPL', version='v3.0 only')
+* checkout:lgpl/*                 LicenseLGPL('Lesser GPL', version='v3.0 only')
+* checkout:linux/*                LicenseGPL('GPL', version='v2.0', with_exception=True)
+* checkout:mpl/*                  LicenseOpen('Mozilla Public License', version='2.0')
 * checkout:private1/*             LicensePrivate('Shh')
 * checkout:private2/*             LicensePrivate('Shh')
 * checkout:private3/*             LicensePrivate('Shh')
 * checkout:private4/*             LicensePrivate('Shh')
 * checkout:private5/*             LicensePrivate('Shh')
 * checkout:ukogl/*                LicenseOpen('UK Open Government License')
-* checkout:zlib/*                 LicenseOpen('zlib')
+* checkout:zlib/*                 LicenseOpen('zlib/libpng license')
 * checkout:(subdomain)manhattan/* LicensePrivate('Code Nightmare Green')
-* checkout:(subdomain)xyzlib/*    LicenseOpen('zlib')
+* checkout:(subdomain)xyzlib/*    LicenseOpen('zlib/libpng license')
 
 The following checkouts do not have a license:
 
@@ -614,13 +610,13 @@ The following checkouts do not have a license:
 
 The following checkouts have some sort of GPL license:
 
-* checkout:busybox/*              LicenseGPL('GPL v2')
-* checkout:gnulibc/*              LicenseLGPL('LGPL', with_exception=True)
-* checkout:gpl2/*                 LicenseGPL('GPL v2')
-* checkout:gpl2plus/*             LicenseGPL('GPL v2 and above')
-* checkout:gpl3/*                 LicenseGPL('GPL v3')
-* checkout:lgpl/*                 LicenseLGPL('LGPL')
-* checkout:linux/*                LicenseGPL('GPL v2', with_exception=True)
+* checkout:busybox/*              LicenseGPL('GPL', version='v2.0 only')
+* checkout:gnulibc/*              LicenseGPL('GPL with GCC Runtime Library exception', version='v3.0', with_exception=True)
+* checkout:gpl2/*                 LicenseGPL('GPL', version='v2.0 only')
+* checkout:gpl2plus/*             LicenseGPL('GPL', version='v2.0 or later')
+* checkout:gpl3/*                 LicenseGPL('GPL', version='v3.0 only')
+* checkout:lgpl/*                 LicenseLGPL('Lesser GPL', version='v3.0 only')
+* checkout:linux/*                LicenseGPL('GPL', version='v2.0', with_exception=True)
 
 Exceptions to "implicit" GPL licensing are:
 
@@ -654,9 +650,6 @@ def main(args):
     elif args:
         print __doc__
         raise GiveUp('Unexpected arguments %s'%' '.join(args))
-
-    # Some basic assertions
-    test_equalities()
 
     #with TransientDirectory(root_dir):     # XXX
     with NewDirectory(root_dir) as root:

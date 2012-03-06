@@ -12,6 +12,7 @@ Contents:
 
    README
    muddle-dirs
+   repositories
    instructions
    distribute
    jottings

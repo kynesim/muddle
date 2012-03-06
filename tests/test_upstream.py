@@ -735,9 +735,19 @@ Would pull checkout:co_repo1/checked_out from file:///home/tibs/sw/m3/tests/tran
 Would pull checkout:co_repo1/checked_out from file:///home/tibs/sw/m3/tests/transient/repo/main/repo1.2 (wombat)
 Would pull checkout:co_repo1/checked_out from file:///home/tibs/sw/m3/tests/transient/repo/main/repo1.3 (rhubarb)
 """)
-#  m3 -n pull-upstream package:package1 builds -u rhubarb wombat
-#  m3 -n push-upstream package:package1 builds -u rhubarb wombat
 
+            err, text = captured_muddle(['-n', 'pull-upstream', 'package:package1', 'builds', '-u', 'rhubarb', 'wombat'])
+            assert err == 0
+            check_text(text, """\
+Asked to pull-upstream:
+  checkout:builds/checked_out
+  checkout:co_repo1/checked_out
+for: rhubarb, wombat
+Nowhere to pull checkout:builds/checked_out from
+Would pull checkout:co_repo1/checked_out from file:///home/tibs/sw/m3/tests/transient/repo/main/repo1.1 (rhubarb, wombat)
+Would pull checkout:co_repo1/checked_out from file:///home/tibs/sw/m3/tests/transient/repo/main/repo1.2 (wombat)
+Would pull checkout:co_repo1/checked_out from file:///home/tibs/sw/m3/tests/transient/repo/main/repo1.3 (rhubarb)
+""")
 
 if __name__ == '__main__':
     args = sys.argv[1:]

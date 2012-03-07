@@ -50,6 +50,9 @@ class VcsCheckoutBuilder(Action):
         self.name = name
         self.vcs = vcs
 
+    def _inner_labels(self):
+        return self.vcs._inner_labels()
+
     def _checkout_is_checked_out(self, builder, label):
         """
         Return True if this checkout has indeed been checked out
@@ -64,6 +67,9 @@ class VcsCheckoutBuilder(Action):
         return self.vcs.must_fetch_before_commit()
 
     def build_label(self, builder, label):
+
+        # XXX Shouldn't we be checking that 'label' matches 'vcs.label'???
+
         target_tag = label.tag
 
         if (target_tag == utils.LabelTag.CheckedOut):

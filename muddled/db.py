@@ -185,6 +185,26 @@ class Database(object):
 
         return (repo_file.get(), desc_file.get())
 
+    def _inner_labels(self):
+        """Return a list of all the labels we use.
+
+        This is so that mechanics.py can amend them all when we're being
+        included as a subdomain...
+
+        Note that we DO NOT CARE if identical labels (those that compare the
+        same with "is" are added to the list. But we DO want *all*
+        non-identical labels.
+        """
+        labels = []
+        labels.extend(self.checkout_locations.keys())
+        labels.extend(self.checkout_repositories.keys())
+        labels.extend(self.checkout_licenses.keys())
+        labels.extend(self.not_built_against.keys())
+        # Don't forget the labels in the not_built_against values
+        for not_against in self.not_built_against.values():
+            labels.extend(not_against)
+        return labels
+
     def include_domain(self, other_builder, other_domain_name):
         """
         Include data from other_builder, built in other_domain_name
@@ -192,8 +212,10 @@ class Database(object):
         This method is the main reason why this class gets to hold so much
         information - it gives us a single place to concentrate much of the
         knowledge about including subdomains.
-        """
 
+        Note we rely upon all the labels in the other domain already having
+        been altered to reflect their subdomain-ness
+        """
         other_db = other_builder.invocation.db
 
         self._merge_subdomain_labels(other_domain_name, other_db)
@@ -202,48 +224,19 @@ class Database(object):
     def _merge_subdomain_labels(self, other_domain_name, other_db):
         """Merge things from the subdomain that contain labels.
         """
-        keys = set()
-        keys.update(other_db.checkout_locations.keys())
-        keys.update(other_db.checkout_repositories.keys())
-        keys.update(other_db.checkout_licenses.keys())
-        keys.update(other_db.not_built_against.keys())
-        # Don't forget the labels in the not_built_against values
-        for not_against in other_db.not_built_against.values():
-            keys.update(not_against)
-
-        # We really only want to transform the labels once
-        new_labels = {}
-        for label in keys:
-            new_label = label.copy()
-            new_label._mark_unswept()
-            new_label._change_domain(other_domain_name)
-            new_labels[label] = new_label
-
         for co_label, co_dir in other_db.checkout_locations.items():
-            #print "Including %s -> %s -- %s"%(co_label,co_dir, other_domain_name)
-            new_label = new_labels[co_label]
             new_dir = os.path.join(utils.domain_subpath(other_domain_name), co_dir)
-            self.checkout_locations[new_label] = new_dir
+            self.checkout_locations[co_label] = new_dir
 
-        for co_label, repo in other_db.checkout_repositories.items():
-            new_label = new_labels[co_label]
-            self.checkout_repositories[new_label] = repo
+        self.checkout_repositories.update(other_db.checkout_repositories)
 
-        for co_label, repo in other_db.checkout_licenses.items():
-            new_label = new_labels[co_label]
-            self.checkout_licenses[new_label] = repo
+        self.checkout_licenses.update(other_db.checkout_licenses)
 
         for pkg_label, not_against in other_db.not_built_against.items():
-            new_set = set()
-            for lbl in not_against:
-                new_set.add(new_labels[lbl])
-
-            # And rememember to *update* the destination dictionary...
-            new_label = new_labels[pkg_label]
-            if new_label in self.not_built_against:
-                self.not_built_against[new_label].update(new_set)
+            if pkg_label in self.not_built_against:
+                self.not_built_against[pkg_label].update(not_against)
             else:
-                self.not_built_against[new_label] = new_set
+                self.not_built_against[pkg_label] = not_against
 
     def _merge_subdomain_upstreams(self, other_domain_name, other_db):
         """Merge things from the subdomain that contain upstream repositories.
@@ -365,34 +358,32 @@ class Database(object):
         Given a checkout label with random "other" fields, normalise it.
 
         Returns a normalised checkout label, with the role unset and the
-        tag set to '*'.
+        tag set to '*'. This may be the same label (if it was already
+        normalised), or it may be a new label. No guarantee is given of
+        either.
 
         Raise a MuddleBug exception if the label is not a checkout label.
 
-        Note that:
+        A normalised checkout label:
 
-        1. this *always* copies the label, and
-        2. any label stored by a method in this class is created by this
-           methor, and thus
-        3. when _merge_subdomain_labels is called, we know that all the
-           labels it manipulates are unique to this class, so can't have
-           had their domains (already) altered by code anywhere else.
-
-        The downside, of course, is that we always take a copy...
-
-        (so ideally, all stored labels would be held by us, and then we
-        could reliably be in charge of their domains, and then we'd only
-        need to return a new label if it wasn't exactly what we want).
+            1. Has tag '*'
+            2. Does not have a role (checkout labels do not use the role)
+            3. Does not have the system or transient flags set
+            4. Has the same name and (if present) domain
         """
         if label.type != utils.LabelType.Checkout:
             # The user probably needs an exception to spot why this is
             # happening
             raise MuddleBug('Cannot "normalise" a non-checkout label: %s'%label)
 
-        return depend.Label(label.type, label.name,
-                           role=None,
-                           tag='*',
-                           domain=label.domain)
+        # Can we just use the same label?
+        if label.tag == '*' and label.role is None and \
+                not label.system and not label.transient:
+            return label
+        else:
+            new = label.copy_with_tag('*')
+            new._role = None    # a bit naughty, but the simplest way
+            return new
 
     def set_checkout_path(self, checkout_label, dir):
         key = self.normalise_checkout_label(checkout_label)

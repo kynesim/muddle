@@ -1767,10 +1767,13 @@ def _new_sub_domain(root_path, muddle_binary, domain_name, domain_repo, domain_b
             if hasattr(rule.action, '_inner_labels'):
                 labels.extend(rule.action._inner_labels())
             if hasattr(rule.action, 'vcs'):
-                # This relies WAY too much on knowledge of the inside of a
-                # version control handler - TODO is to fix it!!!
-                labels.append(rule.action.vcs.checkout_label)
+                # We only have to do this next bit because the VCS handler
+                # things have their builder as an attribute, instead of
+                # being passed it at run time. TODO: FIX THIS XXX
                 vcs_handlers.append(rule.action.vcs)
+
+    # Don't forget the labels inside the "db"
+    labels.extend(domain_builder.invocation.db._inner_labels())
 
     # Then, mark them all as "unchanged" (because we can't guarantee we won't
     # have the same label more than once, and it's easier to do this than to

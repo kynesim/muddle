@@ -914,6 +914,9 @@ class SequentialAction(object):
         self.a.build_label(builder, label)
         self.b.build_label(builder, label)
 
+    def _inner_labels(self):
+        return [self.a, self.b]
+
 class Rule(object):
     """
     A rule or "dependency set".

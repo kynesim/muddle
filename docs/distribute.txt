@@ -123,7 +123,7 @@ discussed below.
 
 Source distribution
 ===================
-In a simple build tree, where there are no subdomains, a `.tgz`` file can be
+In a simple build tree, where there are no subdomains, a ``.tgz`` file can be
 produced with a command like::
 
   $ tar -zcvf archive.tgz build/src build/.muddle build/versions
@@ -139,15 +139,15 @@ may suffice.
 
 However:
 
-a. Neither of those copies over the ``.muddle`` directory, and if one asked
+a. Neither of those copies over the ``.muddle`` directory, and if one did ask
    to archive the ``.muddle`` directory, one would get all of it, not just
-   the parts needed (and one might also get tags set for packages indicating
+   the parts needed (so one would typically get tags set for packages indicating
    that they have been built, which will not be true of the archived build
    tree).
 b. If there are subdomains, the command would need to be rather more complex.
    And if you're doing something weird, like having a VCS directory (perhaps
    ``.git``) for the tree as stored in the local repositories, but also a
-   historitcal VCS directory (perhaps ``.bzr``) that came with the checkout
+   historical VCS directory (perhaps ``.bzr``) that came with the checkout
    when it was imported, then it all gets rather difficult.
 
 So instead the standard distribution "_source_release" is provided. The

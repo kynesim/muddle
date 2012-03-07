@@ -492,4 +492,78 @@ There's even an attempt to show how these relate to the build sequence:
 
 although I'm not entirely sure if that's helpful or not.
 
+
+Mechanics: how "promotion" of subdomain labels works
+====================================================
+.. warning:: This is a note on the techincal innards of muddle, written
+   in part for my own consumption. Please feel free to ignore it.
+
+..
+
+    The code being discussed here is centred around functions in
+    ``muddled/mechanics.py``.
+
+When muddle includes a subdomain (via the ``include_domain()`` function), it
+has to change all the labels in the subdomain (e.g., ``checkout:fred/*``) into
+valid, equivalent labels in the including domain (so,
+``checkout:(subdomain)fred/*``).
+
+The basic approach is that the function ``include_domain()`` calls
+``_new_sub_domain()`` to do nasty underhand things to the labels in the
+subdomains dependency tree, and then merges the subdomain dependency tree into
+the main tree.
+
+To allow this, every entity that might be hoarding labels (using them in
+sets or list or dictionaries or whatever) must have a way of returning *all*
+of those labels. For Actions, this method is called ``_inner_labels()``.
+
+So ``_new_sub_domain()`` retrieves labels from various Well Known Places within
+the subdomain's Builder and its Invocation, and from all of the actions, and
+from the dictionaries managed for that subdomain by ``db.py``, and puts them
+into a single grand list.
+
+We rely on the fact that we have *every* label - so for instance, we might
+have a list starting and ending like::
+
+  <obj id   99> "checkout:fred/*"
+  <obj id 1274> "checkout:marshmallow/checked_out"
+  <obj id  321> "package:wholemeal{x86}/built"
+  ...
+  <obj id   99> "checkout:fred/*"
+  ...
+  <obj id 5823> "checkout:fred/*"
+  ...
+
+In this list we note that: (a) we have more than one occurrence of object id
+``99`` (object ids are obviously made up for this purpose and do not represent
+real objects), and that we also have two different objects that represent
+``checkout:fred/*`` - these will compare as equal, of course.  We don't care
+if we have more than one occurrence of the identical object, but we *really
+do* care that we have at least one occurrence of every non-identical label
+object.
+
+The next bit is very simple and slightly horrible.
+
+We know all of these label objects are from the subdomain, and we want
+to make them correct for the main domain. So we:
+
+1. Go through the list and mark each label object "unswept". Doing this more
+   than once on the same label object is alright, we can't make them any more
+   unswept.
+2. Go through the list and for each label object, if it is still marked
+   "unswept":
+   
+   a. amend the ``domain`` field to add in the subdomain's name - so a label
+      called ``checkout:fred/*`` would become ``checkout:(subdomain)fred/*``,
+      and a label called ``checkout:(earlier)jim/*`` would become
+      ``checkout:(subdomain(earlier))jim/*``.
+   b. undo the "unswept" marker
+
+Once we've done that, we've promoted every single label to the new domain,
+in-situ.
+
+All that then remains is for ``include_domain()`` to merge all the rules,
+dictionaries and so on into the main domain. We can then discard the old
+Builder (and its Invocation), since they're no longer of any interest.
+
 .. vim: set filetype=rst tabstop=8 softtabstop=2 shiftwidth=2 expandtab:

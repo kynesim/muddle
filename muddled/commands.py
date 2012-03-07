@@ -4023,7 +4023,7 @@ class Distribute(Command):
     chosen with "distribute_checkout_files" in the build description. It also
     does not affect the "_by_license" distribution.
 
-    Note that "muddle -n distribute" can be used in the normal manenr to see
+    Note that "muddle -n distribute" can be used in the normal manner to see
     what the command would do. It shows the labels that would be distributed,
     and the actions that would be used to do so. This is especially useful for
     the "_source_release" and "_binary_release" commands. Output will typically

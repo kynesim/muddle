@@ -61,6 +61,10 @@ manner that something useful can be built.
   trees that actually work and produce someting
   useful.)
 
+.. warning:: The ``muddle distribute`` command is new, and the details
+   of its operation, and especially of the ``-no-muddle-makefile`` and
+   ``-copy-vcs`` switches, may change.
+
 What is a distribution?
 =======================
 A distribution is two things:
@@ -70,8 +74,8 @@ A distribution is two things:
 
 The ``muddle distribute`` command uses an instance of (2) to produce (1).
 
-Distributions are identified by a name, and which license categories they may
-take as "input".
+Distributions are identified by a name, and each is also tagged with which
+license categories it can distribute.
 
 The name is just a string. As normal, we reserve names starting with
 underscore (``_``) for muddle itself to define. These are termed "standard
@@ -87,15 +91,15 @@ Standard distributions include:
 * ``_all_open`` - ditto
 * ``_by_license`` - ditto
 
-License categories are the board classification of license type, and are
+License categories are the broad classification of license type, and are
 discussed below.
 
 .. topic:: How does it work?  *(you can safely ignore this bit)*
 
   More-or-less as you might expect, with labels and tags and actions.
 
-  Basically, for those checkouts or packages that are to be distributed, a rule
-  is added to "build" label ``checkout:<name>/distributed`` from
+  For those checkouts or packages that are to be distributed, a rule is added
+  to "build" label ``checkout:<name>/distributed`` from
   ``checkout:<name>/checked_out`` using the DistributeCheckout action, or
   ``package:<name>{<role>)/distributed`` from
   ``package:<name>{<role>}/postinstalled`` using the DistributePackage action.
@@ -139,8 +143,7 @@ may suffice.
 
 However:
 
-a. Neither of those copies over the ``.muddle`` directory, and if one did ask
-   to archive the ``.muddle`` directory, one would get all of it, not just
+a. Both of those copies over the entirety of the ``.muddle`` directory, not just
    the parts needed (so one would typically get tags set for packages indicating
    that they have been built, which will not be true of the archived build
    tree).
@@ -158,7 +161,7 @@ command::
   $ popd
   $ tar -zcvf release_1.0.tgz release_1.0
 
-which will copy the sources to a directory called ``release_1.0``.
+will copy the sources to a directory called ``release_1.0``.
 
 Specifically, it will copy:
 
@@ -226,7 +229,7 @@ performs a binary release. It copies:
 
   Note that this is *not* always enough to allow deployment, and sometimes
   other support files will need to be (epxlicitly) added via the build
-  description.
+  description. See `Adding extra files`_ below.
 
 As you might guess, if the ``-with-version`` switch is given, then it will
 also distribute the ``versions`` directory, if it exists.
@@ -239,7 +242,7 @@ Basic setting up of Licenses
 ============================
 Any piece of source code has a license, whether implicit or explicit.
 Muddle does not try to capture the whole essence of what a "license" means,
-but simply allows the associate of a checkout with a license name and some
+but simply allows the association of a checkout with a license name and some
 basic properties.
 
 The licenses module
@@ -258,7 +261,7 @@ or::
   import muddled.licenses as licenses
 
 The muddle documentation command can be used to get docstrings from the source
-code::
+code - for instance::
 
   muddle doc licenses
   muddle doc licenses.LicenseLGPL
@@ -284,13 +287,11 @@ For this purpose, licenses come in four broad categories:
 
      There are two considerations here, though:
 
-     a. Some GPL-licensed checkouts will have GPL licenses with exemptions
+     a. Some GPL-licensed checkouts will have licenses with exemptions
         that specifically allow certain sorts of linking, without causing
-        this GPL "propagation". The best know examples are probably the C
+        this GPL "propagation". The best known example is probably the C
         libraries, which one may explicitly link against, and whose header
-        files can be freely included, and LGPL licensed sources, against which
-        one may freely link *dynamically* (but not statically), and again,
-        whose header files can be included.
+        files can be freely included.
 
         To allow for this, when defining a GPL license, muddle allows the
         license to be marked with or without such exemption. There are several
@@ -298,21 +299,24 @@ For this purpose, licenses come in four broad categories:
         ``GPL-2.0-with-GCC-exception``.
 
      b. When muddle is told that package:B depends on package:A, there may be
-        several reasons for this, not all of which trigger GPL "propagation.
-        (Perhaps it depends on a file having been created by package:A, and
-        that file itself is not GPL).
+        several reasons for this, not all of which trigger GPL "propagation".
+
+        It may be that package:B depends on a file having been created by
+        package:A, and that file itself is not GPL. Or the checkout for
+        package:A may be LGPL, and package:B is linking against package:A
+        dynamically (which is allowed), and not statically.
 
         A function is thus provided to allow a build description to say that
         this is in fact the case.
 
-      In either case, not that muddle is not trying to describe the fine
+      In either case, note that muddle is not trying to describe the fine
       details of how GPL licenses work, and nor is the above meant to be an
       authoratitive explanation. It is still up to the individual writing the
       build description to use the facilities available to do what is required
       by law.
 
 * **open**. This category includes all open-source licenses which are not
-  GPL-like - i.e,, they do not *require* source code distribution, nor do they
+  GPL-like - i.e., they do not *require* source code distribution, nor do they
   propagate.
 
 * **binary**. This category is used for checkouts (and thus packages using them)
@@ -384,6 +388,7 @@ For instance::
   UKOGL                            LicenseOpen('UK Open Government License')
   Zlib                             LicenseOpen('zlib/libpng license')
 
+  Private                          LicensePrivate('Private')
   code-nightmare-green             LicensePrivate('Code Nightmare Green')
 
 The list of standard licenses has been inspired by some of the content at the
@@ -391,7 +396,7 @@ Open Source Initiative, specifically by the lists at
 http://opensource.org/licenses/alphabetical and
 http://opensource.org/licenses/category.
  
-The key for each license is its the SPDX short-form identifier, as described
+The key for each license is its SPDX short-form identifier, as described
 at http://www.spdx.org/licenses/.
 
 Licensing a checkout
@@ -459,7 +464,7 @@ All ``License`` subclass instances have the following values and methods:
 * ``version`` is None or a string containing the license version.
 
   All licenses can be given a version, using the ``version=<string>``
-  argument to the initialised.
+  argument when creating the instance.
 
   If no version is specified for a license, then it has no specific version,
   and the version will not be shown when it is printed.
@@ -478,6 +483,9 @@ All ``License`` subclass instances have the following values and methods:
   checkouts. This will be True for licenses in category **gpl** which have
   ``with_exception`` set to False.
 
+* ``copy_with_version(version)`` returns a copy of the license object, but
+  with its version set to the given string.
+
 So, for instance::
 
   top_secret = LicensePrivate('Top Secret', version='3.14')
@@ -495,6 +503,23 @@ whilst ``repr`` will give back how it was created::
 
   >>> repr(top_secret)
   "LicensePrivate('Top Secret', version='3.14')"
+
+The standard licenses are stored in a dictionary::
+
+  licenses.standard_licenses
+
+Please do *not* alter the contents of this dictionary.
+
+Obviously the standard licenses do not include all versions of even the common
+licenses, and sometimes a checkout is licensed with an older license. A
+variant version of an existing standard license can be produced using the
+``copy_with_version`` method - for instance::
+
+  >>> from muddled.licenses import standard_licenses
+  >>> mpl11 = standard_licenses['MPL-1.1']
+  >>> mpl10 = mpl11.copy_with_version('1.0')
+  >>> print mpl10
+  Mozilla Public License 1.0
 
 The other standard distributions
 ================================
@@ -523,7 +548,7 @@ is meant to help with creating a GPL-compliant source code release.
 
 It distributes
 
-* all checkouts that have a GPL license (i.e., one in category GPL)
+* all checkouts that have a GPL license (i.e., in category GPL)
 * all checkouts to which a GPL license has "propagated" (and which have not
   explicitly said they are not affected - see `Avoiding unnecessary GPL
   "propagation"`_ below)
@@ -623,7 +648,7 @@ checkout, in a particular distribution::
 
   distribute_checkout_files(builder, name, label, source_files)
 
-In this, we have:
+In this:
 
 * ``name`` is the name of a distribution, or a wildcard string matching one or
   more distributions (see `Distribution names and wildcards`_ below).
@@ -745,13 +770,13 @@ particular ``install/<role>`` directory - just because a package is in role
 ``<role>`` does not necessarily mean that it does so.
 
 So when a particular package is distributed as binary, and causes its
-``install/<role>`` directory to be distributed, it may "drag along" other
-content, from other packages in the same role, that is not wanted.
+``install/<role>`` directory to be distributed, it may "drag along" unwanted
+other content, from other packages in the same role.
 
-In order to avoid this, a build description may need the roles it uses to be
-fine-tuned to match the licensing of its checkouts.
+This can only really be avoided by writing a build description which does not
+use the same role for incompatible (licensing) purposes.
 
-Moreover, when first creating a new distribution, make sure to look hard at
+When first creating a new distribution, it is always worth looking hard at
 the content of any ``install`` directories that are being distributed, to
 check for unexpected files.
 
@@ -763,9 +788,9 @@ The commands::
 may be useful in working out what is going on.
 
 .. note:: It is arguable that a role that contains binaries from **binary** and
-   **open** or **gpl** checkouts should be regarded as a clash in the same way
-   that **binary** and "secret" is. This may be implemented in a future version
-   of muddle.
+   **open** or **binary** and **gpl** checkouts should be regarded as a clash
+   in the same way that **binary** and **private** is. This may be implemented
+   in a future version of muddle.
 
 Creating your own distributions
 ===============================
@@ -805,8 +830,8 @@ underscore, as such names are reserved for the standard distributions (which
 muddle has already defined, before reading the build description).
 
 If ``categories`` is given, then it is a sequence of license categories (so,
-taken from **gpl**, **open**, **binary** and "static"). Only checkouts with those
-categories will be allowed to be distributed with this new distribution.
+taken from **gpl**, **open**, **binary** and **private**). Only checkouts with
+those categories will be allowed to be distributed with this new distribution.
 
 .. warning:: When naming the license categories that a distribution uses,
    **gpl** and **open** are distinct and separate - there is no assumption
@@ -854,7 +879,7 @@ Distribute a checkout
 
 This is used to say that a particular checkout (identified by ``label``) is to
 be part of the distribution called ``name``. If ``name`` is wildcarded (see
-`Distribution names and wildcards`_, then the checkout will be added to each
+`Distribution names and wildcards`_), then the checkout will be added to each
 distribution that matches the wildcard.
 
 If ``copy_vcs`` is true, then the checkouts VCS "special" files should be
@@ -893,15 +918,16 @@ as part of distribution ``name``.
 If ``name`` is wildcarded (see `Distribution names and wildcards`_, then the
 files will be added to each distribution that matches the wildcard.
 
-Note that the label name may *not* be wildcarded, but the label tag is
+Note that the label name may *not* be wildcarded, but the label tag is still
 ignored.
 
 This is the function that is used internally to add muddle Makefiles for
 packages. It can also be used directly to specify that other files must also
 be distributed.
 
-Multiple calls with the same ``builder, ``name`` and ``label`` will just add
-the specified files to the same distribution.
+Multiple calls with the same ``builder``, ``name`` and ``label``, but
+different ``source_files``,  will just add the new files to the same
+distribution.
 
 Calling ``distribute_checkout_files`` after calling ``distribute_checkout``
 for the same distribution and checkout has no effect - the latter call has
@@ -916,17 +942,18 @@ Build description checkouts
 Build description checkouts are treated specially.
 
 The ``muddle distribute`` command adds the necessary rules itself, by calling
-``distribute_build_description``, saying that each
+``distribute_build_description``, and saying that each
 ``checkout:<build-desc>/distributed`` is built from
 ``checkout:<build-desc>/checked_out`` using the DistributeBuildDescription
 action (which is actually very similar to the DistributeCheckout action, of
 course).
 
-There's never any reason to call ``distribute_build_description`` directly,
+There is never any reason to call ``distribute_build_description`` directly,
 as ``muddle distribute`` will always override it.
 
-If you do call ``distribute_checkout()`` on a build description checkout, the
-rule you add will be replaced by ``muddle distribute``.
+Similarly, there is never a reason to call ``distribute_checkout()`` on a
+build description checkout, as ``muddle distribute`` will replace the always
+override it, too.
 
 Distribute a package
 --------------------
@@ -954,21 +981,18 @@ If ``install`` is true, then the ``install/<role>`` directory for
 ``label`` will be distributed.
 
 If ``with_muddle_makefile`` is true, then the muddle Makefile for this
-package will also be distributed.
- 
-For instance, if ``package:zlib{x86}/*`` is built from
-``checkout:zlib-3.0/checked_out``, using muddle Makefile ``Makefile.muddle``
-in ``src/libs/zlib-3.0``, then the user will receive a directory called
-``src/libs/zlib-3.0`` that just contains ``Makefile.muddle``.
-
+package will also be distributed. For instance, if ``package:zlib{x86}/*`` is
+built from ``checkout:zlib-3.0/checked_out``, using muddle Makefile
+``Makefile.muddle`` in ``src/libs/zlib-3.0``, then the user will receive a
+directory called ``src/libs/zlib-3.0`` that just contains ``Makefile.muddle``.
 Note that this is *not* always enough to allow deployment, and sometimes other
 support files will need to be (epxlicitly) added via the build description.
 
 If both ``obj`` and ``install`` are false, nothing much is going to be done
 for this package. The current implementation doesn't grumble about that.
 
-The function creates a rule saying that`
-`package:<name>{<role>)/distributed`` is built from
+The function creates a rule saying that
+``package:<name>{<role>)/distributed`` is built from
 ``package:<name>{<role>}/postinstalled`` using the DistributePackage action.
 
 Adding a package to the same distribution more than once has no special

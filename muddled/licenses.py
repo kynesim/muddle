@@ -11,7 +11,7 @@ from muddled.utils import GiveUp, LabelType, wrap
 
 DEBUG=False
 
-ALL_LICENSE_CATEGORIES = ('gpl', 'open', 'binary', 'private')
+ALL_LICENSE_CATEGORIES = ('gpl', 'open', 'prop-source', 'binary', 'private')
 
 class License(object):
     """The representation of a source license.
@@ -39,6 +39,10 @@ class License(object):
               distribute source code to other "adjacent" entities
             * 'open' - an open source license, anything that is not 'gpl'.
               Source code may, but need not be, distributed.
+            * 'prop-source' - a proprietary source license, not an open source
+              license. This might, for instance, be used for /etc files, which
+              are distributed as "source code" (i.e., text), but are not
+              in fact licensed under an open source license.
             * 'binary' - a binary license, indicating that the source code is
               not to be distributed, but binary (the contents of the "install"
               directory) may be.
@@ -86,9 +90,9 @@ class License(object):
     def distribute_source(self):
         """Returns True if we should (must?) distribute source code.
 
-        XXX Should this only be True for 'gpl'???
+        Currently, equivalent to having a category of open, gpl or source.
         """
-        return self.category in ('open', 'gpl')
+        return self.category in ('open', 'gpl', 'prop-source')
 
     def is_open(self):
         """Returns True if this is some sort of open-source license.
@@ -101,6 +105,15 @@ class License(object):
         """Returns True if this license is 'open' but not 'gpl'.
         """
         return self.category == 'open'
+
+    def is_proprietary_source(self):
+        """Returns True if this is some sort of propetary source license.
+
+        (i.e., has category 'prop-source')
+
+        Note: this does *not* include 'open' or 'gpl'.
+        """
+        return self.category == 'prop-source'
 
     def is_gpl(self):
         """Returns True if this is some sort of GPL license.
@@ -169,6 +182,24 @@ class LicenseBinary(License):
 
     def __init__(self, name, version=None):
         super(LicenseBinary, self).__init__(name=name, category='binary', version=version)
+
+    def __repr__(self):
+        if self.version:
+            return '%s(%r, version=%r)'%(self.__class__.__name__, self.name, self.version)
+        else:
+            return '%s(%r)'%(self.__class__.__name__, self.name)
+
+class LicenseProprietarySource(License):
+    """A source license, but not open source.
+
+    This is separate from the "open" licenses mainly because it is not, in
+    fact, representing an open license, so even if it were to be treated
+    identically in all matters, it would still be wrong.
+    """
+
+    def __init__(self, name, version=None):
+        super(LicenseProprietarySource, self).__init__(name=name,
+                            category='prop-source', version=version)
 
     def __repr__(self):
         if self.version:
@@ -294,6 +325,7 @@ standard_licenses = {
 
         'GPL-2.0-linux':   LicenseGPL('GPL', version='v2.0', with_exception=True),
 
+        'GPL':             LicenseGPL('GPL', version='any version'),
         'GPL-2.0':         LicenseGPL('GPL', version='v2.0 only'),
         'GPL-2.0+':        LicenseGPL('GPL', version='v2.0 or later'),
 
@@ -322,6 +354,7 @@ standard_licenses = {
         'GPL-3.0-with-GCC-exception':       LicenseGPL('GPL with GCC Runtime Library exception',
                                                        version='v3.0', with_exception=True),
 
+        'LGPL':            LicenseLGPL('Lesser GPL', version='any version'),
         'LGPL-2.0':        LicenseLGPL('Lesser GPL', version='v2.0 only'),
         'LGPL-2.0+':       LicenseLGPL('Lesser GPL', version='v2.0 or later'),
 
@@ -367,11 +400,18 @@ def print_standard_licenses():
                 print '%-*s %r'%(maxlen, key, license)
     print
 
-def set_license(builder, co_label, license):
+def set_license(builder, co_label, license, license_file=None):
     """Set the license for a checkout.
 
     'license' must either be a License instance, or the mnemonic for one
     of the standard licenses.
+
+    Some licenses (for instance, 'BSD-3-clause') require inclusion of their
+    license file in binary distributions. 'license_file' allows the relevant
+    file to be named (relative to the root of the checkout directory), and
+    implies that said file should be included in all distributions.
+
+        XXX NB: license_file does not yet have an effect... XXX
     """
     if isinstance(license, License):
         builder.invocation.db.set_checkout_license(co_label, license)

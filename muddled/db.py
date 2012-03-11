@@ -70,7 +70,7 @@ class Database(object):
         checkout:builds/*               -> Repository('git', 'http://.../main', 'builds')
         checkout:(subdomain1)first_co/* -> Repository('git', 'http://.../subdomain1', 'first_co')
 
-    * checkout_licenses - This maps a checkout label to a License instances,
+    * checkout_licenses - This maps a checkout label to a License instance,
       representing the source code license under which this checkout's source
       code is being used. For instance::
 
@@ -83,7 +83,12 @@ class Database(object):
       Note that not all checkouts will necessarily have licenses associated
       with them.
 
-    * self.not_built_against is a dictionary of the form:
+    * checkout_license_files - Some licenses require distribution of a license
+      file from within the checkout, even in binary distributions. In such
+      cases, this dictionary maps the checkout label to the name of the license
+      file, relative to the checkout directory.
+
+    * not_built_against is a dictionary of the form:
 
         { package_label : set( gpl_checkout_labels ) }
 
@@ -101,7 +106,11 @@ class Database(object):
       This sort of thing is necessary because muddle itself has no way of
       telling.
 
-    * self.upstream_repositories is a dictionary of the form:
+    * nothing_builds_against is a set of checkout labels, each of which is
+      a checkout that (presumably) has a GPL license, but against which no
+      package links in a way that will cause GPL license "propagation".
+
+    * upstream_repositories is a dictionary of the form:
 
         { repo : { repo, set(names) } }
 
@@ -134,7 +143,9 @@ class Database(object):
         self.checkout_locations = {}
         self.checkout_repositories = {}
         self.checkout_licenses = {}
+        self.checkout_license_files = {}
         self.not_built_against = {}
+        self.nothing_builds_against = set()
 
         # A set of "asserted" labels
         self.local_tags = set()
@@ -199,7 +210,9 @@ class Database(object):
         labels.extend(self.checkout_locations.keys())
         labels.extend(self.checkout_repositories.keys())
         labels.extend(self.checkout_licenses.keys())
+        labels.extend(self.checkout_license_files.keys())
         labels.extend(self.not_built_against.keys())
+        labels.extend(self.nothing_builds_against)
         # Don't forget the labels in the not_built_against values
         for not_against in self.not_built_against.values():
             labels.extend(not_against)
@@ -231,12 +244,15 @@ class Database(object):
         self.checkout_repositories.update(other_db.checkout_repositories)
 
         self.checkout_licenses.update(other_db.checkout_licenses)
+        self.checkout_license_files.update(other_db.checkout_license_files)
 
         for pkg_label, not_against in other_db.not_built_against.items():
             if pkg_label in self.not_built_against:
                 self.not_built_against[pkg_label].update(not_against)
             else:
                 self.not_built_against[pkg_label] = not_against
+
+        self.nothing_builds_against.update(other_db.nothing_builds_against)
 
     def _merge_subdomain_upstreams(self, other_domain_name, other_db):
         """Merge things from the subdomain that contain upstream repositories.
@@ -488,9 +504,9 @@ class Database(object):
         except KeyError:
             raise utils.GiveUp('There is no repository registered for label %s'%checkout_label)
 
-    def set_checkout_license(self, checkout_label, lic):
+    def set_checkout_license(self, checkout_label, license):
         key = self.normalise_checkout_label(checkout_label)
-        self.checkout_licenses[key] = lic
+        self.checkout_licenses[key] = license
 
     def dump_checkout_licenses(self, just_name=False):
         """
@@ -538,6 +554,29 @@ class Database(object):
         """
         key = self.normalise_checkout_label(checkout_label)
         return key in self.checkout_licenses
+
+    def set_checkout_license_file(self, checkout_label, license_file):
+        """Set the license file for this checkout.
+        """
+        key = self.normalise_checkout_label(checkout_label)
+        self.checkout_license_files[key] = license_file
+
+    def get_checkout_license_file(self, checkout_label, absent_is_None=False):
+        """
+        Returns the License file for this checkout label
+
+        If 'absent_is_None' is true, then if 'checkout_label' does not have
+        an entry in the license files dictionary, None will be returned.
+        Otherwise, an appropriate GiveUp exception will be raised.
+        """
+        key = self.normalise_checkout_label(checkout_label)
+        try:
+            return self.checkout_license_files[key]
+        except KeyError:
+            if absent_is_None:
+                return None
+            else:
+                raise utils.GiveUp('There is no license file registered for label %s'%checkout_label)
 
     def set_not_built_against(self, pkg_label, co_label):
         """Asserts that this package is not "built against" that checkout.
@@ -603,6 +642,20 @@ class Database(object):
             return self.not_built_against[key]
         except KeyError:
             return set()
+
+    def set_nothing_builds_against(self, co_label):
+        """Indicate that no-one links against this checkout.
+
+        ...or, at least, not in a way to cause GPL license "propagation".
+        """
+        label = self.normalise_checkout_label(co_label)
+        self.nothing_builds_against.add(label)
+
+    def get_nothing_builds_against(self, co_label):
+        """Return True if this label is in the "not linked against" set.
+        """
+        label = self.normalise_checkout_label(co_label)
+        return label in self.nothing_builds_against
 
     def add_upstream_repo(self, orig_repo, upstream_repo, names=None):
         """Add an upstream repo to 'orig_repo'.

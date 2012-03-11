@@ -106,6 +106,10 @@ def describe_to(builder):
     add_package(builder, 'linux', 'x86', 'GPL-2.0-linux')
     add_package(builder, 'busybox', 'x86', 'GPL-2.0')
 
+    set_nothing_builds_against(builder, 'busybox')
+
+    add_package(builder, 'scripts', 'x86', 'Proprietary')
+
     add_package(builder, 'binary1', 'x86', LicenseBinary('Customer'))
     add_package(builder, 'binary2', 'x86', LicenseBinary('Customer'))
     add_package(builder, 'binary3', 'x86', LicenseBinary('Customer'))
@@ -206,6 +210,10 @@ def describe_to(builder):
     add_package(builder, 'linux', 'x86', 'GPL-2.0-linux')
     add_package(builder, 'busybox', 'x86', 'GPL-2.0')
 
+    set_nothing_builds_against(builder, 'busybox')
+
+    add_package(builder, 'scripts', 'x86', 'Proprietary')
+
     add_package(builder, 'binary1', role, LicenseBinary('Customer'), deps=['zlib'])
     add_package(builder, 'binary2', role, LicenseBinary('Customer'))
     add_package(builder, 'binary3', role, LicenseBinary('Customer'))
@@ -251,13 +259,13 @@ def describe_to(builder):
     # We rely on being at the end of the build description, so that all
     # of our checkout labels have been defined for us
 
-    # This is an odd one - anything that is in 'open' (but not 'gpl'),
+    # This is an odd one - anything that is in 'open-source' (but not 'gpl'),
     # and we shall distribute both the checkout source and the package binary
     # NOTE that this means we will distribute everything in install/x86, because
     # we have no way of knowing (at distribute time) what came from where. If we
     # did care, we'd need to put things into different roles according to their
     # license (as we do for x86-private)
-    name_distribution(builder, 'just_open_src_and_bin', ['open']) # so, no 'gpl'
+    name_distribution(builder, 'just_open_src_and_bin', ['open-source']) # so, no 'gpl'
     for co_label in get_open_not_gpl_checkouts(builder):
         distribute_checkout(builder, 'just_open_src_and_bin', co_label)
         # Get the package(s) directly using this checkout
@@ -462,6 +470,14 @@ def make_repos(root_dir):
             new_repo('gnulibc')
             new_repo('linux')
             new_repo('busybox')
+
+            with NewDirectory('scripts') as d:
+                git('init')
+                touch('script.py', "#! /usr/bin/env python\nprint 'Hello'\n")
+                touch('Makefile.muddle', "# Nothing to do\nall:\n\nconfig:\n\n"
+                                         "install:\n\nclean:\n\ndistclean:\n\n")
+                git('add script.py Makefile.muddle')
+                git('commit -a -m "Commit scripts checkout"')
 
             new_repo('binary1')
             new_repo('binary2')
@@ -704,7 +720,7 @@ def main(args):
             dt.assert_same(target_dir, onedown=True,
                            unwanted_files=['.git*',
                                            'src/builds*/*.pyc',
-                                           # Some 'open' things, by propagation, but not:
+                                           # Some 'open-source' things, by propagation, but not:
                                            'src/apache',
                                            'src/bsd',
                                            'src/mpl',
@@ -821,14 +837,14 @@ def main(args):
             banner('TESTING DISTRIBUTE FOR JUST OPEN')
             # As it says in the build description, this is an odd one, and
             # not a "proper" useful distribution. We've selected all
-            # checkouts that are 'open' (not including 'gpl'), and also
+            # checkouts that are 'open-source' (not including 'gpl'), and also
             # asked for a binary distribution (the "install/" directory)
             # for their packages. However, since the distribution code can't
             # know who put what into "install/x86/", we also end up distributing
-            # stuff that is *not* from 'open' checkouts. This is not a bug, it
-            # is a limitation of the mechanism, and the correct work around
-            # would be to split the build up into more roles of the correct
-            # granularity.
+            # stuff that is *not* from 'open-source' checkouts. This is not a
+            # bug, it is a limitation of the mechanism, and the correct work
+            # around would be to split the build up into more roles of the
+            # correct granularity.
             # So why this test? Mainly to show the "problem" and verify that
             # it is indeed working as expected...
             target_dir = os.path.join(root_dir, 'just_open_src_and_bin')

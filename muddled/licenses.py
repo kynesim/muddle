@@ -11,7 +11,7 @@ from muddled.utils import GiveUp, LabelType, wrap
 
 DEBUG=False
 
-ALL_LICENSE_CATEGORIES = ('gpl', 'open', 'prop-source', 'binary', 'private')
+ALL_LICENSE_CATEGORIES = ('gpl', 'open-source', 'prop-source', 'binary', 'private')
 
 class License(object):
     """The representation of a source license.
@@ -37,7 +37,7 @@ class License(object):
 
             * 'gpl' - some sort of GPL license, which propagate the need to
               distribute source code to other "adjacent" entities
-            * 'open' - an open source license, anything that is not 'gpl'.
+            * 'open-source' - an open source license, anything that is not 'gpl'.
               Source code may, but need not be, distributed.
             * 'prop-source' - a proprietary source license, not an open source
               license. This might, for instance, be used for /etc files, which
@@ -87,31 +87,32 @@ class License(object):
         new.version = version
         return new
 
-    def distribute_source(self):
-        """Returns True if we should (must?) distribute source code.
+    def distribute_as_source(self):
+        """Returns True if we this license is for source distribution.
 
-        Currently, equivalent to having a category of open, gpl or source.
+        Currently, equivalent to having a category of open-source, gpl or
+        prop-source.
         """
-        return self.category in ('open', 'gpl', 'prop-source')
+        return self.category in ('open-source', 'gpl', 'prop-source')
 
     def is_open(self):
         """Returns True if this is some sort of open-source license.
 
         Note: this includes GPL and LGPL licenses.
         """
-        return self.category in ('open', 'gpl')
+        return self.category in ('open-source', 'gpl')
 
     def is_open_not_gpl(self):
-        """Returns True if this license is 'open' but not 'gpl'.
+        """Returns True if this license is 'open-source' but not 'gpl'.
         """
-        return self.category == 'open'
+        return self.category == 'open-source'
 
     def is_proprietary_source(self):
         """Returns True if this is some sort of propetary source license.
 
         (i.e., has category 'prop-source')
 
-        Note: this does *not* include 'open' or 'gpl'.
+        Note: this does *not* include 'open-source' or 'gpl'.
         """
         return self.category == 'prop-source'
 
@@ -195,6 +196,9 @@ class LicenseProprietarySource(License):
     This is separate from the "open" licenses mainly because it is not, in
     fact, representing an open license, so even if it were to be treated
     identically in all matters, it would still be wrong.
+
+    The class name is rather long, but it is hard to think of a shorter name
+    that explains what it is for.
     """
 
     def __init__(self, name, version=None):
@@ -209,10 +213,12 @@ class LicenseProprietarySource(License):
 
 class LicenseOpen(License):
     """Some non-GPL open source license.
+
+    This should probably be named "LicenseOpenSource", but that is rather long.
     """
 
     def __init__(self, name, version=None):
-        super(LicenseOpen, self).__init__(name=name, category='open', version=version)
+        super(LicenseOpen, self).__init__(name=name, category='open-source', version=version)
 
     def __repr__(self):
         if self.version:
@@ -364,6 +370,8 @@ standard_licenses = {
         'LGPL-3.0':        LicenseLGPL('Lesser GPL', version='v3.0 only'),
         'LGPL-3.0+':       LicenseLGPL('Lesser GPL', version='v3.0 or later'),
 
+        'Proprietary':          LicenseProprietarySource('Proprietary Source'),
+
         'Private':              LicensePrivate('Private'),
         'code-nightmare-green': LicensePrivate('Code Nightmare Green'),
         }
@@ -383,6 +391,8 @@ def print_standard_licenses():
         if license.is_gpl():
             gpl_keys.append((key, license))
         elif license.is_open():
+            open_keys.append((key, license))
+        elif license.is_proprietary_source():
             open_keys.append((key, license))
         elif license.is_binary():
             binary_keys.append((key, license))
@@ -414,10 +424,13 @@ def set_license(builder, co_label, license, license_file=None):
         XXX NB: license_file does not yet have an effect... XXX
     """
     if isinstance(license, License):
-        builder.invocation.db.set_checkout_license(co_label, license)
+        builder.invocation.db.set_checkout_license(co_label, license, license_file)
     else:
         builder.invocation.db.set_checkout_license(co_label,
                                                    standard_licenses[license])
+
+    if license_file:
+        builder.invocation.db.set_checkout_license_file(co_label, license_file)
 
 def set_license_for_names(builder, co_names, license):
     """A convenience function to set one license for several checkout names.
@@ -446,14 +459,29 @@ def get_license(builder, co_label, absent_is_None=True):
     """
     return builder.invocation.db.get_checkout_license(co_label, absent_is_None)
 
+def set_nothing_builds_against(builder, co_label):
+    """Asserts that no packages "build against" this checkout.
+
+    We assume that ``co_label`` is a checkout with a "propagating" license
+    (i.e., some form of GPL license).
+
+    This function tells the distribution/licensing system that there are no
+    packages that build against (link against) this checkout, in a way which
+    would cause GPL license "propagation".
+
+    An example might be busybox, which is GPL-2 licensed, but which builds a
+    set of independent programs.
+    """
+    builder.invocation.db.set_nothing_builds_against(co_label)
+
 def set_not_built_against(builder, pkg_label, co_label):
     """Asserts that this package is not "built against" that checkout.
 
     We assume that:
 
     1. 'pkg_label' is a package that depends (perhaps indirectly) on 'co_label'
-    2. 'co_label' is a checkout with a "propagating" license (i.e., some for of
-       GPL license).
+    2. 'co_label' is a checkout with a "propagating" license (i.e., some form
+       of GPL license).
     3. Thus by default the "GPL"ness would propagate from 'co_label' to this
        package, and thus to the checkouts we are (directly) built from.
 
@@ -540,7 +568,7 @@ def get_open_not_gpl_checkouts(builder):
     gpl_licensed = set()
     for co_label in all_checkouts:
         license = get_checkout_license(co_label, absent_is_None=True)
-        if license and license.category == 'open':
+        if license and license.category == 'open-source':
             gpl_licensed.add(co_label)
     return gpl_licensed
 
@@ -651,6 +679,18 @@ def get_implicit_gpl_checkouts(builder):
                 if DEBUG: print 'IGNORE'
                 continue
     return result, because
+
+def get_prop_source_checkouts(builder):
+    """Return a set of all the "proprietary source" licensed checkouts.
+    """
+    all_checkouts = builder.invocation.all_checkout_labels()
+    get_checkout_license = builder.invocation.db.get_checkout_license
+    prop_licensed = set()
+    for co_label in all_checkouts:
+        license = get_checkout_license(co_label, absent_is_None=True)
+        if license and license.is_proprietary_source():
+            prop_licensed.add(co_label)
+    return prop_licensed
 
 def get_binary_checkouts(builder):
     """Return a set of all the "binary" licensed checkouts.

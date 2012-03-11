@@ -45,9 +45,9 @@ reasons).
 The desired intent is that, whatever means (1 through 3) is used, the result
 should be a functioning muddle build tree. Clearly this might not always be
 possible for some of the more extreme values of case 3 (if too much of the
-build tree is not distributed because it is **private**), but even in such cases
-it should ideally be possible to write the build description(s) in such a
-manner that something useful can be built.
+build tree is not distributed because it is **private**), but even in such
+cases it should ideally be possible to write the build description(s) in such
+a manner that something useful can be built.
 
   (For instance, GPL v2 says "For an executable work, complete source code
   means all the source code for all modules it contains, plus any associated
@@ -315,9 +315,13 @@ For this purpose, licenses come in four broad categories:
       build description to use the facilities available to do what is required
       by law.
 
-* **open**. This category includes all open-source licenses which are not
-  GPL-like - i.e., they do not *require* source code distribution, nor do they
-  propagate.
+* **open-source**. This category includes all open-source licenses which are
+  not GPL-like - i.e., they do not *require* source code distribution, nor do
+  they propagate.
+
+* **prop-source**. Proprietary source. This is source code that is
+  proprietary, but still distributed as source. Examples might include
+  ``/etc`` files, configuration files, and Python scripts.
 
 * **binary**. This category is used for checkouts (and thus packages using them)
   that are only to be distributed as binary.
@@ -331,7 +335,7 @@ For this purpose, licenses come in four broad categories:
 
 There is also a "meta" type, **not licensed**. Any checkout that has not had
 its license specified is regarded as not licensed. In many cases, such
-checkouts will be treated as if they had **open** licenses.
+checkouts will be treated as if they had **open-source** licenses.
 
 Standard licenses
 -----------------
@@ -388,6 +392,8 @@ For instance::
   UKOGL                            LicenseOpen('UK Open Government License')
   Zlib                             LicenseOpen('zlib/libpng license')
 
+  Proprietary                      LicenseProprietarySource('Proprietary Source')
+
   Private                          LicensePrivate('Private')
   code-nightmare-green             LicensePrivate('Code Nightmare Green')
 
@@ -429,6 +435,17 @@ So, for instance::
                         LicenseOpen('Creative Commons Attribution 2.0'
                                     ' UK: England & Wales License.')
 
+Some licenses, notably the BSD licenses, require that a file containing the
+license be distributed, even in binary distributions. In this case, the
+checkout license is set with::
+
+  set_license(builder, co_label, license, license_file)
+
+where ``license_file`` is the name of the file (its path relative to the
+checkout directory). For instance::
+
+  set_license(builder, 'strace-4.5.20, 'BSD-3-Clause', license_file='COPYRIGHT')
+
 Creating a new license
 ----------------------
 There are license classes corresponding to each of the license categories.
@@ -453,13 +470,14 @@ to be used directly.
   (which would cause "propagation"), or not at all (which would also be OK).
 
 * ``LicenseOpen(name)``
+* ``LicenseProprietarySource(name)``
 * ``LicenseBinary(name)``
 * ``LicensePrivate(name)``
 
 All ``License`` subclass instances have the following values and methods:
 
 * ``category`` is a string containing the category, one of **gpl**,
-  **open**, **binary** or **private**.
+  **open-source**, **binary** or **private**.
 
 * ``version`` is None or a string containing the license version.
 
@@ -474,14 +492,18 @@ All ``License`` subclass instances have the following values and methods:
 * ``is_gpl()`` returns True if this is license has category **gpl**.
 * ``is_lgpl()`` returns True if this license has category **gpl** and is LGPL.
   This is true for the ``LicenseLGPL`` class.
-* ``is_open()`` returns True if this license has category **open** or **gpl**.
-* ``is_open_not_gpl()`` returns True if this license has category **open** (but
+* ``is_open()`` returns True if this license has category **open-source** or **gpl**.
+* ``is_open_not_gpl()`` returns True if this license has category **open-source** (but
   not if it has category **gpl**)
+* ``is_proprietary_source()`` returns True if this license has category
+  **prop-source**.
 * ``is_binary()`` returns True if this license has category **binary**
 * ``is_private()`` returns True if this license has category **private**
 * ``propagates()`` returns True if the license "propagates" to other
   checkouts. This will be True for licenses in category **gpl** which have
   ``with_exception`` set to False.
+* ``distribute_as_source()`` returns True for licenses that relate to source
+  code distribution - so **gpl**, **open-source** and **prop-source**.
 
 * ``copy_with_version(version)`` returns a copy of the license object, but
   with its version set to the given string.
@@ -565,7 +587,7 @@ The command::
 
 is meant to help with creating a release of all the open-source checkouts in a
 build tree. As such, it distributes everything that "_for_gpl" does, plus any
-checkouts that have licenses in the **open** category.
+checkouts that have licenses in the **open-source** category.
 
 Since it includes the "_for_gpl" distribution, it will also fail if GPL
 "propagation" affects checkouts that have declared **binary** or **private**
@@ -580,7 +602,7 @@ The command::
 attempts to distribute as much of the build tree as it can in a
 license-appropriate manner. Thus it attempts to distribute:
 
-* source code for **gpl** and **open** licensed checkouts
+* source code for **gpl** and **open-source** licensed checkouts
 * binaries for **binary** licensed checkouts
 * nothing at all for **private** licensed checkouts
 
@@ -599,7 +621,27 @@ Avoiding unnecessary GPL "propagation"
 --------------------------------------
 As we've said, muddle has to assume that "depends on" means "links to" (or the
 equivalent) when calculating GPL "propagation". Since this is not always so,
-we need a way of telling muddle when it is not. This is done with::
+we need a way of telling muddle when it is not.
+
+There are three cases:
+
+1. The GPL license being used is marked as "with exemption" or "with
+   exception", in which case there is no "propagation".
+2. The checkout is never actually linked against. An example would be busybox,
+   which only provides executables (programs). Sometimes, even a checkout
+   which provides libraries might not actually be linked against by any other
+   checkouts (perhaps it was included in the build for another reason).
+3. Particular packages/checkouts do depend on the checkout, but not in a way
+   that is significant for GPL "propagation".
+
+Specifying the first is done with::
+
+  set_nothing_links_against(builder, co_label)
+
+where ``co_label`` is the checkout that no-one links against (or whatever form
+of building-with is appropriate to this checkout).
+
+Specifying the second is done with::
 
   set_not_built_against(builder, pkg_label, co_label)
 
@@ -788,9 +830,9 @@ The commands::
 may be useful in working out what is going on.
 
 .. note:: It is arguable that a role that contains binaries from **binary** and
-   **open** or **binary** and **gpl** checkouts should be regarded as a clash
-   in the same way that **binary** and **private** is. This may be implemented
-   in a future version of muddle.
+   **open-source** or **binary** and **gpl** checkouts should be regarded as a
+   clash in the same way that **binary** and **private** is. This may be
+   implemented in a future version of muddle.
 
 Creating your own distributions
 ===============================
@@ -830,13 +872,14 @@ underscore, as such names are reserved for the standard distributions (which
 muddle has already defined, before reading the build description).
 
 If ``categories`` is given, then it is a sequence of license categories (so,
-taken from **gpl**, **open**, **binary** and **private**). Only checkouts with
-those categories will be allowed to be distributed with this new distribution.
+taken from **gpl**, **open-source**, **binary** and **private**). Only
+checkouts with those categories will be allowed to be distributed with this
+new distribution.
 
 .. warning:: When naming the license categories that a distribution uses,
-   **gpl** and **open** are distinct and separate - there is no assumption
-   that **open** includes **gpl**. In this instance **open** means "open but
-   not GPL".
+   **gpl** and **open-source** are distinct and separate - there is no
+   assumption that **open-source** includes **gpl**. In this instance
+   **open-source** means "open but not GPL".
 
 If ``categories`` is not given (or is None), then all license categories are
 allowed.
@@ -1023,7 +1066,7 @@ defined, or::
 to return the names of any distributions that have *all* of the license
 categories in ``categories``. So, for instance::
 
-    for name in get_distributions_for(['gpl', 'open']):
+    for name in get_distributions_for(['gpl', 'open-source']):
         distribute_checkout_files(builder, name, co_label, 'Makefile')
 
 Contrariwise::
@@ -1081,6 +1124,7 @@ There are some useful query functions::
     get_implicit_gpl_checkouts(builder)
     get_open_checkouts(builder)
     get_open_not_gpl_checkouts(builder)
+    get_prop_source_checkouts(builder)
     get_binary_checkouts(builder)
     get_private_checkouts(builder)
     get_not_licensed_checkouts(builder)

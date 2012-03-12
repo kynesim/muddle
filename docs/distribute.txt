@@ -395,7 +395,7 @@ For instance::
   Proprietary                      LicenseProprietarySource('Proprietary Source')
 
   Private                          LicensePrivate('Private')
-  code-nightmare-green             LicensePrivate('Code Nightmare Green')
+  CODE NIGHTMARE GREEN             LicensePrivate('Code Nightmare Green')
 
 The list of standard licenses has been inspired by some of the content at the
 Open Source Initiative, specifically by the lists at
@@ -445,6 +445,18 @@ where ``license_file`` is the name of the file (its path relative to the
 checkout directory). For instance::
 
   set_license(builder, 'strace-4.5.20, 'BSD-3-Clause', license_file='COPYRIGHT')
+
+This implicitly adds the license file ``COPYRIGHT`` as a required file for all
+distributions of checkout ``strace-4.5.20``.
+
+.. note:: You may feel that you need to indicate the appropriate license file
+   for each GPL licensed checkout as well. The GPL licenses require
+   clear indication of the license being used in a binary distribution, and
+   for many purposes the indication in the build description may be enough.
+   However, for absolute safety you might want to force distribution of the
+   license file, which is normally in a file called "COPYING".
+
+   (Clearly this is not a problem with a source distribution.)
 
 Creating a new license
 ----------------------
@@ -602,7 +614,8 @@ The command::
 attempts to distribute as much of the build tree as it can in a
 license-appropriate manner. Thus it attempts to distribute:
 
-* source code for **gpl** and **open-source** licensed checkouts
+* source code for **gpl**, **open-source** and **prop-source** licensed
+  checkouts
 * binaries for **binary** licensed checkouts
 * nothing at all for **private** licensed checkouts
 
@@ -656,7 +669,7 @@ So, for instance, we might have::
                            deps=['libProp'])
 
   set_license(builder, checkout('libProp-2.3'), 'LGPL-3.0')
-  set_license(builder, checkout('program-4.9'), 'code-nightmare-green')
+  set_license(builder, checkout('program-4.9'), 'CODE NIGHTMARE GREEN')
 
   # 'program' links dynamically to 'libProp', and thus doesn't need
   # to be distributed as source
@@ -1079,6 +1092,14 @@ categories in ``categories``. So, for instance::
     for name in get_distributions_not_for(['private']):
         set_private_build_files(builder, name, ['private_app.py'])
 
+The function::
+
+  get_distributions_by_category(builder)
+
+returns a dictionary with category names as keys, and sets of distributions
+names as values - so it allows one to look up which distributions can
+distribute particular license categories.
+
 Finally::
 
   get_used_distribution_names(builder)
@@ -1152,7 +1173,9 @@ You can find out if a checkout has a license that is in a particular category
 .. note:: Some of the functions in the ``licenses`` module are just wrappers
    around calls of ``builder.invocation.db`` methods. Specifically:
 
-   * ``set_license`` is a wrapper for ``builder.invocation.db.set_checkout_license``
+   * ``set_license`` is partly a wrapper for ``builder.invocation.db.set_checkout_license``,
+     but it (``set_license``) may also store the license file information,
+     which the low-level ``set_checkout_license`` method does not do.
    * ``get_license`` is a wrapper for ``builder.invocation.db.get_checkout_license``
      (but beware that the latter swaps the default for ``absent_is_None``, so
      that it defaults to raising an exception if there is no license)

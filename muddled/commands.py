@@ -2021,6 +2021,8 @@ class QueryCheckoutLicenses(QueryCommand):
             print
             print 'Exceptions to "implicit" GPL licensing are:'
             print
+            for co_label in sorted(builder.invocation.db.nothing_builds_against):
+                print '* nothing builds against %s'%co_label
             for key, value in sorted(builder.invocation.db.not_built_against.items()):
                 print '* %s is not built against %s'%(key,
                                     label_list_to_string(value, join_with=', '))
@@ -3991,7 +3993,8 @@ class Distribute(Command):
 
         * "_by_license" is a distribution of everything that is not licensed
           with a "private" license. It is equivalent to "_all_open" plus
-          those parts of a "_binary_release" that are not licensed "private".
+          any proprietary source checkouts plus those parts of a
+          "_binary_release" that are not licensed "private".
 
           It will fail if "_all_open" would fail, or if any of the install
           directories to be distributed could contain results from building
@@ -4039,13 +4042,15 @@ class Distribute(Command):
     * For each action, all the available distribution names are listed.
     * Each distribution name may be followed by values in [..], depending on
       what action it is associated with.
-    * For a DistributeBuildDescription, the value may be [vcs], indicating that
-      VCS files will be distributed.
+    * For a DistributeBuildDescription, the value may be [vcs], or [-<n>], or
+      [vcs, -<n>]. 'vcs' means that VCS files will be distributed. A negative
+      number indicates the number of "private" files that will not be
+      distributed.
     * For a DistributeCheckout, the values are [*], [<n>], [*,vcs] or [<n>,vcs].
       '*' means that all files will be distributed, a single integer (<n>) that
       just that many specific files have been selected for distribution. [1]
-      typically means the muddle Makefile. A 'vcs' means that the VCS files
-      will be distributed.
+      typically means the muddle Makefile, or perhaps a license file. A 'vcs'
+      means that the VCS files will be distributed.
     * For a DistributePackage, the values are [obj], [install] or [obj,install],
       indicating if "obj" or "install" directories are being distributed. It's
       also possible (but not much use) to have a DistributePackage distribution

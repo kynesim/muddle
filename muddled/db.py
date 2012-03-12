@@ -74,7 +74,7 @@ class Database(object):
       representing the source code license under which this checkout's source
       code is being used. For instance::
 
-        checkout:builds/*               -> License('MPL 1.1', 'open')
+        checkout:builds/*               -> License('MPL 1.1', 'open-source')
         checkout:(subdomain1)first_co/* -> License('LGPL v3', 'gpl')
 
       In the case of a checkout that has multiple licenses, the license that is

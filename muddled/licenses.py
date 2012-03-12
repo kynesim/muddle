@@ -373,7 +373,7 @@ standard_licenses = {
         'Proprietary':          LicenseProprietarySource('Proprietary Source'),
 
         'Private':              LicensePrivate('Private'),
-        'code-nightmare-green': LicensePrivate('Code Nightmare Green'),
+        'CODE NIGHTMARE GREEN': LicensePrivate('Code Nightmare Green'),
         }
 
 def print_standard_licenses():
@@ -420,11 +420,9 @@ def set_license(builder, co_label, license, license_file=None):
     license file in binary distributions. 'license_file' allows the relevant
     file to be named (relative to the root of the checkout directory), and
     implies that said file should be included in all distributions.
-
-        XXX NB: license_file does not yet have an effect... XXX
     """
     if isinstance(license, License):
-        builder.invocation.db.set_checkout_license(co_label, license, license_file)
+        builder.invocation.db.set_checkout_license(co_label, license)
     else:
         builder.invocation.db.set_checkout_license(co_label,
                                                    standard_licenses[license])
@@ -614,6 +612,7 @@ def get_implicit_gpl_checkouts(builder):
     # Localise for our loop
     get_checkout_license = builder.invocation.db.get_checkout_license
     get_not_built_against = builder.invocation.db.get_not_built_against
+    get_nothing_builds_against = builder.invocation.db.get_nothing_builds_against
     ruleset = builder.invocation.ruleset
 
     DEBUG = False
@@ -647,6 +646,9 @@ def get_implicit_gpl_checkouts(builder):
         license = get_checkout_license(co_label)
         if not license.propagates():
             if DEBUG: print '     has a link-exception of some sort - ignoring it'
+            continue
+        if get_nothing_builds_against(co_label):
+            if DEBUG: print '     nothing builds against this - ignoring it'
             continue
         depend_on_this = required_by(ruleset, co_label)
         for this_label in depend_on_this:

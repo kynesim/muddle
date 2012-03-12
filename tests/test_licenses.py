@@ -75,16 +75,17 @@ from muddled.repository import Repository
 from muddled.version_control import checkout_from_repo
 
 from muddled.distribute import distribute_checkout, distribute_package
-from muddled.licenses import set_license, LicenseBinary, LicensePrivate
+from muddled.licenses import set_license, LicenseBinary, LicensePrivate, \
+        set_nothing_builds_against
 
-def add_package(builder, name, role, license=None, co_name=None, deps=None):
+def add_package(builder, name, role, license=None, co_name=None, deps=None, license_file=None):
     if not co_name:
         co_name = name
     muddled.pkgs.make.medium(builder, name, [role], co_name, deps=deps)
 
     if license:
         co_label = checkout(co_name)
-        set_license(builder, co_label, license)
+        set_license(builder, co_label, license, license_file)
 
 def describe_to(builder):
     role = 'x86'
@@ -93,7 +94,7 @@ def describe_to(builder):
     another_license = LicensePrivate('ignore-this')
 
     add_package(builder, 'apache', 'x86', 'Apache-2.0')
-    add_package(builder, 'bsd',    'x86', 'BSD-3-Clause')
+    add_package(builder, 'bsd',    'x86', 'BSD-3-Clause', license_file='LICENSE.txt')
     add_package(builder, 'gpl2',   'x86', 'GPL-2.0')
     add_package(builder, 'gpl2plus', 'x86', 'GPL-2.0+')
     add_package(builder, 'gpl3',  'x86', 'GPL-3.0')
@@ -106,7 +107,7 @@ def describe_to(builder):
     add_package(builder, 'linux', 'x86', 'GPL-2.0-linux')
     add_package(builder, 'busybox', 'x86', 'GPL-2.0')
 
-    set_nothing_builds_against(builder, 'busybox')
+    set_nothing_builds_against(builder, checkout('busybox'))
 
     add_package(builder, 'scripts', 'x86', 'Proprietary')
 
@@ -176,19 +177,19 @@ from muddled.distribute import distribute_checkout, distribute_package, \
         get_distributions_not_for, set_private_build_files, name_distribution
 from muddled.licenses import set_license, LicenseBinary, LicensePrivate, \
         get_open_not_gpl_checkouts, get_binary_checkouts, get_private_checkouts, \
-        get_license
+        get_license, set_nothing_builds_against
 
 # Our private information
 from private import describe_private
 
-def add_package(builder, name, role, license=None, co_name=None, deps=None):
+def add_package(builder, name, role, license=None, co_name=None, deps=None, license_file=None):
     if not co_name:
         co_name = name
     muddled.pkgs.make.medium(builder, name, [role], co_name, deps=deps)
 
     if license:
         co_label = checkout(co_name)
-        set_license(builder, co_label, license)
+        set_license(builder, co_label, license, license_file)
 
 def describe_to(builder):
     role = 'x86'
@@ -197,7 +198,7 @@ def describe_to(builder):
     another_license = LicensePrivate('ignore-this')
 
     add_package(builder, 'apache', 'x86', 'Apache-2.0')
-    add_package(builder, 'bsd',    'x86', 'BSD-3-Clause')
+    add_package(builder, 'bsd',    'x86', 'BSD-3-Clause', license_file='LICENSE.txt')
     add_package(builder, 'gpl2',   'x86', 'GPL-2.0')
     add_package(builder, 'gpl2plus', 'x86', 'GPL-2.0+')
     add_package(builder, 'gpl3',  'x86', 'GPL-3.0')
@@ -210,7 +211,7 @@ def describe_to(builder):
     add_package(builder, 'linux', 'x86', 'GPL-2.0-linux')
     add_package(builder, 'busybox', 'x86', 'GPL-2.0')
 
-    set_nothing_builds_against(builder, 'busybox')
+    set_nothing_builds_against(builder, checkout('busybox'))
 
     add_package(builder, 'scripts', 'x86', 'Proprietary')
 
@@ -383,7 +384,7 @@ def describe_to(builder):
     deployment = 'everything'
 
     add_package(builder, 'xyzlib',  'x86', 'Zlib')
-    add_package(builder, 'manhattan', 'x86-private', 'code-nightmare-green')
+    add_package(builder, 'manhattan', 'x86-private', 'CODE NIGHTMARE GREEN')
 
     builder.invocation.db.set_not_built_against(package('manhattan', 'x86-private'),
                                                 checkout('xyzlib'))
@@ -459,6 +460,10 @@ def make_repos(root_dir):
 
             new_repo('apache')
             new_repo('bsd')
+            with Directory('bsd'):
+                touch('LICENSE.txt', "This is a BSD license file. Honest\n")
+                git('add LICENSE.txt')
+                git('commit -m "BSD license file"')
             new_repo('gpl2')
             new_repo('gpl2plus')
             new_repo('gpl3')
@@ -532,6 +537,7 @@ Checkout licenses are:
 * checkout:private3/*             LicensePrivate('Shh')
 * checkout:private4/*             LicensePrivate('Shh')
 * checkout:private5/*             LicensePrivate('Shh')
+* checkout:scripts/*              LicenseProprietarySource('Proprietary Source')
 * checkout:ukogl/*                LicenseOpen('UK Open Government License')
 * checkout:zlib/*                 LicenseOpen('zlib/libpng license')
 * checkout:(subdomain)manhattan/* LicensePrivate('Code Nightmare Green')
@@ -559,6 +565,7 @@ The following checkouts have some sort of GPL license:
 
 Exceptions to "implicit" GPL licensing are:
 
+* nothing builds against checkout:busybox/*
 * package:private2{x86}/* is not built against checkout:gpl2plus/*
 * package:(subdomain)manhattan{x86-private}/* is not built against checkout:(subdomain)xyzlib/*
 
@@ -609,6 +616,7 @@ Checkout licenses are:
 * checkout:private3/*             LicensePrivate('Shh')
 * checkout:private4/*             LicensePrivate('Shh')
 * checkout:private5/*             LicensePrivate('Shh')
+* checkout:scripts/*              LicenseProprietarySource('Proprietary Source')
 * checkout:ukogl/*                LicenseOpen('UK Open Government License')
 * checkout:zlib/*                 LicenseOpen('zlib/libpng license')
 * checkout:(subdomain)manhattan/* LicensePrivate('Code Nightmare Green')
@@ -636,6 +644,7 @@ The following checkouts have some sort of GPL license:
 
 Exceptions to "implicit" GPL licensing are:
 
+* nothing builds against checkout:busybox/*
 * package:private2{x86-private}/* is not built against checkout:gpl2plus/*
 * package:private3{x86-private}/* is not built against checkout:gpl2plus/*
 * package:private4{x86-private}/* is not built against checkout:gpl2/*, checkout:gpl2plus/*
@@ -713,6 +722,26 @@ def main(args):
                                            '.muddle/tags/deployment',
                                           ])
 
+            banner('TESTING DISTRIBUTE BINARY RELEASE')
+            target_dir = os.path.join(root_dir, '_binary_release')
+            muddle(['distribute', '_binary_release', target_dir])
+            dt = DirTree(d.where, fold_dirs=['.git'])
+            dt.assert_same(target_dir, onedown=True,
+                           unwanted_files=['.git*',
+                                           'src/builds*/*.pyc',
+                                           'src/*/*.c',
+                                           'src/scripts/script.py',
+                                           # But we do want src/bsd/LICENSE.txt
+                                           # And we want each Makefile.muddle
+                                           'obj',
+                                           # And we do want install
+                                           'deploy',
+                                           'versions',
+                                           '.muddle/instructions',
+                                           # And all the package tags
+                                           '.muddle/tags/deployment',
+                                          ])
+
             banner('TESTING DISTRIBUTE FOR GPL')
             target_dir = os.path.join(root_dir, '_for_gpl')
             muddle(['distribute', '_for_gpl', target_dir])
@@ -725,6 +754,8 @@ def main(args):
                                            'src/bsd',
                                            'src/mpl',
                                            'src/zlib',
+                                           # No proprietary source things, they're not GPL
+                                           'src/scripts',
                                            # No binary things, because they're not GPL
                                            'src/binary*',
                                            # No private things, they're very not GPL
@@ -743,6 +774,7 @@ def main(args):
                                            '.muddle/tags/checkout/bsd',
                                            '.muddle/tags/checkout/mpl',
                                            '.muddle/tags/checkout/zlib',
+                                           '.muddle/tags/checkout/scripts',
                                            '.muddle/tags/checkout/binary*',
                                            '.muddle/tags/checkout/not_licensed[2345]',
                                            '.muddle/tags/checkout/private*',
@@ -760,9 +792,11 @@ def main(args):
             dt.assert_same(target_dir, onedown=True,
                            unwanted_files=['.git*',
                                            'src/builds*/*.pyc',
-                                           # No binary things, because they're not GPL
+                                           # No proprietary source things, they're not open
+                                           'src/scripts',
+                                           # No binary things, they're not open
                                            'src/binary*',
-                                           # No private things, they're very not GPL
+                                           # No private things, they're very not open
                                            'src/private*',
                                            'domains/subdomain/src/manhattan',
                                            # No not licensed things, because they're not open,
@@ -775,6 +809,7 @@ def main(args):
                                            '.muddle/instructions',
                                            '.muddle/tags/package',
                                            '.muddle/tags/deployment',
+                                           '.muddle/tags/checkout/scripts',
                                            '.muddle/tags/checkout/binary*',
                                            '.muddle/tags/checkout/not_licensed[2345]',
                                            '.muddle/tags/checkout/private*',
@@ -792,7 +827,7 @@ def main(args):
             dt.assert_same(target_dir, onedown=True,
                            unwanted_files=['.git*',
                                            'src/builds*/*.pyc',
-                                           # No private things, they're very not GPL
+                                           # No private things, they're private
                                            'src/private*',
                                            'obj/*/x86-private',
                                            'install/x86-private',
@@ -821,6 +856,7 @@ def main(args):
                                            '.muddle/tags/package/gnulibc',
                                            '.muddle/tags/package/linux',
                                            '.muddle/tags/package/busybox',
+                                           '.muddle/tags/package/scripts',
                                            # We don't do deployment...
                                            '.muddle/tags/deployment',
                                            # And, in our subdomain
@@ -834,7 +870,7 @@ def main(args):
             assert not same_content(d.join(target_dir, 'src', 'builds_multilicense', 'private.py'),
                                 PRIVATE_BUILD_FILE)
 
-            banner('TESTING DISTRIBUTE FOR JUST OPEN')
+            banner('TESTING DISTRIBUTE FOR JUST OPEN SRC AND BIN')
             # As it says in the build description, this is an odd one, and
             # not a "proper" useful distribution. We've selected all
             # checkouts that are 'open-source' (not including 'gpl'), and also
@@ -853,7 +889,8 @@ def main(args):
             dt.assert_same(target_dir, onedown=True,
                            unwanted_files=['.git*',
                                            'src/builds*/*.pyc',
-                                           # No binary or private things
+                                           # No proprietary or binary or private things
+                                           'src/scripts',
                                            'src/binary*',
                                            'src/private*',
                                            'domains/subdomain/src/manhattan',
@@ -879,6 +916,7 @@ def main(args):
                                            '.muddle/tags/checkout/lgpl',
                                            '.muddle/tags/checkout/linux',
                                            '.muddle/tags/checkout/not_licensed*',
+                                           '.muddle/tags/checkout/scripts',
                                            '.muddle/tags/checkout/private*',
                                            '.muddle/tags/package/binary*',
                                            '.muddle/tags/package/busybox',
@@ -886,6 +924,7 @@ def main(args):
                                            '.muddle/tags/package/gpl*',
                                            '.muddle/tags/package/lgpl',
                                            '.muddle/tags/package/linux',
+                                           '.muddle/tags/package/scripts',
                                            '.muddle/tags/package/not_licensed*',
                                            '.muddle/tags/package/private*',
                                            '.muddle/tags/deployment',
@@ -919,6 +958,8 @@ package:(subdomain)xyzlib{x86}/distributed DistributePackage: just_open_src_and_
 """)
 
             banner('TESTING DISTRIBUTE FOR BINARY AND PRIVATE SOURCE')
+            # That's "source for checkouts with binary and private licenses",
+            # not "binaries and private-source".
             target_dir = os.path.join(root_dir, 'binary_and_private_source')
             muddle(['distribute', 'binary_and_private_source', target_dir])
             dt = DirTree(d.where, fold_dirs=['.git'])
@@ -938,6 +979,8 @@ package:(subdomain)xyzlib{x86}/distributed DistributePackage: just_open_src_and_
                                            'src/zlib',
                                            # No not licensed things
                                            'src/not_licensed*',
+                                           # No proprietary sources
+                                           'src/scripts',
                                            # No binaries
                                            'obj',
                                            'install',
@@ -957,6 +1000,7 @@ package:(subdomain)xyzlib{x86}/distributed DistributePackage: just_open_src_and_
                                            '.muddle/tags/checkout/ukogl',
                                            '.muddle/tags/checkout/zlib',
                                            '.muddle/tags/checkout/not_licensed*',
+                                           '.muddle/tags/checkout/scripts',
                                            # No package tags because we're only doing source
                                            '.muddle/tags/package',
                                            # We don't do deployment...
@@ -990,6 +1034,8 @@ package:(subdomain)xyzlib{x86}/distributed DistributePackage: just_open_src_and_
                                            'src/mpl',
                                            'src/ukogl',
                                            'src/zlib',
+                                           # No proprietary source things
+                                           'src/scripts',
                                            # No not licensed things
                                            'src/not_licensed*',
                                            # No source files
@@ -1011,6 +1057,7 @@ package:(subdomain)xyzlib{x86}/distributed DistributePackage: just_open_src_and_
                                            '.muddle/tags/checkout/mpl',
                                            '.muddle/tags/checkout/ukogl',
                                            '.muddle/tags/checkout/zlib',
+                                           '.muddle/tags/checkout/scripts',
                                            '.muddle/tags/checkout/not_licensed*',
                                            # No package tags for unwanted things
                                            '.muddle/tags/package/apache',
@@ -1024,6 +1071,7 @@ package:(subdomain)xyzlib{x86}/distributed DistributePackage: just_open_src_and_
                                            '.muddle/tags/package/ukogl',
                                            '.muddle/tags/package/zlib',
                                            '.muddle/tags/package/not_licensed*',
+                                           '.muddle/tags/package/scripts',
                                            # We don't do deployment...
                                            '.muddle/tags/deployment',
                                            # And, in our subdomain

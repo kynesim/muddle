@@ -38,25 +38,26 @@ from muddled.version_control import get_vcs_handler, vcs_special_files
 from muddled.mechanics import build_co_and_path_from_str
 from muddled.pkgs.make import MakeBuilder, deduce_makefile_name
 from muddled.licenses import get_gpl_checkouts, get_implicit_gpl_checkouts, \
-        get_open_checkouts, get_binary_checkouts, checkout_license_allowed, \
-        report_license_clashes, report_license_clashes_in_role, \
-        ALL_LICENSE_CATEGORIES
+        get_open_checkouts, get_binary_checkouts, get_prop_source_checkouts, \
+        checkout_license_allowed, report_license_clashes, \
+        report_license_clashes_in_role, ALL_LICENSE_CATEGORIES
 
 DEBUG=False
 VERBOSE=False       # should copy_without be quiet
 
 # Distribution names, with the license categories they distribute something
-# from. Note that distributing something from 'gpl' or 'open' doesn't mean
-# the same thing as "distributing sources", as is evidenced by
+# from. Note that distributing something from 'gpl' or 'open-source' doesn't
+# mean the same thing as "distributing sources", as is evidenced by
 # '_binary_release'.
 #
 # The '_for_gpl' distribution distributes 'gpl' entities, but it may also
-# distribute 'open' entities by license propagation. So we have to say that.
+# distribute 'open-source' entities by license propagation. So we have to say
+# that.
 the_distributions = { '_source_release' : ALL_LICENSE_CATEGORIES,
                       '_binary_release' : ALL_LICENSE_CATEGORIES,
-                      '_for_gpl':    ('gpl', 'open' ),
-                      '_all_open':   ('gpl', 'open'),
-                      '_by_license': ('gpl', 'open', 'binary'),
+                      '_for_gpl':    ('gpl', 'open-source' ),
+                      '_all_open':   ('gpl', 'open-source'),
+                      '_by_license': ('gpl', 'open-source', 'prop-source', 'binary'),
                     }
 
 
@@ -77,13 +78,10 @@ def name_distribution(builder, name, categories=None):
 
     Also specify which license categories are distributed.
 
-    'builder' is ignored at the moment, but should be the build tree "builder"
-    if available.
-
     If 'categories' is None, then all license categories are distributed.
 
     Otherwise 'categories' must be a sequence of category names, taken
-    from 'gpl', 'open', binary' and 'private'.
+    from 'gpl', 'open-source', binary' and 'private'.
 
     The user may assume that the standard distributions (see "muddle help
     distribute") already exist, but otherwise must name a distribution before
@@ -92,11 +90,11 @@ def name_distribution(builder, name, categories=None):
     It is not an error to name a distribution more than once (although it won't
     have any effect), but the categories named must be identical.
 
-        >>> name_distribution(None, '_all_open', ['gpl', 'open'])  # same categories
-        >>> name_distribution(None, '_all_open', ['open']) # different categories
+        >>> name_distribution(None, '_all_open', ['gpl', 'open-source'])  # same categories
+        >>> name_distribution(None, '_all_open', ['open-source']) # different categories
         Traceback (most recent call last):
         ...
-        GiveUp: Attempt to name distribution "_all_open" with categories (open) but it already has (gpl, open)
+        GiveUp: Attempt to name distribution "_all_open" with categories (open-source) but it already has (gpl, open-source)
 
     It is an error to try to use a distribution before it has been named. This
     includes adding checkouts and packages to distributions. Wildcard
@@ -204,7 +202,6 @@ def get_distributions_not_for(builder, categories):
             results.append(name)
     return results
 
-
 def get_used_distribution_names(builder):
     """Return a set of all the distribution names that are actually in use
 
@@ -231,6 +228,21 @@ def get_used_distribution_names(builder):
             distribution_names.update(names)
 
     return distribution_names
+
+def get_distributions_by_category(builder):
+    """Return a dictionary of distribution names according to license category.
+
+    The dictionary returned has license category names as keys, and sets of
+    distribution names as the values.
+    """
+    by_category = {}
+    for distribution, categories in the_distributions.items():
+        for category in categories:
+            if category in by_category:
+                by_category[category].add(distribution)
+            else:
+                by_category[category] = set([distribution])
+    return by_category
 
 def _assert_checkout_allowed_in_distribution(builder, co_label, name):
     """Is this checkout allowed in this distribution?
@@ -1493,6 +1505,33 @@ def _add_build_descriptions(builder, name, domains, copy_vcs=False):
 
     return extra_labels
 
+def _maybe_add_license_file(builder, name, label, distribution_labels):
+    """Check if label requires us to include a license file.
+
+    If it does, we:
+
+        1. Add a request to distribute the appropriate license file in the
+           appropriate checkout
+        2. Add the checkout to the list of labels to be distributed
+
+    (Note that if 'label' is a package label, we look at each checkout that
+    it directly requires)
+    """
+    if label.type == LabelType.Checkout:
+        checkouts = [label]
+    elif label.type == LabelType.Package:
+        checkouts = builder.invocation.checkouts_for_package(label)
+    else:
+        raise MuddleBug('Expected a checkout or package label, not %s'%label)
+
+    get_checkout_license_file = builder.invocation.db.get_checkout_license_file
+    for co_label in checkouts:
+        license_file = get_checkout_license_file(co_label, absent_is_None=True)
+        if license_file:
+            target = co_label.copy_with_tag(LabelTag.Distributed)
+            distribute_checkout_files(builder, name, target, [license_file])
+            distribution_labels.add(target)
+
 def _copy_muddle_skeleton(builder, name, target_dir, domains):
     """Copy the "top files" for each necessary .muddle directory
     """
@@ -1603,6 +1642,20 @@ def select_all_open_checkouts(builder, name, with_vcs):
     for co_label in all_checkouts:
         distribute_checkout(builder, name, co_label, copy_vcs=with_vcs)
 
+def select_all_prop_source_checkouts(builder, name, with_vcs):
+    """Select all checkouts with a "prop-source" license for distribution.
+
+    'name' is the name of our distribution.
+
+    'with_vcs' is true if we want VCS "special" files in our distributed
+    checkouts.
+
+    Raises GiveUp if we have license clashes
+    """
+    prop_checkouts = get_prop_source_checkouts(builder)
+    for co_label in prop_checkouts:
+        distribute_checkout(builder, name, co_label, copy_vcs=with_vcs)
+
 def select_all_binary_nonprivate_packages(builder, name, with_muddle_makefile):
     """Select all packages with a "binary" license for distribution.
 
@@ -1702,8 +1755,9 @@ def distribute(builder, name, target_dir, with_versions_dir=False,
     all_checkouts = builder.invocation.all_checkout_labels(LabelTag.CheckedOut)
     all_packages = builder.invocation.all_package_labels()
 
+    # -------------------------------------------------------------------------
     # Standard names
-    # ==============
+    # -------------------------------------------------------------------------
     # For standard distributions, we set up our own idea of which labels
     # should be distributed. This is no different than what the user might do
     # in their build description, except we do it later, and thus may override
@@ -1745,12 +1799,19 @@ def distribute(builder, name, target_dir, with_versions_dir=False,
         # All checkouts in _all_open, and any install/ directories for anything
         # with a "binary" license. Nothing at all for "private" licenses.
         select_all_open_checkouts(builder, name, with_vcs)
+        # All proprietary source checkouts
+        select_all_prop_source_checkouts(builder, name, with_vcs)
         # Note we always output muddle Makefiles with this distribution
         select_all_binary_nonprivate_packages(builder, name, with_muddle_makefile=True)
-    # ==============
 
+    # -------------------------------------------------------------------------
+    # Rescan
+    # -------------------------------------------------------------------------
     # *All* distributions then scan through the labels looking to see what
-    # needs distributing.
+    # needs distributing. This is a little bit inefficient for those
+    # distributions which actually already KNEW all the labels they wanted
+    # (e.g., _source_release), but it's still simpler to just do this in
+    # all cases.
 
     combined_labels = set(all_checkouts.union(all_packages))
     for label in sorted(combined_labels):
@@ -1765,11 +1826,16 @@ def distribute(builder, name, target_dir, with_versions_dir=False,
                 # And remember its domain, so we can find the build description
                 domains.add(target.domain)
 
+                # And are there any license files we need to tack on?
+                _maybe_add_license_file(builder, name, target, distribution_labels)
+
     if not distribution_labels:
         print 'Nothing to distribute for %s'%name
         return
 
+    # -------------------------------------------------------------------------
     # Add in the appropriate build descriptions
+    # -------------------------------------------------------------------------
     # We need to do this after everyone else has had a chance to set rules
     # on /distribute labels, so we can override any DistributeCheckout actions
     # that were mistakenly placed on our build descriptions...

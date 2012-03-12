@@ -2017,7 +2017,8 @@ class QueryCheckoutLicenses(QueryCommand):
             for label in sorted(gpl_licensed):
                 print '* %-*s %r'%(maxlen, label, get_co_license(label))
 
-        if builder.invocation.db.not_built_against:
+        if builder.invocation.db.not_built_against or \
+           builder.invocation.db.nothing_builds_against:
             print
             print 'Exceptions to "implicit" GPL licensing are:'
             print

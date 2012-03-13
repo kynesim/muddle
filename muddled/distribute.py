@@ -1697,7 +1697,8 @@ def select_all_binary_nonprivate_packages(builder, name, with_muddle_makefile):
         raise GiveUp('License clashes prevent "%s" distribution'%name)
 
 def distribute(builder, name, target_dir, with_versions_dir=False,
-               with_vcs=False, no_muddle_makefile=False, no_op=False):
+               with_vcs=False, no_muddle_makefile=False, no_op=False,
+               package_labels=None, checkout_labels=None):
     """Distribute using distribution context 'name', to 'target_dir'.
 
     The DistributeContext called 'name' must exist.
@@ -1735,6 +1736,13 @@ def distribute(builder, name, target_dir, with_versions_dir=False,
     If 'no_op' is true, then we just report on what we would do - this
     lists the labels that would be distributed, and the action that would
     be used to do so.
+
+    If 'package_labels' and/or 'checkout_labels' is not None, then the labels
+    selected for distribution will be "filtered" through those sequences, and
+    only labels that occur in one or the other will be added to the
+    distribution. Note that this filtering is done before adding in build
+    descriptions. Label tags are ignored. Passing them both as empty sets is
+    likely to give a very small distribution...
     """
 
     if name not in the_distributions.keys():
@@ -1832,6 +1840,27 @@ def distribute(builder, name, target_dir, with_versions_dir=False,
     if not distribution_labels:
         print 'Nothing to distribute for %s'%name
         return
+
+    # -------------------------------------------------------------------------
+    # Filter
+    # -------------------------------------------------------------------------
+    if package_labels or checkout_labels:
+        filter_labels = set()
+        wanted_labels = set()
+        for label in package_labels:
+            if label.type == LabelTag.Distributed:
+                filter_labels.add(label)
+            else:
+                filter_labels.add(label.copy_with_tag(LabelTag.Distributed))
+        for label in checkout_labels:
+            if label.type == LabelTag.Distributed:
+                filter_labels.add(label)
+            else:
+                filter_labels.add(label.copy_with_tag(LabelTag.Distributed))
+        for label in distribution_labels:
+            if label in filter_labels:
+                wanted_labels.add(label)
+        distribution_labels = wanted_labels
 
     # -------------------------------------------------------------------------
     # Add in the appropriate build descriptions

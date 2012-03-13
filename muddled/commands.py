@@ -3947,9 +3947,9 @@ Try "muddle help unstamp" for more information."""
 # Distribute
 # -----------------------------------------------------------------------------
 @command('distribute', CAT_EXPORT)
-class Distribute(Command):
+class Distribute(CPDCommand):
     """
-    :Syntax: muddle distribute [<switches>|-no-muddle-makefile] <name> <target_directory>
+    :Syntax: muddle distribute [<switches>|-no-muddle-makefile] <name> <target_directory> [<label> ...]
 
     - <switches> may be any of:
 
@@ -4007,6 +4007,21 @@ class Distribute(Command):
 
     - <target_directory> is where to distribute to. If it already exists,
       it should preferably be an empty directory.
+
+    - If given, each <label> is a label fragment specifying a deployment,
+      package or checkout, or one of _all and friends. The <type> defaults
+      to "deployment". See "muddle help labels" for more information.
+
+    If specific labels are given, then the distribution will only concern those
+    labels and those they depend on. Deployment labels will be expanded to all
+    of the packages that the deployment depends upon. Package labels (including
+    those implied by deployment labels) will be remembered, and also expanded
+    to the checkouts that they depend directly upon. Checkout labels (including
+    those implied by packages) will be remembered. When the distribution is
+    calculated, only packages and checkouts that have been remembered will be
+    candidates for distribution.
+
+    If no labels are given, then the whole of the build tree is considered.
 
     If the -with-versions switch is specified, then if there is a stamp
     "versions/" directory it will also be copied. By default it is not.
@@ -4078,7 +4093,8 @@ class Distribute(Command):
         return True
 
     def with_build_tree(self, builder, current_dir, args):
-
+        """We're sufficiently unlike other commands to do this ourselves.
+        """
         name = None
         target_dir = None
 
@@ -4087,6 +4103,7 @@ class Distribute(Command):
         with_versions_dir = ('with-versions' in self.switches)
         with_vcs = ('with-vcs' in self.switches)
         no_muddle_makefile = ('no-muddle-makefile' in self.switches)
+        fragments = []
 
         while args:
             word = args[0]
@@ -4098,16 +4115,77 @@ class Distribute(Command):
             elif target_dir is None:
                 target_dir = word
             else:
-                raise GiveUp("Unexpected argument '%s' for 'distribute'"%word)
+                fragments.append(word)
 
         if name is None or target_dir is None:
             raise GiveUp("Syntax: muddle distribute [<switches>] <name> <target_directory>")
+
+        if fragments:
+            co_labels, pkg_labels = self.decode_args(builder, fragments, current_dir)
+            print 'Package labels chosen:', label_list_to_string(pkg_labels, join_with=', ')
+            print 'Checkout labels chosen:', label_list_to_string(co_labels, join_with=', ')
+        else:
+            pkg_labels = None
+            co_labels = None
 
         distribute(builder, name, target_dir,
                    with_versions_dir=with_versions_dir,
                    with_vcs=with_vcs,
                    no_muddle_makefile=no_muddle_makefile,
-                   no_op=self.no_op())
+                   no_op=self.no_op(),
+                   package_labels=pkg_labels, checkout_labels=co_labels)
+
+    def interpret_labels(self, builder, args, initial_list):
+        """Return selected packages and checkouts.
+        """
+        potential_problems = []
+        package_set = set()
+        checkout_set = set()
+        default_roles = builder.invocation.default_roles
+        for index, label in enumerate(initial_list):
+            if label.type == LabelType.Package:
+                package_set.add(label.copy_with_tag(LabelTag.Distributed))
+                checkouts = builder.invocation.checkouts_for_package(label)
+                if checkouts:
+                    checkout_set.update(checkouts)
+            elif label.type == LabelType.Checkout:
+                checkout_set.add(label.copy_with_tag(LabelTag.CheckedOut))
+            elif label.type == LabelType.Deployment:
+                # If they specified a deployment label, then find all the
+                # packages that depend on this deployment.
+                # Here I think we definitely want any depth of dependency.
+                # XXX I don't think we need to specify useMatch=True, because we
+                # XXX should already have expanded any wildcards
+                rules = depend.needed_to_build(builder.invocation.ruleset, label)
+                found = False
+                for r in rules:
+                    l = r.target
+                    if l.type == LabelType.Package:
+                        package_set.add(l.copy_with_tag(LabelTag.Distributed))
+                        checkouts = builder.invocation.checkouts_for_package(l)
+                        if checkouts:
+                            checkout_set.update(checkouts)
+                if not found:
+                    potential_problems.append('  Deployment %s does not use any packages'%label)
+            else:
+                raise GiveUp("Cannot cope with label '%s', from arg '%s'"%(label, args[index]))
+
+        if not package_set and not checkout_set:
+            text = []
+            if len(initial_list) == 1:
+                text.append('Label %s exists, but does not give'
+                             ' a target for "muddle %s"'%(initial_list[0], self.cmd_name))
+            else:
+                text.append('The labels\n  %s\nexist, but none gives a'
+                            ' target for "muddle %s"'%(label_list_to_string(initial_list,
+                                join_with='\n  '), self.cmd_name))
+            if potential_problems:
+                text.append('Perhaps because:')
+                for problem in potential_problems:
+                    text.append('%s'%problem)
+            raise GiveUp('\n'.join(text))
+
+        return checkout_set, package_set
 
 # =============================================================================
 # Checkout, package and deployment commands

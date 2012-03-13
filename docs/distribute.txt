@@ -238,6 +238,40 @@ Also, if ``-with-vcs`` is specified, the VCS "special" files for the build
 descriptions and the ``versions`` directory (if distributed) will also be
 included.
 
+Filtering the labels distributed
+================================
+Sometimes it is not desirable to distribute all of the build tree. For
+instance, only one deployment might be appropriate to distribute, or only
+a subset of packages and checkouts.
+
+If the ``muddle distribute`` command line ends with one or more labels, then
+they will be used to determing a "filter" for the distribution.
+
+If a deployment label is given, then all packages in that deployment will be
+added to the filter, and also all checkouts used directly by each of those
+packages.
+
+If a package label is given, then that package and all checkouts used directly
+by it will be added to the filter.
+
+Finally, if a checkout label is given, then that checkout will be added to the
+filter.
+
+In all cases, the actual label tag is ignored.
+
+If a filter (i.e., a set of package and checkout labels) has been specified,
+then after the labels for the distribution, taken from the entire build tree,
+have been determined, the will be compared to the filter set, and only those
+labels which occur in the filter set will be kept in the distribution. Note
+that this filtering is done before build descriptions are added.
+
+So, for instance::
+
+  $ muddle distribute _binary_release ../release_fred-bin deployment:fred
+
+will only consider packages and checkouts in deployment ``fred`` for
+distribution.
+
 Basic setting up of Licenses
 ============================
 Any piece of source code has a license, whether implicit or explicit.

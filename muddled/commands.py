@@ -1981,6 +1981,9 @@ class QueryCheckoutLicenses(QueryCommand):
     * which checkouts have irreconcilable clashes between "implicit" GPL
       licenses and their actual license.
 
+    Note that "irreconcilable clashes" are only important if you intend to
+    distribute the clashing items to third parties.
+
     See also "muddle query role-licenses" for licenses applying to (packages
     in) each role.
     """

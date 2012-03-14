@@ -12,7 +12,9 @@ Contents:
 
    README
    muddle-dirs
+   repositories
    instructions
+   distribute
    jottings
    muddle_patch.README
    muddle-useful

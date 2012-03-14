@@ -18,7 +18,7 @@ import subprocess
 import sys
 import traceback
 
-from test_support import *
+from support_for_tests import *
 try:
     import muddled.cmdline
 except ImportError:

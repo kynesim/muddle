@@ -63,14 +63,16 @@ Error = MuddleBug
 
 # Start with the known label tags. Keys are the "in program" representation,
 # values are the tag as used in labels themselves.
-__label_tags = {# For checkouts.
+
+checkout_tags = {
                 'CheckedOut' : "checked_out",
                 'Fetched' : "fetched",
                 'Merged' : "merged",
                 'ChangesCommitted' : "changes_committed",
                 'ChangesPushed' : "changes_pushed",
+                }
 
-                # For packages
+package_tags = {
                 'PreConfig' : "preconfig",
                 'Configured' : "configured",
                 'Built' : "built",
@@ -79,7 +81,9 @@ __label_tags = {# For checkouts.
 
                 'Clean' : "clean",
                 'DistClean' : "distclean",
+                }
 
+deployment_tags = {
                 # For deployments. These must be independent of each other and
                 # transient or deployment will get awfully confused.
                 # instructionsapplied is used to separate deployment and
@@ -87,6 +91,11 @@ __label_tags = {# For checkouts.
                 # address spaces so that application can be privileged.
                 'Deployed' : "deployed",
                 'InstructionsApplied' : "instructionsapplied",
+                  }
+
+__label_tags = {
+                # Special tag for Distribute packages or checkouts
+                'Distributed' : 'distributed',
 
                 # Special tag used to dynamically load extensions
                 # (e.g. the build description)
@@ -99,6 +108,10 @@ __label_tags = {# For checkouts.
                 # Used by the initscripts package to store runtime environments.
                 'RuntimeEnv' : "runtime_env",
                 }
+
+__label_tags.update(checkout_tags)
+__label_tags.update(package_tags)
+__label_tags.update(deployment_tags)
 
 # We shall produce a named tuple type using the "in program" names
 __label_tag_type = namedtuple('LabelTag',
@@ -132,9 +145,9 @@ __label_type_type = namedtuple('LabelType',
 
 LabelType = __label_type_type(**__label_types)
 
-# Sometimes, we want to map a package type to a default tag
+# Sometimes, we want to map a label type to a default tag
 # - these are the tags that we want to reach in our rules for each type
-package_type_to_tag = {
+label_type_to_tag = {
         LabelType.Checkout   : LabelTag.CheckedOut,
         LabelType.Package    : LabelTag.PostInstalled,
         LabelType.Deployment : LabelTag.Deployed,
@@ -323,6 +336,74 @@ def find_root_and_domain(dir):
     # Didn't find a directory.
     return (None, None)
 
+def find_label_dir(builder, label):
+    """Given a label, find the corresponding directory.
+
+    * for checkout labels, the checkout directory
+    * for package labels, the install directory
+    * for deployment labels, the deployment directory
+
+    This is the heart of "muddle query dir".
+    """
+    if label.type == LabelType.Checkout:
+        dir = builder.invocation.db.get_checkout_path(label)
+    elif label.type == LabelType.Package:
+        dir = builder.invocation.package_install_path(label)
+    elif label.type == LabelType.Deployment:
+        dir = builder.invocation.deploy_path(label.name, domain=label.domain)
+    else:
+        dir = None
+    return dir
+
+def find_local_root(builder, label):
+    """Given a label, find its "local" root directory.
+
+    For a normal label, this will be the normal muddle root directory
+    (where the top-level .muddle/ directory is).
+
+    For a label in a subdomain, it will be the root directory of that
+    subdomain - again, where its .muddle/ directory is.
+    """
+    label_dir = find_label_dir(builder, label)
+    if label_dir is None:
+        raise GiveUp('Cannot find local root, cannot determine location of label %s'%label)
+
+    # Then we need to go up until we find we find a .muddle/ directory
+    # (we assume that at worst we'll hit one at the top of the build tree)
+    #
+    # We know we're (somewhere) under either src/, install/ or deploy/
+    # so we should have at least two levels to go up
+
+    dir = label_dir
+    while True:
+        if os.path.exists(os.path.join(dir, '.muddle')):
+            return dir
+
+        up1, tail = os.path.split(dir)
+        if up1 == dir or dir == '/':
+            # We treat this as a bug because we assume we wouldn't BE here
+            # unless we already knew (or rather, one of our callers did) that
+            # we were "inside" a muddle build tree
+            raise MuddleBug('Searching upwards for local root failed\n'
+                            'Label was %s\n'
+                            'Started at %s\n'
+                            'Ended at %s, without finding a .muddle/ directory'%(
+                                label, label_dir, up1))
+        dir = up1
+
+def find_local_relative_root(builder, label):
+    """Given a label, find its "local" root directory, relative to toplevel.
+
+    Calls find_local_root() and then calculates the location of that relative
+    to the root of the entire muddle build tree.
+    """
+    local_root = find_local_root(builder, label)
+    top_root = builder.invocation.db.root_path
+
+    local_root = normalise_dir(local_root)
+    top_root = normalise_dir(top_root)
+
+    return os.path.relpath(local_root, top_root)
 
 def ensure_dir(dir, verbose=True):
     """
@@ -515,12 +596,18 @@ def num_cols():
     If it can't tell (e.g., because it curses is not available), returns 70.
     """
     if curses:
-        curses.setupterm()
-        cols = curses.tigetnum('cols')
-        if cols <= 0:
+        try:
+            curses.setupterm()
+            cols = curses.tigetnum('cols')
+            if cols <= 0:
+                return 70
+            else:
+                return cols
+        except TypeError:
+            # We get this if stdout not an int, or does not have a fileno()
+            # method, for instance if it has been redirected to a StringIO
+            # object.
             return 70
-        else:
-            return cols
     else:
         return 70
 
@@ -904,7 +991,8 @@ def _copy_without(src, dst, ignored_names, object_exactly, preserve, force):
     except OSError, why:
         raise GiveUp('Unable to copy properties of %s to %s: %s'%(src, dst, why))
 
-def copy_without(src, dst, without=None, object_exactly=True, preserve=False, force=False):
+def copy_without(src, dst, without=None, object_exactly=True, preserve=False,
+                 force=False, verbose=True):
     """
     Copy files from the 'src' directory to the 'dst' directory, without those in 'without'
 
@@ -921,6 +1009,8 @@ def copy_without(src, dst, without=None, object_exactly=True, preserve=False, fo
     If 'force' is true, then if a target file is not writeable, try removing it
     and then copying it.
 
+    If 'verbose' is true (the default), print out what we're copying.
+
     Creates directories in the destination, if necessary.
 
     Uses copy_file() to copy each file.
@@ -931,10 +1021,11 @@ def copy_without(src, dst, without=None, object_exactly=True, preserve=False, fo
     else:
         ignored_names = set()
 
-    print 'Copying %s to %s'%(src, dst),
-    if without:
-        print 'ignoring %s'%without
-    print
+    if verbose:
+        print 'Copying %s to %s'%(src, dst),
+        if without:
+            print 'ignoring %s'%without
+        print
 
     _copy_without(src, dst, ignored_names, object_exactly, preserve, force)
 
@@ -1330,6 +1421,7 @@ class HashFile(object):
 def normalise_dir(dir):
     dir = os.path.expanduser(dir)
     dir = os.path.abspath(dir)
+    dir = os.path.normpath(dir)     # remove double slashes, etc.
     return dir
 
 class Directory(object):

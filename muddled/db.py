@@ -18,42 +18,140 @@ class Database(object):
     """
     Represents the muddle database
 
-    Since we expect the user (and code) to edit these files
-    frequently, we deliberately do not cache their values.
+    Historically, this class represented the muddle database as stored
+    in the .muddle directory (on disk). Since we expect the user (and code) to
+    edit these files frequently, we deliberately do not cache their values
+    (other than, well, as themselves in the .muddle directory).
 
+    Since then however, we have also gained some dictionaries linking
+    checkout labels to particular quantities.
+
+    It's useful to have a single place for most such dictionaries because
+    when we do subdomain manipulation (i.e., taking a build description and
+    including its build tree into another as a subdomain) we need to change
+    all the labels in the new subdomain to reflect that fact. The fewer places
+    we have to worry about that, the better.
+
+    So, we remember:
+
+    * root_path - The path to the root of the build tree.
+    * repo - the PathFile for the '.muddle/RootRepository' file
+    * build_desc - the PathFile for the '.muddle/Description' file
+    * versions_repo - the PathFile for the '.muddle/VersionsRepository' file
+
+    * local_labels - Transient labels which are "asserted", via
+      'set_tag()', and queried via 'is_tag()'. This functionality is used
+      inside the Builder's "build_label()" mechanism, and is only intended
+      for use within muddle itself.
+
+    And a variety of dictionaries that take (mostly) checkout labels as keys.
+    Note that:
+
+    1. All the keys are "normalised" to have an unset label tag.
+    2. Thus it is assumed that the dictionaries will only be accessed via
+       the methods supplied for this purpose.
+    3. The existence of an entry in does not necessarily imply that the
+       particular checkout still exists/is used. It may, for instance, have
+       gone away during a ``builder.unify()`` operation.
+
+    The dictionaries we use are:
+
+    * checkout_locations - This maps a checkout label to the directory the
+      checkout is in, relative to the root of the build tree. So examples
+      might be::
+
+        checkout:builds/*               -> src/builds
+        checkout:(subdomain1)first_co/* -> domains/subdomain1/src/first_co
+
+    * checkout_repositories - This maps a checkout_label to a Repository
+      instance, representing where it is checked out from. So examples might
+      be (eliding the actual URL)::
+
+        checkout:builds/*               -> Repository('git', 'http://.../main', 'builds')
+        checkout:(subdomain1)first_co/* -> Repository('git', 'http://.../subdomain1', 'first_co')
+
+    * checkout_licenses - This maps a checkout label to a License instance,
+      representing the source code license under which this checkout's source
+      code is being used. For instance::
+
+        checkout:builds/*               -> License('MPL 1.1', 'open-source')
+        checkout:(subdomain1)first_co/* -> License('LGPL v3', 'gpl')
+
+      In the case of a checkout that has multiple licenses, the license that is
+      being "used" should be indicated.
+
+      Note that not all checkouts will necessarily have licenses associated
+      with them.
+
+    * checkout_license_files - Some licenses require distribution of a license
+      file from within the checkout, even in binary distributions. In such
+      cases, this dictionary maps the checkout label to the name of the license
+      file, relative to the checkout directory.
+
+    * license_not_affected_by is a dictionary of the form:
+
+        { package_label : set( gpl_checkout_labels ) }
+
+      Each gpl_checkout_label is a label whose license (typically GPL) might be
+      expected to "propagate" to any package built against that checkout. This
+      dictionary is used to tell the system that, whilst 'package_label' may
+      depend upon any of the 'gpl_checkout_labels', it doesn't build against
+      them in a way that actually causes that propagation.
+
+      So, for instance, if we have LGPL checkout label which our package links
+      to as a dynamic library, we'd want to tell muddle that the package
+      *depends* on the checkout, but doesn't get affected by the GPL nature of
+      its license.
+
+      This sort of thing is necessary because muddle itself has no way of
+      telling.
+
+    * nothing_builds_against is a set of checkout labels, each of which is
+      a checkout that (presumably) has a GPL license, but against which no
+      package links in a way that will cause GPL license "propagation".
+
+    * upstream_repositories is a dictionary of the form:
+
+        { repo : { repo, set(names) } }
+
+      That is, the key is a Repository instance (normally expected to be
+      the same as one of the values in the checkout_repos dictionary), and
+      the value is a dictionary whose keys are other repositories ("upstream"
+      repositories) and some names associated with them.
+
+      The same names may be associated with more than one upstream repository.
+      It is also conceivable that an upstream repository might also act as a
+      key, if it in turn has upstream repositories (whether this is strictly
+      necessary is unclear - XXX still to decide whether to support this).
+
+    Note that ALL labels in this dictionary and its constituent sets should
+    have their tags set to '*', so it is expected that this dictionary will
+    be accessed using set_license_not_affected_by() and get_license_not_affected_by().
     """
 
     def __init__(self, root_path):
         """
         Initialise a muddle database with the given root_path.
-
-        Useful internal values include:
-
-        * root_path          - The path to the root of the build tree.
-        * local_labels       - Transient labels which are asserted.
-        * checkout_locations - Maps checkout_label to the directory the
-          checkout is in, relative to src/ - if there's no mapping, we believe
-          it's directly in src.
-        * checkout_repositories - Maps checkout_label to a Repository instance,
-          representing where it is checked out from
-
-        NB: the existence of an entry in the checkout_locations dictionary
-        does not necessarily imply that such a checkout exists. It may, for
-        instance, have gone away during a ``builder.unify()`` operation.
-        Thus it is not safe to try to deduce all of the checkout labels
-        from the keys to this dictionary. And the same goes for the
-        checkout_repositories dictionary.
         """
         self.root_path = root_path
         utils.ensure_dir(os.path.join(self.root_path, ".muddle"))
         self.repo = PathFile(self.db_file_name("RootRepository"))
         self.build_desc = PathFile(self.db_file_name("Description"))
         self.versions_repo = PathFile(self.db_file_name("VersionsRepository"))
-        self.role_env = { }
-        self.checkout_locations = { }
-        self.checkout_repositories = { }
+        self.role_env = {}      # DEPRECATED - never used - XXX REMOVE XXX
 
+        self.checkout_locations = {}
+        self.checkout_repositories = {}
+        self.checkout_licenses = {}
+        self.checkout_license_files = {}
+        self.license_not_affected_by = {}
+        self.nothing_builds_against = set()
+
+        # A set of "asserted" labels
         self.local_tags = set()
+
+        # Upstream repositories
+        self.upstream_repositories = {}
 
     def setup(self, repo_location, build_desc, versions_repo=None):
         """
@@ -98,42 +196,169 @@ class Database(object):
 
         return (repo_file.get(), desc_file.get())
 
+    def _inner_labels(self):
+        """Return a list of all the labels we use.
+
+        This is so that mechanics.py can amend them all when we're being
+        included as a subdomain...
+
+        Note that we DO NOT CARE if identical labels (those that compare the
+        same with "is" are added to the list. But we DO want *all*
+        non-identical labels.
+        """
+        labels = []
+        labels.extend(self.checkout_locations.keys())
+        labels.extend(self.checkout_repositories.keys())
+        labels.extend(self.checkout_licenses.keys())
+        labels.extend(self.checkout_license_files.keys())
+        labels.extend(self.license_not_affected_by.keys())
+        labels.extend(self.nothing_builds_against)
+        # Don't forget the labels in the license_not_affected_by values
+        for not_against in self.license_not_affected_by.values():
+            labels.extend(not_against)
+        return labels
 
     def include_domain(self, other_builder, other_domain_name):
         """
         Include data from other_builder, built in other_domain_name
 
-        This is mainly checkout locations.
-        """
+        This method is the main reason why this class gets to hold so much
+        information - it gives us a single place to concentrate much of the
+        knowledge about including subdomains.
 
+        Note we rely upon all the labels in the other domain already having
+        been altered to reflect their subdomain-ness
+        """
         other_db = other_builder.invocation.db
 
-        # Both checkout_xxx dictionaries *should* have identical sets of keys,
-        # but just in case...
-        keys = set()
-        keys.update(other_db.checkout_locations.keys())
-        keys.update(other_db.checkout_repositories.keys())
+        self._merge_subdomain_labels(other_domain_name, other_db)
+        self._merge_subdomain_upstreams(other_domain_name, other_db)
 
-        # We really only want to transform the key labels once for both
-        # dictionaries
-        new_labels = {}
-        for co_label in keys:
-            new_co_label = self.normalise_checkout_label(co_label)
-            new_co_label._mark_unswept()
-            new_co_label._change_domain(other_domain_name)
-            new_labels[co_label] = new_co_label
-
-        #print 'include domain:', other_domain_name
+    def _merge_subdomain_labels(self, other_domain_name, other_db):
+        """Merge things from the subdomain that contain labels.
+        """
         for co_label, co_dir in other_db.checkout_locations.items():
-            #print "Including %s -> %s -- %s"%(co_label,co_dir, other_domain_name)
-            new_label = new_labels[co_label]
             new_dir = os.path.join(utils.domain_subpath(other_domain_name), co_dir)
-            #print "          %s -> %s"%(new_label, new_dir)
-            self.checkout_locations[new_label] = new_dir
+            self.checkout_locations[co_label] = new_dir
 
-        for co_label, repo in other_db.checkout_repositories.items():
-            new_label = new_labels[co_label]
-            self.checkout_repositories[new_label] = repo
+        self.checkout_repositories.update(other_db.checkout_repositories)
+
+        self.checkout_licenses.update(other_db.checkout_licenses)
+        self.checkout_license_files.update(other_db.checkout_license_files)
+
+        for pkg_label, not_against in other_db.license_not_affected_by.items():
+            if pkg_label in self.license_not_affected_by:
+                self.license_not_affected_by[pkg_label].update(not_against)
+            else:
+                self.license_not_affected_by[pkg_label] = not_against
+
+        self.nothing_builds_against.update(other_db.nothing_builds_against)
+
+    def _merge_subdomain_upstreams(self, other_domain_name, other_db):
+        """Merge things from the subdomain that contain upstream repositories.
+        """
+        for orig_repo, that_upstream_dict in other_db.upstream_repositories.items():
+            ##print 'Looking at %r'%orig_repo
+            if orig_repo in self.upstream_repositories:
+                ##print '  already known'
+                # Oh dear, we already think we know about this repository
+                # and its upstreams...
+                this_upstream_dict = self.upstream_repositories[orig_repo]
+
+                for upstream_repo, that_names in that_upstream_dict.items():
+                    ##print '  upstream %r'%upstream_repo
+                    if upstream_repo in this_upstream_dict:
+                        ##print '    already known'
+                        # And this is one of the upstreams we already recognise
+                        this_names = this_upstream_dict[upstream_repo]
+                        if that_names != this_names:
+                            ##print '      adding extra names'
+                            # If there are *extra* names, we'll just add them
+                            this_names.update(that_names)
+                            this_upstream_dict[upstream_repo] = this_names
+                    else:
+                        ##print '    never heard of it'
+                        # So we already had some upstreams on this repository,
+                        # and this subdomain is wanting to add more. Deal with
+                        # it appropriately.
+                        self._subdomain_new_upstream(other_domain_name, orig_repo, other_db)
+            else:
+                ##print '  new to us'
+                # This repository is not in our dictionary of "repositories
+                # that have upstreams". However, we don't keep repositories
+                # that *don't* have upstreams in there, so we need to check
+                # for that.
+                #
+                # The obvious case is a repository that is being used by a
+                # checkout, and we *do* have a dictionary for that.
+                #
+                # So we can tell if this is a repository (associated with a
+                # checkout) that we already know about, or if it is a
+                # repository we have no idea about (and which we therefore
+                # hope is being remembered for some good reason - but ours
+                # is not to reason why).
+                if orig_repo in self.checkout_repositories.values():
+                    # So, we've got a checkout using it, *without* upstreams,
+                    # and this is therefore the same as the case where we
+                    # were adding (new) upstreams to a repository that already
+                    # had them. So we do the same thing...
+                    ##print '    but we already have a checkout using it!'
+                    self._subdomain_new_upstream(other_domain_name, orig_repo, other_db)
+                else:
+                    # We have no record of this repository, with or without
+                    # upstreams, so let's record it...
+                    self.upstream_repositories[orig_repo] = that_upstream_dict
+
+    def _subdomain_new_upstream(self, other_domain_name, orig_repo, other_db):
+        """A subdomain introduces a new upstream on a repo we already know
+
+        It's not entirely clear whether a subdomain should be able to add a new
+        upstream that the main domain had not explicitly asked for. We could:
+
+        1. just add this new upstream, or
+        2. cause an error and force the user to amend the build descriptions to
+           avoid it, or
+        3. ignore the new upstream
+
+        I think (2) is perhaps acceptable. The user may not be able to change
+        the subdomain build description (it may have come from elsewhere, and
+        subdomain builds are valid top-level builds as well). But they could
+        arguably alter the top-level build to have the same remotes as the
+        subdomain. Of course, if the subdomain *is* from elsewhere, it may
+        change, and then the top-level build would be forever changing to keep
+        up.  But perhaps that is another argument...
+
+        I think (3) is just unacceptable - there was some reason for including
+        the upstream. We shouldn't throw the information away.
+
+        If we follow (1), then we potentially risk pushing to an upstream that
+        we didn't expect to (since the new upstream may share names with an
+        existing one).  So I think perhaps we should not allow this option,
+        tempting as it is.
+
+        Which leaves us with (2) as the least worst choice.
+        """
+        this_upstream = self.upstream_repositories[orig_repo]
+        that_upstream = other_db.upstream_repositories[orig_repo]
+        details = ['Subdomain %s adds a new upstream to\n'
+                   '  %r'%(other_domain_name, orig_repo)]
+
+        co_labels = self._find_checkouts_for_repo(orig_repo)
+        if co_labels:
+            details.append('  (used by %s)'%(depend.label_list_to_string(co_labels,
+                                                                         join_with=', ')))
+
+        details.append('  Original upstreams:')
+        for upstream_repo in sorted(this_upstream.keys()):
+            details.append('    %r  %s'%(upstream_repo,
+                           ', '.join(sorted(this_upstream[upstream_repo]))))
+
+        details.append('  Subdomain %s has:'%other_domain_name)
+        for upstream_repo in sorted(that_upstream.keys()):
+            details.append('    %r  %s'%(upstream_repo,
+                           ', '.join(sorted(that_upstream[upstream_repo]))))
+
+        raise utils.GiveUp('\n'.join(details))
 
     def set_domain_marker(self, domain_name):
         """
@@ -148,29 +373,35 @@ class Database(object):
         """
         Given a checkout label with random "other" fields, normalise it.
 
-        NB: We assume that the caller has made sure that its label
-        type really is "checkout:".
+        Returns a normalised checkout label, with the role unset and the
+        tag set to '*'. This may be the same label (if it was already
+        normalised), or it may be a new label. No guarantee is given of
+        either.
 
-        For instance, if the caller filled in the role (which we don't
-        care about), we need to remove it. Similarly, they might have
-        given us various tags, and we want to reduce that to '*' for
-        the purpose of using our label as a key.
+        Raise a MuddleBug exception if the label is not a checkout label.
 
-        Returns a normalised label.
+        A normalised checkout label:
 
-        (NB: This is not guaranteed to be a different Label instance,
-        since in theory this method need not do anything if the label
-        was already normalised. However, don't assume it is *not* a new
-        instance either...)
+            1. Has tag '*'
+            2. Does not have a role (checkout labels do not use the role)
+            3. Does not have the system or transient flags set
+            4. Has the same name and (if present) domain
         """
-        new = depend.Label(label.type, label.name,
-                           role=None,
-                           tag='*',
-                           domain=label.domain)
-        return new
+        if label.type != utils.LabelType.Checkout:
+            # The user probably needs an exception to spot why this is
+            # happening
+            raise MuddleBug('Cannot "normalise" a non-checkout label: %s'%label)
+
+        # Can we just use the same label?
+        if label.tag == '*' and label.role is None and \
+                not label.system and not label.transient:
+            return label
+        else:
+            new = label.copy_with_tag('*')
+            new._role = None    # a bit naughty, but the simplest way
+            return new
 
     def set_checkout_path(self, checkout_label, dir):
-        assert checkout_label.type == utils.LabelType.Checkout
         key = self.normalise_checkout_label(checkout_label)
 
 	#print '### set_checkout_path for %s'%checkout_label
@@ -179,7 +410,7 @@ class Database(object):
         self.checkout_locations[key] = os.path.join('src', dir)
 
     def dump_checkout_paths(self):
-        print "> Checkout paths .. "
+        print "> Checkout paths .."
         keys = self.checkout_locations.keys()
         max = 0
         for label in keys:
@@ -197,12 +428,13 @@ class Database(object):
         If it is None, then "<root path>/src" is returned.
 
         Otherwise, the path to the checkout directory for this label is
-        calculated.
+        calculated and returned.
+
+        If you want the path *relative* to the root of the build tree
+        (i.e., a path starting "src/"), then use get_checkout_location().
         """
         if checkout_label is None:
             return os.path.join(self.root_path, "src")
-
-        assert checkout_label.type == utils.LabelType.Checkout
 
         root = self.root_path
 
@@ -214,8 +446,28 @@ class Database(object):
 
         return os.path.join(root, rel_dir)
 
+    def get_checkout_location(self, checkout_label):
+        """
+        'checkout_label' is a "checkout:" Label, or None
+
+        If it is None, then "src" is returned.
+
+        Otherwise, the path to the checkout directory for this label, relative
+        to the root of the build tree, is calculated and returned.
+
+        If you want the full path to the checkout directory, then use
+        get_checkout_path().
+        """
+        if checkout_label is None:
+            return 'src'
+
+        key = self.normalise_checkout_label(checkout_label)
+        try:
+            return self.checkout_locations[key]
+        except KeyError:
+            raise utils.GiveUp('There is no checkout path registered for label %s'%checkout_label)
+
     def set_checkout_repo(self, checkout_label, repo):
-        assert checkout_label.type == utils.LabelType.Checkout
         key = self.normalise_checkout_label(checkout_label)
         self.checkout_repositories[key] = repo
 
@@ -227,7 +479,7 @@ class Database(object):
         report the full Repository definition (which shows branch and revision
         as well).
         """
-        print "> Checkout repositories .. "
+        print "> Checkout repositories .."
         keys = self.checkout_repositories.keys()
         max = 0
         for label in keys:
@@ -246,12 +498,299 @@ class Database(object):
         """
         Returns the Repository instance for this checkout label
         """
-        assert checkout_label.type == utils.LabelType.Checkout
         key = self.normalise_checkout_label(checkout_label)
         try:
             return self.checkout_repositories[key]
         except KeyError:
-            raise utils.GiveUp('There is no checkout path registered for label %s'%checkout_label)
+            raise utils.GiveUp('There is no repository registered for label %s'%checkout_label)
+
+    def set_checkout_license(self, checkout_label, license):
+        key = self.normalise_checkout_label(checkout_label)
+        self.checkout_licenses[key] = license
+
+    def dump_checkout_licenses(self, just_name=False):
+        """
+        Report on the licenses associated with our checkouts.
+
+        If 'just_name' is true, then report the licenses name, otherwise
+        report the full License definition.
+        """
+        print "Checkout licenses are:"
+        print
+        keys = self.checkout_licenses.keys()
+        max = 0
+        for label in keys:
+            length = len(str(label))
+            if length > max:
+                max = length
+        keys.sort()
+        if just_name:
+            for label in keys:
+                print "* %-*s %s"%(max, label, self.checkout_licenses[label])
+        else:
+            for label in keys:
+                print "* %-*s %r"%(max, label, self.checkout_licenses[label])
+
+    def get_checkout_license(self, checkout_label, absent_is_None=False):
+        """
+        Returns the License instance for this checkout label
+
+        If 'absent_is_None' is true, then if 'checkout_label' does not have
+        an entry in the licenses dictionary, None will be returned. Otherwise,
+        an appropriate GiveUp exception will be raised.
+        """
+        key = self.normalise_checkout_label(checkout_label)
+        try:
+            return self.checkout_licenses[key]
+        except KeyError:
+            if absent_is_None:
+                return None
+            else:
+                raise utils.GiveUp('There is no license registered for label %s'%checkout_label)
+
+    def checkout_has_license(self, checkout_label):
+        """
+        Return True if the named checkout has a license registered
+        """
+        key = self.normalise_checkout_label(checkout_label)
+        return key in self.checkout_licenses
+
+    def set_checkout_license_file(self, checkout_label, license_file):
+        """Set the license file for this checkout.
+        """
+        key = self.normalise_checkout_label(checkout_label)
+        self.checkout_license_files[key] = license_file
+
+    def get_checkout_license_file(self, checkout_label, absent_is_None=False):
+        """
+        Returns the License file for this checkout label
+
+        If 'absent_is_None' is true, then if 'checkout_label' does not have
+        an entry in the license files dictionary, None will be returned.
+        Otherwise, an appropriate GiveUp exception will be raised.
+        """
+        key = self.normalise_checkout_label(checkout_label)
+        try:
+            return self.checkout_license_files[key]
+        except KeyError:
+            if absent_is_None:
+                return None
+            else:
+                raise utils.GiveUp('There is no license file registered for label %s'%checkout_label)
+
+    def set_license_not_affected_by(self, this_label, co_label):
+        """Asserts that the license for 'co_label' does not affect 'pkg_label'
+
+        We assume that:
+
+        1. 'this_label' is a package that depends (perhaps indirectly) on
+           'co_label', or is a checkout directly required by such a package.
+        2. 'co_label' is a checkout with a "propagating" license (i.e., some
+           form of GPL license).
+        3. Thus by default the "GPL"ness would propagate from 'co_label' to
+           'this_label' (and, if it is a package, to the checkouts it is
+           (directly) built from).
+
+        However, this function asserts that, in fact, this is not true. Our
+        checkout is (or our checkouts are) not built in such a way as to cause
+        the license for 'co_label' to propagate.
+
+        Or, putting it another way, for a normal GPL license, we're not linking
+        with anything from 'co_label', or using its header files, or copying
+        GPL'ed files from it, and so on.
+
+        If 'co_label' is under LGPL, then that would reduce to saying we're not
+        static linking against 'co_label' (or anything else not allowed by the
+        LGPL).
+
+        Note that we may be called before 'co_label' has registered its
+        license, so we cannot actually check that 'co_label' has a propagating
+        license (or, indeed, that it exists or is depended upon by 'pkg_label').
+        """
+        if this_label.type not in (utils.LabelType.Package, utils.LabelType.Checkout):
+            raise utils.GiveUp('First label in set_license_not_affected_by() is %s, which is not'
+                               ' a package or checkout'%pkg_label)
+        if co_label.type != utils.LabelType.Checkout:
+            raise utils.GiveUp('Second label in set_license_not_affected_by() is %s, which is not'
+                               ' a checkout'%co_label)
+
+        if this_label.tag == '*':
+            key = this_label
+        else:
+            key = this_label.copy_with_tag('*')
+
+        value = self.normalise_checkout_label(co_label)
+
+        if key in self.license_not_affected_by:
+            self.license_not_affected_by[key].add(value)
+        else:
+            self.license_not_affected_by[key] = set([value])
+
+    def get_license_not_affected_by(self, this_label):
+        """Find what is registered as not affecting this label's license
+
+        That is, the things on which this package depends, that appear to be
+        GPL and propagate, but against which we have been told we do not
+        actually build, so the license is not, in fact, propagated.
+
+        Returns a (possibly empty) set of checkout labels, each with tag '*'.
+        """
+        if this_label.tag == '*':
+            key = this_label
+        else:
+            key = this_label.copy_with_tag('*')
+
+        try:
+            return self.license_not_affected_by[key]
+        except KeyError:
+            return set()
+
+    def set_nothing_builds_against(self, co_label):
+        """Indicate that no-one links against this checkout.
+
+        ...or, at least, not in a way to cause GPL license "propagation".
+        """
+        label = self.normalise_checkout_label(co_label)
+        self.nothing_builds_against.add(label)
+
+    def get_nothing_builds_against(self, co_label):
+        """Return True if this label is in the "not linked against" set.
+        """
+        label = self.normalise_checkout_label(co_label)
+        return label in self.nothing_builds_against
+
+    def add_upstream_repo(self, orig_repo, upstream_repo, names=None):
+        """Add an upstream repo to 'orig_repo'.
+
+        - 'orig_repo' is the original Repository that we are adding an
+          upstream for.
+        - 'upstream_repo' is the upstream Repository. It is an error if
+          that repository is already an upstream of 'orig_repo'.
+        - 'names' is a sequence of strings that can be used to select
+          this (and possibly other) upstream repositories.
+        """
+        if orig_repo in self.upstream_repositories:
+            upstream_dict = self.upstream_repositories[orig_repo]
+            if upstream_repo in upstream_dict:
+                raise utils.GiveUp('Repository %r is already upstream'
+                                   ' of %r'%(upstream_repo, orig_repo))
+        else:
+            upstream_dict = {}
+
+        upstream_dict[upstream_repo] = set(names)
+
+        self.upstream_repositories[orig_repo] = upstream_dict
+
+    def get_upstream_repos(self, orig_repo, names=None):
+        """Retrieve the upstream repositories for 'orig_repo'
+
+        If 'names' is given, it must be a sequence of strings, in which
+        case only those upstream repositories annotated with any of the
+        names will be returned.
+
+        Returns a list of tuples of the form:
+
+            (upstream repositories, matching names)
+
+        This will be empty if there are no upstream repositories for
+        'orig_repo', or none with any of the names in 'names' (if given).
+
+        In the case of 'names' being empty, 'matching names' will contain
+        the names registered for that upstream repository.
+
+        NB: 'matching names' is a tuple with the names sorted, and the list
+        returned is also sorted.
+        """
+        results = []
+        try:
+            upstream_dict = self.upstream_repositories[orig_repo]
+        except KeyError:
+            return results
+
+        if names:
+            for upstream_repo, upstream_names in sorted(upstream_dict.items()):
+                found_names = upstream_names.intersection(names)
+                if found_names:
+                    results.append((upstream_repo,
+                                   tuple(sorted(found_names))))
+        else:
+            for upstream_repo, upstream_names in sorted(upstream_dict.items()):
+                results.append((upstream_repo,
+                                tuple(sorted(upstream_names))))
+        return results
+
+    def _find_checkouts_for_repo(self, repo):
+        """Find the checkout(s) that use a repository.
+
+        Do we really believe we're going to have the same repository used by
+        more than one checkout? We certainly can't rule it out (it is
+        particularly likely if we have similar checkouts in different domains,
+        and they've not been unified).
+
+        On the other hand, checking for *everything* every time slows us down a
+        lot, so if this happens often we might want to consider a cache...
+
+        Returns a (possibly empty) set of checkout labels.
+        """
+        results = set()
+        if repo in self.checkout_repositories.values():
+            for co_label, co_repo in self.checkout_repositories.items():
+                if co_repo == repo:
+                    results.add(co_label)
+        return results
+
+    def dump_upstream_repos(self, just_url=False):
+        """
+        Report on the upstream repositories associated "default" repositories
+
+        If 'just_url' is true, then report the repository URL, otherwise
+        report the full Repository definition (which shows branch and revision
+        as well).
+        """
+        print "> Upstream repositories .."
+        keys = self.upstream_repositories.keys()
+        keys.sort()
+
+        for orig_repo in keys:
+            # Calling find_checkout_for to do a linear search through the
+            # checkout_repositories dictionary for every repository is
+            # likely to be, well, a bit slow. So let's hope we don't do this
+            # too often...
+            co_labels = self._find_checkouts_for_repo(orig_repo)
+            self.print_upstream_repo_info(orig_repo, co_labels, just_url)
+
+    def print_upstream_repo_info(self, orig_repo, co_labels, just_url):
+        """Print upstream repository information.
+
+        'orig_repo' is the "main" repository, the one that is not upstream
+
+        'co_labels' is a sequence of 0 or more checkout labels, which are
+        associated with that repository.
+
+        If 'just_url' is true, then report the repository URL, otherwise
+        report the full Repository definition (which shows branch and revision
+        as well).
+        """
+        if just_url:
+            format1 = "%s used by %s"
+            format2 = "%s"
+            format3 = "    %s  %s"
+        else:
+            format1 = "%r used by %s"
+            format2 = "%r"
+            format3 = "    %r  %s"
+
+        if co_labels:
+            print format1%(orig_repo, depend.label_list_to_string(co_labels, join_with=', '))
+        else:
+            print format2%orig_repo
+        try:
+            upstream_dict = self.upstream_repositories[orig_repo]
+            for upstream_repo in sorted(upstream_dict.keys()):
+                print format3%(upstream_repo,
+                               ', '.join(sorted(upstream_dict[upstream_repo])))
+        except KeyError:
+            print '  Has no upstream repositories'
 
     def build_desc_file_name(self):
         """

@@ -444,6 +444,9 @@ class Bazaar(VersionControlSystem):
                                                     fold_stderr=False, verbose=verbose)
         return text
 
+    def get_vcs_special_files(self):
+        return ['.bzr', '.bzrignore']
+
 # Tell the version control handler about us..
 register_vcs_handler("bzr", Bazaar(), __doc__)
 

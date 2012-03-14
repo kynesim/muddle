@@ -16,7 +16,7 @@ import copy
 import muddled.utils as utils
 import muddled.subst as subst
 
-class EnvType:
+class EnvType(object):
     """
     Types of environment variable.
 
@@ -28,7 +28,7 @@ class EnvType:
     Path = 1
 
 
-class EnvMode:
+class EnvMode(object):
     """
     Ways of manipulating environment variables.
     """
@@ -42,7 +42,7 @@ class EnvMode:
     # Prepend to the variable
     Prepend = 2
 
-class EnvLanguage:
+class EnvLanguage(object):
     """
     Languages in which we can generate setenv files.
     """
@@ -59,7 +59,7 @@ class EnvLanguage:
     # C
     C = 3
 
-class EnvExpr:
+class EnvExpr(object):
     """
     An environment variable expression. This allows us to symbolically
     represent things like catenating one variable value with another.
@@ -228,7 +228,7 @@ class EnvExpr:
 
 
 
-class EnvBuilder:
+class EnvBuilder(object):
     """
     Represents a way of building an environment variable
     value from a series of instructions.
@@ -539,7 +539,7 @@ class EnvBuilder:
         return result_set
 
 
-class Store:
+class Store(object):
     """
     Maintains a store of environment variables and allows us to apply them
     to any given environment dictionary.

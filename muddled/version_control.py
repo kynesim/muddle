@@ -145,6 +145,17 @@ class VersionControlSystem(object):
         """
         return False
 
+    def get_vcs_special_files(self):
+        """
+        Return the names of the 'special' files/directories used by this VCS.
+
+        For instance, if 'url' starts with "git+" then we might return
+        [".git", ".gitignore", ".gitmodules"]
+
+        Returns an empty list if there is no such concept.
+        """
+        return []
+
 
 class VersionControlHandler(object):
     """
@@ -262,6 +273,11 @@ class VersionControlHandler(object):
         # We want to be in the checkout's parent directory
         parent_dir, rest = os.path.split(self.get_my_absolute_checkout_path())
 
+        if not self.repo.pull:
+            raise utils.GiveUp('Failure checking out %s in %s:\n'
+                               '  %s does not allow "pull"'%(self.checkout_label,
+                               parent_dir, self.repo))
+
         # Be careful - if the parent is 'src/', then it may well exist by now
         if not os.path.exists(parent_dir):
             os.makedirs(parent_dir)
@@ -283,17 +299,22 @@ class VersionControlHandler(object):
         the local working copy, but not if a merge operation would be
         required, in which case an exception shall be raised.
         """
+        if not self.repo.pull:
+            raise utils.GiveUp('Failure pulling %s in %s:\n'
+                               '  %s does not allow "pull"'%(self.checkout_label,
+                               self.src_rel_dir(), self.repo))
+
         with utils.Directory(self.get_my_absolute_checkout_path()):
             try:
                 self.vcs_handler.fetch(self.repo, self.options, verbose)
             except utils.MuddleBug as err:
-                raise utils.MuddleBug('Error fetching %s in %s:\n%s'%(self.checkout_label,
+                raise utils.MuddleBug('Error pulling %s in %s:\n%s'%(self.checkout_label,
                                   self.src_rel_dir(), err))
             except utils.Unsupported as err:
-                raise utils.Unsupported('Not fetching %s in %s:\n%s'%(self.checkout_label,
+                raise utils.Unsupported('Not pulling %s in %s:\n%s'%(self.checkout_label,
                                      self.src_rel_dir(), err))
             except utils.GiveUp as err:
-                raise utils.GiveUp('Failure fetching %s in %s:\n%s'%(self.checkout_label,
+                raise utils.GiveUp('Failure pulling %s in %s:\n%s'%(self.checkout_label,
                                     self.src_rel_dir(), err))
 
     def merge(self, verbose=True):
@@ -301,6 +322,11 @@ class VersionControlHandler(object):
         Retrieve changes from the remote repository, and apply them to
         the local working copy, performing a merge operation if necessary.
         """
+        if not self.repo.pull:
+            raise utils.GiveUp('Failure merging %s in %s:\n'
+                               '  %s does not allow "pull"'%(self.checkout_label,
+                               self.src_rel_dir(), self.repo))
+
         with utils.Directory(self.get_my_absolute_checkout_path()):
             try:
                 self.vcs_handler.merge(self.repo, self.options, verbose)
@@ -340,6 +366,11 @@ class VersionControlHandler(object):
 
         This operaton does not do a 'commit'.
         """
+        if not self.repo.push:
+            raise utils.GiveUp('Failure pushing %s in %s:\n'
+                               '  %s does not allow "push"'%(self.checkout_label,
+                               self.src_rel_dir(), self.repo))
+
         with utils.Directory(self.get_my_absolute_checkout_path()):
             try:
                 self.vcs_handler.push(self.repo, self.options, verbose)
@@ -443,6 +474,17 @@ class VersionControlHandler(object):
 
     def must_fetch_before_commit(self):
         return self.vcs_handler.must_fetch_before_commit(self.options)
+
+    def get_vcs_special_files(self):
+        """
+        Return the names of the 'special' files/directories used by this VCS.
+
+        For instance, if 'url' starts with "git+" then we might return
+        [".git", ".gitignore", ".gitmodules"]
+
+        Returns an empty list if there is no such concept.
+        """
+        return self.vcs_handler.get_vcs_special_files()
 
     def get_file_content(self, url, verbose=True):
         """
@@ -617,6 +659,14 @@ def checkout_from_repo(builder, co_label, repo, co_dir=None, co_leaf=None):
     the label <co_label> to this directory/repository combination.
     """
 
+    # It's difficult to see how we could use a non-pull repository to
+    # check our source out of...
+    if not repo.pull:
+        # Use a MuddleBug, because the user probably wants a traceback to see
+        # where this is actually coming from
+        raise utils.MuddleBug('Checkout %s cannot use %r\n'
+                              '  as its main repository, as "pull" is not allowed'%(co_label, repo))
+
     if co_dir:
         if co_leaf:
             co_path = os.path.join(co_dir, co_leaf)
@@ -633,7 +683,6 @@ def checkout_from_repo(builder, co_label, repo, co_dir=None, co_leaf=None):
 
     vcs_handler = vcs_action_for(builder, co_label, repo, co_dir=co_dir, co_leaf=co_leaf)
     pkg.add_checkout_rules(builder.invocation.ruleset, co_label, vcs_handler)
-
 
 def conventional_repo_url(repo, rel, co_dir = None):
     """
@@ -712,28 +761,6 @@ def vcs_get_file_data(url):
     vcs_handler, plain_url = get_vcs_handler_from_string(url)
     return vcs_handler.get_file_content(plain_url)
 
-# This is a dictionary of VCS name to function-to-clone/push/pull-a-directory
-vcs_dir_handler = {}
-
-def register_vcs_dir_handler(scheme, handler):
-    """
-    Register a function for cloning/pushing/pulling an indivual directory.
-
-    'scheme' is the VCS (short) name. This should match the mnemonic used
-    at the start of URLs - so, e.g., "bzr" for "bzr+ssh://whatever".
-
-    'handler' is the function. It should take (at least) two arguments:
-
-    1. the action to perform. One of "clone", "push", "pull", "commit".
-    2. the URL of the repository to use. This is not needed for "commit".
-    3. for "clone", optionally the name of the directory to clone into
-
-    For "clone" it assumes it will produce the clone in the current directory.
-    For "push" and "pull" it assumes that the current directory is the cloned
-    directory.
-    """
-    vcs_dir_handler[scheme] = handler
-
 def vcs_get_directory(url, directory=None):
     """
     Retrieve (clone) the directory identified by the URL, via its VCS.
@@ -793,5 +820,15 @@ def vcs_init_directory(scheme, files=None):
         raise utils.MuddleBug("No VCS handler registered for VCS type %s"%scheme)
     vcs_handler.init_directory()
     vcs_handler.add_files(files)
+
+def vcs_special_files(url):
+    """
+    Return the names of the 'special' files/directories used by this VCS.
+
+    For instance, if 'url' starts with "git+" then we might return
+    [".git", ".gitignore", ".gitmodules"]
+    """
+    vcs_handler, plain_url = get_vcs_handler_from_string(url)
+    return vcs_handler.get_vcs_special_files()
 
 # End file.

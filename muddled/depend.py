@@ -5,7 +5,7 @@ Dependency sets and dependency management
 import re
 import copy
 
-from muddled.utils import GiveUp, MuddleBug, package_type_to_tag, LabelType
+from muddled.utils import GiveUp, MuddleBug, label_type_to_tag, LabelType
 
 class Label(object):
     """
@@ -816,7 +816,7 @@ class Label(object):
         tag = m.group("tag")
         if tag is None:
             try:
-                tag = package_type_to_tag[type]
+                tag = label_type_to_tag[type]
             except KeyError:
                 raise GiveUp("Cannot guess tag for label fragment '%s'"
                              " (unrecognised label type '%s:')"%(fragment, type))
@@ -871,7 +871,7 @@ def label_from_string(str):
     """
     return Label.from_string(str)
 
-class Action:
+class Action(object):
     """
     Represents an object you can call to "build" a tag.
     """
@@ -901,7 +901,7 @@ class Action:
     #    which might not otherwise be moved to the new domain.
 
 
-class SequentialAction:
+class SequentialAction(object):
     """
     Invoke two actions in turn
     """
@@ -914,7 +914,10 @@ class SequentialAction:
         self.a.build_label(builder, label)
         self.b.build_label(builder, label)
 
-class Rule:
+    def _inner_labels(self):
+        return [self.a, self.b]
+
+class Rule(object):
     """
     A rule or "dependency set".
 
@@ -1130,7 +1133,7 @@ class Rule:
         return " ".join(output)
 
 
-class RuleSet:
+class RuleSet(object):
     """
     A collection of rules that encapsulate how you can get from A to B.
 
@@ -1692,6 +1695,53 @@ def rule_target_str(rule):
     an argument for map so we can print lists of rules sensibly.
     """
     return str(rule.target)
+
+# Some simple ways of constructing labels
+def checkout(name, tag='*', domain=None):
+    """A simple convenience function to return a checkout label
+
+    - 'name' is the checkout name
+    - 'tag' is the label tag, defaulting to "*"
+    - 'domain' is the label domain name, defaulting to None
+
+    For instance:
+
+        >>> l = checkout('fred')
+        >>> l == Label.from_string('checkout:fred/*')
+        True
+    """
+    return Label(LabelType.Checkout, name, tag=tag, domain=domain)
+
+def package(name, role, tag='*', domain=None):
+    """A simple convenience function to return a package label
+
+    - 'name' is the package name
+    - 'role' is the package role
+    - 'tag' is the label tag, defaulting to "*"
+    - 'domain' is the label domain name, defaulting to None
+
+    For instance:
+
+        >>> l = package('fred', 'jim')
+        >>> l == Label.from_string('package:fred{jim}/*')
+        True
+    """
+    return Label(LabelType.Package, name, role, tag=tag, domain=domain)
+
+def deployment(name, tag='*', domain=None):
+    """A simple convenience function to return a deployment label
+
+    - 'name' is the deployment name
+    - 'tag' is the label tag, defaulting to "*"
+    - 'domain' is the label domain name, defaulting to None
+
+    For instance:
+
+        >>> l = deployment('fred')
+        >>> l == Label.from_string('deployment:fred/*')
+        True
+    """
+    return Label(LabelType.Deployment, name, tag=tag, domain=domain)
 
 # End file.
 

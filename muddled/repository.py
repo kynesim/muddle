@@ -11,7 +11,7 @@ from urlparse import urlparse, urljoin, urlunparse
 
 from muddled.utils import GiveUp
 
-branch_and_revision_re = re.compile("([^:]*):(.*)$")
+_branch_and_revision_re = re.compile("([^:]*):(.*)$")
 
 class Repository(object):
     """The representation of a single repository.
@@ -138,7 +138,8 @@ class Repository(object):
       >>> r.url
       'ssh://svn@project-server/opt/kynesim/projects/042/svn/all_our_code/core/busybox-1.18.4'
 
-    If you specify both 'extension' and 'inner_path', the result is undefined.
+    It is not intended that <inner_path> and <suffix> be used together, and the
+    result if they are is not guaranteed.
 
     Finally, it is possible to specify a revision and branch. These are both
     handled as strings, with no defined interpretation (and are not always
@@ -161,7 +162,53 @@ class Repository(object):
 
     def __init__(self, vcs, base_url, repo_name, prefix=None, prefix_as_is=False,
                  suffix=None, inner_path=None, revision=None, branch=None,
-                 handler='guess'):
+                 handler='guess', push=True, pull=True):
+        """Creating a new Repository instance
+
+        - 'vcs' is the (short name) for the Version Control System being used
+          to access this repository. For instance, "git" or "svn".
+        - 'base_url' is the first part of the URL for the repository. This is
+          separated out because it is common for different repositories to
+          share the first part of their URL, not because it necessarily has
+          any greater meaning.
+        - 'repo_name' is the part that names this particular repository. It
+          is often the same as the name of the checkout using this repository
+          (but that depends on how the reposiory is accessed).
+        - 'prefix' is a string to put between the 'base_url' and 'repo_name',
+          when constructing the full repository URL.
+        - if 'prefix_as_is' is true, then 'prefix' is inserted between
+          'base_url' and 'repo_name' exactly as it is given, otherwise it is
+          delimited by "/" characters. It is ignored if 'prefix' is None.
+        - 'suffix' is a string to put after the 'repo_name' when constructing
+          the full repository URL.
+        - 'inner_path' is used to specify a path *inside* the repository, for
+          version control systems that allow this (typically Subversion).
+        - 'revision' is the revision to use. This should always be a string,
+          regardless of what the VCS expects. It may look like an integer
+          (e.g., "123") or an expression ("-r123" or "date:20120101")
+          depending on the VCS.
+          For historical reasons, a revision may also be of the form
+          "<revision>:<branch>".
+        - 'branch' is the branch to use.
+        - 'handler' is either None, or "guess" (the default) or the name of
+          a registered handler for constructing the full repository URL if
+          the normal mechanisms are not adequate.
+        - 'push' is true if we can push to this repository. The default is
+          True.
+        - 'pull' is true if we can pull from this repository. The default is
+          True.
+
+        If there is no handler in action, the full repository URL is thus
+        either:
+
+            * <base_url>/<prefix>/<repo_name>/<inner_path><suffix> or
+            * <base_url><prefix><repo_name>/<inner_path><suffix> or
+
+        depending on the value of 'prefix_as_is', and with values that
+        are None being turned into empty strings. Note that it is not
+        really intended that both <inner_path> and <suffix> be used on
+        the same repository.
+        """
         self.vcs = vcs
         self.base_url = base_url
 
@@ -170,6 +217,12 @@ class Repository(object):
         self.prefix_as_is = prefix_as_is
         self.suffix = suffix
         self.inner_path = inner_path
+
+        # By default, repositories can be pushed to and pulled from
+        self.push = push
+        self.pull = pull
+        # XXX Are push and pull realy fundamental properties of the repository,
+        # XXX or merely of its use(r)?
 
         self.from_url_string = None        # no, from parts as given
 
@@ -244,7 +297,7 @@ class Repository(object):
         If the given string *does* include a <branch> component, then
         it overrides any 'branch' argument we may be given.
         """
-        m = branch_and_revision_re.match(revision)
+        m = _branch_and_revision_re.match(revision)
         if m:
             branch = m.group(1)
             revision = m.group(2)
@@ -260,6 +313,10 @@ class Repository(object):
                 parts.append('revision=%s'%repr(self.revision))
             if self.branch:
                 parts.append('branch=%s'%repr(self.branch))
+            if not self.push:
+                parts.append('push=False')
+            if not self.pull:
+                parts.append('pull=False')
             return 'Repository.from_url(%s)'%(', '.join(parts))
         else:
             parts = [repr(self.vcs), repr(self.base_url), repr(self.repo_name)]
@@ -273,6 +330,10 @@ class Repository(object):
                 parts.append('revision=%s'%repr(self.revision))
             if self.branch:
                 parts.append('branch=%s'%repr(self.branch))
+            if not self.push:
+                parts.append('push=False')
+            if not self.pull:
+                parts.append('pull=False')
             return 'Repository(%s)'%(', '.join(parts))
 
     def __str__(self):
@@ -284,7 +345,7 @@ class Repository(object):
             return self.url
 
     def __eq__(self, other):
-        """Equal if VCS, actual URL, branch and revision are equal.
+        """Equal if VCS, actual URL, branch, revision, push and pull are equal.
 
         We don't care how the URL is derived (from parts or given as a whole),
         just that it be the same.
@@ -296,17 +357,40 @@ class Repository(object):
             >>> a == b
             True
         """
-        return (self.vcs == other.vcs and
-                self.url == other.url and
-                self.branch == other.branch and
-                self.revision == other.revision)
+        for this, that in zip(self._comparables(), other._comparables()):
+            if this != that:
+                return False
+        return True
+
+    def __hash__(self):
+        """We need this if we want to be in sets, or as dictionary keys.
+        """
+        return hash(self._comparables())
+
+    def __lt__(self, other):
+        """We need this if we're to be sorted, which can be nice when printing.
+        """
+        for this, that in zip(self._comparables(), other._comparables()):
+            if this < that:
+                return True
+            elif this > that:
+                return False
+        return False
+
+    def _comparables(self):
+        """What we use to identify ourself...
+        """
+        return (self.vcs, self.url, self.branch, self.revision,
+                self.push, self.pull)
 
     def same_ignoring_revision(self, other):
         """Requires equality except for the revision.
         """
         return (self.vcs == other.vcs and
                 self.url == other.url and
-                self.branch == other.branch)
+                self.branch == other.branch and
+                self.push == other.push and
+                self.pull == other.pull)
 
     def default_path(self):
         """Return the default repository path, calculated from all the parts.
@@ -338,13 +422,15 @@ class Repository(object):
         return result
 
     @staticmethod
-    def from_url(vcs, repo_url, revision=None, branch=None):
+    def from_url(vcs, repo_url, revision=None, branch=None, push=True, pull=True):
         """Construct a Repository instance from a URL.
 
         - 'vcs' is the version control system ('git', 'svn', etc.)
         - 'repo_url' is the complete URL used to access the repository
         - 'revision' and 'branch' are the revision and branch to use,
           just as for the normal constructor.
+        - 'push' and 'pull' indicate whether one can push to and/or pull from
+          the repository, again as for the normal constructor.
 
         We make a good guess as to the 'checkout name', assuming it is
         the last component of the path in the URL. But, of course, no path
@@ -400,7 +486,8 @@ class Repository(object):
         base_url = urlunparse((scheme, netloc, other_stuff, '', '', ''))
         suffix = urlunparse(('', '', '', params, query, fragment))
         repo = Repository(vcs, base_url, repo_name, suffix=suffix,
-                          revision=revision, branch=branch, handler=None)
+                          revision=revision, branch=branch, handler=None,
+                          push=push, pull=pull)
         repo.from_url_string = repo_url
         repo.handler = None
         return repo
@@ -445,7 +532,8 @@ class Repository(object):
         return Repository.path_handlers.get((vcs, starts_with))
 
     def copy_with_changes(self, repo_name, prefix=None, suffix=None,
-                          inner_path=None, revision=None, branch=None):
+                          inner_path=None, revision=None, branch=None,
+                          push=None, pull=None):
         """Return a new instance based on this one.
 
         A simple copy is taken, and then any amendments are made to it.
@@ -499,7 +587,9 @@ class Repository(object):
                           suffix=(self.suffix if suffix is None else suffix),
                           inner_path=(self.inner_path if inner_path is None else inner_path),
                           revision=revision,
-                          branch=branch)
+                          branch=branch,
+                          push=(self.push if push is None else push),
+                          pull=(self.pull if pull is None else pull))
 
     def copy_with_changed_revision(self, revision):
         """Return a Repository that differs only in its revision.
@@ -564,6 +654,8 @@ def google_code_handler(repo):
 
         * https://code.google.com/p/<project> for the default repository
         * https://code.google.com/p/<project>.<repo> for any other repository
+
+    This is registered as the "code.google.com" handler for "git".
     """
 
     # Note that error messages must use %r for the 'repo' representation,
@@ -592,6 +684,43 @@ def google_code_handler(repo):
         return '%s.%s'%(repo.base_url, repo.repo_name)
 
 Repository.register_path_handler('git', 'code.google.com', google_code_handler)
+
+# Some convenience functions
+def get_checkout_repo(builder, co_label):
+    """Returns the Repository instance for this checkout label
+
+    A convenience wrapper around 'builder.invocation.db.get_checkout_repo'.
+    """
+    return builder.invocation.db.get_checkout_repo(co_label)
+
+def add_upstream_repo(builder, orig_repo, upstream_repo, names):
+    """Add an upstream repo to 'orig_repo'.
+
+    - 'orig_repo' is the original Repository that we are adding an
+      upstream for.
+    - 'upstream_repo' is the upstream Repository. It is an error if
+      that repository is already an upstream of 'orig_repo'.
+    - 'names' is a sequence of strings that can be used to select
+      this (and possibly other) upstream repositories.
+
+    A convenience wrapper around 'builder.invocation.db.add_upstream_repo'.
+    """
+    builder.invocation.db.add_upstream_repo(orig_repo, upstream_repo, names)
+
+def get_upstream_repos(builder, orig_repo, names=None):
+    """Retrieve the upstream repositories for 'orig_repo'
+
+    If 'names' is given, it must be a sequence of strings, in which
+    case only those upstream repositories annotated with any of the
+    names will be returned.
+
+    Returns a set of upstream repositories. This will be empty if there
+    are no upstream repositories for 'orig_repo', or none with any of the
+    names in 'names' (if given).
+
+    A convenience wrapper around 'builder.invocation.db.get_upstream_repos'.
+    """
+    return builder.invocation.db.add_upstream_repo(orig_repo, names)
 
 if __name__ == '__main__':
     print 'Running doctests'

@@ -472,20 +472,22 @@ def set_nothing_builds_against(builder, co_label):
     """
     builder.invocation.db.set_nothing_builds_against(co_label)
 
-def set_not_built_against(builder, pkg_label, co_label):
-    """Asserts that this package is not "built against" that checkout.
+def set_license_not_affected_by(builder, this_label, co_label):
+    """Asserts that the license for co_label does not affect this_label
 
     We assume that:
 
-    1. 'pkg_label' is a package that depends (perhaps indirectly) on 'co_label'
+    1. 'this_label' is a package that depends (perhaps indirectly) on 'co_label',
+       or is a checkout directly required by such a package.
     2. 'co_label' is a checkout with a "propagating" license (i.e., some form
        of GPL license).
-    3. Thus by default the "GPL"ness would propagate from 'co_label' to this
-       package, and thus to the checkouts we are (directly) built from.
+    3. Thus by default the "GPL"ness would propagate from 'co_label' to
+       'this_label' (and, if it is a package, to the checkouts it is (directly)
+       built from).
 
-    However, this function asserts that, in fact, our checkout is (or our
-    checkouts are) not built in such a way as to cause the license for
-    'co_label' to propagate.
+    However, this function asserts that, in fact, this is not true. Our
+    checkout is (or our checkouts are) not built in such a way as to cause the
+    license for 'co_label' to propagate.
 
     Or, putting it another way, for a normal GPL license, we're not linking
     with anything from 'co_label', or using its header files, or copying GPL'ed
@@ -499,9 +501,10 @@ def set_not_built_against(builder, pkg_label, co_label):
     we cannot actually check that 'co_label' has a propagating license (or,
     indeed, that it exists or is depended upon by 'pkg_label').
 
-    This is a simple wrapper around builder.invocation.db.set_not_built_against.
+    This is a simple wrapper around
+    builder.invocation.db.set_license_not_affected_by.
     """
-    builder.invocation.db.set_not_built_against(pkg_label, co_label)
+    builder.invocation.db.set_license_not_affected_by(this_label, co_label)
 
 def _normalise_checkout_label(co_label):
     """Normalise a checkout label.
@@ -611,7 +614,7 @@ def get_implicit_gpl_checkouts(builder):
 
     # Localise for our loop
     get_checkout_license = builder.invocation.db.get_checkout_license
-    get_not_built_against = builder.invocation.db.get_not_built_against
+    get_license_not_affected_by = builder.invocation.db.get_license_not_affected_by
     get_nothing_builds_against = builder.invocation.db.get_nothing_builds_against
     ruleset = builder.invocation.ruleset
 
@@ -658,8 +661,8 @@ def get_implicit_gpl_checkouts(builder):
             if DEBUG: print '     %s'%this_label,
             if this_label.type == LabelType.Package:
 
-                not_against = get_not_built_against(this_label)
-                if co_label in not_against:
+                not_affected_by = get_license_not_affected_by(this_label)
+                if co_label in not_affected_by:
                     if DEBUG: print 'NOT against %s'%co_label
                     continue
 
@@ -669,6 +672,11 @@ def get_implicit_gpl_checkouts(builder):
 
                 for this_co in pkg_checkouts:
                     if DEBUG: print '         %s'%this_label,
+
+                    not_affected_by = get_license_not_affected_by(this_co)
+                    if co_label in not_affected_by:
+                        if DEBUG: print 'NOT against %s'%co_label
+                        continue
                     # We know that our original 'co_label' has type '/*`
                     add_if_not_us(co_label, this_co, result, because,
                                   '%s depends on %s'%(this_label.copy_with_tag('*'), co_label))

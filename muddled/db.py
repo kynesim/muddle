@@ -88,7 +88,7 @@ class Database(object):
       cases, this dictionary maps the checkout label to the name of the license
       file, relative to the checkout directory.
 
-    * not_built_against is a dictionary of the form:
+    * license_not_affected_by is a dictionary of the form:
 
         { package_label : set( gpl_checkout_labels ) }
 
@@ -126,7 +126,7 @@ class Database(object):
 
     Note that ALL labels in this dictionary and its constituent sets should
     have their tags set to '*', so it is expected that this dictionary will
-    be accessed using set_not_built_against() and get_not_built_against().
+    be accessed using set_license_not_affected_by() and get_license_not_affected_by().
     """
 
     def __init__(self, root_path):
@@ -144,7 +144,7 @@ class Database(object):
         self.checkout_repositories = {}
         self.checkout_licenses = {}
         self.checkout_license_files = {}
-        self.not_built_against = {}
+        self.license_not_affected_by = {}
         self.nothing_builds_against = set()
 
         # A set of "asserted" labels
@@ -211,10 +211,10 @@ class Database(object):
         labels.extend(self.checkout_repositories.keys())
         labels.extend(self.checkout_licenses.keys())
         labels.extend(self.checkout_license_files.keys())
-        labels.extend(self.not_built_against.keys())
+        labels.extend(self.license_not_affected_by.keys())
         labels.extend(self.nothing_builds_against)
-        # Don't forget the labels in the not_built_against values
-        for not_against in self.not_built_against.values():
+        # Don't forget the labels in the license_not_affected_by values
+        for not_against in self.license_not_affected_by.values():
             labels.extend(not_against)
         return labels
 
@@ -246,11 +246,11 @@ class Database(object):
         self.checkout_licenses.update(other_db.checkout_licenses)
         self.checkout_license_files.update(other_db.checkout_license_files)
 
-        for pkg_label, not_against in other_db.not_built_against.items():
-            if pkg_label in self.not_built_against:
-                self.not_built_against[pkg_label].update(not_against)
+        for pkg_label, not_against in other_db.license_not_affected_by.items():
+            if pkg_label in self.license_not_affected_by:
+                self.license_not_affected_by[pkg_label].update(not_against)
             else:
-                self.not_built_against[pkg_label] = not_against
+                self.license_not_affected_by[pkg_label] = not_against
 
         self.nothing_builds_against.update(other_db.nothing_builds_against)
 
@@ -578,54 +578,56 @@ class Database(object):
             else:
                 raise utils.GiveUp('There is no license file registered for label %s'%checkout_label)
 
-    def set_not_built_against(self, pkg_label, co_label):
-        """Asserts that this package is not "built against" that checkout.
+    def set_license_not_affected_by(self, this_label, co_label):
+        """Asserts that the license for 'co_label' does not affect 'pkg_label'
 
         We assume that:
 
-        1. 'pkg_label' is a package that depends (perhaps indirectly) on 'co_label'
-        2. 'co_label' is a checkout with a "propagating" license (i.e., some for of
-           GPL license).
-        3. Thus by default the "GPL"ness would propagate from 'co_label' to this
-           package, and thus to the checkouts we are (directly) built from.
+        1. 'this_label' is a package that depends (perhaps indirectly) on
+           'co_label', or is a checkout directly required by such a package.
+        2. 'co_label' is a checkout with a "propagating" license (i.e., some
+           form of GPL license).
+        3. Thus by default the "GPL"ness would propagate from 'co_label' to
+           'this_label' (and, if it is a package, to the checkouts it is
+           (directly) built from).
 
-        However, this function asserts that, in fact, our checkout is (or our
-        checkouts are) not built in such a way as to cause the license for
-        'co_label' to propagate.
+        However, this function asserts that, in fact, this is not true. Our
+        checkout is (or our checkouts are) not built in such a way as to cause
+        the license for 'co_label' to propagate.
 
         Or, putting it another way, for a normal GPL license, we're not linking
-        with anything from 'co_label', or using its header files, or copying GPL'ed
-        files from it, and so on.
+        with anything from 'co_label', or using its header files, or copying
+        GPL'ed files from it, and so on.
 
         If 'co_label' is under LGPL, then that would reduce to saying we're not
         static linking against 'co_label' (or anything else not allowed by the
         LGPL).
 
-        Note that we may be called before 'co_label' has registered its license, so
-        we cannot actually check that 'co_label' has a propagating license (or,
-        indeed, that it exists or is depended upon by 'pkg_label').
+        Note that we may be called before 'co_label' has registered its
+        license, so we cannot actually check that 'co_label' has a propagating
+        license (or, indeed, that it exists or is depended upon by 'pkg_label').
         """
-        if pkg_label.type != utils.LabelType.Package:
-            raise utils.GiveUp('First label in not_build_against() is %s, which is not'
-                               ' a package'%pkg_label)
+        if this_label.type not in (utils.LabelType.Package, utils.LabelType.Checkout):
+            raise utils.GiveUp('First label in set_license_not_affected_by() is %s, which is not'
+                               ' a package or checkout'%pkg_label)
         if co_label.type != utils.LabelType.Checkout:
-            raise utils.GiveUp('Second label in not_build_against() is %s, which is not'
+            raise utils.GiveUp('Second label in set_license_not_affected_by() is %s, which is not'
                                ' a checkout'%co_label)
 
-        if pkg_label.tag == '*':
-            key = pkg_label
+        if this_label.tag == '*':
+            key = this_label
         else:
-            key = pkg_label.copy_with_tag('*')
+            key = this_label.copy_with_tag('*')
 
         value = self.normalise_checkout_label(co_label)
 
-        if key in self.not_built_against:
-            self.not_built_against[key].add(value)
+        if key in self.license_not_affected_by:
+            self.license_not_affected_by[key].add(value)
         else:
-            self.not_built_against[key] = set([value])
+            self.license_not_affected_by[key] = set([value])
 
-    def get_not_built_against(self, pkg_label):
-        """Find those things against which this package is *not* built.
+    def get_license_not_affected_by(self, this_label):
+        """Find what is registered as not affecting this label's license
 
         That is, the things on which this package depends, that appear to be
         GPL and propagate, but against which we have been told we do not
@@ -633,13 +635,13 @@ class Database(object):
 
         Returns a (possibly empty) set of checkout labels, each with tag '*'.
         """
-        if pkg_label.tag == '*':
-            key = pkg_label
+        if this_label.tag == '*':
+            key = this_label
         else:
-            key = pkg_label.copy_with_tag('*')
+            key = this_label.copy_with_tag('*')
 
         try:
-            return self.not_built_against[key]
+            return self.license_not_affected_by[key]
         except KeyError:
             return set()
 

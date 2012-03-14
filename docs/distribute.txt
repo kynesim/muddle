@@ -674,7 +674,8 @@ There are three cases:
 
 1. The GPL license being used is marked as "with exemption" or "with
    exception", in which case there is no "propagation".
-2. The checkout is never actually linked against. An example would be busybox,
+2. The checkout is never actually linked against (whatever action is needed to
+   "propagate" the license is not done). An example would be busybox,
    which only provides executables (programs). Sometimes, even a checkout
    which provides libraries might not actually be linked against by any other
    checkouts (perhaps it was included in the build for another reason).
@@ -690,11 +691,11 @@ of building-with is appropriate to this checkout).
 
 Specifying the second is done with::
 
-  set_not_built_against(builder, pkg_label, co_label)
+  set_license_not_affected_by(builder, this_label, co_label)
 
-This says that the package with label ``pkg_label``, which depends (perhaps
-indirectly) on the checkout with label ``co_label``, does *not* need to be
-distributed because of GPL "propagation" from ``co_label``.
+This says that the checkout with label ``co_label`` does not in fact affect
+the license of ``this_label``, despite implicit GPL "propagation".
+``this_label`` may be a package or a checkout.
 
 So, for instance, we might have::
 
@@ -707,11 +708,11 @@ So, for instance, we might have::
 
   # 'program' links dynamically to 'libProp', and thus doesn't need
   # to be distributed as source
-  set_not_built_against(builder, package('program', 'x86'), checkout('libProp-2.3'))
+  set_license_not_affected_by(builder, package('program', 'x86'), checkout('libProp-2.3'))
 
 This function does not check that:
 
-* ``pkg_label`` actually depends on ``co_label``
+* ``this_label`` actually depends on ``co_label``
 * ``co_label`` is GPL licensed
 * ``co_label`` is GPL licensed with ``with_exception`` set to False (i.e.,
   that it is a "propagating" license)
@@ -1213,7 +1214,8 @@ You can find out if a checkout has a license that is in a particular category
    * ``get_license`` is a wrapper for ``builder.invocation.db.get_checkout_license``
      (but beware that the latter swaps the default for ``absent_is_None``, so
      that it defaults to raising an exception if there is no license)
-   * ``set_not_built_against`` is a wrapper for ``builder.invocation.db.set_not_built_against``
+   * ``set_license_not_affected_by`` is a wrapper for
+     ``builder.invocation.db.set_license_not_affected_by``
 
    There is also a boolean query::
 

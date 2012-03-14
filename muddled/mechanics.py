@@ -106,7 +106,7 @@ class Invocation(object):
         domain_name.
 
         We first import the db, then we rename None to domain_name in
-        banned_roles, then we sort out the not_built_against dictionary
+        banned_roles
         """
         self.db.include_domain(domain_builder, domain_name)
         for r in domain_builder.invocation.banned_roles:

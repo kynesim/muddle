@@ -129,8 +129,8 @@ def describe_to(builder):
     add_package(builder, 'not_licensed4', 'x86')
     add_package(builder, 'not_licensed5', 'x86')
 
-    builder.invocation.db.set_not_built_against(package('private2', 'x86'),
-                                                checkout('gpl2plus'))
+    builder.invocation.db.set_license_not_affected_by(package('private2', 'x86'),
+                                                      checkout('gpl2plus'))
 
     collect.deploy(builder, deployment)
     collect.copy_from_role_install(builder, deployment,
@@ -309,7 +309,7 @@ import muddled.pkgs.make as make
 
 from muddled import pkgs
 from muddled.depend import checkout, package
-from muddled.licenses import LicensePrivate, set_license, set_not_built_against
+from muddled.licenses import LicensePrivate, set_license, set_license_not_affected_by
 
 # Really, this should be in another Python file, since we're using it from
 # two places. But for the moment this wil do.
@@ -345,10 +345,10 @@ def describe_private(builder, *args, **kwargs):
 
     # The following need to be true if we are not to be required to distribute
     # under GPL propagation rules
-    set_not_built_against(builder, package('private2', 'x86-private'), checkout('gpl2plus'))
-    set_not_built_against(builder, package('private3', 'x86-private'), checkout('gpl2plus'))
-    set_not_built_against(builder, package('private4', 'x86-private'), checkout('gpl2plus'))
-    set_not_built_against(builder, package('private4', 'x86-private'), checkout('gpl2'))
+    set_license_not_affected_by(builder, package('private2', 'x86-private'), checkout('gpl2plus'))
+    set_license_not_affected_by(builder, package('private3', 'x86-private'), checkout('gpl2plus'))
+    set_license_not_affected_by(builder, package('private4', 'x86-private'), checkout('gpl2plus'))
+    set_license_not_affected_by(builder, package('private4', 'x86-private'), checkout('gpl2'))
 
     collect.copy_from_role_install(builder, deployment,
                                    role = 'x86-private',
@@ -386,8 +386,8 @@ def describe_to(builder):
     add_package(builder, 'xyzlib',  'x86', 'Zlib')
     add_package(builder, 'manhattan', 'x86-private', 'CODE NIGHTMARE GREEN')
 
-    builder.invocation.db.set_not_built_against(package('manhattan', 'x86-private'),
-                                                checkout('xyzlib'))
+    builder.invocation.db.set_license_not_affected_by(package('manhattan', 'x86-private'),
+                                                      checkout('xyzlib'))
 
     # The 'everything' deployment is built from our single role, and goes
     # into deploy/everything.
@@ -566,8 +566,8 @@ The following checkouts have some sort of GPL license:
 Exceptions to "implicit" GPL licensing are:
 
 * nothing builds against checkout:busybox/*
-* package:private2{x86}/* is not built against checkout:gpl2plus/*
-* package:(subdomain)manhattan{x86-private}/* is not built against checkout:(subdomain)xyzlib/*
+* package:private2{x86}/* is not affected by checkout:gpl2plus/*
+* package:(subdomain)manhattan{x86-private}/* is not affected by checkout:(subdomain)xyzlib/*
 
 The following are "implicitly" GPL licensed for the given reasons:
 
@@ -645,10 +645,10 @@ The following checkouts have some sort of GPL license:
 Exceptions to "implicit" GPL licensing are:
 
 * nothing builds against checkout:busybox/*
-* package:private2{x86-private}/* is not built against checkout:gpl2plus/*
-* package:private3{x86-private}/* is not built against checkout:gpl2plus/*
-* package:private4{x86-private}/* is not built against checkout:gpl2/*, checkout:gpl2plus/*
-* package:(subdomain)manhattan{x86-private}/* is not built against checkout:(subdomain)xyzlib/*
+* package:private2{x86-private}/* is not affected by checkout:gpl2plus/*
+* package:private3{x86-private}/* is not affected by checkout:gpl2plus/*
+* package:private4{x86-private}/* is not affected by checkout:gpl2/*, checkout:gpl2plus/*
+* package:(subdomain)manhattan{x86-private}/* is not affected by checkout:(subdomain)xyzlib/*
 
 The following are "implicitly" GPL licensed for the given reasons:
 

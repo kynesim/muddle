@@ -1687,7 +1687,8 @@ def select_all_binary_nonprivate_packages(builder, name, with_muddle_makefile, j
     for co_label in binary_checkouts:
         # Get the package(s) directly using this checkout
         package_labels = builder.invocation.packages_using_checkout(co_label)
-        binary_packages.update(package_labels)
+        for label in package_labels:
+            binary_packages.add(label.copy_with_tag('*'))
     if just_from:
         binary_packages = binary_packages.intersection(just_from)
     # Ask for them to be distributed, and also work out which roles we're using

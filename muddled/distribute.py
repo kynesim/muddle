@@ -1777,13 +1777,14 @@ def distribute(builder, name, target_dir, with_versions_dir=False,
     check_for_gpl_clashes = False
     check_for_binary_nonprivate_clashes = False
 
-    # We get all the "reasonable" checkout and package labels
     if checkout_labels is None:
+        # We get all the "reasonable" checkout labels
         all_checkouts = builder.invocation.all_checkout_labels(LabelTag.CheckedOut)
     else:
         all_checkouts = checkout_labels
 
     if package_labels is None:
+        # We get all the "reasonable" package labels
         all_packages = builder.invocation.all_package_labels()
     else:
         all_packages = package_labels

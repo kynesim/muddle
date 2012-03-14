@@ -4122,8 +4122,8 @@ class Distribute(CPDCommand):
 
         if fragments:
             co_labels, pkg_labels = self.decode_args(builder, fragments, current_dir)
-            print 'Package labels chosen:', label_list_to_string(pkg_labels, join_with=', ')
-            print 'Checkout labels chosen:', label_list_to_string(co_labels, join_with=', ')
+            #print 'Package labels chosen:', label_list_to_string(pkg_labels, join_with=', ')
+            #print 'Checkout labels chosen:', label_list_to_string(co_labels, join_with=', ')
         else:
             pkg_labels = None
             co_labels = None
@@ -4144,6 +4144,8 @@ class Distribute(CPDCommand):
         default_roles = builder.invocation.default_roles
         for index, label in enumerate(initial_list):
             if label.type == LabelType.Package:
+                # If they specify a package, then we want that package and
+                # also all the checkouts that it (directly) depends on
                 package_set.add(label.copy_with_tag('*'))
                 checkouts = builder.invocation.checkouts_for_package(label)
                 if checkouts:
@@ -4162,11 +4164,16 @@ class Distribute(CPDCommand):
                 for r in rules:
                     l = r.target
                     if l.type == LabelType.Package:
+                        # If they specify a package, then we want that package and
+                        # also all the checkouts that it (directly) depends on
                         package_set.add(l.copy_with_tag('*'))
                         checkouts = builder.invocation.checkouts_for_package(l)
                         if checkouts:
                             for co_label in checkouts:
                                 checkout_set.add(co_label.copy_with_tag('*'))
+                    elif l.type == LabelType.Checkout:
+                        # Can this happen?
+                        checkout_set.add(l.copy_with_tag('*'))
                 if not found:
                     potential_problems.append('  Deployment %s does not use any packages'%label)
             else:

@@ -1596,7 +1596,7 @@ def _copy_versions_dir(builder, name, target_dir, copy_vcs=False):
 
     copy_without(src_dir, tgt_dir, without, preserve=True, verbose=VERBOSE)
 
-def select_all_gpl_checkouts(builder, name, with_vcs):
+def select_all_gpl_checkouts(builder, name, with_vcs, just_from=None):
     """Select all checkouts with some sort of "gpl" license for distribution
 
     (or any checkout that has had "gpl"-ness propagated to it)
@@ -1606,20 +1606,24 @@ def select_all_gpl_checkouts(builder, name, with_vcs):
     'with_vcs' is true if we want VCS "special" files in our distributed
     checkouts.
 
-    Raises GiveUp if we have license clashes
+    If 'just_from' is given, then we'll only consider the labels therein.
+
+    ##Raises GiveUp if we have license clashes
     """
     gpl_checkouts = get_gpl_checkouts(builder)
     imp_checkouts, because = get_implicit_gpl_checkouts(builder)
     all_checkouts = gpl_checkouts | imp_checkouts
+    if just_from:
+        all_checkouts = all_checkouts.intersection(just_from)
     for label in all_checkouts:
         distribute_checkout(builder, name, label, copy_vcs=with_vcs)
-    if report_license_clashes(builder):
-        raise GiveUp('License clashes prevent "%s" distribution'%name)
+    ##if report_license_clashes(builder):
+    ##    raise GiveUp('License clashes prevent "%s" distribution'%name)
 
     for co_label in all_checkouts:
         distribute_checkout(builder, name, co_label, copy_vcs=with_vcs)
 
-def select_all_open_checkouts(builder, name, with_vcs):
+def select_all_open_checkouts(builder, name, with_vcs, just_from=None):
     """Select all checkouts with an "open" license for distribution.
 
     This includes all "gpl" checkouts, and all checkouts made implicitly "gpl".
@@ -1629,20 +1633,21 @@ def select_all_open_checkouts(builder, name, with_vcs):
     'with_vcs' is true if we want VCS "special" files in our distributed
     checkouts.
 
-    Raises GiveUp if we have license clashes
+    If 'just_from' is given, then we'll only consider the labels therein.
+
+    ##Raises GiveUp if we have license clashes
     """
     open_checkouts = get_open_checkouts(builder)
     imp_checkouts, because = get_implicit_gpl_checkouts(builder)
     all_checkouts = open_checkouts | imp_checkouts
+    if just_from:
+        all_checkouts = all_checkouts.intersection(just_from)
     for label in all_checkouts:
         distribute_checkout(builder, name, label, copy_vcs=with_vcs)
-    if report_license_clashes(builder):
-        raise GiveUp('License clashes prevent "%s" distribution'%name)
+    ##if report_license_clashes(builder):
+    ##    raise GiveUp('License clashes prevent "%s" distribution'%name)
 
-    for co_label in all_checkouts:
-        distribute_checkout(builder, name, co_label, copy_vcs=with_vcs)
-
-def select_all_prop_source_checkouts(builder, name, with_vcs):
+def select_all_prop_source_checkouts(builder, name, with_vcs, just_from=None):
     """Select all checkouts with a "prop-source" license for distribution.
 
     'name' is the name of our distribution.
@@ -1650,13 +1655,15 @@ def select_all_prop_source_checkouts(builder, name, with_vcs):
     'with_vcs' is true if we want VCS "special" files in our distributed
     checkouts.
 
-    Raises GiveUp if we have license clashes
+    If 'just_from' is given, then we'll only consider the labels therein.
     """
     prop_checkouts = get_prop_source_checkouts(builder)
+    if just_from:
+        prop_checkouts = prop_checkouts.intersection(just_from)
     for co_label in prop_checkouts:
         distribute_checkout(builder, name, co_label, copy_vcs=with_vcs)
 
-def select_all_binary_nonprivate_packages(builder, name, with_muddle_makefile):
+def select_all_binary_nonprivate_packages(builder, name, with_muddle_makefile, just_from=None):
     """Select all packages with a "binary" license for distribution.
 
     'name' is the name of our distribution, for error reporting.
@@ -1669,7 +1676,9 @@ def select_all_binary_nonprivate_packages(builder, name, with_muddle_makefile):
     see if any "private" packages may be present in the install/ directories
     that we are proposing to distribute.
 
-    Raises GiveUp if we have license clashes
+    If 'just_from' is given, then we'll only consider the (package) labels therein.
+
+    ##Raises GiveUp if we have license clashes
     """
     # Find all our "binary" checkouts
     binary_checkouts = get_binary_checkouts(builder)
@@ -1679,22 +1688,24 @@ def select_all_binary_nonprivate_packages(builder, name, with_muddle_makefile):
         # Get the package(s) directly using this checkout
         package_labels = builder.invocation.packages_using_checkout(co_label)
         binary_packages.update(package_labels)
+    if just_from:
+        binary_packages = binary_packages.intersection(just_from)
     # Ask for them to be distributed, and also work out which roles we're using
-    roles = set()
+    ##roles = set()
     for pkg_label in binary_packages:
         distribute_package(builder, name, pkg_label, obj=False, install=True,
                            with_muddle_makefile=with_muddle_makefile)
-        roles.add(pkg_label.role)
+        ##roles.add(pkg_label.role)
     # Check if there is a binary/private clash in any of those roles
-    role_clash = False
-    for role in roles:
-        problem = report_license_clashes_in_role(builder, role, just_report_private=True)
-        if problem:
-            role_clash = True
-            print 'which means there will probably be private binaries in install/%s'%role
-            print
-    if role_clash:
-        raise GiveUp('License clashes prevent "%s" distribution'%name)
+    ##role_clash = False
+    ##for role in roles:
+    ##    problem = report_license_clashes_in_role(builder, role, just_report_private=True)
+    ##    if problem:
+    ##        role_clash = True
+    ##        print 'which means there will probably be private binaries in install/%s'%role
+    ##        print
+    ##if role_clash:
+    ##    raise GiveUp('License clashes prevent "%s" distribution'%name)
 
 def distribute(builder, name, target_dir, with_versions_dir=False,
                with_vcs=False, no_muddle_makefile=False, no_op=False,
@@ -1741,8 +1752,12 @@ def distribute(builder, name, target_dir, with_versions_dir=False,
     selected for distribution will be "filtered" through those sequences, and
     only labels that occur in one or the other will be added to the
     distribution. Note that this filtering is done before adding in build
-    descriptions. Label tags are ignored. Passing them both as empty sets is
-    likely to give a very small distribution...
+    descriptions. Passing them both as empty sets is likely to give a very
+    small distribution...
+
+    NB: We assume that each package label in 'package_labels' has had the
+    checkouts it directly depends upon added to 'checkout_labels' by the
+    caller. Also, all labels must have their tag as '*'.
     """
 
     if name not in the_distributions.keys():
@@ -1759,9 +1774,19 @@ def distribute(builder, name, target_dir, with_versions_dir=False,
     invocation = builder.invocation
     target_label_exists = invocation.target_label_exists
 
+    check_for_gpl_clashes = False
+    check_for_binary_nonprivate_clashes = False
+
     # We get all the "reasonable" checkout and package labels
-    all_checkouts = builder.invocation.all_checkout_labels(LabelTag.CheckedOut)
-    all_packages = builder.invocation.all_package_labels()
+    if checkout_labels is None:
+        all_checkouts = builder.invocation.all_checkout_labels(LabelTag.CheckedOut)
+    else:
+        all_checkouts = checkout_labels
+
+    if package_labels is None:
+        all_packages = builder.invocation.all_package_labels()
+    else:
+        all_packages = package_labels
 
     # -------------------------------------------------------------------------
     # Standard names
@@ -1794,23 +1819,28 @@ def distribute(builder, name, target_dir, with_versions_dir=False,
             distribute_package(builder, name, label, obj=False, install=True,
                                with_muddle_makefile=(not no_muddle_makefile))
     elif name == '_for_gpl':
+        check_for_gpl_clashes = True
         # All GPL licensed checkouts, and anything that that has propagated to
-        select_all_gpl_checkouts(builder, name, with_vcs)
+        select_all_gpl_checkouts(builder, name, with_vcs, just_from=checkout_labels)
         # No packages at all
         all_packages = set()
     elif name == '_all_open':
+        check_for_gpl_clashes = True
         # All open source checkouts, including anything in _for_gpl
-        select_all_open_checkouts(builder, name, with_vcs)
+        select_all_open_checkouts(builder, name, with_vcs, just_from=checkout_labels)
         # No packages at all
         all_packages = set()
     elif name == '_by_license':
+        check_for_gpl_clashes = True
+        check_for_binary_nonprivate_clashes = True
         # All checkouts in _all_open, and any install/ directories for anything
         # with a "binary" license. Nothing at all for "private" licenses.
-        select_all_open_checkouts(builder, name, with_vcs)
+        select_all_open_checkouts(builder, name, with_vcs, just_from=checkout_labels)
         # All proprietary source checkouts
-        select_all_prop_source_checkouts(builder, name, with_vcs)
+        select_all_prop_source_checkouts(builder, name, with_vcs, just_from=checkout_labels)
         # Note we always output muddle Makefiles with this distribution
-        select_all_binary_nonprivate_packages(builder, name, with_muddle_makefile=True)
+        select_all_binary_nonprivate_packages(builder, name, with_muddle_makefile=True,
+                                              just_from=package_labels)
 
     # -------------------------------------------------------------------------
     # Rescan
@@ -1861,6 +1891,31 @@ def distribute(builder, name, target_dir, with_versions_dir=False,
             if label in filter_labels:
                 wanted_labels.add(label)
         distribution_labels = wanted_labels
+
+    # -------------------------------------------------------------------------
+    # Check for clashes
+    # -------------------------------------------------------------------------
+    if check_for_gpl_clashes:
+        #print 'CHECK FOR GPL CLASHES'
+        if report_license_clashes(builder, just_for=distribution_labels):
+            raise GiveUp('License clashes prevent "%s" distribution'%name)
+
+    if check_for_binary_nonprivate_clashes:
+        #print 'CHECK FOR BINARY/PRIVATE CLASHES'
+        roles = set()
+        for label in distribution_labels:
+            if label.type == LabelType.Package:
+                roles.add(label.role)
+        # Check if there is a binary/private clash in any of those roles
+        role_clash = False
+        for role in roles:
+            problem = report_license_clashes_in_role(builder, role, just_report_private=True)
+            if problem:
+                role_clash = True
+                print 'which means there will probably be private binaries in install/%s'%role
+                print
+        if role_clash:
+            raise GiveUp('License clashes prevent "%s" distribution'%name)
 
     # -------------------------------------------------------------------------
     # Add in the appropriate build descriptions

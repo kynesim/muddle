@@ -769,7 +769,7 @@ def get_license_clashes(builder, implicit_gpl_checkouts):
 
     return bad_binary, bad_private
 
-def report_license_clashes(builder, report_binary=True, report_private=True):
+def report_license_clashes(builder, report_binary=True, report_private=True, just_for=None):
     """Report any license clashes.
 
     This wraps get_implicit_gpl_checkouts() and check_for_license_clashes(),
@@ -782,8 +782,18 @@ def report_license_clashes(builder, report_binary=True, report_private=True):
     It reports clashes with "private" licenses if 'report_private' is True.
 
     If both are False, it is silent.
+
+    If 'just_for' is None, it looks at all the implicit GPL checkouts.
+    Otherwise, it only considers those labels in 'just_for' that are also
+    implicitly GPL.
     """
     implicit_gpl, because = get_implicit_gpl_checkouts(builder)
+
+    if not implicit_gpl:
+        return False
+
+    if just_for:
+        implicit_gpl = implicit_gpl.intersection(just_for)
 
     if not implicit_gpl:
         return False

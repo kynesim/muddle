@@ -4144,10 +4144,11 @@ class Distribute(CPDCommand):
         default_roles = builder.invocation.default_roles
         for index, label in enumerate(initial_list):
             if label.type == LabelType.Package:
-                package_set.add(label.copy_with_tag(LabelTag.Distributed))
+                package_set.add(label.copy_with_tag('*'))
                 checkouts = builder.invocation.checkouts_for_package(label)
                 if checkouts:
-                    checkout_set.update(checkouts)
+                    for co_label in checkouts:
+                        checkout_set.add(co_label.copy_with_tag('*'))
             elif label.type == LabelType.Checkout:
                 checkout_set.add(label.copy_with_tag(LabelTag.CheckedOut))
             elif label.type == LabelType.Deployment:
@@ -4161,10 +4162,11 @@ class Distribute(CPDCommand):
                 for r in rules:
                     l = r.target
                     if l.type == LabelType.Package:
-                        package_set.add(l.copy_with_tag(LabelTag.Distributed))
+                        package_set.add(l.copy_with_tag('*'))
                         checkouts = builder.invocation.checkouts_for_package(l)
                         if checkouts:
-                            checkout_set.update(checkouts)
+                            for co_label in checkouts:
+                                checkout_set.add(co_label.copy_with_tag('*'))
                 if not found:
                     potential_problems.append('  Deployment %s does not use any packages'%label)
             else:

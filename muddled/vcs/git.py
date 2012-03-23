@@ -125,7 +125,7 @@ class Git(VersionControlSystem):
             if os.path.exists('.git/shallow'):
                 raise utils.Unsupported('Shallow checkouts cannot interact with their upstream repositories.')
 
-    def pull(self, repo, options, verbose=True):
+    def pull(self, repo, options, upstream=None, verbose=True):
         """
         Will be called in the actual checkout's directory.
         """
@@ -142,9 +142,18 @@ class Git(VersionControlSystem):
 
         self._shallow_not_allowed(options)
 
-        utils.run_cmd("git config remote.origin.url %s"%repo.url, verbose=verbose)
+        if not upstream or upstream == 'origin':
+            # If we're not given an upstream repository name, assume we're dealing
+            # with an "ordinary" pull, from our origin
+            upstream = 'origin'
+            # In which case, it's sufficient to do:
+            utils.run_cmd("git config remote.origin.url %s"%(repo.url), verbose=verbose)
+        else:
+            # With a "proper" upstream, we need to set up a bit more
+            self._setup_remote(upstream, repo.url, verbose=verbose)
+
         # Retrieve changes from the remote repository to the local repository
-        utils.run_cmd("git fetch origin", verbose=verbose)
+        utils.run_cmd("git fetch %s"%upstream, verbose=verbose)
         # Merge them into the working tree, but only if this is a fast-forward
         # merge, and thus doesn't require the user to do any thinking
         # Don't specify branch name: we definitely want to update our idea of
@@ -154,9 +163,9 @@ class Git(VersionControlSystem):
         # And then merge "fast forward only" - i.e., not if we had to do any
         # thinking
         if repo.branch is None:
-            remote = 'remotes/origin/master'
+            remote = 'remotes/%s/master'%(upstream)
         else:
-            remote = 'remotes/origin/%s'%repo.branch
+            remote = 'remotes/%s/%s'%(upstream,repo.branch)
         if (git_supports_ff_only()):
             utils.run_cmd("git merge --ff-only %s"%remote, verbose=verbose)
         else:
@@ -207,7 +216,7 @@ class Git(VersionControlSystem):
         """
         utils.run_cmd("git commit -a", verbose=verbose)
 
-    def push(self, repo, options, verbose=True):
+    def push(self, repo, options, upstream=None, verbose=True):
         """
         Will be called in the actual checkout's directory.
         """
@@ -221,10 +230,16 @@ class Git(VersionControlSystem):
             # behaviour.
             effective_branch = "master"
 
-        # TODO: issue 143: This is no longer believed necessary now that git
-        # reparent does git remote rm+git remote add:
-        #utils.run_cmd("git config remote.origin.url %s"%repo.url, verbose=verbose)
-        utils.run_cmd("git push origin %s"%effective_branch, verbose=verbose)
+        # If we're not given an upstream repository name, assume we're dealing
+        # with an "ordinary" push, to our origin
+        if not upstream or upstream == 'origin':
+            upstream = 'origin'
+            # For an upstream, we won't necessarily have the remote in our
+            # configuration (unless we already did an upstream pull from
+            # the same repository...)
+            utils.run_cmd("git config remote.%s.url %s"%(upstream, repo.url), verbose=verbose)
+
+        utils.run_cmd("git push %s %s"%(upstream, effective_branch), verbose=verbose)
 
     def status(self, repo, options):
         """
@@ -243,13 +258,10 @@ class Git(VersionControlSystem):
         else:
             return None
 
-    def reparent(self, co_dir, remote_repo, options, force=False, verbose=True):
+    def _setup_remote(self, remote_name, remote_repo, verbose=True):
         """
-        Re-associate the local repository with its original remote repository,
+        Re-associate the local repository with a remote.
         """
-        if verbose:
-            print "Re-associating checkout '%s' with remote repository"%co_dir
-
         # We used to git config remote.origin.url %s here, but that
         # doesn't handle the case where you've created a new repo (with
         # muddle bootstrap or import) - git remote _add_ adds some
@@ -258,12 +270,22 @@ class Git(VersionControlSystem):
         # Let's try not to do a "git remote rm" if we don't have to,
         # so that we don't show the user a nasty error message. So ask
         # if there are any configurations for remote origin...
-        retcode, out, ignore = utils.get_cmd_data("git config --get-regexp remote.origin.*",
+        retcode, out, ignore = utils.get_cmd_data("git config --get-regexp remote.%s.*"%remote_name,
                                                   fail_nonzero=False)
         if retcode == 0:    # there were
-            utils.run_cmd("git remote rm origin", verbose=verbose, allowFailure=True)
+            utils.run_cmd("git remote rm %s"%remote_name, verbose=verbose, allowFailure=True)
 
-        utils.run_cmd("git remote add origin %s"%remote_repo, verbose=verbose)
+        utils.run_cmd("git remote add %s %s"%(remote_name, remote_repo), verbose=verbose)
+
+    def reparent(self, co_dir, remote_repo, options, force=False, verbose=True):
+        """
+        Re-associate the local repository with its original remote repository,
+        """
+        if verbose:
+            print "Re-associating checkout '%s' with remote repository"%co_dir
+
+        # This is the special case where our "remote" is our origin...
+        self._setup_remote('origin', remote_repo, verbose=verbose)
 
     def _git_status_text_ok(self, text):
         """

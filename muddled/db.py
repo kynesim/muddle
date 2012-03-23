@@ -4,6 +4,7 @@ held in root/.muddle
 """
 
 import os
+import re
 import xml.dom
 import xml.dom.minidom
 import traceback
@@ -659,16 +660,33 @@ class Database(object):
         label = self.normalise_checkout_label(co_label)
         return label in self.nothing_builds_against
 
-    def add_upstream_repo(self, orig_repo, upstream_repo, names=None):
+    upstream_name_re = re.compile(r'[A-Za-z0-9_-]+')
+
+    def add_upstream_repo(self, orig_repo, upstream_repo, names):
         """Add an upstream repo to 'orig_repo'.
 
         - 'orig_repo' is the original Repository that we are adding an
           upstream for.
         - 'upstream_repo' is the upstream Repository. It is an error if
           that repository is already an upstream of 'orig_repo'.
-        - 'names' is a sequence of strings that can be used to select
-          this (and possibly other) upstream repositories.
+        - 'names' is a either a single string, or a sequence of strings, that
+          can be used to select this (and possibly other) upstream
+          repositories.
+
+        Upstream repository names must be formed of A-Z, a-z, 0-9 and
+        underscore or hyphen.
         """
+        if not names:
+            raise GiveUp('An upstream repository must have at least one name')
+
+        if isinstance(names, basestring):
+            names = [names]
+
+        for name in names:
+            m = Database.upstream_name_re.match(name)
+            if m is None or m.end() != len(name):
+                raise utils.GiveUp("Upstream repository name '%s' is not allowed"%(name))
+
         if orig_repo in self.upstream_repositories:
             upstream_dict = self.upstream_repositories[orig_repo]
             if upstream_repo in upstream_dict:

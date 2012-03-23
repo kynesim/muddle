@@ -13,8 +13,8 @@ code, and the *repository*, the non-local place where the (or an) original of
 the source code is stored, and from whence the checkout was cloned or checked
 out.
 
-.. note:: Earlier versions of muddle did not make this separation as clearly.
-   Things are better now...
+.. note:: Earlier versions of muddle (before v2.3) did not make this
+   separation as clearly. Things are better now...
 
 In most build descriptions, this separation is actually de-emphasised.
 Particularly, most build descriptions work with semi-local repositories - that
@@ -135,7 +135,7 @@ For instance::
       repo2 = Repository.from_url('git', 'http://example.com/repos/first_co',
                                    push=False)
       add_upstream_repo(builder, co_repo, repo1, ['rhubarb', 'wombat'])
-      add_upstream_repo(builder, co_repo, repo2, ['rhubarb'])
+      add_upstream_repo(builder, co_repo, repo2, 'rhubarb')
 
 or, replacing the ``make.medium`` with lower level calls, we could have done::
 
@@ -161,7 +161,17 @@ or, replacing the ``make.medium`` with lower level calls, we could have done::
       repo2 = Repository.from_url('git', 'http://example.com/repos/first_co',
                                    push=False)
       add_upstream_repo(builder, co_repo, repo1, ['rhubarb', 'wombat'])
-      add_upstream_repo(builder, co_repo, repo2, ['rhubarb'])
+      add_upstream_repo(builder, co_repo, repo2, 'rhubarb')
+
+.. note::
+
+   1. Upstream names must be formed of A-Z, a-z, 0-9, underscore (``_``) and
+      hyphen (``-``). This is mainly to ensure interoperability with VCS like
+      git, where we want upstream names to also work as remote names - see
+      `Upstream repositories and git`_ below.
+   2. Each upstream repository must have at least one name.
+   3. For your convenience, ``add_upstream_repo`` allows its final argument to
+      be a single upstream name, or a list of such.
 
 The commands
 ============
@@ -327,7 +337,8 @@ does not check whether a repository allows push.
 
 Upstream repositories and git
 -----------------------------
-Git already has its own support for "upstreams", via remotes.
+Git already has its own support for "upstreams", via remotes. Muddle attempts
+to work with this in a reasonably approriate manner.
 
 When doing a ``muddle push-upstream``, muddle will actually do::
 
@@ -356,6 +367,12 @@ Similarly, when doing a ``muddle pull-upstream``, muddle will actually do::
 
 for each upstream repository (actually, it first checks to see if the remote
 name is already defined, and if it is not, omits the ``git remote rm`` command).
+
+If you want to use this interaction (between muddle upstream repositories and
+git remotes) fully, then it is probably a good idea to ensure that each
+upstream for a given checkout has a single ``<name>`` that is unique for that
+checkout - this will allow the git remotes and the upstreams to be named the
+same.
 
 Upstream repositories and subdomains
 ------------------------------------

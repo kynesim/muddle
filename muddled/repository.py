@@ -700,8 +700,11 @@ def add_upstream_repo(builder, orig_repo, upstream_repo, names):
       upstream for.
     - 'upstream_repo' is the upstream Repository. It is an error if
       that repository is already an upstream of 'orig_repo'.
-    - 'names' is a sequence of strings that can be used to select
-      this (and possibly other) upstream repositories.
+    - 'names' is a either a single string, or a sequence of strings, that can
+      be used to select this (and possibly other) upstream repositories.
+
+    Upstream repository names must be formed of A-Z, a-z, 0-9 and underscore or
+    hyphen.
 
     A convenience wrapper around 'builder.invocation.db.add_upstream_repo'.
     """

@@ -92,7 +92,8 @@ def describe_to(builder):
     # is a useful sort of assertion to be able to make.
     unused_repo1 = Repository('git', 'http://example.com', 'repo99')
     unused_repo2 = Repository('git', 'http://example.com', 'repo99-upstream')
-    add_upstream_repo(builder, unused_repo1, unused_repo2, ['abacus'])
+    # Being friendly, it will cope if we don't give it a list of names...
+    add_upstream_repo(builder, unused_repo1, unused_repo2, 'abacus')
 
     # Some subdomains
     include_domain(builder,
@@ -255,7 +256,7 @@ def describe_to(builder):
     # here, and that subdomain inclusion doesn't worry about it
     unused_repo1 = Repository('git', 'http://example.com', 'repoFred')
     unused_repo2 = Repository('git', 'http://example.com', 'repoFred-upstream')
-    add_upstream_repo(builder, unused_repo1, unused_repo2, ['abacus'])
+    add_upstream_repo(builder, unused_repo1, unused_repo2, 'abacus')
 
     collect.deploy(builder, deployment)
     collect.copy_from_role_install(builder, deployment,
@@ -372,6 +373,40 @@ def describe_to(builder):
     builder.by_default_deploy(deployment)
 """
 
+SUBDOMAIN_BAD_UPSTREAM_2_BUILD_DESC = """ \
+# A subdomain build description that has bad upstream names
+
+import os
+
+import muddled.pkgs.make
+import muddled.deployments.collect as collect
+
+from muddled.depend import checkout, package
+from muddled.repository import Repository, add_upstream_repo
+from muddled.version_control import checkout_from_repo
+
+def describe_to(builder):
+    role = 'x86'
+    deployment = 'everything'
+
+    # Clash with repository information upstream
+
+    repo = Repository('git', 'file://{repo}/main', 'repo1')
+    co_label = checkout('co_repo1')
+    checkout_from_repo(builder, co_label, repo)
+    muddled.pkgs.make.simple(builder, 'packageSub3', role, co_label.name)
+
+    repo1_X = repo.copy_with_changes('repo1.X')
+
+    add_upstream_repo(builder, repo, repo1_X, ('wombat', '$@~#sausage', 'fruitbat'))
+
+    collect.deploy(builder, deployment)
+    collect.copy_from_role_install(builder, deployment,
+                                   role=role, rel="", dest="", domain=None)
+    builder.invocation.add_default_role(role)
+    builder.by_default_deploy(deployment)
+"""
+
 GITIGNORE = """\
 *~
 *.pyc
@@ -445,6 +480,11 @@ def make_repos(root_dir):
                                                            subdomain1='subdomain_bad_upstream_1',
                                                            subdomain2='subdomain2',
                                                            subdomain3='subdomain3'))
+            with NewDirectory('builds_bad_upstream_2') as d:
+                make_build_desc(d.where, BUILD_DESC.format(repo=repo,
+                                                           subdomain1='subdomain_bad_upstream_2',
+                                                           subdomain2='subdomain2',
+                                                           subdomain3='subdomain3'))
 
             # Several very similar repositories
             new_repo('program1', 'repo1')
@@ -479,6 +519,10 @@ def make_repos(root_dir):
         with NewDirectory('subdomain_bad_upstream_1'):
             with NewDirectory('builds') as d:
                 make_build_desc(d.where, SUBDOMAIN_BAD_UPSTREAM_1_BUILD_DESC.format(repo=repo))
+
+        with NewDirectory('subdomain_bad_upstream_2'):
+            with NewDirectory('builds') as d:
+                make_build_desc(d.where, SUBDOMAIN_BAD_UPSTREAM_2_BUILD_DESC.format(repo=repo))
 
 
 def test_builds_ok_upstream_1(root):
@@ -552,6 +596,31 @@ Subdomain subdomain_bad_upstream_1 adds a new upstream to
     Repository('git', 'file://{root_dir}/repo/main', 'repo1.3', pull=False)  platypus, rhubarb
   Subdomain subdomain_bad_upstream_1 has:
     Repository('git', 'file://{root_dir}/repo/main', 'repo1.X')  fruitbat, rhubarb, wombat
+""".format(root_dir=root.where))
+
+
+def test_builds_bad_upstream_2(root):
+    with NewDirectory('builds_bad_upstream_2') as d:
+        banner('CHECK REPOSITORIES OUT (BAD UPSTREAM 2) illegal upstream names')
+        err, text = captured_muddle(['init', 'git+file://{repo}/main'.format(repo=root.join('repo')),
+                                   'builds_bad_upstream_2/01.py'], error_fails=False)
+        check_text_endswith(text, """\
+Cloning into builds_bad_upstream_2...
+> Make directory {root_dir}/builds_bad_upstream_2/.muddle/tags/checkout/builds_bad_upstream_2
+> Make directory {root_dir}/builds_bad_upstream_2/domains/subdomain_bad_upstream_2/.muddle
+Initialised build tree in {root_dir}/builds_bad_upstream_2/domains/subdomain_bad_upstream_2 
+Repository: git+file://{root_dir}/repo/subdomain_bad_upstream_2
+Build description: builds/01.py
+
+
+Checking out build description .. 
+
+++ pushd to {root_dir}/builds_bad_upstream_2/domains/subdomain_bad_upstream_2/src
+> git clone -b master file://{root_dir}/repo/subdomain_bad_upstream_2/builds builds
+Cloning into builds...
+> Make directory {root_dir}/builds_bad_upstream_2/domains/subdomain_bad_upstream_2/.muddle/tags/checkout/builds
+
+Upstream repository name '$@~#sausage' is not allowed
 """.format(root_dir=root.where))
 
 
@@ -661,13 +730,14 @@ def main(args):
             muddle(['stamp', 'version'])
 
 
-        if False:
-            test_builds_ok_upstream_1(root)
-            test_builds_ok_upstream_2(root)
-            test_builds_ok_upstream_3(root)
+        test_builds_ok_upstream_1(root)
+        test_builds_ok_upstream_2(root)
+        test_builds_ok_upstream_3(root)
 
-            test_builds_bad_upstream_1(root)
+        test_builds_bad_upstream_1(root)
+        test_builds_bad_upstream_2(root)
 
+        banner('CHECK USING UPSTREAMS')
         with Directory('build') as d:
             err, text = captured_muddle(['query', 'upstream-repos', 'co_label1'],
                                         error_fails=False)

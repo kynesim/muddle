@@ -689,16 +689,20 @@ Nowhere to pull checkout:builds/checked_out from
 
 Pulling checkout:co_repo1/checked_out from file:///home/tibs/sw/m3/tests/transient/repo/main/repo1.1 (rhubarb, wombat)
 ++ pushd to /home/tibs/sw/m3/tests/transient/build/src/co_repo1
-> git config remote.origin.url file:///home/tibs/sw/m3/tests/transient/repo/main/repo1.1
-> git fetch origin
-> git merge --ff-only remotes/origin/master
+> git remote add rhubarb file:///home/tibs/sw/m3/tests/transient/repo/main/repo1.1
+> git fetch rhubarb
+From file:///home/tibs/sw/m3/tests/transient/repo/main/repo1.1
+ * [new branch]      master     -> rhubarb/master
+> git merge --ff-only remotes/rhubarb/master
 Already up-to-date.
 
 Pulling checkout:co_repo1/checked_out from file:///home/tibs/sw/m3/tests/transient/repo/main/repo1.2 (wombat)
 ++ pushd to /home/tibs/sw/m3/tests/transient/build/src/co_repo1
-> git config remote.origin.url file:///home/tibs/sw/m3/tests/transient/repo/main/repo1.2
-> git fetch origin
-> git merge --ff-only remotes/origin/master
+> git remote add wombat file:///home/tibs/sw/m3/tests/transient/repo/main/repo1.2
+> git fetch wombat
+From file:///home/tibs/sw/m3/tests/transient/repo/main/repo1.2
+ * [new branch]      master     -> wombat/master
+> git merge --ff-only remotes/wombat/master
 Already up-to-date.
 
 Pulling checkout:co_repo1/checked_out from file:///home/tibs/sw/m3/tests/transient/repo/main/repo1.3 (rhubarb)
@@ -714,7 +718,7 @@ Nowhere to push checkout:builds/checked_out to
 
 Pushing checkout:co_repo1/checked_out to file:///home/tibs/sw/m3/tests/transient/repo/main/repo1.1 (rhubarb, wombat)
 ++ pushd to /home/tibs/sw/m3/tests/transient/build/src/co_repo1
-> git push origin master
+> git push rhubarb master
 Everything up-to-date
 
 Pushing checkout:co_repo1/checked_out to file:///home/tibs/sw/m3/tests/transient/repo/main/repo1.2 (wombat)

@@ -5095,14 +5095,18 @@ class UpstreamCommand(CheckoutCommand):
                         print '%s %s %s %s (%s)'%(self.verbing,
                                 co, self.direction, repo, ', '.join(names))
                         co_locn = get_checkout_location(co)
-                        self.handle_label(builder, co, repo, co_locn)
+                        # Arbitrarily use the first of those names as the
+                        # name that the VCS (might) remember for this upstream.
+                        # Note that get_upstream_repos() tells us the names
+                        # will be given to us in sorted order.
+                        self.handle_label(builder, co, repo, co_locn, names[0])
 
             else:
                 if not no_op:
                     print
                 print 'Nowhere to %s %s %s'%(self.verb, co, self.direction)
 
-    def handle_label(self, builder, co_label, repo, co_locn):
+    def handle_label(self, builder, co_label, repo, co_locn, upstream_name):
         src_dir, rest = utils.split_path_left(co_locn)
         if src_dir != 'src':
             raise MuddleBug('Splitting location for %s, but %s does not'
@@ -5114,7 +5118,7 @@ class UpstreamCommand(CheckoutCommand):
                                                       co_leaf, repo, co_dir)
 
         # And do whatever we need to do
-        self.do_our_verb(vcs_handler)
+        self.do_our_verb(vcs_handler, upstream_name)
 
 @command('push-upstream', CAT_CHECKOUT)
 class PushUpstream(UpstreamCommand):
@@ -5163,10 +5167,10 @@ class PushUpstream(UpstreamCommand):
     verbing = 'Pushing'
     direction = 'to'
 
-    def do_our_verb(self, vcs_handler):
+    def do_our_verb(self, vcs_handler, upstream=None):
         # And we can then use that to do the push
         # (in the happy knowledge that *it* will grumble if we're not allowed to)
-        vcs_handler.push()
+        vcs_handler.push(upstream=upstream)
 
 @command('pull-upstream', CAT_CHECKOUT)
 class PullUpstream(UpstreamCommand):
@@ -5218,10 +5222,10 @@ class PullUpstream(UpstreamCommand):
     verbing = 'Pulling'
     direction = 'from'
 
-    def do_our_verb(self, vcs_handler):
+    def do_our_verb(self, vcs_handler, upstream=None):
         # And we can then use that to do the pull
         # (in the happy knowledge that *it* will grumble if we're not allowed to)
-        vcs_handler.pull()
+        vcs_handler.pull(upstream=upstream)
 
 # -----------------------------------------------------------------------------
 # AnyLabel commands

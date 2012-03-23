@@ -111,9 +111,9 @@ class Bazaar(VersionControlSystem):
         if not ok:
             raise utils.GiveUp("There are uncommitted changes")
 
-    def fetch(self, repo, options, verbose=True):
+    def pull(self, repo, options, verbose=True):
         """
-        Fetch changes, but don't do a merge.
+        Pull changes, but don't do a merge.
 
         Will be called in the actual checkout's directory.
         """

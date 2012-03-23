@@ -843,7 +843,7 @@ def check_some_specifics():
         check_cmd('deploy everything', 'deployment:everything/deployed')
 
         # Check we get the tags we expect
-        check_cmd('unimport main_co/fetched', 'checkout:main_co/checked_out')
+        check_cmd('unimport main_co/pulled', 'checkout:main_co/checked_out')
         check_cmd('build main_pkg/configured', 'package:main_pkg{x86}/postinstalled')
         check_cmd('deploy everything/instructionsapplied', 'deployment:everything/deployed')
 

@@ -616,8 +616,8 @@ def check_push_pull_permissions():
     check_exception('Test checkout from repo %r'%repo,
                      vcs.checkout, (),
                      endswith='does not allow "pull"')
-    check_exception('Test pull (well, ok, fetch) from repo %r'%repo,
-                     vcs.fetch, (),
+    check_exception('Test pull from repo %r'%repo,
+                     vcs.pull, (),
                      endswith='does not allow "pull"')
     check_exception('Test merge from repo %r'%repo,
                      vcs.merge, (),

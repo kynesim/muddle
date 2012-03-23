@@ -15,7 +15,7 @@ Available git specific options are:
       modify the checkout in any way in the future (i.e., neither to push it
       nor to pull it again).
 
-      If 'shallow_checkout' is specified, then "muddle fetch", "muddle merge"
+      If 'shallow_checkout' is specified, then "muddle pull", "muddle merge"
       and "muddle push" will refuse to do anything.
 """
 
@@ -125,16 +125,16 @@ class Git(VersionControlSystem):
             if os.path.exists('.git/shallow'):
                 raise utils.Unsupported('Shallow checkouts cannot interact with their upstream repositories.')
 
-    def fetch(self, repo, options, verbose=True):
+    def pull(self, repo, options, verbose=True):
         """
         Will be called in the actual checkout's directory.
         """
         if repo.revision and repo.revision != 'HEAD':
             raise utils.GiveUp(\
                 "The build description specifies revision %s for this checkout.\n"
-                "'muddle fetch' does a git fetch and then a fast-forwards merge.\n"
+                "'muddle pull' does a git fetch and then a fast-forwards merge.\n"
                 "Since git always merges to the currrent HEAD, muddle does not\n"
-                "support 'muddle fetch' for a git checkout with a revision"
+                "support 'muddle pull' for a git checkout with a revision"
                 " specified."%repo.revision)
 
         # Refuse to pull if there are any local changes or untracked files.

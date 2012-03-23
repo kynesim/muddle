@@ -56,7 +56,7 @@ class VersionControlSystem(object):
         """
         pass
 
-    def fetch(self, repo, options, verbose=True):
+    def pull(self, repo, options, verbose=True):
         """
         Will be called in the actual checkout's directory.
 
@@ -132,9 +132,9 @@ class VersionControlSystem(object):
         """
         raise utils.GiveUp("Do not know how to get file content from '%s'"%url)
 
-    def must_fetch_before_commit(self, options):
+    def must_pull_before_commit(self, options):
         """
-        Do we need to 'fetch' before we 'commit'?
+        Do we need to 'pull' before we 'commit'?
 
         In a centralised VCS like subverson, this is highly recommended.
 
@@ -293,7 +293,7 @@ class VersionControlHandler(object):
                 raise utils.GiveUp('Failure checking out %s in %s:\n%s'%(self.checkout_label,
                                    parent_dir, err))
 
-    def fetch(self, verbose=True):
+    def pull(self, verbose=True):
         """
         Retrieve changes from the remote repository, and apply them to
         the local working copy, but not if a merge operation would be
@@ -306,7 +306,7 @@ class VersionControlHandler(object):
 
         with utils.Directory(self.get_my_absolute_checkout_path()):
             try:
-                self.vcs_handler.fetch(self.repo, self.options, verbose)
+                self.vcs_handler.pull(self.repo, self.options, verbose)
             except utils.MuddleBug as err:
                 raise utils.MuddleBug('Error pulling %s in %s:\n%s'%(self.checkout_label,
                                   self.src_rel_dir(), err))
@@ -472,8 +472,8 @@ class VersionControlHandler(object):
                                                          self.options,
                                                          force, verbose)
 
-    def must_fetch_before_commit(self):
-        return self.vcs_handler.must_fetch_before_commit(self.options)
+    def must_pull_before_commit(self):
+        return self.vcs_handler.must_pull_before_commit(self.options)
 
     def get_vcs_special_files(self):
         """
@@ -791,9 +791,9 @@ def vcs_push_directory(url):
     repo = Repository.from_url(vcs_handler.short_name, plain_url)
     vcs_handler.push(repo, {})
 
-def vcs_fetch_directory(url):
+def vcs_pull_directory(url):
     """
-    Fetch the current directory from the repository indicated by the URL
+    Pull the current directory from the repository indicated by the URL
 
     Looks at the first few characters of the URL to determine the VCS
     to use - so, e.g., "bzr" for "bzr+ssh://whatever".
@@ -803,7 +803,7 @@ def vcs_fetch_directory(url):
     """
     vcs_handler, plain_url = get_vcs_handler_from_string(url)
     repo = Repository.from_url(vcs_handler.short_name, plain_url)
-    vcs_handler.fetch(repo, {})
+    vcs_handler.pull(repo, {})
 
 def vcs_init_directory(scheme, files=None):
     """

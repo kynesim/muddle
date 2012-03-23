@@ -173,7 +173,7 @@ def test_svn_simple_build():
 def test_svn_revisions_build():
     """Test a build tree where a checkout has a specific revision
 
-    Doing 'muddle fetch' or 'muddle merge' in such a directory should
+    Doing 'muddle pull' or 'muddle merge' in such a directory should
     not update it.
     """
     root_dir = normalise_dir(os.getcwd())
@@ -221,10 +221,10 @@ def test_svn_revisions_build():
                 revno = get_stdout('svnversion').strip()
                 if revno != '2':
                     raise GiveUp('Revision number for checkout1 is %s, not 2'%revno)
-                muddle(['fetch'])
+                muddle(['pull'])
                 revno = get_stdout('svnversion').strip()
                 if revno != '2':
-                    raise GiveUp('Revision number for checkout1 is %s, not 2 (after fetch)'%revno)
+                    raise GiveUp('Revision number for checkout1 is %s, not 2 (after pull)'%revno)
                 muddle(['merge'])
                 revno = get_stdout('svnversion').strip()
                 if revno != '2':
@@ -238,10 +238,10 @@ def test_svn_revisions_build():
                 os.remove('01.pyc')
 
             with Directory('checkout1'):
-                muddle(['fetch'])
+                muddle(['pull'])
                 revno = get_stdout('svnversion').strip()
                 if revno != '4':
-                    raise GiveUp('Revision number for checkout1 is %s, not 4 (after fetch)'%revno)
+                    raise GiveUp('Revision number for checkout1 is %s, not 4 (after pull)'%revno)
 
 def test_git_simple_build():
     """Bootstrap a muddle build tree.

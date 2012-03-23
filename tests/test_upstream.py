@@ -675,11 +675,11 @@ def main(args):
             assert err == 1
             err, text = captured_muddle(['query', 'upstream-repos', 'co_repo1'])
             check_text(text, """\
-Repository('git', 'file:///home/tibs/sw/m3/tests/transient/repo/main', 'repo1') used by checkout:co_repo1/checked_out
-    Repository('git', 'file:///home/tibs/sw/m3/tests/transient/repo/main', 'repo1.1')  rhubarb, wombat
-    Repository('git', 'file:///home/tibs/sw/m3/tests/transient/repo/main', 'repo1.2', push=False)  insignificance, wombat
-    Repository('git', 'file:///home/tibs/sw/m3/tests/transient/repo/main', 'repo1.3', pull=False)  platypus, rhubarb
-""")
+Repository('git', 'file://{root_dir}/repo/main', 'repo1') used by checkout:co_repo1/checked_out
+    Repository('git', 'file://{root_dir}/repo/main', 'repo1.1')  rhubarb, wombat
+    Repository('git', 'file://{root_dir}/repo/main', 'repo1.2', push=False)  insignificance, wombat
+    Repository('git', 'file://{root_dir}/repo/main', 'repo1.3', pull=False)  platypus, rhubarb
+""".format(root_dir=root_dir))
 
             err, text = captured_muddle(['pull-upstream', 'package:package1', 'builds', '-u', 'rhubarb', 'wombat'])
             assert err == 1
@@ -687,45 +687,45 @@ Repository('git', 'file:///home/tibs/sw/m3/tests/transient/repo/main', 'repo1') 
 
 Nowhere to pull checkout:builds/checked_out from
 
-Pulling checkout:co_repo1/checked_out from file:///home/tibs/sw/m3/tests/transient/repo/main/repo1.1 (rhubarb, wombat)
-++ pushd to /home/tibs/sw/m3/tests/transient/build/src/co_repo1
-> git remote add rhubarb file:///home/tibs/sw/m3/tests/transient/repo/main/repo1.1
+Pulling checkout:co_repo1/checked_out from file://{root_dir}/repo/main/repo1.1 (rhubarb, wombat)
+++ pushd to {root_dir}/build/src/co_repo1
+> git remote add rhubarb file://{root_dir}/repo/main/repo1.1
 > git fetch rhubarb
-From file:///home/tibs/sw/m3/tests/transient/repo/main/repo1.1
+From file://{root_dir}/repo/main/repo1.1
  * [new branch]      master     -> rhubarb/master
 > git merge --ff-only remotes/rhubarb/master
 Already up-to-date.
 
-Pulling checkout:co_repo1/checked_out from file:///home/tibs/sw/m3/tests/transient/repo/main/repo1.2 (wombat)
-++ pushd to /home/tibs/sw/m3/tests/transient/build/src/co_repo1
-> git remote add wombat file:///home/tibs/sw/m3/tests/transient/repo/main/repo1.2
+Pulling checkout:co_repo1/checked_out from file://{root_dir}/repo/main/repo1.2 (wombat)
+++ pushd to {root_dir}/build/src/co_repo1
+> git remote add wombat file://{root_dir}/repo/main/repo1.2
 > git fetch wombat
-From file:///home/tibs/sw/m3/tests/transient/repo/main/repo1.2
+From file://{root_dir}/repo/main/repo1.2
  * [new branch]      master     -> wombat/master
 > git merge --ff-only remotes/wombat/master
 Already up-to-date.
 
-Pulling checkout:co_repo1/checked_out from file:///home/tibs/sw/m3/tests/transient/repo/main/repo1.3 (rhubarb)
+Pulling checkout:co_repo1/checked_out from file://{root_dir}/repo/main/repo1.3 (rhubarb)
 
 Failure pulling checkout:co_repo1/checked_out in src/co_repo1:
-  file:///home/tibs/sw/m3/tests/transient/repo/main/repo1.3 does not allow "pull"
-""")
+  file://{root_dir}/repo/main/repo1.3 does not allow "pull"
+""".format(root_dir=root_dir))
             err, text = captured_muddle(['push-upstream', 'package:package1', 'builds', '-u', 'rhubarb', 'wombat'])
             assert err == 1
             check_text(text, """\
 
 Nowhere to push checkout:builds/checked_out to
 
-Pushing checkout:co_repo1/checked_out to file:///home/tibs/sw/m3/tests/transient/repo/main/repo1.1 (rhubarb, wombat)
-++ pushd to /home/tibs/sw/m3/tests/transient/build/src/co_repo1
+Pushing checkout:co_repo1/checked_out to file://{root_dir}/repo/main/repo1.1 (rhubarb, wombat)
+++ pushd to {root_dir}/build/src/co_repo1
 > git push rhubarb master
 Everything up-to-date
 
-Pushing checkout:co_repo1/checked_out to file:///home/tibs/sw/m3/tests/transient/repo/main/repo1.2 (wombat)
+Pushing checkout:co_repo1/checked_out to file://{root_dir}/repo/main/repo1.2 (wombat)
 
 Failure pushing checkout:co_repo1/checked_out in src/co_repo1:
-  file:///home/tibs/sw/m3/tests/transient/repo/main/repo1.2 does not allow "push"
-""")
+  file://{root_dir}/repo/main/repo1.2 does not allow "push"
+""".format(root_dir=root_dir))
 
             err, text = captured_muddle(['-n', 'pull-upstream', 'package:package1', 'builds', '-u', 'rhubarb', 'wombat'])
             assert err == 0
@@ -735,10 +735,10 @@ Asked to pull-upstream:
   checkout:co_repo1/checked_out
 for: rhubarb, wombat
 Nowhere to pull checkout:builds/checked_out from
-Would pull checkout:co_repo1/checked_out from file:///home/tibs/sw/m3/tests/transient/repo/main/repo1.1 (rhubarb, wombat)
-Would pull checkout:co_repo1/checked_out from file:///home/tibs/sw/m3/tests/transient/repo/main/repo1.2 (wombat)
-Would pull checkout:co_repo1/checked_out from file:///home/tibs/sw/m3/tests/transient/repo/main/repo1.3 (rhubarb)
-""")
+Would pull checkout:co_repo1/checked_out from file://{root_dir}/repo/main/repo1.1 (rhubarb, wombat)
+Would pull checkout:co_repo1/checked_out from file://{root_dir}/repo/main/repo1.2 (wombat)
+Would pull checkout:co_repo1/checked_out from file://{root_dir}/repo/main/repo1.3 (rhubarb)
+""".format(root_dir=root_dir))
 
             err, text = captured_muddle(['-n', 'pull-upstream', 'package:package1', 'builds', '-u', 'rhubarb', 'wombat'])
             assert err == 0
@@ -748,10 +748,10 @@ Asked to pull-upstream:
   checkout:co_repo1/checked_out
 for: rhubarb, wombat
 Nowhere to pull checkout:builds/checked_out from
-Would pull checkout:co_repo1/checked_out from file:///home/tibs/sw/m3/tests/transient/repo/main/repo1.1 (rhubarb, wombat)
-Would pull checkout:co_repo1/checked_out from file:///home/tibs/sw/m3/tests/transient/repo/main/repo1.2 (wombat)
-Would pull checkout:co_repo1/checked_out from file:///home/tibs/sw/m3/tests/transient/repo/main/repo1.3 (rhubarb)
-""")
+Would pull checkout:co_repo1/checked_out from file://{root_dir}/repo/main/repo1.1 (rhubarb, wombat)
+Would pull checkout:co_repo1/checked_out from file://{root_dir}/repo/main/repo1.2 (wombat)
+Would pull checkout:co_repo1/checked_out from file://{root_dir}/repo/main/repo1.3 (rhubarb)
+""".format(root_dir=root_dir))
 
 if __name__ == '__main__':
     args = sys.argv[1:]

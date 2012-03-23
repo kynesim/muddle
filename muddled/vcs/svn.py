@@ -57,7 +57,7 @@ class Subversion(VersionControlSystem):
         utils.run_cmd("svn checkout %s %s %s"%(self._r_option(repo.revision),
                                                repo.url, co_leaf), verbose=verbose)
 
-    def pull(self, repo, options, verbose=True):
+    def pull(self, repo, options, upstream=None, verbose=True):
         """
         Will be called in the actual checkout's directory.
 
@@ -102,7 +102,7 @@ class Subversion(VersionControlSystem):
         """
         pass
 
-    def push(self, repo, options, verbose=True):
+    def push(self, repo, options, upstream=None, verbose=True):
         """
         Will be called in the actual checkout's directory.
 

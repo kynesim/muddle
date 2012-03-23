@@ -55,7 +55,7 @@ class File(VersionControlSystem):
 
         utils.recursively_copy(source_path, co_leaf, preserve=True)
 
-    def pull(self, repo, options, verbose=True):
+    def pull(self, repo, options, upstream=None, verbose=True):
         """
         Will be called in the actual checkout's directory.
 
@@ -89,7 +89,7 @@ class File(VersionControlSystem):
         """
         pass
 
-    def push(self, repo, options, verbose=True):
+    def push(self, repo, options, upstream=None, verbose=True):
         """
         Will be called in the actual checkout's directory.
 

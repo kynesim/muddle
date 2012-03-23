@@ -111,7 +111,7 @@ class Bazaar(VersionControlSystem):
         if not ok:
             raise utils.GiveUp("There are uncommitted changes")
 
-    def pull(self, repo, options, verbose=True):
+    def pull(self, repo, options, upstream=None, verbose=True):
         """
         Pull changes, but don't do a merge.
 
@@ -155,7 +155,7 @@ class Bazaar(VersionControlSystem):
         utils.run_cmd("bzr commit", allowFailure=True,
                       env=self._derive_env(), verbose=verbose)
 
-    def push(self, repo, options, verbose=True):
+    def push(self, repo, options, upstream=None, verbose=True):
         """
         Will be called in the actual checkout's directory.
         """

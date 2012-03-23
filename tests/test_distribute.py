@@ -435,8 +435,7 @@ def main(args):
     # somewhere in $TMPDIR...
     root_dir = normalise_dir(os.path.join(os.getcwd(), 'transient'))
 
-    #with TransientDirectory(root_dir):     # XXX
-    with NewDirectory(root_dir):
+    with TransientDirectory(root_dir, keep_on_error=True):
 
         banner('MAKE REPOSITORIES')
         make_repos_with_subdomain(root_dir)

@@ -713,8 +713,7 @@ def main(args):
     # somewhere in $TMPDIR...
     root_dir = normalise_dir(os.path.join(os.getcwd(), 'transient'))
 
-    #with TransientDirectory(root_dir):     # XXX
-    with NewDirectory(root_dir) as root:
+    with TransientDirectory(root_dir, keep_on_error=True) as root:
 
         banner('MAKE REPOSITORIES')
         make_repos(root_dir)

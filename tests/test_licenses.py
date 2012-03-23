@@ -684,8 +684,7 @@ def main(args):
         print __doc__
         raise GiveUp('Unexpected arguments %s'%' '.join(args))
 
-    #with TransientDirectory(root_dir):     # XXX
-    with NewDirectory(root_dir) as root:
+    with TransientDirectory(root_dir, keep_on_error=True) as root:
 
         banner('MAKE REPOSITORIES')
         make_repos(root_dir)

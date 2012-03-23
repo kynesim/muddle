@@ -8,7 +8,7 @@ import os
 
 import muddled.utils as utils
 
-class FileSpecDataProvider:
+class FileSpecDataProvider(object):
     """
     Provides data to a filespec so it can decide what it matches.
     """
@@ -34,7 +34,7 @@ class FileSpecDataProvider:
                           "try a subclass")
 
 
-class FileSpec:
+class FileSpec(object):
     """
     Represents a (possibly recursive) file specification. Filespecs are
     essentially python regular expressions with a recursion flag.
@@ -207,7 +207,7 @@ class FileSpec:
         return ext_node
 
 
-class ListFileSpecDataProvider:
+class ListFileSpecDataProvider(object):
     """
     A FileSpecDataProvider that uses a file list. Used to test the
     FileSpec matching code.
@@ -236,7 +236,7 @@ class ListFileSpecDataProvider:
 
 
 
-class FSFileSpecDataProvider:
+class FSFileSpecDataProvider(object):
     """
     A FileSpecDataProvider rooted at a particular point in the filesystem
     """

@@ -1,5 +1,7 @@
 """
 Muddle support for Bazaar.
+
+.. to be documented ..
 """
 
 import os
@@ -94,14 +96,8 @@ class Bazaar(VersionControlSystem):
         # 'bzr commit' will behave like SVN, and commit/push to the remote
         # repository. We don't want that behaviour.
 
-        # XXX TODO XXX This should not be needed with the new Repository mechanism
-        if repo.branch:
-            effective_repo = os.path.join(repo.url, repo.branch)
-        else:
-            effective_repo = repo.url
-
         utils.run_cmd("bzr branch %s %s %s"%(self._r_option(repo.revision),
-                                             self._normalised_repo(effective_repo),
+                                             self._normalised_repo(repo.url),
                                              co_leaf),
                       env=self._derive_env(), verbose=verbose)
 
@@ -122,19 +118,13 @@ class Bazaar(VersionControlSystem):
         Will be called in the actual checkout's directory.
         """
 
-        # XXX TODO XXX This should not be needed with the new Repository mechanism
-        if repo.branch:
-            effective_repo = os.path.join(repo.url, repo.branch)
-        else:
-            effective_repo = repo.url
-
         rspec = self._r_option(repo.revision)
 
         # Refuse to pull if there are any local changes
         env = self._derive_env()
         self._is_it_safe(env)
 
-        utils.run_cmd("bzr pull %s %s"%(rspec, self._normalised_repo(effective_repo)),
+        utils.run_cmd("bzr pull %s %s"%(rspec, self._normalised_repo(repo.url)),
                       env=env, verbose=verbose)
 
     def merge(self, other_repo, options, verbose=True):
@@ -147,19 +137,13 @@ class Bazaar(VersionControlSystem):
         Will be called in the actual checkout's directory.
         """
 
-        # XXX TODO XXX This should not be needed with the new Repository mechanism
-        if repo.branch:
-            effective_repo = os.path.join(repo.url, repo.branch)
-        else:
-            effective_repo = repo.url
-
         # Refuse to pull if there are any local changes
         env = self._derive_env()
         self._is_it_safe(env)
 
-        rspec = self._r_option(repo.revision)
+        rspec = self._r_option(other_repo.revision)
 
-        utils.run_cmd("bzr merge %s %s"%(rspec, self._normalised_repo(effective_other_repo)),
+        utils.run_cmd("bzr merge %s %s"%(rspec, self._normalised_repo(other_repo.url)),
                       env=env, verbose=verbose)
 
     def commit(self, repo, options, verbose=True):
@@ -176,13 +160,7 @@ class Bazaar(VersionControlSystem):
         Will be called in the actual checkout's directory.
         """
 
-        # XXX TODO XXX This should not be needed with the new Repository mechanism
-        if repo.branch:
-            effective_repo = os.path.join(repo.url, repo.branch)
-        else:
-            effective_repo = repo.url
-
-        utils.run_cmd("bzr push %s"%self._normalised_repo(effective_repo),
+        utils.run_cmd("bzr push %s"%self._normalised_repo(repo.url),
                       env=self._derive_env(), verbose=verbose)
 
     def status(self, repo, options=None, branch=None, verbose=False):
@@ -193,14 +171,8 @@ class Bazaar(VersionControlSystem):
         """
         env = self._derive_env()
 
-        # XXX TODO XXX This should not be needed with the new Repository mechanism
-        if repo.branch:
-            effective_repo = os.path.join(repo.url, repo.branch)
-        else:
-            effective_repo = repo.url
-
         # --quiet means only report warnings and errors
-        cmd = 'bzr status --quiet -r branch:%s'%self._normalised_repo(effective_repo),
+        cmd = 'bzr status --quiet -r branch:%s'%self._normalised_repo(repo.url),
 
         retcode, text, ignore = utils.get_cmd_data(cmd, env=env, fold_stderr=False)
         if text:
@@ -472,7 +444,10 @@ class Bazaar(VersionControlSystem):
                                                     fold_stderr=False, verbose=verbose)
         return text
 
+    def get_vcs_special_files(self):
+        return ['.bzr', '.bzrignore']
+
 # Tell the version control handler about us..
-register_vcs_handler("bzr", Bazaar())
+register_vcs_handler("bzr", Bazaar(), __doc__)
 
 # End file.

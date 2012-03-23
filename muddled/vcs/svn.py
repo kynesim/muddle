@@ -1,5 +1,7 @@
 """
 Muddle support for Subversion
+
+.. to be documented ..
 """
 
 from muddled.version_control import register_vcs_handler, VersionControlSystem
@@ -168,6 +170,9 @@ class Subversion(VersionControlSystem):
     def allows_relative_in_repo(self):
         return True
 
+    def get_vcs_special_files(self):
+        return ['.svn']
+
     def get_file_content(self, url, options, verbose=True):
         """
         Retrieve a file's content via Subversion.
@@ -184,6 +189,6 @@ class Subversion(VersionControlSystem):
         return True
 
 # Tell the version control handler about us..
-register_vcs_handler("svn", Subversion())
+register_vcs_handler("svn", Subversion(), __doc__)
 
 # End file.

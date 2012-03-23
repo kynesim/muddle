@@ -5,20 +5,20 @@
 import doctest
 import os
 
-import test_support
+import support_for_tests
 from muddled.utils import Directory
 
 def main():
     total_tests = 0
     total_failures = 0
-    with Directory(test_support.PARENT_DIR):    # hopefully, muddled is herein
+    with Directory(support_for_tests.PARENT_DIR):    # hopefully, muddled is herein
         for dirpath, dirnames, filenames in os.walk('muddled'):
             for name in filenames:
                 base, ext = os.path.splitext(name)
                 if ext != '.py':
                     continue
                 path = os.path.join(dirpath, base)
-                relpath = os.path.relpath(path, test_support.PARENT_DIR)
+                relpath = os.path.relpath(path, support_for_tests.PARENT_DIR)
                 words = relpath.split(os.sep)
                 module = '.'.join(words)
 

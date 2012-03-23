@@ -19,6 +19,13 @@ from muddled.utils import domain_subpath, GiveUp, MuddleBug, LabelType, LabelTag
 from muddled.repository import Repository
 from muddled.version_control import split_vcs_url, checkout_from_repo
 
+class ErrorInBuildDescription(GiveUp):
+    """We want to be able to distinguish this exception *in this module*
+
+    We don't expect anyone outside this module to care.
+    """
+    pass
+
 build_name_re = re.compile(r"[A-Za-z0-9_-]+")
 
 def check_build_name(name):
@@ -31,7 +38,7 @@ def check_build_name(name):
         raise GiveUp("Build name '%s' is not allowed (it may only contain"
                      " 'A'-'Z', 'a'-'z', '0'-'9', '_' or '-')"%name)
 
-class Invocation:
+class Invocation(object):
     """
     An invocation is the central muddle object. It holds the
     database the builder uses to perform actions on behalf
@@ -40,31 +47,31 @@ class Invocation:
 
     def __init__(self, root_path):
         """
-        Construct a fresh invocation with a muddle db at
-        the given root_path.
-
+        Construct a fresh invocation with a .muddle directory at the given
+        root_path.
 
         * self.db         - The metadata database for this project.
-        * self.checkouts  - A map of name to checkout object.
-        * self.pkgs       - Map of (package, role) -> package object.
-        * self.env        - Map of label to environment
+        * self.ruleset    - The rules describing this build
+        * self.env        - A dictionary of label to environment
         * self.default_roles - The roles to build when you don't specify any.
-        * self.default_deployment_labels - The list of labels to build.
-        * self.banned_roles - An array of pairs of role1,d1,role2,d2 which aren't allowed
-                             to share libraries.
+        * self.default_deployment_labels - The deployments to deploy ditto
+        * self.banned_roles - An array of pairs of the form (role, domain)
+          which aren't allowed to share libraries.
         * self.domain_params - Maps domain names to dictionaries storing
-                               parameters that other domains can retrieve. This
-                               is used to communicate values from a build to
-                               its subdomains.
+          parameters that other domains can retrieve. This is used to
+          communicate values from a build to its subdomains.
+        * self.unifications - This is a list of tuples of the form
+          (source-label, target-label), where one "replaces" the other in the
+          build tree.
         """
         self.db = db.Database(root_path)
         self.ruleset = depend.RuleSet()
-        self.env = { }
-        self.default_roles = [ ]
-        self.default_deployment_labels = [ ]
-        self.banned_roles = [ ]
-        self.domain_params = { }
-        self.unifications = [ ]
+        self.env = {}
+        self.default_roles = []
+        self.default_deployment_labels = []
+        self.banned_roles = []
+        self.domain_params = {}
+        self.unifications = []
 
     def note_unification(self, source, target):
         self.unifications.append( (source, target) )
@@ -93,13 +100,13 @@ class Invocation:
         """
         self.db.set_domain_marker(domain_name)
 
-
-    def include_domain(self,domain_builder, domain_name):
+    def include_domain(self, domain_builder, domain_name):
         """
         Import the builder domain_builder into the current invocation, giving it
         domain_name.
 
-        We first import the db, then we rename None to domain_name in banned_roles.
+        We first import the db, then we rename None to domain_name in
+        banned_roles
         """
         self.db.include_domain(domain_builder, domain_name)
         for r in domain_builder.invocation.banned_roles:
@@ -116,7 +123,6 @@ class Invocation:
                 d2 = "*"
 
             self.banned_roles.append((a,d1,b,d2))
-
 
     def roles_do_not_share_libraries(self,r1, r2, domain1 = None, domain2 = None):
         """
@@ -209,21 +215,30 @@ class Invocation:
             rv.add(cur.target.name)
         return rv
 
-    def all_checkout_labels(self):
+    def all_checkout_labels(self, tag=None):
         """
         Return a set of the labels of all the checkouts in our rule set.
+
+        Note that if 'tag' is None then all the labels will be of the form:
+
+            checkout:<co_name>/*
+
+        otherwise 'tag' will be used as the checkout label tag:
+
+            checkout:<co_name>/<tag>
         """
         lbl = Label(LabelType.Checkout, "*", domain="*")
         all_rules = self.ruleset.rules_for_target(lbl)
         all_labels = set()
-        already_got = set()
+        if tag is None:
+            required_tag = '*'
+        else:
+            required_tag = tag
         for cur in all_rules:
             lbl = cur.target
-            tup = (lbl.domain, lbl.name)
-            if tup not in already_got:
-                already_got.add(tup)
-                all_labels.add(Label(LabelType.Checkout,
-                                     lbl.name, tag='*', domain=lbl.domain))
+            #vanilla = lbl.copy_with_tag(LabelTag.CheckedOut)
+            vanilla = lbl.copy_with_tag(required_tag)
+            all_labels.add(vanilla)
         return all_labels
 
     def all_domains(self):
@@ -534,10 +549,7 @@ class Invocation:
         if (build_desc is None):
             return None
 
-        # Split off the first
-
-        (co,path) = utils.split_path_left(build_desc)
-        return (co, path)
+        return build_co_and_path_from_str(build_desc)
 
     def dump_checkout_paths(self):
         return self.db.dump_checkout_paths()
@@ -719,7 +731,7 @@ class Invocation:
                 return_list.append(label)
         return return_list
 
-    def expand_wildcards(self, label, default_to_obvious_tag=True, wildcard_tag=None):
+    def expand_wildcards(self, label, default_to_obvious_tag=True):
         """
         Given a label which may contain wildcards, return a set of labels that match.
 
@@ -728,11 +740,8 @@ class Invocation:
 
         If default_to_obvious_tag is true, then if label has a tag of '*', it
         will be replaced by the "obvious" (final) tag for this label type,
-        before any searching (for for a checkout: label, /checked_out would
+        before any searching (so for a checkout: label, /checked_out would
         be used).
-
-        If required_tag is not None, then any labels found that have a '*' for
-        their tag will have it replaced by this value.
         """
 
         if label.is_definite():
@@ -741,7 +750,7 @@ class Invocation:
             return set([label])
 
         if default_to_obvious_tag and label.tag == '*':
-            tag = utils.package_type_to_tag[label.type]
+            tag = utils.label_type_to_tag[label.type]
             label = label.copy_with_tag(tag)
 
         return self.ruleset.targets_match(label)
@@ -759,11 +768,11 @@ class Builder(object):
         to sub-domains.
 
         Note that you MUST NOT set domain_params null unless you are
-         the top-level domain - it MUST come from the enclosing
-         domain's invocation or modifications made by the subdomain's
-         buidler will be lost, and as this is the only way to
-         communicate values to a parent domain, this would be
-         bad. Ugh.
+        the top-level domain - it MUST come from the enclosing
+        domain's invocation or modifications made by the subdomain's
+        buidler will be lost, and as this is the only way to
+        communicate values to a parent domain, this would be
+        bad. Ugh.
 
         default_domain is the default domain value to add to anything
         in local_pkgs , etc - it's used to make sure that if you're
@@ -803,6 +812,10 @@ class Builder(object):
         # Should this be kept in our Invocation?
         self.build_desc_repo = None
 
+        # The current distribution name and target directory, as a tuple,
+        # or actually None, since we've not set it yet
+        # directory with each...
+        self.distribution = None
 
     def get_subdomain_parameters(self, domain):
         return self.invocation.get_domain_parameters(domain)
@@ -830,6 +843,20 @@ class Builder(object):
         """
         self.domain_params[name] = value
 
+    def set_distribution(self, name, target_dir):
+        """Set the current distribution name and target directory.
+        """
+        self.distribution = (name, target_dir)
+
+    def get_distribution(self):
+        """Retrieve the current distribution name and target directory.
+
+        Raises GiveUp if there is no current distribution set.
+        """
+        if self.distribution:
+            return self.distribution
+        else:
+            raise GiveUp('No distribution name or target directory set')
 
     def roles_do_not_share_libraries(self, a, b):
         """
@@ -907,6 +934,10 @@ class Builder(object):
         then loading it.
 
         Returns True on success, False on failure.
+
+        We store the build description repository as self.build_desc_repo,
+        since users may want to use it to determine other, relative,
+        repositories.
         """
 
         # The build description is a bit odd, but we still set it up as a
@@ -957,8 +988,20 @@ class Builder(object):
         # .. and load the build description.
         try:
             self.build_label(loaded, silent=True)
+        except ErrorInBuildDescription as e:
+            # Ah, an error in a subdomain build description
+            raise ErrorInBuildDescription('Error in build description for %s\n'
+                                          '%s'%(self.invocation.db.root_path, e))
+        except GiveUp as e:
+            # We don't normally want tracebacks for GiveUp exceptions, so
+            # just pass it on up...
+            raise
         except Exception:
-            raise GiveUp('Error in build description\n%s'%traceback.format_exc())
+            raise ErrorInBuildDescription('Error in build description for %s\n'
+                                          '%s'%(self.invocation.db.root_path,
+                                                traceback.format_exc()))
+            #raise ErrorInBuildDescription('Error in build description\n'
+            #                              '%s'%traceback.format_exc())
 
         return True
 
@@ -1309,7 +1352,7 @@ class Builder(object):
         to determine that, before calling this method.
         """
         rv = [ ]
-        all_cos = self.invocation.all_checkout_labels()
+        all_cos = self.invocation.all_checkout_labels(LabelTag.CheckedOut)
 
         for co in all_cos:
             co_dir = self.invocation.checkout_path(co)
@@ -1724,10 +1767,13 @@ def _new_sub_domain(root_path, muddle_binary, domain_name, domain_repo, domain_b
             if hasattr(rule.action, '_inner_labels'):
                 labels.extend(rule.action._inner_labels())
             if hasattr(rule.action, 'vcs'):
-                # This relies WAY too much on knowledge of the inside of a
-                # version control handler - TODO is to fix it!!!
-                labels.append(rule.action.vcs.checkout_label)
+                # We only have to do this next bit because the VCS handler
+                # things have their builder as an attribute, instead of
+                # being passed it at run time. TODO: FIX THIS XXX
                 vcs_handlers.append(rule.action.vcs)
+
+    # Don't forget the labels inside the "db"
+    labels.extend(domain_builder.invocation.db._inner_labels())
 
     # Then, mark them all as "unchanged" (because we can't guarantee we won't
     # have the same label more than once, and it's easier to do this than to
@@ -1801,5 +1847,22 @@ def include_domain(builder, domain_name, domain_repo, domain_desc):
 
     return domain_builder
 
+def build_co_and_path_from_str(str):
+    """Turn a BuildDescription text into checkout name and inner path.
+
+    That is, we assume the string we're given (which was presumably
+    read from a BuildDescription) is of the form:
+
+        <checkout-name>/<path-to-build-desc>
+
+    For instance::
+
+        >>> build_co_and_path_from_str('builds/01.py')
+        ('builds', '01.py')
+        >>> build_co_and_path_from_str('strawberry/jam/toast.py')
+        ('strawberry', 'jam/toast.py')
+    """
+    co_name, inner_path = utils.split_path_left(str)
+    return co_name, inner_path
 
 # End file.

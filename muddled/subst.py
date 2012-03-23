@@ -91,7 +91,7 @@ def query_string_value(xml_doc, env, k):
 
     return v
 
-class PushbackInputStream:
+class PushbackInputStream(object):
     """
     A pushback input stream based on a string. Used in our recursive descent
     parser
@@ -146,7 +146,7 @@ class PushbackInputStream:
         return "line %d, char %d"%(self.line, self.char)
 
 
-class TreeNode:
+class TreeNode(object):
     """
     A TreeNode contains itself, followed by all its children, so this is
     essentially a left tree.

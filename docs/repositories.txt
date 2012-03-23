@@ -1,0 +1,342 @@
+============
+Repositories
+============
+
+The definition of the Repository class, and various other useful functions,
+are in ``muddled.repository.py``. Use ``muddle doc muddled.repository`` for
+more information.
+
+Checkouts and repositories
+==========================
+Muddle separates the concerns of the *checkout*, the local copy of some source
+code, and the *repository*, the non-local place where the (or an) original of
+the source code is stored, and from whence the checkout was cloned or checked
+out.
+
+.. note:: Earlier versions of muddle did not make this separation as clearly.
+   Things are better now...
+
+In most build descriptions, this separation is actually de-emphasised.
+Particularly, most build descriptions work with semi-local repositories - that
+is, rather than referring to the original (somewhere on the internet)
+repositories for software such as Linux, busybox, zlib, etc., a local set of
+repositories is maintained, containing copies of the original repositories.
+This has the advantage that instantiating a new build is not dependent on a
+long list of remote network sites being up and available.
+
+Thus the typical muddle build does its::
+
+  muddle init <vcs>+<base-repo> builds/01.py
+
+which expects to find the build description in a repository of type <vcs>
+(e.g., git) located at ``<base-repo>/builds``. Other checkouts are then likely
+to be retrieved from repositories whose type is the same, and whose repository
+URLs also start with ``<base-repo>``.
+
+So, for instance, the convenience call::
+
+    from muddled.pkgs import make
+
+    def describe_to(builder):
+      ...
+      make.medium(builder, "first_pkg", ['x86'], "first_co")
+
+does quite a lot:
+
+1. It says that ``package:first_pkg{x86}`` is built from
+   ``checkout:first_co``, using (by default) a ``Makefile.muddle`` to be
+   found in that checkouts source directory.
+
+2. It says that ``checkout:first_co`` has its source in ``src/first_co``
+   (because no subdirectory of ``src/`` has been specified).
+
+3. It says that ``checkout:first_co`` is of type ``<vcs>`` (i.e., defaulting
+   to the same VCS as used for the build description), and is cloned from
+   ``<base-repo>/first_co`` (again, with defaults taken from the build
+   description). 
+
+The writer of the build description could instead have been more explicit
+about much of that::
+
+    from muddled.depend import checkout
+    from muddled.pkgs import make
+    from muddled.repositories import get_checkout_repo, add_upstream_repo
+    from muddled.version_control import checkout_from_repo
+
+    def describe_to(builder):
+      ...
+      build_desc_repo = builder.build_desc_repo
+      co_repo = build_desc_repo.copy_with_changes('first_co')
+
+      co_label = checkout('first_co')
+      checkout_from_repo(builder, co_label, co_repo)
+      muddled.pkgs.make.simple(builder, 'package1', 'x86', co_label.name)
+
+although there's not normally any particular gain in doing so.
+
+Upstream repositories
+=====================
+
+What upstream repositories are and why we need them
+---------------------------------------------------
+Consider a library (such as zlib). We can generally find a repository that
+contains the current version of the library, and tell muddle to use that to
+retrieve the package.
+
+But it is often more convenient to take our own copy - it means that we have
+direct control over the exact version (yes, we could use a revision id to do
+that with a remote repository), it means we can add a ``Makefile.muddle``
+directly to the source without worrying about accidentally sending it back
+(although we could use a branch or even a separate "helper" checkout for
+that), and it also means we can make our own patches as needed (again,
+branching would work).
+
+The main thing, though, is that we're insulated against that far repository
+being down just when we need it (and the more checkouts we're dealing with,
+the more likely this is - even Google Projects occasionally goes down).
+
+However, what if we do make a useful patch to the library, and want to submit
+it back to the original repository? Or if we want to update our near
+repository because the far repository has changed? This is where the concept
+of an "upstream" repository comes in - it is a farther away (in some sense)
+repository that some or part of our near repository can synchronise with.
+
+Linux development uses this concept all of the time, and it is typical there
+to have multiple upstreams.
+
+So, the idea is that we have a "near" repository, which is the one we clone
+our checkout from, and push our own changes to. And we may also have one or
+more upstream repositories, which we can optionally pull from or, perhaps,
+push to.
+
+Declaring upstream repositories
+-------------------------------
+This is done in the build description.
+
+For instance::
+
+    from muddled.depend import checkout
+    from muddled.pkgs import make
+    from muddled.repositories import get_checkout_repo, add_upstream_repo
+
+    def describe_to(builder):
+      ...
+      # Declare package "first_pkg" that is build from checkout "first_co",
+      # which is retrieved from a repository related to the build description
+      # repository
+      make.medium(builder, "first_pkg", [role], "first_co")
+
+      # We get the *actual* repository with:
+      co_repo = get_checkout_repo(builder, checkout("first_co"))
+
+      # And we can then add some upstreams
+      repo1 = co_repo.copy_with_changes('repo1.1')
+      # We are not allowed to push to this second repository
+      repo2 = Repository.from_url('git', 'http://example.com/repos/first_co',
+                                   push=False)
+      add_upstream_repo(builder, co_repo, repo1, ['rhubarb', 'wombat'])
+      add_upstream_repo(builder, co_repo, repo2, ['rhubarb'])
+
+or, replacing the ``make.medium`` with lower level calls, we could have done::
+
+    from muddled.depend import checkout
+    from muddled.pkgs import make
+    from muddled.repositories import get_checkout_repo, add_upstream_repo
+    from muddled.version_control import checkout_from_repo
+
+    def describe_to(builder):
+      ...
+      # This shows that our repository is explicitly related to the
+      # build description repository...
+      co_repo = builder.build_desc_repo.copy_with_changes('first_co')
+
+      co_label = checkout('first_co')
+      checkout_from_repo(builder, co_label, co_repo)
+      muddled.pkgs.make.simple(builder, 'package1', role, co_label.name)
+
+      # And we can then add some upstreams
+      # - this bit is just the same as the previous example
+      repo1 = co_repo.copy_with_changes('repo1.1')
+      # We are not allowed to push to this second repository
+      repo2 = Repository.from_url('git', 'http://example.com/repos/first_co',
+                                   push=False)
+      add_upstream_repo(builder, co_repo, repo1, ['rhubarb', 'wombat'])
+      add_upstream_repo(builder, co_repo, repo2, ['rhubarb'])
+
+The commands
+============
+There are several muddle commands related to upstream repositories:
+
+* ``muddle push-upstream``
+* ``muddle pull-upstream``
+* ``muddle query upstream-repos``
+
+See the ``muddle help`` text on each for detailed information.
+
+Note that the current versions of all these commands assume wide terminals to
+display their output. This may possibly change in the future.
+
+muddle query upstream-repos
+---------------------------
+This commnand reports either all the upstream repositories known, or those for
+a particular checkout. For instance::
+
+  $ muddle query upstream-repos
+  > Upstream repositories ..
+  Repository('git', 'http:/example.com/repo/main', 'repo1') used by checkout:(subdomain1)co_repo1/*, checkout:co_repo1/*
+      Repository('git', 'http:/example.com/repo/main', 'repo1.1')  rhubarb, wombat
+      Repository('git', 'http:/example.com/repo/main', 'repo1.2', push=False)  insignificance, wombat
+      Repository('git', 'http:/example.com/repo/main', 'repo1.3', pull=False)  platypus, rhubarb
+
+The description of the near repository is followed by a list of those
+checkouts using it.
+
+The description of each upstream repository is followed by a list of the
+corresponding upstream names.
+
+Note that some of the repositories listed may not be pushed to
+(``push=False``) and some may not be pulled from (``pull=False``).
+
+.. note:: It is quite possible to (a) set an upstream repository for a
+   repository that is not used by any checkout, and (b) set an upstream
+   repository for an upstream repository. Muddle will make no use of either
+   of these cases (although it is *possible* that some future version of
+   muddle might allow upstreams of upstreams).
+
+The ``-u`` or ``-url`` switch may be used to view repositories as their URL,
+rather than as their constructor::
+
+  $ m3 query upstream-repos -u
+  > Upstream repositories ..
+  http:/example.com/repo/main/repo1 used by checkout:(subdomain1)co_repo1/*, checkout:co_repo1/*
+      http:/example.com/repo/main/repo1.1  rhubarb, wombat
+      http:/example.com/repo/main/repo1.2  insignificance, wombat
+      http:/example.com/repo/main/repo1.3  platypus, rhubarb
+
+This does not, however, show the value of any ``push`` or ``pull`` flags, nor
+would it should branch or revision information.
+
+You can also ask for upstream repositories that relate only to a single
+checkout, for instance::
+
+  $ muddle query upstream-repos co_repo1
+  Repository('git', 'http:/example.com/repo/main', 'repo1') used by checkout:co_repo1/checked_out
+      Repository('git', 'http:/example.com/repo/main', 'repo1.1')  rhubarb, wombat
+      Repository('git', 'http:/example.com/repo/main', 'repo1.2', push=False)  insignificance, wombat
+      Repository('git', 'http:/example.com/repo/main', 'repo1.3', pull=False)  platypus, rhubarb
+
+In this instance, the first line of output only lists the requested checkout,
+although we know from the previous example that this is not the only checkout
+using that repository.
+
+muddle pull-upstream
+--------------------
+Pulling from upstream repositories is done with a different command than
+pulling from the "near" repository, partly because it is likely to be a less
+common operation.
+
+The command line is broadly::
+
+  muddle pull-upstream [ <checkout> ... ] -u[pstream] <name> ...
+
+where ``<checkout>`` is a label fragment in the normal way, and ``<name>`` is
+one of the names registered for an upstream repository.
+
+So::
+
+  $ muddle pull-upstream package:android{x86} -u upstream-android
+
+says to pull from the upstream repositories for all the checkouts used by the
+``android{x86}`` package, using those upstream repositories with name
+``upstream-android``.
+
+Similarly::
+
+  $ muddle pull-upstream builds co_repo1 -upstream wombat rhubarb
+
+asks to pull from any upstreams called ``rhubarb`` or ``wombat`` into
+checkouts ``builds`` and ``co_repo1``.
+
+The command works by looking at each checkout in turn, and:
+
+1. finding the "near" repository for the checkout
+2. findings its upstreams (if any)
+3. determining which of those have any of the names requested
+4. pulling from each of those in turn
+
+If there is no appropriate upstream repository for a particular checkout, then
+this is reported, but is not an error. If there is more than one upstream
+repository for a checkout, the order of pulling from them is not defined - if
+this matters, then it is up to the user to do the process by hand.
+
+Unlike the normal ``pull`` command, there is no ``-stop`` switch. If any of
+the constituent ``pull`` operations fails, then the whole ``pull-upstream``
+command will fail at that point.
+
+As with other "action" commands, ``muddle -n pull-upstream`` can usefully be
+used to find out what it would do, without actually doing it. However, it
+does not check whether a repository allows pull.
+
+muddle push-upstream
+--------------------
+Pushing to upstream repositories is done with a different command than
+pushing to the "near" repository, partly because it is likely to be a less
+common operation.
+
+The command line is broadly::
+
+  muddle push-upstream [ <checkout> ... ] -u[pstream] <name> ...
+
+where ``<checkout>`` is a label fragment in the normal way, and ``<name>`` is
+one of the names registered for an upstream repository.
+
+So::
+
+  $ muddle push-upstream package:android{x86} -u upstream-android
+
+says to push to the upstream repositories for all the checkouts used by the
+``android{x86}`` package, using those upstream repositories with name
+``upstream-android``.
+
+Similarly::
+
+  $ muddle push-upstream builds co_repo1 -upstream wombat rhubarb
+
+asks to push to any upstreams called ``rhubarb`` or ``wombat`` from
+checkouts ``builds`` and ``co_repo1``.
+
+The command works by looking at each checkout in turn, and:
+
+1. finding the "near" repository for the checkout
+2. findings its upstreams (if any)
+3. determining which of those have any of the names requested
+4. pushing to each of those in turn
+
+If there is no appropriate upstream repository for a particular checkout, then
+this is reported, but is not an error. If there is more than one upstream
+repository for a checkout, the order of pushing to them is not defined - if
+this matters, then it is up to the user to do the process by hand.
+
+Unlike the normal ``push`` command, there is no ``-stop`` switch. If any of
+the constituent ``push`` operations fails, then the whole ``push-upstream``
+command will fail at that point.
+
+As with other "action" commands, ``muddle -n push-upstream`` can usefully be
+used to find out what it would do, without actually doing it. However, it
+does not check whether a repository allows push.
+
+Upstream repositories and subdomains
+------------------------------------
+Mostly, it hopefully Does The Right Thing.
+
+However, if we have a checkout in the main domain that uses a particular
+repository, and a checkout in a subdomain that uses the same repository, but
+adds an upstream to it that is not also added in the main domain, then muddle
+will give up with an error message. The thinking is that if the same
+repository is used in the main domain and a subdomain, but has different
+upstreams in the two, then a user might not notice this, and might end up
+accidentally pushing somewhere unexpected. The solution is that the repository
+in the main domain must have a superset of the upstreams that are used
+in any subdomains.
+
+.. vim: set filetype=rst tabstop=8 softtabstop=2 shiftwidth=2 expandtab:

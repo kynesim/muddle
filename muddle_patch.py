@@ -54,13 +54,11 @@ import subprocess
 
 from ConfigParser import RawConfigParser
 
-from muddled.commands import UnStamp
-from muddled.vcs.bazaar import Bazaar
-from muddled.utils import VersionStamp
-from muddled.version_control import split_vcs_url
-
 import muddled.utils
 import muddled.mechanics
+
+from muddled.depend import Label
+from muddled.version_stamp import VersionStamp
 
 BZR_DO_IT_PROPERLY = False
 
@@ -68,13 +66,13 @@ class LocalError(Exception):
     pass
 
 def canonical_path(path):
-  """Expand a directory path out as far as it will go.
-  """
-  path = os.path.expandvars(path)       # $NAME or ${NAME}
-  path = os.path.expanduser(path)       # ~
-  path = os.path.normpath(path)
-  path = os.path.abspath(path)          # copes with ., thing/../fred, etc.
-  return path
+    """Expand a directory path out as far as it will go.
+    """
+    path = os.path.expandvars(path)       # $NAME or ${NAME}
+    path = os.path.expanduser(path)       # ~
+    path = os.path.normpath(path)
+    path = os.path.abspath(path)          # copes with ., thing/../fred, etc.
+    return path
 
 def deduce_checkout_parent_dir(directory):
     # Is this always the correct directory?
@@ -106,12 +104,18 @@ def svn_patch(leaf, directory, patch_filename):
     if rv:
         raise LocalError('patch returned %d'%rv)
 
-def svn_diff(name, leaf, directory, rev1, rev2, output_dir, manifest_filename):
+def svn_diff(label, co_dir, co_leaf, repo, rev1, rev2, output_dir, manifest_filename):
+
+    if label.domain:
+        domparts = Label.split_domains(label.domain)
+        name = '%s-%s'%('_'.join(domparts), label.name)
+    else:
+        name = label.name
 
     output_filename = '%s.svn_diff'%name
     output_path = os.path.join(output_dir, output_filename)
 
-    checkout_dir = deduce_checkout_dir(directory, leaf)
+    checkout_dir = deduce_checkout_dir(co_dir, co_leaf)
 
     # *Should* check that neither of the requested revision numbers
     # are above the revno of the checkout we have to hand? Anyway,
@@ -129,12 +133,13 @@ def svn_diff(name, leaf, directory, rev1, rev2, output_dir, manifest_filename):
     with open(manifest_filename, 'a') as fd:
         # Lazily, just write this out by hand
         fd.write('[SVN %s]\n'
-                 'checkout=%s\n'
-                 'directory=%s\n'
+                 'co_label=%s\n'
+                 'co_dir=%s\n'
+                 'co_leaf=%s\n'
                  'patch=%s\n'
-                 'old=%s\n'
-                 'new=%s\n'%(name, leaf, directory, output_filename,
-                             rev1, rev2))
+                 'old_revision=%s\n'
+                 'new_revision=%s\n'%(name, label, co_dir, co_leaf,
+                     output_filename, rev1, rev2))
 
 # Bazaar ======================================================================
 #
@@ -195,7 +200,13 @@ def bzr_merge_from_send(leaf, directory, patch_filename):
     if rv:
         raise LocalError('bzr send returned %d'%rv)
 
-def bzr_send(name, leaf, directory, rev1, rev2, output_dir, manifest_filename):
+def bzr_send(label, co_dir, co_leaf, repo, rev1, rev2, output_dir, manifest_filename):
+
+    if label.domain:
+        domparts = Label.split_domains(label.domain)
+        name = '%s-%s'%('_'.join(domparts), label.name)
+    else:
+        name = label.name
 
     if BZR_DO_IT_PROPERLY:
         output_filename = '%s.bzr_send'%name
@@ -204,7 +215,7 @@ def bzr_send(name, leaf, directory, rev1, rev2, output_dir, manifest_filename):
 
     output_path = os.path.join(output_dir, output_filename)
 
-    checkout_dir = deduce_checkout_dir(directory, leaf)
+    checkout_dir = deduce_checkout_dir(co_dir, co_leaf)
 
     # *Should* check that neither of the requested revision numbers
     # are above the revno of the checkout we have to hand? Anyway,
@@ -217,7 +228,7 @@ def bzr_send(name, leaf, directory, rev1, rev2, output_dir, manifest_filename):
         print '..',cmd
         rv = subprocess.call(cmd, shell=True)
         if rv != 0:
-            raise LocalError('bzr send for %s returned %d'%(name,rv))
+            raise LocalError('bzr send for %s returned %d'%(label,rv))
     else:
         cmd = 'cd %s; bzr diff -p1 -r%s..%s -v > %s'%(checkout_dir, rev1, rev2, output_path)
         print '..',cmd
@@ -228,12 +239,13 @@ def bzr_send(name, leaf, directory, rev1, rev2, output_dir, manifest_filename):
     with open(manifest_filename, 'a') as fd:
         # Lazily, just write this out by hand
         fd.write('[BZR %s]\n'
-                 'checkout=%s\n'
-                 'directory=%s\n'
+                 'co_label=%s\n'
+                 'co_dir=%s\n'
+                 'co_leaf=%s\n'
                  'patch=%s\n'
-                 'old=%s\n'
-                 'new=%s\n'%(name, leaf, directory, output_filename,
-                             rev1, rev2))
+                 'old_revision=%s\n'
+                 'new_revision=%s\n'%(name, label, co_dir, co_leaf,
+                     output_filename, rev1, rev2))
 
 # Git =========================================================================
 def git_am(leaf, directory, patch_directory):
@@ -254,15 +266,27 @@ def git_am(leaf, directory, patch_directory):
         if rv:
             raise LocalError('git am returned %d'%rv)
 
-def git_format_patch(name, leaf, directory, rev1, rev2, output_dir, manifest_filename):
+def git_format_patch(label, co_dir, co_leaf, repo, rev1, rev2, output_dir, manifest_filename):
+
+    if label.domain:
+        domparts = Label.split_domains(label.domain)
+        name = '%s-%s'%('_'.join(domparts), label.name)
+    else:
+        name = label.name
 
     output_directory = '%s.git_patch'%name
     output_path = os.path.join(output_dir, output_directory)
 
-    checkout_dir = deduce_checkout_dir(directory, leaf)
+    checkout_dir = deduce_checkout_dir(co_dir, co_leaf)
 
     # *Should* check that neither of the requested revision ids
     # are above the id of the checkout we have to hand?
+
+    if rev1 is None:
+        raise LocalError('Cannot do git-format patch: rev1 is None')
+
+    if rev2 is None:
+        raise LocalError('Cannot do git-format patch: rev2 is None')
 
     cmd = 'cd %s; git format-patch -o %s' \
           ' %s..%s'%(checkout_dir, output_path, rev1, rev2)
@@ -274,12 +298,13 @@ def git_format_patch(name, leaf, directory, rev1, rev2, output_dir, manifest_fil
     with open(manifest_filename, 'a') as fd:
         # Lazily, just write this out by hand
         fd.write('[GIT %s]\n'
-                 'checkout=%s\n'
-                 'directory=%s\n'
+                 'co_label=%s\n'
+                 'co_dir=%s\n'
+                 'co_leaf=%s\n'
                  'patch=%s\n'
-                 'old=%s\n'
-                 'new=%s\n'%(name, leaf, directory, output_directory,
-                             rev1, rev2))
+                 'old_revision=%s\n'
+                 'new_revision=%s\n'%(name, label, co_dir, co_leaf,
+                     output_path, rev1, rev2))
 
 # Tar =========================================================================
 def tar_unpack(leaf, directory, tar_filename):
@@ -288,7 +313,7 @@ def tar_unpack(leaf, directory, tar_filename):
 
     checkout_dir = deduce_checkout_dir(directory, leaf)
     if os.path.exists(checkout_dir):
-        raise LocalError('Checkout directory %s alread exists\n'
+        raise LocalError('Checkout directory %s already exists\n'
                          '   not overwriting it with new data from %s'%(checkout_dir,
                              tar_filename))
 
@@ -301,17 +326,23 @@ def tar_unpack(leaf, directory, tar_filename):
     if rv:
         raise LocalError('tar -zxf returned %d'%rv)
 
-def tar_pack(name, leaf, directory, output_dir, manifest_filename):
+def tar_pack(label, co_dir, co_leaf, repo, output_dir, manifest_filename):
+
+    if label.domain:
+        domparts = Label.split_domains(label.domain)
+        name = '%s-%s'%('_'.join(domparts), label.name)
+    else:
+        name = label.name
 
     tar_filename = '%s.tgz'%name
     tar_path = os.path.join(output_dir, tar_filename)
 
-    parent_dir = deduce_checkout_parent_dir(directory)
+    parent_dir = deduce_checkout_parent_dir(co_dir)
 
     # *Should* check that neither of the requested revision ids
     # are above the id of the checkout we have to hand?
 
-    cmd = 'tar -C %s -zcf %s %s'%(parent_dir, tar_path, leaf)
+    cmd = 'tar -C %s -zcf %s %s'%(parent_dir, tar_path, co_leaf)
     print '..',cmd
     rv = subprocess.call(cmd, shell=True)
     if rv:
@@ -319,10 +350,12 @@ def tar_pack(name, leaf, directory, output_dir, manifest_filename):
 
     with open(manifest_filename, 'a') as fd:
         # Lazily, just write this out by hand
+        # It should be much more information than we need, but still
         fd.write('[TAR %s]\n'
-                 'checkout=%s\n'
-                 'directory=%s\n'
-                 'patch=%s\n'%(name, leaf, directory, tar_filename))
+                 'co_label=%s\n'
+                 'co_dir=%s\n'
+                 'co_leaf=%s\n'
+                 'patch=%s\n'%(name, label, co_dir, co_leaf, tar_filename))
 
 # =============================================================================
 def find_builder(current_dir):
@@ -369,6 +402,11 @@ def write(our_stamp_file, far_stamp_file, output_dir_name):
     # - those changes are what we need to apply to make it the same as us...
     deleted, new, changed, problems = far_stamp.compare_checkouts(our_stamp)
 
+    # deleted  = [ (label, co_dir, co_leaf, repo), ... ]
+    # new      = [ (label, co_dir, co_leaf, repo), ... ]
+    # changed  = [ (label, revision1, revision2), ... ]
+    # problems = [ (label, summary-string), ... ]
+
     print
     print 'Summary: deleted %d, new %d, changed %d, problems %d'%(len(deleted),
             len(new), len(changed), len(problems))
@@ -377,18 +415,16 @@ def write(our_stamp_file, far_stamp_file, output_dir_name):
     os.mkdir(output_dir)
     manifest_filename = os.path.join(output_dir, 'MANIFEST.txt')
 
-    for name, rev1, rev2 in changed:
-        print "-- Determining changes for checkout %s, %s..%s"%(name, rev1, rev2)
-        directory = our_stamp[name].dir
-        leaf = our_stamp[name].co_leaf
-        repository = our_stamp[name].repo
-        vcs, ignore = split_vcs_url(repository)
+    for label, rev1, rev2 in changed:
+        print "-- Determining changes for checkout %s, %s..%s"%(label, rev1, rev2)
+        co_dir, co_leaf, repo = our_stamp.checkouts[label]
+        vcs = repo.vcs
         if vcs == 'bzr':
-            bzr_send(name, leaf, directory, rev1, rev2, output_dir, manifest_filename)
+            bzr_send(label, co_dir, co_leaf, repo, rev1, rev2, output_dir, manifest_filename)
         elif vcs == 'svn':
-            svn_diff(name, leaf, directory, rev1, rev2, output_dir, manifest_filename)
+            svn_diff(label, co_dir, co_leaf, repo, rev1, rev2, output_dir, manifest_filename)
         elif vcs == 'git':
-            git_format_patch(name, leaf, directory, rev1, rev2, output_dir, manifest_filename)
+            git_format_patch(label, co_dir, co_leaf, repo, rev1, rev2, output_dir, manifest_filename)
         else:
             print 'Unable to deal with VCS %s'%vcs
             continue
@@ -399,8 +435,17 @@ def write(our_stamp_file, far_stamp_file, output_dir_name):
     if deleted:
         print
         print 'The following checkouts were deleted'
-        for tup in deleted:
-            print ' ',tup
+        for label, co_dir, co_leaf, repo in deleted:
+            print '  %s'%label
+            if co_leaf:
+                print '  %s'%(os.path.join(co_dir, co_leaf))
+            else:
+                print '  %s'%co_dir
+            print '  %s'%repo
+            if repo.branch:
+                print '  branch %s'%repo.branch
+            if repo.revision:
+                print '  branch %s'%repo.revision
 
     # TODO: For new checkouts, the best we can do is just to TAR up the
     # directory and copy it directly, and cross our fingers. We might as
@@ -411,9 +456,19 @@ def write(our_stamp_file, far_stamp_file, output_dir_name):
     # (if, at the other end, we're untarring a new checkout, we must check
     # if the directory already exists, and perhaps refuse to do it if so?)
     if new:
-        for name, repo, rev, rel, dir, domain, leaf in new:
-            print "-- Saving tarfile for new checkout %s"%name
-            tar_pack(name, leaf, dir, output_dir, manifest_filename)
+        for label, co_dir, co_leaf, repo in new:
+            print "-- Saving tarfile for new checkout %s"%label
+            print "   Originally from"
+            if co_leaf:
+                print '    %s'%(os.path.join(co_dir, co_leaf))
+            else:
+                print '    %s'%co_dir
+            print '    %s'%repo
+            if repo.branch:
+                print '    branch %s'%repo.branch
+            if repo.revision:
+                print '    revision %s'%repo.revision
+            tar_pack(label, co_dir, co_leaf, repo, output_dir, manifest_filename)
 
     if problems:
         print
@@ -438,38 +493,38 @@ def read(where):
     for section in sections:
         print 'Section %s'%section
         if section.startswith("BZR"):
-            checkout = config.get(section, 'checkout')
-            directory = config.get(section, 'directory')
-            if directory == 'None':
-                directory = None
+            co_leaf = config.get(section, 'co_leaf')
+            co_dir = config.get(section, 'co_dir')
+            if co_dir == 'None':
+                co_dir = None
             filename = config.get(section, 'patch')
-            print '  Checkout %s, directory %s, filename %s'%(checkout,directory,filename)
-            bzr_merge_from_send(checkout, directory,
+            print '  co_leaf %s, co_dir %s, filename %s'%(co_leaf,co_dir,filename)
+            bzr_merge_from_send(co_leaf, co_dir,
                                 os.path.join(where, filename))
         elif section.startswith("SVN"):
-            checkout = config.get(section, 'checkout')
-            directory = config.get(section, 'directory')
-            if directory == 'None':
-                directory = None
+            co_leaf = config.get(section, 'co_leaf')
+            co_dir = config.get(section, 'co_dir')
+            if co_dir == 'None':
+                co_dir = None
             filename = config.get(section, 'patch')
-            print '  Checkout %s, directory %s, filename %s'%(checkout,directory,filename)
-            svn_patch(checkout, directory, os.path.join(where, filename))
+            print '  co_leaf %s, co_dir %s, filename %s'%(co_leaf,co_dir,filename)
+            svn_patch(co_leaf, co_dir, os.path.join(where, filename))
         elif section.startswith("GIT"):
-            checkout = config.get(section, 'checkout')
-            directory = config.get(section, 'directory')
-            if directory == 'None':
-                directory = None
+            co_leaf = config.get(section, 'co_leaf')
+            co_dir = config.get(section, 'co_dir')
+            if co_dir == 'None':
+                co_dir = None
             patch_dir = config.get(section, 'patch')
-            print '  Checkout %s, directory %s, patch_dir %s'%(checkout,directory,patch_dir)
-            git_am(checkout, directory, os.path.join(where, patch_dir))
+            print '  co_leaf %s, co_dir %s, patch_dir %s'%(co_leaf,co_dir,patch_dir)
+            git_am(co_leaf, co_dir, os.path.join(where, patch_dir))
         elif section.startswith("TAR"):
-            checkout = config.get(section, 'checkout')
-            directory = config.get(section, 'directory')
-            if directory == 'None':
-                directory = None
+            co_leaf = config.get(section, 'co_leaf')
+            co_dir = config.get(section, 'co_dir')
+            if co_dir == 'None':
+                co_dir = None
             filename = config.get(section, 'patch')
-            print '  Checkout %s, directory %s, filename %s'%(checkout,directory,filename)
-            tar_unpack(checkout, directory, os.path.join(where, filename))
+            print '  co_leaf %s, co_dir %s, filename %s'%(co_leaf,co_dir,filename)
+            tar_unpack(co_leaf, co_dir, os.path.join(where, filename))
         else:
             print 'No support for %s yet - ignoring...'%section.split()[0]
 
@@ -480,8 +535,6 @@ def main(args):
     if args[0] in ('-help', '--help', '-h', 'help'):
         print __doc__
         return
-
-    PATCH_DIR = 'patches'
 
     if not os.path.isdir(os.path.join(os.getcwd(), '.muddle')):
         raise LocalError('** Oops - not at the top level of a muddle build tree')
@@ -527,5 +580,6 @@ if __name__ == '__main__':
         main(args)
     except LocalError as what:
         print what
+        sys.exit(1)
 
 # vim: set tabstop=8 softtabstop=4 shiftwidth=4 expandtab:

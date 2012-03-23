@@ -23,7 +23,7 @@ import subprocess
 import sys
 import traceback
 
-from test_support import *
+from support_for_tests import *
 
 try:
     import muddled.cmdline
@@ -402,8 +402,13 @@ def test_git_checkout_build():
                 git('init')
                 git('add Makefile.muddle')
                 git('commit -m "Add muddle makefile"')
-                git('push %s/checkout1 HEAD'%root_repo)
-                muddle(['assert', 'checkout:checkout1/checked_out'])
+                # Assert that this checkout *has* been checked out
+                # (this also does a "muddle reparent" for us, setting
+                # up our remote origin for pushing)
+                muddle(['import'])
+                # And thus we can now ask muddle to push for us
+                # (although a plain "git push" would also work)
+                muddle(['push'])
 
             with NewDirectory('twolevel'):
                 with NewDirectory('checkout2'):
@@ -411,8 +416,12 @@ def test_git_checkout_build():
                     git('init')
                     git('add Makefile.muddle')
                     git('commit -m "Add muddle makefile"')
-                    git('push %s/twolevel/checkout2 HEAD'%root_repo)
-                    muddle(['assert', 'checkout:checkout2/checked_out'])
+                    muddle(['import'])
+                    # As was said in 'checkout1', we can "git push" if
+                    # we prefer, once we've done import - although we do
+                    # need to be specific about *what* we're pushing, this
+                    # first time round
+                    git('push origin master')
 
             with NewDirectory('multilevel'):
                 with NewDirectory('inner'):
@@ -421,8 +430,13 @@ def test_git_checkout_build():
                         git('init')
                         git('add Makefile.muddle')
                         git('commit -m "Add muddle makefile"')
-                        git('push %s/multilevel/inner/checkout3 HEAD'%root_repo)
+                        # Or we can do a more complicated sequence of things
+                        # Just assert checkout via its tagged label
                         muddle(['assert', 'checkout:alice/checked_out'])
+                        # then reparent by hand
+                        muddle(['reparent'])
+                        # and now we can git push
+                        git('push origin master')
 
         banner('Stamping checkout build')
         muddle(['stamp', 'version'])

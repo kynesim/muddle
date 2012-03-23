@@ -1,5 +1,7 @@
 """
 Muddle support for naive file copying.
+
+.. to be documented ..
 """
 
 import os
@@ -65,7 +67,7 @@ class File(VersionControlSystem):
         if repo.branch:
             raise utils.GiveUp("File does not support the 'branch' argument to"
                                " 'fetch' (branch='%s'"%repo.branch)
-        self.checkout(repo, os.curdir, verbose=verbose)
+        self.checkout(repo, os.curdir, options, verbose=verbose)
 
     def merge(self, other_repo, options, verbose=True):
         """
@@ -73,13 +75,13 @@ class File(VersionControlSystem):
 
         Just copies everything again. This is an imperfect sort of "merge".
         """
-        if repo.revision and repo.revision != 'HEAD':
+        if other_repo.revision and other_repo.revision != 'HEAD':
             raise utils.GiveUp("File does not support the 'revision' argument to"
-                               " 'merge' (revision='%s'"%repo.revision)
-        if repo.branch:
+                               " 'merge' (revision='%s'"%other_repo.revision)
+        if other_repo.branch:
             raise utils.GiveUp("File does not support the 'branch' argument to"
-                               " 'merge' (branch='%s'"%repo.branch)
-        self.checkout(other_repo, os.curdir, verbose=verbose)
+                               " 'merge' (branch='%s'"%other_repo.branch)
+        self.checkout(other_repo, os.curdir, options, verbose=verbose)
 
     def commit(self, repo, options, verbose=True):
         """
@@ -135,6 +137,6 @@ def _decode_file_url(url):
     return result.path
 
 # Tell the version control handler about us..
-register_vcs_handler("file", File())
+register_vcs_handler("file", File(), __doc__)
 
 # End file.

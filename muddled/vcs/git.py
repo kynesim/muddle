@@ -1,5 +1,22 @@
 """
 Muddle suppport for Git.
+
+.. to be documented ..
+
+
+Available git specific options are:
+
+    * shallow_checkout: If True, then only clone to a depth of 1 (i.e., pass
+      the git switch "--depth 1"). If False, then no effect. The default is
+      False.
+
+      This is typically of use when cloning the Linux kernel (or some other
+      large tree with a great deal of history), when one is not expecting to
+      modify the checkout in any way in the future (i.e., neither to push it
+      nor to pull it again).
+
+      If 'shallow_checkout' is specified, then "muddle fetch", "muddle merge"
+      and "muddle push" will refuse to do anything.
 """
 
 import os
@@ -71,7 +88,7 @@ class Git(VersionControlSystem):
             # Explicitly use master if no branch specified - don't default
             args = "-b master"
 
-        if options['shallow_checkout']:
+        if options.get('shallow_checkout'):
             args="%s --depth 1"%args
 
         utils.run_cmd("git clone %s %s %s"%(args, repo.url, co_leaf), verbose=verbose)
@@ -100,9 +117,11 @@ class Git(VersionControlSystem):
                                 "%s"%utils.indent(text,'    '))
 
     def _shallow_not_allowed(self, options):
-        """ Checks to see if the current checkout is shallow, and refuses if so.
-        Must only be called from the checkout directory. """
-        if options['shallow_checkout']:
+        """Checks to see if the current checkout is shallow, and refuses if so.
+
+        Must only be called from the checkout directory.
+        """
+        if options.get('shallow_checkout'):
             if os.path.exists('.git/shallow'):
                 raise utils.Unsupported('Shallow checkouts cannot interact with their upstream repositories.')
 
@@ -157,12 +176,12 @@ class Git(VersionControlSystem):
         or at least not for muddle purposes. In that case we're better off just
         giving up, and letting the user sort it out directly.
         """
-        if repo.revision and repo.revision != 'HEAD':
+        if other_repo.revision and other_repo.revision != 'HEAD':
             raise utils.GiveUp(\
                    "The build description specifies revision %s for this checkout.\n"
                    "Since git always merges to the currrent HEAD, muddle does not\n"
                    "support 'muddle merge' for a git checkout with a revision"
-                   " specified."%repo.revision)
+                   " specified."%other_repo.revision)
 
         # Refuse to pull if there are any local changes or untracked files.
         self._is_it_safe()
@@ -173,10 +192,10 @@ class Git(VersionControlSystem):
         # Retrieve changes from the remote repository to the local repository
         utils.run_cmd("git fetch origin", verbose=verbose)
         # And merge them (all) into the current working tree
-        if repo.branch is None:
+        if other_repo.branch is None:
             remote = 'remotes/origin/master'
         else:
-            remote = 'remotes/origin/%s'%repo.branch
+            remote = 'remotes/origin/%s'%other_repo.branch
         utils.run_cmd("git merge %s"%remote, verbose=verbose)
 
     def commit(self, repo, options, verbose=True):
@@ -235,7 +254,15 @@ class Git(VersionControlSystem):
         # doesn't handle the case where you've created a new repo (with
         # muddle bootstrap or import) - git remote _add_ adds some
         # branch-tracking entries on the side.
-        utils.run_cmd("git remote rm origin", verbose=verbose, allowFailure=True)
+
+        # Let's try not to do a "git remote rm" if we don't have to,
+        # so that we don't show the user a nasty error message. So ask
+        # if there are any configurations for remote origin...
+        retcode, out, ignore = utils.get_cmd_data("git config --get-regexp remote.origin.*",
+                                                  fail_nonzero=False)
+        if retcode == 0:    # there were
+            utils.run_cmd("git remote rm origin", verbose=verbose, allowFailure=True)
+
         utils.run_cmd("git remote add origin %s"%remote_repo, verbose=verbose)
 
     def _git_status_text_ok(self, text):
@@ -341,10 +368,13 @@ class Git(VersionControlSystem):
         """
         return False
 
+    def get_vcs_special_files(self):
+        return ['.git', '.gitignore', '.gitmodules']
+
     # I can't see any way to do 'get_file_content', but this needs
     # reinvestigating periodically
 
 # Tell the version control handler about us..
-register_vcs_handler("git", Git())
+register_vcs_handler("git", Git(), __doc__, ["shallow_checkout"])
 
 # End file.

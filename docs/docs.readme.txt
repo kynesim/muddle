@@ -1,20 +1,19 @@
-===================================
-The muddle documentation and sphinx
-===================================
+===================================================
+The muddle documentation and sphinx and ReadTheDocs
+===================================================
 
 Pre-built documentation
 -----------------------
 For your comfort and convenience, a pre-built version of the muddle
 documentation is available at:
 
-    http://code.google.com/p/muddle/
+    http://muddle.readthedocs.org/
 
-or (if you've extracted this from Subversion) it should be available within
-this directory at:
+This is hosted by `Read the Docs`_, who are wonderful people for providing
+such a facility. The documentation should get rebuilt on each push to the
+repository, which means that it should always be up-to-date.
 
-    _build/html/index.html
-
-(yes, that name starts with an underscore).
+.. _`Read the Docs`: http://readthedocs.org
 
 Building the documentation
 --------------------------
@@ -28,53 +27,16 @@ The muddle documentation is built using Sphinx_.
 
 .. _Sphinx: http://sphinx.pocoo.org/
 
-With luck, the HTML checked out with the muddle sources will be up-to-date, and
-you won't need to (re)build the documentation. However, if you should need to
-(for instance, because you've updated it), just use the Makefile::
+As said above, the easiest way to get the documentation is via `Read the
+Docs`_, but if you want to build a copy yourself, then all you need to do is
+install Sphinx_, and use the Makefile::
 
-    make html
+    $ cd docs
+    $ make html
 
 The Python bindings
 -------------------
 Read the muddle-package.txt file to see how individual classes and functions
 within the muddled package are documented. Obviously, if you add, remove or
 rename such, you may need to alter this file -- please do so appropriately.
-
-Mime type magic
----------------
-In order for the documentation in the Google Code Subversion repository to be
-useable as documentation, the HTML, CSS and JavaScript files in the _build
-directory tree need to have the correct mime types. Subversion is clever
-enough to be able to cope with this, and the ``svn_propset`` script shows what
-to do (it should be enough to just run it again).
-
-Subversion gotchas
-------------------
-Sphinx believes that the contents of ``_build`` are transitory - i.e., that it
-is free to delete them if it wishes. In particular, ``make clean`` will delete
-all of the contents of ``_build``.
-
-Meanwhile, we've committed ``_build/html`` and its contents to Subversion,
-which has created ``.svn`` directories therein. Deleting these, and then
-recreating the directories without them (via ``make html``) will confuse
-Subversion when it notices this.
-
-The simplest solution is not to use ``make clean``.
-
-However, if you  do need to clean the generated documentation, or do so by
-mistake (!), then use ``svn update`` to retrieve the checked in
-files/directories if you do - with luck the dependency tracking in the
-``make`` process will cope.  So, for instance::
-
-    cd docs
-    rm -rf _build
-    svn update
-    make html
-
-Then do ``svn status`` to check that no new files have been added. If they
-have, then use ``svn add`` to add them (!), and re-run ``./svn_propset``.
-
-Finally, regardless, don't forget to::
-
-    svn commit -m 'HTML documentation updated'
 

@@ -39,10 +39,16 @@ import muddled.version_control as version_control
 
 from muddled.db import Database, InstructionFile
 from muddled.depend import Label, label_list_to_string
-from muddled.utils import VersionStamp, GiveUp, MuddleBug, Unsupported, \
-        DirType, LabelTag, LabelType
+from muddled.utils import GiveUp, MuddleBug, Unsupported, \
+        DirType, LabelTag, LabelType, find_label_dir
 from muddled.version_control import split_vcs_url, checkout_from_repo
 from muddled.repository import Repository
+from muddled.version_stamp import VersionStamp
+from muddled.licenses import print_standard_licenses, get_gpl_checkouts, \
+        get_not_licensed_checkouts, get_implicit_gpl_checkouts, \
+        get_license_clashes, licenses_in_role, get_license_clashes_in_role
+from muddled.distribute import distribute, the_distributions, \
+        get_distribution_names, get_used_distribution_names
 
 # Following Richard's naming conventions...
 # A dictionary of <command name> : <command class>
@@ -67,10 +73,10 @@ CAT_PACKAGE='package'
 CAT_DEPLOYMENT='deployment'
 CAT_ANYLABEL='any label'
 CAT_QUERY='query'
-CAT_STAMP='stamp'
+CAT_EXPORT='export'
 CAT_MISC='misc'
 g_command_categories_in_order = [CAT_INIT, CAT_CHECKOUT, CAT_PACKAGE,
-        CAT_DEPLOYMENT, CAT_ANYLABEL, CAT_QUERY, CAT_STAMP, CAT_MISC]
+        CAT_DEPLOYMENT, CAT_ANYLABEL, CAT_QUERY, CAT_EXPORT, CAT_MISC]
 
 def in_category(command_name, category):
     if category not in g_command_categories_in_order:
@@ -214,6 +220,7 @@ class Command(object):
         If 'allowed_more' is False, then the command line must end after any
         switches.
         """
+        self.switches = []              # In case we're called again
         while args:
             word = args[0]
             if word[0] == '-':
@@ -517,7 +524,7 @@ class CheckoutCommand(CPDCommand):
     def interpret_all(self, builder):
         """Return the result of argument "_all"
         """
-        return builder.invocation.all_checkout_labels()
+        return builder.invocation.all_checkout_labels(LabelTag.CheckedOut)
 
     def interpret_labels(self, builder, args, initial_list):
         """
@@ -935,6 +942,8 @@ class Help(Command):
       muddle help labels         for help on using labels
       muddle help subdomains     for help on subdomains
       muddle help aliases        says which commands have more than one name
+      muddle help vcs [name]     name the supported version control systems,
+                                 or give details about one in particular
 
     <switch> may be:
 
@@ -1064,7 +1073,10 @@ Muddle tries quite hard to do the sensible thing if you type it without any
 arguments, depending on the current directory. Specifically, for commands
 that "build" a label (whether checkout, package or deployment):
 
-* at the very top of the build tree, "muddle _default_deployments _default_roles"
+* at the very top of the build tree:
+
+    muddle buildlabel _default_deployments _default_roles
+
 * within a 'src/' directory, or within a non-checkout subdirectory inside
   'src'/,  "muddle rebuild" for each checkout that is below the current
   directory (i.e., rebuild all packages using the checkouts below the
@@ -1252,6 +1264,9 @@ the parentheses. So, for instance, use:
         if args[0] == "commands":
             return self.help_command_list()
 
+        if args[0] == "vcs":
+            return self.help_vcs(args[1:])
+
         if len(args) == 1:
             cmd = args[0]
             try:
@@ -1362,6 +1377,21 @@ the parentheses. So, for instance, use:
         Return help on how to use subdomains
         """
         return textwrap.dedent(Help.subdomains_help)
+
+    def help_vcs(self, args):
+        """
+        Return help on supported VCS
+        """
+        if args:
+            if len(args) != 1:
+                raise GiveUp("'muddle help vcs' takes zero or one arguments")
+            vcs = args[0]
+            return version_control.get_vcs_docs(vcs)
+        else:
+            str_list = [ ]
+            str_list.append("Available version control systems:\n\n")
+            str_list.append(version_control.list_registered(indent='  '))
+            return "".join(str_list)
 
     def help_all(self):
         """
@@ -1668,12 +1698,11 @@ class QueryCommand(Command):
     def requires_build_tree(self):
         return True
 
-    def get_label_from_fragment(self, builder, args):
+    def get_label_from_fragment(self, builder, args, default_type=LabelType.Package):
         if len(args) != 1:
-            raise GiveUp("Command '%s' needs a label"%(self.cmd_name))
+            raise GiveUp("Command '%s' needs a (single) label"%(self.cmd_name))
 
-        label = Label.from_fragment(args[0],
-                                    default_type=LabelType.Package)
+        label = Label.from_fragment(args[0], default_type=default_type)
 
         if label.type == LabelType.Package and not label.role:
             raise GiveUp('A package label needs a role, not just %s'%label)
@@ -1682,7 +1711,7 @@ class QueryCommand(Command):
 
     def get_label(self, builder, args):
         if len(args) != 1:
-            raise GiveUp("Command '%s' needs a label"%(self.cmd_name))
+            raise GiveUp("Command '%s' needs a (single) label"%(self.cmd_name))
 
         try:
             label = Label.from_string(args[0])
@@ -1722,7 +1751,7 @@ class QueryDepend(QueryCommand):
 
     def with_build_tree(self, builder, current_dir, args):
         if len(args) != 1 and len(args) != 2:
-            print "Syntax: dependencies [system|user|all][-short] [<label>]"
+            print "Syntax: muddle query dependencies [system|user|all][-short] [<label>]"
             print self.__doc__
             return
 
@@ -1764,6 +1793,37 @@ class QueryDepend(QueryCommand):
         print builder.invocation.ruleset.to_string(matchLabel = label,
                                                    showSystem = show_sys, showUser = show_user,
                                                    ignore_empty = ignore_empty)
+
+@subcommand('query', 'distributions', CAT_QUERY)
+class QueryDistributions(QueryCommand):
+    """
+    :Syntax: muddle query distributions
+
+    List the names of the distributions defined by the build description,
+    and the license categories that each distributes.
+    """
+
+    def requires_build_tree(self):
+        return False
+
+    def with_build_tree(self, builder, current_dir, args):
+        all_names = get_distribution_names()
+        used_names = get_used_distribution_names(builder)
+        maxlen = len(max(all_names, key=len))
+        print 'Distributions are:'
+        for name in sorted(all_names):
+            print '  %s %-*s  (%s)'%('*' if name in used_names else ' ',
+                                     maxlen, name,
+                                     ', '.join(the_distributions[name]))
+        print '(those marked with a "*" have content set by this build)'
+
+    def without_build_tree(self, muddle_binary, root_path, args):
+        names = get_distribution_names()
+        print 'Standard distributions are:\n'
+        maxlen = len(max(names, key=len))
+        for name in sorted(names):
+            print '  %-*s  (%s)'%(maxlen, name,
+                                  ', '.join(the_distributions[name]))
 
 @subcommand('query', 'vcs', CAT_QUERY)
 class QueryVCS(QueryCommand):
@@ -1809,7 +1869,7 @@ class QueryCheckouts(QueryCommand):
 
         joined = ('join' in self.switches)
 
-        cos = builder.invocation.all_checkout_labels()
+        cos = builder.invocation.all_checkout_labels(LabelTag.CheckedOut)
         a_list = list(cos)
         a_list.sort()
         out_list = []
@@ -1833,6 +1893,50 @@ class QueryCheckoutDirs(QueryCommand):
 
     def with_build_tree(self, builder, current_dir, args):
         builder.invocation.db.dump_checkout_paths()
+
+@subcommand('query', 'upstream-repos', CAT_QUERY)
+class QueryUpstreamRepos(QueryCommand):
+    """
+    :Syntax: muddle query upstream-repos [-u[rl]] [<co_label>]
+
+    Print information about upstream repositories.
+
+    If <co_label> is given then it should be a checkout label or label fragment
+    (see "muddle help labels").
+
+    If a label or labels are given, then the repositories, and any upstream
+    repositories, for those labels are reported. Otherwise, those
+    repositories that have upstream repositories are reported.
+
+    With '-u' or '-url', print repository URLs. Otherwise, print the
+    full spec of each Repository instance.
+
+    XXX Examples to be provided
+    """
+
+    allowed_switches = {'-u':'url', '-url':'url'}
+
+    def with_build_tree(self, builder, current_dir, args):
+        if len(args) not in (0, 1, 2):
+            print "Syntax: muddle query upstream-repos [-u[rl]] [<label>]"
+            print self.__doc__
+            return
+
+        args = self.remove_switches(args, allowed_more=True)
+        just_url = ('url' in self.switches)
+
+        if args:
+            co_label = self.get_label_from_fragment(builder, args,
+                                                    default_type=LabelType.Checkout)
+            if co_label.type != LabelType.Checkout:
+                raise GiveUp('"muddle query upstream-repos" takes a checkout:'
+                             ' label as argument, not %s'%co_label)
+
+            orig_repo = builder.invocation.db.get_checkout_repo(co_label)
+            builder.invocation.db.print_upstream_repo_info(orig_repo, [co_label], just_url)
+        else:
+            # Report on all the upstream repositories
+            builder.invocation.db.dump_upstream_repos(just_url=just_url)
 
 @subcommand('query', 'checkout-repos', CAT_QUERY)
 class QueryCheckoutRepos(QueryCommand):
@@ -1860,6 +1964,180 @@ class QueryCheckoutRepos(QueryCommand):
 
         just_url = ('url' in self.switches)
         builder.invocation.db.dump_checkout_repos(just_url=just_url)
+
+@subcommand('query', 'checkout-licenses', CAT_QUERY)
+class QueryCheckoutLicenses(QueryCommand):
+    """
+    :Syntax: muddle query checkout-licenses
+
+    Print information including:
+
+    * the known checkouts and their licenses
+    * which checkouts (if any) have GPL licenses of some sort
+    * which checkouts are "implicitly" GPL licensed because of depending
+      on a GPL-licensed checkout
+    * which packages have declared that they don't actually need to be
+      "implicitly" GPL
+    * which checkouts have irreconcilable clashes between "implicit" GPL
+      licenses and their actual license.
+
+    Note that "irreconcilable clashes" are only important if you intend to
+    distribute the clashing items to third parties.
+
+    See also "muddle query role-licenses" for licenses applying to (packages
+    in) each role.
+    """
+
+    def with_build_tree(self, builder, current_dir, args):
+
+        builder.invocation.db.dump_checkout_licenses(just_name=False)
+
+        not_licensed = get_not_licensed_checkouts(builder)
+        if not_licensed:
+            print
+            print 'The following checkouts do not have a license:'
+            print
+            for label in sorted(not_licensed):
+                print '* %s'%label
+
+        # Hackery
+        def calc_maxlen(keys):
+            maxlen = 0
+            for label in keys:
+                length = len(str(label))
+                if length > maxlen:
+                    maxlen = length
+            return maxlen
+
+        maxlen = calc_maxlen(builder.invocation.db.checkout_licenses.keys())
+
+        gpl_licensed = get_gpl_checkouts(builder)
+        get_co_license = builder.invocation.db.get_checkout_license
+        if gpl_licensed:
+            print
+            print 'The following checkouts have some sort of GPL license:'
+            print
+            for label in sorted(gpl_licensed):
+                print '* %-*s %r'%(maxlen, label, get_co_license(label))
+
+        if builder.invocation.db.license_not_affected_by or \
+           builder.invocation.db.nothing_builds_against:
+            print
+            print 'Exceptions to "implicit" GPL licensing are:'
+            print
+            for co_label in sorted(builder.invocation.db.nothing_builds_against):
+                print '* nothing builds against %s'%co_label
+            for key, value in sorted(builder.invocation.db.license_not_affected_by.items()):
+                print '* %s is not affected by %s'%(key,
+                                    label_list_to_string(value, join_with=', '))
+
+        implicit_gpl_licensed, because = get_implicit_gpl_checkouts(builder)
+        if implicit_gpl_licensed:
+            print
+            print 'The following are "implicitly" GPL licensed for the given reasons:'
+            print
+            for label in sorted(implicit_gpl_licensed):
+                license = get_co_license(label, absent_is_None=True)
+                reasons = because[label]
+                license = get_co_license(label, absent_is_None=True)
+                print '* %s  (was %r)'%(label, license)
+                #print '* %-*s (was %r)'%(maxlen, label, license)
+                for reason in sorted(reasons):
+                    print '  - %s'%(reason)
+
+        bad_binary, bad_private = get_license_clashes(builder, implicit_gpl_licensed)
+        if bad_binary or bad_private:
+            print
+            print 'This means that the following have irreconcilable clashes:'
+            print
+            for label in sorted(bad_binary):
+                print '* %-*s %r'%(maxlen, label, get_co_license(label))
+            for label in sorted(bad_private):
+                print '* %-*s %r'%(maxlen, label, get_co_license(label))
+
+@subcommand('query', 'role-licenses', CAT_QUERY)
+class QueryRoleLicenses(QueryCommand):
+    """
+    :Syntax: muddle query role-licenses [-no-clashes]
+
+    Print the known roles and the licenses used within them
+    (i.e., by checkouts used by packages with those roles).
+
+    If -no-clashes is given, then don't report binary/private license clashes
+    (which might cause problems when doing a "_by_license" distribution).
+
+    See also "muddle query checkout-licenses" for information on licenses
+    with respect to checkouts.
+    """
+
+    allowed_switches = {'-no-clashes': 'no-clashes'}
+
+    def with_build_tree(self, builder, current_dir, args):
+
+        args = self.remove_switches(args, allowed_more=False)
+
+        report_clashes = not ('no-clashes' in self.switches)
+
+        roles = builder.invocation.all_roles()
+
+        print 'Licenses by role:'
+        print
+        for role in sorted(roles):
+            print '* %s'%role
+            role_licenses = licenses_in_role(builder, role)
+            for license in sorted(role_licenses):
+                print '  - %r'%( license)
+
+        if report_clashes:
+            # Hackery
+            def calc_maxlen(keys):
+                maxlen = 0
+                for label in keys:
+                    length = len(str(label))
+                    if length > maxlen:
+                        maxlen = length
+                return maxlen
+
+            clashes = {}
+            for role in roles:
+                binary_items, private_items = get_license_clashes_in_role(builder, role)
+                if binary_items and private_items:
+                    # We have a clash in the licensing of the "install/" directory
+                    clashes[role] = (binary_items, private_items)
+            if clashes:
+                print
+                print 'The following roles have both "binary" and "private" licenses,'
+                print 'which would cause problems with a "_by_license" distribution:'
+                print
+                for role, (bin, sec) in sorted(clashes.items()):
+                    print '* %s, where the following licenses may cause problems:'%role
+                    maxlen1 = calc_maxlen(sec)
+                    maxlen2 = calc_maxlen(bin)
+                    maxlen = max(maxlen1, maxlen2)
+                    for key, item in sorted(bin.items()):
+                        print '  - %-*s %r'%(maxlen, key, item)
+                    for key, item in sorted(sec.items()):
+                        print '  - %-*s %r'%(maxlen, key, item)
+
+@subcommand('query', 'licenses', CAT_QUERY)
+class QueryLicenses(QueryCommand):
+    """
+    :Syntax: muddle query licenses
+
+    Print the standard licenses we know about.
+
+    See "muddle query checkout-licenses" to find out about any licenses
+    defined, and used, in the build description.
+    """
+
+    def requires_build_tree(self):
+        return False
+
+    def with_build_tree(self, builder, current_dir, args):
+        print_standard_licenses()
+
+    def without_build_tree(self, muddle_binary, root_path, args):
+        print_standard_licenses()
 
 @subcommand('query', 'domains', CAT_QUERY)
 class QueryDomains(QueryCommand):
@@ -2133,19 +2411,65 @@ class QueryDir(QueryCommand):
     def with_build_tree(self, builder, current_dir, args):
         label = self.get_label_from_fragment(builder, args)
 
-        dir = None
-        if label.type == LabelType.Checkout:
-            dir = builder.invocation.db.get_checkout_path(label)
-        elif label.type == LabelType.Package:
-            dir = builder.invocation.package_install_path(label)
-        elif label.type == LabelType.Deployment:
-            dir = builder.invocation.deploy_path(label.name,
-                    domain=label.domain)
+        dir = find_label_dir(builder, label)
 
         if dir is not None:
             print dir
         else:
             print None
+
+@subcommand('query', 'localroot', CAT_QUERY)
+class QueryLocalRoot(QueryCommand):
+    """
+    :Syntax: muddle query localroot <label>
+
+    Print the "local root" directory for a label.
+
+    For a label representing a checkout, package or deployment in the
+    top-level, prints out the normal root directory (as "muddle query root").
+
+    For a label in a subdomain, printes out the root directory for said
+    subdomain (i.e., the directory containing its .muddle/ directory).
+
+    <label> is a label or label fragment (see "muddle help labels"). The
+    default type is 'package:'.
+    """
+
+    def with_build_tree(self, builder, current_dir, args):
+        label = self.get_label_from_fragment(builder, args)
+
+        dir = utils.find_local_root(builder, label)
+
+        if dir is not None:
+            print dir
+        else:
+            print None
+
+        # =====================================================================
+        # XXX EXTRA TEMPORARY DEBUGGING XXX
+        # =====================================================================
+        wild = label.copy_with_tag('*')     # Once with /*
+        print 'Instructions for', wild
+        for lbl, path in builder.invocation.db.scan_instructions(wild):
+            print lbl, path
+        wild = wild.copy_with_role('*')     # Once with {*}/*
+        print 'Instructions for', wild
+        for lbl, path in builder.invocation.db.scan_instructions(wild):
+            print lbl, path
+        # =====================================================================
+        inst_subdir = os.path.join('instructions', label.name)
+        inst_src_dir = os.path.join(builder.invocation.db.root_path, '.muddle', inst_subdir)
+
+        if label.role and label.role != '*':    # Surely we always have a role?
+            src_name = '%s.xml'%label.role
+            src_file = os.path.join(inst_src_dir, src_name)
+            if os.path.exists(src_file):
+                print 'Found', src_file
+
+        src_file = os.path.join(inst_src_dir, '_default.xml')
+        if os.path.exists(src_file):
+            print 'Found', src_file
+        # =====================================================================
 
 @subcommand('query', 'env', CAT_QUERY)
 class QueryEnv(QueryCommand):
@@ -2773,10 +3097,10 @@ class Doc(Command):
 # -----------------------------------------------------------------------------
 # Stamp commands
 # -----------------------------------------------------------------------------
-@subcommand('stamp', 'save', CAT_STAMP)
+@subcommand('stamp', 'save', CAT_EXPORT)
 class StampSave(Command):
     """
-    :Syntax: muddle stamp save [-f[orce]|-h[ead]] [<filename>]
+    :Syntax: muddle stamp save [-f[orce]|-h[ead]|-v[ersion] <version>] [<filename>]
 
     Go through each checkout, and save its remote repository and current
     revision id/number to a file.
@@ -2819,6 +3143,14 @@ class StampSave(Command):
     In this case, the repository specified in the build description is used,
     and the revision id and status of each checkout is not checked.
 
+    By default, a version 2 stamp file will be created. This is equivalent
+    to specifying '-version 2'. If '-version 1' is specified, then a version
+    1 stamp file will be created instead. This is the version of stamp file
+    understood by muddle before it was able to create version 2 stamp files
+    (see 'muddle help stamp save' to see if this is the case for a particular
+    version of muddle or not). Note that the version 1 stamp file created
+    by muddle 2.3 and above is not absolutely guaranteed to be correct.
+
     See 'unstamp' for restoring from stamp files.
     """
 
@@ -2829,6 +3161,7 @@ class StampSave(Command):
         force = False
         just_use_head = False
         filename = None
+        version = 2
 
         while args:
             word = args[0]
@@ -2839,6 +3172,16 @@ class StampSave(Command):
             elif word in ('-h', '-head'):
                 just_use_head = True
                 force = False
+            elif word in ('-v', '-version'):
+                try:
+                    version = int(args[0])
+                except IndexError:
+                    raise GiveUp("-version must be followed by 1 or 2, for 'stamp save'")
+                except ValueError as e:
+                    raise GiveUp("-version must be followed by 1 or 2, not '%s'"%args[0])
+                if version not in (1, 2):
+                    raise GiveUp("-version must be followed by 1 or 2, not '%s'"%args[0])
+                args = args[1:]
             elif word.startswith('-'):
                 raise GiveUp("Unexpected switch '%s' for 'stamp save'"%word)
             elif filename is None:
@@ -2858,7 +3201,7 @@ class StampSave(Command):
 
         working_filename = 'working.stamp'
         print 'Writing to',working_filename
-        hash = stamp.write_to_file(working_filename)
+        hash = stamp.write_to_file(working_filename, version=version)
         print 'Wrote revision data to %s'%working_filename
         print 'File has SHA1 hash %s'%hash
 
@@ -2892,10 +3235,10 @@ class StampSave(Command):
             else:
                 return '%s%s'%(basename, extension)
 
-@subcommand('stamp', 'version', CAT_STAMP)
+@subcommand('stamp', 'version', CAT_EXPORT)
 class StampVersion(Command):
     """
-    :Syntax: muddle stamp version [-f[orce]]
+    :Syntax: muddle stamp version [-f[orce]|-v[ersion] <version>]
 
     This is similar to "stamp save", but using a pre-determined stamp filename.
 
@@ -2926,6 +3269,14 @@ class StampVersion(Command):
     Note that '-f' is supported (although perhaps not recommended), but '-h' is
     not.
 
+    By default, a version 2 stamp file will be created. This is equivalent
+    to specifying '-version 2'. If '-version 1' is specified, then a version
+    1 stamp file will be created instead. This is the version of stamp file
+    understood by muddle before it was able to create version 2 stamp files
+    (see 'muddle help stamp version' to see if this is the case for a
+    particular version of muddle or not). Note that the version 1 stamp file
+    created by muddle 2.3 and above is not absolutely guaranteed to be correct.
+
     See 'unstamp' for restoring from stamp files.
     """
 
@@ -2934,11 +3285,23 @@ class StampVersion(Command):
 
     def with_build_tree(self, builder, current_dir, args):
         force = False
+        version = 2
+
         while args:
             word = args[0]
             args = args[1:]
             if word in ('-f', '-force'):
                 force = True
+            elif word in ('-v', '-version'):
+                try:
+                    version = int(args[0])
+                except IndexError:
+                    raise GiveUp("-version must be followed by 1 or 2, for 'stamp save'")
+                except ValueError as e:
+                    raise GiveUp("-version must be followed by 1 or 2, not '%s'"%args[0])
+                if version not in (1, 2):
+                    raise GiveUp("-version must be followed by 1 or 2, not '%s'"%args[0])
+                args = args[1:]
             elif word.startswith('-'):
                 raise GiveUp("Unexpected switch '%s' for 'stamp version'"%word)
             else:
@@ -2964,7 +3327,7 @@ class StampVersion(Command):
 
         working_filename = os.path.join(version_dir, '_temporary.stamp')
         print 'Writing to',working_filename
-        hash = stamp.write_to_file(working_filename)
+        hash = stamp.write_to_file(working_filename, version=version)
         print 'Wrote revision data to %s'%working_filename
         print 'File has SHA1 hash %s'%hash
 
@@ -2982,10 +3345,10 @@ class StampVersion(Command):
                     print 'Adding version stamp file to VCS'
                     version_control.vcs_init_directory(vcs_name, [version_filename])
 
-@subcommand('stamp', 'diff', CAT_STAMP)
+@subcommand('stamp', 'diff', CAT_EXPORT)
 class StampDiff(Command):
     """
-    :Syntax: muddle stamp diff [-u[nified]|-c[ontext]|-n|-h[tml]] <file1> <file2> [<output_file>]
+    :Syntax: muddle stamp diff [-u[nified]|-c[ontext]|-n|-h[tml]|-x] <file1> <file2> [<output_file>]
 
     Compare two stamp files.
 
@@ -3005,6 +3368,10 @@ class StampDiff(Command):
 
     If '-h' is specified, then the output is an HTML page, displaying
     differences in two columns (with colours).
+
+    If '-x' is specified, then both stamp files are read in as VersionStamp
+    entities, and the checkouts therein are compared (just the checkouts).
+    This option only writes to stdout, not to <output_file>
     """
 
     def requires_build_tree(self):
@@ -3037,6 +3404,8 @@ class StampDiff(Command):
                 diff_style = 'context'
             elif word in ('-h', '-html'):
                 diff_style = 'html'
+            elif word == '-x':
+                diff_style = 'local'
             elif word.startswith('-'):
                 print "Unexpected switch '%s'"%word
                 self.print_syntax()
@@ -3057,7 +3426,41 @@ class StampDiff(Command):
             print 'Comparing stamp files %s and %s'%(file1, file2)
             return
 
-        self.diff(file1, file2, diff_style, output_file)
+        if diff_style == 'local':
+            if output_file:
+                raise GiveUp('"muddle stamp diff -x" does not support an output file')
+            self.diff_local(file1, file2)
+        else:
+            self.diff(file1, file2, diff_style, output_file)
+
+    def diff_local(self, file1, file2):
+        """
+        Output comparison using VersionStamp instances.
+        """
+        stamp1 = VersionStamp.from_file(file1)
+        stamp2 = VersionStamp.from_file(file2)
+        print
+        deleted, new, changed, problems = stamp1.compare_checkouts(stamp2)
+        if deleted or new or changed or problems:
+            print
+        if deleted:
+            print 'The following were deleted in the second stamp file:'
+            for co_label, co_dir, co_leaf, repo in deleted:
+                print '  %s'%co_label
+        if new:
+            print 'The following were new in the second stamp file:'
+            for co_label, co_dir, co_leaf, repo in new:
+                print '  %s'%co_label
+        if changed:
+            print 'The following were changed:'
+            for co_label, rev1, rev2 in changed:
+                print '  %s went from revision %s to %s'%(co_label, rev1, rev2)
+        if problems:
+            print 'The following problems were found:'
+            for co_label, problem in problems:
+                print '  %s'%(problem)
+        if not (deleted or new or changed or problems):
+            print "The checkouts in the stamp files appear to be the same"
 
     def diff(self, file1, file2, diff_style='unified', output_file=None):
         """
@@ -3101,7 +3504,7 @@ class StampDiff(Command):
         else:
             sys.stdout.writelines(diff)
 
-@subcommand('stamp', 'push', CAT_STAMP)
+@subcommand('stamp', 'push', CAT_EXPORT)
 class StampPush(Command):
     """
     :Syntax: muddle stamp push [<repository_url>]
@@ -3166,7 +3569,7 @@ class StampPush(Command):
             db.versions_repo.set(versions_url)
             db.versions_repo.commit()
 
-@subcommand('stamp', 'pull', CAT_STAMP)
+@subcommand('stamp', 'pull', CAT_EXPORT)
 class StampPull(Command):
     """
     :Syntax: muddle stamp pull [<repository_url>]
@@ -3234,7 +3637,7 @@ class StampPull(Command):
             db.versions_repo.set(versions_url)
             db.versions_repo.commit()
 
-@command('unstamp', CAT_STAMP)
+@command('unstamp', CAT_EXPORT)
 class UnStamp(Command):
     """
     :Syntax: muddle unstamp <file>
@@ -3443,14 +3846,33 @@ Try "muddle help unstamp" for more information."""
         return self.check_build(current_dir, stamp.checkouts, builder,
                                 muddle_binary)
 
+    def _domain_path(self, root_path, domain_name):
+        """Turn a domain name into its path.
+
+        Perhaps should be in utils.py...
+        """
+        domain_parts = Label.split_domain(domain_name)
+        path_parts = [root_path]
+        for d in domain_parts:
+            path_parts.append('domains')
+            path_parts.append(d)
+        return os.path.join(*path_parts)
+
     def restore_stamp(self, builder, root_path, domains, checkouts):
         """
         Given the information from our stamp file, restore things.
         """
-        for domain_name, domain_repo, domain_desc in domains:
+        domain_names = domains.keys()
+        domain_names.sort()
+        for domain_name in domain_names:
+            domain_repo, domain_desc = domains[domain_name]
+
             print "Adding domain %s"%domain_name
 
-            domain_root_path = os.path.join(root_path, 'domains', domain_name)
+            # Take care to allow for multiple parts
+            # Thus domain 'fred(jim)' maps to <root>/domains/fred/domains/jim
+            domain_root_path = self._domain_path(root_path, domain_name)
+
             os.makedirs(domain_root_path)
 
             domain_builder = mechanics.minimal_build_tree(builder.muddle_binary,
@@ -3460,40 +3882,26 @@ Try "muddle help unstamp" for more information."""
             # Tell the domain's builder that it *is* a domain
             domain_builder.invocation.mark_domain(domain_name)
 
-        checkouts.sort()
-        for name, vcs_repo_url, revision, relative, co_dir, domain, co_leaf, branch in checkouts:
-            if domain:
-                print "Unstamping checkout (%s)%s"%(domain,name)
-            else:
-                print "Unstamping checkout %s"%name
-            # So try registering this as a normal build, in our nascent
-            # build system
-            vcs, base_url = split_vcs_url(vcs_repo_url)
-
-            if relative:
-                # 'relative' is the full path to the checkout (with src/),
-                # including the checkout name/leaf
-                parts = posixpath.split(relative)
-                if parts[-1] == co_leaf:
-                    repo_name = co_leaf
-                    prefix = posixpath.join(*parts[:-1])
+        co_labels = checkouts.keys()
+        co_labels.sort()
+        for label in co_labels:
+            co_dir, co_leaf, repo = checkouts[label]
+            if label.domain:
+                domain_root_path = self._domain_path(root_path, label.domain)
+                print "Unstamping checkout (%s)%s"%(label.domain,label.name)
+                if co_dir:
+                    actual_co_dir = os.path.join(domain_root_path, 'src', co_dir)
                 else:
-                    repo_name = parts[-1]
-                    prefix = posixpath.join(*parts[:-1])
-                repo = Repository(vcs, base_url, repo_name, prefix=prefix,
-                                  revision=revision, branch=branch)
+                    actual_co_dir = os.path.join(domain_root_path, 'src')
+                checkout_from_repo(builder, label, repo, actual_co_dir, co_leaf)
             else:
-                repo = Repository.from_url(vcs, base_url,
-                                           revision=revision, branch=branch)
+                print "Unstamping checkout %s"%label.name
+                checkout_from_repo(builder, label, repo, co_dir, co_leaf)
 
-            label = Label(LabelType.Checkout, name, domain=domain)
-            checkout_from_repo(builder, label, repo, co_dir, co_leaf)
 
             # Then need to mimic "muddle checkout" for it
-            label = Label(LabelType.Checkout,
-                          name, None, LabelTag.CheckedOut,
-                          domain=domain)
-            builder.build_label(label, silent=False)
+            new_label = label.copy_with_tag(LabelTag.CheckedOut)
+            builder.build_label(new_label, silent=False)
 
     def check_build(self, current_dir, checkouts, builder, muddle_binary):
         """
@@ -3513,11 +3921,9 @@ Try "muddle help unstamp" for more information."""
         qc = QueryCheckouts()
         qc.with_build_tree(b, current_dir, [])
 
-        # Check our checkout names match
-        s_checkouts = set([name for name, repo, rev, rel, dir,
-                           domain, co_leaf, branch in checkouts])
-        # TODO: really should be using checkout labels, not names
-        b_checkouts = b.invocation.all_checkouts()
+        # Check our checkout labels match
+        s_checkouts = set(checkouts.keys())
+        b_checkouts = b.invocation.all_checkout_labels(LabelTag.CheckedOut)
         s_difference = s_checkouts.difference(b_checkouts)
         b_difference = b_checkouts.difference(s_checkouts)
         if s_difference or b_difference:
@@ -3525,17 +3931,270 @@ Try "muddle help unstamp" for more information."""
                   ' file and those in the build'
             if s_difference:
                 print 'Checkouts only in the stamp file:'
-                for name in s_difference:
-                    print '    %s'%name
+                for label in s_difference:
+                    print '    %s'%label
             if b_difference:
                 print 'Checkouts only in the build:'
-                for name in b_difference:
-                    print '    %s'%name
+                for label in b_difference:
+                    print '    %s'%label
             return 4
         else:
             print
             print '...the checkouts present match those in the stamp file.'
             print 'The build looks as if it restored correctly.'
+
+# -----------------------------------------------------------------------------
+# Distribute
+# -----------------------------------------------------------------------------
+@command('distribute', CAT_EXPORT)
+class Distribute(CPDCommand):
+    """
+    :Syntax: muddle distribute [<switches>|-no-muddle-makefile] <name> <target_directory> [<label> ...]
+
+    - <switches> may be any of:
+
+        * -with-versions
+        * -with-vcs
+        * -no-muddle-makefile
+
+      See below for more information on each.
+
+    - <name> is a distribution name.
+
+      Several special distribution names exist:
+
+        * "_source_release" is a distribution of all checkouts, without their
+          VCS directories.
+
+          "muddle distribute _source_release" is typically useful for
+          generating a directory to archive with tar and send out as a
+          source code release.
+
+          "muddle distribute -with-vcs _source_release" is a way to get a
+          "clean copy" of the current build tree, although perhaps not as clean
+          as starting over again from "muddle init",
+
+        * "_binary_release" - this is a distribution of all the install
+          directories, as well as the build description checkout(s) implied by
+          the packages distributed and (unless -no-muddle-makefiles is given)
+          the muddle Makefiles needed by each package (as the only file in
+          each appropriate checkout directory)
+
+        * "_for_gpl" is a distribution that satisfies the GPL licensing
+          requirements. It is all checkouts that have an explicit GPL
+          license (including LGPL), plus any licenses which depend on them,
+          and do not explicitly state that they do not need distributing
+          under the GPL terms, plus appropriate build descriptions.
+
+          It will fail if "propagated" GPL-ness clashes with declared "binary"
+          or "private" licenses for any checkouts.
+
+        * "_all_open" is a distribution of all open-source licensed checkouts.
+          It contains everything from "_for_gpl", plus any other open source
+          licensed checkouts.
+
+          It will fail for the same reasons that _for_gpl" fails.
+
+        * "_by_license" is a distribution of everything that is not licensed
+          with a "private" license. It is equivalent to "_all_open" plus
+          any proprietary source checkouts plus those parts of a
+          "_binary_release" that are not licensed "private".
+
+          It will fail if "_all_open" would fail, or if any of the install
+          directories to be distributed could contain results from building
+          "private" packages (as determined by which packages are in the
+          appropriate role).
+
+    - <target_directory> is where to distribute to. If it already exists,
+      it should preferably be an empty directory.
+
+    - If given, each <label> is a label fragment specifying a deployment,
+      package or checkout, or one of _all and friends. The <type> defaults
+      to "deployment". See "muddle help labels" for more information.
+
+    If specific labels are given, then the distribution will only concern those
+    labels and those they depend on. Deployment labels will be expanded to all
+    of the packages that the deployment depends upon. Package labels (including
+    those implied by deployment labels) will be remembered, and also expanded
+    to the checkouts that they depend directly upon. Checkout labels (including
+    those implied by packages) will be remembered. When the distribution is
+    calculated, only packages and checkouts that have been remembered will be
+    candidates for distribution.
+
+    If no labels are given, then the whole of the build tree is considered.
+
+    If the -with-versions switch is specified, then if there is a stamp
+    "versions/" directory it will also be copied. By default it is not.
+
+    If the -with-vcs switch is specified, then VCS "special" files (that is,
+    ".git", ".gitignore", ".gitmodules" for git, and so on) are requested:
+
+      - for the build description directories
+      - for the "versions/" directory, if it is being copied
+      - to all checkouts in a "_source_release" distribution
+
+    It does not apply to checkouts specified with "distribute_checkout" in
+    the build description, as they use the "copy_vcs_dirs" argument to that
+    function instead.
+
+    If the -no-muddle-makefile switch is specified, then the _binary_release
+    distribution will not include Muddle makefiles for each package
+    distributed. It does not override the setting of the "with_muddle_makefile"
+    argument explicitly set in any calls of "distribute_package" in the build
+    description, nor does it stop distribution of any extra files explicitly
+    chosen with "distribute_checkout_files" in the build description. It also
+    does not affect the "_by_license" distribution.
+
+    Note that "muddle -n distribute" can be used in the normal manner to see
+    what the command would do. It shows the labels that would be distributed,
+    and the actions that would be used to do so. This is especially useful for
+    the "_source_release" and "_binary_release" commands. Output will typically
+    be something like::
+
+        $ m3 -n distribute -with-vcs _binary_release ../fred
+        Writing distribution _binary_release to ../fred
+        checkout:builds/distributed        DistributeBuildDescription: _binary_release[vcs]
+        checkout:main_co/distributed       DistributeCheckout: _binary_release[1], role-x86[*]
+        package:main_pkg{arm}/distributed  DistributePackage: _binary_release[install]
+        package:main_pkg{x86}/distributed  DistributePackage: _binary_release[install], role-x86[obj,install]
+
+    * For each action, all the available distribution names are listed.
+    * Each distribution name may be followed by values in [..], depending on
+      what action it is associated with.
+    * For a DistributeBuildDescription, the value may be [vcs], or [-<n>], or
+      [vcs, -<n>]. 'vcs' means that VCS files will be distributed. A negative
+      number indicates the number of "private" files that will not be
+      distributed.
+    * For a DistributeCheckout, the values are [*], [<n>], [*,vcs] or [<n>,vcs].
+      '*' means that all files will be distributed, a single integer (<n>) that
+      just that many specific files have been selected for distribution. [1]
+      typically means the muddle Makefile, or perhaps a license file. A 'vcs'
+      means that the VCS files will be distributed.
+    * For a DistributePackage, the values are [obj], [install] or [obj,install],
+      indicating if "obj" or "install" directories are being distributed. It's
+      also possible (but not much use) to have a DistributePackage distribution
+      name that doesn't do either.
+
+    See also "muddle query checkout-licenses" for general information on the
+    licenses in the current build, and any clashes that may exist.
+
+    BEWARE: THIS COMMAND IS STILL NEW, AND DETAILS MAY CHANGE
+
+        In particular, the "-no-muddle-makefile" switch may go away, the
+        details of use of the "-copy-vcs" switch may change. and the standard
+        distribution names may change.
+    """
+
+    allowed_switches = {'-with-vcs':'with-vcs',
+                        '-with-versions':'with-versions',
+                        '-no-muddle-makefile':'no-muddle-makefile'}
+
+    def requires_build_tree(self):
+        return True
+
+    def with_build_tree(self, builder, current_dir, args):
+        """We're sufficiently unlike other commands to do this ourselves.
+        """
+        name = None
+        target_dir = None
+
+        args = self.remove_switches(args)
+
+        with_versions_dir = ('with-versions' in self.switches)
+        with_vcs = ('with-vcs' in self.switches)
+        no_muddle_makefile = ('no-muddle-makefile' in self.switches)
+        fragments = []
+
+        while args:
+            word = args[0]
+            args = args[1:]
+            if word.startswith('-'):
+                raise GiveUp("Unexpected switch '%s' for 'distribute'"%word)
+            elif name is None:
+                name = word
+            elif target_dir is None:
+                target_dir = word
+            else:
+                fragments.append(word)
+
+        if name is None or target_dir is None:
+            raise GiveUp("Syntax: muddle distribute [<switches>] <name> <target_directory>")
+
+        if fragments:
+            co_labels, pkg_labels = self.decode_args(builder, fragments, current_dir)
+            #print 'Package labels chosen:', label_list_to_string(pkg_labels, join_with=', ')
+            #print 'Checkout labels chosen:', label_list_to_string(co_labels, join_with=', ')
+        else:
+            pkg_labels = None
+            co_labels = None
+
+        distribute(builder, name, target_dir,
+                   with_versions_dir=with_versions_dir,
+                   with_vcs=with_vcs,
+                   no_muddle_makefile=no_muddle_makefile,
+                   no_op=self.no_op(),
+                   package_labels=pkg_labels, checkout_labels=co_labels)
+
+    def interpret_labels(self, builder, args, initial_list):
+        """Return selected packages and checkouts.
+        """
+        potential_problems = []
+        package_set = set()
+        checkout_set = set()
+        default_roles = builder.invocation.default_roles
+        for index, label in enumerate(initial_list):
+            if label.type == LabelType.Package:
+                # If they specify a package, then we want that package and
+                # also all the checkouts that it (directly) depends on
+                package_set.add(label.copy_with_tag('*'))
+                checkouts = builder.invocation.checkouts_for_package(label)
+                if checkouts:
+                    for co_label in checkouts:
+                        checkout_set.add(co_label.copy_with_tag('*'))
+            elif label.type == LabelType.Checkout:
+                checkout_set.add(label.copy_with_tag(LabelTag.CheckedOut))
+            elif label.type == LabelType.Deployment:
+                # If they specified a deployment label, then find all the
+                # packages that depend on this deployment.
+                # Here I think we definitely want any depth of dependency.
+                # XXX I don't think we need to specify useMatch=True, because we
+                # XXX should already have expanded any wildcards
+                rules = depend.needed_to_build(builder.invocation.ruleset, label)
+                found = False
+                for r in rules:
+                    l = r.target
+                    if l.type == LabelType.Package:
+                        # If they specify a package, then we want that package and
+                        # also all the checkouts that it (directly) depends on
+                        package_set.add(l.copy_with_tag('*'))
+                        checkouts = builder.invocation.checkouts_for_package(l)
+                        if checkouts:
+                            for co_label in checkouts:
+                                checkout_set.add(co_label.copy_with_tag('*'))
+                    elif l.type == LabelType.Checkout:
+                        # Can this happen?
+                        checkout_set.add(l.copy_with_tag('*'))
+                if not found:
+                    potential_problems.append('  Deployment %s does not use any packages'%label)
+            else:
+                raise GiveUp("Cannot cope with label '%s', from arg '%s'"%(label, args[index]))
+
+        if not package_set and not checkout_set:
+            text = []
+            if len(initial_list) == 1:
+                text.append('Label %s exists, but does not give'
+                             ' a target for "muddle %s"'%(initial_list[0], self.cmd_name))
+            else:
+                text.append('The labels\n  %s\nexist, but none gives a'
+                            ' target for "muddle %s"'%(label_list_to_string(initial_list,
+                                join_with='\n  '), self.cmd_name))
+            if potential_problems:
+                text.append('Perhaps because:')
+                for problem in potential_problems:
+                    text.append('%s'%problem)
+            raise GiveUp('\n'.join(text))
+
+        return checkout_set, package_set
 
 # =============================================================================
 # Checkout, package and deployment commands
@@ -3987,6 +4646,7 @@ class Push(CheckoutCommand):
             for e in problems:
                 print str(e).rstrip()
                 print
+            raise GiveUp()
 
 @command('pull', CAT_CHECKOUT, ['fetch', 'update'])   # we want to settle on one command
 class Pull(CheckoutCommand):
@@ -4056,6 +4716,7 @@ class Pull(CheckoutCommand):
             for e in problems:
                 print str(e).rstrip()
                 print
+            raise GiveUp()
 
 @command('merge', CAT_CHECKOUT)
 class Merge(CheckoutCommand):
@@ -4111,6 +4772,7 @@ class Merge(CheckoutCommand):
             for e in problems:
                 print str(e).rstrip()
                 print
+            raise GiveUp()
 
 @command('status', CAT_CHECKOUT)
 class Status(CheckoutCommand):
@@ -4354,6 +5016,212 @@ class Checkout(CheckoutCommand):
     def build_these_labels(self, builder, labels):
         for co in labels:
             builder.build_label(co)
+
+# -----------------------------------------------------------------------------
+# Checkout "upstream" commands
+# -----------------------------------------------------------------------------
+class UpstreamCommand(CheckoutCommand):
+    """The parent class for the push/pull-upstream commands.
+    """
+
+    required_tag = LabelTag.CheckedOut
+    allowed_switches = {}
+
+    verb = 'push'
+    verbing = 'Pushing'
+    direction = 'to'
+
+    def with_build_tree(self, builder, current_dir, args):
+        """Our command line is somewhat differently shaped.
+
+        So we have to handle it ourselves.
+        """
+
+        labels = []
+        upstream_names = []
+        had_upstream_switch = False
+        for word in args:
+            if word in ('-u', '-upstream'):
+                if had_upstream_switch:
+                    raise GiveUp('The -upstream switch should only occur once')
+                else:
+                    had_upstream_switch = True
+            elif had_upstream_switch:
+                upstream_names.append(word)
+            else:
+                labels.append(word)
+
+        if labels:
+            # Expand out any labels that need it
+            labels = self.decode_args(builder, labels, current_dir)
+        else:
+            # Decide what to do based on where we are
+            labels = self.default_args(builder, current_dir)
+
+        if not upstream_names:
+            raise GiveUp('"muddle %s" needs at least one upstream name'%self.cmd_name)
+
+        # We promised a sorted list
+        labels.sort()
+
+        no_op = self.no_op()
+        if no_op:
+            print 'Asked to %s:\n  %s'%(self.cmd_name,
+                    label_list_to_string(labels, join_with='\n  '))
+            print 'for: %s'%(', '.join(upstream_names))
+            # And fall through for our method to tell us more
+
+        self.build_these_labels(builder, labels, upstream_names, no_op)
+
+    def build_these_labels(self, builder, labels, upstream_names, no_op):
+        get_checkout_repo = builder.invocation.db.get_checkout_repo
+        get_upstream_repos = builder.invocation.db.get_upstream_repos
+        get_checkout_location = builder.invocation.db.get_checkout_location
+        for co in labels:
+            orig_repo = get_checkout_repo(co)
+            upstreams = get_upstream_repos(orig_repo, upstream_names)
+            if upstreams:
+                # Make sure we've got our checkout checked out (!)
+                builder.build_label(co)
+
+                # And then we can do the actual work
+                for repo, names in upstreams:
+                    if no_op:
+                        print 'Would %s %s %s %s (%s)'%(self.verb,
+                                co, self.direction, repo, ', '.join(names))
+                        continue
+                    else:
+                        print
+                        print '%s %s %s %s (%s)'%(self.verbing,
+                                co, self.direction, repo, ', '.join(names))
+                        co_locn = get_checkout_location(co)
+                        self.handle_label(builder, co, repo, co_locn)
+
+            else:
+                if not no_op:
+                    print
+                print 'Nowhere to %s %s %s'%(self.verb, co, self.direction)
+
+    def handle_label(self, builder, co_label, repo, co_locn):
+        src_dir, rest = utils.split_path_left(co_locn)
+        if src_dir != 'src':
+            raise MuddleBug('Splitting location for %s, but %s does not'
+                            ' start "src"'%(co_label, co_locn))
+        co_dir, co_leaf = os.path.split(rest)
+
+        # And from *that*, we can build the handler we actually want
+        vcs_handler = version_control.vcs_handler_for(builder, co_label,
+                                                      co_leaf, repo, co_dir)
+
+        # And do whatever we need to do
+        self.do_our_verb(vcs_handler)
+
+@command('push-upstream', CAT_CHECKOUT)
+class PushUpstream(UpstreamCommand):
+    """
+    :Syntax: muddle push-upstream [ <checkout> ... ] -u[pstream] <name> ...
+
+    For each checkout, push to the named upstream repositories.
+
+    This updates the content of the remote repositories to match the local
+    checkout.
+
+    <checkout> should be a label fragment specifying a checkout, or one of
+    _all and friends, as for any checkout command. The <type> defaults to
+    "checkout", and the checkout <tag> will be "/checked_out". See "muddle
+    help labels" for more information.
+
+    If no checkouts are named, what we do depends on where we are in the
+    build tree. See "muddle help labels".
+
+    The -u or -upstream switch is required, and must be followed by at least
+    one upstream repository name. If a checkout does not have an upstream of
+    that name, it will be ignored.
+
+    So, for instance::
+
+        pushd src/checkout1
+        muddle push-upstream -u upstream1 upstream2
+
+    or::
+
+        muddle push-upstream package:android{x86} -u upstream-android
+
+    Note that, unlike the normal "muddle push" command, there is no -stop
+    switch. Instead, we always stop at the first problem. Not finding an
+    upstream with the right name does not count as a "problem" for this
+    purpose.
+
+    Use "muddle upstream-repos [<checkout>]" to find out about the available
+    upstream repositories.
+    """
+
+    required_tag = LabelTag.CheckedOut
+    allowed_switches = {}
+
+    verb = 'push'
+    verbing = 'Pushing'
+    direction = 'to'
+
+    def do_our_verb(self, vcs_handler):
+        # And we can then use that to do the push
+        # (in the happy knowledge that *it* will grumble if we're not allowed to)
+        vcs_handler.push()
+
+@command('pull-upstream', CAT_CHECKOUT)
+class PullUpstream(UpstreamCommand):
+    """
+    :Syntax: muddle pull-upstream [ <checkout> ... ] -u[pstream] <name> ...
+
+    For each checkout, pull from the named upstream repositories.
+
+    Specifically, retrieve changes from the corresponding remote repository,
+    and apply them (to the checkout), but *not* if a merge would be required.
+
+        (For a VCS such as git, this actually means "not if a user-assisted
+        merge would be required" - i.e., fast-forwards will be done.)
+
+    <checkout> should be a label fragment specifying a checkout, or one of
+    _all and friends, as for any checkout command. The <type> defaults to
+    "checkout", and the checkout <tag> will be "/checked_out". See "muddle
+    help labels" for more information.
+
+    If no checkouts are named, what we do depends on where we are in the
+    build tree. See "muddle help labels".
+
+    The -u or -upstream switch is required, and must be followed by at least
+    one upstream repository name. If a checkout does not have an upstream of
+    that name, it will be ignored.
+
+    So, for instance::
+
+        pushd src/checkout1
+        muddle pull-upstream -u upstream1 upstream2
+
+    or::
+
+        muddle pull-upstream package:android{x86} -u upstream-android
+
+    Note that, unlike the normal "muddle pull" command, there is no -stop
+    switch. Instead, we always stop at the first problem. Not finding an
+    upstream with the right name does not count as a "problem" for this
+    purpose.
+
+    Use "muddle upstream-repos [<checkout>]" to find out about the available
+    upstream repositories.
+    """
+
+    required_tag = LabelTag.CheckedOut
+    allowed_switches = {}
+
+    verb = 'pull'
+    verbing = 'Pulling'
+    direction = 'from'
+
+    def do_our_verb(self, vcs_handler):
+        # And we can then use that to do the pull
+        # (in the happy knowledge that *it* will grumble if we're not allowed to)
+        vcs_handler.fetch()
 
 # -----------------------------------------------------------------------------
 # AnyLabel commands

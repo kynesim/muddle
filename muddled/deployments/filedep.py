@@ -14,7 +14,7 @@ import muddled.deployment as deployment
 
 from muddled.depend import Action
 
-class FileInstructionImplementor:
+class FileInstructionImplementor(object):
     def apply(self, builder, instruction, role, path):
         pass
 

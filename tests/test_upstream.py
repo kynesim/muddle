@@ -753,6 +753,22 @@ Would pull checkout:co_repo1/checked_out from file://{root_dir}/repo/main/repo1.
 Would pull checkout:co_repo1/checked_out from file://{root_dir}/repo/main/repo1.3 (rhubarb)
 """.format(root_dir=root_dir))
 
+            with Directory(d.join('src', 'co_repo1')):
+                # None of that should have changed where *origin* points
+                text = get_stdout('git remote show origin')
+                check_text(text, """\
+* remote origin
+  Fetch URL: file://{root_dir}/repo/main/repo1
+  Push  URL: file://{root_dir}/repo/main/repo1
+  HEAD branch: master
+  Remote branch:
+    master tracked
+  Local branch configured for 'git pull':
+    master merges with remote master
+  Local ref configured for 'git push':
+    master pushes to master (up to date)
+""".format(root_dir=root_dir))
+
 if __name__ == '__main__':
     args = sys.argv[1:]
     try:

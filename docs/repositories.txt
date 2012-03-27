@@ -60,7 +60,7 @@ about much of that::
 
     from muddled.depend import checkout
     from muddled.pkgs import make
-    from muddled.repositories import get_checkout_repo, add_upstream_repo
+    from muddled.repository import get_checkout_repo, add_upstream_repo
     from muddled.version_control import checkout_from_repo
 
     def describe_to(builder):

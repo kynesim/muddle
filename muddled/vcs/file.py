@@ -55,7 +55,7 @@ class File(VersionControlSystem):
 
         utils.recursively_copy(source_path, co_leaf, preserve=True)
 
-    def fetch(self, repo, options, verbose=True):
+    def pull(self, repo, options, upstream=None, verbose=True):
         """
         Will be called in the actual checkout's directory.
 
@@ -63,10 +63,10 @@ class File(VersionControlSystem):
         """
         if repo.revision and repo.revision != 'HEAD':
             raise utils.GiveUp("File does not support the 'revision' argument to"
-                               " 'fetch' (revision='%s'"%repo.revision)
+                               " 'pull' (revision='%s'"%repo.revision)
         if repo.branch:
             raise utils.GiveUp("File does not support the 'branch' argument to"
-                               " 'fetch' (branch='%s'"%repo.branch)
+                               " 'pull' (branch='%s'"%repo.branch)
         self.checkout(repo, os.curdir, options, verbose=verbose)
 
     def merge(self, other_repo, options, verbose=True):
@@ -89,7 +89,7 @@ class File(VersionControlSystem):
         """
         pass
 
-    def push(self, repo, options, verbose=True):
+    def push(self, repo, options, upstream=None, verbose=True):
         """
         Will be called in the actual checkout's directory.
 

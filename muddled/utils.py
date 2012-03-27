@@ -66,7 +66,7 @@ Error = MuddleBug
 
 checkout_tags = {
                 'CheckedOut' : "checked_out",
-                'Fetched' : "fetched",
+                'Pulled' : "pulled",
                 'Merged' : "merged",
                 'ChangesCommitted' : "changes_committed",
                 'ChangesPushed' : "changes_pushed",

@@ -60,11 +60,11 @@ class VcsCheckoutBuilder(Action):
         label = label.copy_with_tag(utils.LabelTag.CheckedOut, transient=False)
         return builder.invocation.db.is_tag(label)
 
-    def must_fetch_before_commit(self):
+    def must_pull_before_commit(self):
         """
         Must we update in order to commit? Only the VCS handler knows ..
         """
-        return self.vcs.must_fetch_before_commit()
+        return self.vcs.must_pull_before_commit()
 
     def build_label(self, builder, label):
 
@@ -74,8 +74,8 @@ class VcsCheckoutBuilder(Action):
 
         if (target_tag == utils.LabelTag.CheckedOut):
             self.vcs.checkout()
-        elif (target_tag == utils.LabelTag.Fetched):
-            self.vcs.fetch()
+        elif (target_tag == utils.LabelTag.Pulled):
+            self.vcs.pull()
         elif (target_tag == utils.LabelTag.Merged):
             self.vcs.merge()
         elif (target_tag == utils.LabelTag.ChangesCommitted):
@@ -215,16 +215,16 @@ def add_checkout_rules(ruleset, co_label, action):
     co_rule = depend.Rule(co_label, action)
     ruleset.add(co_rule)
 
-    # Fetched is a transient label.
-    fetched_label = co_label.copy_with_tag(utils.LabelTag.Fetched, transient=True)
+    # Pulled is a transient label.
+    pulled_label = co_label.copy_with_tag(utils.LabelTag.Pulled, transient=True)
     # Since 'checked_out' is not transient, and since it seems reasonable
-    # enough that "muddle fetch" should check the checkout out if it has not
+    # enough that "muddle pull" should check the checkout out if it has not
     # already been done, then we can make it depend upon the checked_out label...
     # Tell its rule that it depends on the checkout being checked out (!)
-    rule = depend.Rule(fetched_label, action)
+    rule = depend.Rule(pulled_label, action)
     rule.add(co_label)
     ruleset.add(rule)
-    #rule = ruleset.rule_for_target(fetched_label, createIfNotPresent=True)
+    #rule = ruleset.rule_for_target(pulled_label, createIfNotPresent=True)
     #rule.add(co_label)
 
     # Merged is very similar, and also depends on the checkout existing
@@ -236,11 +236,11 @@ def add_checkout_rules(ruleset, co_label, action):
     #rule.add(co_label)
 
     ## We used to say that UpToDate depended on Pulled.
-    ## Our nearest equivalent would be Merged depending on Fetched.
+    ## Our nearest equivalent would be Merged depending on Pulled.
     ## But that's plainly not a useful dependency, so we shall ignore it.
     #depend.depend_chain(action,
     #                    uptodate_label,
-    #                    [ utils.LabelTag.Fetched ], ruleset)
+    #                    [ utils.LabelTag.Pulled ], ruleset)
 
     # We don't really want 'push' to do a 'checkout', so instead we rely on
     # the action only doing something if the corresponding checkout has
@@ -254,10 +254,10 @@ def add_checkout_rules(ruleset, co_label, action):
     rule = depend.Rule(committed_label, action)
     ruleset.add(rule)
 
-    # Centralised VCSs, in general, want us to do a 'fetch' (update) before
+    # Centralised VCSs, in general, want us to do a 'pull' (update) before
     # doing a 'commit', so we should try to honour that, if necessary
-    if (action.must_fetch_before_commit()):
-        rule.add(fetched_label)
+    if (action.must_pull_before_commit()):
+        rule.add(pulled_label)
 
 def package_depends_on_checkout(ruleset, pkg_name, role_name, co_name, action=None):
     """

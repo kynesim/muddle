@@ -57,7 +57,7 @@ class Subversion(VersionControlSystem):
         utils.run_cmd("svn checkout %s %s %s"%(self._r_option(repo.revision),
                                                repo.url, co_leaf), verbose=verbose)
 
-    def fetch(self, repo, options, verbose=True):
+    def pull(self, repo, options, upstream=None, verbose=True):
         """
         Will be called in the actual checkout's directory.
 
@@ -70,12 +70,12 @@ class Subversion(VersionControlSystem):
         """
         if repo.branch:
             raise utils.GiveUp("Subversion does not support branch"
-                               " in 'fetch' (branch='%s')"%repo.branch)
+                               " in 'pull' (branch='%s')"%repo.branch)
         retcode, text, ignore = utils.get_cmd_data("svn status")
         for line in text:
             if 'C' in (line[0], line[1], line[6]):
                 raise utils.GiveUp("%s: 'svn status' says there is a Conflict,"
-                                    " refusing to fetch:\n%s\nUse 'muddle merge'"
+                                    " refusing to pull:\n%s\nUse 'muddle merge'"
                                     " if you want to merge"%(utils.indent(text,'    ')))
         utils.run_cmd("svn update %s"%(self._r_option(repo.revision)), verbose=verbose)
 
@@ -102,7 +102,7 @@ class Subversion(VersionControlSystem):
         """
         pass
 
-    def push(self, repo, options, verbose=True):
+    def push(self, repo, options, upstream=None, verbose=True):
         """
         Will be called in the actual checkout's directory.
 
@@ -182,9 +182,9 @@ class Subversion(VersionControlSystem):
                                                    verbose=verbose)
         return text
 
-    def must_fetch_before_commit(self, options):
+    def must_pull_before_commit(self, options):
         """
-        Subversion recommends doing 'commit' before "fetch" (i.e., pull/update)
+        Subversion recommends doing 'commit' before "pull" (i.e., pull/update)
         """
         return True
 

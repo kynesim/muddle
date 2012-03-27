@@ -843,7 +843,7 @@ def check_some_specifics():
         check_cmd('deploy everything', 'deployment:everything/deployed')
 
         # Check we get the tags we expect
-        check_cmd('unimport main_co/fetched', 'checkout:main_co/checked_out')
+        check_cmd('unimport main_co/pulled', 'checkout:main_co/checked_out')
         check_cmd('build main_pkg/configured', 'package:main_pkg{x86}/postinstalled')
         check_cmd('deploy everything/instructionsapplied', 'deployment:everything/deployed')
 
@@ -1260,8 +1260,7 @@ def main(args):
     # somewhere in $TMPDIR...
     root_dir = normalise_dir(os.path.join(os.getcwd(), 'transient'))
 
-    #with TransientDirectory(root_dir):     # XXX
-    with NewDirectory(root_dir):
+    with TransientDirectory(root_dir, keep_on_error=True):
         banner('MAKE REPOSITORIES')
         make_repos_with_subdomain(root_dir)
 
@@ -1289,7 +1288,7 @@ def main(args):
         banner('TESTING LABEL UNIFICATION')
 
         # This one I know works...
-        with TransientDirectory('build2') as d:
+        with TransientDirectory('build2', keep_on_error=True) as d:
             test_label_unification_1(root_dir, d)
 
         with NewDirectory('build2') as d:

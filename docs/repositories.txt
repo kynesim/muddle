@@ -13,8 +13,8 @@ code, and the *repository*, the non-local place where the (or an) original of
 the source code is stored, and from whence the checkout was cloned or checked
 out.
 
-.. note:: Earlier versions of muddle did not make this separation as clearly.
-   Things are better now...
+.. note:: Earlier versions of muddle (before v2.3) did not make this
+   separation as clearly. Things are better now...
 
 In most build descriptions, this separation is actually de-emphasised.
 Particularly, most build descriptions work with semi-local repositories - that
@@ -117,7 +117,7 @@ For instance::
 
     from muddled.depend import checkout
     from muddled.pkgs import make
-    from muddled.repositories import get_checkout_repo, add_upstream_repo
+    from muddled.repository import Repository, get_checkout_repo, add_upstream_repo
 
     def describe_to(builder):
       ...
@@ -135,13 +135,13 @@ For instance::
       repo2 = Repository.from_url('git', 'http://example.com/repos/first_co',
                                    push=False)
       add_upstream_repo(builder, co_repo, repo1, ['rhubarb', 'wombat'])
-      add_upstream_repo(builder, co_repo, repo2, ['rhubarb'])
+      add_upstream_repo(builder, co_repo, repo2, 'rhubarb')
 
 or, replacing the ``make.medium`` with lower level calls, we could have done::
 
     from muddled.depend import checkout
     from muddled.pkgs import make
-    from muddled.repositories import get_checkout_repo, add_upstream_repo
+    from muddled.repository import Repository, get_checkout_repo, add_upstream_repo
     from muddled.version_control import checkout_from_repo
 
     def describe_to(builder):
@@ -161,7 +161,17 @@ or, replacing the ``make.medium`` with lower level calls, we could have done::
       repo2 = Repository.from_url('git', 'http://example.com/repos/first_co',
                                    push=False)
       add_upstream_repo(builder, co_repo, repo1, ['rhubarb', 'wombat'])
-      add_upstream_repo(builder, co_repo, repo2, ['rhubarb'])
+      add_upstream_repo(builder, co_repo, repo2, 'rhubarb')
+
+.. note::
+
+   1. Upstream names must be formed of A-Z, a-z, 0-9, underscore (``_``) and
+      hyphen (``-``). This is mainly to ensure interoperability with VCS like
+      git, where we want upstream names to also work as remote names - see
+      `Upstream repositories and git`_ below.
+   2. Each upstream repository must have at least one name.
+   3. For your convenience, ``add_upstream_repo`` allows its final argument to
+      be a single upstream name, or a list of such.
 
 The commands
 ============
@@ -324,6 +334,45 @@ command will fail at that point.
 As with other "action" commands, ``muddle -n push-upstream`` can usefully be
 used to find out what it would do, without actually doing it. However, it
 does not check whether a repository allows push.
+
+Upstream repositories and git
+-----------------------------
+Git already has its own support for "upstreams", via remotes. Muddle attempts
+to work with this in a reasonably approriate manner.
+
+When doing a ``muddle push-upstream``, muddle will actually do::
+
+
+  git config remote.<name>.url <repo>
+  git push <name> <branch>
+
+That is, it will attempt to setup a remote for each upstream repository, and
+then push to it using that remote name, where ``<repo>`` is the appropriate
+upstream repository, and ``<name>`` is its upstream name. As normal,
+``<branch>`` defaults to ``master``.
+
+If there is more than one upstream name for a particular repository, the first
+(when the names are sorted in C order) will be used.
+
+If more than one repository has the same ``<name>`` (according to that rule),
+then this means that the last repository pushed to (with that name) will be
+remembered with that remote name.
+
+Similarly, when doing a ``muddle pull-upstream``, muddle will actually do::
+
+  git remote rm <name>
+  git remote add <name> <repo>
+  git fetch <name>
+  git merge --ff-only remotes/<name>/<branch>
+
+for each upstream repository (actually, it first checks to see if the remote
+name is already defined, and if it is not, omits the ``git remote rm`` command).
+
+If you want to use this interaction (between muddle upstream repositories and
+git remotes) fully, then it is probably a good idea to ensure that each
+upstream for a given checkout has a single ``<name>`` that is unique for that
+checkout - this will allow the git remotes and the upstreams to be named the
+same.
 
 Upstream repositories and subdomains
 ------------------------------------

@@ -357,6 +357,9 @@ def do_depend(builder, pkg_name, role_names,
     If the role name is None, we depend on the pkg name in the role we're
     currently using, so ``do_depend(a, ['b', 'c'], [ ('d', None) ])`` leads
     to ``a{b}`` depending on ``d{b}`` and ``a{c}`` depending on ``d{c}``.
+    
+    If role_names is a string, we will implicitly convert it into the 
+    singleton list [ role_names ].
     """
 
     ruleset = builder.invocation.ruleset

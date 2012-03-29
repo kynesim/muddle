@@ -238,6 +238,10 @@ class Git(VersionControlSystem):
             # configuration (unless we already did an upstream pull from
             # the same repository...)
             utils.run_cmd("git config remote.%s.url %s"%(upstream, repo.url), verbose=verbose)
+        else:
+            # With a "proper" upstream, we need to set up a bit more
+            self._setup_remote(upstream, repo.url, verbose=verbose)
+
 
         utils.run_cmd("git push %s %s"%(upstream, effective_branch), verbose=verbose)
 

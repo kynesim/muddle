@@ -347,6 +347,27 @@ def add_package_rules(ruleset, pkg_name, role_name, action):
     # been checked out, so is handled in ``package_depends_on_checkout()``
 
 
+def do_depend_label(builder, pkg_name, role_names, 
+                    label):
+    """ 
+    Make pkg_name in role_names depend on the given label
+    
+    If role_names is a string, we will implicitly convert it into the 
+    singleton list [ role_names ].
+    """
+    ruleset = builder.invocation.ruleset
+    if isinstance(role_names, basestring):
+        r = role_names
+        role_names = [ r ]
+
+    for role_name in role_names:
+        ruleset.add(depend.depend_one(None,
+                                      depend.Label(utils.LabelType.Package,
+                                                   pkg_name, role_name,
+                                                   utils.LabelTag.PreConfig),
+                                      label))
+
+
 def do_depend(builder, pkg_name, role_names,
               deps):
     """
@@ -379,6 +400,7 @@ def do_depend(builder, pkg_name, role_names,
                                           depend.Label(utils.LabelType.Package,
                                                        pkg, role,
                                                        utils.LabelTag.PostInstalled)))
+
 
 def depend_across_roles(ruleset, pkg_name, role_names,
                         depends_on_pkgs, depends_on_role):

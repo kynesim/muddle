@@ -61,16 +61,22 @@ class VersionControlSystem(object):
         Will be called in the actual checkout's directory.
 
         Any exception raised will be "wrapped" by the calling handler.
+
+        Returns True if it changes its checkout (changes the files visible
+        to the user), False otherwise.
         """
-        pass
+        return False
 
     def merge(self, other_repo, options, verbose=True):
         """
         Will be called in the actual checkout's directory.
 
         Any exception raised will be "wrapped" by the calling handler.
+
+        Returns True if it changes its checkout (changes the files visible
+        to the user), False otherwise.
         """
-        pass
+        return False
 
     def commit(self, repo, options, verbose=True):
         """
@@ -301,6 +307,9 @@ class VersionControlHandler(object):
 
         If 'upstream' is true, then it is the name of the repository as an
         upstream.
+
+        Returns True if it changes its checkout (changes the files visible
+        to the user), False otherwise.
         """
         if not self.repo.pull:
             raise utils.GiveUp('Failure pulling %s in %s:\n'
@@ -309,8 +318,8 @@ class VersionControlHandler(object):
 
         with utils.Directory(self.get_my_absolute_checkout_path()):
             try:
-                self.vcs_handler.pull(self.repo, self.options,
-                                      upstream=upstream, verbose=verbose)
+                return self.vcs_handler.pull(self.repo, self.options,
+                                             upstream=upstream, verbose=verbose)
             except utils.MuddleBug as err:
                 raise utils.MuddleBug('Error pulling %s in %s:\n%s'%(self.checkout_label,
                                   self.src_rel_dir(), err))
@@ -325,6 +334,9 @@ class VersionControlHandler(object):
         """
         Retrieve changes from the remote repository, and apply them to
         the local working copy, performing a merge operation if necessary.
+
+        Returns True if it changes its checkout (changes the files visible
+        to the user), False otherwise.
         """
         if not self.repo.pull:
             raise utils.GiveUp('Failure merging %s in %s:\n'
@@ -333,7 +345,7 @@ class VersionControlHandler(object):
 
         with utils.Directory(self.get_my_absolute_checkout_path()):
             try:
-                self.vcs_handler.merge(self.repo, self.options, verbose)
+                return self.vcs_handler.merge(self.repo, self.options, verbose)
             except utils.MuddleBug as err:
                 raise utils.MuddleBug('Error merging %s in %s:\n%s'%(self.checkout_label,
                                   self.src_rel_dir(), err))

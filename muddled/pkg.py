@@ -75,9 +75,11 @@ class VcsCheckoutBuilder(Action):
         if (target_tag == utils.LabelTag.CheckedOut):
             self.vcs.checkout()
         elif (target_tag == utils.LabelTag.Pulled):
-            self.vcs.pull()
+            if self.vcs.pull():
+                builder.invocation.db.just_pulled.add(label)
         elif (target_tag == utils.LabelTag.Merged):
-            self.vcs.merge()
+            if self.vcs.merge():
+                builder.invocation.db.just_pulled.add(label)
         elif (target_tag == utils.LabelTag.ChangesCommitted):
             if self._checkout_is_checked_out(builder, label):
                 self.vcs.commit()

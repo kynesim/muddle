@@ -77,7 +77,16 @@ class Subversion(VersionControlSystem):
                 raise utils.GiveUp("%s: 'svn status' says there is a Conflict,"
                                     " refusing to pull:\n%s\nUse 'muddle merge'"
                                     " if you want to merge"%(utils.indent(text,'    ')))
+
+        starting_revno = self._just_revno()
+
         utils.run_cmd("svn update %s"%(self._r_option(repo.revision)), verbose=verbose)
+
+        # We could try parsing the output of 'svn update' instead, but this is
+        # simpler to do...
+        ending_revno = self._just_revno()
+        # Did we update anything?
+        return starting_revno != ending_revno
 
     def merge(self, other_repo, options, verbose=True):
         """
@@ -91,7 +100,14 @@ class Subversion(VersionControlSystem):
         if other_repo.branch:
             raise utils.GiveUp("Subversion does not support branch"
                                " in 'merge' (branch='%s')"%other_repo.branch)
+
+        starting_revno = self._just_revno()
+
         utils.run_cmd("svn update %s"%(self._r_option(other_repo.revision)), verbose=verbose)
+
+        ending_revno = self._just_revno()
+        # Did we update anything?
+        return starting_revno != ending_revno
 
     def commit(self, repo, options, verbose=True):
         """
@@ -166,6 +182,13 @@ class Subversion(VersionControlSystem):
         else:
             raise utils.GiveUp("%s: 'svnversion' reports checkout has revision"
                     " '%s'"%(co_leaf, revision))
+
+    def _just_revno(self):
+        """
+        This returns the revision number for the working tree
+        """
+        retcode, revision, ignore = utils.get_cmd_data('svnversion')
+        return revision.strip()
 
     def allows_relative_in_repo(self):
         return True

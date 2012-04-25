@@ -125,6 +125,7 @@ class Git(VersionControlSystem):
             if os.path.exists('.git/shallow'):
                 raise utils.Unsupported('Shallow checkouts cannot interact with their upstream repositories.')
 
+
     def pull(self, repo, options, upstream=None, verbose=True):
         """
         Will be called in the actual checkout's directory.
@@ -141,6 +142,8 @@ class Git(VersionControlSystem):
         self._is_it_safe()
 
         self._shallow_not_allowed(options)
+
+        starting_revision = self._git_rev_parse_HEAD()
 
         if not upstream or upstream == 'origin':
             # If we're not given an upstream repository name, assume we're dealing
@@ -171,6 +174,10 @@ class Git(VersionControlSystem):
         else:
             utils.run_cmd("git merge --ff %s"%remote, verbose=verbose)
 
+        ending_revision = self._git_rev_parse_HEAD()
+
+        # So, did we update things?
+        return starting_revision != ending_revision
 
     def merge(self, other_repo, options, verbose=True):
         """
@@ -197,6 +204,8 @@ class Git(VersionControlSystem):
 
         self._shallow_not_allowed(options)
 
+        starting_revision = self._git_rev_parse_HEAD()
+
         utils.run_cmd("git config remote.origin.url %s"%other_repo.url, verbose=verbose)
         # Retrieve changes from the remote repository to the local repository
         utils.run_cmd("git fetch origin", verbose=verbose)
@@ -206,6 +215,11 @@ class Git(VersionControlSystem):
         else:
             remote = 'remotes/origin/%s'%other_repo.branch
         utils.run_cmd("git merge %s"%remote, verbose=verbose)
+
+        ending_revision = self._git_rev_parse_HEAD()
+
+        # So, did we update things?
+        return starting_revision != ending_revision
 
     def commit(self, repo, options, verbose=True):
         """
@@ -324,7 +338,17 @@ class Git(VersionControlSystem):
                 text))
         return revision.strip()
 
-    def _git_rev_parse_HEAD(self, co_leaf, orig_revision, force=False, verbose=True):
+    def _git_rev_parse_HEAD(self):
+        """
+        This returns a bare SHA1 object name for the current revision
+        """
+        retcode, revision, ignore = utils.get_cmd_data('git rev-parse HEAD',
+                                                       fail_nonzero=False)
+        if retcode:
+            raise utils.GiveUp("'git rev-parse HEAD' failed with return code %d"%retcode)
+        return revision.strip()
+
+    def _calculate_revision(self, co_leaf, orig_revision, force=False, verbose=True):
         """
         This returns a bare SHA1 object name for the current revision
         """
@@ -386,7 +410,7 @@ class Git(VersionControlSystem):
             # better?
             revision = self._git_describe_long(co_leaf, orig_revision, force, verbose)
         else:
-            revision = self._git_rev_parse_HEAD(co_leaf, orig_revision, force, verbose)
+            revision = self._calculate_revision(co_leaf, orig_revision, force, verbose)
         return revision
 
     def allows_relative_in_repo(self):

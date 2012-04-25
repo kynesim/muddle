@@ -3,6 +3,7 @@ Contains code which maintains the muddle database,
 held in root/.muddle
 """
 
+import errno
 import os
 import re
 import xml.dom
@@ -140,6 +141,9 @@ class Database(object):
         self.build_desc = PathFile(self.db_file_name("Description"))
         self.versions_repo = PathFile(self.db_file_name("VersionsRepository"))
         self.role_env = {}      # DEPRECATED - never used - XXX REMOVE XXX
+
+        self.just_pulled = JustPulledFile(os.path.join(self.root_path,
+                                          '_just_pulled'))
 
         self.checkout_locations = {}
         self.checkout_repositories = {}
@@ -992,6 +996,12 @@ class Database(object):
         self.versions_repo.commit()
 
 
+    def clear_just_pulled(self):
+        """Clear our memory of which checkouts have just been pulled.
+        """
+        self.just_pulled = set()
+
+
 class PathFile(object):
     """
     Manipulates a file containing a single path name.
@@ -1434,6 +1444,64 @@ def load_instructions(in_instructions, a_factory):
 
     return loaded
 
+
+class JustPulledFile(object):
+    """Our memory of the checkouts that have just been pulled.
+    """
+
+    def __init__(self, file_name):
+        """Set the path to the _just_pulled file.
+        """
+        self.file_name = file_name
+        self._just_pulled = set()
+
+    def get(self):
+        """Retrieve the contents of the _just_pulled file as a list of labels.
+
+        First clears the local memory, then reads the labels in the _just_pulled
+        file into local memory, then returns that set as a sorted list.
+        """
+        self._just_pulled.clear()
+        try:
+            with open(self.file_name) as fd:
+                for line in fd:
+                    line = line.strip()
+                    label = depend.Label.from_string(line)
+                    self._just_pulled.add(label)
+
+            return sorted(self._just_pulled)
+        except IOError as e:
+            if e.errno == errno.ENOENT:
+                # File doesn't exist - so noone has created it yet
+                return []
+            else:
+                raise
+
+    def clear(self):
+        """Clear the contents of the _just_pulled file, and our local memory.
+        """
+        self._just_pulled.clear()
+        with open(self.file_name, 'w') as fd:
+            pass
+
+    def add(self, label):
+        """Add the label to our local memory.
+
+        The label is not added to the _just_pulled file until commit() is
+        called.
+        """
+        self._just_pulled.add(label)
+
+    def commit(self):
+        """Commit our local memory to the _just_pulled file.
+
+        There is no defined ordering to the labels written to the file.
+
+        Leaves the local memory intact after writing (it does not clear it).
+        """
+        with open(self.file_name, 'w') as fd:
+            for label in self._just_pulled:
+                fd.write('%s\n'%label)
 
 # End file
 

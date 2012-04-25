@@ -69,6 +69,12 @@ class File(VersionControlSystem):
                                " 'pull' (branch='%s'"%repo.branch)
         self.checkout(repo, os.curdir, options, verbose=verbose)
 
+        # Ideally, we would determine whether the directory had changed by
+        # using hashlib to do a recursive MD5 or SHA1 sum of the files in it.
+        # However, since I don't know that anyone is *using* this VCS method,
+        # it hardly seems worth the effort. So we'll lie.
+        return True
+
     def merge(self, other_repo, options, verbose=True):
         """
         Merge 'other_repo' into the local repository and working tree,
@@ -82,6 +88,9 @@ class File(VersionControlSystem):
             raise utils.GiveUp("File does not support the 'branch' argument to"
                                " 'merge' (branch='%s'"%other_repo.branch)
         self.checkout(other_repo, os.curdir, options, verbose=verbose)
+
+        # See the comment in 'pull()' above
+        return True
 
     def commit(self, repo, options, verbose=True):
         """

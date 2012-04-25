@@ -124,8 +124,14 @@ class Bazaar(VersionControlSystem):
         env = self._derive_env()
         self._is_it_safe(env)
 
+        starting_revno = self._just_revno()
+
         utils.run_cmd("bzr pull %s %s"%(rspec, self._normalised_repo(repo.url)),
                       env=env, verbose=verbose)
+
+        ending_revno = self._just_revno()
+        # Did we update anything?
+        return starting_revno != ending_revno
 
     def merge(self, other_repo, options, verbose=True):
         """
@@ -143,8 +149,14 @@ class Bazaar(VersionControlSystem):
 
         rspec = self._r_option(other_repo.revision)
 
+        starting_revno = self._just_revno()
+
         utils.run_cmd("bzr merge %s %s"%(rspec, self._normalised_repo(other_repo.url)),
                       env=env, verbose=verbose)
+
+        ending_revno = self._just_revno()
+        # Did we update anything?
+        return starting_revno != ending_revno
 
     def commit(self, repo, options, verbose=True):
         """
@@ -432,6 +444,13 @@ class Bazaar(VersionControlSystem):
         else:
             raise utils.GiveUp("%s: 'bzr revno' reports checkout has revision"
                     " '%s', which is not an integer"%(co_leaf, revno))
+
+    def _just_revno(self):
+        """
+        This returns the revision number for the working tree
+        """
+        retcode, revision, ignore = utils.get_cmd_data('bzr revno --tree')
+        return revision.strip()
 
     def allows_relative_in_repo(self):
         return False

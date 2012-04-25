@@ -303,6 +303,8 @@ class CPDCommand(Command):
                     initial_list.extend(labels)
             elif word == '_default_deployments':
                 initial_list.extend(builder.invocation.default_deployment_labels)
+            elif word == '_just_pulled':
+                initial_list.extend(builder.invocation.db.just_pulled.get())
             else:
                 labels = label_from_fragment(word, default_type=self.required_type)
 
@@ -831,7 +833,7 @@ class AnyLabelCommand(Command):
         result_list = []
         label_from_fragment = builder.invocation.label_from_fragment
         for word in args:
-            if word in ('_all', '_default_roles', '_default_deployments'):
+            if word in ('_all', '_default_roles', '_default_deployments', '_just_pulled'):
                 raise GiveUp('Command %s does not allow %s as an argument'%(self.cmd_name, word))
 
             labels = label_from_fragment(word, default_type=LabelType.Package)
@@ -1168,6 +1170,8 @@ There are some special command line arguments that represent a set of labels.
 * _default_deployments represents deployment labels for each of the default
   deployments, as given in the build description. You can find out what the
   default deployments are with "muddle query default-deployments".
+* _just_pulled represents the checkouts that were (actually) pulled by the
+  last "muddle pull" or "muddle merge" command.
 
 The help for particular commands will indicate if these values can be used,
 but they are generally valid for all commands that "build" checkout, package
@@ -4689,6 +4693,8 @@ class Pull(CheckoutCommand):
         problems = []
         not_needed  = []
 
+        builder.invocation.db.just_pulled.clear()
+
         for co in labels:
             try:
                 # First clear the 'pulled' tag
@@ -4704,6 +4710,16 @@ class Pull(CheckoutCommand):
                 else:
                     print e
                     problems.append(e)
+
+        # Remember to commit the 'just pulled' information
+        builder.invocation.db.just_pulled.commit()
+
+        just_pulled = builder.invocation.db.just_pulled.get()
+        if just_pulled:
+            print '\nThe following checkouts were pulled:\n  '
+            for e in not_needed:
+                print label_list_to_string(just_pulled, join_with='\n  ')
+                print
 
         if not_needed:
             print '\nThe following pulls were not needed:\n'
@@ -4755,6 +4771,8 @@ class Merge(CheckoutCommand):
 
         problems = []
 
+        builder.invocation.db.just_pulled.clear()
+
         for co in labels:
             try:
                 # First clear the 'merged' tag
@@ -4767,6 +4785,17 @@ class Merge(CheckoutCommand):
                 else:
                     print e
                     problems.append(e)
+
+        # Remember to commit the 'just pulled' information
+        builder.invocation.db.just_pulled.commit()
+
+        just_pulled = builder.invocation.db.just_pulled.get()
+        if just_pulled:
+            print '\nThe following checkouts were pulled/merged:\n  '
+            for e in not_needed:
+                print label_list_to_string(just_pulled, join_with='\n  ')
+                print
+
         if problems:
             print '\nThe following problems occurred:\n'
             for e in problems:
@@ -5241,7 +5270,8 @@ class BuildLabel(AnyLabelCommand):
     to "package:", and the <tag> defaults to the normal default <tag> for that
     type. Wildcards are expanded.
 
-    <label> may also be "_all", "_default_deployments" or "_default_roles".
+    <label> may also be "_all", "_default_deployments", "_default_roles" or
+    "_just_pulled".
 
     See "muddle help labels" for more help on label fragments and the "_xxx"
     values.
@@ -5277,7 +5307,8 @@ class Assert(AnyLabelCommand):
     to "package:", and the <tag> defaults to the normal default <tag> for that
     type. Wildcards are expanded.
 
-    <label> may also be "_all", "_default_deployments" or "_default_roles".
+    <label> may also be "_all", "_default_deployments", "_default_roles" or
+    "_just_pulled".
 
     See "muddle help labels" for more help on label fragments and the "_xxx"
     values.
@@ -5306,7 +5337,8 @@ class Retract(AnyLabelCommand):
     to "package:", and the <tag> defaults to the normal default <tag> for that
     type. Wildcards are expanded.
 
-    <label> may also be "_all", "_default_deployments" or "_default_roles".
+    <label> may also be "_all", "_default_deployments", "_default_roles" or
+    "_just_pulled".
 
     See "muddle help labels" for more help on label fragments and the "_xxx"
     values.
@@ -5334,7 +5366,8 @@ class Retry(AnyLabelCommand):
     to "package:", and the <tag> defaults to the normal default <tag> for that
     type. Wildcards are expanded.
 
-    <label> may also be "_all", "_default_deployments" or "_default_roles".
+    <label> may also be "_all", "_default_deployments", "_default_roles" or
+    "_just_pulled".
 
     See "muddle help labels" for more help on label fragments and the "_xxx"
     values.

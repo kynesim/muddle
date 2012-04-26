@@ -4675,6 +4675,15 @@ class Pull(CheckoutCommand):
         (For a VCS such as git, this actually means "not if a user-assisted
         merge would be required" - i.e., fast-forwards will be done.)
 
+    The value "_just_pulled" will be set to the labels of the checkouts
+    whose working directories are altered by "muddle pull" - i.e., those
+    for which the "pull" operation did something tangible. One can then do
+    "muddle rebuild _just_pulled" or "muddle distrebuild _just_pulled".
+
+        (The value of _just_pulled is cleared at the start of "muddle pull",
+        and set at the end - the list of checkout labels is actually stored in
+        the file .muddle/_just_pulled.)
+
     Normally, "muddle pull" will attempt to pull all the chosen checkouts,
     re-reporting any problems at the end. If '-s' or '-stop' is given, then
     it will instead stop at the first problem.
@@ -4695,24 +4704,25 @@ class Pull(CheckoutCommand):
 
         builder.invocation.db.just_pulled.clear()
 
-        for co in labels:
-            try:
-                # First clear the 'pulled' tag
-                builder.invocation.db.clear_tag(co)
-                # And then build it again
-                builder.build_label(co)
-            except Unsupported as e:
-                print e
-                not_needed.append(e)
-            except GiveUp as e:
-                if stop_on_problem:
-                    raise
-                else:
+        try:
+            for co in labels:
+                try:
+                    # First clear the 'pulled' tag
+                    builder.invocation.db.clear_tag(co)
+                    # And then build it again
+                    builder.build_label(co)
+                except Unsupported as e:
                     print e
-                    problems.append(e)
-
-        # Remember to commit the 'just pulled' information
-        builder.invocation.db.just_pulled.commit()
+                    not_needed.append(e)
+                except GiveUp as e:
+                    if stop_on_problem:
+                        raise
+                    else:
+                        print e
+                        problems.append(e)
+        finally:
+            # Remember to commit the 'just pulled' information
+            builder.invocation.db.just_pulled.commit()
 
         just_pulled = builder.invocation.db.just_pulled.get()
         if just_pulled:
@@ -4754,6 +4764,15 @@ class Merge(CheckoutCommand):
     the checkout). The merge process is handled in a VCS specific manner,
     as each checkout is dealt with.
 
+    The value "_just_pulled" will be set to the labels of the checkouts
+    whose working directories are altered by "muddle merge" - i.e., those
+    for which the "merge" operation did something tangible. One can then do
+    "muddle rebuild _just_pulled" or "muddle distrebuild _just_pulled".
+
+        (The value of _just_pulled is cleared at the start of "muddle merge",
+        and set at the end - the list of checkout labels is actually stored in
+        the file .muddle/_just_pulled.)
+
     If '-s' or '-stop' is given, then we'll stop at the first problem,
     otherwise an attempt will be made to process all the checkouts, and any
     problems will be re-reported at the end.
@@ -4773,21 +4792,22 @@ class Merge(CheckoutCommand):
 
         builder.invocation.db.just_pulled.clear()
 
-        for co in labels:
-            try:
-                # First clear the 'merged' tag
-                builder.invocation.db.clear_tag(co)
-                # And then build it again
-                builder.build_label(co)
-            except GiveUp as e:
-                if stop_on_problem:
-                    raise
-                else:
-                    print e
-                    problems.append(e)
-
-        # Remember to commit the 'just pulled' information
-        builder.invocation.db.just_pulled.commit()
+        try:
+            for co in labels:
+                try:
+                    # First clear the 'merged' tag
+                    builder.invocation.db.clear_tag(co)
+                    # And then build it again
+                    builder.build_label(co)
+                except GiveUp as e:
+                    if stop_on_problem:
+                        raise
+                    else:
+                        print e
+                        problems.append(e)
+        finally:
+            # Remember to commit the 'just pulled' information
+            builder.invocation.db.just_pulled.commit()
 
         just_pulled = builder.invocation.db.just_pulled.get()
         if just_pulled:
@@ -5239,6 +5259,8 @@ class PullUpstream(UpstreamCommand):
     switch. Instead, we always stop at the first problem. Not finding an
     upstream with the right name does not count as a "problem" for this
     purpose.
+
+    Also, pull-upstream does not alter the meaning of "_just_pulled".
 
     Use "muddle query upstream-repos [<checkout>]" to find out about the
     available upstream repositories.

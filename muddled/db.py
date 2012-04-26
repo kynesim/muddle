@@ -143,6 +143,7 @@ class Database(object):
         self.role_env = {}      # DEPRECATED - never used - XXX REMOVE XXX
 
         self.just_pulled = JustPulledFile(os.path.join(self.root_path,
+                                          '.muddle',
                                           '_just_pulled'))
 
         self.checkout_locations = {}
@@ -1463,10 +1464,18 @@ class JustPulledFile(object):
         """
         self._just_pulled.clear()
         try:
+            line_no = 0
             with open(self.file_name) as fd:
                 for line in fd:
+                    line_no += 1
                     line = line.strip()
-                    label = depend.Label.from_string(line)
+                    if not line:    # Might as well ignore empty lines
+                        continue
+                    try:
+                        label = depend.Label.from_string(line)
+                    except utils.GiveUp as e:
+                        raise utils.GiveUp('Error reading line %d of %s:\n%s'%(
+                                           line_no, self.file_name, e))
                     self._just_pulled.add(label)
 
             return sorted(self._just_pulled)
@@ -1490,7 +1499,7 @@ class JustPulledFile(object):
         The label is not added to the _just_pulled file until commit() is
         called.
         """
-        self._just_pulled.add(label)
+        self._just_pulled.add(label.copy_with_tag(utils.LabelTag.CheckedOut))
 
     def commit(self):
         """Commit our local memory to the _just_pulled file.

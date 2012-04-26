@@ -1504,12 +1504,12 @@ class JustPulledFile(object):
     def commit(self):
         """Commit our local memory to the _just_pulled file.
 
-        There is no defined ordering to the labels written to the file.
+        The labels are sorted before being written to the file.
 
         Leaves the local memory intact after writing (it does not clear it).
         """
         with open(self.file_name, 'w') as fd:
-            for label in self._just_pulled:
+            for label in sorted(self._just_pulled):
                 fd.write('%s\n'%label)
 
 # End file

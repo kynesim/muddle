@@ -1,0 +1,89 @@
+=======================
+The muddle command line
+=======================
+
+*This is very much a work-in-progress*
+
+How to find out about the command line
+======================================
+Muddle itself provides help on how to use it as a command line tool.
+
+Specifically, ``muddle help`` is a useful place to start.
+
+Special command line arguments
+==============================
+Muddle reserves "label names" starting with an underscore for itself (so you
+should never create a checkout, package or deployment name with an
+underscore).
+
+The list of "special" names may be added to at any time, but at the time of
+writing is:
+
+* ``_all``
+* ``_default_roles``
+* ``_default_deployments``
+* ``_just_pulled``
+
+Many muddle commands support using these as if they were standard labels, and
+will then expand them to the implied labels. Those commands which do support
+them all say so in their help text.
+
+``muddle help labels`` gives a brief explanation of each of these.
+
+``_all``
+--------
+This expands to all of the target labels defined in the build description.
+
+A typical use of ``_all`` would be::
+
+  $ muddle pull _all
+
+``_default_roles``
+------------------
+This expands to the package labels for all of the default roles, as given in the
+build description. Specifically, ``package:*{<role>}/postinstalled`` for each
+such ``<role>``. You can find out what the default roles are with ``muddle
+query default-roles``.
+
+``default_roles`` is mainly provided to allow users to understand and
+reproduce the effect of ``muddle`` at the top level of the build tree, which
+is equivalent to::
+
+  $ muddle buildlabel _default_deployments _default_roles
+
+``_default_deployments``
+------------------------
+This expands to the deployment labels for each of the default deployments, as
+given in the build description. You can find out what the default deployments
+are with ``muddle query default-deployments``.
+
+``default_deployments`` is mainly provided to allow users to understand and
+reproduce the effect of ``muddle`` at the top level of the build tree, which
+is equivalent to::
+
+  $ muddle buildlabel _default_deployments _default_roles
+
+``_just_pulled``
+----------------
+This expands to the checkouts that were (actually) pulled by the last ``muddle
+pull`` or ``muddle merge`` command. The current value is always stored in the
+file ``.muddle/_just_pulled``. If that file doesn't exist, then nothing has
+yet been pulled/merged in the current build tree.
+
+``muddle pull`` and ``muddle merge`` both:
+
+1. clear the ``_just_pulled`` file,
+2. then do the pulling or merging,
+3. and then when they have finished, update the ``_just_pulled`` file.
+
+.. note:: Just because a checkout has been updated, it is not *necessarily*
+   the case that it needs rebuilding. For instance, documentation changes
+   might not be relevant to the muddle build, and changes to unused source
+   code are obviously not relevant.
+
+A typical use of ``_just_pulled`` would be::
+
+  $ muddle pull _all
+  $ muddle distrebuild _just_pulled
+
+.. vim: set filetype=rst tabstop=8 softtabstop=2 shiftwidth=2 expandtab:

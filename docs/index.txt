@@ -12,6 +12,7 @@ Contents:
 
    README
    muddle-dirs
+   cmdline
    repositories
    instructions
    distribute

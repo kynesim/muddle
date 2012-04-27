@@ -4726,21 +4726,20 @@ class Pull(CheckoutCommand):
 
         just_pulled = builder.invocation.db.just_pulled.get()
         if just_pulled:
-            print '\nThe following checkouts were pulled:\n  '
+            print '\nThe following checkouts were pulled:\n  ',
             print label_list_to_string(just_pulled, join_with='\n  ')
-            print
 
         if not_needed:
-            print '\nThe following pulls were not needed:\n'
+            print '\nThe following pulls were not needed:'
             for e in not_needed:
-                print str(e).rstrip()
                 print
+                print str(e).rstrip()
 
         if problems:
-            print '\nThe following problems occurred:\n'
+            print '\nThe following problems occurred:'
             for e in problems:
-                print str(e).rstrip()
                 print
+                print str(e).rstrip()
             raise GiveUp()
 
 @command('merge', CAT_CHECKOUT)
@@ -4810,15 +4809,14 @@ class Merge(CheckoutCommand):
 
         just_pulled = builder.invocation.db.just_pulled.get()
         if just_pulled:
-            print '\nThe following checkouts were pulled/merged:\n  '
+            print '\nThe following checkouts were pulled/merged:\n  ',
             print label_list_to_string(just_pulled, join_with='\n  ')
-            print
 
         if problems:
-            print '\nThe following problems occurred:\n'
+            print '\nThe following problems occurred:'
             for e in problems:
-                print str(e).rstrip()
                 print
+                print str(e).rstrip()
             raise GiveUp()
 
 @command('status', CAT_CHECKOUT)

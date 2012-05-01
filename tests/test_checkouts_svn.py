@@ -215,7 +215,7 @@ def test_just_pulled():
         muddle(['bootstrap', 'svn+%s'%root_repo, 'test_build'])
         with Directory('src'):
             with Directory('builds'):
-                touch('01.py', CHECKOUT_BUILD_SVN_REVISIONS)
+                touch('01.py', CHECKOUT_BUILD_SVN_NO_REVISIONS)
                 svn('import . %s/builds -m "Initial import"'%root_repo)
 
             with TransientDirectory('checkout1'):
@@ -237,13 +237,12 @@ def test_just_pulled():
         with Directory('src'):
             with Directory('builds'):
                 append('01.py', '# Just a comment\n')
-                git('commit -a -m "A simple change"')
+                svn('commit -m "A simple change"')
                 muddle(['push'])
-            with Directory('twolevel'):
-                with Directory('checkout2'):
-                    append('Makefile.muddle', '# Just a comment\n')
-                    git('commit -a -m "A simple change"')
-                    muddle(['push'])
+            with Directory('checkout1'):
+                append('Makefile.muddle', '# Just a comment\n')
+                svn('commit -m "A simple change"')
+                muddle(['push'])
 
     banner('Pull into Build B')
     with Directory('build_B') as d:
@@ -253,7 +252,7 @@ def test_just_pulled():
         muddle(['pull', '_all'])
         if not same_content(_just_pulled_file,
                             'checkout:builds/checked_out\n'
-                            'checkout:checkout2/checked_out\n'):
+                            'checkout:checkout1/checked_out\n'):
             raise GiveUp('%s does not contain expected labels:\n%s'%(
                 _just_pulled_file,open(_just_pulled_file).readlines()))
         muddle(['pull', '_all'])

@@ -156,15 +156,11 @@ def setup_git_checkout_repositories():
                 with NewDirectory('checkout3'):
                     git('init --bare')
 
-def test_git_checkout_build():
-    """Test single, twolevel and multilevel checkouts.
-
-    Relies on setup_git_checkout_repositories() having been called.
-    """
+def setup_new_build(name):
     root_dir = normalise_dir(os.getcwd())
 
     root_repo = 'file://' + os.path.join(root_dir, 'repo')
-    with NewDirectory('test_build1'):
+    with NewDirectory(name):
         banner('Bootstrapping checkout build')
         muddle(['bootstrap', 'git+%s'%root_repo, 'test_build'])
         cat('src/builds/01.py')
@@ -218,6 +214,17 @@ def test_git_checkout_build():
                         # and now we can git push
                         git('push origin master')
 
+def test_git_checkout_build():
+    """Test single, twolevel and multilevel checkouts.
+
+    Relies on setup_git_checkout_repositories() having been called.
+    """
+    root_dir = normalise_dir(os.getcwd())
+
+    root_repo = 'file://' + os.path.join(root_dir, 'repo')
+    setup_new_build('test_build1')
+
+    with Directory('test_build1'):
         banner('Stamping checkout build')
         muddle(['stamp', 'version'])
         with Directory('versions'):
@@ -330,6 +337,53 @@ def test_git_muddle_patch():
         check_specific_files_in_this_dir(['Makefile.muddle',
                                           'program.c', '.git'])
 
+def test_just_pulled():
+    root_dir = normalise_dir(os.getcwd())
+
+    # Set up our repositories
+    setup_git_checkout_repositories()
+    setup_new_build('build_0')
+
+    root_repo = 'file://' + os.path.join(root_dir, 'repo')
+
+    banner('Build A')
+    with NewDirectory('build_A'):
+        muddle(['init', 'git+%s'%root_repo, 'builds/01.py'])
+        muddle(['checkout', '_all'])
+
+    banner('Build B')
+    with NewDirectory('build_B'):
+        muddle(['init', 'git+%s'%root_repo, 'builds/01.py'])
+        muddle(['checkout', '_all'])
+
+    banner('Change Build A')
+    with Directory('build_A'):
+        with Directory('src'):
+            with Directory('builds'):
+                append('01.py', '# Just a comment\n')
+                git('commit -a -m "A simple change"')
+                muddle(['push'])
+            with Directory('twolevel'):
+                with Directory('checkout2'):
+                    append('Makefile.muddle', '# Just a comment\n')
+                    git('commit -a -m "A simple change"')
+                    muddle(['push'])
+
+    banner('Pull into Build B')
+    with Directory('build_B') as d:
+        _just_pulled_file = os.path.join(d.where, '.muddle', '_just_pulled')
+        if os.path.exists(_just_pulled_file):
+            raise GiveUp('%s exists when it should not'%_just_pulled_file)
+        muddle(['pull', '_all'])
+        if not same_content(_just_pulled_file,
+                            'checkout:builds/checked_out\n'
+                            'checkout:checkout2/checked_out\n'):
+            raise GiveUp('%s does not contain expected labels:\n%s'%(
+                _just_pulled_file,open(_just_pulled_file).readlines()))
+        muddle(['pull', '_all'])
+        if not same_content(_just_pulled_file, ''):
+            raise GiveUp('%s should be empty, but is not'%_just_pulled_file)
+
 def main(args):
 
     if args:
@@ -350,6 +404,10 @@ def main(args):
         test_git_checkout_build()
         banner('TEST MUDDLE PATCH (GIT)')
         test_git_muddle_patch()
+
+    with TransientDirectory(root_dir, keep_on_error=True):
+        banner('TEST _JUST_PULLED')
+        test_just_pulled()
 
 if __name__ == '__main__':
     args = sys.argv[1:]

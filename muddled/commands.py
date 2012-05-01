@@ -4726,7 +4726,7 @@ class Pull(CheckoutCommand):
 
         just_pulled = builder.invocation.db.just_pulled.get()
         if just_pulled:
-            print '\nThe following checkouts were pulled:\n  ',
+            print '\nThe following checkouts were pulled:\n ',
             print label_list_to_string(just_pulled, join_with='\n  ')
 
         if not_needed:
@@ -4809,7 +4809,7 @@ class Merge(CheckoutCommand):
 
         just_pulled = builder.invocation.db.just_pulled.get()
         if just_pulled:
-            print '\nThe following checkouts were pulled/merged:\n  ',
+            print '\nThe following checkouts were pulled/merged:\n ',
             print label_list_to_string(just_pulled, join_with='\n  ')
 
         if problems:

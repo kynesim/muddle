@@ -202,6 +202,64 @@ def test_svn_revisions_build():
                 if revno != '4':
                     raise GiveUp('Revision number for checkout1 is %s, not 4 (after pull)'%revno)
 
+def test_just_pulled():
+    root_dir = normalise_dir(os.getcwd())
+
+    # Set up our repository
+    with NewDirectory('repo'):
+        shell('svnadmin create main')
+
+    root_repo = 'file://' + os.path.join(root_dir, 'repo', 'main')
+    banner('Repository')
+    with NewDirectory('build_0'):
+        muddle(['bootstrap', 'svn+%s'%root_repo, 'test_build'])
+        with Directory('src'):
+            with Directory('builds'):
+                touch('01.py', CHECKOUT_BUILD_SVN_REVISIONS)
+                svn('import . %s/builds -m "Initial import"'%root_repo)
+
+            with TransientDirectory('checkout1'):
+                touch('Makefile.muddle','# A comment\n')
+                svn('import . %s/checkout1 -m "Initial import"'%root_repo)
+
+    banner('Build A')
+    with NewDirectory('build_A'):
+        muddle(['init', 'svn+%s'%root_repo, 'builds/01.py'])
+        muddle(['checkout', '_all'])
+
+    banner('Build B')
+    with NewDirectory('build_B'):
+        muddle(['init', 'svn+%s'%root_repo, 'builds/01.py'])
+        muddle(['checkout', '_all'])
+
+    banner('Change Build A')
+    with Directory('build_A'):
+        with Directory('src'):
+            with Directory('builds'):
+                append('01.py', '# Just a comment\n')
+                git('commit -a -m "A simple change"')
+                muddle(['push'])
+            with Directory('twolevel'):
+                with Directory('checkout2'):
+                    append('Makefile.muddle', '# Just a comment\n')
+                    git('commit -a -m "A simple change"')
+                    muddle(['push'])
+
+    banner('Pull into Build B')
+    with Directory('build_B') as d:
+        _just_pulled_file = os.path.join(d.where, '.muddle', '_just_pulled')
+        if os.path.exists(_just_pulled_file):
+            raise GiveUp('%s exists when it should not'%_just_pulled_file)
+        muddle(['pull', '_all'])
+        if not same_content(_just_pulled_file,
+                            'checkout:builds/checked_out\n'
+                            'checkout:checkout2/checked_out\n'):
+            raise GiveUp('%s does not contain expected labels:\n%s'%(
+                _just_pulled_file,open(_just_pulled_file).readlines()))
+        muddle(['pull', '_all'])
+        if not same_content(_just_pulled_file, ''):
+            raise GiveUp('%s should be empty, but is not'%_just_pulled_file)
+
 def main(args):
 
     if args:
@@ -218,6 +276,10 @@ def main(args):
     with TransientDirectory(root_dir, keep_on_error=True):
         banner('TEST BUILD WITH REVISION (SUBVERSION)')
         test_svn_revisions_build()
+
+    with TransientDirectory(root_dir, keep_on_error=True):
+        banner('TEST _JUST_PULLED')
+        test_just_pulled()
 
 if __name__ == '__main__':
     args = sys.argv[1:]

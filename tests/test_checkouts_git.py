@@ -156,10 +156,7 @@ def setup_git_checkout_repositories():
                 with NewDirectory('checkout3'):
                     git('init --bare')
 
-def setup_new_build(name):
-    root_dir = normalise_dir(os.getcwd())
-
-    root_repo = 'file://' + os.path.join(root_dir, 'repo')
+def setup_new_build(root_repo, name):
     with NewDirectory(name):
         banner('Bootstrapping checkout build')
         muddle(['bootstrap', 'git+%s'%root_repo, 'test_build'])
@@ -220,9 +217,8 @@ def test_git_checkout_build():
     Relies on setup_git_checkout_repositories() having been called.
     """
     root_dir = normalise_dir(os.getcwd())
-
     root_repo = 'file://' + os.path.join(root_dir, 'repo')
-    setup_new_build('test_build1')
+    setup_new_build(root_repo, 'test_build1')
 
     with Directory('test_build1'):
         banner('Stamping checkout build')
@@ -339,10 +335,11 @@ def test_git_muddle_patch():
 
 def test_just_pulled():
     root_dir = normalise_dir(os.getcwd())
+    root_repo = 'file://' + os.path.join(root_dir, 'repo')
 
     # Set up our repositories
     setup_git_checkout_repositories()
-    setup_new_build('build_0')
+    setup_new_build(root_repo, 'build_0')
 
     root_repo = 'file://' + os.path.join(root_dir, 'repo')
 

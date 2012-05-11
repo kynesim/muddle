@@ -19,6 +19,7 @@ class CleanDeploymentBuilder(Action):
             deploy_path = builder.invocation.deploy_path(label.name, domain= label.domain)
             print "> Remove %s"%deploy_path
             utils.recursively_remove(deploy_path)
+            builder.kill_label(label.copy_with_tag(utils.LabelTag.Deployed))
         else:
             raise utils.GiveUp("Attempt to invoke CleanDeploymentBuilder on "
                                 "unrecognised label %s"%label)

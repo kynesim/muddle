@@ -3,8 +3,12 @@
 
 visualise-dependencies.py is right here in the sandbox.
 
-xdot.py is available from http://code.google.com/p/jrfonseca/wiki/XDot, and
-depends on PyGTK and Graphviz.
+xdot is available from http://code.google.com/p/jrfonseca/wiki/XDot, and
+depends on PyGTK and Graphviz. It also appears to be in the repositories for
+Ubuntu, so you can install it in the normal manner.
+
+  (if you're installing it by hand, then please make it available on the
+  PATH as 'xdot', rather than 'xdot.py')
 
 Usage:
 
@@ -107,7 +111,7 @@ def process(labels, reduce=False, filter='dot', keep_files=False,
                 print 'Error running dot to output file: %s'%(e)
                 return
         else:
-            xdot = 'xdot.py'
+            xdot = 'xdot'
             try:
                 if verbose:
                     print 'Running', xdot

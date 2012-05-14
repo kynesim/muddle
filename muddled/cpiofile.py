@@ -85,12 +85,10 @@ class File(object):
         self.data = None
 
     def __str__(self):
-        return "[ %s (fs %s) mode = %o uid = %d gid = %d kids = %s]"%\
-            (self.name,
-             self.fs_name,
-             self.mode, self.uid,
-             self.gid,
-             " ".join(map(lambda x: x.name, self.children)))
+        return "%s\n  fs=%s\n  mode=%o, uid=%d, gid=%d\n%s"%\
+            (self.name, self.fs_name, self.mode, self.uid, self.gid,
+             utils.wrap("  kids=%s"%(", ".join(map(lambda x: x.name, self.children))),
+                        subsequent_indent='       '))
 
 class Hierarchy(object):
 
@@ -259,14 +257,20 @@ class Hierarchy(object):
 
     def __str__(self):
         rv = [ ]
-        rv.append("---Roots---\n")
+        rv.append("---Roots---")
         for (k,v) in self.roots.items():
-            rv.append("%s -> %s\n"%(k,v))
-        rv.append("---Map---\n")
+            if k == v.name:
+                rv.append(str(v))
+            else:
+                rv.append("%s -> %s"%(k,v))
+        rv.append("---Map---")
         for (k,v) in self.map.items():
-            rv.append("%s -> %s\n"%(k,v))
+            if k == v.name:
+                rv.append(str(v))
+            else:
+                rv.append("%s -> %s"%(k,v))
         rv.append("---\n")
-        return "".join(rv)
+        return "\n".join(rv)
 
 
 
@@ -321,8 +325,10 @@ class CpioFileDataProvider(filespec.FileSpecDataProvider):
             if (recursively):
                 # .. and recurse ..
                 #print "> l_f_u recurse dir = %s, elem.name = %s last = %s"%(dir, elem.name, last_elem)
-                result.extend(self.list_files_under(os.path.join(dir, last_elem), True,
-                                                    vroot = vroot))
+                inner = self.list_files_under(os.path.join(dir, last_elem), True,
+                                              vroot = vroot)
+                for thing in inner:
+                    result.append(os.path.join(last_elem, thing))
 
         return result
 

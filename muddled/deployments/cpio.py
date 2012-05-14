@@ -24,6 +24,9 @@ import muddled.cpiofile as cpiofile
 from muddled.depend import Action
 
 class CpioInstructionImplementor(object):
+    def as_string(self, instr):
+        return '%s'%(instr)
+
     def apply(self, builder, instruction, role, path):
         pass
 
@@ -151,7 +154,7 @@ class CpioDeploymentBuilder(Action):
 
             # Normalise the hierarchy ..
             the_hierarchy.normalise()
-            print "h = %s"%the_hierarchy
+            print "Filesystem hierarchy is:\n%s"%the_hierarchy
 
             if (self.prune_function is not None):
                 self.prune_function(the_hierarchy)
@@ -185,14 +188,16 @@ class CpioDeploymentBuilder(Action):
                     print "CPIO deployment: Applying instructions for role %s, label %s .. "%(src.role, lbl)
                     for instr in instrs:
                         iname = instr.outer_elem_name()
-                        print 'Instruction:', iname
+                        #print 'Instruction:', iname
                         if (iname in app_dict):
+                            print 'Instruction:', app_dict[iname].as_string(instr)
                             app_dict[iname].apply(builder, instr, lbl.role,
                                                   base,
                                                   the_hierarchy)
                         else:
+                            print 'Instruction:', iname
                             raise utils.GiveUp("CPIO deployments don't know about "
-                                                "the instruction %s (lbl %s, file %s"%(iname, lbl, fn))
+                                                "the instruction %s (lbl %s, file %s)"%(iname, lbl, fn))
             # .. and write the file.
             print "> Writing %s .. "%deploy_file
             the_hierarchy.render(deploy_file, True)
@@ -210,6 +215,10 @@ class CpioDeploymentBuilder(Action):
             raise utils.GiveUp("Attempt to build a cpio deployment with unknown label %s"%(lbl))
 
 class CIApplyChmod(CpioInstructionImplementor):
+    def as_string(self, instr):
+        return '%s: %s %s (%s)'%(instr.outer_elem_name(),
+                            instr.new_mode, instr.filespec.root, instr.filespec.spec)
+
     def apply(self, builder, instr, role, target_base, hierarchy):
         dp = cpiofile.CpioFileDataProvider(hierarchy)
 
@@ -230,6 +239,11 @@ class CIApplyChmod(CpioInstructionImplementor):
             f.mode = f.mode | bits
 
 class CIApplyChown(CpioInstructionImplementor):
+    def as_string(self, instr):
+        return '%s: %s %s %s (%s)'%(instr.outer_elem_name(),
+                               instr.new_user, instr.new_group,
+                               instr.filespec.root, instr.filespec.spec)
+
     def apply(self, builder, instr, role, target_base, hierarchy):
         dp = cpiofile.CpioFileDataProvider(hierarchy)
         files = dp.abs_match(instr.filespec, vroot = target_base)
@@ -244,6 +258,11 @@ class CIApplyChown(CpioInstructionImplementor):
                 f.gid = gid
 
 class CIApplyMknod(CpioInstructionImplementor):
+    def as_string(self, instr):
+        return '%s: %s %s %s %s %s %s %s'%(instr.outer_elem_name(),
+                            instr.mode, instr.uid, instr.gid, instr.type,
+                            instr.major, instr.minor, instr.file_name)
+
     def apply(self, builder, instr, role, target_base, hierarchy):
         # Find or create the relevant file
         cpio_file = cpiofile.File()
@@ -262,11 +281,12 @@ class CIApplyMknod(CpioInstructionImplementor):
         cpio_file.name = None
         cpio_file.data = None
 
-        print "target_base = %s for role %s"%(target_base, role)
+        #print "target_base = %s for role %s"%(target_base, role)
         real_path = utils.rel_join(target_base, instr.file_name)
 
         cpio_file.key_name = real_path
-        print "put_target_file %s"%real_path
+        #print "put_target_file %s"%real_path
+        print 'Adding device node %s'%real_path
         hierarchy.put_target_file(real_path, cpio_file)
 
 

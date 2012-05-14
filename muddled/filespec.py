@@ -16,7 +16,7 @@ class FileSpecDataProvider(object):
     def list_files_under(self, dir, recursively = False, vroot = None):
         """
         Return a list of the files under dir. If dir is not a directory,
-        returns None.
+        returns an empty list.
 
         The files are returned without 'dir', so::
 
@@ -29,6 +29,14 @@ class FileSpecDataProvider(object):
         *not*::
 
             [ "/fred/wombat/a" .. ]
+
+        whilst::
+
+            list_files_under("/fred", True)
+
+        gives::
+
+            [ "wombat", "wombat/a", "wombat/b", "wombat/c" ]
         """
         raise utils.MuddleBug("Cannot call FileSpecDataProvider.list_files_under() - "
                           "try a subclass")
@@ -102,14 +110,15 @@ class FileSpec(object):
 
         all_in_root = data_provider.list_files_under(self.root, self.all_under,
                                                      vroot = vroot)
+        #print 'all_in_root=%s'%all_in_root
         for f in all_in_root:
             #print "Match f  = %s against spec = %s"%(f, self.spec)
             if self.spec_re.match(f) is not None:
                 # Gotcha
-                #print "Found match = %s"%os.path.join(self.root, f)
+                print "Found match = %s"%os.path.join(self.root, f)
                 return_set.add(os.path.join(self.root, f))
 
-        print 'RETURN SET', return_set
+        #print 'RETURN SET', return_set
 
         # Right. Now, if we're recursive, recurse.
         if self.all_under:

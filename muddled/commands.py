@@ -933,7 +933,7 @@ class Help(Command):
 
       muddle help [<switch>] [<command>]
 
-    specifically:
+    specifically::
 
       muddle help <cmd>          for help on a command
       muddle help <cmd> <subcmd> for help on a subcommand
@@ -947,7 +947,7 @@ class Help(Command):
       muddle help vcs [name]     name the supported version control systems,
                                  or give details about one in particular
 
-    <switch> may be:
+    <switch> may be::
 
         -p[ager] <pager>    to specify a pager through which the help will be piped.
                             The default is $PAGER (if set) or else 'more'.
@@ -3529,7 +3529,7 @@ class StampPush(Command):
     in ``.muddle/VersionsRepository`` is used. If there is no repository
     specified there, then the operation will fail.
 
-    'stamp push' does not (re)create a stamp file in the "versions/`"
+    'stamp push' does not (re)create a stamp file in the "versions/"
     directory - use 'stamp version' to do that separately.
 
     See 'unstamp' for restoring from stamp files.

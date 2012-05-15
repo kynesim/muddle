@@ -187,7 +187,7 @@ class VersionControlHandler(object):
         * 'vcs_handler' knows how to do VCS operations for this checkout
         * 'co_label' is the checkout's label
         * 'co_leaf' is the name of the directory for the checkout;
-           this is the *final* directory name, so if the checkout is in
+          this is the *final* directory name, so if the checkout is in
           'src/fred/jim/wombat', then the checkout leaf name is 'wombat'
         * 'repo' is the Repository instance describing where this checkout
           comes from
@@ -196,7 +196,7 @@ class VersionControlHandler(object):
           directory is 'fred/jim'. If the 'co_leaf' directory is at the "top
           level" within 'src', then this should be None or ''.
 
-        'options' may be a dictionaary of additional VCS options, as
+        'options' may be a dictionary of additional VCS options, as
         {option_name : option_value}. This is specific to the particular VCS
         - see "muddle help vcs <vcs_name>" for details.
 

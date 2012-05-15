@@ -150,32 +150,33 @@ def fix_up_pkgconfig_and_la(builder, dir,
     .pc and .la files lurking, identify the .pc and
     .la files and rewrite them.
 
-    subdir, if present, is the subdirectory to search.
-    libPath, if present, is the directory in which the target
-     libraries are installed (typically dir/lib)
-    includePath, if present, is where the target include
-     files are installed (typically dir/include).
+    * subdir, if present, is the subdirectory to search.
 
-    execPrefix is where the package will be installed.
-     This is a bit tricky for us, since we're cross-compiling:
-     we will actually define it, by default, to be dir, since
-     in practice most packages want this (they use it to locate
-     tools, not -rpath-link). But you can set it to whatever
-     you like :-)
+    * libPath, if present, is the directory in which the target
+      libraries are installed (typically dir/lib)
+
+    * includePath, if present, is where the target include
+      files are installed (typically dir/include).
+
+    * execPrefix is where the package will be installed.
+
+      This is a bit tricky for us, since we're cross-compiling: we will
+      actually define it, by default, to be dir, since in practice most
+      packages want this (they use it to locate tools, not -rpath-link). But
+      you can set it to whatever you like :-)
 
     For the moment, we work by rewriting.
 
-    in a .la file:
+    * In a .la file:
 
-    libdir  - gets prefixed with 'dir'
+      - libdir  - gets prefixed with 'dir'
 
+    * In a .pc file:
 
-    in a .pc file:
-
-    prefix -> dir
-    exec_prefix -> execDir
-    libdir -> libPath (if present)
-    includedir -> includePath (if present)
+      - prefix -> dir
+      - exec_prefix -> execDir
+      - libdir -> libPath (if present)
+      - includedir -> includePath (if present)
     """
 
     # This is essentially a recursive descent ..

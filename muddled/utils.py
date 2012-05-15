@@ -1480,7 +1480,7 @@ class Directory(object):
             print '++ pushd to %s'%self.where
 
     def join(self, *args):
-        """Return os.path.join(self.where, *args).
+        """Return ``os.path.join(self.where, *args)``.
         """
         return os.path.join(self.where, *args)
 

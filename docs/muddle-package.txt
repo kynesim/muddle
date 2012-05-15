@@ -12,70 +12,43 @@ The ``muddled`` package
    Also, the organisation/layout of this section itself leaves something to
    be desired. Please be patient.
 
-Top-level classes and functions
-===============================
+Modules available via ``import muddle``
+=======================================
 
-These are the classes (and one function) which are available directly after::
+After doing::
 
-    >>> import muddle
+    >>> import muddled
 
-muddled.Database
-----------------
-.. autoclass:: Database
-   :members:
-   :show-inheritance:
-   :undoc-members:
+you have available:
 
-muddled.Invocation
-------------------
-.. autoclass:: Invocation
-   :members:
-   :show-inheritance:
-   :undoc-members:
-
-muddled.Builder
----------------
-.. autoclass:: Builder
-   :members:
-   :show-inheritance:
-   :undoc-members:
-
-muddled.PackageBuilder
-----------------------
-.. autoclass:: PackageBuilder
-   :members:
-   :show-inheritance:
-   :undoc-members:
-
-muddled.Error
--------------
-.. autoclass:: Error
-   :members:
-   :show-inheritance:
-   :undoc-members:
-
-muddled.register_commands
--------------------------
-.. autofunction:: register_commands
-
+* ``muddled``
+* ``muddled.depend``
+* ``muddled.pkg``
+* ``muddled.repository``
+* ``muddled.utils``
+* ``muddled.vcs``
+* ``muddled.version_control``
 
 Top-level modules
 =================
 
-These are the "top-level" modules, i.e., those obtainable by (for
-instance::
+These are the "top-level" modules, i.e., those obtainable by (for instance)::
 
     >>> import muddled.depends
 
-muddled.checkout
-----------------
-.. automodule:: muddled.checkout
+muddled.cmdline
+---------------
+.. note:: *Internal use, handles the muddle command line*
+
+.. automodule:: muddled.cmdline
    :members:
    :show-inheritance:
    :undoc-members:
 
 muddled.commands
 ----------------
+.. note:: *Internal use, handles the muddle command line*
+
 .. automodule:: muddled.commands
    :members:
    :show-inheritance:
@@ -83,6 +56,8 @@ muddled.commands
 
 muddled.cpiofile
 ----------------
+.. note:: *Provides CPIO file support*
+
 .. automodule:: muddled.cpiofile
    :members:
    :show-inheritance:
@@ -90,6 +65,7 @@ muddled.cpiofile
 
 muddled.db
 ----------
+.. note:: *Handles the content of the .muddle directory*
 .. automodule:: muddled.db
    :members:
    :show-inheritance:
@@ -97,6 +73,7 @@ muddled.db
 
 muddled.depend
 --------------
+.. note:: *The core of the dependency system, and Labels*
 .. automodule:: muddled.depend
    :members:
    :show-inheritance:
@@ -104,13 +81,24 @@ muddled.depend
 
 muddled.deployment
 ------------------
+.. note:: *The base of deployment support*
 .. automodule:: muddled.deployment
+   :members:
+   :show-inheritance:
+   :undoc-members:
+
+muddled.distribute
+------------------
+.. note:: *Distribution support - generating subsets of the build tree for
+   distribution to others.*
+.. automodule:: muddled.distribute
    :members:
    :show-inheritance:
    :undoc-members:
 
 muddled.env_store
 -----------------
+.. note:: *Internal environment handling*
 .. automodule:: muddled.env_store
    :members:
    :show-inheritance:
@@ -118,6 +106,7 @@ muddled.env_store
 
 muddled.filespec
 ----------------
+.. note:: *Internal handling of file specifications, for deployment*
 .. automodule:: muddled.filespec
    :members:
    :show-inheritance:
@@ -125,13 +114,25 @@ muddled.filespec
 
 muddled.instr
 -------------
+.. note:: *Internal handling of instrunction files, for deployment*
 .. automodule:: muddled.instr
+   :members:
+   :show-inheritance:
+   :undoc-members:
+
+muddled.licenses
+----------------
+.. note:: *License annotation - indicating the type of license that applies
+   to checkouts, for use in making distributions.*
+.. automodule:: muddled.licenses
    :members:
    :show-inheritance:
    :undoc-members:
 
 muddled.mechanics
 -----------------
+.. note:: *The main machinery that makes muddle go - the Builder and
+   Invocation classes.*
 .. automodule:: muddled.mechanics
    :members:
    :show-inheritance:
@@ -139,7 +140,32 @@ muddled.mechanics
 
 muddled.pkg
 -----------
+.. note:: *Package actions and other low level setup*
 .. automodule:: muddled.pkg
+   :members:
+   :show-inheritance:
+   :undoc-members:
+
+muddled.repository
+------------------
+.. note:: *Repository definition and handling*
+.. automodule:: muddled.repository
+   :members:
+   :show-inheritance:
+   :undoc-members:
+
+muddled.rewrite
+---------------
+.. automodule:: muddled.rewrite
+   :members:
+   :show-inheritance:
+   :undoc-members:
+
+muddled.rrw
+-----------
+.. note:: *A general collection of toolchain utilities, named after Richard
+   for historical reasons*
+.. automodule:: muddled.rrw
    :members:
    :show-inheritance:
    :undoc-members:
@@ -151,15 +177,9 @@ muddled.subst
    :show-inheritance:
    :undoc-members:
 
-muddled.test
-------------
-.. automodule:: muddled.test
-   :members:
-   :show-inheritance:
-   :undoc-members:
-
 muddled.utils
 -------------
+.. note:: *Core utilities used throughout muddle*
 .. automodule:: muddled.utils
    :members:
    :show-inheritance:
@@ -167,7 +187,24 @@ muddled.utils
 
 muddled.version_control
 -----------------------
+.. note:: *The top-level VCS infrastructure, using VCS specific plugins to do
+   the actual work.*
 .. automodule:: muddled.version_control
+   :members:
+   :show-inheritance:
+   :undoc-members:
+
+muddled.version_stamp
+---------------------
+.. note:: *Stamp files - a record of the content of a build tree.*
+.. automodule:: muddled.version_stamp
+   :members:
+   :show-inheritance:
+   :undoc-members:
+
+muddled.xmlconfig
+-----------------
+.. automodule:: muddled.xmlconfig
    :members:
    :show-inheritance:
    :undoc-members:
@@ -187,6 +224,13 @@ muddled.checkouts.simple
 muddled.checkouts.twolevel
 ~~~~~~~~~~~~~~~~~~~~~~~~~~
 .. automodule:: muddled.checkouts.twolevel
+   :members:
+   :show-inheritance:
+   :undoc-members:
+
+muddled.checkouts.multilevel
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+.. automodule:: muddled.checkouts.multilevel
    :members:
    :show-inheritance:
    :undoc-members:
@@ -238,6 +282,13 @@ muddled.pkgs.deb
    :show-inheritance:
    :undoc-members:
 
+muddled.pkgs.depmode_merge
+~~~~~~~~~~~~~~~~~~~~~~~~~~
+.. automodule:: muddled.pkgs.depmod_merge
+   :members:
+   :show-inheritance:
+   :undoc-members:
+
 muddled.pkgs.initscripts
 ~~~~~~~~~~~~~~~~~~~~~~~~
 .. automodule:: muddled.pkgs.initscripts
@@ -259,24 +310,12 @@ muddled.pkgs.make
    :show-inheritance:
    :undoc-members:
 
-muddled.pkgs.setvars
+muddled.pkgs.version
 ~~~~~~~~~~~~~~~~~~~~
-.. automodule:: muddled.pkgs.setvars
+.. automodule:: muddled.pkgs.version
    :members:
    :show-inheritance:
    :undoc-members:
-
-.. muddled.profiles
-.. ----------------
-.. This does not currently have an __init__.py file, so appears not
-.. to be in use as a package...
-..
-.. muddled.profiles.app
-.. ~~~~~~~~~~~~~~~~~~~~
-.. .. automodule:: muddled.profiles.app
-..    :members:
-..    :show-inheritance:
-..    :undoc-members:
 
 
 muddled.resources

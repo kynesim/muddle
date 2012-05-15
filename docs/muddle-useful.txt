@@ -14,15 +14,15 @@ An example build description
 .. include:: 01.py
    :literal:
 
-muddled.Builder
----------------
+muddled.mechanics.Builder
+-------------------------
 The ``describe_to()`` function in a build description takes a Builder instance
 as its argument. Thus the methods on the Builder class are all simply
 available. For instance::
 
     builder.by_default_deploy_list(roles)
 
-.. autoclass:: muddled.Builder
+.. autoclass:: muddled.mechanics.Builder
    :members:
    :show-inheritance:
    :undoc-members:
@@ -30,8 +30,8 @@ available. For instance::
 .. note:: The Builder class actually lives in ``muddled.mechanics``, but is
 	  available directly as ``muddled.Builder`` for convenience.
 
-muddled.Invocation
-------------------
+muddled.mechanics.Invocation
+----------------------------
 The Builder object always contains an instance of Invocation. For instance::
 
     builder.invocation.add_default_role('omap')
@@ -140,13 +140,6 @@ muddled.pkgs.initscripts
    :show-inheritance:
    :undoc-members:
 
-muddled.pkgs.linux_kernel
-~~~~~~~~~~~~~~~~~~~~~~~~~
-.. automodule:: muddled.pkgs.linux_kernel
-   :members:
-   :show-inheritance:
-   :undoc-members:
-
 muddled.pkgs.make
 ~~~~~~~~~~~~~~~~~
 .. automodule:: muddled.pkgs.make
@@ -154,21 +147,3 @@ muddled.pkgs.make
    :show-inheritance:
    :undoc-members:
 
-muddled.pkgs.setvars
-~~~~~~~~~~~~~~~~~~~~
-.. automodule:: muddled.pkgs.setvars
-   :members:
-   :show-inheritance:
-   :undoc-members:
-
-.. muddled.profiles
-.. ----------------
-.. This does not currently have an __init__.py file, so appears not
-.. to be in use as a package...
-..
-.. muddled.profiles.app
-.. ~~~~~~~~~~~~~~~~~~~~
-.. .. automodule:: muddled.profiles.app
-..    :members:
-..    :show-inheritance:
-..    :undoc-members:

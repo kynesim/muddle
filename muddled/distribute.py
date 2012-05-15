@@ -573,7 +573,7 @@ def set_private_build_files(builder, name, private_files):
               ...
 
     The dummy files will also containg such a function, but its body will be
-    ``pass`.
+    ``pass``.
     """
     if DEBUG: print '.. set_private_build_files(builder, %r, %s)'%(name, private_files)
 

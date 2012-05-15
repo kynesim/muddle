@@ -87,7 +87,7 @@ class File(object):
     def as_str(self, fs_relative=None):
         """Report ourself, but present the file system name relative to 'fs_relative'
         """
-        if fs_relative:
+        if fs_relative and self.fs_name:
             fs_path = os.path.relpath(self.fs_name, fs_relative)
         else:
             fs_path = self.fs_name

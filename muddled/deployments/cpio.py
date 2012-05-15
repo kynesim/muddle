@@ -154,7 +154,7 @@ class CpioDeploymentBuilder(Action):
 
             # Normalise the hierarchy ..
             the_hierarchy.normalise()
-            print "Filesystem hierarchy is:\n%s"%the_hierarchy
+            print "Filesystem hierarchy is:\n%s"%the_hierarchy.as_str(builder.invocation.db.root_path)
 
             if (self.prune_function is not None):
                 self.prune_function(the_hierarchy)

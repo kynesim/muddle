@@ -84,11 +84,25 @@ class File(object):
         self.orig_file = file_name
         self.data = None
 
+    def as_str(self, fs_relative=None):
+        """Report ourself, but present the file system name relative to 'fs_relative'
+        """
+        if fs_relative:
+            fs_path = os.path.relpath(self.fs_name, fs_relative)
+        else:
+            fs_path = self.fs_name
+
+        parts = []
+        parts.append(self.name)
+        parts.append("  fs=%s"%fs_path)
+        parts.append("  mode=%07o, uid=%d, gid=%d"%(self.mode, self.uid, self.gid))
+        if self.children:
+            parts.append(utils.wrap("  kids=%s"%(", ".join(map(lambda x: x.name, self.children))),
+                                    subsequent_indent='       '))
+        return "\n".join(parts)
+
     def __str__(self):
-        return "%s\n  fs=%s\n  mode=%o, uid=%d, gid=%d\n%s"%\
-            (self.name, self.fs_name, self.mode, self.uid, self.gid,
-             utils.wrap("  kids=%s"%(", ".join(map(lambda x: x.name, self.children))),
-                        subsequent_indent='       '))
+        return self.as_str()
 
 class Hierarchy(object):
 
@@ -255,23 +269,27 @@ class Hierarchy(object):
         par.children.append(obj)
         self.map[name] = obj
 
-    def __str__(self):
+    def as_str(self, fs_relative=None):
+        """Report ourself, but present the file system names relative to 'fs_relative'
+        """
         rv = [ ]
         rv.append("---Roots---")
         for (k,v) in self.roots.items():
             if k == v.name:
-                rv.append(str(v))
+                rv.append(v.as_str(fs_relative))
             else:
-                rv.append("%s -> %s"%(k,v))
+                rv.append("%s -> %s"%(k,v.as_str(fs_relative)))
         rv.append("---Map---")
         for (k,v) in self.map.items():
             if k == v.name:
-                rv.append(str(v))
+                rv.append(v.as_str(fs_relative))
             else:
-                rv.append("%s -> %s"%(k,v))
+                rv.append("%s -> %s"%(k,v.as_str(fs_relative)))
         rv.append("---\n")
         return "\n".join(rv)
 
+    def __str__(self):
+        return self.as_str()
 
 
 class CpioFileDataProvider(filespec.FileSpecDataProvider):

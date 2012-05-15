@@ -278,10 +278,16 @@ class Git(VersionControlSystem):
         # we are ahead of or behind (the local idea of) the remote repository,
         # but it cannot tell us if the remote repository is behind us (and our
         # local idea of it).
-        retcode, head_revision, ignore = utils.get_cmd_data("git rev-parse HEAD",
-                                                            fail_nonzero=False)
-        local_head = head_revision.strip()
 
+        # First, find out what our HEAD actually is
+        retcode, text, ignore = utils.get_cmd_data("git rev-parse --symbolic-full-name HEAD")
+        head_name = text.strip()
+
+        # Now we can look up its SHA1, locally
+        retcode, head_revision, ignore = utils.get_cmd_data("git rev-parse %s"%head_name)
+        local_head_ref = head_revision.strip()
+
+        # So look up the remote equivalents...
         retcode, text, ignore = utils.get_cmd_data("git ls-remote",
                                                    fail_nonzero=False)
         lines = text.split('\n')
@@ -289,16 +295,16 @@ class Git(VersionControlSystem):
             if not line:
                 continue
             ref, what = line.split('\t')
-            if what == 'HEAD':
-                if ref != local_head:
+            if what == head_name:
+                if ref != local_head_ref:
                     return '\n'.join(('After checking local HEAD against remote HEAD',
                                       '# The local repository does not match the remote:',
                                       '#',
-                                      '#  Local  Head is %s'%local_head,
-                                      '#  Remote Head is %s'%ref,
+                                      '#  HEAD   is %s'%head_name,
+                                      '#  Local  is %s'%local_head_ref,
+                                      '#  Remote is %s'%ref,
                                       '#',
-                                      '# You probably need to pull with "muddle pull".',
-                                      ''))
+                                      '# You probably need to pull with "muddle pull".'))
 
         # Should we check to see if we found HEAD?
 

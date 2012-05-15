@@ -4883,7 +4883,8 @@ class Status(CheckoutCommand):
                 continue
             text = vcs.status(verbose)
             if text:
-                print text
+                print
+                print text.strip()
                 something_needs_doing += 1
                 something.append(co)
         if something_needs_doing:

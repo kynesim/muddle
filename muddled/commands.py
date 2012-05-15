@@ -4822,7 +4822,7 @@ class Merge(CheckoutCommand):
 @command('status', CAT_CHECKOUT)
 class Status(CheckoutCommand):
     """
-    :Syntax: muddle status [-v] [ <checkout> ... ]
+    :Syntax: muddle status [-v] [-j] [ <checkout> ... ]
 
     Report on the status of checkouts that need attention.
 
@@ -4840,19 +4840,27 @@ class Status(CheckoutCommand):
     Runs the equivalent of ``git status`` or ``bzr status`` on each repository,
     and tries to only report those which have significant status.
 
-        Note: For subversion, the (remote) repository is queried,
-        which may be slow.
+        Note: For subversion and bazaar, the (remote) repository is queried,
+        which may be slow. For git, the HEAD of the remote may be queried.
 
     Be aware that "muddle status" will report on the currently checked out
     checkouts. "muddle status _all" will (attempt to) report on *all* the
     checkouts described by the build, even if they have not yet been checked
     out. This will fail on the first checkout directory it can't "cd" into
     (i.e., the first checkout that isn't there yet).
+
+    This muddle command exits with status 0 if all checkouts appear alright,
+    and with status 1 if no checkouts were specified, if an exception occurred,
+    or if some checkouts need attention.
+
+    At the end, if any checkouts need attention, their names are reported.
+    With '-j', print them all on one line, separated by spaces.
     """
 
-    # XXX Is this what we want???
-    required_tag = LabelTag.Pulled
-    allowed_switches = {'-v': 'verbose'}
+    required_tag = LabelTag.CheckedOut
+    allowed_switches = {'-v': 'verbose',
+                        '-j': 'join',
+                       }
 
     def build_these_labels(self, builder, labels):
 
@@ -4861,12 +4869,11 @@ class Status(CheckoutCommand):
         else:
             print 'Checking %d checkout%s'%(len(labels), '' if len(labels)==1 else 's')
 
-        if 'verbose' in self.switches:
-            verbose = True
-        else:
-            verbose = False
+        verbose = ('verbose' in self.switches)
+        joined = ('join' in self.switches)
 
-        something_needs_doing = False
+        something_needs_doing = 0
+        something = []
         for co in labels:
             rule = builder.invocation.ruleset.rule_for_target(co)
             try:
@@ -4877,8 +4884,21 @@ class Status(CheckoutCommand):
             text = vcs.status(verbose)
             if text:
                 print text
-                something_needs_doing = True
-        if not something_needs_doing:
+                something_needs_doing += 1
+                something.append(co)
+        if something_needs_doing:
+            if joined:
+                raise GiveUp('The following checkouts need attention:\n  '
+                             '%s'%(label_list_to_string(something)))
+            else:
+                raise GiveUp('The following checkouts need attention:\n  '
+                             '%s'%(label_list_to_string(something, join_with='\n  ')))
+            #if something_needs_doing == 1:
+            #    raise GiveUp('Checkout %s needs attention'%something[0])
+            #else:
+            #    raise GiveUp('The following checkouts need attention:\n  '
+            #                 '%s'%(label_list_to_string(something, join_with='\n  ')))
+        else:
             print 'All checkouts seemed clean'
 
 @command('reparent', CAT_CHECKOUT)

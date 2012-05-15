@@ -273,8 +273,36 @@ class Git(VersionControlSystem):
 
         if text:
             return text
-        else:
-            return None
+
+        # git status will tell us if there uncommitted changes, etc., or if
+        # we are ahead of or behind (the local idea of) the remote repository,
+        # but it cannot tell us if the remote repository is behind us (and our
+        # local idea of it).
+        retcode, head_revision, ignore = utils.get_cmd_data("git rev-parse HEAD",
+                                                            fail_nonzero=False)
+        local_head = head_revision.strip()
+
+        retcode, text, ignore = utils.get_cmd_data("git ls-remote",
+                                                   fail_nonzero=False)
+        lines = text.split('\n')
+        for line in lines[1:]:          # The first line is the remote repository
+            if not line:
+                continue
+            ref, what = line.split('\t')
+            if what == 'HEAD':
+                if ref != local_head:
+                    return '\n'.join(('After checking local HEAD against remote HEAD',
+                                      '# The local repository does not match the remote:',
+                                      '#',
+                                      '#  Local  Head is %s'%local_head,
+                                      '#  Remote Head is %s'%ref,
+                                      '#',
+                                      '# You probably need to pull with "muddle pull".',
+                                      ''))
+
+        # Should we check to see if we found HEAD?
+
+        return None
 
     def _setup_remote(self, remote_name, remote_repo, verbose=True):
         """

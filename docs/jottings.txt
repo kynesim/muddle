@@ -238,24 +238,28 @@ How do I get back to a clean checkout state?
 The following strongly assumes all your builds are out-of-tree (see above).
 
 If you understand how muddle works (see the chapter on "muddle and its
-directories"), then it should be obvious that you do::
+directories"), then it should be obvious that you want to do::
 
   $ rm -rf obj/ install/ deploy/
   $ rm -rf .muddle/tags/package .muddle/tags/deployment
 
-(for some value of "obvious"). Of course, the ``deploy/`` directory and the
-``deployment/`` tags directory will not exist if no deployment has occurred
-yet, but the flags to "rm" should cope with that.
+(for some value of "obvious"). Unfortunately, it is very easy to get this
+wrong (I've accidentally deleted my ``src/`` directory before now), and also
+this doesn't take account of any subdomains in a build tree.
 
-.. note:: Take great care not to delete the ``src/`` directory, or anything
-   else inside ``.muddle/``. It may sound stupid, but I have done it...
+The solution is the muddle command::
 
-If that's worrisome, a close equivalent is::
+  $ muddle veryclean
+
+which does exactly those operations in a simple build, but also recurses
+through subdomains if necessary (see ``muddle help veryclean`` for details).
+
+This approach is to be preferred to::
 
   muddle distclean _all
   muddle cleandeploy
 
-although the first actually only obeys the "distclean" target in each
+because the first actually only obeys the "distclean" target in each
 Makefile.muddle, which won't necessarily do what (or as much) as you want.
 
 How do I build my kernel?

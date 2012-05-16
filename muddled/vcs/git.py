@@ -1,22 +1,66 @@
 """
 Muddle suppport for Git.
 
-.. to be documented ..
+* muddle checkout
 
+  Clones the appropriate checkout with ``git clone``. Honours a requested
+  branch (with ``-b <branch>``, defaulting to "master"), and a requested
+  revision.
+
+* muddle pull
+
+  This does a ``git fetch`` followed by a fast-forwards ``git merge``.
+
+  If a revision is specified that is not "HEAD", then this will give up, since
+  ``git merge`` always merges to "HEAD".
+
+  If there are any local changes uncommitted, or untracked files, then this
+  will give up. Also, if the checkout is marked as "shallow', this will give
+  up.
+
+  The command checks that the remote is configured as such, then does ``git
+  fetch`` and then does ``git merge --ff-only`` - i.e., it will only merge in
+  the fetch if it doesn't require human interaction.
+
+* muddle push
+
+  If the checkout is marked as "shallow', this will give up.
+
+  The command checkts that the remote is configured as such, then does ``git
+  push``, honouring any branch.
+
+* muddle merge
+
+  .. warning:: This may go away in the future
+
+  This is essentially identical to "muddle pull", except that it does a simple
+  ``git merge``, allowing human interaction if necessary.
+
+* muddle commit
+
+  Simply runs ``git commit -a``.
+
+* muddle status
+
+  This first does ``git status --porcelain``. If that does not return anything,
+  it then determines the SHA1 for the local HEAD, and the SHA1 for the
+  equivalent HEAD in the remote repository. If these are different (so
+  presumably the remote repository is ahead of the local one), then it reports
+  as much,
 
 Available git specific options are:
 
-    * shallow_checkout: If True, then only clone to a depth of 1 (i.e., pass
-      the git switch "--depth 1"). If False, then no effect. The default is
-      False.
+* shallow_checkout: If True, then only clone to a depth of 1 (i.e., pass
+  the git switch "--depth 1"). If False, then no effect. The default is
+  False.
 
-      This is typically of use when cloning the Linux kernel (or some other
-      large tree with a great deal of history), when one is not expecting to
-      modify the checkout in any way in the future (i.e., neither to push it
-      nor to pull it again).
+  This is typically of use when cloning the Linux kernel (or some other
+  large tree with a great deal of history), when one is not expecting to
+  modify the checkout in any way in the future (i.e., neither to push it
+  nor to pull it again).
 
-      If 'shallow_checkout' is specified, then "muddle pull", "muddle merge"
-      and "muddle push" will refuse to do anything.
+  If 'shallow_checkout' is specified, then "muddle pull", "muddle merge"
+  and "muddle push" will refuse to do anything.
 """
 
 import os

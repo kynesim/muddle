@@ -1,0 +1,157 @@
+====================================================
+Muddle workflows - or how to use muddle in real life
+====================================================
+
+This section is intended to give some examples of how one actually uses muddle
+in normal programming life.
+
+
+Working with version control systems
+====================================
+
+*or, "Should I use ``muddle push/pull`` or ``git push/pull``?"*
+
+Each checkout uses a particular VCS (above we're assuming it's git), but
+muddle also provides some VCS commands, notably ``muddle push``, ``muddle
+pull`` and ``muddle merge``.
+
+So, when one could use the VCS-specific command, or the muddle command, which
+should one use?
+
+My normal practise is to use:
+
+* ``muddle pull`` - to update a working directory from the repository
+* ``muddle push`` - to push changes once they're done
+
+and otherwise use the appropriate VCS commands to manipulate local
+state.
+
+The reason for using the muddle commands for pull/push is that the
+build description keeps track of where the far repository is,
+and this *can* change - we've had occasion to do that whilst working with
+various build trees. Secondly, different VCS's have different degrees of
+guessing correctly (in our usage) that the push and pull are to be for the
+same place, and muddle already knows that.
+
+For any other operations, specific VCS commands are finer grained and
+generally more useful.
+
+So, if I was editing the build description (``01.py`` in this case), then I
+would typically:
+
+1. Edit ``src/builds/01.py``.
+2. Test that ``muddle help`` still works - this is a good general test that
+   the build description is at least still valid Python code, and doesn't
+   contain circular dependencies or anything else pathological.
+3. Test that everything (or some representative sample) still builds OK
+4. Use git to commit ``01.py``, with an appropriate commit message
+5. Use muddle to push it
+6. Use gitk to check I've done what I think I have
+
+Similarly, if I were editing source code in a checkout, I would:
+
+1. ``cd`` or ``pushd`` into the checkout directory
+2. Perform the edit.
+3. Use ``muddle`` or ``muddle distrebuild`` to rebuild it, and if that fails,
+   do (2) again (and so on).
+4. Use git (or whatever the appropriate VCS is) to commit the changes.
+5. Use ``muddle push`` to push them.
+
+(And as to ``muddle merge`` - I'd use the VCS specific command in all cases,
+and it is possible that ``muddle merge`` may go away at some point in the
+future.)
+
+How I use terminal windows with muddle
+======================================
+In a GUI environment (e.g., Gnome or whatever), I personally tend to have
+several terminal windows open:
+
+* One at the top level of the build tree.
+
+  This is where I issue commands like ``muddle pull _all``, or ``muddle
+  query``, or even ``visdep``.
+
+* One for each checkout I'm working on, with the terminal ``cd``-ed into the
+  appropriate source directory.
+
+  In these termainals, I can do ``muddle`` or ``muddle distrebuild`` or
+  whatever without needing to specify the checkout or package I'm working on.
+  This also facilitates using the appropriate VCS commands directly, as
+  discussed above, or doing ``muddle push`` when I believe I've reached an
+  appropriate stage.
+
+
+Making a clean binary deployment/release
+========================================
+There are two approaches to this.
+
+Using a clean build tree
+------------------------
+
+::
+
+  $ cd <where the build trees live>
+  $ mkdir <new build tree directory>
+  $ cd <new build tree directory>
+  $ muddle init <repo> <desc>
+  $ muddle
+
+or possible ``muddle deploy _all`` or whatever is appropriate.
+
+``<where the build trees live>`` is the directory that ``<new build tree
+directory>`` is going to be created in - in my work environment, I segregate
+these by project, but it may be as simple as a directory called ``~/work``.
+The important thing is that each build tree is a separate directory, with an
+appropriate name (perhaps by date).
+
+``<repo>`` and ``<desc>`` are normally known for a particular project (they
+may be documented on a wiki page), but are also to be found in:
+
+* ``.muddle/RootRepository``
+* ``.muddle/Description``
+
+in a previous build tree.
+
+This approach is always safe, but can take much more time (since the entire
+build tree needs to be checked out again).
+
+Using an updated and "very clean" build tree
+--------------------------------------------
+
+::
+
+  $ muddle pull _all
+  $ muddle veryclean
+  $ muddle
+
+or possible ``muddle deploy _all`` or whatever is appropriate.
+
+This approach is quicker, as it does not involve checking everything out
+again.
+
+The ``muddle veryclean`` is to ensure that the ``obj``, ``install`` and
+``deploy`` directories are cleanly removed. Over time, during development, it
+is common for unused software and files to build up in theses directories -
+checkouts change the files they produce, or produce differently named files -
+and the ``muddle distclean`` operation does what the ``distclean:`` target in
+a muddle Makefile says it should do, which may not clean things as thoroughly
+as one might wish.
+
+The disadvantage of this approach is that, for some projects, there can be
+problems with not building entirely from scratch. In particular:
+
+* If any of the packages actually do build or alter stuff in their checkout
+  directory, then the build tree may not be as clean as one thought (this is
+  why we strongly recommend out-of-tree building for all packages).
+
+* If there are any shallow checkouts (typically specified in the build
+  description as follows::
+
+    pkg.set_checkout_vcs_option(builder, Label('checkout', 'kernel-source'),
+                                shallow_checkout=True)
+
+  where the ``Label`` part may, of course, differ), then these will not be
+  updated by ``muddle pull``, so it is possible to miss important changes.
+
+
+.. vim: set filetype=rst tabstop=8 softtabstop=2 shiftwidth=2 expandtab:

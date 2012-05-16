@@ -12,6 +12,7 @@ Contents:
 
    README
    muddle-dirs
+   workflows
    cmdline
    repositories
    instructions

@@ -414,6 +414,22 @@ probably copying in the (unchanged) .config from somewhere else...
 And the two scripts ``do_menuconfig`` and ``do_install_new_config`` propagated
 by the Makefile.muddle in the previous section may also be of use.
 
+How do I update a shallow checkout?
+===================================
+Shallow checkouts (or clones) were discussed in `How do I build my kernel?`_.
+
+``muddle pull`` does not update shallow checkouts, so if a change occurs, it
+is necessary to retrieve it by hand.
+
+The typical way of doing this, given a shallow checkout in
+``src/linux/kernel``, is something like::
+
+  $ cd src/linux
+  $ mv kernel kernel.save     # remove the directory (but save it just in case)
+  $ muddle uncheckout kernel  # to tell muddle the checkout has gone away
+  $ muddle checkout kernel    # to check it out again
+  $ rm -rf kernel.save        # we no longer need the saved directory
+
 How can I make sure the correct toolchain is available?
 =======================================================
 Let us assume you have::
@@ -427,58 +443,6 @@ function), you can do::
         raise GiveUp("Required toolchain %s not present"%ARM_TOOLCHAIN)
 
 This is rather horrible, but may be less worse than the alternative.
-
-Should I use ``muddle push/pull`` or ``git push/pull``?
-=======================================================
-So checkouts use a particular VCS (the section header above is assuming we're
-using git), but muddle also provides some VCS commands, notably ``muddle
-push``, ``muddle pull`` and ``muddle merge``.
-
-So, when one could use the VCS-specific command, or the muddle command, which
-should one use?
-
-My normal practise is to use:
-
-* ``muddle pull`` - to update a working directory from the repository
-* ``muddle push`` - to push changes once they're done
-
-and otherwise use the appropriate VCS commands to manipulate local
-state.
-
-The reason for using the muddle commands for pull/push is that the
-build description keeps track of where the far repository is,
-and this *can* change - we've had occasion to do that whilst working with
-various build trees. Secondly, different VCS's have different degrees of
-guessing correctly (in our usage) that the push and pull are to be for the
-same place, and muddle already knows that.
-
-For any other operations, specific VCS commands are finer grained and
-generally more useful.
-
-So, if I was editing the build description (``01.py`` in this case), then I
-would typically:
-
-1. Edit ``src/builds/01.py``.
-2. Test that ``muddle help`` still works - this is a good general test that
-   the build description is at least still valid Python code, and doesn't
-   contain circular dependencies or anything else pathological.
-3. Test that everything (or some representative sample) still builds OK
-4. Use git to commit ``01.py``, with an appropriate commit message
-5. Use muddle to push it
-6. Use gitk to check I've done what I think I have
-
-Similarly, if I were editing source code in a checkout, I would:
-
-1. ``cd`` or ``pushd`` into the checkout directory
-2. Perform the edit.
-3. Use ``muddle`` or ``muddle distrebuild`` to rebuild it, and if that fails,
-   do (2) again (and so on).
-4. Use git (or whatever the appropriate VCS is) to commit the changes.
-5. Use ``muddle push`` to push them.
-
-(And as to ``muddle merge`` - I'd use the VCS specific command in all cases,
-and it is possible that ``muddle merge`` may go away at some point in the
-future.)
 
 Do you have a picture of a label?
 =================================

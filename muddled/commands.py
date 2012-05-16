@@ -17,9 +17,11 @@ case your programs want to run them themselves
 # XXX (and more consistent with other muddled modules).
 
 import difflib
+import errno
 import os
 import posixpath
 import pydoc
+import shutil
 import subprocess
 import sys
 import textwrap
@@ -5424,9 +5426,86 @@ class Retry(AnyLabelCommand):
 # -----------------------------------------------------------------------------
 # Misc commands
 # -----------------------------------------------------------------------------
-# It's arguable what category this should go in, but I've not put it in
-# CAT_PACKAGE because its argument list is not the same as all the other
-# package commands
+@command('veryclean', CAT_MISC)
+class VeryClean(Command):
+    """
+    :Syntax: muddle veryclean
+
+    Sets the muddle build tree back to just checked out sources.
+
+    1. Delete the obj/, install/ and deploy/ directories.
+    2. Removes all the package tags, so muddle thinks that packages have
+       not had anything done to them.
+    3. Removes all the deployment tags, so muddle thinks that all deployments
+       have not been deployed.
+
+    For a build tree without subdomains, this is equivalent to::
+
+        $ rm -rf obj install deploy
+        $ rm -rf .muddle/tags/package
+        $ rm -rf .muddle/tags/deployment
+
+    It's a bit more complicated if there are any subdomains. If there is a
+    'domains/' directory, then this command will recurse down into it and
+    perform the same operation for each subdomain it finds. This does not
+    depend on whether the subdomain is defined in the build description - it
+    is done purely on the basis of what directories are actually present.
+
+    As usual, 'muddle -n veryclean' will report on what it would do, without
+    actually doing it.
+
+    Using this helps prevent unwanted built/installed software "building up"
+    in the obj and install (and, to a lesser extent, deploy) infrastructure.
+    Note that it does *not* remove checkouts that are no longer in use, nor
+    can it do anything about any build artefacts inside checkout directories.
+    """
+
+    def requires_build_tree(self):
+        return True
+
+    def with_build_tree(self, builder, current_dir, args):
+        if args:
+            print "Syntax: veryclean"
+            print self.__doc__
+            return
+
+        if self.no_op():
+            def delete_directory(name):
+                if os.path.exists(name):
+                    print 'Would delete %s'%name
+                else:
+                    print 'No need to delete %s as it does not exist'%name
+        else:
+            def onerror(fn, path, excinfo):
+                type, value = excinfo[:2]
+                raise GiveUp('Error in %s for %s: %s %s'%(fn.__name__,
+                              path, type.__name__, value))
+
+            def delete_directory(name):
+                if os.path.exists(name):
+                    print 'Deleting %s'%name
+                    try:
+                        shutil.rmtree(name, onerror=onerror)
+                    except GiveUp as e:
+                        print e
+                        print '...giving up on %s'%name
+
+        def tidy_domain(path):
+            with utils.Directory(path):
+                for directory in ('obj', 'install', 'deploy'):
+                    delete_directory(directory)
+
+                for directory in ('package', 'deployment'):
+                    delete_directory(os.path.join('.muddle', 'tags', directory))
+
+                if os.path.exists('domains'):
+                    subdomains = os.listdir('domains')
+                    for name in subdomains:
+                        tidy_domain(os.path.join(os.path.join(path, 'domains', name)))
+
+        # And our top level is, of course, the top domain
+        tidy_domain(builder.invocation.db.root_path)
+
 @command('instruct', CAT_MISC)
 class Instruct(Command):
     """

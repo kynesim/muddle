@@ -380,6 +380,9 @@ class Git(VersionControlSystem):
         if verbose:
             print "Re-associating checkout '%s' with remote repository"%co_dir
 
+        # Do we need to also do:
+        #utils.run_cmd("git config remote.origin.url %s"%(remote_repo.url), verbose=verbose)
+
         # This is the special case where our "remote" is our origin...
         self._setup_remote('origin', remote_repo, verbose=verbose)
 

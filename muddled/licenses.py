@@ -413,6 +413,11 @@ def print_standard_licenses():
 def set_license(builder, co_label, license, license_file=None, not_built_against=False):
     """Set the license for a checkout.
 
+    'co_label' is either a checkout label, or the name of a checkout.
+
+        (Specifying a checkout label allows a domain name to be specified as
+        well. The tag of the checkout label is ignored.)
+
     'license' must either be a License instance, or the mnemonic for one
     of the standard licenses.
 
@@ -426,6 +431,11 @@ def set_license(builder, co_label, license, license_file=None, not_built_against
     more information - this parameter is a useful convenience to save an
     extra call.
     """
+
+    if isinstance(co_label, basestr):
+        # Given a string, we'll assume it was a checkout name
+        co_label = Label(LabelType.Checkout, co_label, tag='*')
+
     if isinstance(license, License):
         builder.invocation.db.set_checkout_license(co_label, license)
     else:

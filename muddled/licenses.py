@@ -410,7 +410,7 @@ def print_standard_licenses():
                 print '%-*s %r'%(maxlen, key, license)
     print
 
-def set_license(builder, co_label, license, license_file=None):
+def set_license(builder, co_label, license, license_file=None, not_built_against=False):
     """Set the license for a checkout.
 
     'license' must either be a License instance, or the mnemonic for one
@@ -420,6 +420,11 @@ def set_license(builder, co_label, license, license_file=None):
     license file in binary distributions. 'license_file' allows the relevant
     file to be named (relative to the root of the checkout directory), and
     implies that said file should be included in all distributions.
+
+    If 'not_built_against' is True, then it will be noted that nothing
+    "builds against" this checkout. See 'set_nothing_builds_against()' for
+    more information - this parameter is a useful convenience to save an
+    extra call.
     """
     if isinstance(license, License):
         builder.invocation.db.set_checkout_license(co_label, license)
@@ -429,6 +434,9 @@ def set_license(builder, co_label, license, license_file=None):
 
     if license_file:
         builder.invocation.db.set_checkout_license_file(co_label, license_file)
+
+    if not_built_against:
+        set_nothing_builds_against(builder, co_label)
 
 def set_license_for_names(builder, co_names, license):
     """A convenience function to set one license for several checkout names.

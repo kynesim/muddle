@@ -432,7 +432,7 @@ def set_license(builder, co_label, license, license_file=None, not_built_against
     extra call.
     """
 
-    if isinstance(co_label, basestr):
+    if isinstance(co_label, basestring):
         # Given a string, we'll assume it was a checkout name
         co_label = Label(LabelType.Checkout, co_label, tag='*')
 

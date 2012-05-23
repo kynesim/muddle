@@ -279,6 +279,12 @@ Muddle does not try to capture the whole essence of what a "license" means,
 but simply allows the association of a checkout with a license name and some
 basic properties.
 
+   *"""DISCLAIMER: The allocation of licenses to particular checkouts within
+   a build description is purely for programmatic purposes for use with
+   the "muddle" build tool, and is not necessarily intended to reflect the
+   actual licensing state of a particular checkout - for that, please
+   consult the checkout source code directly."""*
+
 The licenses module
 -------------------
 Stuff to do with licensing is conveniently packaged in the
@@ -368,7 +374,7 @@ For this purpose, licenses come in four broad categories:
   made for not distributing the build description for such packages, as well.
 
 There is also a "meta" type, **not licensed**. Any checkout that has not had
-its license specified is regarded as not licensed. In many cases, such
+its license specified is regarded as **not licensed**. In many cases, such
 checkouts will be treated as if they had **open-source** licenses.
 
 Standard licenses
@@ -738,6 +744,43 @@ but none of these will hurt if incorrect.
    checkout D, saying that B is "not built against" D doesn't say anything
    about A or C, so you will have to address A and C with separate function
    calls, if appropriate.
+
+Build descriptions
+------------------
+Build descriptions are a little awkward in licensing terms, as all
+distributions wish to include them.
+
+There are three obvious ways to handle build description licenses:
+
+1. Do not declare any license in the muddle build description. This is, of
+   course, not the same as not actually having a license for the build
+   description, it just means not telling muddle what it is (muddle has no way
+   of reading a license statement in the comments or docstring of the build
+   description, or held in a LICENSE file, and so on).
+
+   This is perhaps the simplest option, as **not-licensed** checkouts are
+   allowed in any distribution.
+
+2. Declare a **gpl** or **open-source** license. This is obviously only a
+   solution if that form of licenses is actually applicable to the particular
+   build description.
+
+   Again, such a build description is clearly allowed in any distribution.
+
+3. Declare a **prop-source** license. Muddle assumes that proprietary source
+   is not to be distributed in ``_for_gpl`` or ``_all_open`` distributions,
+   but in the case of a build description, will just output a warning and
+   carry on::
+
+      WARNING: DISTRIBUTING BUILD DESCRIPTION DESPITE LICENSE CLASH
+        Checkout checkout:builds/distributed is not allowed in distribution "_for_gpl"
+        Checkout has license "Wombat & co. licensed, may be distributed as source",
+          which is "prop-source", distribution allows "gpl", "open-source"
+      END OF WARNING
+
+If you tell muddle that your build description has a **binary** or **private**
+license, then it will not be possible to do a ``_for_gpl`` or ``_all_open``
+distribution.
 
 Adding extra files
 ------------------

@@ -503,7 +503,27 @@ def distribute_build_desc(builder, name, label, copy_vcs=False):
         raise GiveUp('There is no distribution called "%s"'%name)
 
     # And just in case
-    _assert_checkout_allowed_in_distribution(builder, label, name)
+    try:
+        _assert_checkout_allowed_in_distribution(builder, label, name)
+    except GiveUp as e:
+        # An undefined license is always *allowed*, so we know we don't need
+        # to check for that case in getting the license for our label
+        license = builder.invocation.db.get_checkout_license(label)
+        if license.is_proprietary_source():
+            # Normally we would not distribute proprietary source checkouts for
+            # distributions that don't allow it. However, we make an exception
+            # for the build description, as that's not an unreasonable way to
+            # license it, but distributing it is not normally expected to be a
+            # problem. However, give a warning just in case.
+            print
+            print 'WARNING: DISTRIBUTING BUILD DESCRIPTION DESPITE LICENSE CLASH'
+            text = str(e)
+            for line in text.split('\n'):
+                print ' ', line
+            print 'END OF WARNING'
+            print
+        else:
+            raise
 
     source_label = label.copy_with_tag(LabelTag.CheckedOut)
     target_label = label.copy_with_tag(LabelTag.Distributed, transient=True)

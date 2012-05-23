@@ -452,6 +452,13 @@ an instance of a License subclass (see `Creating a new license`_ below).
 
 ``co_label`` is the label for the checkout to which this license should apply.
 
+.. note:: For convenience, we also allow the *name* of a checkout to be used
+   in the call of ``set_license``. This seems worth it because this is the
+   function that is used most often in setting up licenses, and constructing
+   labels just for this purpose can be a chore. However, remember that using
+   a checkout name does not allow specifying a subdomain (for those who are
+   using subdomains).
+
 It may be simpler to specify a license for more than one checkout at the same
 time. For this, you can use::
 
@@ -682,14 +689,22 @@ There are three cases:
 3. Particular packages/checkouts do depend on the checkout, but not in a way
    that is significant for GPL "propagation".
 
-Specifying the first is done with::
+If we know that nothing "builds against" a particular checkout (whatever that
+means in the relevant context), then we can declare this with::
 
-  set_nothing_links_against(builder, co_label)
+  set_nothing_builds_against(builder, co_label)
 
-where ``co_label`` is the checkout that no-one links against (or whatever form
-of building-with is appropriate to this checkout).
+where ``co_label`` is the checkout that no-one builds against. It is sometimes
+worth adding a comment to explain what "builds against" means for this
+particular checkout.
 
-Specifying the second is done with::
+For convenience, this can also be stated in the call of ``set_license``
+- for instance::
+
+  set_license(builder, 'busybox-1.19.3', 'GPL', not_built_against=True)
+
+If we know that a particular label depends upon our checkout, but does not
+"build against" it, then we can use::
 
   set_license_not_affected_by(builder, this_label, co_label)
 

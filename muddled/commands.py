@@ -4082,7 +4082,9 @@ class Distribute(CPDCommand):
       name that doesn't do either.
 
     See also "muddle query checkout-licenses" for general information on the
-    licenses in the current build, and any clashes that may exist.
+    licenses in the current build, and "muddle query role-licenses" for how
+    licenses are distributed between the roles in the build. Both of these
+    will report on license clashes that appear to exist.
 
     BEWARE: THIS COMMAND IS STILL NEW, AND DETAILS MAY CHANGE
 

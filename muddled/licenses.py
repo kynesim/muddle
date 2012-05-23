@@ -485,6 +485,12 @@ def set_nothing_builds_against(builder, co_label):
     packages that build against (link against) this checkout, in a way which
     would cause GPL license "propagation".
 
+    Typically used to mark checkouts that (just) provide or build:
+
+        * an application (a program)
+        * a kernel module
+        * a text file (e.g., something to be placed in /etc)
+
     An example might be busybox, which is GPL-2 licensed, but which builds a
     set of independent programs.
     """

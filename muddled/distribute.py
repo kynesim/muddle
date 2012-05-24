@@ -362,7 +362,6 @@ def distribute_checkout(builder, name, label, copy_vcs=False):
 
     if label.type == LabelType.Package:
         packages = builder.invocation.expand_wildcards(label)
-        print 'xxx', label, '->', packages
         for package in packages:
             checkouts = builder.invocation.checkouts_for_package(package)
             for co_label in checkouts:
@@ -486,12 +485,31 @@ def distribute_build_desc(builder, name, label, copy_vcs=False):
     Notes:
 
         1. If there was already a DistributeBuildDescription action defined for
-           this build description's checkout, then we will just amend its
-           'copy_vcs' flag to match ours.
+           this build description's checkout, then we will amend it to look as
+           if we created it (but leaving any "private" file requests untouched).
         2. If there was already a DistributeBuildCheckout action defined for
            this build description's checkout, then we will replace it with a
            DistributeBuildDescription action. All we'll copy over from the
            older action is the distribution names.
+
+    ``_distribution/<name>.py`` files
+    ----------------------------------
+    If the build description checkout contains a file called
+    ``_distribution/<name>.py``, where ``<name>`` is the 'name' of the
+    distribution we're building, then that file will be distributed as
+    the build description (using the appropriate name found from
+    the ``.muddle/Description`` file), and all other files in the build
+    description checkout will be ignored. Note that this also means that
+    in this case any calls of ```set_private_build_files()`` will be ignored.
+
+    Since the name of the file is specifically tied to the distribution name,
+    no license checking is done in this case - if you are doing a "_for_gpl"
+    distribution, and provide a ``_distribution/_for_gpl.py`` file, then it
+    is assumed that this was deliberate, whatever license the main build
+    description may have.
+
+    Also, 'copy_vcs' will be ignored in this situation, and any VCS data
+    will not be copied.
     """
     if DEBUG: print '.. distribute_build_desc(builder, %r, %s, %s)'%(name, label, copy_vcs)
     if label.type != LabelType.Checkout:
@@ -502,28 +520,38 @@ def distribute_build_desc(builder, name, label, copy_vcs=False):
     if name not in the_distributions.keys():
         raise GiveUp('There is no distribution called "%s"'%name)
 
-    # And just in case
-    try:
-        _assert_checkout_allowed_in_distribution(builder, label, name)
-    except GiveUp as e:
-        # An undefined license is always *allowed*, so we know we don't need
-        # to check for that case in getting the license for our label
-        license = builder.invocation.db.get_checkout_license(label)
-        if license.is_proprietary_source():
-            # Normally we would not distribute proprietary source checkouts for
-            # distributions that don't allow it. However, we make an exception
-            # for the build description, as that's not an unreasonable way to
-            # license it, but distributing it is not normally expected to be a
-            # problem. However, give a warning just in case.
-            print
-            print 'WARNING: DISTRIBUTING BUILD DESCRIPTION DESPITE LICENSE CLASH'
-            text = str(e)
-            for line in text.split('\n'):
-                print ' ', line
-            print 'END OF WARNING'
-            print
-        else:
-            raise
+    # Check for a distribution build description
+    this_dir = builder.invocation.db.get_checkout_path(label)
+    dist_file = os.path.join('_distribution', '%s.py'%name)
+    if os.path.exists(os.path.join(this_dir, dist_file)):
+        print 'Found replacement build description for distribution "%s"'%name
+        # We never copy VCS in this situation
+        copy_vcs = False
+        replacement_build_desc = dist_file
+    else:
+        replacement_build_desc = None       # use the normal build description
+        # And check our licenses make sense
+        try:
+            _assert_checkout_allowed_in_distribution(builder, label, name)
+        except GiveUp as e:
+            # An undefined license is always *allowed*, so we know we don't need
+            # to check for that case in getting the license for our label
+            license = builder.invocation.db.get_checkout_license(label)
+            if license.is_proprietary_source():
+                # Normally we would not distribute proprietary source checkouts for
+                # distributions that don't allow it. However, we make an exception
+                # for the build description, as that's not an unreasonable way to
+                # license it, but distributing it is not normally expected to be a
+                # problem. However, give a warning just in case.
+                print
+                print 'WARNING: DISTRIBUTING BUILD DESCRIPTION DESPITE LICENSE CLASH'
+                text = str(e)
+                for line in text.split('\n'):
+                    print ' ', line
+                print 'END OF WARNING'
+                print
+            else:
+                raise
 
     source_label = label.copy_with_tag(LabelTag.CheckedOut)
     target_label = label.copy_with_tag(LabelTag.Distributed, transient=True)
@@ -544,17 +572,19 @@ def distribute_build_desc(builder, name, label, copy_vcs=False):
             # It's the right sort of thing
             if action.does_distribution(name):
                 # If the action already know about this distribution, just
-                # overwrite any value for copy_vcs (leave any private_files
-                # intact)
+                # overwrite any value for copy_vcs and using_build_desc
+                # (leave any private_files intact)
                 action.set_copy_vcs(name, copy_vcs)
+                action.set_replacement_build_desc(name, replacement_build_desc)
             else:
                 # Otherwise, it's simple to add it
-                action.add_distribution(name, copy_vcs)
+                action.add_distribution(name, copy_vcs, replacement_build_desc)
         elif isinstance(action, DistributeCheckout):
             if DEBUG: print '   exists as DistributeCheckout: replace'
             # Ah, it's a generic checkout action - let's replace it with
             # a build description action
-            new_action = DistributeBuildDescription(name, copy_vcs)
+            new_action = DistributeBuildDescription(name, copy_vcs,
+                                                    replacement_build_desc=replacement_build_desc)
             # And copy over any distribution names we don't yet have
             new_action.merge_names(action)
             rule.action = new_action
@@ -564,7 +594,8 @@ def distribute_build_desc(builder, name, label, copy_vcs=False):
     else:
         # No - we need to create one
         if DEBUG: print '   adding anew'
-        action = DistributeBuildDescription(name, copy_vcs)
+        action = DistributeBuildDescription(name, copy_vcs,
+                                            replacement_build_desc=replacement_build_desc)
 
         rule = Rule(target_label, action)       # to build target_label, run action
         rule.add(source_label)                  # after we've built source_label
@@ -895,12 +926,10 @@ def _actually_distribute_checkout(builder, label, target_dir, copy_vcs):
     # directory
     _set_checkout_tags(builder, label, target_dir)
 
-def _actually_distribute_build_desc(builder, label, target_dir, copy_vcs, private_files):
-    """Very similar to what we do for any other checkout, but with private_files
+def _actually_distribute_normal_build_desc(builder, label, co_src_dir, target_dir,
+                                           copy_vcs, private_files):
+    """Copy the "normal" files for a build description
     """
-    # Get the actual directory of the checkout
-    co_src_dir = builder.invocation.db.get_checkout_location(label)
-
     # Now, we want to copy everything except:
     #
     #   * no .pyc files
@@ -964,6 +993,45 @@ def _actually_distribute_build_desc(builder, label, target_dir, copy_vcs, privat
         directories_to_ignore = files_to_ignore.intersection(dirnames)
         for name in directories_to_ignore:
             dirnames.remove(name)
+
+def _actually_distribute_replacement_build_desc(builder, label, co_src_dir, target_dir,
+                                                replacement_build_desc):
+    """Copy the replacement build description for a build description
+    """
+    src_desc_file = os.path.join(co_src_dir, replacement_build_desc)
+
+    # Now to work out the name of the target build description file
+    # Remember to use the checkout directory path relative to the root of tree
+    outer_path = builder.invocation.db.get_checkout_location(label)
+
+    inner_path = _build_desc_inner_path(builder, label)
+
+    # So
+    tgt_desc_file = os.path.join(target_dir, outer_path, inner_path)
+
+    # And let's make sure it exists
+    tgt_desc_dir = os.path.split(tgt_desc_file)[0]
+    if not os.path.exists(tgt_desc_dir):
+        os.makedirs(tgt_desc_dir)
+
+    copy_file(src_desc_file, tgt_desc_file, preserve=True)
+
+
+def _actually_distribute_build_desc(builder, label, target_dir, copy_vcs,
+                                    private_files, replacement_build_desc):
+    """Very similar to what we do for any other checkout, but with more arguments
+    """
+    # Get the actual directory of the checkout
+    co_src_dir = builder.invocation.db.get_checkout_location(label)
+
+    if replacement_build_desc:
+        _actually_distribute_replacement_build_desc(builder, label,
+                                                    co_src_dir, target_dir,
+                                                    replacement_build_desc)
+    else:
+        _actually_distribute_normal_build_desc(builder, label,
+                                               co_src_dir, target_dir,
+                                               copy_vcs, private_files)
 
     # Set the appropriate tags in the target .muddle/ directory
     _set_checkout_tags(builder, label, target_dir)
@@ -1301,7 +1369,7 @@ class DistributeBuildDescription(DistributeAction):
     """This is a bit like DistributeCheckoutAction, but without 'just'.
     """
 
-    def __init__(self, name, copy_vcs=None, private_files=None):
+    def __init__(self, name, copy_vcs=None, private_files=None, replacement_build_desc=None):
         """
         'name' is the name of a DistributionContext. When created, we are
         told which DistributionContext we can be distributed by. Later on,
@@ -1322,28 +1390,40 @@ class DistributeBuildDescription(DistributeAction):
         to the build description checkout directory, that must be replaced by
         empty files when the distribution is done. It is always copied (as a
         set). If it is None, then an empty set will be used.
+
+        If 'replacement_build_desc' is given, then it is a file (relative to
+        the checkout directory) to be used instead of all the rest of the
+        content of the build description checkout. It will be named using the
+        appropriate name (as in ``.muddle/Description``) when it is
+        distributed. If a replacement build description is named, then
+        'copy_vcs' will be ignored, and no VCS will be copied. Similarly,
+        'private_files' will be ignored.
         """
         if private_files is None:
             private_files = set()
         else:
             private_files = set(private_files)
 
-        super(DistributeBuildDescription, self).__init__(name, (copy_vcs, private_files))
+        data = (copy_vcs, private_files, replacement_build_desc)
+
+        super(DistributeBuildDescription, self).__init__(name, data)
 
     def __str__(self):
         parts = []
-        for key, (copy_vcs, private_files) in self.distributions.items():
+        for key, (copy_vcs, private_files, replacement_build_desc) in self.distributions.items():
             inner = []
             if copy_vcs:
                 inner.append('vcs')
-            if private_files:
+            if replacement_build_desc:
+                inner.append('_')
+            elif private_files:
                 inner.append('-%d'%len(private_files))
             else:
                 inner.append('*')
             parts.append('%s[%s]'%(key, ','.join(inner)))
         return '%s: %s'%(self.__class__.__name__, ', '.join(sorted(parts)))
 
-    def add_distribution(self, name, copy_vcs=None, private_files=None):
+    def add_distribution(self, name, copy_vcs=None, private_files=None, replacement_build_desc=None):
         """Add a new named distribution.
 
         It is an error if there is already a distribution of this name.
@@ -1357,7 +1437,7 @@ class DistributeBuildDescription(DistributeAction):
         else:
             private_files = set(private_files)
 
-        self.distributions[name] = (copy_vcs, private_files)
+        self.distributions[name] = (copy_vcs, private_files, replacement_build_desc)
 
     def add_private_files(self, name, private_files):
         """Add some specific private files to distribution 'name'.
@@ -1383,20 +1463,28 @@ class DistributeBuildDescription(DistributeAction):
     def set_copy_vcs(self, name, copy_vcs):
         """Change the value of copy_vcs for distribution 'name'.
         """
-        old_copy_vcs, private_files = self.get_distribution(name)
-        self.distributions[name] = (copy_vcs, private_files)
+        old_copy_vcs, private_files, replacement_build_desc = self.get_distribution(name)
+        self.distributions[name] = (copy_vcs, private_files, replacement_build_desc)
+
+    def set_replacement_build_desc(self, name, replacement_build_desc):
+        """Change the value of replacement_build_desc for distribution 'name'.
+
+        Note that 'None' is a perfectly sensible value.
+        """
+        copy_vcs, private_files, old_replacement_build_desc = self.get_distribution(name)
+        self.distributions[name] = (copy_vcs, private_files, replacement_build_desc)
 
     def build_label(self, builder, label):
         name, target_dir = builder.get_distribution()
 
-        copy_vcs, private_files = self.distributions[name]
+        copy_vcs, private_files, replacement_build_desc = self.distributions[name]
 
         if DEBUG:
             print 'DistributeBuildDescription %s (%s VCS) to %s'%(label,
                     'without' if copy_vcs else 'with', target_dir)
 
         _actually_distribute_build_desc(builder, label, target_dir, copy_vcs,
-                                        private_files)
+                                        private_files, replacement_build_desc)
 
 class DistributePackage(DistributeAction):
     """
@@ -1493,13 +1581,25 @@ def _build_desc_label_in_domain(builder, domain, label_tag):
     if not domain:
         build_co_name, build_desc_path = builder.invocation.build_co_and_path()
     else:
-        build_desc_path = os.path.join(builder.invocation.db.root_path,
-                                       domain_subpath(domain),
-                                       '.muddle', 'Description')
-        with open(build_desc_path) as fd:
-            str = fd.readline()
-        build_co_name, build_desc_path = build_co_and_path_from_str(str.strip())
+        root_repo, build_desc = builder.invocation.db.get_subdomain_info(domain)
+        build_co_name, build_desc_path = build_co_and_path_from_str(build_desc)
+
     return Label(LabelType.Checkout, build_co_name, tag=label_tag, domain=domain)
+
+def _build_desc_inner_path(builder, label):
+    """Given a build description checkout's label, return its inner path.
+
+    So, if checkout:builds/* relates to directory src/builds and the build
+    description within that is main/01.py, then we return main/01.py
+    """
+    domain = label.domain
+    if domain:
+        root_repo, build_desc = builder.invocation.db.get_subdomain_info(domain)
+    else:
+        build_desc = builder.invocation.db.build_desc.get()
+
+    co_name, inner_path = build_co_and_path_from_str(build_desc)
+    return inner_path
 
 def _add_build_descriptions(builder, name, domains, copy_vcs=False):
     """Add all the implicated build description checkouts to our distribution.

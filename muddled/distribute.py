@@ -1338,6 +1338,8 @@ class DistributeBuildDescription(DistributeAction):
                 inner.append('vcs')
             if private_files:
                 inner.append('-%d'%len(private_files))
+            else:
+                inner.append('*')
             parts.append('%s[%s]'%(key, ','.join(inner)))
         return '%s: %s'%(self.__class__.__name__, ', '.join(sorted(parts)))
 

@@ -229,7 +229,8 @@ performs a binary release. It copies:
 
   Note that this is *not* always enough to allow deployment, and sometimes
   other support files will need to be (epxlicitly) added via the build
-  description. See `Adding extra files`_ below.
+  description. See `Adding extra checkout files in a binary distribution`_
+  below.
 
 As you might guess, if the ``-with-version`` switch is given, then it will
 also distribute the ``versions`` directory, if it exists.
@@ -678,7 +679,7 @@ role.
   description that does not distribute binaries you were not expecting.)
 
 Avoiding unnecessary GPL "propagation"
---------------------------------------
+======================================
 As we've said, muddle has to assume that "depends on" means "links to" (or the
 equivalent) when calculating GPL "propagation". Since this is not always so,
 we need a way of telling muddle when it is not.
@@ -746,7 +747,10 @@ but none of these will hurt if incorrect.
    calls, if appropriate.
 
 Build descriptions
-------------------
+==================
+
+Build description licensing
+---------------------------
 Build descriptions are a little awkward in licensing terms, as all
 distributions wish to include them.
 
@@ -782,46 +786,66 @@ If you tell muddle that your build description has a **binary** or **private**
 license, then it will not be possible to do a ``_for_gpl`` or ``_all_open``
 distribution.
 
-Adding extra files
-------------------
-When doing binary distributions, "muddle distribute" will generally include
-the necessary muddle Makefiles, so that the data in ``install/<role>/`` can be
-processed to give a deployment in the normal manner.
+There is also another solution, though:
 
-Sometimes, however, the muddle Makefile is not sufficient - typically because
-it calls out to the "original" Makefile or files from a checkout.
+Distribution specific build descriptions
+----------------------------------------
+In some cases, the full build description is just not appropriate.
 
-Thus there is a way to say that extra files should be included, for a given
-checkout, in a particular distribution::
+A typical case is when doing a ``_for_gpl`` distribution of a large and
+complex build tree, where much of it is not GPL. If the full build description
+is distributed, the recipient can only ``muddle build`` those checkouts that
+have actually been distributed, and these are likely to be buried in an
+unobvious way in the rest of the build description.
 
-  distribute_checkout_files(builder, name, label, source_files)
+The appropriate solution in this case is to provide a replacement (simpler)
+build description.
 
-In this:
+Let us consider doing ``muddle distribute _for_gpl`` of a build tree that has
+its normal build description in ``src/builds/01.py``.
 
-* ``name`` is the name of a distribution, or a wildcard string matching one or
-  more distributions (see `Distribution names and wildcards`_ below).
-* ``label`` is a checkout label. The label tag is ignored.
-* ``source_files`` is a list of extra source files, relative to the checkout
-  directory.
+To provide a build description just for that distribution, add a file called
+``_distribution/_for_gpl.py`` in the build description checkout - so the full
+path is:
 
-So, for instance::
+  ``src/builds/_distribution/_for_gpl.py``
 
-  muddled.pkgs.make.medium(builder, 'binapp', ['x86'], 'binapp-1.2')
-  distribute_package(builder, 'marmalade', package('binapp', 'x86'))
-  distribute_checkout(builder, 'marmalade', checkout('binapp-1.2'),
-                      ['Makefile', 'src/Makefile', 'src/rules'])
+If ``muddle distribute <name>`` sees a build description file called
+``_distribution/<name>.py``, that is, in directory ``_distribution`` and
+named after the distribution (don't forget the ``.py``), then instead of
+distributing the "normal" contents of the checkout, it will instead just
+distribute that file.
 
-causes the distribution "marmalade" to include the extra files as named.
+So let us assume we have a build description checkout that contains::
 
-In fact, sometimes one wants to assert this for a whole range of
-distributions, and so it is perhaps more likely that one woud write::
+    .git/
+    01.py
+    01.pyc
+    kernel.py
+    userspace.py
+    _distribution/
+        _for_gpl.py
 
-  for name in get_distributions_for(['binary']):
-    distribute_checkout(builder, name, checkout('binapp-1.2'),
-                        ['Makefile', 'src/Makefile', 'src/rules'])
+then ``muddle distribute _for_gpl`` will produce a target build description
+checkout that looks like::
 
-which loops over all the distributions that distribute anything with a
-**binary** license, and set them to distribute the extra files.
+    01.py
+
+where ``01.py`` contains the text from ``_distribution/_for_gpl.py``.
+
+.. note:: When such a substitution is performed, the VCS information for the
+   build description checkout is never copied, since it would be misleading at
+   best. Similarly, "private" files (see `Keeping parts of the build
+   description private`_) are not relevant, as the normal build description is
+   not being copied.
+
+In comparison, ``muddle distribute _source_release`` would copy all of the
+``.py`` files from the directory (and from ``_distribution`` as well), and
+might or might not copy the VCS, because there is no file called
+``_source_release.py`` in ``_distribution/``).
+
+.. note:: It is not an error if the ``_distribution`` directory does not exist
+   - it only needs to be created if you need it.
 
 Keeping parts of the build description private
 ----------------------------------------------
@@ -909,6 +933,50 @@ In summary, the *name* of the private file (or files) does not
 matter, but their API must be a single function with signature::
 
    describe_private(builder, *args, **kwargs)
+
+Refining binary distributions
+=============================
+
+Adding extra checkout files in a binary distribution
+----------------------------------------------------
+When doing binary distributions, "muddle distribute" will generally include
+the necessary muddle Makefiles, so that the data in ``install/<role>/`` can be
+processed to give a deployment in the normal manner.
+
+Sometimes, however, the muddle Makefile is not sufficient - typically because
+it calls out to the "original" Makefile or files from a checkout.
+
+Thus there is a way to say that extra files should be included, for a given
+checkout, in a particular distribution::
+
+  distribute_checkout_files(builder, name, label, source_files)
+
+In this:
+
+* ``name`` is the name of a distribution, or a wildcard string matching one or
+  more distributions (see `Distribution names and wildcards`_ below).
+* ``label`` is a checkout label. The label tag is ignored.
+* ``source_files`` is a list of extra source files, relative to the checkout
+  directory.
+
+So, for instance::
+
+  muddled.pkgs.make.medium(builder, 'binapp', ['x86'], 'binapp-1.2')
+  distribute_package(builder, 'marmalade', package('binapp', 'x86'))
+  distribute_checkout(builder, 'marmalade', checkout('binapp-1.2'),
+                      ['Makefile', 'src/Makefile', 'src/rules'])
+
+causes the distribution "marmalade" to include the extra files as named.
+
+In fact, sometimes one wants to assert this for a whole range of
+distributions, and so it is perhaps more likely that one woud write::
+
+  for name in get_distributions_for(['binary']):
+    distribute_checkout(builder, name, checkout('binapp-1.2'),
+                        ['Makefile', 'src/Makefile', 'src/rules'])
+
+which loops over all the distributions that distribute anything with a
+**binary** license, and set them to distribute the extra files.
 
 Not distributing too many binaries
 ----------------------------------
@@ -1101,8 +1169,8 @@ There is never any reason to call ``distribute_build_description`` directly,
 as ``muddle distribute`` will always override it.
 
 Similarly, there is never a reason to call ``distribute_checkout()`` on a
-build description checkout, as ``muddle distribute`` will replace the always
-override it, too.
+build description checkout, as ``muddle distribute`` will always override it,
+too.
 
 Distribute a package
 --------------------

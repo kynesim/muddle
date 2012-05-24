@@ -667,6 +667,526 @@ The following are "implicitly" GPL licensed for the given reasons:
   - package:ukogl{x86}/* depends on checkout:lgpl/*
 """)
 
+def test_build_with_clashes(root_dir):
+    with NewDirectory('build_with_clashes') as d:
+        banner('CHECK REPOSITORIES OUT, WITH CLASHES')
+        muddle(['init', 'git+file://{repo}/main'.format(repo=root.join('repo')),
+                'builds_multilicense_with_clashes/01.py'])
+        muddle(['checkout', '_all'])
+        banner('BUILD')
+        muddle([])
+        banner('STAMP VERSION')
+        muddle(['stamp', 'version'])
+        check_checkout_licenses_with_clashes(root_dir, d)
+
+def main_tests(root_dir, d):
+    """The main set of tests.
+    """
+    banner('TESTING DISTRIBUTE SOURCE RELEASE')
+    target_dir = os.path.join(root_dir, '_source_release')
+    muddle(['distribute', '_source_release', target_dir])
+    dt = DirTree(d.where, fold_dirs=['.git'])
+    dt.assert_same(target_dir, onedown=True,
+                   unwanted_files=['.git*',
+                                   'src/builds*/*.pyc',
+                                   'obj',
+                                   'install',
+                                   'deploy',
+                                   'versions',
+                                   '.muddle/instructions',
+                                   '.muddle/tags/package',
+                                   '.muddle/tags/deployment',
+                                  ])
+
+    banner('TESTING DISTRIBUTE BINARY RELEASE')
+    target_dir = os.path.join(root_dir, '_binary_release')
+    muddle(['distribute', '_binary_release', target_dir])
+    dt = DirTree(d.where, fold_dirs=['.git'])
+    dt.assert_same(target_dir, onedown=True,
+                   unwanted_files=['.git*',
+                                   'src/builds*/*.pyc',
+                                   'src/*/*.c',
+                                   'src/scripts/script.py',
+                                   # But we do want src/bsd/LICENSE.txt
+                                   # And we want each Makefile.muddle
+                                   'obj',
+                                   # And we do want install
+                                   'deploy',
+                                   'versions',
+                                   '.muddle/instructions',
+                                   # And all the package tags
+                                   '.muddle/tags/deployment',
+                                  ])
+
+    banner('TESTING DISTRIBUTE FOR GPL')
+    target_dir = os.path.join(root_dir, '_for_gpl')
+    muddle(['distribute', '_for_gpl', target_dir])
+    dt = DirTree(d.where, fold_dirs=['.git'])
+    dt.assert_same(target_dir, onedown=True,
+                   unwanted_files=['.git*',
+                                   'src/builds*/*.pyc',
+                                   # Some 'open-source' things, by propagation, but not:
+                                   'src/apache',
+                                   'src/bsd',
+                                   'src/mpl',
+                                   'src/zlib',
+                                   # No proprietary source things, they're not GPL
+                                   'src/scripts',
+                                   # No binary things, because they're not GPL
+                                   'src/binary*',
+                                   # No private things, they're very not GPL
+                                   'src/private*',
+                                   # No not licensed things, because they're not GPL,
+                                   # except for 1, by propagation
+                                   'src/not_licensed[2345]',
+                                   'obj',
+                                   'install',
+                                   'deploy',
+                                   'versions',
+                                   '.muddle/instructions',
+                                   '.muddle/tags/package',
+                                   '.muddle/tags/deployment',
+                                   '.muddle/tags/checkout/apache',
+                                   '.muddle/tags/checkout/bsd',
+                                   '.muddle/tags/checkout/mpl',
+                                   '.muddle/tags/checkout/zlib',
+                                   '.muddle/tags/checkout/scripts',
+                                   '.muddle/tags/checkout/binary*',
+                                   '.muddle/tags/checkout/not_licensed[2345]',
+                                   '.muddle/tags/checkout/private*',
+                                   # Nothing in the subdomains is GPL
+                                   'domains',
+                                  ])
+    # Check the "private" build description file has been replaced
+    assert not same_content(d.join(target_dir, 'src', 'builds_multilicense', 'private.py'),
+                        PRIVATE_BUILD_FILE)
+
+    banner('TESTING DISTRIBUTE FOR ALL OPEN')
+    target_dir = os.path.join(root_dir, '_all_open')
+    muddle(['distribute', '_all_open', target_dir])
+    dt = DirTree(d.where, fold_dirs=['.git'])
+    dt.assert_same(target_dir, onedown=True,
+                   unwanted_files=['.git*',
+                                   'src/builds*/*.pyc',
+                                   # No proprietary source things, they're not open
+                                   'src/scripts',
+                                   # No binary things, they're not open
+                                   'src/binary*',
+                                   # No private things, they're very not open
+                                   'src/private*',
+                                   'domains/subdomain/src/manhattan',
+                                   # No not licensed things, because they're not open,
+                                   # except for 1, by propagation from GPL
+                                   'src/not_licensed[2345]',
+                                   'obj',
+                                   'install',
+                                   'deploy',
+                                   'versions',
+                                   '.muddle/instructions',
+                                   '.muddle/tags/package',
+                                   '.muddle/tags/deployment',
+                                   '.muddle/tags/checkout/scripts',
+                                   '.muddle/tags/checkout/binary*',
+                                   '.muddle/tags/checkout/not_licensed[2345]',
+                                   '.muddle/tags/checkout/private*',
+                                   # And, in our subdomain
+                                   '.muddle/tags/checkout/manhattan',
+                                  ])
+    # Check the "private" build description file has been replaced
+    assert not same_content(d.join(target_dir, 'src', 'builds_multilicense', 'private.py'),
+                        PRIVATE_BUILD_FILE)
+
+    banner('TESTING DISTRIBUTE FOR BY LICENSE')
+    target_dir = os.path.join(root_dir, '_by_license')
+    muddle(['distribute', '_by_license', target_dir])
+    dt = DirTree(d.where, fold_dirs=['.git'])
+    dt.assert_same(target_dir, onedown=True,
+                   unwanted_files=['.git*',
+                                   'src/builds*/*.pyc',
+                                   # No private things, they're private
+                                   'src/private*',
+                                   'obj/*/x86-private',
+                                   'install/x86-private',
+                                   # No not licensed things, because they're not
+                                   # licensed(!), except for 1, by propagation from GPL
+                                   'src/not_licensed[2345]',
+                                   #
+                                   'src/binary*/*.c',   # just the muddle makefiles
+                                   #
+                                   'obj',
+                                   'deploy',
+                                   'versions',
+                                   '.muddle/instructions',
+                                   '.muddle/tags/checkout/private*',
+                                   '.muddle/tags/checkout/not_licensed[2345]',
+                                   '.muddle/tags/package/private*',
+                                   '.muddle/tags/package/not_licensed*',
+                                   # No package tags for source-only things
+                                   '.muddle/tags/package/apache',
+                                   '.muddle/tags/package/bsd',
+                                   '.muddle/tags/package/gpl*',
+                                   '.muddle/tags/package/lgpl',
+                                   '.muddle/tags/package/mpl',
+                                   '.muddle/tags/package/ukogl',
+                                   '.muddle/tags/package/zlib',
+                                   '.muddle/tags/package/gnulibc',
+                                   '.muddle/tags/package/linux',
+                                   '.muddle/tags/package/busybox',
+                                   '.muddle/tags/package/scripts',
+                                   # We don't do deployment...
+                                   '.muddle/tags/deployment',
+                                   # And, in our subdomain
+                                   'domains/subdomain/src/manhattan',
+                                   'domains/subdomain/install',
+                                   'domains/subdomain/.muddle/tags/checkout/manhattan',
+                                   'domains/subdomain/.muddle/tags/package',
+                                   'domains/subdomain/.muddle/tags/deploy',
+                                  ])
+    # Check the "private" build description file has been replaced
+    assert not same_content(d.join(target_dir, 'src', 'builds_multilicense', 'private.py'),
+                        PRIVATE_BUILD_FILE)
+
+    banner('TESTING DISTRIBUTE FOR JUST OPEN SRC AND BIN')
+    # As it says in the build description, this is an odd one, and
+    # not a "proper" useful distribution. We've selected all
+    # checkouts that are 'open-source' (not including 'gpl'), and also
+    # asked for a binary distribution (the "install/" directory)
+    # for their packages. However, since the distribution code can't
+    # know who put what into "install/x86/", we also end up distributing
+    # stuff that is *not* from 'open-source' checkouts. This is not a
+    # bug, it is a limitation of the mechanism, and the correct work
+    # around would be to split the build up into more roles of the
+    # correct granularity.
+    # So why this test? Mainly to show the "problem" and verify that
+    # it is indeed working as expected...
+    target_dir = os.path.join(root_dir, 'just_open_src_and_bin')
+    muddle(['distribute', 'just_open_src_and_bin', target_dir])
+    dt = DirTree(d.where, fold_dirs=['.git'])
+    dt.assert_same(target_dir, onedown=True,
+                   unwanted_files=['.git*',
+                                   'src/builds*/*.pyc',
+                                   # No proprietary or binary or private things
+                                   'src/scripts',
+                                   'src/binary*',
+                                   'src/private*',
+                                   'domains/subdomain/src/manhattan',
+                                   # No GPL things
+                                   'src/gpl*',
+                                   'src/lgpl',
+                                   'src/gnulibc',
+                                   'src/linux',
+                                   'src/busybox',
+                                   # No not licensed things, because they're not open
+                                   'src/not_licensed*',
+                                   # But we end up with all of install/x86 - see above
+                                   # We don't want any of install/x86-private, of course
+                                   'install/x86-private',
+                                   'obj',
+                                   'deploy',
+                                   'versions',
+                                   '.muddle/instructions',
+                                   '.muddle/tags/checkout/binary*',
+                                   '.muddle/tags/checkout/busybox',
+                                   '.muddle/tags/checkout/gnulibc',
+                                   '.muddle/tags/checkout/gpl*',
+                                   '.muddle/tags/checkout/lgpl',
+                                   '.muddle/tags/checkout/linux',
+                                   '.muddle/tags/checkout/not_licensed*',
+                                   '.muddle/tags/checkout/scripts',
+                                   '.muddle/tags/checkout/private*',
+                                   '.muddle/tags/package/binary*',
+                                   '.muddle/tags/package/busybox',
+                                   '.muddle/tags/package/gnulibc',
+                                   '.muddle/tags/package/gpl*',
+                                   '.muddle/tags/package/lgpl',
+                                   '.muddle/tags/package/linux',
+                                   '.muddle/tags/package/scripts',
+                                   '.muddle/tags/package/not_licensed*',
+                                   '.muddle/tags/package/private*',
+                                   '.muddle/tags/deployment',
+                                   # And, in our subdomain
+                                   'domains/subdomain/src/manhattan',
+                                   'domains/subdomain/.muddle/tags/checkout/manhattan',
+                                   'domains/subdomain/.muddle/tags/package/manhattan',
+                                  ])
+    # Check the "private" build description file has been replaced
+    assert not same_content(d.join(target_dir, 'src', 'builds_multilicense', 'private.py'),
+                        PRIVATE_BUILD_FILE)
+
+    # See, it does say that it is doing what we asked...
+    err, text = captured_muddle(['-n', 'distribute', 'just_open_src_and_bin', '../fred'])
+    check_text(text, """\
+Writing distribution just_open_src_and_bin to ../fred
+checkout:apache/distributed                DistributeCheckout: just_open_src_and_bin[*]
+checkout:bsd/distributed                   DistributeCheckout: just_open_src_and_bin[*]
+checkout:builds_multilicense/distributed   DistributeBuildDescription: _all_open[-1], _by_license[-1], _for_gpl[-1], just_open_src_and_bin[-1]
+checkout:mpl/distributed                   DistributeCheckout: just_open_src_and_bin[*]
+checkout:ukogl/distributed                 DistributeCheckout: just_open_src_and_bin[*]
+checkout:zlib/distributed                  DistributeCheckout: just_open_src_and_bin[*]
+checkout:(subdomain)builds/distributed     DistributeBuildDescription: just_open_src_and_bin[*]
+checkout:(subdomain)xyzlib/distributed     DistributeCheckout: just_open_src_and_bin[*]
+package:apache{x86}/distributed            DistributePackage: just_open_src_and_bin[install]
+package:bsd{x86}/distributed               DistributePackage: just_open_src_and_bin[install]
+package:mpl{x86}/distributed               DistributePackage: just_open_src_and_bin[install]
+package:ukogl{x86}/distributed             DistributePackage: just_open_src_and_bin[install]
+package:zlib{x86}/distributed              DistributePackage: just_open_src_and_bin[install]
+package:(subdomain)xyzlib{x86}/distributed DistributePackage: just_open_src_and_bin[install]
+""")
+
+    banner('TESTING DISTRIBUTE FOR BINARY AND PRIVATE SOURCE')
+    # That's "source for checkouts with binary and private licenses",
+    # not "binaries and private-source".
+    target_dir = os.path.join(root_dir, 'binary_and_private_source')
+    muddle(['distribute', 'binary_and_private_source', target_dir])
+    dt = DirTree(d.where, fold_dirs=['.git'])
+    dt.assert_same(target_dir, onedown=True,
+                   unwanted_files=['.git*',
+                                   'src/builds*/*.pyc',
+                                   # No open things (including 'gpl')
+                                   'src/apache',
+                                   'src/bsd',
+                                   'src/busybox',
+                                   'src/gnulibc',
+                                   'src/gpl*',
+                                   'src/lgpl',
+                                   'src/linux',
+                                   'src/mpl',
+                                   'src/ukogl',
+                                   'src/zlib',
+                                   # No not licensed things
+                                   'src/not_licensed*',
+                                   # No proprietary sources
+                                   'src/scripts',
+                                   # No binaries
+                                   'obj',
+                                   'install',
+                                   #
+                                   'deploy',
+                                   'versions',
+                                   #
+                                   '.muddle/instructions',
+                                   '.muddle/tags/checkout/apache',
+                                   '.muddle/tags/checkout/bsd',
+                                   '.muddle/tags/checkout/busybox',
+                                   '.muddle/tags/checkout/gnulibc',
+                                   '.muddle/tags/checkout/gpl*',
+                                   '.muddle/tags/checkout/lgpl',
+                                   '.muddle/tags/checkout/linux',
+                                   '.muddle/tags/checkout/mpl',
+                                   '.muddle/tags/checkout/ukogl',
+                                   '.muddle/tags/checkout/zlib',
+                                   '.muddle/tags/checkout/not_licensed*',
+                                   '.muddle/tags/checkout/scripts',
+                                   # No package tags because we're only doing source
+                                   '.muddle/tags/package',
+                                   # We don't do deployment...
+                                   '.muddle/tags/deployment',
+                                   # And, in our subdomain
+                                   'domains/subdomain/src/xyzlib',
+                                   'domains/subdomain/.muddle/tags/checkout/xyzlib',
+                                  ])
+    # Check the "private" build description file has NOT been replaced
+    assert same_content(d.join(target_dir, 'src', 'builds_multilicense', 'private.py'),
+                        PRIVATE_BUILD_FILE)
+
+    banner('TESTING DISTRIBUTE FOR BINARY AND PRIVATE INSTALL')
+    # Again, since we're distributing 'install/', we don't have enough
+    # information to discriminate *what* from 'install/' gets distributed.
+    # So this is, again, a test of what we can't do as well as what we can.
+    target_dir = os.path.join(root_dir, 'binary_and_private_install')
+    muddle(['distribute', 'binary_and_private_install', target_dir])
+    dt = DirTree(d.where, fold_dirs=['.git'])
+    dt.assert_same(target_dir, onedown=True,
+                   unwanted_files=['.git*',
+                                   'src/builds*/*.pyc',
+                                   # No open things (including 'gpl')
+                                   'src/apache',
+                                   'src/bsd',
+                                   'src/busybox',
+                                   'src/gnulibc',
+                                   'src/gpl*',
+                                   'src/lgpl',
+                                   'src/linux',
+                                   'src/mpl',
+                                   'src/ukogl',
+                                   'src/zlib',
+                                   # No proprietary source things
+                                   'src/scripts',
+                                   # No not licensed things
+                                   'src/not_licensed*',
+                                   # No source files
+                                   'src/*.c',
+                                   # All the binaries (because distribute can't
+                                   # tell which are whose in install/x86)
+                                   #
+                                   'obj',
+                                   'deploy',
+                                   'versions',
+                                   #
+                                   '.muddle/tags/checkout/apache',
+                                   '.muddle/tags/checkout/bsd',
+                                   '.muddle/tags/checkout/busybox',
+                                   '.muddle/tags/checkout/gnulibc',
+                                   '.muddle/tags/checkout/gpl*',
+                                   '.muddle/tags/checkout/lgpl',
+                                   '.muddle/tags/checkout/linux',
+                                   '.muddle/tags/checkout/mpl',
+                                   '.muddle/tags/checkout/ukogl',
+                                   '.muddle/tags/checkout/zlib',
+                                   '.muddle/tags/checkout/scripts',
+                                   '.muddle/tags/checkout/not_licensed*',
+                                   # No package tags for unwanted things
+                                   '.muddle/tags/package/apache',
+                                   '.muddle/tags/package/bsd',
+                                   '.muddle/tags/package/busybox',
+                                   '.muddle/tags/package/gnulibc',
+                                   '.muddle/tags/package/gpl*',
+                                   '.muddle/tags/package/lgpl',
+                                   '.muddle/tags/package/linux',
+                                   '.muddle/tags/package/mpl',
+                                   '.muddle/tags/package/ukogl',
+                                   '.muddle/tags/package/zlib',
+                                   '.muddle/tags/package/not_licensed*',
+                                   '.muddle/tags/package/scripts',
+                                   # We don't do deployment...
+                                   '.muddle/tags/deployment',
+                                   # And, in our subdomain
+                                   'domains/subdomain/src/xyzlib',
+                                   'domains/subdomain/.muddle/tags/checkout/xyzlib',
+                                   'domains/subdomain/.muddle/tags/package/xyzlib',
+                                   'domains/subdomain/install/x86',
+                                  ])
+    # Check the "private" build description file has NOT been replaced
+    assert same_content(d.join(target_dir, 'src', 'builds_multilicense', 'private.py'),
+                        PRIVATE_BUILD_FILE)
+
+    banner('TESTING DISTRIBUTE FOR BY LICENSE OF SECOND DEPLOYMENT')
+    # Note that this WILL copy too much into the install directory, as
+    # we can't discriminate on just things built for binary1
+    target_dir = os.path.join(root_dir, '_by_license_something')
+    muddle(['distribute', '_by_license', target_dir, 'deployment:something'])
+    dt = DirTree(d.where, fold_dirs=['.git'])
+    dt.assert_same(target_dir, onedown=True,
+                   unwanted_files=['.git*',
+                                   'src/builds*/*.pyc',
+                                   'src/apache',
+                                   'src/bsd',
+                                   'src/busybox',
+                                   'src/gnulibc',
+                                   'src/gpl*',
+                                   'src/lgpl',
+                                   'src/linux',
+                                   'src/ukogl',
+                                   'src/binary[2-5]',
+                                   'src/binary1/*.c',   # just the muddle makefile
+                                   'src/not_licensed*',
+                                   'src/private*',
+                                   #
+                                   'obj/*/x86-private',
+                                   'install/x86-private',
+                                   #
+                                   'obj',
+                                   'deploy',
+                                   'versions',
+                                   '.muddle/instructions',
+                                   '.muddle/tags/checkout/apache',
+                                   '.muddle/tags/checkout/bsd',
+                                   '.muddle/tags/checkout/gpl*',
+                                   '.muddle/tags/checkout/lgpl',
+                                   '.muddle/tags/checkout/ukogl',
+                                   '.muddle/tags/checkout/gnulibc',
+                                   '.muddle/tags/checkout/linux',
+                                   '.muddle/tags/checkout/busybox',
+                                   '.muddle/tags/checkout/private*',
+                                   '.muddle/tags/checkout/binary[2-5]',
+                                   '.muddle/tags/checkout/not_licensed*',
+                                   #
+                                   '.muddle/tags/package/binary[2-5]',
+                                   '.muddle/tags/package/private*',
+                                   '.muddle/tags/package/not_licensed*',
+                                   '.muddle/tags/package/apache',
+                                   '.muddle/tags/package/bsd',
+                                   '.muddle/tags/package/gpl*',
+                                   '.muddle/tags/package/lgpl',
+                                   '.muddle/tags/package/mpl',
+                                   '.muddle/tags/package/zlib',
+                                   '.muddle/tags/package/ukogl',
+                                   '.muddle/tags/package/gnulibc',
+                                   '.muddle/tags/package/linux',
+                                   '.muddle/tags/package/busybox',
+                                   '.muddle/tags/package/scripts',
+                                   # We don't do deployment...
+                                   '.muddle/tags/deployment',
+                                   # And, in our subdomain
+                                   'domains',
+                                  ])
+    # Check the "private" build description file has been replaced
+    assert not same_content(d.join(target_dir, 'src', 'builds_multilicense', 'private.py'),
+                            PRIVATE_BUILD_FILE)
+
+def subsequent_tests(root_dir, d):
+    """Tests that go after the main tests
+
+    These tests need to go after other tests as we are amending the build
+    description directory
+    """
+
+    banner('TESTING DISTRIBUTE FOR GPL WITH _for_gpl BUILD DESCRIPTION')
+    buckaroo_banzai_quote = '# Remember - wherever you go, there you are.\n'
+    # Add our new _for_gpl build description to the top level build
+    with Directory(os.path.join('src', 'builds_multilicense')):
+        with NewDirectory('_distribution'):
+            touch('_for_gpl.py', buckaroo_banzai_quote)
+    # And to the subdomain
+    with Directory(os.path.join('domains', 'subdomain', 'src', 'builds')):
+        with NewDirectory('_distribution'):
+            touch('_for_gpl.py', buckaroo_banzai_quote)
+    target_dir = os.path.join(root_dir, '_for_gpl')
+    muddle(['distribute', '_for_gpl', target_dir])
+    dt = DirTree(d.where, fold_dirs=['.git'])
+    dt.assert_same(target_dir, onedown=True,
+                   unwanted_files=['.git*',
+                                   'src/builds*/*.pyc',
+                                   # The _distribution directory should have disappeared
+                                   'src/builds*/_distribution',
+                                   # and we should not have copied the private file
+                                   'src/builds*/private.py',
+                                   # Some 'open-source' things, by propagation, but not:
+                                   'src/apache',
+                                   'src/bsd',
+                                   'src/mpl',
+                                   'src/zlib',
+                                   # No proprietary source things, they're not GPL
+                                   'src/scripts',
+                                   # No binary things, because they're not GPL
+                                   'src/binary*',
+                                   # No private things, they're very not GPL
+                                   'src/private*',
+                                   # No not licensed things, because they're not GPL,
+                                   # except for 1, by propagation
+                                   'src/not_licensed[2345]',
+                                   'obj',
+                                   'install',
+                                   'deploy',
+                                   'versions',
+                                   '.muddle/instructions',
+                                   '.muddle/tags/package',
+                                   '.muddle/tags/deployment',
+                                   '.muddle/tags/checkout/apache',
+                                   '.muddle/tags/checkout/bsd',
+                                   '.muddle/tags/checkout/mpl',
+                                   '.muddle/tags/checkout/zlib',
+                                   '.muddle/tags/checkout/scripts',
+                                   '.muddle/tags/checkout/binary*',
+                                   '.muddle/tags/checkout/not_licensed[2345]',
+                                   '.muddle/tags/checkout/private*',
+                                   # Nothing in the subdomains is GPL
+                                   'domains',
+                                  ])
+    # Check the build description has been replaced by the _for_gpl text
+    assert same_content(d.join(target_dir, 'src', 'builds_multilicense', '01.py'),
+                        buckaroo_banzai_quote)
+
 def main(args):
 
     # Working in a local transient directory seems to work OK
@@ -689,16 +1209,7 @@ def main(args):
         banner('MAKE REPOSITORIES')
         make_repos(root_dir)
 
-        with NewDirectory('build_with_clashes') as d:
-            banner('CHECK REPOSITORIES OUT, WITH CLASHES')
-            muddle(['init', 'git+file://{repo}/main'.format(repo=root.join('repo')),
-                    'builds_multilicense_with_clashes/01.py'])
-            muddle(['checkout', '_all'])
-            banner('BUILD')
-            muddle([])
-            banner('STAMP VERSION')
-            muddle(['stamp', 'version'])
-            check_checkout_licenses_with_clashes(root_dir, d)
+        ###test_build_with_clashes(root_dir)
 
         with NewDirectory('build') as d:
             banner('CHECK REPOSITORIES OUT, WITHOUT CLASHES')
@@ -711,504 +1222,17 @@ def main(args):
             muddle(['stamp', 'version'])
             check_checkout_licenses_without_clashes(root_dir, d)
 
+        with Directory('build') as d:
             # And we can try distributing some things
+            ###main_tests(root_dir, d)
+            pass
 
-            banner('TESTING DISTRIBUTE SOURCE RELEASE')
-            target_dir = os.path.join(root_dir, '_source_release')
-            muddle(['distribute', '_source_release', target_dir])
-            dt = DirTree(d.where, fold_dirs=['.git'])
-            dt.assert_same(target_dir, onedown=True,
-                           unwanted_files=['.git*',
-                                           'src/builds*/*.pyc',
-                                           'obj',
-                                           'install',
-                                           'deploy',
-                                           'versions',
-                                           '.muddle/instructions',
-                                           '.muddle/tags/package',
-                                           '.muddle/tags/deployment',
-                                          ])
-
-            banner('TESTING DISTRIBUTE BINARY RELEASE')
-            target_dir = os.path.join(root_dir, '_binary_release')
-            muddle(['distribute', '_binary_release', target_dir])
-            dt = DirTree(d.where, fold_dirs=['.git'])
-            dt.assert_same(target_dir, onedown=True,
-                           unwanted_files=['.git*',
-                                           'src/builds*/*.pyc',
-                                           'src/*/*.c',
-                                           'src/scripts/script.py',
-                                           # But we do want src/bsd/LICENSE.txt
-                                           # And we want each Makefile.muddle
-                                           'obj',
-                                           # And we do want install
-                                           'deploy',
-                                           'versions',
-                                           '.muddle/instructions',
-                                           # And all the package tags
-                                           '.muddle/tags/deployment',
-                                          ])
-
-            banner('TESTING DISTRIBUTE FOR GPL')
-            target_dir = os.path.join(root_dir, '_for_gpl')
-            muddle(['distribute', '_for_gpl', target_dir])
-            dt = DirTree(d.where, fold_dirs=['.git'])
-            dt.assert_same(target_dir, onedown=True,
-                           unwanted_files=['.git*',
-                                           'src/builds*/*.pyc',
-                                           # Some 'open-source' things, by propagation, but not:
-                                           'src/apache',
-                                           'src/bsd',
-                                           'src/mpl',
-                                           'src/zlib',
-                                           # No proprietary source things, they're not GPL
-                                           'src/scripts',
-                                           # No binary things, because they're not GPL
-                                           'src/binary*',
-                                           # No private things, they're very not GPL
-                                           'src/private*',
-                                           # No not licensed things, because they're not GPL,
-                                           # except for 1, by propagation
-                                           'src/not_licensed[2345]',
-                                           'obj',
-                                           'install',
-                                           'deploy',
-                                           'versions',
-                                           '.muddle/instructions',
-                                           '.muddle/tags/package',
-                                           '.muddle/tags/deployment',
-                                           '.muddle/tags/checkout/apache',
-                                           '.muddle/tags/checkout/bsd',
-                                           '.muddle/tags/checkout/mpl',
-                                           '.muddle/tags/checkout/zlib',
-                                           '.muddle/tags/checkout/scripts',
-                                           '.muddle/tags/checkout/binary*',
-                                           '.muddle/tags/checkout/not_licensed[2345]',
-                                           '.muddle/tags/checkout/private*',
-                                           # Nothing in the subdomains is GPL
-                                           'domains',
-                                          ])
-            # Check the "private" build description file has been replaced
-            assert not same_content(d.join(target_dir, 'src', 'builds_multilicense', 'private.py'),
-                                PRIVATE_BUILD_FILE)
-
-            banner('TESTING DISTRIBUTE FOR ALL OPEN')
-            target_dir = os.path.join(root_dir, '_all_open')
-            muddle(['distribute', '_all_open', target_dir])
-            dt = DirTree(d.where, fold_dirs=['.git'])
-            dt.assert_same(target_dir, onedown=True,
-                           unwanted_files=['.git*',
-                                           'src/builds*/*.pyc',
-                                           # No proprietary source things, they're not open
-                                           'src/scripts',
-                                           # No binary things, they're not open
-                                           'src/binary*',
-                                           # No private things, they're very not open
-                                           'src/private*',
-                                           'domains/subdomain/src/manhattan',
-                                           # No not licensed things, because they're not open,
-                                           # except for 1, by propagation from GPL
-                                           'src/not_licensed[2345]',
-                                           'obj',
-                                           'install',
-                                           'deploy',
-                                           'versions',
-                                           '.muddle/instructions',
-                                           '.muddle/tags/package',
-                                           '.muddle/tags/deployment',
-                                           '.muddle/tags/checkout/scripts',
-                                           '.muddle/tags/checkout/binary*',
-                                           '.muddle/tags/checkout/not_licensed[2345]',
-                                           '.muddle/tags/checkout/private*',
-                                           # And, in our subdomain
-                                           '.muddle/tags/checkout/manhattan',
-                                          ])
-            # Check the "private" build description file has been replaced
-            assert not same_content(d.join(target_dir, 'src', 'builds_multilicense', 'private.py'),
-                                PRIVATE_BUILD_FILE)
-
-            banner('TESTING DISTRIBUTE FOR BY LICENSE')
-            target_dir = os.path.join(root_dir, '_by_license')
-            muddle(['distribute', '_by_license', target_dir])
-            dt = DirTree(d.where, fold_dirs=['.git'])
-            dt.assert_same(target_dir, onedown=True,
-                           unwanted_files=['.git*',
-                                           'src/builds*/*.pyc',
-                                           # No private things, they're private
-                                           'src/private*',
-                                           'obj/*/x86-private',
-                                           'install/x86-private',
-                                           # No not licensed things, because they're not
-                                           # licensed(!), except for 1, by propagation from GPL
-                                           'src/not_licensed[2345]',
-                                           #
-                                           'src/binary*/*.c',   # just the muddle makefiles
-                                           #
-                                           'obj',
-                                           'deploy',
-                                           'versions',
-                                           '.muddle/instructions',
-                                           '.muddle/tags/checkout/private*',
-                                           '.muddle/tags/checkout/not_licensed[2345]',
-                                           '.muddle/tags/package/private*',
-                                           '.muddle/tags/package/not_licensed*',
-                                           # No package tags for source-only things
-                                           '.muddle/tags/package/apache',
-                                           '.muddle/tags/package/bsd',
-                                           '.muddle/tags/package/gpl*',
-                                           '.muddle/tags/package/lgpl',
-                                           '.muddle/tags/package/mpl',
-                                           '.muddle/tags/package/ukogl',
-                                           '.muddle/tags/package/zlib',
-                                           '.muddle/tags/package/gnulibc',
-                                           '.muddle/tags/package/linux',
-                                           '.muddle/tags/package/busybox',
-                                           '.muddle/tags/package/scripts',
-                                           # We don't do deployment...
-                                           '.muddle/tags/deployment',
-                                           # And, in our subdomain
-                                           'domains/subdomain/src/manhattan',
-                                           'domains/subdomain/install',
-                                           'domains/subdomain/.muddle/tags/checkout/manhattan',
-                                           'domains/subdomain/.muddle/tags/package',
-                                           'domains/subdomain/.muddle/tags/deploy',
-                                          ])
-            # Check the "private" build description file has been replaced
-            assert not same_content(d.join(target_dir, 'src', 'builds_multilicense', 'private.py'),
-                                PRIVATE_BUILD_FILE)
-
-            banner('TESTING DISTRIBUTE FOR JUST OPEN SRC AND BIN')
-            # As it says in the build description, this is an odd one, and
-            # not a "proper" useful distribution. We've selected all
-            # checkouts that are 'open-source' (not including 'gpl'), and also
-            # asked for a binary distribution (the "install/" directory)
-            # for their packages. However, since the distribution code can't
-            # know who put what into "install/x86/", we also end up distributing
-            # stuff that is *not* from 'open-source' checkouts. This is not a
-            # bug, it is a limitation of the mechanism, and the correct work
-            # around would be to split the build up into more roles of the
-            # correct granularity.
-            # So why this test? Mainly to show the "problem" and verify that
-            # it is indeed working as expected...
-            target_dir = os.path.join(root_dir, 'just_open_src_and_bin')
-            muddle(['distribute', 'just_open_src_and_bin', target_dir])
-            dt = DirTree(d.where, fold_dirs=['.git'])
-            dt.assert_same(target_dir, onedown=True,
-                           unwanted_files=['.git*',
-                                           'src/builds*/*.pyc',
-                                           # No proprietary or binary or private things
-                                           'src/scripts',
-                                           'src/binary*',
-                                           'src/private*',
-                                           'domains/subdomain/src/manhattan',
-                                           # No GPL things
-                                           'src/gpl*',
-                                           'src/lgpl',
-                                           'src/gnulibc',
-                                           'src/linux',
-                                           'src/busybox',
-                                           # No not licensed things, because they're not open
-                                           'src/not_licensed*',
-                                           # But we end up with all of install/x86 - see above
-                                           # We don't want any of install/x86-private, of course
-                                           'install/x86-private',
-                                           'obj',
-                                           'deploy',
-                                           'versions',
-                                           '.muddle/instructions',
-                                           '.muddle/tags/checkout/binary*',
-                                           '.muddle/tags/checkout/busybox',
-                                           '.muddle/tags/checkout/gnulibc',
-                                           '.muddle/tags/checkout/gpl*',
-                                           '.muddle/tags/checkout/lgpl',
-                                           '.muddle/tags/checkout/linux',
-                                           '.muddle/tags/checkout/not_licensed*',
-                                           '.muddle/tags/checkout/scripts',
-                                           '.muddle/tags/checkout/private*',
-                                           '.muddle/tags/package/binary*',
-                                           '.muddle/tags/package/busybox',
-                                           '.muddle/tags/package/gnulibc',
-                                           '.muddle/tags/package/gpl*',
-                                           '.muddle/tags/package/lgpl',
-                                           '.muddle/tags/package/linux',
-                                           '.muddle/tags/package/scripts',
-                                           '.muddle/tags/package/not_licensed*',
-                                           '.muddle/tags/package/private*',
-                                           '.muddle/tags/deployment',
-                                           # And, in our subdomain
-                                           'domains/subdomain/src/manhattan',
-                                           'domains/subdomain/.muddle/tags/checkout/manhattan',
-                                           'domains/subdomain/.muddle/tags/package/manhattan',
-                                          ])
-            # Check the "private" build description file has been replaced
-            assert not same_content(d.join(target_dir, 'src', 'builds_multilicense', 'private.py'),
-                                PRIVATE_BUILD_FILE)
-
-            # See, it does say that it is doing what we asked...
-            err, text = captured_muddle(['-n', 'distribute', 'just_open_src_and_bin', '../fred'])
-            check_text(text, """\
-Writing distribution just_open_src_and_bin to ../fred
-checkout:apache/distributed                DistributeCheckout: just_open_src_and_bin[*]
-checkout:bsd/distributed                   DistributeCheckout: just_open_src_and_bin[*]
-checkout:builds_multilicense/distributed   DistributeBuildDescription: _all_open[-1], _by_license[-1], _for_gpl[-1], just_open_src_and_bin[-1]
-checkout:mpl/distributed                   DistributeCheckout: just_open_src_and_bin[*]
-checkout:ukogl/distributed                 DistributeCheckout: just_open_src_and_bin[*]
-checkout:zlib/distributed                  DistributeCheckout: just_open_src_and_bin[*]
-checkout:(subdomain)builds/distributed     DistributeBuildDescription: just_open_src_and_bin[]
-checkout:(subdomain)xyzlib/distributed     DistributeCheckout: just_open_src_and_bin[*]
-package:apache{x86}/distributed            DistributePackage: just_open_src_and_bin[install]
-package:bsd{x86}/distributed               DistributePackage: just_open_src_and_bin[install]
-package:mpl{x86}/distributed               DistributePackage: just_open_src_and_bin[install]
-package:ukogl{x86}/distributed             DistributePackage: just_open_src_and_bin[install]
-package:zlib{x86}/distributed              DistributePackage: just_open_src_and_bin[install]
-package:(subdomain)xyzlib{x86}/distributed DistributePackage: just_open_src_and_bin[install]
-""")
-
-            banner('TESTING DISTRIBUTE FOR BINARY AND PRIVATE SOURCE')
-            # That's "source for checkouts with binary and private licenses",
-            # not "binaries and private-source".
-            target_dir = os.path.join(root_dir, 'binary_and_private_source')
-            muddle(['distribute', 'binary_and_private_source', target_dir])
-            dt = DirTree(d.where, fold_dirs=['.git'])
-            dt.assert_same(target_dir, onedown=True,
-                           unwanted_files=['.git*',
-                                           'src/builds*/*.pyc',
-                                           # No open things (including 'gpl')
-                                           'src/apache',
-                                           'src/bsd',
-                                           'src/busybox',
-                                           'src/gnulibc',
-                                           'src/gpl*',
-                                           'src/lgpl',
-                                           'src/linux',
-                                           'src/mpl',
-                                           'src/ukogl',
-                                           'src/zlib',
-                                           # No not licensed things
-                                           'src/not_licensed*',
-                                           # No proprietary sources
-                                           'src/scripts',
-                                           # No binaries
-                                           'obj',
-                                           'install',
-                                           #
-                                           'deploy',
-                                           'versions',
-                                           #
-                                           '.muddle/instructions',
-                                           '.muddle/tags/checkout/apache',
-                                           '.muddle/tags/checkout/bsd',
-                                           '.muddle/tags/checkout/busybox',
-                                           '.muddle/tags/checkout/gnulibc',
-                                           '.muddle/tags/checkout/gpl*',
-                                           '.muddle/tags/checkout/lgpl',
-                                           '.muddle/tags/checkout/linux',
-                                           '.muddle/tags/checkout/mpl',
-                                           '.muddle/tags/checkout/ukogl',
-                                           '.muddle/tags/checkout/zlib',
-                                           '.muddle/tags/checkout/not_licensed*',
-                                           '.muddle/tags/checkout/scripts',
-                                           # No package tags because we're only doing source
-                                           '.muddle/tags/package',
-                                           # We don't do deployment...
-                                           '.muddle/tags/deployment',
-                                           # And, in our subdomain
-                                           'domains/subdomain/src/xyzlib',
-                                           'domains/subdomain/.muddle/tags/checkout/xyzlib',
-                                          ])
-            # Check the "private" build description file has NOT been replaced
-            assert same_content(d.join(target_dir, 'src', 'builds_multilicense', 'private.py'),
-                                PRIVATE_BUILD_FILE)
-
-            banner('TESTING DISTRIBUTE FOR BINARY AND PRIVATE INSTALL')
-            # Again, since we're distributing 'install/', we don't have enough
-            # information to discriminate *what* from 'install/' gets distributed.
-            # So this is, again, a test of what we can't do as well as what we can.
-            target_dir = os.path.join(root_dir, 'binary_and_private_install')
-            muddle(['distribute', 'binary_and_private_install', target_dir])
-            dt = DirTree(d.where, fold_dirs=['.git'])
-            dt.assert_same(target_dir, onedown=True,
-                           unwanted_files=['.git*',
-                                           'src/builds*/*.pyc',
-                                           # No open things (including 'gpl')
-                                           'src/apache',
-                                           'src/bsd',
-                                           'src/busybox',
-                                           'src/gnulibc',
-                                           'src/gpl*',
-                                           'src/lgpl',
-                                           'src/linux',
-                                           'src/mpl',
-                                           'src/ukogl',
-                                           'src/zlib',
-                                           # No proprietary source things
-                                           'src/scripts',
-                                           # No not licensed things
-                                           'src/not_licensed*',
-                                           # No source files
-                                           'src/*.c',
-                                           # All the binaries (because distribute can't
-                                           # tell which are whose in install/x86)
-                                           #
-                                           'obj',
-                                           'deploy',
-                                           'versions',
-                                           #
-                                           '.muddle/tags/checkout/apache',
-                                           '.muddle/tags/checkout/bsd',
-                                           '.muddle/tags/checkout/busybox',
-                                           '.muddle/tags/checkout/gnulibc',
-                                           '.muddle/tags/checkout/gpl*',
-                                           '.muddle/tags/checkout/lgpl',
-                                           '.muddle/tags/checkout/linux',
-                                           '.muddle/tags/checkout/mpl',
-                                           '.muddle/tags/checkout/ukogl',
-                                           '.muddle/tags/checkout/zlib',
-                                           '.muddle/tags/checkout/scripts',
-                                           '.muddle/tags/checkout/not_licensed*',
-                                           # No package tags for unwanted things
-                                           '.muddle/tags/package/apache',
-                                           '.muddle/tags/package/bsd',
-                                           '.muddle/tags/package/busybox',
-                                           '.muddle/tags/package/gnulibc',
-                                           '.muddle/tags/package/gpl*',
-                                           '.muddle/tags/package/lgpl',
-                                           '.muddle/tags/package/linux',
-                                           '.muddle/tags/package/mpl',
-                                           '.muddle/tags/package/ukogl',
-                                           '.muddle/tags/package/zlib',
-                                           '.muddle/tags/package/not_licensed*',
-                                           '.muddle/tags/package/scripts',
-                                           # We don't do deployment...
-                                           '.muddle/tags/deployment',
-                                           # And, in our subdomain
-                                           'domains/subdomain/src/xyzlib',
-                                           'domains/subdomain/.muddle/tags/checkout/xyzlib',
-                                           'domains/subdomain/.muddle/tags/package/xyzlib',
-                                           'domains/subdomain/install/x86',
-                                          ])
-            # Check the "private" build description file has NOT been replaced
-            assert same_content(d.join(target_dir, 'src', 'builds_multilicense', 'private.py'),
-                                PRIVATE_BUILD_FILE)
-
-            banner('TESTING DISTRIBUTE FOR BY LICENSE OF SECOND DEPLOYMENT')
-            # Note that this WILL copy too much into the install directory, as
-            # we can't discriminate on just things built for binary1
-            target_dir = os.path.join(root_dir, '_by_license_something')
-            muddle(['distribute', '_by_license', target_dir, 'deployment:something'])
-            dt = DirTree(d.where, fold_dirs=['.git'])
-            dt.assert_same(target_dir, onedown=True,
-                           unwanted_files=['.git*',
-                                           'src/builds*/*.pyc',
-                                           'src/apache',
-                                           'src/bsd',
-                                           'src/busybox',
-                                           'src/gnulibc',
-                                           'src/gpl*',
-                                           'src/lgpl',
-                                           'src/linux',
-                                           'src/ukogl',
-                                           'src/binary[2-5]',
-                                           'src/binary1/*.c',   # just the muddle makefile
-                                           'src/not_licensed*',
-                                           'src/private*',
-                                           #
-                                           'obj/*/x86-private',
-                                           'install/x86-private',
-                                           #
-                                           'obj',
-                                           'deploy',
-                                           'versions',
-                                           '.muddle/instructions',
-                                           '.muddle/tags/checkout/apache',
-                                           '.muddle/tags/checkout/bsd',
-                                           '.muddle/tags/checkout/gpl*',
-                                           '.muddle/tags/checkout/lgpl',
-                                           '.muddle/tags/checkout/ukogl',
-                                           '.muddle/tags/checkout/gnulibc',
-                                           '.muddle/tags/checkout/linux',
-                                           '.muddle/tags/checkout/busybox',
-                                           '.muddle/tags/checkout/private*',
-                                           '.muddle/tags/checkout/binary[2-5]',
-                                           '.muddle/tags/checkout/not_licensed*',
-                                           #
-                                           '.muddle/tags/package/binary[2-5]',
-                                           '.muddle/tags/package/private*',
-                                           '.muddle/tags/package/not_licensed*',
-                                           '.muddle/tags/package/apache',
-                                           '.muddle/tags/package/bsd',
-                                           '.muddle/tags/package/gpl*',
-                                           '.muddle/tags/package/lgpl',
-                                           '.muddle/tags/package/mpl',
-                                           '.muddle/tags/package/zlib',
-                                           '.muddle/tags/package/ukogl',
-                                           '.muddle/tags/package/gnulibc',
-                                           '.muddle/tags/package/linux',
-                                           '.muddle/tags/package/busybox',
-                                           '.muddle/tags/package/scripts',
-                                           # We don't do deployment...
-                                           '.muddle/tags/deployment',
-                                           # And, in our subdomain
-                                           'domains',
-                                          ])
-            # Check the "private" build description file has been replaced
-            assert not same_content(d.join(target_dir, 'src', 'builds_multilicense', 'private.py'),
-                                    PRIVATE_BUILD_FILE)
-
+        with Directory('build') as d:
             # WARNING ---------------------------------------------------------
             # This test needs to go after other tests as we are amending the
             # build description directory
             # WARNING ---------------------------------------------------------
-            banner('TESTING DISTRIBUTE FOR GPL WITH _for_gpl BUILD DESCRIPTION')
-            buckaroo_banzai_quote = '# Remember - wherever you go, there you are.\n'
-            with Directory(os.path.join('src', 'builds_multilicense')):
-                with NewDirectory('_distribution'):
-                    touch('_for_gpl', buckaroo_banzai_quote)
-            target_dir = os.path.join(root_dir, '_for_gpl')
-            muddle(['distribute', '_for_gpl', target_dir])
-            dt = DirTree(d.where, fold_dirs=['.git'])
-            dt.assert_same(target_dir, onedown=True,
-                           unwanted_files=['.git*',
-                                           'src/builds*/*.pyc',
-                                           # The _distribution directory should have disappeared
-                                           'src/builds*/_distribution',
-                                           # and we should not have copied the private file
-                                           'src/builds*/private.py',
-                                           # Some 'open-source' things, by propagation, but not:
-                                           'src/apache',
-                                           'src/bsd',
-                                           'src/mpl',
-                                           'src/zlib',
-                                           # No proprietary source things, they're not GPL
-                                           'src/scripts',
-                                           # No binary things, because they're not GPL
-                                           'src/binary*',
-                                           # No private things, they're very not GPL
-                                           'src/private*',
-                                           # No not licensed things, because they're not GPL,
-                                           # except for 1, by propagation
-                                           'src/not_licensed[2345]',
-                                           'obj',
-                                           'install',
-                                           'deploy',
-                                           'versions',
-                                           '.muddle/instructions',
-                                           '.muddle/tags/package',
-                                           '.muddle/tags/deployment',
-                                           '.muddle/tags/checkout/apache',
-                                           '.muddle/tags/checkout/bsd',
-                                           '.muddle/tags/checkout/mpl',
-                                           '.muddle/tags/checkout/zlib',
-                                           '.muddle/tags/checkout/scripts',
-                                           '.muddle/tags/checkout/binary*',
-                                           '.muddle/tags/checkout/not_licensed[2345]',
-                                           '.muddle/tags/checkout/private*',
-                                           # Nothing in the subdomains is GPL
-                                           'domains',
-                                          ])
-            # Check the build description has been replaced by the _for_gpl text
-            assert same_content(d.join(target_dir, 'src', 'builds_multilicense', '01.py'),
-                                buckaroo_banzai_quote)
+            subsequent_tests(root_dir, d)
 
 if __name__ == '__main__':
     args = sys.argv[1:]

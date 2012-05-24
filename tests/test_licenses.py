@@ -1153,7 +1153,62 @@ package:(subdomain)xyzlib{x86}/distributed DistributePackage: just_open_src_and_
                                           ])
             # Check the "private" build description file has been replaced
             assert not same_content(d.join(target_dir, 'src', 'builds_multilicense', 'private.py'),
-                                PRIVATE_BUILD_FILE)
+                                    PRIVATE_BUILD_FILE)
+
+            # WARNING ---------------------------------------------------------
+            # This test needs to go after other tests as we are amending the
+            # build description directory
+            # WARNING ---------------------------------------------------------
+            banner('TESTING DISTRIBUTE FOR GPL WITH _for_gpl BUILD DESCRIPTION')
+            buckaroo_banzai_quote = '# Remember - wherever you go, there you are.\n'
+            with Directory(os.path.join('src', 'builds_multilicense')):
+                with NewDirectory('_distribution'):
+                    touch('_for_gpl', buckaroo_banzai_quote)
+            target_dir = os.path.join(root_dir, '_for_gpl')
+            muddle(['distribute', '_for_gpl', target_dir])
+            dt = DirTree(d.where, fold_dirs=['.git'])
+            dt.assert_same(target_dir, onedown=True,
+                           unwanted_files=['.git*',
+                                           'src/builds*/*.pyc',
+                                           # The _distribution directory should have disappeared
+                                           'src/builds*/_distribution',
+                                           # and we should not have copied the private file
+                                           'src/builds*/private.py',
+                                           # Some 'open-source' things, by propagation, but not:
+                                           'src/apache',
+                                           'src/bsd',
+                                           'src/mpl',
+                                           'src/zlib',
+                                           # No proprietary source things, they're not GPL
+                                           'src/scripts',
+                                           # No binary things, because they're not GPL
+                                           'src/binary*',
+                                           # No private things, they're very not GPL
+                                           'src/private*',
+                                           # No not licensed things, because they're not GPL,
+                                           # except for 1, by propagation
+                                           'src/not_licensed[2345]',
+                                           'obj',
+                                           'install',
+                                           'deploy',
+                                           'versions',
+                                           '.muddle/instructions',
+                                           '.muddle/tags/package',
+                                           '.muddle/tags/deployment',
+                                           '.muddle/tags/checkout/apache',
+                                           '.muddle/tags/checkout/bsd',
+                                           '.muddle/tags/checkout/mpl',
+                                           '.muddle/tags/checkout/zlib',
+                                           '.muddle/tags/checkout/scripts',
+                                           '.muddle/tags/checkout/binary*',
+                                           '.muddle/tags/checkout/not_licensed[2345]',
+                                           '.muddle/tags/checkout/private*',
+                                           # Nothing in the subdomains is GPL
+                                           'domains',
+                                          ])
+            # Check the build description has been replaced by the _for_gpl text
+            assert same_content(d.join(target_dir, 'src', 'builds_multilicense', '01.py'),
+                                buckaroo_banzai_quote)
 
 if __name__ == '__main__':
     args = sys.argv[1:]

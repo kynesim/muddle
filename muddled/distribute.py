@@ -30,7 +30,7 @@ Actions and mechanisms relating to distributing build trees
 import os
 from fnmatch import fnmatchcase
 
-from muddled.depend import Action, Rule, Label
+from muddled.depend import Action, Rule, Label, needed_to_build, label_list_to_string
 from muddled.utils import GiveUp, MuddleBug, LabelTag, LabelType, \
         copy_without, normalise_dir, find_local_relative_root, \
         copy_file, domain_subpath
@@ -39,7 +39,7 @@ from muddled.mechanics import build_co_and_path_from_str
 from muddled.pkgs.make import MakeBuilder, deduce_makefile_name
 from muddled.licenses import get_gpl_checkouts, get_implicit_gpl_checkouts, \
         get_open_checkouts, get_binary_checkouts, get_prop_source_checkouts, \
-        checkout_license_allowed, report_license_clashes, \
+        checkout_license_allowed, report_license_clashes, get_license, \
         report_license_clashes_in_role, ALL_LICENSE_CATEGORIES
 
 DEBUG=False
@@ -492,8 +492,8 @@ def distribute_build_desc(builder, name, label, copy_vcs=False):
            DistributeBuildDescription action. All we'll copy over from the
            older action is the distribution names.
 
-    ``_distribution/<name>.py`` files
-    ----------------------------------
+    *_distribution/<name>.py files*
+
     If the build description checkout contains a file called
     ``_distribution/<name>.py``, where ``<name>`` is the 'name' of the
     distribution we're building, then that file will be distributed as
@@ -1721,10 +1721,70 @@ def _copy_versions_dir(builder, name, target_dir, copy_vcs=False):
 
     copy_without(src_dir, tgt_dir, without, preserve=True, verbose=VERBOSE)
 
+def _find_open_deps_for_gpl(builder, label):
+    """Return any open checkouts this GPL checkout depends on
+
+    (or, rather, that its packages depend on).
+
+    This is really rather inefficient, though...
+
+    Returns a set of the open-source checkouts we depend on, and a list
+    of warning messages (which we hope is empty)
+    """
+    deps = set()
+    warnings = set()
+    label = label.copy_with_tag(LabelTag.CheckedOut)
+
+    # Find the package(s) that depende on this checkout
+    package_labels = builder.invocation.packages_using_checkout(label)
+    our_packages = set()
+
+    # Typically we get the same package with different tags - turn them
+    # all into the "final" tag for packages, to find the most dependencies
+    for pkg in package_labels:
+        pkg = pkg.copy_with_tag(LabelTag.PostInstalled)
+        our_packages.add(pkg)
+
+    def add_label(lbl, pkg):
+        license = get_license(builder, lbl)
+        if license is None or license.is_open():
+            deps.add(lbl)
+        else:
+            warnings.add((lbl, pkg))
+
+    # Check what each package depends on
+    for pkg in our_packages:
+        rules_to_build = needed_to_build(builder.invocation.ruleset, pkg)
+        for rule in rules_to_build:
+            lbl = rule.target
+            if lbl.type == LabelType.Checkout:
+                if lbl.match_without_tag(label):
+                    continue
+                else:
+                    add_label(lbl, pkg)
+            elif lbl.type == LabelType.Package:
+                # Find out what checkouts that package comes from
+                checkouts = builder.invocation.checkouts_for_package(label)
+                for co in checkouts:
+                    add_label(co, pkg)
+
+    warning_messages = []
+    if warnings:
+        for lbl, pkg in warnings:
+            msg = '* %s\n' \
+                  '  - is used by %s\n' \
+                  '  - which depends on %s\n' \
+                  '  - which is "%s"'%(label, pkg, lbl, get_license(builder, lbl))
+            warning_messages.append(msg)
+    return deps, warning_messages
+
+
 def select_all_gpl_checkouts(builder, name, with_vcs, just_from=None):
     """Select all checkouts with some sort of "gpl" license for distribution
 
     (or any checkout that has had "gpl"-ness propagated to it)
+
+    (or any checkout that one of those depends on)
 
     'name' is the name of our distribution.
 
@@ -1735,14 +1795,30 @@ def select_all_gpl_checkouts(builder, name, with_vcs, just_from=None):
     """
     gpl_checkouts = get_gpl_checkouts(builder)
     imp_checkouts, because = get_implicit_gpl_checkouts(builder)
-    all_checkouts = gpl_checkouts | imp_checkouts
+
+    # Don't forget any (open) checkouts the GPL checkouts depend on
+    # (if they depend on any non-open checkouts, they're out of luck)
+    dependencies = set()
+    warning_messages = []
+    for co in sorted(gpl_checkouts):
+        deps, warnings = _find_open_deps_for_gpl(builder, co)
+        dependencies |= deps
+        warning_messages.extend(warnings)
+
+    if warning_messages:
+        print
+        print 'WARNING: SOME GPL CHECKOUTS SEEM TO DEPEND ON NON-OPEN SOURCE CHECKOUTS'
+        for msg in warning_messages:
+            print msg
+        print 'The non-open source checkouts will not be distributed.'
+        print 'END OF WARNING'
+        print
+
+    all_checkouts = gpl_checkouts | imp_checkouts | dependencies
     if just_from:
         all_checkouts = all_checkouts.intersection(just_from)
     for label in all_checkouts:
         distribute_checkout(builder, name, label, copy_vcs=with_vcs)
-
-    for co_label in all_checkouts:
-        distribute_checkout(builder, name, co_label, copy_vcs=with_vcs)
 
 def select_all_open_checkouts(builder, name, with_vcs, just_from=None):
     """Select all checkouts with an "open" license for distribution.

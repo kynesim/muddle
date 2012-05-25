@@ -634,6 +634,20 @@ It distributes
 * all checkouts to which a GPL license has "propagated" (and which have not
   explicitly said they are not affected - see `Avoiding unnecessary GPL
   "propagation"`_ below)
+* all open source checkouts on which one of the GPL licensed checkouts depend
+
+      Actually: if the package built from the GPL checkout depends directly
+      on any non-GPL open source checkouts, or if it depends directly on any
+      packages that are built from non-GPL open source checkouts, then those
+      open source checkouts will also be included.
+
+      If any of the selected dependant checkouts are not open-source, then
+      muddle will give a warning, and will not distribute the offending
+      checkouts. Occasionally, such a warning may be spurious, as muddle does
+      not know why a package depends on a checkout, and the writer of the
+      build description may have done something non-standard. The correct
+      behaviour, though, is still not to distribute the offending checkout.
+
 * any necessary build descriptions
 
 It will fail if GPL "propagation" affects checkouts that have declared

@@ -460,7 +460,7 @@ class VersionControlHandler(object):
             self.vcs_handler.reparent(actual_dir, # or self.checkout_leaf
                                       self.repo, self.options, force, verbose)
 
-    def revision_to_checkout(self, force=False, verbose=False):
+    def revision_to_checkout(self, force=False, verbose=False, show_pushd=True):
         """
         Determine a revision id for this checkout, usable to check it out again.
 
@@ -482,11 +482,14 @@ class VersionControlHandler(object):
             because they can tell that the checkout is seriously
             astray/broken.)
 
+        If 'show_pushd' is false, then we won't report as we "pushd" into the
+        checkout directory.
+
         NB: If the VCS class does not override this method, then the default
         implementation will raise a GiveUp unless 'force' is true, in which
         case it will return the string '0'.
         """
-        with utils.Directory(self.get_my_absolute_checkout_path()):
+        with utils.Directory(self.get_my_absolute_checkout_path(), show_pushd=show_pushd):
             return self.vcs_handler.revision_to_checkout(self.repo,
                                                          self.checkout_leaf,
                                                          self.options,

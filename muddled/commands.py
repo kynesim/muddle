@@ -2443,7 +2443,7 @@ class QueryCheckoutId(QueryCommand):
         except AttributeError:
             raise GiveUp("Rule for label '%s' has no VCS - cannot find its id"%label)
 
-        print vcs.revision_to_checkout()
+        print vcs.revision_to_checkout(show_pushd=False)
 
 @subcommand('query', 'dir', CAT_QUERY)
 class QueryDir(QueryCommand):

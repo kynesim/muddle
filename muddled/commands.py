@@ -3567,7 +3567,7 @@ class StampPush(Command):
             print 'Push versions directory to', versions_url
             return
 
-        with utils.Directory('versions'):
+        with utils.Directory(versions_dir):
             version_control.vcs_push_directory(versions_url)
 
         if args:

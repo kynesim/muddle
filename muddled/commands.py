@@ -2395,6 +2395,56 @@ class QueryNeededBy(QueryCommand):
         else:
             print "Nothing else needs building to build %s"%label
 
+@subcommand('query', 'checkout-id', CAT_QUERY)
+class QueryCheckoutId(QueryCommand):
+    """
+    :Syntax: muddle query checkout-id [<label>]
+
+    Report the VCS revision id (or equivalent) for the named checkout.
+
+    <label> is a label or label fragment (see "muddle help labels"). The
+    default type is 'checkout:'. If the label is a 'package:' label, and
+    that package depends upon a single checkout, then report the id for that
+    checkout.
+
+    If <label> is not given, and the current directory is within a checkout
+    directory, then use that checkout.
+
+    The id returned is that which would be written to a stamp file as the
+    checkout's revision id.
+    """
+
+    def with_build_tree(self, builder, current_dir, args):
+        if args:
+            label = self.get_label_from_fragment(builder, args,
+                                                 default_type=LabelType.Checkout)
+        else:
+            what, label, domain = builder.find_location_in_tree(current_dir)
+            if not label:
+                raise GiveUp('Cannot decide on which checkout is wanted')
+
+        if label.type == LabelType.Deployment:
+            raise GiveUp('Cannot work with a deployment label')
+        if label.type == LabelType.Package:
+            checkouts = builder.invocation.checkouts_for_package(label)
+            if len(checkouts) < 1:
+                raise GiveUp('No checkouts associated with %s'%label)
+            elif len(checkouts) > 1:
+                raise Giveup('More than one checkout associated with %s'%label)
+            else:
+                label = checkouts[0]
+
+        # Figure out its VCS
+        label = label.copy_with_tag(LabelTag.CheckedOut)
+        rule = builder.invocation.ruleset.rule_for_target(label)
+
+        try:
+            vcs = rule.action.vcs
+        except AttributeError:
+            raise GiveUp("Rule for label '%s' has no VCS - cannot find its id"%label)
+
+        print vcs.revision_to_checkout()
+
 @subcommand('query', 'dir', CAT_QUERY)
 class QueryDir(QueryCommand):
     """

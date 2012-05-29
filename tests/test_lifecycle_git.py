@@ -110,6 +110,9 @@ def test_git_lifecycle(root_d):
             git('commit -m "First stamp"')
             muddle(['stamp', 'push'])
 
+        muddle(['query', 'checkout-id', 'builds'])
+        muddle(['query', 'checkout-id', 'checkout'])
+
 
 def main(args):
 

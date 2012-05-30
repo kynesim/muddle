@@ -113,6 +113,154 @@ def test_git_lifecycle(root_d):
         muddle(['query', 'checkout-id', 'builds'])
         muddle(['query', 'checkout-id', 'checkout'])
 
+    # Still to do: add a couple more revisions to each of the two checkouts,
+    # and remember all the revision ids for later. Call the revisions of
+    # checkout checkout A, B and C
+    #
+    # So, things I intend to test:
+    #
+    # 1. That we can make some changes and push them
+    # 2. That we can add a build description that uses the revision id B
+    #    found above for checkout checkout
+    # 3. That I can "muddle init" a build using that new, revision specific
+    #    build tree
+    # 4. That doing so does not natter on about detached HEAD (and preferably
+    #    does not *have* a detached head)
+    # 5. That if I do a "muddle pull" and am already at the specified revision
+    #    it tells me that I can't do it because I am already at the specififed
+    #    revision
+    # 6. That if I do change the revision id in the build description to A
+    #    and do a "muddle pull" it tells me I'm trying to go backwards in
+    #    time. I *think* the correct thing to happen then is that either
+    #    "muddle pull" reverts to the earlier revision (which is confusing),
+    #    or I use "muddle reparent" to go to the correct revision (in which
+    #    case the message from "muddle pull" should tell me this is what to
+    #    do). I suspect this is the better solution, as "muddle reparent" means
+    #    "sort out our VCS situation to make sense".
+    # 7. That I can do a sequence something like:
+    #
+    #        * git checkout -b newbranch
+    #        * edit the build description to reflect the branch (and not the
+    #          revision id any more)
+    #        * muddle push
+    #
+    # 8. That I can set the build description to revision C (and not the
+    #    branch) and do (muddle reparent or whatever) and go to revision C.
+    # 9. That I can use git itself to go to branch A, and then "muddle pull",
+    #    and it *will* take me to revision C
+    # 10. That I can start with a different (new) build, and edit the build
+    #     description to request that branch, and then a "muddle pull" and/or
+    #     "muddle reparent" will take me to that branch.
+    #
+    # Oh, and that I can't "muddle push" if I'm at or behind the specified
+    # revision, and that I can't "muddle push" if I'm not on the specified
+    # branch, and so on.
+    #
+    # I then want a way to be able to do this for the build description as
+    # well. This requires doing something about issue 145. My current thinking
+    # is that we should support .muddle/Description and .muddle/RootRepository
+    # as they are as legacy, but either:
+    #
+    # 1. If they start with a name in square brackets, treat them as "INI"
+    #    style files, containing information similar to that held for stamp
+    #    files. The Description would contain the co_dir and co_name for the
+    #    build description, and the RootRepository would contain all the
+    #    Repository class information.
+    #
+    # or (and I prefer this second option):
+    #
+    # 2. In new build trees, have a single file, .muddle/BuildDescription,
+    #    which is identical in form to the [CHECKOUT] clause from a stamp
+    #    file, but 'repo_revision' would not be specified unless the user
+    #    actually specified a revision "by hand" for the builds checkout
+    #    (stamp files, of course, always specify a revision).
+    #
+    #    So, for example:
+    #
+    #      [CHECKOUT builds]
+    #      co_label = checkout:builds/checked_out
+    #      co_leaf = builds
+    #      repo_vcs = git
+    #      repo_from_url_string = None
+    #      repo_base_url = file:///Users/tibs/sw/m3/tests/transient/repos
+    #      repo_name = builds
+    #      repo_prefix_as_is = False
+    #
+    # "muddle init" would then allow the current way of specifying things,
+    # corresponding to:
+    #
+    #    muddle init <vcs>+<repository_url>  <co_name>/<build_desc>
+    #
+    # (which gets turned into Repository(<vcs>, <repository_url>, <co_name>))
+    # but we would also allow a different form of command line which allows
+    # closer control of the Repository created, and allows the "local" co_dir
+    # and co_name to be specified independently (so like a call of
+    #
+    #   muddled.version_control.checkout_from_repo(builder, co_label, repo, co_dir, co_leaf)
+    #
+    # So parts we might want to specify are:
+    #
+    # * vcs
+    #
+    # * co_name (in the above call, co_label.name - we don't need to worry
+    #   about domains because by definition we're working at the top level)
+    # * co_dir
+    # * co_leaf
+    # * either:
+    #
+    #   * repo_from_url_string - i.e., a single URL indicating all of the
+    #     repository location in one go
+    #
+    # * or:
+    #
+    #   * repo_base_url
+    #   * repo_name
+    #   * repo_prefix
+    #   * repo_prefix_as_is (!)
+    #   * repo_suffix
+    #   * repo_inner_path
+    #   * repo_handler      (?)
+    #   * repo_revision
+    #   * repo_branch
+    #
+    # NB: whilst the <vcs> and <repository_url> are inherited as defaults by
+    # other checkouts, I don't think any build description branch or revision
+    # should be. If the user *does* want to do that, I think they need to do
+    # it "by hand" in the build description, by interrogating the build
+    # descriptions Repository instance.
+    #
+    # I *think* we should say that we always retain the current command line
+    # as the default, and it corresponds (in fact) to:
+    #
+    #    muddle init <vcs>+<repo_base_url> [<co_dir>/]<co_leaf>/<build_desc>
+    #
+    # and that:
+    #
+    # * the third argument specifies where the build description is under
+    #   'src/', in the build tree as checked out, which is what the user
+    #   expects
+    #
+    # and that:
+    #
+    # * <co_name> defaults to <co_leaf>, use '-co_name <name>' to change it
+    #   if necessary
+    # * <repo_name> defaults to <co_name>, use '-repo_name <name>' to change
+    #   it if necessary (nb: I think it should default to <co_name>, not to
+    #   <co_leaf>)
+    # * <repo_prefix> defaults to <co_dir>, if that is given
+    #
+    # and so on.
+    #
+    # I think we also need to allow switches to come freely anywhere in the
+    # command line after "muddle init".
+    #
+    # It's not entirely clear to me how the user would specify a
+    # repo_from_string_url on the command line - perhaps just a free standing
+    # switch of that name, which causes the <url> in <vcs>+<url> to be treated
+    # differently.
+    #
+    # Similar changes (as appropriate) would be needed to "muddle bootstrap".
+
 
 def main(args):
 

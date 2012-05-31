@@ -110,8 +110,8 @@ def test_git_lifecycle(root_d):
             git('commit -m "First stamp"')
             muddle(['stamp', 'push'])
 
-        muddle(['query', 'checkout-id', 'builds'])
-        muddle(['query', 'checkout-id', 'checkout'])
+        builds_rev_1 = captured_muddle(['query', 'checkout-id', 'builds'])
+        checkout_rev_1 = muddle(['query', 'checkout-id', 'checkout'])
 
     # Still to do: add a couple more revisions to each of the two checkouts,
     # and remember all the revision ids for later. Call the revisions of

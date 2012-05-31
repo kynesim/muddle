@@ -138,10 +138,41 @@ def captured_muddle(args, verbose=True, error_fails=True):
     help) are output via a subprocess paging. So we need to run muddle
     just like any other command...
 
-    If 'error_fails' is true, then we raise a ShellError if the command
-    has a non-zero return code.
+    Returns the text output by muddle.
 
-    Returns (retcode, text)
+    Since it runs muddle via subprocess.check_output, it will raise a
+    subprocess.CalledProcessError if muddle returns a non-zero exit code,
+    unless 'error_fails' is false, in which case it will just return the
+    text output by muddle. Note that if a CalledProcessError *is* returned,
+    then the exit code and text output are available in its .returncode and
+    .output attributes.
+    """
+    cmd_seq = [MUDDLE_BINARY] + args
+    if verbose:
+        print ">> muddle %s"%(' '.join(args))
+
+    # Ask what we call not to use buffering on its outputs, so that we get
+    # stdout and stderr folded together correctly, despite the fact that our
+    # output is not to a console
+    env = os.environ
+    env['PYTHONUNBUFFERED'] = 'anything'
+    try:
+        output = subprocess.check_output(cmd_seq, env=env, stderr=subprocess.STDOUT)
+        return output
+    except subprocess.CalledProcessError as e:
+        if error_fails:
+            raise
+        else:
+            return e.output
+
+def captured_muddle2(args, verbose=True):
+    """Grab the exit code and output from a muddle command.
+
+    We can't just capture sys.stdout/stderr, because some things (notably
+    help) are output via a subprocess paging. So we need to run muddle
+    just like any other command...
+
+    Returns the exit code and text output from muddle.
     """
     cmd_seq = [MUDDLE_BINARY] + args
     if verbose:

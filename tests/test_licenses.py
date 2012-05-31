@@ -521,7 +521,7 @@ def check_checkout_licenses_with_clashes(root_dir, d):
     """Perform the actual tests.
     """
     banner('REPORT WITH CLASHES')
-    err, text = captured_muddle(['query', 'checkout-licenses'])
+    text = captured_muddle(['query', 'checkout-licenses'])
     check_text(text, """\
 Checkout licenses are:
 
@@ -600,7 +600,7 @@ def check_checkout_licenses_without_clashes(root_dir, d):
     """Perform the actual tests.
     """
     banner('REPORT WITHOUT CLASHES')
-    err, text = captured_muddle(['query', 'checkout-licenses'])
+    text = captured_muddle(['query', 'checkout-licenses'])
     check_text(text, """\
 Checkout licenses are:
 
@@ -655,7 +655,7 @@ Exceptions to "implicit" GPL licensing are:
 * nothing builds against checkout:busybox/*
 * package:private2{x86-private}/* is not affected by checkout:gpl2plus/*
 * package:private3{x86-private}/* is not affected by checkout:gpl2plus/*
-* package:private4{x86-private}/* is not affected by checkout:gpl2/*, checkout:gpl2plus/*
+* package:private4{x86-private}/* is not affected by checkout:gpl2plus/*, checkout:gpl2/*
 * package:(subdomain)manhattan{x86-private}/* is not affected by checkout:(subdomain)xyzlib/*
 
 The following are "implicitly" GPL licensed for the given reasons:
@@ -914,7 +914,7 @@ def main_tests(root_dir, d):
                         PRIVATE_BUILD_FILE)
 
     # See, it does say that it is doing what we asked...
-    err, text = captured_muddle(['-n', 'distribute', 'just_open_src_and_bin', '../fred'])
+    text = captured_muddle(['-n', 'distribute', 'just_open_src_and_bin', '../fred'])
     check_text(text, """\
 Writing distribution just_open_src_and_bin to ../fred
 checkout:apache/distributed                DistributeCheckout: just_open_src_and_bin[*]

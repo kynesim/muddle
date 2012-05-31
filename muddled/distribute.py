@@ -94,7 +94,7 @@ def name_distribution(builder, name, categories=None):
         >>> name_distribution(None, '_all_open', ['open-source']) # different categories
         Traceback (most recent call last):
         ...
-        GiveUp: Attempt to name distribution "_all_open" with categories (open-source) but it already has (gpl, open-source)
+        GiveUp: Attempt to name distribution "_all_open" with categories "open-source" but it already has "gpl", "open-source"
 
     It is an error to try to use a distribution before it has been named. This
     includes adding checkouts and packages to distributions. Wildcard

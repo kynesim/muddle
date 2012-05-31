@@ -804,7 +804,8 @@ class Database(object):
             format3 = "    %r  %s"
 
         if co_labels:
-            print format1%(orig_repo, depend.label_list_to_string(co_labels, join_with=', '))
+            print format1%(orig_repo, depend.label_list_to_string(sorted(co_labels),
+                                                                  join_with=', '))
         else:
             print format2%orig_repo
         try:

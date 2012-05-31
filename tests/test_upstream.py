@@ -531,10 +531,10 @@ def test_builds_ok_upstream_1(root):
         muddle(['init', 'git+file://{repo}/main'.format(repo=root.join('repo')),
                 'builds_ok_upstream_1/01.py'])
 
-        err, text = captured_muddle(['query', 'upstream-repos'])
+        text = captured_muddle(['query', 'upstream-repos'])
         check_text_endswith(text, """\
 > Upstream repositories ..
-Repository('git', 'file://{root_dir}/repo/main', 'repo1') used by checkout:(subdomain_ok_upstream_1)co_repo1/*, checkout:co_repo1/*
+Repository('git', 'file://{root_dir}/repo/main', 'repo1') used by checkout:co_repo1/*, checkout:(subdomain_ok_upstream_1)co_repo1/*
     Repository('git', 'file://{root_dir}/repo/main', 'repo1.1')  rhubarb, wombat
     Repository('git', 'file://{root_dir}/repo/main', 'repo1.2', push=False)  insignificance, wombat
     Repository('git', 'file://{root_dir}/repo/main', 'repo1.3', pull=False)  platypus, rhubarb
@@ -551,10 +551,10 @@ def test_builds_ok_upstream_2(root):
         muddle(['init', 'git+file://{repo}/main'.format(repo=root.join('repo')),
                 'builds_ok_upstream_2/01.py'])
 
-        err, text = captured_muddle(['query', 'upstream-repos'])
+        text = captured_muddle(['query', 'upstream-repos'])
         check_text_endswith(text, """\
 > Upstream repositories ..
-Repository('git', 'file://{root_dir}/repo/main', 'repo1') used by checkout:(subdomain_ok_upstream_2)co_repo1/*, checkout:co_repo1/*
+Repository('git', 'file://{root_dir}/repo/main', 'repo1') used by checkout:co_repo1/*, checkout:(subdomain_ok_upstream_2)co_repo1/*
     Repository('git', 'file://{root_dir}/repo/main', 'repo1.1')  rhubarb, wombat
     Repository('git', 'file://{root_dir}/repo/main', 'repo1.2', push=False)  insignificance, wombat
     Repository('git', 'file://{root_dir}/repo/main', 'repo1.3', pull=False)  platypus, rhubarb
@@ -569,7 +569,7 @@ def test_builds_ok_upstream_3(root):
         muddle(['init', 'git+file://{repo}/main'.format(repo=root.join('repo')),
                 'builds_ok_upstream_3/01.py'])
 
-        err, text = captured_muddle(['query', 'upstream-repos'])
+        text = captured_muddle(['query', 'upstream-repos'])
         check_text_endswith(text, """\
 > Upstream repositories ..
 Repository('git', 'file://{root_dir}/repo/main', 'repo1') used by checkout:co_repo1/*, checkout:(subdomain_ok_upstream_3)co_repo1/*
@@ -584,7 +584,7 @@ Repository('git', 'http://example.com', 'repo99')
 def test_builds_bad_upstream_1(root):
     with NewDirectory('builds_bad_upstream_1') as d:
         banner('CHECK REPOSITORIES OUT (BAD UPSTREAM 1) subdomain has extra upstreams')
-        err, text = captured_muddle(['init', 'git+file://{repo}/main'.format(repo=root.join('repo')),
+        text = captured_muddle(['init', 'git+file://{repo}/main'.format(repo=root.join('repo')),
                                    'builds_bad_upstream_1/01.py'], error_fails=False)
         check_text_endswith(text, """\
 Subdomain subdomain_bad_upstream_1 adds a new upstream to
@@ -602,23 +602,9 @@ Subdomain subdomain_bad_upstream_1 adds a new upstream to
 def test_builds_bad_upstream_2(root):
     with NewDirectory('builds_bad_upstream_2') as d:
         banner('CHECK REPOSITORIES OUT (BAD UPSTREAM 2) illegal upstream names')
-        err, text = captured_muddle(['init', 'git+file://{repo}/main'.format(repo=root.join('repo')),
+        text = captured_muddle(['init', 'git+file://{repo}/main'.format(repo=root.join('repo')),
                                    'builds_bad_upstream_2/01.py'], error_fails=False)
         check_text_endswith(text, """\
-Cloning into builds_bad_upstream_2...
-> Make directory {root_dir}/builds_bad_upstream_2/.muddle/tags/checkout/builds_bad_upstream_2
-> Make directory {root_dir}/builds_bad_upstream_2/domains/subdomain_bad_upstream_2/.muddle
-Initialised build tree in {root_dir}/builds_bad_upstream_2/domains/subdomain_bad_upstream_2 
-Repository: git+file://{root_dir}/repo/subdomain_bad_upstream_2
-Build description: builds/01.py
-
-
-Checking out build description .. 
-
-++ pushd to {root_dir}/builds_bad_upstream_2/domains/subdomain_bad_upstream_2/src
-> git clone -b master file://{root_dir}/repo/subdomain_bad_upstream_2/builds builds
-Cloning into builds...
-> Make directory {root_dir}/builds_bad_upstream_2/domains/subdomain_bad_upstream_2/.muddle/tags/checkout/builds
 
 Upstream repository name '$@~#sausage' is not allowed
 """.format(root_dir=root.where))
@@ -738,11 +724,10 @@ def main(args):
 
         banner('CHECK USING UPSTREAMS')
         with Directory('build') as d:
-            err, text = captured_muddle(['query', 'upstream-repos', 'co_label1'],
-                                        error_fails=False)
+            err, text = captured_muddle2(['query', 'upstream-repos', 'co_label1'])
             check_text(text, "\nThere is no repository registered for label checkout:co_label1/checked_out\n")
             assert err == 1
-            err, text = captured_muddle(['query', 'upstream-repos', 'co_repo1'])
+            text = captured_muddle(['query', 'upstream-repos', 'co_repo1'])
             check_text(text, """\
 Repository('git', 'file://{root_dir}/repo/main', 'repo1') used by checkout:co_repo1/checked_out
     Repository('git', 'file://{root_dir}/repo/main', 'repo1.1')  rhubarb, wombat
@@ -750,7 +735,7 @@ Repository('git', 'file://{root_dir}/repo/main', 'repo1') used by checkout:co_re
     Repository('git', 'file://{root_dir}/repo/main', 'repo1.3', pull=False)  platypus, rhubarb
 """.format(root_dir=root_dir))
 
-            err, text = captured_muddle(['pull-upstream', 'package:package1', 'builds', '-u', 'rhubarb', 'wombat'])
+            err, text = captured_muddle2(['pull-upstream', 'package:package1', 'builds', '-u', 'rhubarb', 'wombat'])
             assert err == 1
             check_text(text, """\
 
@@ -779,7 +764,7 @@ Pulling checkout:co_repo1/checked_out from file://{root_dir}/repo/main/repo1.3 (
 Failure pulling checkout:co_repo1/checked_out in src/co_repo1:
   file://{root_dir}/repo/main/repo1.3 does not allow "pull"
 """.format(root_dir=root_dir))
-            err, text = captured_muddle(['push-upstream', 'package:package1', 'builds', '-u', 'rhubarb', 'wombat'])
+            err, text = captured_muddle2(['push-upstream', 'package:package1', 'builds', '-u', 'rhubarb', 'wombat'])
             assert err == 1
             check_text(text, """\
 
@@ -787,6 +772,8 @@ Nowhere to push checkout:builds/checked_out to
 
 Pushing checkout:co_repo1/checked_out to file://{root_dir}/repo/main/repo1.1 (rhubarb, wombat)
 ++ pushd to {root_dir}/build/src/co_repo1
+> git remote rm rhubarb
+> git remote add rhubarb file:///Users/tibs/sw/m3/tests/transient/repo/main/repo1.1
 > git push rhubarb master
 Everything up-to-date
 
@@ -796,7 +783,7 @@ Failure pushing checkout:co_repo1/checked_out in src/co_repo1:
   file://{root_dir}/repo/main/repo1.2 does not allow "push"
 """.format(root_dir=root_dir))
 
-            err, text = captured_muddle(['-n', 'pull-upstream', 'package:package1', 'builds', '-u', 'rhubarb', 'wombat'])
+            err, text = captured_muddle2(['-n', 'pull-upstream', 'package:package1', 'builds', '-u', 'rhubarb', 'wombat'])
             assert err == 0
             check_text(text, """\
 Asked to pull-upstream:
@@ -809,7 +796,7 @@ Would pull checkout:co_repo1/checked_out from file://{root_dir}/repo/main/repo1.
 Would pull checkout:co_repo1/checked_out from file://{root_dir}/repo/main/repo1.3 (rhubarb)
 """.format(root_dir=root_dir))
 
-            err, text = captured_muddle(['-n', 'pull-upstream', 'package:package1', 'builds', '-u', 'rhubarb', 'wombat'])
+            err, text = captured_muddle2(['-n', 'pull-upstream', 'package:package1', 'builds', '-u', 'rhubarb', 'wombat'])
             assert err == 0
             check_text(text, """\
 Asked to pull-upstream:

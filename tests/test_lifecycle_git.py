@@ -261,6 +261,66 @@ def test_git_lifecycle(root_d):
     #
     # Similar changes (as appropriate) would be needed to "muddle bootstrap".
 
+    #
+    # After some discussion with Richard:
+    #
+    # 1. The .muddle/BuildDescription file should *not* store the revision id
+    #    or branch for the build description. As Richard says, the original
+    #    two files *aren't* describing the build description (as such), they're
+    #    remembering the defaults that were set up for use in other checkouts,
+    #    which are established relative to the "muddle init".
+    #
+    # 2. However, it might be useful to have -branch and -revision arguments
+    #    to "muddle init" so that one doesn't have to:
+    #
+    #       * muddle init
+    #       * cd src/builds
+    #       * git checkout <branch-name>
+    #
+    #    if one does want a particular branch/revision id of the build
+    #    description.
+    #
+    # 3. Richard also suggests that it would be useful to use the branch
+    #    of the build description ("live", taken from the .git/ setup, not
+    #    from a file in .muddle) as the default branch for *all* checkouts.
+    #    This would help with a situation where one wants to move *all* of a
+    #    build to a particular branch - for instance, v1.0-maintenance.
+    #
+    #    So one might do::
+    #
+    #       muddle init <vcs>+<repo> <desc> -branch v1.0-maintenance
+    #
+    #    and that would check out that branch of everything.
+    #
+    # 4. To make it easier to *create* a new branch like that in everything,
+    #    then, it may also help to have a "muddle branch" command, so one
+    #    can do::
+    #
+    #       $ muddle branch <branch-name> _all
+    #
+    #    Perhaps it should act like "git checkout -b" and move to the right
+    #    branch as well. (Should it be a variant of "muddle checkout" then?
+    #    - no, that's probably confusing and too git specific). Except that
+    #    we're saying that the branch of the build description wins. But it's
+    #    a pain to have to "cd src/builds; git checkout <branch-name>". So it
+    #    probably should do the checkout as well, assuming the common usage is
+    #    for _all.
+    #
+    # 5. All muddle VCS operations should thus check whether they are
+    #    consistent with the current state, and if not (in a bad way)
+    #    complain helpfully and stop.
+    #
+    # 6. Richard would like to keep "muddle merge" for at least simple
+    #    (fast forward) merging of many checkouts - using muddle pull
+    #    for this is less than obvious, and he asserts people would not
+    #    guess. I think *full* merging would be a bad thing for it to do.
+    #    Maybe it should write things it was not willing to merge to a
+    #    .muddle/_need_merging file (or some other better name), and say
+    #    it has done so.
+    #
+    # 7. I should look up "git sparse checkout", but that's for other reasons.
+    #
+
 
 def main(args):
 

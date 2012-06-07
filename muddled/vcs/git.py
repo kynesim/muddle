@@ -192,10 +192,28 @@ class Git(VersionControlSystem):
             cmd = 'pull'
 
         if repo.revision and repo.revision == starting_revision:
+
+            # XXX We really only want to grumble here if an unfettered pull
+            # XXX would take us past this revision - if it would have had
+            # XXX no effect, it seems a bit unfair to complain.
+            # XXX So ideally we'd check here with whatever is currently
+            # XXX fetched, and then (if necessary) check again further on
+            # XXX after actually doing a fetch. But it's not obvious how
+            # XXX to do this, so I shall ignore it for the moment...
+            #
+            # XXX (checking HEAD against FETCH_HEAD may or may not be
+            # XXX helpful)
+
+            # It's a bit debatable whether we should raise GiveUp or just
+            # print the message and return. However, if we just printed, the
+            # "report any problems" mechanism in the "muddle pull" command
+            # would not know to mention this happening, which would mean that
+            # for a joint pull of many checkouts, such messages might get lost.
+            # So we'll go with (perhaps) slightly overkill approach.
             raise utils.GiveUp(\
-                "The build description specifies revision %s for this checkout,\n"
-                "and it is already at that revision. 'muddle %s' will not take\n"
-                "the checkout past the specified revision."%(cmd, repo.revision))
+                "The build description specifies revision %s... for this checkout,\n"
+                "and it is already at that revision. 'muddle %s' will not take the\n"
+                "checkout past the specified revision."%(repo.revision[:8], cmd))
 
         # Refuse to do anything if there are any local changes or untracked files.
         self._is_it_safe()

@@ -116,6 +116,23 @@ def describe_to(builder):
     add_package(builder, 'package', 'x86', co_name='checkout')
 """
 
+def check_revision(checkout, revision_wanted):
+    actual_revision = captured_muddle(['query', 'checkout-id', checkout]).strip()
+    if actual_revision != revision_wanted:
+        raise GiveUp('Checkout checkout has revision %s, expected %s'%(
+            actual_revision, revision_wanted))
+
+def is_detached_head():
+    retcode, out = get_stdout2('git symbolic-ref -q HEAD')
+    if retcode == 0:
+        # HEAD is a symbolic reference - so not detached
+        return False
+    elif retcode == 1:
+        # HEAD is not a symbolic reference, but a detached HEAD
+        return True
+    else:
+        raise GiveUp('Error running "git symbolic-ref -q HEAD" to detect detached HEAD')
+
 def test_git_lifecycle(root_d):
     """A linear sequence of plausible actions...
     """
@@ -203,23 +220,17 @@ def test_git_lifecycle(root_d):
             os.remove(d.join('src', 'builds', '01.pyc'))
         muddle(['checkout', '_all'])
 
-        def check_revision(checkout, revision_wanted):
-            actual_revision = captured_muddle(['query', 'checkout-id', checkout]).strip()
-            if actual_revision != revision_wanted:
-                raise GiveUp('Checkout checkout has revision %s, expected %s'%(
-                    actual_revision, revision_wanted))
-
         check_revision('checkout', checkout_rev_2)
 
         # If we attempt to pull in the checkout, that should fail because
         # we are already at the requested revision
         text = captured_muddle(['pull', 'checkout'], error_fails=False).strip()
-        if not text.endswith('the checkout past the specified revision.'):
+        if not text.endswith('checkout past the specified revision.'):
             raise GiveUp('Expected muddle pull to fail trying to go "past" revision:\n%s'%text)
 
         # Merging should behave just the same
         text = captured_muddle(['merge', 'checkout'], error_fails=False).strip()
-        if not text.endswith('the checkout past the specified revision.'):
+        if not text.endswith('checkout past the specified revision.'):
             raise GiveUp('Expected muddle pull to fail trying to go "past" revision:\n%s'%text)
 
         # What if we're at a different revision?
@@ -239,6 +250,7 @@ def test_git_lifecycle(root_d):
         with Directory(d.join('src', 'checkout')):
             append('Makefile.muddle', '# Additional comment number 3\n')
             git('commit -a -m "Add comment number 3"')
+            checkout_rev_4 = captured_muddle(['query', 'checkout-id']).strip()
             # We're not on a branch, so that commit is likely to get lost,
             # so we'd better allow the user ways of being told that
             # - muddle status should say something
@@ -252,6 +264,11 @@ def test_git_lifecycle(root_d):
             if 'This checkout is in "detached HEAD" state' not in text:
                 raise GiveUp('Expected to be told checkout is in detached'
                              ' HEAD state, instead got:\n%s'%text)
+        print 'checkout/'
+        print '  ',checkout_rev_1
+        print '  ',checkout_rev_2
+        print '  ',checkout_rev_3
+        print '  ',checkout_rev_4
 
         # So fix that by using a branch
         checkout_branch = 'this-is-a-branch'
@@ -267,6 +284,60 @@ def test_git_lifecycle(root_d):
                 git('checkout -b %s'%checkout_branch)
                 muddle(['status'])
                 muddle(['push'])
+
+        check_revision('checkout', checkout_rev_4)
+
+        # What happens if we specify a revision on a branch?
+        # First, choose the revision before the branch
+        with Directory('src'):
+            with Directory('builds'):
+                touch('01.py',
+                      BUILD_DESC_WITH_REVISION.format(revision=checkout_rev_3,
+                                                      build_name=build_name))
+                # Then remove the .pyc file, because Python probably won't realise
+                # that this new 01.py is later than the previous version
+                os.remove(d.join('src', 'builds', '01.pyc'))
+            with Directory('checkout'):
+                muddle(['status'])
+                # Doing 'muddle pull' is the obvious way to get us back to
+                # the right revision
+                muddle(['pull'])
+                check_revision('checkout', checkout_rev_3)
+                # Because we specified an exact revision, we should be detached
+                if not is_detached_head():
+                    raise GiveUp('Expected to have a detached HEAD')
+
+        # Then the revision after the branch
+        with Directory('src'):
+            with Directory('builds'):
+                touch('01.py',
+                      BUILD_DESC_WITH_REVISION.format(revision=checkout_rev_4,
+                                                      build_name=build_name))
+                # Then remove the .pyc file, because Python probably won't realise
+                # that this new 01.py is later than the previous version
+                os.remove(d.join('src', 'builds', '01.pyc'))
+            with Directory('checkout'):
+                muddle(['status'])
+                # Doing 'muddle pull' is the obvious way to get us back to
+                # the right revision
+                muddle(['pull'])
+                check_revision('checkout', checkout_rev_4)
+                # Because we specified an exact revision, we should be detached
+                if not is_detached_head():
+                    raise GiveUp('Expected to have a detached HEAD')
+
+                # But what if we go to "the same place" by a different means?
+                git('checkout %s'%checkout_branch)
+                muddle(['status'])
+                # We're still at the requested revision
+                check_revision('checkout', checkout_rev_4)
+                # But we're no longer a detached HEAD
+                if is_detached_head():
+                    raise GiveUp('Surprised to have a detached HEAD')
+                # muddle pull shouldn't need to do anything...
+                text = captured_muddle(['pull'], error_fails=False).strip()
+                if not text.endswith('checkout past the specified revision.'):
+                    raise GiveUp('Expected muddle pull to fail trying to go "past" revision:\n%s'%text)
 
 
     # So, things I intend to test:

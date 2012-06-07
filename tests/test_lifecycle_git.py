@@ -93,6 +93,29 @@ def describe_to(builder):
     add_package(builder, 'package', 'x86', co_name='checkout')
 """
 
+BUILD_DESC_WITH_BRANCH = """\
+# A very simple build description, with a checkout pinned to a revision
+import os
+
+import muddled.pkgs.make
+
+from muddled.depend import checkout
+from muddled.version_control import checkout_from_repo
+
+def add_package(builder, pkg_name, role, co_name=None):
+    if co_name is None:
+        co_name = pkg_name
+    root_repo = builder.build_desc_repo
+    repo = root_repo.copy_with_changes(co_name, branch='{branch}')
+    checkout_from_repo(builder, checkout(co_name), repo)
+    muddled.pkgs.make.simple(builder, pkg_name, role, co_name)
+
+def describe_to(builder):
+    builder.build_name = '{build_name}'
+    # A single checkout
+    add_package(builder, 'package', 'x86', co_name='checkout')
+"""
+
 def test_git_lifecycle(root_d):
     """A linear sequence of plausible actions...
     """
@@ -230,6 +253,20 @@ def test_git_lifecycle(root_d):
                 raise GiveUp('Expected to be told checkout is in detached'
                              ' HEAD state, instead got:\n%s'%text)
 
+        # So fix that by using a branch
+        checkout_branch = 'this-is-a-branch'
+        with Directory('src'):
+            with Directory('builds'):
+                touch('01.py',
+                      BUILD_DESC_WITH_BRANCH.format(branch=checkout_branch,
+                                                    build_name=build_name))
+                # Then remove the .pyc file, because Python probably won't realise
+                # that this new 01.py is later than the previous version
+                os.remove(d.join('src', 'builds', '01.pyc'))
+            with Directory('checkout'):
+                git('checkout -b %s'%checkout_branch)
+                muddle(['status'])
+                muddle(['push'])
 
 
     # So, things I intend to test:

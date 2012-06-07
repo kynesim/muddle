@@ -48,6 +48,10 @@ TODO: The following needs rewriting after work for issue 225
   presumably the remote repository is ahead of the local one), then it reports
   as much,
 
+* muddle reparent
+
+  Sets the fetch URL to be the current repository URL. XXX What else?
+
 Available git specific options are:
 
 * shallow_checkout: If True, then only clone to a depth of 1 (i.e., pass

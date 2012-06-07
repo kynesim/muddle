@@ -295,6 +295,13 @@ class Git(VersionControlSystem):
         Will be called in the actual checkout's directory.
         """
         self._shallow_not_allowed(options)
+
+        if self._is_detached_HEAD():
+            raise utils.GiveUp('This checkout is in "detached HEAD" state, it is not\n'
+                         'on any branch, and thus "muddle push" is not alllowed.\n'
+                         'If you really want to push, first choose a branch,\n'
+                         'e.g., "git checkout -b <new-branch-name>"')
+
         if repo.branch:
             effective_branch = repo.branch
         else:
@@ -331,17 +338,25 @@ class Git(VersionControlSystem):
             print "Warning: Your git does not support --porcelain; you should upgrade it."
             retcode, text, ignore = utils.get_cmd_data("git status", fail_nonzero=False)
 
+        detached_head = self._is_detached_HEAD()
+
         if text:
-            return text
+            if detached_head:
+                return text + '\n#\n# Note that this checkout has a detached HEAD'
+            else:
+                return text
 
         # git status will tell us if there uncommitted changes, etc., or if
         # we are ahead of or behind (the local idea of) the remote repository,
         # but it cannot tell us if the remote repository is behind us (and our
         # local idea of it).
 
-        # First, find out what our HEAD actually is
-        retcode, text, ignore = utils.get_cmd_data("git rev-parse --symbolic-full-name HEAD")
-        head_name = text.strip()
+        if detached_head:
+            head_name = 'HEAD'
+        else:
+            # First, find out what our HEAD actually is
+            retcode, text, ignore = utils.get_cmd_data("git rev-parse --symbolic-full-name HEAD")
+            head_name = text.strip()
 
         # Now we can look up its SHA1, locally
         retcode, head_revision, ignore = utils.get_cmd_data("git rev-parse %s"%head_name)
@@ -357,14 +372,20 @@ class Git(VersionControlSystem):
             ref, what = line.split('\t')
             if what == head_name:
                 if ref != local_head_ref:
-                    return '\n'.join(('After checking local HEAD against remote HEAD',
-                                      '# The local repository does not match the remote:',
-                                      '#',
-                                      '#  HEAD   is %s'%head_name,
-                                      '#  Local  is %s'%local_head_ref,
-                                      '#  Remote is %s'%ref,
-                                      '#',
-                                      '# You probably need to pull with "muddle pull".'))
+                    text = ['After checking local HEAD against remote HEAD',
+                            '# The local repository does not match the remote:',
+                            '#',
+                            '#  HEAD   is %s'%head_name,
+                            '#  Local  is %s'%local_head_ref,
+                            '#  Remote is %s'%ref,
+                            '#']
+                    if detached_head:
+                        text.append('# Since this checkout has a detached HEAD, you probably want')
+                        text.append('# to branch and commit your changes on the new branch.')
+                        text.append('# For example: git checkout -b <new-branch-name>')
+                    else:
+                        text.append('# You probably need to pull with "muddle pull".')
+                    return '\n'.join(text)
 
         # Should we check to see if we found HEAD?
 
@@ -434,6 +455,22 @@ class Git(VersionControlSystem):
                 " could not determine a revision id for checkout:"%co_leaf),
                 text))
         return revision.strip()
+
+    def _is_detached_HEAD(self):
+        """
+        Detect if the current checkout is 'detached HEAD'
+        """
+        # This is a documented usage of 'git symbolic-ref -q HEAD'
+        retcode, out, err = utils.get_cmd_data('git symbolic-ref -q HEAD', fail_nonzero=False)
+        if retcode == 0:
+            # HEAD is a symbolic reference - so not detached
+            return False
+        elif retcode == 1:
+            # HEAD is not a symbolic reference, but a detached HEAD
+            return True
+        else:
+            raise utils.GiveUp('Error running "git symbolic-ref -q HEAD" to detect detached HEAD')
+
 
     def _git_rev_parse_HEAD(self):
         """

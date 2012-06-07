@@ -211,6 +211,25 @@ def test_git_lifecycle(root_d):
             muddle(['merge'])
             check_revision('checkout', checkout_rev_2)
 
+        # What if we try to do work on a specified revision
+        # (and, in git terms, at a detached HEAD)
+        with Directory(d.join('src', 'checkout')):
+            append('Makefile.muddle', '# Additional comment number 3\n')
+            git('commit -a -m "Add comment number 3"')
+            # We're not on a branch, so that commit is likely to get lost,
+            # so we'd better allow the user ways of being told that
+            # - muddle status should say something
+            rc, text = captured_muddle2(['status'])
+            if 'Since this checkout has a detached HEAD' not in text:
+                raise GiveUp('Expected to be told checkout is in detached'
+                             ' HEAD state, instead got:\n%s'%text)
+            # And trying to push should fail
+            rc, text = captured_muddle2(['push'])
+            text = text.strip()
+            if 'This checkout is in "detached HEAD" state' not in text:
+                raise GiveUp('Expected to be told checkout is in detached'
+                             ' HEAD state, instead got:\n%s'%text)
+
 
 
     # So, things I intend to test:

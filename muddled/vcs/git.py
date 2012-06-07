@@ -82,6 +82,7 @@ def git_supports_ff_only():
         version = stdout
         m = re.search(r' ([0-9]+)\.([a0-9]+)', version)
         if (int(m.group(1)) <= 1 and int(m.group(2)) <= 6):
+            # As of Jun 2012, that's 2 years ago - when do we drop this support?
             g_supports_ff_only = False
         else:
             g_supports_ff_only = True
@@ -139,6 +140,9 @@ class Git(VersionControlSystem):
 
         if repo.revision:
             with utils.Directory(co_leaf):
+                # XXX Arguably, should use '--quiet', to suppress the warning
+                # XXX that we are ending up in 'detached HEAD' state, since
+                # XXX that is rather what we asked for...
                 utils.run_cmd("git checkout %s"%repo.revision)
 
     def _is_it_safe(self):
@@ -170,24 +174,27 @@ class Git(VersionControlSystem):
                 raise utils.Unsupported('Shallow checkouts cannot interact with their upstream repositories.')
 
 
-    def pull(self, repo, options, upstream=None, verbose=True):
+    def _pull_or_merge(self, repo, options, upstream=None, verbose=True, merge=False):
         """
         Will be called in the actual checkout's directory.
         """
-        if repo.revision and repo.revision != 'HEAD':
-            raise utils.GiveUp(\
-                "The build description specifies revision %s for this checkout.\n"
-                "'muddle pull' does a git fetch and then a fast-forwards merge.\n"
-                "Since git always merges to the currrent HEAD, muddle does not\n"
-                "support 'muddle pull' for a git checkout with a revision"
-                " specified."%repo.revision)
+        starting_revision = self._git_rev_parse_HEAD()
 
-        # Refuse to pull if there are any local changes or untracked files.
+        if merge:
+            cmd = 'merge'
+        else:
+            cmd = 'pull'
+
+        if repo.revision and repo.revision == starting_revision:
+            raise utils.GiveUp(\
+                "The build description specifies revision %s for this checkout,\n"
+                "and it is already at that revision. 'muddle %s' will not take\n"
+                "the checkout past the specified revision."%(cmd, repo.revision))
+
+        # Refuse to do anything if there are any local changes or untracked files.
         self._is_it_safe()
 
         self._shallow_not_allowed(options)
-
-        starting_revision = self._git_rev_parse_HEAD()
 
         if not upstream or upstream == 'origin':
             # If we're not given an upstream repository name, assume we're dealing
@@ -201,69 +208,78 @@ class Git(VersionControlSystem):
 
         # Retrieve changes from the remote repository to the local repository
         utils.run_cmd("git fetch %s"%upstream, verbose=verbose)
-        # Merge them into the working tree, but only if this is a fast-forward
-        # merge, and thus doesn't require the user to do any thinking
-        # Don't specify branch name: we definitely want to update our idea of
-        # where the remote head points to be updated.
-        # (See git-pull(1) and git-fetch(1): "without storing the remote branch
-        # anywhere locally".)
-        # And then merge "fast forward only" - i.e., not if we had to do any
-        # thinking
+
         if repo.branch is None:
             remote = 'remotes/%s/master'%(upstream)
         else:
             remote = 'remotes/%s/%s'%(upstream,repo.branch)
-        if (git_supports_ff_only()):
-            utils.run_cmd("git merge --ff-only %s"%remote, verbose=verbose)
+
+        if repo.revision:
+            # If the build description specifies a particular revision, all we
+            # can really do is go to that revision (we did the fetch anyway in
+            # case the user had edited the build descrtiption to refer to a
+            # revision id we had not yet reached).
+            print '++ Just changing to the revision specified in the build description'
+            utils.run_cmd("git checkout %s"%repo.revision)
+        elif merge:
+            # Just merge what we fetched into the current working tree
+            utils.run_cmd("git merge %s"%remote, verbose=verbose)
         else:
-            utils.run_cmd("git merge --ff %s"%remote, verbose=verbose)
+            # Merge what we fetched into the working tree, but only if this is
+            # a fast-forward merge, and thus doesn't require the user to do any
+            # thinking.
+            # Don't specify branch name: we definitely want to update our idea
+            # of where the remote head points to be updated.
+            # (See git-pull(1) and git-fetch(1): "without storing the remote
+            # branch anywhere locally".)
+            if (git_supports_ff_only()):
+                utils.run_cmd("git merge --ff-only %s"%remote, verbose=verbose)
+            else:
+                utils.run_cmd("git merge --ff %s"%remote, verbose=verbose)
 
         ending_revision = self._git_rev_parse_HEAD()
 
         # So, did we update things?
         return starting_revision != ending_revision
 
-    def merge(self, other_repo, options, verbose=True):
+    def pull(self, repo, options, upstream=None, verbose=True):
         """
-        Merge 'other_repo' into the local repository and working tree,
+        Pull changes from 'repo' into the local repository and working tree.
 
         Will be called in the actual checkout's directory.
 
-        According to 'git help merge', merge is always done to the current HEAD.
-        So any revision sill not affect the merge process. However, if the user
-        has asked for a specific revision, which obviously already exists (else
-        how did we get here?), then they are actually not interested in merging,
-        or at least not for muddle purposes. In that case we're better off just
-        giving up, and letting the user sort it out directly.
+        Broadly, does a 'git fetch' followed by a fast-forward merge - so it
+        will only merge if it is obvious how to do it.
+
+        If the build description specifies a particular revision, then if it
+        was already at that revision, nothing needs doing. Otherwise, the
+        'git fetch' is done and then the specified revision is checked out
+        using 'git checkout'.
         """
-        if other_repo.revision and other_repo.revision != 'HEAD':
-            raise utils.GiveUp(\
-                   "The build description specifies revision %s for this checkout.\n"
-                   "Since git always merges to the currrent HEAD, muddle does not\n"
-                   "support 'muddle merge' for a git checkout with a revision"
-                   " specified."%other_repo.revision)
+        return self._pull_or_merge(repo, options,
+                                   upstream=upstream, verbose=verbose,
+                                   merge=False)
 
-        # Refuse to pull if there are any local changes or untracked files.
-        self._is_it_safe()
+    def merge(self, repo, options, verbose=True):
+        """
+        Merge changes from 'repo' into the local repository and working tree.
 
-        self._shallow_not_allowed(options)
+        Will be called in the actual checkout's directory.
 
-        starting_revision = self._git_rev_parse_HEAD()
+        Broadly, does a 'git fetch' followed by a merge. Be aware that this
+        last may require user interaction.
 
-        utils.run_cmd("git config remote.origin.url %s"%other_repo.url, verbose=verbose)
-        # Retrieve changes from the remote repository to the local repository
-        utils.run_cmd("git fetch origin", verbose=verbose)
-        # And merge them (all) into the current working tree
-        if other_repo.branch is None:
-            remote = 'remotes/origin/master'
-        else:
-            remote = 'remotes/origin/%s'%other_repo.branch
-        utils.run_cmd("git merge %s"%remote, verbose=verbose)
+        If a fast-forward merge is possible, then this identical to doing
+        a "muddle pull".
 
-        ending_revision = self._git_rev_parse_HEAD()
-
-        # So, did we update things?
-        return starting_revision != ending_revision
+        If the build description specifies a particular revision, then if it
+        was already at that revision, nothing needs doing. Otherwise, the
+        'git fetch' is done and then the specified revision is checked out
+        using 'git checkout'.
+        """
+        return self._pull_or_merge(repo, options,
+                                   upstream=None, verbose=verbose,
+                                   merge=True)
 
     def commit(self, repo, options, verbose=True):
         """

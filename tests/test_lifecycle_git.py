@@ -180,10 +180,36 @@ def test_git_lifecycle(root_d):
             os.remove(d.join('src', 'builds', '01.pyc'))
         muddle(['checkout', '_all'])
 
-        maybe_rev_2 = captured_muddle(['query', 'checkout-id', 'checkout']).strip()
-        if maybe_rev_2 != checkout_rev_2:
-            raise GiveUp('Checkout checkout has revision %s, expected %s'%(
-                maybe_rev_2, checkout_rev_2))
+        def check_revision(checkout, revision_wanted):
+            actual_revision = captured_muddle(['query', 'checkout-id', checkout]).strip()
+            if actual_revision != revision_wanted:
+                raise GiveUp('Checkout checkout has revision %s, expected %s'%(
+                    actual_revision, revision_wanted))
+
+        check_revision('checkout', checkout_rev_2)
+
+        # If we attempt to pull in the checkout, that should fail because
+        # we are already at the requested revision
+        text = captured_muddle(['pull', 'checkout'], error_fails=False).strip()
+        if not text.endswith('the checkout past the specified revision.'):
+            raise GiveUp('Expected muddle pull to fail trying to go "past" revision:\n%s'%text)
+
+        # Merging should behave just the same
+        text = captured_muddle(['merge', 'checkout'], error_fails=False).strip()
+        if not text.endswith('the checkout past the specified revision.'):
+            raise GiveUp('Expected muddle pull to fail trying to go "past" revision:\n%s'%text)
+
+        # What if we're at a different revision?
+        # All muddle can really do is go to the revision specified in the
+        # build description...
+        with Directory(d.join('src', 'checkout')):
+            git('checkout %s'%checkout_rev_1)
+            muddle(['pull'])
+            check_revision('checkout', checkout_rev_2)
+
+            git('checkout %s'%checkout_rev_1)
+            muddle(['merge'])
+            check_revision('checkout', checkout_rev_2)
 
 
 
@@ -398,9 +424,9 @@ def main(args):
     if args:
         if len(args) == 1 and args[0] == '-keep':
             keep = True
-    else:
-        print __doc__
-        return
+        else:
+            print __doc__
+            return
 
     # Choose a place to work, rather hackily
     #root_dir = os.path.join('/tmp','muddle_tests')

@@ -1577,6 +1577,10 @@ class TransientDirectory(NewDirectory):
     If 'keep_on_error' is True, then the directory will not be deleted
     if an exception occurs in its 'with' clause.
 
+    If 'keep_anyway' is True, then the directory will not be deleted - this
+    is sometimes useful in test code where one wishes to choose whether to
+    retain a test directory or not.
+
     If 'show_pushd' is true, then a message will be printed out showing the
     directory that is being 'cd'ed into.
 
@@ -1595,8 +1599,10 @@ class TransientDirectory(NewDirectory):
     transient directory.
     """
     def __init__(self, where=None, stay_on_error=False, keep_on_error=False,
-                 show_pushd=True, show_popd=False, set_PWD=True, show_dirops=True):
-        self.rmtree_on_error = not keep_on_error
+                 keep_anyway=False, show_pushd=True, show_popd=False,
+                 set_PWD=True, show_dirops=True):
+        self.rmtree_on_error = not keep_on_error and not keep_anyway
+        self.dont_delete = not keep_anyway
         super(TransientDirectory, self).__init__(where, stay_on_error,
                                                  show_pushd, show_popd,
                                                  set_PWD, show_dirops)
@@ -1614,7 +1620,7 @@ class TransientDirectory(NewDirectory):
     def __exit__(self, etype, value, tb):
         if tb is None:
             # No exception, so just finish normally
-            self.close(True)
+            self.close(self.dont_delete)
         else:
             # An exception occurred, so do any tidying up necessary
             if self.show_popd:

@@ -479,17 +479,21 @@ class Git(VersionControlSystem):
         else:
             orig_revision = 'HEAD'
 
-        retcode, text, ignore = utils.get_cmd_data('git status', fail_nonzero=False)
-        text = text.strip()
-        if not self._git_status_text_ok(text):
-            raise utils.GiveUp("%s\n%s"%(utils.wrap("%s: 'git status' suggests"
-                " checkout does not match master:"%co_leaf),
-                utils.indent(text,'    ')))
+        ### I think that it is not useful to do the following check...
+        ##retcode, text, ignore = utils.get_cmd_data('git status', fail_nonzero=False)
+        ##text = text.strip()
+        ##if not self._git_status_text_ok(text):
+        ##    raise utils.GiveUp("%s\n%s"%(utils.wrap("%s: 'git status' suggests"
+        ##        " checkout does not match master:"%co_leaf),
+        ##        utils.indent(text,'    ')))
         if False:
             # Should we try this first, and only "fall back" to the pure
             # SHA1 object name if it fails, or is the pure SHA1 object name
             # better?
-            revision = self._git_describe_long(co_leaf, orig_revision, force, verbose)
+            try:
+                revision = self._git_describe_long(co_leaf, orig_revision, force, verbose)
+            except utils.GiveUp:
+                revision = self._calculate_revision(co_leaf, orig_revision, force, verbose)
         else:
             revision = self._calculate_revision(co_leaf, orig_revision, force, verbose)
         return revision

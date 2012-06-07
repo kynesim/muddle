@@ -1,9 +1,10 @@
 #! /usr/bin/env python
 """Test simple project lifecycle in git
 
-    $ ./test_lifecycle_git.py
+    $ ./test_lifecycle_git.py  [-keep]
 
 Git must be installed.
+If '-keep' is specified, then the 'transient/' directory will not be deleted.
 """
 
 import os
@@ -46,7 +47,7 @@ distclean:
 .PHONY: all config install clean distclean
 """
 
-DEVT_BUILD = """\
+BUILD_DESC = """\
 # A very simple build description
 import os
 
@@ -60,6 +61,29 @@ def add_package(builder, pkg_name, role, co_name=None):
         co_name = pkg_name
     root_repo = builder.build_desc_repo
     repo = root_repo.copy_with_changes(co_name)
+    checkout_from_repo(builder, checkout(co_name), repo)
+    muddled.pkgs.make.simple(builder, pkg_name, role, co_name)
+
+def describe_to(builder):
+    builder.build_name = '{build_name}'
+    # A single checkout
+    add_package(builder, 'package', 'x86', co_name='checkout')
+"""
+
+BUILD_DESC_WITH_REVISION = """\
+# A very simple build description, with a checkout pinned to a revision
+import os
+
+import muddled.pkgs.make
+
+from muddled.depend import checkout
+from muddled.version_control import checkout_from_repo
+
+def add_package(builder, pkg_name, role, co_name=None):
+    if co_name is None:
+        co_name = pkg_name
+    root_repo = builder.build_desc_repo
+    repo = root_repo.copy_with_changes(co_name, revision='{revision}')
     checkout_from_repo(builder, checkout(co_name), repo)
     muddled.pkgs.make.simple(builder, pkg_name, role, co_name)
 
@@ -92,7 +116,7 @@ def test_git_lifecycle(root_d):
         with Directory('src'):
             with Directory('builds'):
                 os.remove('01.py')
-                touch('01.py', DEVT_BUILD.format(build_name=build_name))
+                touch('01.py', BUILD_DESC.format(build_name=build_name))
                 git('add 01.py')  # Because we changed it since the last 'git add'
                 git('commit -m "First commit of build description"')
                 muddle(['push'])
@@ -110,13 +134,59 @@ def test_git_lifecycle(root_d):
             git('commit -m "First stamp"')
             muddle(['stamp', 'push'])
 
-        builds_rev_1 = captured_muddle(['query', 'checkout-id', 'builds'])
-        checkout_rev_1 = muddle(['query', 'checkout-id', 'checkout'])
+        builds_rev_1 = captured_muddle(['query', 'checkout-id', 'builds']).strip()
+        checkout_rev_1 = captured_muddle(['query', 'checkout-id', 'checkout']).strip()
 
-    # Still to do: add a couple more revisions to each of the two checkouts,
-    # and remember all the revision ids for later. Call the revisions of
-    # checkout checkout A, B and C
-    #
+        # Add some more revisions, so we have something to work with
+        with Directory('src'):
+            with Directory('builds'):
+                append('01.py', '# Additional comment number 1\n')
+                git('add 01.py')
+                git('commit -m "Add comment number 1"')
+                builds_rev_2 = captured_muddle(['query', 'checkout-id']).strip()
+                append('01.py', '# Additional comment number 2\n')
+                git('commit -a -m "Add comment number 2"')
+                builds_rev_3 = captured_muddle(['query', 'checkout-id']).strip()
+                muddle(['push'])
+            with Directory('checkout'):
+                append('Makefile.muddle', '# Additional comment number 1\n')
+                git('add Makefile.muddle')
+                git('commit -m "Add comment number 1"')
+                checkout_rev_2 = captured_muddle(['query', 'checkout-id']).strip()
+                append('Makefile.muddle', '# Additional comment number 2\n')
+                git('commit -a -m "Add comment number 2"')
+                checkout_rev_3 = captured_muddle(['query', 'checkout-id']).strip()
+                muddle(['push'])
+
+    print 'builds/'
+    print '  ',builds_rev_1
+    print '  ',builds_rev_2
+    print '  ',builds_rev_3
+    print 'checkout/'
+    print '  ',checkout_rev_1
+    print '  ',checkout_rev_2
+    print '  ',checkout_rev_3
+
+    # Second build tree
+    with NewDirectory(root_d.join('build2')) as d:
+        muddle(['init', repo_url, 'builds/01.py'])
+        # But we want to specify the revision for our source checkout
+        with Directory(d.join('src', 'builds')):
+            touch('01.py',
+                  BUILD_DESC_WITH_REVISION.format(revision=checkout_rev_2,
+                                                  build_name=build_name))
+            # Then remove the .pyc file, because Python probably won't realise
+            # that this new 01.py is later than the previous version
+            os.remove(d.join('src', 'builds', '01.pyc'))
+        muddle(['checkout', '_all'])
+
+        maybe_rev_2 = captured_muddle(['query', 'checkout-id', 'checkout']).strip()
+        if maybe_rev_2 != checkout_rev_2:
+            raise GiveUp('Checkout checkout has revision %s, expected %s'%(
+                maybe_rev_2, checkout_rev_2))
+
+
+
     # So, things I intend to test:
     #
     # 1. That we can make some changes and push them
@@ -324,7 +394,11 @@ def test_git_lifecycle(root_d):
 
 def main(args):
 
+    keep = False
     if args:
+        if len(args) == 1 and args[0] == '-keep':
+            keep = True
+    else:
         print __doc__
         return
 
@@ -332,7 +406,7 @@ def main(args):
     #root_dir = os.path.join('/tmp','muddle_tests')
     root_dir = normalise_dir(os.path.join(os.getcwd(), 'transient'))
 
-    with TransientDirectory(root_dir, keep_on_error=True) as root_d:
+    with TransientDirectory(root_dir, keep_on_error=True, keep_anyway=keep) as root_d:
         banner('TEST LIFECYCLE (GIT)')
         test_git_lifecycle(root_d)
 

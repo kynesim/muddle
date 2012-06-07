@@ -1,13 +1,15 @@
 """
 Muddle suppport for Git.
 
+TODO: The following needs rewriting after work for issue 225
+
 * muddle checkout
 
   Clones the appropriate checkout with ``git clone``. Honours a requested
   branch (with ``-b <branch>``, defaulting to "master"), and a requested
   revision.
 
-* muddle pull
+* muddle pull, muddle push-upstream
 
   This does a ``git fetch`` followed by a fast-forwards ``git merge``.
 
@@ -22,7 +24,7 @@ Muddle suppport for Git.
   fetch`` and then does ``git merge --ff-only`` - i.e., it will only merge in
   the fetch if it doesn't require human interaction.
 
-* muddle push
+* muddle push, muddle push-upstream
 
   If the checkout is marked as "shallow', this will give up.
 
@@ -30,8 +32,6 @@ Muddle suppport for Git.
   push``, honouring any branch.
 
 * muddle merge
-
-  .. warning:: This may go away in the future
 
   This is essentially identical to "muddle pull", except that it does a simple
   ``git merge``, allowing human interaction if necessary.
@@ -143,6 +143,8 @@ class Git(VersionControlSystem):
                 # XXX Arguably, should use '--quiet', to suppress the warning
                 # XXX that we are ending up in 'detached HEAD' state, since
                 # XXX that is rather what we asked for...
+                # XXX Or maybe we want to leave the message, as the warning
+                # XXX it is meant to be
                 utils.run_cmd("git checkout %s"%repo.revision)
 
     def _is_it_safe(self):
@@ -194,17 +196,15 @@ class Git(VersionControlSystem):
         # Refuse to do anything if there are any local changes or untracked files.
         self._is_it_safe()
 
+        # Refuse to do anything if this was a shallow checkout
         self._shallow_not_allowed(options)
 
-        if not upstream or upstream == 'origin':
-            # If we're not given an upstream repository name, assume we're dealing
-            # with an "ordinary" pull, from our origin
+        if not upstream:
+            # If we're not given an upstream repository name, assume we're
+            # dealing with an "ordinary" pull, from our origin
             upstream = 'origin'
-            # In which case, it's sufficient to do:
-            utils.run_cmd("git config remote.origin.url %s"%(repo.url), verbose=verbose)
-        else:
-            # With a "proper" upstream, we need to set up a bit more
-            self._setup_remote(upstream, repo.url, verbose=verbose)
+
+        self._setup_remote(upstream, repo, verbose=verbose)
 
         # Retrieve changes from the remote repository to the local repository
         utils.run_cmd("git fetch %s"%upstream, verbose=verbose)
@@ -311,18 +311,15 @@ class Git(VersionControlSystem):
             # behaviour.
             effective_branch = "master"
 
-        # If we're not given an upstream repository name, assume we're dealing
-        # with an "ordinary" push, to our origin
-        if not upstream or upstream == 'origin':
+        if not upstream:
+            # If we're not given an upstream repository name, assume we're
+            # dealing with an "ordinary" push, to our origin
             upstream = 'origin'
-            # For an upstream, we won't necessarily have the remote in our
-            # configuration (unless we already did an upstream pull from
-            # the same repository...)
-            utils.run_cmd("git config remote.%s.url %s"%(upstream, repo.url), verbose=verbose)
-        else:
-            # With a "proper" upstream, we need to set up a bit more
-            self._setup_remote(upstream, repo.url, verbose=verbose)
 
+        # For an upstream, we won't necessarily have the remote in our
+        # configuration (unless we already did an upstream pull from the same
+        # repository...)
+        self._setup_remote(upstream, repo, verbose=verbose)
 
         utils.run_cmd("git push %s %s"%(upstream, effective_branch), verbose=verbose)
 
@@ -394,21 +391,36 @@ class Git(VersionControlSystem):
     def _setup_remote(self, remote_name, remote_repo, verbose=True):
         """
         Re-associate the local repository with a remote.
-        """
-        # We used to git config remote.origin.url %s here, but that
-        # doesn't handle the case where you've created a new repo (with
-        # muddle bootstrap or import) - git remote _add_ adds some
-        # branch-tracking entries on the side.
 
-        # Let's try not to do a "git remote rm" if we don't have to,
-        # so that we don't show the user a nasty error message. So ask
-        # if there are any configurations for remote origin...
+        Makes some attempt to only do this if necessary. Of course, that may
+        actually be slower than just always doing it...
+        """
+        need_to_set_url = False
+        # Are there actually any values already stored for this remote?
         retcode, out, ignore = utils.get_cmd_data("git config --get-regexp remote.%s.*"%remote_name,
                                                   fail_nonzero=False)
         if retcode == 0:    # there were
-            utils.run_cmd("git remote rm %s"%remote_name, verbose=verbose, allowFailure=True)
+            # Were the URLs OK?
+            for line in out.split('\n'):
+                if not line:
+                    continue
+                parts = line.split()
+                if parts[0].endswith('url'):    # .url, .pushurl
+                    url = ' '.join(parts[1:])   # are spaces allowed in our url?
+                    if url != str(remote_repo):
+                        need_to_set_url = True
+                        break
+            if need_to_set_url:
+                # We don't want to do this unless it is necessary, because it
+                # will give an error if there is nothing for it to remove
+                utils.run_cmd("git remote rm %s"%remote_name, verbose=verbose, allowFailure=True)
+        else:               # there were not
+            need_to_set_url = True
 
-        utils.run_cmd("git remote add %s %s"%(remote_name, remote_repo), verbose=verbose)
+        if need_to_set_url:
+            # 'git remote add' sets up remote.origin.fetch and remote.origin.url
+            # which are the minimum we should need
+            utils.run_cmd("git remote add %s %s"%(remote_name, remote_repo), verbose=verbose)
 
     def reparent(self, co_dir, remote_repo, options, force=False, verbose=True):
         """
@@ -416,9 +428,6 @@ class Git(VersionControlSystem):
         """
         if verbose:
             print "Re-associating checkout '%s' with remote repository"%co_dir
-
-        # Do we need to also do:
-        #utils.run_cmd("git config remote.origin.url %s"%(remote_repo.url), verbose=verbose)
 
         # This is the special case where our "remote" is our origin...
         self._setup_remote('origin', remote_repo, verbose=verbose)

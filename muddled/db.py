@@ -535,9 +535,10 @@ class Database(object):
         except KeyError:
             raise utils.GiveUp('There is no repository registered for label %s'%checkout_label)
 
-    def set_domain_build_desc_label(self, domain, checkout_label):
+    def set_domain_build_desc_label(self, checkout_label):
         """This should only be called by muddle itself.
         """
+        domain = checkout_label.domain
         self.domain_build_desc_label[domain] = normalise_checkout_label(checkout_label)
 
     def dump_domain_build_desc_labels(self):

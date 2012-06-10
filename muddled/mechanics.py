@@ -1031,7 +1031,7 @@ class Builder(object):
         self.build_desc_label = normalise_checkout_label(co_label)
 
         # And add it to our database
-        self.invocation.db.set_domain_build_desc_label(None, self.build_desc_label)
+        self.invocation.db.set_domain_build_desc_label(self.build_desc_label)
 
         # But, of course, this checkout is also a perfectly normal build ..
         checkout_from_repo(self, co_label, repo)

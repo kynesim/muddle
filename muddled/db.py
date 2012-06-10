@@ -53,9 +53,12 @@ class Database(object):
     1. All the keys are "normalised" to have an unset label tag.
     2. Thus it is assumed that the dictionaries will only be accessed via
        the methods supplied for this purpose.
-    3. The existence of an entry in does not necessarily imply that the
-       particular checkout still exists/is used. It may, for instance, have
-       gone away during a ``builder.unify()`` operation.
+    3. The existence of an entry does not necessarily imply that the
+       particular checkout is actually used, as the need for it may
+       have gone away during a ``builder.unify()`` operation.
+
+    and, perhaps most importantly, the user should treat all of these as
+    READ ONLY, since muddle itself maintains their content.
 
     The dictionaries we use are:
 
@@ -109,6 +112,11 @@ class Database(object):
       This sort of thing is necessary because muddle itself has no way of
       telling.
 
+      Note that ALL labels in this dictionary and its constituent sets should
+      have their tags set to '*', so it is expected that this dictionary will
+      be accessed using set_license_not_affected_by() and
+      get_license_not_affected_by().
+
     * nothing_builds_against is a set of checkout labels, each of which is
       a checkout that (presumably) has a GPL license, but against which no
       package links in a way that will cause GPL license "propagation".
@@ -127,9 +135,15 @@ class Database(object):
       key, if it in turn has upstream repositories (whether this is strictly
       necessary is unclear - XXX still to decide whether to support this).
 
-    Note that ALL labels in this dictionary and its constituent sets should
-    have their tags set to '*', so it is expected that this dictionary will
-    be accessed using set_license_not_affected_by() and get_license_not_affected_by().
+    * domain_build_desc_label is a dictionary of the form:
+
+        { domain : build-desc-label }
+
+      where domain is the domain from a label (so None or a suitable string),
+      and build-desc-label is the (normalised) checkout label for the build
+      description checkout for that domain.
+
+      Clearly, there is always at least one entry, with key None.
     """
 
     def __init__(self, root_path):
@@ -160,6 +174,9 @@ class Database(object):
         # Upstream repositories
         self.upstream_repositories = {}
 
+        # Build description checkout labels by domain
+        self.domain_build_desc_label = {}
+
     def setup(self, repo_location, build_desc, versions_repo=None):
         """
         Set the 'repo' and 'build_desc' on the current database.
@@ -171,6 +188,8 @@ class Database(object):
         If 'versions_repo' is None, and 'repo_location' is not a
         centralised VCS (i.e., subversion), then it will set the
         versions_repo to repo_location.
+
+        This should only be called by muddle itself.
         """
         self.repo.set(repo_location)
         self.build_desc.set(build_desc)
@@ -223,6 +242,8 @@ class Database(object):
         # Don't forget the labels in the license_not_affected_by values
         for not_against in self.license_not_affected_by.values():
             labels.extend(not_against)
+        # Or the checkout labels in the domain_build_desc_label values
+        labels.extend(self.domain_build_desc_label.values())
         return labels
 
     def include_domain(self, other_builder, other_domain_name):
@@ -235,11 +256,14 @@ class Database(object):
 
         Note we rely upon all the labels in the other domain already having
         been altered to reflect their subdomain-ness
+
+        This should only be called by muddle itself.
         """
         other_db = other_builder.invocation.db
 
         self._merge_subdomain_labels(other_domain_name, other_db)
         self._merge_subdomain_upstreams(other_domain_name, other_db)
+        self._merge_domain_build_desc_label(other_domain_name, other_db)
 
     def _merge_subdomain_labels(self, other_domain_name, other_db):
         """Merge things from the subdomain that contain labels.
@@ -316,6 +340,32 @@ class Database(object):
                     # upstreams, so let's record it...
                     self.upstream_repositories[orig_repo] = that_upstream_dict
 
+    def _merge_domain_build_desc_label(self, other_domain_name, other_db):
+        """Merge the build description checkout labels from the subdomain.
+
+        We know the checkout labels that form our values will already have
+        had their domain names adjusted, so this *should* be simple enough
+        """
+        co_label = other_db.domain_build_desc_label[None]
+        if co_label.domain != other_domain_name:
+            raise MuddleBug('Error merging domain_build_desc_label for subdomain "%s"\n'
+                            'Build description label is %s, in domain %s'%(other_domain_name,
+                                co_label, co_label.domain))
+
+        for label in other_db.domain_build_desc_label.values():
+            domain = label.domain
+            if domain in self.domain_build_desc_label:
+                # Let's check it's the value we expect
+                if domain != self.domain_build_desc_label[label]:
+                    raise MuddleBug('Error merging domain_build_desc_label'
+                                    ' dictionary into subdomain "%s"\n'
+                                    'Given label "%s", but dictionary entry for'
+                                    ' domain "%s" is already "%s"'%(other_domain_name,
+                                        label, domain,
+                                        self.domain_build_desc_label[domain]))
+            else:
+                self.domain_build_desc_label[label.domain] = label
+
     def _subdomain_new_upstream(self, other_domain_name, orig_repo, other_db):
         """A subdomain introduces a new upstream on a repo we already know
 
@@ -373,10 +423,14 @@ class Database(object):
 
         In a (sub)domain, we have a file called ``.muddle/am_subdomain``,
         which acts as a useful flag that we *are* a (sub)domain.
+
+        This should only be called by muddle itself.
         """
         utils.mark_as_domain(self.root_path, domain_name)
 
     def set_checkout_path(self, checkout_label, dir):
+        """This should only be called by muddle itself.
+        """
         key = normalise_checkout_label(checkout_label)
 
 	#print '### set_checkout_path for %s'%checkout_label
@@ -443,6 +497,8 @@ class Database(object):
             raise utils.GiveUp('There is no checkout path registered for label %s'%checkout_label)
 
     def set_checkout_repo(self, checkout_label, repo):
+        """This should only be called by muddle itself.
+        """
         key = normalise_checkout_label(checkout_label)
         self.checkout_repositories[key] = repo
 
@@ -478,6 +534,46 @@ class Database(object):
             return self.checkout_repositories[key]
         except KeyError:
             raise utils.GiveUp('There is no repository registered for label %s'%checkout_label)
+
+    def set_domain_build_desc_label(self, domain, checkout_label):
+        """This should only be called by muddle itself.
+        """
+        self.domain_build_desc_label[domain] = normalise_checkout_label(checkout_label)
+
+    def dump_domain_build_desc_labels(self):
+        print "> Build descriptions for each domain .."
+        keys = self.domain_build_desc_label.keys()
+        max = 0
+        for label in keys:
+            length = len(str(label))
+            if length > max:
+                max = length
+        keys.sort()
+        for domain in keys:
+            print "%-*s -> %s"%(max, domain if domain is not None else '',
+                                self.domain_build_desc_label[domain])
+
+    def get_domain_build_desc_label(self, domain):
+        """
+        'domain' is a domain as taken from a label, so None or a string
+
+        If it is None, then the checkout label for the top-level build
+        description is returned.
+
+        Otherwise, the checkout label for the build description for that
+        domain is returned.
+
+        In either case, the checkout label will be normalised (so its tag
+        will be '*')
+
+        Raises GiveUp with an appropriate message if 'domain' is not
+        recognised.
+        """
+        try:
+            return self.domain_build_desc_label[domain]
+        except KeyError:
+            raise utils.GiveUp('There is no build description checkout label'
+                               ' registered for domain "%s"'%domain)
 
     def set_checkout_license(self, checkout_label, license):
         key = normalise_checkout_label(checkout_label)

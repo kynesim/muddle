@@ -1030,6 +1030,9 @@ class Builder(object):
         # (modified as it is used in the self.invocation.db dictionaries)
         self.build_desc_label = normalise_checkout_label(co_label)
 
+        # And add it to our database
+        self.invocation.db.set_domain_build_desc_label(None, self.build_desc_label)
+
         # But, of course, this checkout is also a perfectly normal build ..
         checkout_from_repo(self, co_label, repo)
 
@@ -1906,6 +1909,9 @@ def include_domain(builder, domain_name, domain_repo, domain_desc):
     for vcs in vcs_handlers:
         vcs.builder = builder
 
+    # And handle the rest of the stuff we need to do.
+    # Note that the _new_sub_domain() call should have handled labels
+    # for us.
     builder.invocation.include_domain(domain_builder, domain_name)
 
     return domain_builder

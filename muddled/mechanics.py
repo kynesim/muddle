@@ -48,13 +48,17 @@ class Invocation(object):
     def __init__(self, root_path):
         """
         Construct a fresh invocation with a .muddle directory at the given
-        root_path.
+        'root_path' (the directory containing the ".muddle" and "src"
+        directories for the build).
 
         * self.db         - The metadata database for this project.
         * self.ruleset    - The rules describing this build
         * self.env        - A dictionary of label to environment
         * self.default_roles - The roles to build when you don't specify any.
         * self.default_deployment_labels - The deployments to deploy ditto
+
+        There are then a series of values used in managing subdomains:
+
         * self.banned_roles - An array of pairs of the form (role, domain)
           which aren't allowed to share libraries.
         * self.domain_params - Maps domain names to dictionaries storing
@@ -763,21 +767,62 @@ class Builder(object):
     def __init__(self, inv, muddle_binary, domain_params = None,
                  default_domain = None):
         """
-        domain_params is the set of domain parameters in effect when
-        this builder is loaded. It's used to communicate values down
-        to sub-domains.
+        Muddle creates a Builder instance whenever a muddle command is
+        run, and passes it to the build description's "describe_to()"
+        function.
 
-        Note that you MUST NOT set domain_params null unless you are
-        the top-level domain - it MUST come from the enclosing
-        domain's invocation or modifications made by the subdomain's
-        buidler will be lost, and as this is the only way to
-        communicate values to a parent domain, this would be
-        bad. Ugh.
+        Arguments:
 
-        default_domain is the default domain value to add to anything
-        in local_pkgs , etc - it's used to make sure that if you're
-        cd'd into a domain subdirectory, we build the right labels.
+        * 'inv' is the Invocation instance to use for this build. Muddle
+          creates this before creating the Builder instance.
 
+        * 'muddle_binary' is the path of the command that will be run when
+          the user does "$(MUDDLE)" inside a muddle Makefile.
+
+        * 'domain_params' is the set of domain parameters in effect when
+          this builder is loaded. It's used to communicate values down
+          to sub-domains.
+
+          Note that you MUST NOT set domain_params null unless you are the
+          top-level domain - it MUST come from the enclosing domain's
+          invocation or modifications made by the subdomain's buidler will be
+          lost, and as this is the only way to communicate values to a parent
+          domain, this would be bad. Ugh.
+
+        * 'default_domain' is the default domain value to add to anything
+          in local_pkgs , etc - it's used to make sure that if you're cd'd into
+          a domain subdirectory, we build the right labels.
+
+        Useful internal values that you might want to access:
+
+            * 'inv' is the Invocation instance for this build, from the
+              argument of the same name.
+
+            * 'build_desc_repo' is the Repository object for the build
+              description checkout.
+
+            * 'build_name' is actually a property, it may only be set to
+              a string containing alphanumerics, underscores and hyphens.
+
+              However, if the user does not set it in the build description,
+              it defaults to the name of the (main) build description file,
+              as named in "muddle init" and ".muddle/Description". This
+              default is not limited in its content, but of course is
+              typically "01", after the traditional "builds/01.py".
+
+            * 'follow_build_desc_branch' says whether other checkouts should
+              default to the same branch as the build description. This is
+              initially set to False, but can be altered in the build
+              description.
+
+              If this is true, then when muddle does VCS operations on a
+              checkout, and that checkout does not have an explicit branch
+              (or revision) specified in the build description, then the
+              current build description branch will be assumed.
+
+              .. note:: The effectiveness of this depends upon the VCS being
+                 used for each checkout. At the moment, this feature is only
+                 promised for checkouts using git.
         """
         self.invocation = inv
         # The 'muddle_binary' is what will be run when the user does
@@ -809,13 +854,17 @@ class Builder(object):
         self._build_name = os.path.splitext(build_fname)[0]
 
         # It's useful to know our build description's Repository
-        # Should this be kept in our Invocation?
         self.build_desc_repo = None
 
         # The current distribution name and target directory, as a tuple,
         # or actually None, since we've not set it yet
         # directory with each...
         self.distribution = None
+
+        # Should (other) checkouts default to using the same branch as
+        # the build description? This is ignored if a checkout already
+        # (explicitly) specifies its own branch or revision.
+        self.follow_build_desc_branch = False
 
     def get_subdomain_parameters(self, domain):
         return self.invocation.get_domain_parameters(domain)
@@ -972,7 +1021,7 @@ class Builder(object):
         co_label = Label(LabelType.Checkout, build_co_name, None,
                          LabelTag.CheckedOut, domain=self.default_domain)
 
-        # But is it also a perfectly normal build ..
+        # But, of course, this checkout is also a perfectly normal build ..
         checkout_from_repo(self, co_label, repo)
 
         # Although we want to load it once we've checked it out...

@@ -402,13 +402,13 @@ def test_git_lifecycle(root_d):
     # a) If any of the previous tests is repeated, but with the build
     #    description branched, then there is no extra special effect.
     #
-    # b) If BUILD_DESC is used, with "builder.follow_build_desc_branch()"
+    # b) If BUILD_DESC is used, with "builder.follow_build_desc_branch = True"
     #    (or whatever I end up calling it) appended to the build description,
     #    and the build description is branched, then muddle will want to use
     #    a branch of the same name for the checkout as well.
     #
     # c) If BUILD_DESC_WITH_REVISION is used, with
-    #    "builder.follow_build_desc_branch()" appended, and the build
+    #    "builder.follow_build_desc_branch = True" appended, and the build
     #    description is branched, the specified revision "wins" for the
     #    checkout, on the principle that we should obey what the build
     #    description says. Maybe "muddle status" should mention this.
@@ -426,7 +426,7 @@ def test_git_lifecycle(root_d):
     #    non-"free" checkouts).
     #
     #    It should probably mention the use of
-    #    "builder.follow_build_desc_branch()" to make this work "properly".
+    #    "builder.follow_build_desc_branch = True" to make this work "properly".
     #
     # f) Check that "muddle stamp" will save (and restore) the branch of the
     #    build description.
@@ -451,6 +451,36 @@ def test_git_lifecycle(root_d):
     # Oh, and that I can't "muddle push" if I'm at or behind the specified
     # revision, and that I can't "muddle push" if I'm not on the specified
     # branch, and so on.
+    #
+    # -------------------------------------------------------------------------
+    #
+    # NB: For the moment I am ignoring subdomains, which means (in effect) that
+    # the top-level build description branch is the one that will dominate all
+    # sub-domains. It is not entirely clear if this is correct in a build with
+    # sub-domains - should each domain choose whether it is to follow the
+    # build description branch, and if so, should it be the top-level build
+    # description or the domain-local build description? And should "muddle
+    # branch-tree" affect all the sub-domains as well? (again, for the moment
+    # I shall assume that it shall).
+    #
+    # However, I *could* see a case for having the top-level build frozen at
+    # branch "v1.0-maintenance", but a sub-domain frozen at "v2.0-maintenance"
+    # (presumably by specifying an explicit branch to the "include_domain" call
+    # in the top-level build description). And in that case, presumably the
+    # checkouts in that sub-domain would count as non-free, as having already
+    # had their branch specified for them - which, given the way that
+    # sub-domain inclusion works, makes some sort of sense.
+    #
+    # Which leaves "muddle branch-tree" as an uncomfortable sort of command,
+    # as it might or might not propagate down into sub-domains. Presumably
+    # some sort of default, and a switch to decide the opposite, would be
+    # appropriate.
+    #
+    # Hmm, the more I think on it, the more I prefer a checkout to look to its
+    # "local" build description for its behaviour, since sub-domains are meant
+    # to behave consistently wherever they are included.
+    #
+    # =========================================================================
     #
     # I then want a way to be able to do this for the build description as
     # well. This requires doing something about issue 145. My current thinking

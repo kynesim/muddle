@@ -798,8 +798,12 @@ class Builder(object):
             * 'inv' is the Invocation instance for this build, from the
               argument of the same name.
 
-            * 'build_desc_repo' is the Repository object for the build
-              description checkout.
+            * 'build_desc_repo' is the Repository object for the checkout
+              corresponding to the current build description (the one in
+              whose "describe_to()" function is being executed).
+
+            * 'build_desc_label' is the checkout label for the same, with
+              its tag set to '*' (so, as if it were "checkout:<name>/*").
 
             * 'build_name' is actually a property, it may only be set to
               a string containing alphanumerics, underscores and hyphens.
@@ -853,8 +857,9 @@ class Builder(object):
         build_fname = os.path.split(build_desc)[1]
         self._build_name = os.path.splitext(build_fname)[0]
 
-        # It's useful to know our build description's Repository
+        # It's useful to know our build description's Repository and label
         self.build_desc_repo = None
+        self.build_desc_label = None
 
         # The current distribution name and target directory, as a tuple,
         # or actually None, since we've not set it yet
@@ -1020,6 +1025,10 @@ class Builder(object):
 
         co_label = Label(LabelType.Checkout, build_co_name, None,
                          LabelTag.CheckedOut, domain=self.default_domain)
+
+        # Remember a modified version of the same label
+        # (modified as it is used in the self.invocation.db dictionaries)
+        self.build_desc_label = co_label.copy_with_tag('*')
 
         # But, of course, this checkout is also a perfectly normal build ..
         checkout_from_repo(self, co_label, repo)
@@ -1788,6 +1797,11 @@ def _new_sub_domain(root_path, muddle_binary, domain_name, domain_repo, domain_b
     # the same object, so we are willing to have an instance in our list more
     # than once.
     labels = []
+
+    # Whilst I'm not sure if anything can actually access this after we've
+    # incorporated our builder into its super-domain, we'd better convert
+    # it anyway
+    labels.append(domain_builder.build_desc_label)
 
     for l in domain_builder.invocation.default_deployment_labels:
         labels.append(l)

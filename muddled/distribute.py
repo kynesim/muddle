@@ -1576,15 +1576,11 @@ def _domain_from_parts(parts):
 def _build_desc_label_in_domain(builder, domain, label_tag):
     """Return the label for the build description checkout in this domain.
     """
-    # Basically, we need to figure out what checkout to use...
-
-    if not domain:
-        build_co_name, build_desc_path = builder.invocation.build_co_and_path()
+    co_label = builder.invocation.db.get_domain_build_desc_label(domain)
+    if co_label.tag == label_tag:
+        return co_label
     else:
-        root_repo, build_desc = builder.invocation.db.get_subdomain_info(domain)
-        build_co_name, build_desc_path = build_co_and_path_from_str(build_desc)
-
-    return Label(LabelType.Checkout, build_co_name, tag=label_tag, domain=domain)
+        return co_label.copy_with_tag(label_tag)
 
 def _build_desc_inner_path(builder, label):
     """Given a build description checkout's label, return its inner path.

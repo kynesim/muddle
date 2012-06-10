@@ -342,16 +342,29 @@ def test_git_lifecycle(root_d):
 
     # So, things I intend to test:
     #
-    # 1. That we can make some changes and push them
-    # 2. That we can add a build description that uses the revision id B
+    # 1. DONE That we can make some changes and push them
+    #
+    # 2. DONE That we can add a build description that uses the revision id B
     #    found above for checkout checkout
-    # 3. That I can "muddle init" a build using that new, revision specific
+    #
+    # 3. DONE That I can "muddle init" a build using that new, revision specific
     #    build tree
+    #
     # 4. That doing so does not natter on about detached HEAD (and preferably
     #    does not *have* a detached head)
-    # 5. That if I do a "muddle pull" and am already at the specified revision
-    #    it tells me that I can't do it because I am already at the specififed
-    #    revision
+    #
+    #       Actually, leave the "nattering" for now, as it is meaningful.
+    #
+    # 5. DONE That if I do a "muddle pull" and am already at the specified
+    #    revision it tells me that I can't do it because I am already at the
+    #    specififed revision
+    #
+    #       Although ideally it would only say that if there was somewhere
+    #       "beyond" that revision that one *might* have pulled to.
+    #
+    #    Also, made "muddle status" give more information when one is in
+    #    detached HEAD state.
+    #
     # 6. That if I do change the revision id in the build description to A
     #    and do a "muddle pull" it tells me I'm trying to go backwards in
     #    time. I *think* the correct thing to happen then is that either
@@ -360,7 +373,12 @@ def test_git_lifecycle(root_d):
     #    case the message from "muddle pull" should tell me this is what to
     #    do). I suspect this is the better solution, as "muddle reparent" means
     #    "sort out our VCS situation to make sense".
-    # 7. That I can do a sequence something like:
+    #
+    #       DONE, but by blessing "muddle pull" as taking one (back) to the
+    #       revision in the build description. In the end, it seems confusing
+    #       for "muddle reparent" to do that.
+    #
+    # 7. DONE That I can do a sequence something like:
     #
     #        * git checkout -b newbranch
     #        * edit the build description to reflect the branch (and not the
@@ -369,11 +387,66 @@ def test_git_lifecycle(root_d):
     #
     # 8. That I can set the build description to revision C (and not the
     #    branch) and do (muddle reparent or whatever) and go to revision C.
-    # 9. That I can use git itself to go to branch A, and then "muddle pull",
-    #    and it *will* take me to revision C
+    #
+    #       DONE, but as I said above, by using "muddle pull" to adjust.
+    #
+    # 9. DONE That I can use git itself to go to branch A, and then "muddle
+    #    pull", and it *will* take me to revision C
+    #
     # 10. That I can start with a different (new) build, and edit the build
     #     description to request that branch, and then a "muddle pull" and/or
     #     "muddle reparent" will take me to that branch.
+    #
+    # Thus, subsidiary tests of that, only applying to git for the moment:
+    #
+    # a) If any of the previous tests is repeated, but with the build
+    #    description branched, then there is no extra special effect.
+    #
+    # b) If BUILD_DESC is used, with "builder.follow_build_desc_branch()"
+    #    (or whatever I end up calling it) appended to the build description,
+    #    and the build description is branched, then muddle will want to use
+    #    a branch of the same name for the checkout as well.
+    #
+    # c) If BUILD_DESC_WITH_REVISION is used, with
+    #    "builder.follow_build_desc_branch()" appended, and the build
+    #    description is branched, the specified revision "wins" for the
+    #    checkout, on the principle that we should obey what the build
+    #    description says. Maybe "muddle status" should mention this.
+    #
+    # d) If BUILD_DESC_WITH_BRANCH is used, and ditto, the specified branch
+    #    "wins" for the checkout. Again, maybe "muddle status" should mention
+    #    this.
+    #
+    # e) We should add a command to branch all the "free" checkouts (including
+    #    the build description) - perhaps "muddle branch-tree <branch-name>".
+    #    This will go into each checkout (starting with the build description),
+    #    create the new branch if necessary, and check it out. It will list
+    #    any checkouts that it did not do this for because a specific revision
+    #    or branch was already specified in the build description (i.e.,
+    #    non-"free" checkouts).
+    #
+    #    It should probably mention the use of
+    #    "builder.follow_build_desc_branch()" to make this work "properly".
+    #
+    # f) Check that "muddle stamp" will save (and restore) the branch of the
+    #    build description.
+    #
+    # g) Add a '-branch <branch-name' switch to "muddle init", to save the
+    #    user having to do a "muddle init" and then branch the tree explicitly.
+    #
+    # This needs all of the VCS commands that "do something" to check whether
+    # the checkout being acted on has a specified revision or branch, and if
+    # it does not, check whether it should be using the build description's
+    # branch.
+    #
+    # There's a question about whether we should supply a plain "muddle branch"
+    # command, to allow branching of individual checkouts. My feeling is that
+    # we probably shouldn't, as the aim is to allow branching of an entire
+    # tree for such things as choosing a legacy version maintenance branch.
+    # However, "muddle branch-tree" *should* be usable freely on a tree that
+    # has already been branched, and should be quick and quiet in such a case
+    # (i.e., it should only comment when it (i) branches a checkout that was
+    # not previously branched, or (ii) finds a non-free checkout).
     #
     # Oh, and that I can't "muddle push" if I'm at or behind the specified
     # revision, and that I can't "muddle push" if I'm not on the specified

@@ -15,6 +15,7 @@ import muddled.depend as depend
 
 from muddled.utils import domain_subpath
 from muddled.version_control import split_vcs_url
+from muddled.depend import normalise_checkout_label
 
 class Database(object):
     """
@@ -375,40 +376,8 @@ class Database(object):
         """
         utils.mark_as_domain(self.root_path, domain_name)
 
-    def normalise_checkout_label(self, label):
-        """
-        Given a checkout label with random "other" fields, normalise it.
-
-        Returns a normalised checkout label, with the role unset and the
-        tag set to '*'. This may be the same label (if it was already
-        normalised), or it may be a new label. No guarantee is given of
-        either.
-
-        Raise a MuddleBug exception if the label is not a checkout label.
-
-        A normalised checkout label:
-
-            1. Has tag '*'
-            2. Does not have a role (checkout labels do not use the role)
-            3. Does not have the system or transient flags set
-            4. Has the same name and (if present) domain
-        """
-        if label.type != utils.LabelType.Checkout:
-            # The user probably needs an exception to spot why this is
-            # happening
-            raise MuddleBug('Cannot "normalise" a non-checkout label: %s'%label)
-
-        # Can we just use the same label?
-        if label.tag == '*' and label.role is None and \
-                not label.system and not label.transient:
-            return label
-        else:
-            new = label.copy_with_tag('*')
-            new._role = None    # a bit naughty, but the simplest way
-            return new
-
     def set_checkout_path(self, checkout_label, dir):
-        key = self.normalise_checkout_label(checkout_label)
+        key = normalise_checkout_label(checkout_label)
 
 	#print '### set_checkout_path for %s'%checkout_label
 	#print '... dir',dir
@@ -444,7 +413,7 @@ class Database(object):
 
         root = self.root_path
 
-        key = self.normalise_checkout_label(checkout_label)
+        key = normalise_checkout_label(checkout_label)
         try:
             rel_dir = self.checkout_locations[key]
         except KeyError:
@@ -467,14 +436,14 @@ class Database(object):
         if checkout_label is None:
             return 'src'
 
-        key = self.normalise_checkout_label(checkout_label)
+        key = normalise_checkout_label(checkout_label)
         try:
             return self.checkout_locations[key]
         except KeyError:
             raise utils.GiveUp('There is no checkout path registered for label %s'%checkout_label)
 
     def set_checkout_repo(self, checkout_label, repo):
-        key = self.normalise_checkout_label(checkout_label)
+        key = normalise_checkout_label(checkout_label)
         self.checkout_repositories[key] = repo
 
     def dump_checkout_repos(self, just_url=False):
@@ -504,14 +473,14 @@ class Database(object):
         """
         Returns the Repository instance for this checkout label
         """
-        key = self.normalise_checkout_label(checkout_label)
+        key = normalise_checkout_label(checkout_label)
         try:
             return self.checkout_repositories[key]
         except KeyError:
             raise utils.GiveUp('There is no repository registered for label %s'%checkout_label)
 
     def set_checkout_license(self, checkout_label, license):
-        key = self.normalise_checkout_label(checkout_label)
+        key = normalise_checkout_label(checkout_label)
         self.checkout_licenses[key] = license
 
     def dump_checkout_licenses(self, just_name=False):
@@ -545,7 +514,7 @@ class Database(object):
         an entry in the licenses dictionary, None will be returned. Otherwise,
         an appropriate GiveUp exception will be raised.
         """
-        key = self.normalise_checkout_label(checkout_label)
+        key = normalise_checkout_label(checkout_label)
         try:
             return self.checkout_licenses[key]
         except KeyError:
@@ -558,13 +527,13 @@ class Database(object):
         """
         Return True if the named checkout has a license registered
         """
-        key = self.normalise_checkout_label(checkout_label)
+        key = normalise_checkout_label(checkout_label)
         return key in self.checkout_licenses
 
     def set_checkout_license_file(self, checkout_label, license_file):
         """Set the license file for this checkout.
         """
-        key = self.normalise_checkout_label(checkout_label)
+        key = normalise_checkout_label(checkout_label)
         self.checkout_license_files[key] = license_file
 
     def get_checkout_license_file(self, checkout_label, absent_is_None=False):
@@ -575,7 +544,7 @@ class Database(object):
         an entry in the license files dictionary, None will be returned.
         Otherwise, an appropriate GiveUp exception will be raised.
         """
-        key = self.normalise_checkout_label(checkout_label)
+        key = normalise_checkout_label(checkout_label)
         try:
             return self.checkout_license_files[key]
         except KeyError:
@@ -625,7 +594,7 @@ class Database(object):
         else:
             key = this_label.copy_with_tag('*')
 
-        value = self.normalise_checkout_label(co_label)
+        value = normalise_checkout_label(co_label)
 
         if key in self.license_not_affected_by:
             self.license_not_affected_by[key].add(value)
@@ -656,13 +625,13 @@ class Database(object):
 
         ...or, at least, not in a way to cause GPL license "propagation".
         """
-        label = self.normalise_checkout_label(co_label)
+        label = normalise_checkout_label(co_label)
         self.nothing_builds_against.add(label)
 
     def get_nothing_builds_against(self, co_label):
         """Return True if this label is in the "not linked against" set.
         """
-        label = self.normalise_checkout_label(co_label)
+        label = normalise_checkout_label(co_label)
         return label in self.nothing_builds_against
 
     upstream_name_re = re.compile(r'[A-Za-z0-9_-]+')

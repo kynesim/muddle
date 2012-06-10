@@ -14,7 +14,7 @@ import muddled.utils as utils
 import muddled.env_store as env_store
 import muddled.instr as instr
 
-from muddled.depend import Label, Action
+from muddled.depend import Label, Action, normalise_checkout_label
 from muddled.utils import domain_subpath, GiveUp, MuddleBug, LabelType, LabelTag
 from muddled.repository import Repository
 from muddled.version_control import split_vcs_url, checkout_from_repo
@@ -1028,7 +1028,7 @@ class Builder(object):
 
         # Remember a modified version of the same label
         # (modified as it is used in the self.invocation.db dictionaries)
-        self.build_desc_label = co_label.copy_with_tag('*')
+        self.build_desc_label = normalise_checkout_label(co_label)
 
         # But, of course, this checkout is also a perfectly normal build ..
         checkout_from_repo(self, co_label, repo)

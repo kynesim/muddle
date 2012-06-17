@@ -2487,9 +2487,9 @@ class QueryBuildDescBranch(QueryCommand):
         # and presto
         print 'Build description %s is on branch %s'%(label, vcs.get_current_branch(show_pushd=False))
         if builder.follow_build_desc_branch:
-            print 'This WILL be used as the default branch for other checkouts'
+            print 'This WILL be used as the default branch for other checkouts in that domain'
         else:
-            print 'This will NOT be used as the default branch for other checkouts'
+            print 'This will NOT be used as the default branch for other checkouts in that domain'
 
 
 @subcommand('query', 'dir', CAT_QUERY)

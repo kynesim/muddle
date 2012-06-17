@@ -2445,6 +2445,53 @@ class QueryCheckoutId(QueryCommand):
 
         print vcs.revision_to_checkout(show_pushd=False)
 
+@subcommand('query', 'build-desc-branch', CAT_QUERY)
+class QueryBuildDescBranch(QueryCommand):
+    """
+    :Syntax: muddle query build-desc-branch [<label>]
+
+    Report the branch of the build description, and whether it is being used
+    as the (default) branch for other checkouts.
+
+    <label> is a label or label fragment (see "muddle help labels"). The
+    default type is 'checkout:'.
+
+    If <label> is given, then the build description queried will be the build
+    description with the same domain as <label>.
+
+    If <label> is not given, then the domain being queried will be determined
+    by the current directory and its position in the build tree. See the output
+    of 'muddle where' for how this is done.
+    """
+
+    def with_build_tree(self, builder, current_dir, args):
+        if args:
+            label = self.get_label_from_fragment(builder, args,
+                                                 default_type=LabelType.Checkout)
+            domain = label.domain
+        else:
+            what, label, domain = builder.find_location_in_tree(current_dir)
+
+        # Get the build description checkout label for that domain
+        label = builder.invocation.db.get_domain_build_desc_label(domain)
+
+        # Figure out its VCS
+        label = label.copy_with_tag(LabelTag.CheckedOut)
+        rule = builder.invocation.ruleset.rule_for_target(label)
+
+        try:
+            vcs = rule.action.vcs
+        except AttributeError:
+            raise GiveUp("Rule for label '%s' has no VCS - cannot find its id"%label)
+
+        # and presto
+        print 'Build description %s is on branch %s'%(label, vcs.get_current_branch(show_pushd=False))
+        if builder.follow_build_desc_branch:
+            print 'This WILL be used as the default branch for other checkouts'
+        else:
+            print 'This will NOT be used as the default branch for other checkouts'
+
+
 @subcommand('query', 'dir', CAT_QUERY)
 class QueryDir(QueryCommand):
     """

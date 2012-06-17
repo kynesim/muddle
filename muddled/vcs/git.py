@@ -512,7 +512,8 @@ class Git(VersionControlSystem):
         """
         retcode, out, err = utils.get_cmd_data('git symbolic-ref -q HEAD', fail_nonzero=False)
         if retcode == 0:
-            if out.starts('/refs/heads'):
+            out = out.strip()
+            if out.startswith('refs/heads'):
                 return out[11:]
             else:
                 return None

@@ -502,6 +502,51 @@ class Git(VersionControlSystem):
         else:
             raise utils.GiveUp('Error running "git symbolic-ref -q HEAD" to detect detached HEAD')
 
+    def get_current_branch(self):
+        """
+        Return the name of the current branch.
+
+        Will be called in the actual checkout's directory.
+
+        Returns None if we are not on a branch (e.g., a detached HEAD)
+        """
+        retcode, out, err = utils.get_cmd_data('git symbolic-ref -q HEAD', fail_nonzero=False)
+        if retcode == 0:
+            if out.starts('/refs/heads'):
+                return out[11:]
+            else:
+                return None
+        elif retcode == 1:
+            # HEAD is not a symbolic reference, but a detached HEAD
+            return None
+        else:
+            raise utils.GiveUp('Error running "git symbolic-ref -q HEAD" to determine current branch')
+
+    def create_branch(self, branch):
+        """
+        Create a branch of the given name.
+
+        Will be called in the actual checkout's directory.
+
+        It is an error if the branch already exists, in which case a GiveUp
+        exception will be raised.
+        """
+        retcode, out, err = utils.get_cmd_data('git branch %s'%branch)
+        if retcode:
+            raise GiveUp('Error creating branch "%s": %s'%(branch, out))
+
+    def goto_branch(self, branch):
+        """
+        Make the named branch the current branch.
+
+        Will be called in the actual checkout's directory.
+
+        It is an error if the branch does not exist, in which case a GiveUp
+        exception will be raised.
+        """
+        retcode, out, err = utils.get_cmd_data('git checkout %s'%branch)
+        if retcode:
+            raise GiveUp('Error going to branch "%s": %s'%(branch, out))
 
     def _git_rev_parse_HEAD(self):
         """

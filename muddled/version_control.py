@@ -124,6 +124,44 @@ class VersionControlSystem(object):
         """
         raise utils.GiveUp("VCS '%s' cannot calculate a checkout revision"%self.long_name)
 
+    def get_current_branch(self):
+        """
+        Return the name of the current branch.
+
+        Will be called in the actual checkout's directory.
+
+        Returns the name of the branch, or None if there is no current branch.
+        Raises Unsupported if the VCS does not support this operation.
+        """
+        raise utils.Unsupported("VCS '%s' cannot determine the current branch"
+                                " of a checkout"%self.long_name)
+
+    def create_branch(self, branch):
+        """
+        Create a (new) branch of the given name.
+
+        Will be called in the actual checkout's directory.
+
+        Raises Unsupported if the VCS does not support this operation.
+
+        Raises GiveUp if a branch of that name already exists.
+        """
+        raise utils.Unsupported("VCS '%s' cannot create a new current branch"
+                                " of a checkout"%self.long_name)
+
+    def goto_branch(self, branch):
+        """
+        Make the named branch the current branch.
+
+        Will be called in the actual checkout's directory.
+
+        Raises Unsupported if the VCS does not support this operation.
+
+        Raises GiveUp if there is no existing branch of that name.
+        """
+        raise utils.Unsupported("VCS '%s' cannot goto a different branch"
+                                " of a checkout"%self.long_name)
+
     def allows_relative_in_repo(self):
         """
         Does this VCS allow relative locations within the repository to be checked out?
@@ -494,6 +532,54 @@ class VersionControlHandler(object):
                                                          self.checkout_leaf,
                                                          self.options,
                                                          force, verbose)
+
+    def get_current_branch(self, verbose=False, show_pushd=False):
+        """
+        Return the name of the current branch.
+
+        Will be called in the actual checkout's directory.
+
+        If 'show_pushd' is false, then we won't report as we "pushd" into the
+        checkout directory.
+        """
+        with utils.Directory(self.get_my_absolute_checkout_path(), show_pushd=show_pushd):
+            try:
+                return self.vcs_handler.get_current_branch()
+            except (utils.GiveUp, utils.Unsupported) as err:
+                raise utils.GiveUp('Failure getting current branch for %s in %s:\n%s'%(self.checkout_label,
+                                    self.src_rel_dir(), err))
+
+    def create_branch(self, branch, verbose=False, show_pushd=False):
+        """
+        Create a (new) branch of the given name.
+
+        Will be called in the actual checkout's directory.
+
+        If 'show_pushd' is false, then we won't report as we "pushd" into the
+        checkout directory.
+        """
+        with utils.Directory(self.get_my_absolute_checkout_path(), show_pushd=show_pushd):
+            try:
+                return self.vcs_handler.create_branch(branch)
+            except (utils.GiveUp, utils.Unsupported) as err:
+                raise utils.GiveUp('Failure creating branch %s for %s in %s:\n%s'%(branch,
+                                   self.checkout_label, self.src_rel_dir(), err))
+
+    def goto_branch(self, branch, verbose=False, show_pushd=False):
+        """
+        Make the named branch the current branch.
+
+        Will be called in the actual checkout's directory.
+
+        If 'show_pushd' is false, then we won't report as we "pushd" into the
+        checkout directory.
+        """
+        with utils.Directory(self.get_my_absolute_checkout_path(), show_pushd=show_pushd):
+            try:
+                return self.vcs_handler.goto_branch(branch)
+            except (utils.GiveUp, utils.Unsupported) as err:
+                raise utils.GiveUp('Failure changing to branch %s for %s in %s:\n%s'%(branch,
+                                   self.checkout_label, self.src_rel_dir(), err))
 
     def must_pull_before_commit(self):
         return self.vcs_handler.must_pull_before_commit(self.options)

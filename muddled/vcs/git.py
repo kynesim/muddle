@@ -385,26 +385,30 @@ class Git(VersionControlSystem):
         retcode, text, ignore = utils.get_cmd_data("git ls-remote",
                                                    fail_nonzero=False)
         lines = text.split('\n')
-        for line in lines[1:]:          # The first line is the remote repository
-            if not line:
-                continue
-            ref, what = line.split('\t')
-            if what == head_name:
-                if ref != local_head_ref:
-                    text = ['After checking local HEAD against remote HEAD',
-                            '# The local repository does not match the remote:',
-                            '#',
-                            '#  HEAD   is %s'%head_name,
-                            '#  Local  is %s'%local_head_ref,
-                            '#  Remote is %s'%ref,
-                            '#']
-                    if detached_head:
-                        text.append('# Since this checkout has a detached HEAD, you probably want')
-                        text.append('# to branch and commit your changes on the new branch.')
-                        text.append('# For example: git checkout -b <new-branch-name>')
-                    else:
-                        text.append('# You probably need to pull with "muddle pull".')
-                    return '\n'.join(text)
+        if retcode:
+            # Oh dear - something nasty happened
+            # We know we get this if, for instance, the remote repository does
+            # not actually exist
+            newlines = []
+            newlines.append('Whilst trying to check local HEAD against remote HEAD')
+            for line in lines:
+                newlines.append('# %s'%line)
+            return '\n'.join(newlines)
+        else:
+            for line in lines[1:]:          # The first line is the remote repository
+                if not line:
+                    continue
+                ref, what = line.split('\t')
+                if what == head_name:
+                    if ref != local_head_ref:
+                        return '\n'.join(('After checking local HEAD against remote HEAD',
+                                          '# The local repository does not match the remote:',
+                                          '#',
+                                          '#  HEAD   is %s'%head_name,
+                                          '#  Local  is %s'%local_head_ref,
+                                          '#  Remote is %s'%ref,
+                                          '#',
+                                          '# You probably need to pull with "muddle pull".'))
 
         # Should we check to see if we found HEAD?
 

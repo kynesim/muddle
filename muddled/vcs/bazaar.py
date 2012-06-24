@@ -2,6 +2,13 @@
 Muddle support for Bazaar.
 
 .. to be documented ..
+
+Note that Bazaar does not support "branches" in the muddle sense. Bazaar
+itself uses the "bzr branch" command to make a clone of a repository. It
+does not (or did not at time of writing) support lightweight branching in
+the manner of git - i.e., separate branches stored within the same clone.
+Thus the "branch" argument of a Repository class is not supported for
+Bazaar.
 """
 
 import os
@@ -96,6 +103,9 @@ class Bazaar(VersionControlSystem):
         # 'bzr commit' will behave like SVN, and commit/push to the remote
         # repository. We don't want that behaviour.
 
+        if repo.branch:
+            raise utils.GiveUp("Bazaar does not support branch (in the muddle sense)"
+                               " in 'checkout' (branch='%s')"%repo.branch)
         utils.run_cmd("bzr branch %s %s %s"%(self._r_option(repo.revision),
                                              self._normalised_repo(repo.url),
                                              co_leaf),
@@ -117,6 +127,9 @@ class Bazaar(VersionControlSystem):
 
         Will be called in the actual checkout's directory.
         """
+        if repo.branch:
+            raise utils.GiveUp("Bazaar does not support branch (in the muddle sense)"
+                               " in 'pull' (branch='%s')"%repo.branch)
 
         rspec = self._r_option(repo.revision)
 
@@ -142,6 +155,9 @@ class Bazaar(VersionControlSystem):
 
         Will be called in the actual checkout's directory.
         """
+        if other_repo.branch:
+            raise utils.GiveUp("Bazaar does not support branch (in the muddle sense)"
+                               " in 'merge' (branch='%s')"%repo.branch)
 
         # Refuse to pull if there are any local changes
         env = self._derive_env()

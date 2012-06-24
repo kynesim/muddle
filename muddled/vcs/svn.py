@@ -2,6 +2,11 @@
 Muddle support for Subversion
 
 .. to be documented ..
+
+Note that Subversion does not support "branches" in the muddle sense.
+Subversion branches are handled by a different mechanism, and in a muddle
+sense are more like inner paths of a Repository. At the moment muddle does
+not provide any special support for Subversion branches.
 """
 
 from muddled.version_control import register_vcs_handler, VersionControlSystem

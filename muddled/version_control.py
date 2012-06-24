@@ -124,6 +124,22 @@ class VersionControlSystem(object):
         """
         raise utils.GiveUp("VCS '%s' cannot calculate a checkout revision"%self.long_name)
 
+    def supports_branching(self):
+        """
+        Does this VCS support "lightweight" branching like git?
+
+        Git clearly does. Subversion does not (branches are a different
+        path inside the repository - if we ever wanted/needed to, we might
+        accomodate that, but at the moment we don't), and bazaar does not
+        (branches *are* clones/checkouts), although I believe there are
+        proposals to handle lightweight branching as well (but that is "as
+        well", so particular user might or might not want to use that
+        facility).
+
+        Thus the default is False.
+        """
+        return False
+
     def get_current_branch(self):
         """
         Return the name of the current branch.

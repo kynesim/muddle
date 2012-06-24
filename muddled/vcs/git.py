@@ -506,6 +506,9 @@ class Git(VersionControlSystem):
         else:
             raise utils.GiveUp('Error running "git symbolic-ref -q HEAD" to detect detached HEAD')
 
+    def supports_branching(self):
+        return True
+
     def get_current_branch(self):
         """
         Return the name of the current branch.

@@ -86,7 +86,7 @@ class VersionControlSystem(object):
         """
         pass
 
-    def push(self, repo, options, branch=None, upstream=None, verbose=True):
+    def push(self, repo, options, upstream=None, verbose=True):
         """
         Will be called in the actual checkout's directory.
 

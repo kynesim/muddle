@@ -255,7 +255,7 @@ def test_git_lifecycle(root_d):
             # so we'd better allow the user ways of being told that
             # - muddle status should say something
             rc, text = captured_muddle2(['status'])
-            if 'Since this checkout has a detached HEAD' not in text:
+            if 'Note that this checkout has a detached HEAD' not in text:
                 raise GiveUp('Expected to be told checkout is in detached'
                              ' HEAD state, instead got:\n%s'%text)
             # And trying to push should fail
@@ -317,7 +317,16 @@ def test_git_lifecycle(root_d):
                 # that this new 01.py is later than the previous version
                 os.remove(d.join('src', 'builds', '01.pyc'))
             with Directory('checkout'):
-                muddle(['status'])
+                # We're still on the old revision, and detached
+                check_revision('checkout', checkout_rev_3)
+                # Because we specified an exact revision, we should be detached
+                if not is_detached_head():
+                    raise GiveUp('Expected to have a detached HEAD')
+                rc, text = captured_muddle2(['status'])
+                if 'Note that this checkout has a detached HEAD' not in text:
+                    raise GiveUp('Expected to be told checkout is in detached'
+                                 ' HEAD state, instead got:\n%s'%text)
+
                 # Doing 'muddle pull' is the obvious way to get us back to
                 # the right revision
                 muddle(['pull'])

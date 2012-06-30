@@ -359,11 +359,16 @@ class Git(VersionControlSystem):
 
         detached_head = self._is_detached_HEAD()
 
-        if text:
-            if detached_head:
-                return text + '\n#\n# Note that this checkout has a detached HEAD'
+        if detached_head:
+            # That's all the user really needs to know
+            note = '\n# Note that this checkout has a detached HEAD'
+            if text:
+                text = '%s\n#%s'%(text, note)
             else:
-                return text
+                text = note
+
+        if text:
+            return text
 
         # git status will tell us if there uncommitted changes, etc., or if
         # we are ahead of or behind (the local idea of) the remote repository,

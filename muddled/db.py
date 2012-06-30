@@ -143,7 +143,25 @@ class Database(object):
       and build-desc-label is the (normalised) checkout label for the build
       description checkout for that domain.
 
-      Clearly, there is always at least one entry, with key None.
+      Clearly, there is always at least one entry, with key None, for the
+      top-level build description.
+
+    * domain_follows_build_desc_branch is a complementary dictionary of the
+      form:
+
+        {domain : True|False}
+
+      indicating whether that domain's build description has
+      "builder.follow_build_desc_branch" set or not. This allows the rest of
+      muddle the freedom to make that setting domain-specific or not.
+
+      Again, we always expec an entry with key None.
+
+      Note that if I ever need any more information from a sub-domain's build
+      description, I should seriously consider changing this to remember the
+      Builder instance for the subdomain, which we consciously avoid doing at
+      the moment (since its labels have all been done stuff to, and labels are
+      the main point of a Builder).
     """
 
     def __init__(self, root_path):
@@ -176,6 +194,7 @@ class Database(object):
 
         # Build description checkout labels by domain
         self.domain_build_desc_label = {}
+        self.domain_follows_build_desc_branch = {}
 
     def setup(self, repo_location, build_desc, versions_repo=None):
         """
@@ -263,7 +282,7 @@ class Database(object):
 
         self._merge_subdomain_labels(other_domain_name, other_db)
         self._merge_subdomain_upstreams(other_domain_name, other_db)
-        self._merge_domain_build_desc_label(other_domain_name, other_db)
+        self._merge_domain_information(other_domain_name, other_db)
 
     def _merge_subdomain_labels(self, other_domain_name, other_db):
         """Merge things from the subdomain that contain labels.
@@ -340,23 +359,25 @@ class Database(object):
                     # upstreams, so let's record it...
                     self.upstream_repositories[orig_repo] = that_upstream_dict
 
-    def _merge_domain_build_desc_label(self, other_domain_name, other_db):
-        """Merge the build description checkout labels from the subdomain.
+    def _merge_domain_information(self, other_domain_name, other_db):
+        """Merge the build description specific information from the subdomain.
 
         We know the checkout labels that form our values will already have
         had their domain names adjusted, so this *should* be simple enough
         """
-        co_label = other_db.domain_build_desc_label[None]
-        if co_label.domain != other_domain_name:
+        # Make a simple check for consistency
+        build_desc_label = other_db.domain_build_desc_label[None]
+        if build_desc_label.domain != other_domain_name:
             raise MuddleBug('Error merging domain_build_desc_label for subdomain "%s"\n'
                             'Build description label is %s, in domain %s'%(other_domain_name,
-                                co_label, co_label.domain))
+                                build_desc_label, build_desc_label.domain))
 
+        # Start with the domain -> checkout label dictionary
         for label in other_db.domain_build_desc_label.values():
             domain = label.domain
             if domain in self.domain_build_desc_label:
                 # Let's check it's the value we expect
-                if domain != self.domain_build_desc_label[label]:
+                if label != self.domain_build_desc_label[label.domain]:
                     raise MuddleBug('Error merging domain_build_desc_label'
                                     ' dictionary into subdomain "%s"\n'
                                     'Given label "%s", but dictionary entry for'
@@ -365,6 +386,16 @@ class Database(object):
                                         self.domain_build_desc_label[domain]))
             else:
                 self.domain_build_desc_label[label.domain] = label
+
+        # Don't forget the domain -> build follows build desc branch dictionary
+        for domain, value in other_db.domain_follows_build_desc_branch.items():
+            # Amend the domain to reflect our new containing domain
+            if domain:
+                new_domain = '%s(%s)'%(build_desc_label.domain, domain)
+            else:
+                new_domain = build_desc_label.domain
+
+            self.domain_follows_build_desc_branch[new_domain] = value
 
     def _subdomain_new_upstream(self, other_domain_name, orig_repo, other_db):
         """A subdomain introduces a new upstream on a repo we already know
@@ -539,16 +570,19 @@ class Database(object):
         """This should only be called by muddle itself.
         """
         domain = checkout_label.domain
+        if domain == '':
+            domain = None
         self.domain_build_desc_label[domain] = normalise_checkout_label(checkout_label)
 
     def dump_domain_build_desc_labels(self):
         print "> Build descriptions for each domain .."
         keys = self.domain_build_desc_label.keys()
         max = 0
-        for label in keys:
-            length = len(str(label))
-            if length > max:
-                max = length
+        for domain in keys:
+            if domain:
+                length = len(domain)
+                if length > max:
+                    max = length
         keys.sort()
         for domain in keys:
             print "%-*s -> %s"%(max, domain if domain is not None else '',
@@ -570,10 +604,58 @@ class Database(object):
         Raises GiveUp with an appropriate message if 'domain' is not
         recognised.
         """
+        if domain == '':
+            domain = None
         try:
             return self.domain_build_desc_label[domain]
         except KeyError:
             raise utils.GiveUp('There is no build description checkout label'
+                               ' registered for domain "%s"'%domain)
+
+    def set_domain_follows_build_desc_branch(self, domain, follows):
+        """This should only be called by muddle itself.
+        """
+        if domain == '':
+            domain = None
+        self.domain_follows_build_desc_branch[domain] = follows
+
+    def dump_domain_follows_build_desc_branch(self):
+        print "> Whether each domain follows the branch of its build description.."
+        keys = self.domain_follows_build_desc_branch.keys()
+        max = 0
+        for domain in keys:
+            if domain:
+                length = len(domain)
+                if length > max:
+                    max = length
+        keys.sort()
+        for domain in keys:
+            print "%-*s -> %s"%(max, domain if domain is not None else '',
+                                self.domain_follows_build_desc_branch[domain])
+
+    def get_domain_follows_build_desc_branch(self, domain):
+        """
+        Returns True or False according to whether the build description
+        for the named domain has the 'builder.follow_build_desc_branch'
+        value True or False (it defaults to False).
+
+        'domain' is a domain as taken from a label, so None or a string
+
+        If it is None, then the value for the top-level build description is
+        returned.
+
+        Otherwise, the value for the build description for that domain is
+        returned.
+
+        Raises GiveUp with an appropriate message if 'domain' is not
+        recognised.
+        """
+        if domain == '':
+            domain = None
+        try:
+            return self.domain_follows_build_desc_branch[domain]
+        except KeyError:
+            raise utils.GiveUp('There is no follow_build_desc_branch information '
                                ' registered for domain "%s"'%domain)
 
     def set_checkout_license(self, checkout_label, license):

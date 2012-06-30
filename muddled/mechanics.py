@@ -869,11 +869,31 @@ class Builder(object):
         # Should (other) checkouts default to using the same branch as
         # the build description? This is ignored if a checkout already
         # (explicitly) specifies its own branch or revision.
-        self.follow_build_desc_branch = False
+        self._follow_build_desc_branch = False
+        self.invocation.db.set_domain_follows_build_desc_branch(None, False)
+
+    @property
+    def follow_build_desc_branch(self):
+        return self._follow_build_desc_branch
+
+    @follow_build_desc_branch.setter
+    def follow_build_desc_branch(self, follows):
+        # We *expect* our domain to be None, as this value is normally set
+        # within a build description, and all build descriptions (whilst
+        # they are being executed) are the top level build description
+        domain = self.build_desc_label.domain
+
+        if follows:
+            follows = True
+        else:
+            follows = False
+
+        self._follow_build_desc_branch = follows
+        self.invocation.db.set_domain_follows_build_desc_branch(domain, follows)
+
 
     def get_subdomain_parameters(self, domain):
         return self.invocation.get_domain_parameters(domain)
-
 
     def get_default_domain(self):
         return self.default_domain

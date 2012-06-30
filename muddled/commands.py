@@ -2453,11 +2453,14 @@ class QueryBuildDescBranch(QueryCommand):
     Report the branch of the build description, and whether it is being used
     as the (default) branch for other checkouts.
 
-    <label> is a label or label fragment (see "muddle help labels"). The
-    default type is 'checkout:'.
+    <label> is a label or label fragment (see "muddle help labels"), or '_all'.
+    If it is a label, the default type is 'checkout:'.
 
-    If <label> is given, then the build description queried will be the build
-    description with the same domain as <label>.
+    If <label> is a label or label fragment, then the build description queried
+    will be the build description with the same domain as <label>.
+
+    If <label> is '_all', then all domains will have their build descriptions
+    queries.
 
     If <label> is not given, then the domain being queried will be determined
     by the current directory and its position in the build tree. See the output
@@ -2465,31 +2468,39 @@ class QueryBuildDescBranch(QueryCommand):
     """
 
     def with_build_tree(self, builder, current_dir, args):
-        if args:
+
+        #builder.invocation.db.dump_domain_build_desc_labels()
+        #builder.invocation.db.dump_domain_follows_build_desc_branch()
+
+        if len(args) == 1 and args[0] == '_all':
+            domains = builder.invocation.all_domains()
+        elif args:
             label = self.get_label_from_fragment(builder, args,
                                                  default_type=LabelType.Checkout)
-            domain = label.domain
+            domains = [label.domain]
         else:
             what, label, domain = builder.find_location_in_tree(current_dir)
+            domains = [domain]
 
-        # Get the build description checkout label for that domain
-        label = builder.invocation.db.get_domain_build_desc_label(domain)
+        for domain in sorted(domains):
+            # Get the build description checkout label for that domain
+            label = builder.invocation.db.get_domain_build_desc_label(domain)
 
-        # Figure out its VCS
-        label = label.copy_with_tag(LabelTag.CheckedOut)
-        rule = builder.invocation.ruleset.rule_for_target(label)
+            # Figure out its VCS
+            label = label.copy_with_tag(LabelTag.CheckedOut)
+            rule = builder.invocation.ruleset.rule_for_target(label)
 
-        try:
-            vcs = rule.action.vcs
-        except AttributeError:
-            raise GiveUp("Rule for label '%s' has no VCS - cannot find its id"%label)
+            try:
+                vcs = rule.action.vcs
+            except AttributeError:
+                raise GiveUp("Rule for label '%s' has no VCS - cannot find its id"%label)
 
-        # and presto
-        print 'Build description %s is on branch %s'%(label, vcs.get_current_branch(show_pushd=False))
-        if builder.follow_build_desc_branch:
-            print 'This WILL be used as the default branch for other checkouts in that domain'
-        else:
-            print 'This will NOT be used as the default branch for other checkouts in that domain'
+            # and presto
+            print 'Build description %s is on branch %s'%(label, vcs.get_current_branch(show_pushd=False))
+            if builder.invocation.db.get_domain_follows_build_desc_branch(domain):
+                print '  This WILL be used as the default branch for other checkouts in that domain'
+            else:
+                print '  This will NOT be used as the default branch for other checkouts in that domain'
 
 
 @subcommand('query', 'dir', CAT_QUERY)

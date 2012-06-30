@@ -891,6 +891,11 @@ class Builder(object):
         self._follow_build_desc_branch = follows
         self.invocation.db.set_domain_follows_build_desc_branch(domain, follows)
 
+    def _follows_build_desc_branch(self, value=None):
+        raise ValueError('There is no Builder value called "follows_build_desc_branch,'
+                         ' it is called "follow_build_desc_branch"')
+    follows_build_desc_branch = property(_follows_build_desc_branch,
+                                         _follows_build_desc_branch, None)
 
     def get_subdomain_parameters(self, domain):
         return self.invocation.get_domain_parameters(domain)

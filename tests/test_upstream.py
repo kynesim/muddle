@@ -666,23 +666,23 @@ def check_push_pull_permissions():
                     checkout_from_repo, (None, fred, repo), exception=MuddleBug,
                     startswith='Checkout checkout:fred/* cannot use')
 
-    vcs = VersionControlHandler(dummy_builder, vcs_handler=None, co_label=fred,
+    vcs = VersionControlHandler(vcs_handler=None, co_label=fred,
                                 co_leaf='fred', repo=repo)
     check_exception('Test checkout from repo %r'%repo,
-                     vcs.checkout, (),
+                     vcs.checkout, (dummy_builder,),
                      endswith='does not allow "pull"')
     check_exception('Test pull from repo %r'%repo,
-                     vcs.pull, (),
+                     vcs.pull, (dummy_builder,),
                      endswith='does not allow "pull"')
     check_exception('Test merge from repo %r'%repo,
-                     vcs.merge, (),
+                     vcs.merge, (dummy_builder,),
                      endswith='does not allow "pull"')
 
     repo = Repository.from_url('git', 'http://example.com/Fred.git', push=False)
-    vcs = VersionControlHandler(dummy_builder, vcs_handler=None, co_label=fred,
+    vcs = VersionControlHandler(vcs_handler=None, co_label=fred,
                                 co_leaf='fred', repo=repo)
     check_exception('Test push to repo %r'%repo,
-                     vcs.push, (),
+                     vcs.push, (dummy_builder,),
                      endswith='does not allow "push"')
 
 def main(args):

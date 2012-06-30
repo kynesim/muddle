@@ -9,6 +9,8 @@ For instance::
 In each case, the "final" filename in the URL is used as the name of the file
 retrieved - so the above would retrieve ``repo`` and ``Metalang.html`` to the
 appropriate checkout directory.
+
+XXX TODO XXX Fix this example so that it works again!
 """
 
 import os

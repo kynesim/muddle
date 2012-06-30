@@ -405,7 +405,7 @@ class VersionStamp(object):
                         print 'Forcing head'
                     rev = "HEAD"
                 else:
-                    rev = vcs.revision_to_checkout(force=force, verbose=True)
+                    rev = vcs.revision_to_checkout(builder, force=force, verbose=True)
 
                 repo = vcs.repo.copy_with_changed_revision(rev)
 

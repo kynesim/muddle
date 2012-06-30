@@ -385,7 +385,9 @@ def test_git_lifecycle(root_d):
     #
     #       DONE, but by blessing "muddle pull" as taking one (back) to the
     #       revision in the build description. In the end, it seems confusing
-    #       for "muddle reparent" to do that.
+    #       for "muddle reparent" to do that. Note that the documentation of
+    #       "muddle pull" will need attention (and also, of course, what
+    #       "muddle merge" does in this circumstance).
     #
     # 7. DONE That I can do a sequence something like:
     #
@@ -479,6 +481,10 @@ def test_git_lifecycle(root_d):
     # checkouts in that sub-domain would count as non-free, as having already
     # had their branch specified for them - which, given the way that
     # sub-domain inclusion works, makes some sort of sense.
+    #
+    #   (Note that if we allow that, then label unification across domains
+    #   is unlikely to turn out well - but I can't see any perfect solution
+    #   for that.)
     #
     # Which leaves "muddle branch-tree" as an uncomfortable sort of command,
     # as it might or might not propagate down into sub-domains. Presumably

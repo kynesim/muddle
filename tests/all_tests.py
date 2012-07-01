@@ -6,6 +6,8 @@ the same directory as this script, and runs them.
 
 With argument -short, ignores the BZR and SVN checkout tests (because they
 are slower).
+
+With argument -ignore <test>, ignore the test script <script>.
 """
 
 import os
@@ -25,10 +27,20 @@ def run_tests(args):
         elif word == '-short':
             ignore.add('test_checkouts_bzr.py')
             ignore.add('test_checkouts_svn.py')
+        elif word == '-ignore':
+            name = args.pop(0)
+            ignore.add(name)
 
     this_dir = os.path.split(__file__)[0]
     os.chdir(this_dir)
     files = os.listdir('.')
+
+    unrecognised = ignore.difference(files)
+
+    if unrecognised:
+        raise GiveUp('Asked to ignore %s, which do%s not exist'%(', '.join(unrecognised),
+                                'es' if len(unrecognised)==1 else ''))
+
     for name in sorted(files):
         if not name.startswith('test_'):
             continue

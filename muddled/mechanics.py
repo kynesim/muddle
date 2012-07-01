@@ -1544,6 +1544,10 @@ class Builder(object):
 class BuildDescriptionAction(Action):
     """
     Load the build description.
+
+    This action is used to read a build description. As such, it does not
+    need to be domain aware - it is only ever done in the (current) top-level
+    domain.
     """
 
     def __init__(self, file_name, build_co):
@@ -1758,8 +1762,6 @@ def _new_sub_domain(root_path, muddle_binary, domain_name, domain_repo, domain_b
         if rule.action is not None:
             if hasattr(rule.action, '_inner_labels'):
                 labels.extend(rule.action._inner_labels())
-            if hasattr(rule.action, 'vcs'):
-                labels.extend(rule.action.vcs._inner_labels())
 
     # Don't forget the labels inside the "db"
     labels.extend(domain_builder.invocation.db._inner_labels())

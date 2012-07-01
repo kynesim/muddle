@@ -772,8 +772,6 @@ Nowhere to push checkout:builds/checked_out to
 
 Pushing checkout:co_repo1/checked_out to file://{root_dir}/repo/main/repo1.1 (rhubarb, wombat)
 ++ pushd to {root_dir}/build/src/co_repo1
-> git remote rm rhubarb
-> git remote add rhubarb file:///Users/tibs/sw/m3/tests/transient/repo/main/repo1.1
 > git push rhubarb master
 Everything up-to-date
 
@@ -834,9 +832,11 @@ if __name__ == '__main__':
         print
         print e
         print '\nRED light\n'
+        sys.exit(1)
     except Exception as e:
         print
         traceback.print_exc()
         print '\nRED light\n'
+        sys.exit(1)
 
 # vim: set tabstop=8 softtabstop=4 shiftwidth=4 expandtab:

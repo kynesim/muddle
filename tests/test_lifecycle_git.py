@@ -677,7 +677,7 @@ def main(args):
     #root_dir = os.path.join('/tmp','muddle_tests')
     root_dir = normalise_dir(os.path.join(os.getcwd(), 'transient'))
 
-    with TransientDirectory(root_dir, keep_on_error=True, keep_anyway=keep) as root_d:
+    with TransientDirectory(root_dir, keep_on_error=True) as root_d:
         banner('TEST LIFECYCLE (GIT)')
         test_git_lifecycle(root_d)
 

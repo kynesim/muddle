@@ -221,7 +221,6 @@ class VersionControlHandler(object):
     """
     Handle all version control operations for a checkout.
 
-    * self.builder is the builder we're running under.
     * self.vcs_handler is an instance of the class that knows how to handle
       operations for the VCS used for this checkout
     * self.checkout_label is the label for this checkout
@@ -234,10 +233,9 @@ class VersionControlHandler(object):
     * self.repo is the Repository we're interested in.
     """
 
-    def __init__(self, builder, vcs_handler, co_label, co_leaf, repo,
+    def __init__(self, vcs_handler, co_label, co_leaf, repo,
                  co_dir=None, options=None):
         """
-        * 'builder' is the builder for this build
         * 'vcs_handler' knows how to do VCS operations for this checkout
         * 'co_label' is the checkout's label
         * 'co_leaf' is the name of the directory for the checkout;
@@ -258,7 +256,6 @@ class VersionControlHandler(object):
         particular VCS. Option values are restricted to boolean, integer or
         string.
         """
-        self.builder = builder
         self.vcs_handler = vcs_handler
         self.checkout_label = co_label
         self.repo = repo
@@ -290,12 +287,6 @@ class VersionControlHandler(object):
     def long_name(self):
         return self.vcs_handler.long_name
 
-    def get_my_absolute_checkout_path(self):
-        """
-        Does what it says on the tin.
-        """
-        return self.builder.invocation.checkout_path(self.checkout_label)
-
     def get_original_revision(self):
         """Return the revision id the user originally asked for.
 
@@ -322,7 +313,7 @@ class VersionControlHandler(object):
 
         return src_rel_dir
 
-    def checkout(self, verbose=True):
+    def checkout(self, builder, verbose=True):
         """
         Check this checkout out of version control.
 
@@ -331,7 +322,7 @@ class VersionControlHandler(object):
         instantiates a muddle checkout.
         """
         # We want to be in the checkout's parent directory
-        parent_dir, rest = os.path.split(self.get_my_absolute_checkout_path())
+        parent_dir, rest = os.path.split(builder.invocation.checkout_path(self.checkout_label))
 
         if not self.repo.pull:
             raise utils.GiveUp('Failure checking out %s in %s:\n'
@@ -353,7 +344,7 @@ class VersionControlHandler(object):
                 raise utils.GiveUp('Failure checking out %s in %s:\n%s'%(self.checkout_label,
                                    parent_dir, err))
 
-    def pull(self, upstream=None, verbose=True):
+    def pull(self, builder, upstream=None, verbose=True):
         """
         Retrieve changes from the remote repository, and apply them to
         the local working copy, but not if a merge operation would be
@@ -370,7 +361,7 @@ class VersionControlHandler(object):
                                '  %s does not allow "pull"'%(self.checkout_label,
                                self.src_rel_dir(), self.repo))
 
-        with utils.Directory(self.get_my_absolute_checkout_path()):
+        with utils.Directory(builder.invocation.checkout_path(self.checkout_label)):
             try:
                 return self.vcs_handler.pull(self.repo, self.options,
                                              upstream=upstream, verbose=verbose)
@@ -384,7 +375,7 @@ class VersionControlHandler(object):
                 raise utils.GiveUp('Failure pulling %s in %s:\n%s'%(self.checkout_label,
                                     self.src_rel_dir(), err))
 
-    def merge(self, verbose=True):
+    def merge(self, builder, verbose=True):
         """
         Retrieve changes from the remote repository, and apply them to
         the local working copy, performing a merge operation if necessary.
@@ -397,7 +388,7 @@ class VersionControlHandler(object):
                                '  %s does not allow "pull"'%(self.checkout_label,
                                self.src_rel_dir(), self.repo))
 
-        with utils.Directory(self.get_my_absolute_checkout_path()):
+        with utils.Directory(builder.invocation.checkout_path(self.checkout_label)):
             try:
                 return self.vcs_handler.merge(self.repo, self.options, verbose)
             except utils.MuddleBug as err:
@@ -410,14 +401,14 @@ class VersionControlHandler(object):
                 raise utils.GiveUp('Failure merging %s in %s:\n%s'%(self.checkout_label,
                                     self.src_rel_dir(), err))
 
-    def commit(self, verbose=True):
+    def commit(self, builder, verbose=True):
         """
         Commit any changes in the local working copy to the local repository.
 
         In a centralised VCS, like subverson, this does not do anything, as
         there is no *local* repository.
         """
-        with utils.Directory(self.get_my_absolute_checkout_path()):
+        with utils.Directory(builder.invocation.checkout_path(self.checkout_label)):
             try:
                 self.vcs_handler.commit(self.repo, self.options, verbose)
             except utils.MuddleBug as err:
@@ -427,7 +418,7 @@ class VersionControlHandler(object):
                 raise utils.GiveUp('Failure commiting %s in %s:\n%s'%(self.checkout_label,
                                     self.src_rel_dir(), err))
 
-    def push(self, upstream=None, verbose=True):
+    def push(self, builder, upstream=None, verbose=True):
         """
         Push changes in the local repository to the remote repository.
 
@@ -444,7 +435,7 @@ class VersionControlHandler(object):
                                '  %s does not allow "push"'%(self.checkout_label,
                                self.src_rel_dir(), self.repo))
 
-        with utils.Directory(self.get_my_absolute_checkout_path()):
+        with utils.Directory(builder.invocation.checkout_path(self.checkout_label)):
             try:
                 self.vcs_handler.push(self.repo, self.options,
                                       upstream=upstream, verbose=verbose)
@@ -455,7 +446,7 @@ class VersionControlHandler(object):
                 raise utils.GiveUp('Failure pushing %s in %s:\n%s'%(self.checkout_label,
                                     self.src_rel_dir(), err))
 
-    def status(self, verbose=False):
+    def status(self, builder, verbose=False):
         """
         Report on the status of the checkout, in a VCS-appropriate manner
 
@@ -478,7 +469,7 @@ class VersionControlHandler(object):
         """
         if verbose:
             print '>>', self.checkout_label
-        with utils.Directory(self.get_my_absolute_checkout_path(), show_pushd=False):
+        with utils.Directory(builder.invocation.checkout_path(self.checkout_label), show_pushd=False):
             try:
                 status_text = self.vcs_handler.status(self.repo, self.options)
                 if status_text:
@@ -496,7 +487,7 @@ class VersionControlHandler(object):
                 raise utils.GiveUp('Failure finding status for %s in %s:\n%s'%(self.checkout_label,
                                     self.src_rel_dir(), err))
 
-    def reparent(self, force=False, verbose=True):
+    def reparent(self, builder, force=False, verbose=True):
         """
         Re-associate the local repository with its original remote repository,
 
@@ -509,12 +500,12 @@ class VersionControlHandler(object):
         If 'force' is true, it does this regardless. If 'force' is false, then
         it only does it if the checkout is actually not so associated.
         """
-        actual_dir = self.get_my_absolute_checkout_path()
+        actual_dir = builder.invocation.checkout_path(self.checkout_label)
         with utils.Directory(actual_dir):
             self.vcs_handler.reparent(actual_dir, # or self.checkout_leaf
                                       self.repo, self.options, force, verbose)
 
-    def revision_to_checkout(self, force=False, verbose=False, show_pushd=True):
+    def revision_to_checkout(self, builder, force=False, verbose=False, show_pushd=True):
         """
         Determine a revision id for this checkout, usable to check it out again.
 
@@ -543,7 +534,7 @@ class VersionControlHandler(object):
         implementation will raise a GiveUp unless 'force' is true, in which
         case it will return the string '0'.
         """
-        with utils.Directory(self.get_my_absolute_checkout_path(), show_pushd=show_pushd):
+        with utils.Directory(builder.invocation.checkout_path(self.checkout_label), show_pushd=show_pushd):
             return self.vcs_handler.revision_to_checkout(self.repo,
                                                          self.checkout_leaf,
                                                          self.options,
@@ -740,8 +731,7 @@ def vcs_handler_for(builder, co_label, co_leaf, repo, co_dir=None):
 
     vcs_handler = get_vcs_handler(repo.vcs)
 
-    return VersionControlHandler(builder, vcs_handler,
-                                 co_label, co_leaf, repo, co_dir)
+    return VersionControlHandler(vcs_handler, co_label, co_leaf, repo, co_dir)
 
 def vcs_action_for(builder, co_label, repo, co_dir = None, co_leaf = None):
     """

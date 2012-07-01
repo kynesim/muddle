@@ -666,23 +666,23 @@ def check_push_pull_permissions():
                     checkout_from_repo, (None, fred, repo), exception=MuddleBug,
                     startswith='Checkout checkout:fred/* cannot use')
 
-    vcs = VersionControlHandler(dummy_builder, vcs_handler=None, co_label=fred,
+    vcs = VersionControlHandler(vcs_handler=None, co_label=fred,
                                 co_leaf='fred', repo=repo)
     check_exception('Test checkout from repo %r'%repo,
-                     vcs.checkout, (),
+                     vcs.checkout, (dummy_builder,),
                      endswith='does not allow "pull"')
     check_exception('Test pull from repo %r'%repo,
-                     vcs.pull, (),
+                     vcs.pull, (dummy_builder,),
                      endswith='does not allow "pull"')
     check_exception('Test merge from repo %r'%repo,
-                     vcs.merge, (),
+                     vcs.merge, (dummy_builder,),
                      endswith='does not allow "pull"')
 
     repo = Repository.from_url('git', 'http://example.com/Fred.git', push=False)
-    vcs = VersionControlHandler(dummy_builder, vcs_handler=None, co_label=fred,
+    vcs = VersionControlHandler(vcs_handler=None, co_label=fred,
                                 co_leaf='fred', repo=repo)
     check_exception('Test push to repo %r'%repo,
-                     vcs.push, (),
+                     vcs.push, (dummy_builder,),
                      endswith='does not allow "push"')
 
 def main(args):
@@ -773,7 +773,7 @@ Nowhere to push checkout:builds/checked_out to
 Pushing checkout:co_repo1/checked_out to file://{root_dir}/repo/main/repo1.1 (rhubarb, wombat)
 ++ pushd to {root_dir}/build/src/co_repo1
 > git remote rm rhubarb
-> git remote add rhubarb file:///Users/tibs/sw/m3/tests/transient/repo/main/repo1.1
+> git remote add rhubarb file://{root_dir}/repo/main/repo1.1
 > git push rhubarb master
 Everything up-to-date
 
@@ -830,13 +830,10 @@ if __name__ == '__main__':
     try:
         main(args)
         print '\nGREEN light\n'
-    except GiveUp as e:
-        print
-        print e
-        print '\nRED light\n'
     except Exception as e:
         print
         traceback.print_exc()
         print '\nRED light\n'
+        sys.exit(1)
 
 # vim: set tabstop=8 softtabstop=4 shiftwidth=4 expandtab:

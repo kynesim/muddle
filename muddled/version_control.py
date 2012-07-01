@@ -540,7 +540,7 @@ class VersionControlHandler(object):
                                                          self.options,
                                                          force, verbose)
 
-    def get_current_branch(self, verbose=False, show_pushd=False):
+    def get_current_branch(self, builder, verbose=False, show_pushd=False):
         """
         Return the name of the current branch.
 
@@ -549,14 +549,14 @@ class VersionControlHandler(object):
         If 'show_pushd' is false, then we won't report as we "pushd" into the
         checkout directory.
         """
-        with utils.Directory(self.get_my_absolute_checkout_path(), show_pushd=show_pushd):
+        with utils.Directory(builder.invocation.checkout_path(self.checkout_label), show_pushd=show_pushd):
             try:
                 return self.vcs_handler.get_current_branch()
             except (utils.GiveUp, utils.Unsupported) as err:
                 raise utils.GiveUp('Failure getting current branch for %s in %s:\n%s'%(self.checkout_label,
                                     self.src_rel_dir(), err))
 
-    def create_branch(self, branch, verbose=False, show_pushd=False):
+    def create_branch(self, builder, branch, verbose=False, show_pushd=False):
         """
         Create a (new) branch of the given name.
 
@@ -565,14 +565,14 @@ class VersionControlHandler(object):
         If 'show_pushd' is false, then we won't report as we "pushd" into the
         checkout directory.
         """
-        with utils.Directory(self.get_my_absolute_checkout_path(), show_pushd=show_pushd):
+        with utils.Directory(builder.invocation.checkout_path(self.checkout_label), show_pushd=show_pushd):
             try:
                 return self.vcs_handler.create_branch(branch)
             except (utils.GiveUp, utils.Unsupported) as err:
                 raise utils.GiveUp('Failure creating branch %s for %s in %s:\n%s'%(branch,
                                    self.checkout_label, self.src_rel_dir(), err))
 
-    def goto_branch(self, branch, verbose=False, show_pushd=False):
+    def goto_branch(self, builder, branch, verbose=False, show_pushd=False):
         """
         Make the named branch the current branch.
 
@@ -581,7 +581,7 @@ class VersionControlHandler(object):
         If 'show_pushd' is false, then we won't report as we "pushd" into the
         checkout directory.
         """
-        with utils.Directory(self.get_my_absolute_checkout_path(), show_pushd=show_pushd):
+        with utils.Directory(builder.invocation.checkout_path(self.checkout_label), show_pushd=show_pushd):
             try:
                 return self.vcs_handler.goto_branch(branch)
             except (utils.GiveUp, utils.Unsupported) as err:

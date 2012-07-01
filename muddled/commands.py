@@ -2496,7 +2496,8 @@ class QueryBuildDescBranch(QueryCommand):
                 raise GiveUp("Rule for label '%s' has no VCS - cannot find its id"%label)
 
             # and presto
-            print 'Build description %s is on branch %s'%(label, vcs.get_current_branch(show_pushd=False))
+            print 'Build description %s is on branch %s'%(label,
+                    vcs.get_current_branch(builder, show_pushd=False))
             if builder.invocation.db.get_domain_follows_build_desc_branch(domain):
                 print '  This WILL be used as the default branch for other checkouts in that domain'
             else:

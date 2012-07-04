@@ -493,11 +493,13 @@ def page_text(progname, text):
                     continue
     print text
 
-def run_cmd_for_output(cmd_array, env = None, useShell = False, verbose = True):
+def run_cmd_for_output(cmd_array, env = None, useShell = False, fold_stderr=False, verbose = True):
     """
     Run a command and return a tuple (return value, stdour output, stderr output).
     """
-    a_process = subprocess.Popen(cmd_array, stdout=subprocess.PIPE, stderr=subprocess.PIPE,
+    a_process = subprocess.Popen(cmd_array, stdout=subprocess.PIPE,
+                                 stderr=subprocess.STDOUT if fold_stderr
+                                                          else subprocess.PIPE,
                                  shell = useShell)
     (out, err) = a_process.communicate()
     return (a_process.wait(), out, err)

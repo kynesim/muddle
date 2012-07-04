@@ -544,9 +544,13 @@ class Git(VersionControlSystem):
         It is an error if the branch already exists, in which case a GiveUp
         exception will be raised.
         """
-        retcode, out, err = utils.get_cmd_data('git branch %s'%branch)
+        # If the user tried "git branch 'sp ace'", which is an illegal branch
+        # name, we want the command to propagate 'sp ace' down as a single
+        # word, so it gets reported with the appropriate error. Thus we need
+        # to pass the command as a list.
+        retcode, out, err = utils.run_cmd_for_output(['git', 'branch', branch], fold_stderr=True)
         if retcode:
-            raise GiveUp('Error creating branch "%s": %s'%(branch, out))
+            raise utils.GiveUp('Error creating branch "%s": %s'%(branch, err))
 
     def goto_branch(self, branch):
         """
@@ -557,9 +561,31 @@ class Git(VersionControlSystem):
         It is an error if the branch does not exist, in which case a GiveUp
         exception will be raised.
         """
-        retcode, out, err = utils.get_cmd_data('git checkout %s'%branch)
+        retcode, out, err = utils.run_cmd_for_output(['git', 'checkout', branch], fold_stderr=True)
         if retcode:
-            raise GiveUp('Error going to branch "%s": %s'%(branch, out))
+            raise utils.GiveUp('Error going to branch "%s": %s'%(branch, out))
+
+    def branch_exists(self, branch):
+        """
+        Is there a branch of this name?
+
+        Will be called in the actual checkout's directory.
+        """
+        retcode, out, err = utils.get_cmd_data('git branch -a', fail_nonzero=False)
+        if retcode:
+            raise utils.GiveUp('Error looking up existing branches: %s'%out)
+
+        lines = out.split('\n')
+        for line in lines:
+            text = line[2:]         # Ignore the initial '  ' or '* '
+            text = text.strip()     # Ignore trailing whitespace
+            if '->' in text:        # Ignore 'remotes/origin/HEAD -> origin/master'
+                continue
+            if '/' in text:
+                text = text.split('/')[-1]  # just take the name at the end
+            if text == branch:
+                return True
+        return False
 
     def _git_rev_parse_HEAD(self):
         """

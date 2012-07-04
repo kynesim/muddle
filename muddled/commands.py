@@ -374,7 +374,7 @@ class CPDCommand(Command):
 
         first = labels[0]
         if first.type == LabelType.Checkout:
-            all_checkouts = builder.invocation.all_checkouts()
+            all_checkouts = builder.invocation.all_checkouts() # XXX not domain aware?
             names = set()
             tags = set()
             roles = set()
@@ -5537,6 +5537,159 @@ class Retry(AnyLabelCommand):
 # -----------------------------------------------------------------------------
 # Misc commands
 # -----------------------------------------------------------------------------
+@command('branch-tree', CAT_MISC)        # or perhaps CAT_CHECKOUT
+class BranchTree(Command):
+    """
+    :Syntax: muddle branch-tree [-c[check] | -f[orce] | -v] <branch>
+
+    Move all checkouts in the build tree (if they support it) to branch
+    <branch>.
+
+    Checkouts that do not support branches (in the muddle/git sense) will
+    be mentioned at the end of the command, but otherwise will be ignored.
+
+    .. note:: At the moment, only checkouts using git support this.
+
+    In normal usage, branch <branch> must not yet exist in any of the
+    checkouts in the build tree. The command will fail when it encounters
+    a checkout that already has a branch of the given name.
+
+    If the '-f', or '-force', flag is used, then if a branch called <branch>
+    already exists, it will be used. This will be mentioned at the end of the
+    command, but will not cause the command to fail.
+
+    If the '-c', or '-check', flag is used, then the command will not in fact
+    branch anything, but will report if the named branch <branch> already
+    exists in any of the checkouts that the normal use of the command would
+    branch. If the branch name does exist in any checkouts, the command will
+    exit with return code 1. It is probably a good idea to use
+    'muddle branch-tree -check' before using 'muddle branch-tree' itself.
+
+    If the '-v' flag is used, report on each checkout (actually, each checkout
+    directory) as it is entered.
+
+    Muddle does not itself provide a means of branching only some checkouts.
+    Use the appropriate VCS commands to do that (possibly in combination with
+    'muddle runin').
+
+    Note that the branch of the build description will "stick", but using
+    'muddle pull', 'push' or 'merge' on a checkout
+
+    .. note:: The exact list of such commands is yet to be finalised, so that
+       may be wrong in detail...
+
+    will first revert to the branch described for that checkout in the build
+    description. If you want the whole build tree (or, at least, those
+    checkouts using a VCS that support this) to follow the branch of the
+    build description, add::
+
+        builder.follow_build_desc_branch = True
+
+    to the build desscription. Note that this will *not* override any
+    branches that are explicitly selected in the build description, though.
+
+    It is recommended that <branch> include the build name (as specified
+    using ``builder.build_name = <name>`` in the build description).
+    """
+
+    allowed_switches = {'-f': 'force',
+                        '-force': 'force',
+                        '-c': 'check',
+                        '-check': 'check',
+                        '-v': 'verbose',
+                       }
+
+    def with_build_tree(self, builder, current_dir, args):
+
+        args = self.remove_switches(args)
+
+        if len(args) != 1:
+            raise GiveUp('No branch name specified')
+
+        branch = args[0]
+
+        check = 'check' in self.switches
+        force = 'force' in self.switches
+        verbose = 'verbose' in self.switches
+
+        if force and check:
+            raise GiveUp('Cannot specify -check and -force at the same time')
+
+        if self.no_op():
+            if check:
+                print 'Asked to check if branch %s already exists in all checkout'%branch
+            else:
+                print 'Asked to create branch %s in all checkouts'%branch
+            return
+
+        if check:
+            self.check_branch_name(builder, branch, verbose)
+        else:
+            self.branch_checkouts(builder, branch, force, verbose)
+
+
+    def branch_checkouts(self, builder, branch, force, verbose):
+        """
+        Branch all the checkouts.
+
+        If 'verbose', show each pushd into a checkout directory.
+        """
+        problems = []
+        already_exists_in = []
+        for co in sorted(all_checkouts):
+            rule = builder.invocation.ruleset.rule_for_target(co)
+            try:
+                vcs = rule.action.vcs
+            except AttributeError:
+                raise GiveUp("Rule for label '%s' has no VCS - cannot branch it"%co)
+
+            try:
+                vcs.create_branch(builder, branch, show_pushd=verbose)
+            except GiveUp as e:
+                print e
+                problems.append(co)
+
+            try:
+                vcs.goto_branch(builder, branch, show_pushd=False)
+            except GiveUp as e:
+                print e
+                problems.append(co)
+
+        if problems:
+            raise GiveUp('Unable to create branch, or go to branch, in:\n  %s'%
+                         label_list_to_string(problems, join_with='\n  '))
+
+    def check_branch_name(self, builder, branch, verbose):
+        """
+        Check if there is a branch of that name in each checkout
+
+        If 'verbose', show each pushd into a checkout directory.
+
+        Outputs information about any checkouts in which the branch does
+        exist, and a summary at the end. If the branch was found anywhere,
+        that summary is done with a GiveUp exception, so that the top level
+        will exit with an exit code of 1.
+        """
+        all_checkouts = builder.invocation.all_checkout_labels(LabelTag.CheckedOut)
+        count = 0
+        for co in sorted(all_checkouts):
+            rule = builder.invocation.ruleset.rule_for_target(co)
+            try:
+                vcs = rule.action.vcs
+            except AttributeError:
+                raise GiveUp("Rule for label '%s' has no VCS - cannot find its branch"%co)
+            try:
+                if vcs.branch_exists(builder, branch, show_pushd=verbose):
+                    print 'Branch %s already exists in %s'%(branch, co)
+                    count += 1
+            except GiveUp as e:
+                print e
+        if count:
+            raise GiveUp('Branch %s already exists in %d checkout%s'%(branch,
+                         count, '' if count==1 else 's'))
+        else:
+            print 'Branch %s does not exist in any checkouts'%branch
+
 @command('veryclean', CAT_MISC)
 class VeryClean(Command):
     """

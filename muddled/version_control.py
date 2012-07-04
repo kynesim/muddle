@@ -178,6 +178,20 @@ class VersionControlSystem(object):
         raise utils.Unsupported("VCS '%s' cannot goto a different branch"
                                 " of a checkout"%self.long_name)
 
+    def branch_exists(self, branch):
+        """
+        Returns True if a branch of that name exists.
+
+        This allowed to be conservative - e.g., in git the existence of a
+        remote branch with the given name can be counted as True.
+
+        Will be called in the actual checkout's directory.
+
+        Raises Unsupported if the VCS does not support this operation.
+        """
+        raise utils.Unsupported("VCS '%s' cannot goto a different branch"
+                                " of a checkout"%self.long_name)
+
     def allows_relative_in_repo(self):
         """
         Does this VCS allow relative locations within the repository to be checked out?
@@ -586,6 +600,25 @@ class VersionControlHandler(object):
                 return self.vcs_handler.goto_branch(branch)
             except (utils.GiveUp, utils.Unsupported) as err:
                 raise utils.GiveUp('Failure changing to branch %s for %s in %s:\n%s'%(branch,
+                                   self.checkout_label, self.src_rel_dir(), err))
+
+    def branch_exists(self, builder, branch, verbose=False, show_pushd=False):
+        """
+        Returns True if a branch of that name exists.
+
+        This allowed to be conservative - e.g., in git the existence of a
+        remote branch with the given name can be counted as True.
+
+        Will be called in the actual checkout's directory.
+
+        If 'show_pushd' is false, then we won't report as we "pushd" into the
+        checkout directory.
+        """
+        with utils.Directory(builder.invocation.checkout_path(self.checkout_label), show_pushd=show_pushd):
+            try:
+                return self.vcs_handler.branch_exists(branch)
+            except (utils.GiveUp, utils.Unsupported) as err:
+                raise utils.GiveUp('Failure checking existence of branch %s for %s in %s:\n%s'%(branch,
                                    self.checkout_label, self.src_rel_dir(), err))
 
     def must_pull_before_commit(self):

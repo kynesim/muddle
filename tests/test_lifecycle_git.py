@@ -122,6 +122,27 @@ def check_revision(checkout, revision_wanted):
         raise GiveUp('Checkout checkout has revision %s, expected %s'%(
             actual_revision, revision_wanted))
 
+def get_branch(dir):
+    with Directory(dir):
+        retcode, out = get_stdout2('git symbolic-ref -q HEAD')
+        if retcode == 0:
+            out = out.strip()
+            if out.startswith('refs/heads'):
+                return out[11:]
+            else:
+                return None
+        elif retcode == 1:
+            # HEAD is not a symbolic reference, but a detached HEAD
+            return None
+        else:
+            raise GiveUp('Error running "git symbolic-ref -q HEAD" to determine current branch')
+
+def check_branch(dir, branch_wanted):
+    branch = get_branch(dir)
+    if branch != branch_wanted:
+        raise GiveUp('Checkout in %s has branch %s, expected %s'%(dir,
+            branch, branch_wanted))
+
 def is_detached_head():
     retcode, out = get_stdout2('git symbolic-ref -q HEAD')
     if retcode == 0:
@@ -347,6 +368,43 @@ def test_git_lifecycle(root_d):
                 text = captured_muddle(['pull'], error_fails=False).strip()
                 if not text.endswith('checkout past the specified revision.'):
                     raise GiveUp('Expected muddle pull to fail trying to go "past" revision:\n%s'%text)
+
+    # Third build tree
+    with NewDirectory(root_d.join('build3')) as d:
+        muddle(['init', repo_url, 'builds/01.py'])
+        muddle(['checkout', '_all'])
+
+        # Check the branches of our checkouts
+        check_branch('src/builds', 'master')
+        check_branch('src/checkout', 'master')
+
+        # And change it
+        muddle(['branch-tree', 'test-v0.1'])
+
+        # Check the branches of our checkouts - since this isn't using muddle,
+        # it should still show both at the new branch
+        check_branch('src/builds', 'test-v0.1')
+        check_branch('src/checkout', 'test-v0.1')
+
+        # Doing a "mudddle pull" on the checkout should put it back to the
+        # master branch, as that's what is (implicitly) asked for in the
+        # build description. It shouldn't affect the build description.
+        muddle(['pull', 'checkout'])
+        check_branch('src/builds', 'test-v0.1')
+        check_branch('src/checkout', 'master')
+
+        # If we amend the build description, though:
+        with Directory('src'):
+            with Directory('builds'):
+                append('01.py', '    builder.follow_build_desc_branch\n')
+        # our checkout should now follow the build description's branch
+        muddle(['pull', 'checkout'])
+        check_branch('src/builds', 'test-v0.1')
+        check_branch('src/checkout', 'test-v0.1')
+
+        # ...also want to check what happens if we explicitly select
+        # branch master of checkout, by name, in the build description
+        # - we should revert to master again.
 
 
     # So, things I intend to test:

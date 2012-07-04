@@ -5617,49 +5617,68 @@ class BranchTree(Command):
 
         if self.no_op():
             if check:
-                print 'Asked to check if branch %s already exists in all checkout'%branch
+                print 'Asked to check if branch "%s" already exists in all checkout'%branch
             else:
-                print 'Asked to create branch %s in all checkouts'%branch
+                print 'Asked to create branch "%s" in all checkouts'%branch
             return
 
+        all_checkouts = builder.invocation.all_checkout_labels(LabelTag.CheckedOut)
+        co_vcs = []
+        for co in sorted(all_checkouts):
+            rule = builder.invocation.ruleset.rule_for_target(co)
+            try:
+                vcs = rule.action.vcs
+                co_vcs.append((co, vcs))
+            except AttributeError:
+                raise GiveUp("Rule for label '%s' has no VCS - cannot find its branch"%co)
+
         if check:
-            self.check_branch_name(builder, branch, verbose)
+            self.check_branch_name(builder, co_vcs, branch, verbose)
         else:
-            self.branch_checkouts(builder, branch, force, verbose)
+            self.branch_checkouts(builder, co_vcs, branch, force, verbose)
 
 
-    def branch_checkouts(self, builder, branch, force, verbose):
+    def branch_checkouts(self, builder, co_vcs, branch, force, verbose):
         """
         Branch all the checkouts.
 
         If 'verbose', show each pushd into a checkout directory.
         """
+        created = 0
+        selected = 0
         problems = []
         already_exists_in = []
-        for co in sorted(all_checkouts):
-            rule = builder.invocation.ruleset.rule_for_target(co)
+        for co, vcs in co_vcs:
             try:
-                vcs = rule.action.vcs
-            except AttributeError:
-                raise GiveUp("Rule for label '%s' has no VCS - cannot branch it"%co)
+                if force:
+                    if vcs.branch_exists(builder, branch, show_pushd=verbose):
+                        already_exists_in.append(co)
+                    else:
+                        vcs.create_branch(builder, branch, show_pushd=False)
+                        created += 1
+                else:
+                    vcs.create_branch(builder, branch, show_pushd=verbose)
+                    created += 1
 
-            try:
-                vcs.create_branch(builder, branch, show_pushd=verbose)
-            except GiveUp as e:
-                print e
-                problems.append(co)
-
-            try:
                 vcs.goto_branch(builder, branch, show_pushd=False)
+                selected += 1
             except GiveUp as e:
                 print e
                 problems.append(co)
 
+        print 'Successfully branched %d out of %d checkout%s'%(created, len(co_vcs),
+                '' if created==1 else 's')
+        print 'Successfully selected that branch in %d out of %d checkout%s'%(selected, len(co_vcs),
+                '' if selected==1 else 's')
+        if already_exists_in:
+            print
+            print 'Branch "%s" already existed in:\n  %s'%(branch,
+                         label_list_to_string(already_exists_in, join_with='\n  '))
         if problems:
-            raise GiveUp('Unable to create branch, or go to branch, in:\n  %s'%
-                         label_list_to_string(problems, join_with='\n  '))
+            raise GiveUp('Unable to create or change to branch "%s", in:\n  %s'%(branch,
+                         label_list_to_string(problems, join_with='\n  ')))
 
-    def check_branch_name(self, builder, branch, verbose):
+    def check_branch_name(self, builder, co_vcs, branch, verbose):
         """
         Check if there is a branch of that name in each checkout
 
@@ -5670,25 +5689,20 @@ class BranchTree(Command):
         that summary is done with a GiveUp exception, so that the top level
         will exit with an exit code of 1.
         """
-        all_checkouts = builder.invocation.all_checkout_labels(LabelTag.CheckedOut)
         count = 0
-        for co in sorted(all_checkouts):
-            rule = builder.invocation.ruleset.rule_for_target(co)
-            try:
-                vcs = rule.action.vcs
-            except AttributeError:
-                raise GiveUp("Rule for label '%s' has no VCS - cannot find its branch"%co)
+        for co, vcs in co_vcs:
             try:
                 if vcs.branch_exists(builder, branch, show_pushd=verbose):
-                    print 'Branch %s already exists in %s'%(branch, co)
+                    print 'Branch "%s" already exists in %s'%(branch, co)
                     count += 1
             except GiveUp as e:
                 print e
         if count:
-            raise GiveUp('Branch %s already exists in %d checkout%s'%(branch,
-                         count, '' if count==1 else 's'))
+            raise GiveUp('Branch "%s" already exists in %d out of %d checkout%s'%(branch,
+                         count, len(co_vcs), '' if count==1 else 's'))
         else:
-            print 'Branch %s does not exist in any checkouts'%branch
+            print 'Branch "%s" does not exist in any checkouts'%branch
+
 
 @command('veryclean', CAT_MISC)
 class VeryClean(Command):

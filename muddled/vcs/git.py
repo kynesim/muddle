@@ -550,7 +550,7 @@ class Git(VersionControlSystem):
         # to pass the command as a list.
         retcode, out, err = utils.run_cmd_for_output(['git', 'branch', branch], fold_stderr=True)
         if retcode:
-            raise utils.GiveUp('Error creating branch "%s": %s'%(branch, err))
+            raise utils.GiveUp('Error creating branch "%s": %s'%(branch, out))
 
     def goto_branch(self, branch):
         """

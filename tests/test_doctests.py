@@ -47,6 +47,9 @@ def main():
                     total_failures += failures
     print 'Found %d %s, %d %s'%(total_tests, 'test' if total_tests==1 else 'tests',
             total_failures, 'failure' if total_failures==1 else 'failures')
+    return total_failures
 
 if __name__ == "__main__":
-    main()
+    failed = main()
+    if failed:
+        sys.exit(1)

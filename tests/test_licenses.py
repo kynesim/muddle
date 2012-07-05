@@ -1243,9 +1243,11 @@ if __name__ == '__main__':
         print
         print e
         print '\nRED light\n'
+        sys.exit(1)
     except Exception as e:
         print
         traceback.print_exc()
         print '\nRED light\n'
+        sys.exit(1)
 
 # vim: set tabstop=8 softtabstop=4 shiftwidth=4 expandtab:

@@ -915,7 +915,11 @@ class SequentialAction(object):
         self.b.build_label(builder, label)
 
     def _inner_labels(self):
-        return [self.a, self.b]
+        labels = []
+        for thing in (self.a, self.b):
+            if hasattr(thing, '_inner_labels'):
+                labels.extend(thing._inner_labels())
+        return labels
 
 class Rule(object):
     """

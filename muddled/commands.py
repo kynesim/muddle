@@ -2443,7 +2443,7 @@ class QueryCheckoutId(QueryCommand):
         except AttributeError:
             raise GiveUp("Rule for label '%s' has no VCS - cannot find its id"%label)
 
-        print vcs.revision_to_checkout(show_pushd=False)
+        print vcs.revision_to_checkout(builder, show_pushd=False)
 
 @subcommand('query', 'dir', CAT_QUERY)
 class QueryDir(QueryCommand):
@@ -4935,7 +4935,7 @@ class Status(CheckoutCommand):
             except AttributeError:
                 print "Rule for label '%s' has no VCS - cannot find its status"%co
                 continue
-            text = vcs.status(verbose)
+            text = vcs.status(builder, verbose)
             if text:
                 print
                 print text.strip()
@@ -5007,7 +5007,7 @@ class Reparent(CheckoutCommand):
             except AttributeError:
                 print "Rule for label '%s' has no VCS - cannot reparent, ignored"%co
                 continue
-            vcs.reparent(force=force, verbose=True)
+            vcs.reparent(builder, force=force, verbose=True)
 
 @command('uncheckout', CAT_CHECKOUT)
 class UnCheckout(CheckoutCommand):
@@ -5238,7 +5238,7 @@ class UpstreamCommand(CheckoutCommand):
                                                       co_leaf, repo, co_dir)
 
         # And do whatever we need to do
-        self.do_our_verb(vcs_handler, upstream_name)
+        self.do_our_verb(builder, vcs_handler, upstream_name)
 
 @command('push-upstream', CAT_CHECKOUT)
 class PushUpstream(UpstreamCommand):
@@ -5287,10 +5287,10 @@ class PushUpstream(UpstreamCommand):
     verbing = 'Pushing'
     direction = 'to'
 
-    def do_our_verb(self, vcs_handler, upstream=None):
+    def do_our_verb(self, builder, vcs_handler, upstream=None):
         # And we can then use that to do the push
         # (in the happy knowledge that *it* will grumble if we're not allowed to)
-        vcs_handler.push(upstream=upstream)
+        vcs_handler.push(builder, upstream=upstream)
 
 @command('pull-upstream', CAT_CHECKOUT)
 class PullUpstream(UpstreamCommand):
@@ -5344,10 +5344,10 @@ class PullUpstream(UpstreamCommand):
     verbing = 'Pulling'
     direction = 'from'
 
-    def do_our_verb(self, vcs_handler, upstream=None):
+    def do_our_verb(self, builder, vcs_handler, upstream=None):
         # And we can then use that to do the pull
         # (in the happy knowledge that *it* will grumble if we're not allowed to)
-        vcs_handler.pull(upstream=upstream)
+        vcs_handler.pull(builder, upstream=upstream)
 
 # -----------------------------------------------------------------------------
 # AnyLabel commands

@@ -555,6 +555,16 @@ def test_git_lifecycle(root_d):
     #
     # =========================================================================
     #
+    # Don't forget to alter version stamping so that it stores the current
+    # branch of a checkout, as well as the current revision. See
+    # version_stamp.py, method from_builder(), particularly around line 410
+    # or so - we need to look up the revision AND branch, and use
+    # vcs.repo.copy_with_changed_branch() to store them both. And think on
+    # the implications of always storing the branch name (is that a good thing?
+    # does it pass the tests?)
+    #
+    # =========================================================================
+    #
     # I then want a way to be able to do this for the build description as
     # well. This requires doing something about issue 145. My current thinking
     # is that we should support .muddle/Description and .muddle/RootRepository

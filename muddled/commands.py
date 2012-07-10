@@ -2035,7 +2035,7 @@ class QueryCheckoutLicenses(QueryCommand):
                 print '* nothing builds against %s'%co_label
             for key, value in sorted(builder.invocation.db.license_not_affected_by.items()):
                 print '* %s is not affected by %s'%(key,
-                                    label_list_to_string(value, join_with=', '))
+                                    label_list_to_string(sorted(value), join_with=', '))
 
         implicit_gpl_licensed, because = get_implicit_gpl_checkouts(builder)
         if implicit_gpl_licensed:

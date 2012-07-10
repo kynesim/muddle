@@ -481,20 +481,18 @@ class Git(VersionControlSystem):
         # Earlier versions of this command line used 'git status -q', but
         # the '-q' switch is not present in git 1.7.0.4
 
-        # NB: this is actually a broken solution to a broken problem, as
-        # our git support is probably not terribly well designed.
-
         if repo.revision:
             orig_revision = repo.revision
         else:
             orig_revision = 'HEAD'
 
-        retcode, text, ignore = utils.get_cmd_data('git status', fail_nonzero=False)
-        text = text.strip()
-        if not self._git_status_text_ok(text):
-            raise utils.GiveUp("%s\n%s"%(utils.wrap("%s: 'git status' suggests"
-                " checkout does not match master:"%co_leaf),
-                utils.indent(text,'    ')))
+        ### I think that it is not useful to do the following check...
+        ##retcode, text, ignore = utils.get_cmd_data('git status', fail_nonzero=False)
+        ##text = text.strip()
+        ##if not self._git_status_text_ok(text):
+        ##    raise utils.GiveUp("%s\n%s"%(utils.wrap("%s: 'git status' suggests"
+        ##        " checkout does not match master:"%co_leaf),
+        ##        utils.indent(text,'    ')))
         if False:
             # Should we try this first, and only "fall back" to the pure
             # SHA1 object name if it fails, or is the pure SHA1 object name

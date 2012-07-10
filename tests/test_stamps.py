@@ -353,10 +353,6 @@ def check_checkout_files(d):
     with Directory(d.join('domains', 'subdomain2')):
         check_dot_muddle(is_subdomain=True)
 
-def stamp():
-    """Produce a version stamp.
-    """
-
 def check_problem(got, starts):
     """We can't be bothered to check ALL of the string...
     """
@@ -415,7 +411,8 @@ def main(args):
     # somewhere in $TMPDIR...
     root_dir = normalise_dir(os.path.join(os.getcwd(), 'transient'))
 
-    with TransientDirectory(root_dir, keep_on_error=True):
+    #with TransientDirectory(root_dir, keep_on_error=True):
+    with NewDirectory(root_dir):
 
         banner('MAKE REPOSITORIES')
         make_repos_with_subdomain(root_dir)
@@ -436,6 +433,28 @@ def main(args):
 
         banner('TESTING CHECKOUT OPTIONS')
         test_options()
+
+        with NewDirectory('build3') as d2:
+            banner('TESTING STAMP CURRENT WORKING SET')
+            muddle(['unstamp', os.path.join(d.where, 'versions', '01.stamp')])
+            # So, we've selected specific revisions for all of our checkouts
+            # and thus they are all in "detached HEAD" state
+            build_rev = captured_muddle(['query', 'checkout-id', 'builds'])
+            main_co_rev = captured_muddle(['query', 'checkout-id', 'main_co'])
+            first_co_rev = captured_muddle(['query', 'checkout-id', 'first_co'])
+            second_co_rev = captured_muddle(['query', 'checkout-id', 'second_co'])
+
+            with Directory('src'):
+                with Directory('first_co'):
+                    append('Makefile.muddle', '\n# A comment\n')
+                    git('commit Makefile.muddle -m "Add a comment"')
+
+            first_co_rev2 = captured_muddle(['query', 'checkout-id', 'first_co'])
+
+            if first_co_rev == first_co_rev2:
+                raise GiveUp('The revision of first_co did not change')
+
+            muddle(['stamp', 'save', 'amended.stamp'])
 
 if __name__ == '__main__':
     args = sys.argv[1:]

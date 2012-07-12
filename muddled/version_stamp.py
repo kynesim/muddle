@@ -540,12 +540,13 @@ class VersionStamp(object):
         print 'File has SHA1 hash %s'%fd.hash()
         return stamp
 
-    def compare_checkouts(self, other, quiet=False):
+    def compare_checkouts(self, other, fd=sys.stdout):
         """Compare the checkouts in this VersionStamp with those in another.
 
         'other' is another VersionStamp.
 
-        If 'quiet', then don't output messages about the comparison.
+        'fd' is where any messages should be written, defaulting to stdout.
+        If this is None, then no messages will be writen.
 
         Note that this only compares the checkouts (including their options) -
         it does not compare any of the other fields in a VersionStamp.
@@ -595,47 +596,46 @@ class VersionStamp(object):
 
         for label in co_labels:
             if label in self.checkouts and label in other.checkouts:
+                errors = set()
+                named = False
                 co_dir1, co_leaf1, repo1 = self.checkouts[label]
                 co_dir2, co_leaf2, repo2 = other.checkouts[label]
 
                 if (co_dir1 != co_dir2 or co_leaf1 != co_leaf2 or
                     repo1 != repo2):
 
-                    errors = []
-                    named = False
-
                     if repo1.same_ignoring_revision(repo2):
                         if repo1.revision != repo2.revision:
                             changed.add((label, repo1.revision, repo2.revision))
                     else:
-                        errors.append('repository')
-                        if not quiet:
-                            print label
-                            print '  Repository mismatch:'
-                            print '    %s from %s'%(repo1.url, repo1)
-                            print '    %s from %s'%(repo2.url, repo2)
+                        errors.add('repository')
+                        if fd is not None:
+                            fd.write('%s\n'%label)
+                            fd.write('  Repository mismatch:\n')
+                            fd.write('    %s from %s\n'%(repo1.url, repo1))
+                            fd.write('    %s from %s\n'%(repo2.url, repo2))
                             named = True
 
                     # It's a problem if anything but the revision is different
 
                     if co_dir1 != co_dir2:
-                        errors.append('co_dir')
-                        if not quiet:
+                        errors.add('co_dir')
+                        if fd is not None:
                             if not named:
-                                print label
+                                fd.write('%s\n'%label)
                                 named = True
-                            print '  Checkout directory mismatch:'
-                            print '    %s'%co_dir1
-                            print '    %s'%co_dir2
+                            fd.write('  Checkout directory mismatch:\n')
+                            fd.write('    %s\n'%co_dir1)
+                            fd.write('    %s\n'%co_dir2)
                     if co_leaf1 != co_leaf2:
-                        errors.append('co_leaf')
-                        if not quiet:
+                        errors.add('co_leaf')
+                        if fd is not None:
                             if not named:
-                                print label
+                                fd.write('%s\n'%label)
                                 named = True
-                            print '  Checkout leaf mismatch:'
-                            print '    %s'%co_leaf1
-                            print '    %s'%co_leaf2
+                            fd.write('  Checkout leaf mismatch:\n')
+                            fd.write('    %s\n'%co_leaf1)
+                            fd.write('    %s\n'%co_leaf2)
 
                 if label in self.options:
                     options1 = self.options[label]
@@ -648,36 +648,38 @@ class VersionStamp(object):
                     options2 = {}
 
                 if options1 != options2:
-                    errors.append('options')
+                    errors.add('options')
                     if not named:
-                        print label
+                        if fd is not None:
+                            fd.write('%s\n'%label)
                         named = True
-                    print '  Options mismatch:'
-                    keys = set(options1.keys() + options2.keys())
-                    keys = list(keys)
-                    keys.sort()
-                    for key in keys:
-                        if key in options1 and key not in options2:
-                            print '    option %s was deleted'%key
-                        elif key not in options1 and key in options2:
-                            print '    option %s is new'%key
-                        else:
-                            print "    option %s changed from" \
-                                  " '%s' to '%s'"%(key, options1[key], options2[key])
+                    if fd is not None:
+                        fd.write('  Options mismatch:\n')
+                        keys = set(options1.keys() + options2.keys())
+                        keys = list(keys)
+                        keys.sort()
+                        for key in keys:
+                            if key in options1 and key not in options2:
+                                fd.write('    option %s was deleted\n'%key)
+                            elif key not in options1 and key in options2:
+                                fd.write('    option %s is new\n'%key)
+                            else:
+                                fd.write("    option %s changed from"
+                                         " '%s' to '%s'\n"%(key, options1[key], options2[key]))
 
                 if errors:
-                    if not quiet:
-                        print '  ...only revision mismatch is allowed'
+                    if fd is not None:
+                        fd.write('  ...only revision mismatch is allowed\n')
                     problems.append((label, 'Checkout %s does not match:'
-                                            ' %s'%(label, ', '.join(errors))))
+                                            ' %s'%(label, ', '.join(sorted(errors)))))
             elif label in self.checkouts:
-                if not quiet:
-                    print 'Checkout %s was deleted'%label
+                if fd is not None:
+                    fd.write('Checkout %s was deleted\n'%label)
                 co_dir, co_leaf, repo = self.checkouts[label]
                 deleted.add( (label, co_dir, co_leaf, repo) )
             else:       # It must be in other.checkouts...
-                if not quiet:
-                    print 'Checkout %s is new'%label
+                if fd is not None:
+                    fd.write('Checkout %s is new\n'%label)
                 co_dir, co_leaf, repo = other.checkouts[label]
                 new.add( (label, co_dir, co_leaf, repo) )
 

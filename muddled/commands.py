@@ -3482,46 +3482,55 @@ class StampDiff(Command):
             print 'Comparing stamp files %s and %s'%(file1, file2)
             return
 
-        if diff_style == 'local':
-            if output_file:
-                raise GiveUp('"muddle stamp diff -x" does not support an output file')
-            self.diff_local(file1, file2)
+        if output_file:
+            with open(output_file, 'w') as fd:
+                self.diff(file1, file2, diff_style, fd)
         else:
-            self.diff(file1, file2, diff_style, output_file)
+            self.diff(file1, file2, diff_style, sys.stdout)
 
-    def diff_local(self, file1, file2):
+    def diff_local(self, file1, file2, fd):
         """
         Output comparison using VersionStamp instances.
         """
         stamp1 = VersionStamp.from_file(file1)
         stamp2 = VersionStamp.from_file(file2)
-        print
+        fd.write('Comparing stamp files\n')
+        fd.write('File 1: %s\n'%file1)
+        fd.write('File 2: %s\n'%file2)
+        fd.write('\n')
         deleted, new, changed, problems = stamp1.compare_checkouts(stamp2)
-        if deleted or new or changed or problems:
-            print
         if deleted:
-            print 'The following were deleted in the second stamp file:'
+            fd.write('\n')
+            fd.write('The following were deleted in the second stamp file:\n')
             for co_label, co_dir, co_leaf, repo in deleted:
-                print '  %s'%co_label
+                fd.write('  %s\n'%co_label)
         if new:
-            print 'The following were new in the second stamp file:'
+            fd.write('\n')
+            fd.write('The following were new in the second stamp file:\n')
             for co_label, co_dir, co_leaf, repo in new:
-                print '  %s'%co_label
+                fd.write('  %s\n'%co_label)
         if changed:
-            print 'The following were changed:'
+            fd.write('\n')
+            fd.write('The following were changed:\n')
             for co_label, rev1, rev2 in changed:
-                print '  %s went from revision %s to %s'%(co_label, rev1, rev2)
+                fd.write('  %s went from revision %s to %s\n'%(co_label, rev1, rev2))
         if problems:
-            print 'The following problems were found:'
+            fd.write('\n')
+            fd.write('The following problems were found:\n')
             for co_label, problem in problems:
-                print '  %s'%(problem)
+                fd.write('  %s\n'%(problem))
         if not (deleted or new or changed or problems):
-            print "The checkouts in the stamp files appear to be the same"
+            fd.write('\n')
+            fd.write("The checkouts in the stamp files appear to be the same\n")
 
-    def diff(self, file1, file2, diff_style='unified', output_file=None):
+    def diff(self, file1, file2, diff_style='unified', fd=sys.stdout):
         """
         Output a comparison of file1 and file2 to html_file.
         """
+        if diff_style == 'local':
+            self.diff_local(file1, file2, fd)
+            return
+
         with open(file1) as fd1:
             file1_lines = fd1.readlines()
         with open(file2) as fd2:
@@ -3554,11 +3563,7 @@ class StampDiff(Command):
                                         file1, file2,
                                         file1_date, file2_date)
 
-        if output_file:
-            with open(output_file,'w') as fd:
-                fd.writelines(diff)
-        else:
-            sys.stdout.writelines(diff)
+        fd.writelines(diff)
 
 @subcommand('stamp', 'push', CAT_EXPORT)
 class StampPush(Command):

@@ -201,10 +201,12 @@ int main(int argc, char **argv)
 """
 
 OPTIONS_TEST  = """\
+# Muddle stamp file
+# Writen at 2012-01-29 17:55:40
+#           2012-01-29 17:55:40 UTC
+
 [STAMP]
 version = 2
-now = 2012-01-29 17:55:40
-utc = 2012-01-29 17:55:40
 
 [ROOT]
 repository = git+file:///Users/tibs/sw/m3/tests/transient/repo/main
@@ -411,8 +413,7 @@ def main(args):
     # somewhere in $TMPDIR...
     root_dir = normalise_dir(os.path.join(os.getcwd(), 'transient'))
 
-    #with TransientDirectory(root_dir, keep_on_error=True):
-    with NewDirectory(root_dir):
+    with TransientDirectory(root_dir, keep_on_error=True):
 
         banner('MAKE REPOSITORIES')
         make_repos_with_subdomain(root_dir)

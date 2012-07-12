@@ -1337,22 +1337,57 @@ class HashFile(object):
 
     We support a subset of the normal file class, but as lines are read
     or written, we calculate a SHA1 hash for the file.
+
+    Optionally, comment lines and/or blank lines can be ignored in calculating
+    the hash, where comment lines are those starting with a '#', or whitespace
+    and a '#', and blank lines are those which contain only whitespace
+    (which includes empty lines).
     """
 
-    def __init__(self, name, mode='r'):
+    def __init__(self, name, mode='r', ignore_comments=False, ignore_blank_lines=False):
         """
         Open the file, for read or write.
+
+        * 'name' is the name (path) of the file to open
+        * 'mode' is either 'r' (for read) or 'w' (for write). If 'w' is
+          specified, then if the file doesn't exist, it will be created,
+          otherwise it will be truncated.
+        * if 'ignore_comments' is true, then lines starting with a '#' (or
+          whitespace and a '#') will not be used in calculating the hash.
+        * if 'ignore_blank_lines' is true, then lines that are empty (zero
+          length), or contain only whitespace, will not be used in calculating
+          the hash.
+
+        Note that this "ignore" doesn't mean "don't write to the file", it
+        just means "ignore when calculating the hash".
         """
         if mode not in ('r', 'w'):
             raise ValueError("HashFile 'mode' must be one of 'r' or 'w', not '%s'"%mode)
         self.name = name
         self.mode = mode
+        self.ignore_comments = ignore_comments
+        self.ignore_blank_lines = ignore_blank_lines
         self.fd = open(name, mode)
         self.sha = hashlib.sha1()
+
+    def _add_to_hash(self, text):
+        """Should we add this line of text to our hash calculation?
+        """
+        if self.ignore_comments and text.lstrip().startswith('#'):
+            return False
+
+        if self.ignore_blank_lines and text.strip() == '':
+            return False
+
+        return True
 
     def write(self, text):
         r"""
         Write the give text to the file, and add it to the SHA1 hash as well.
+
+        (Unless we are ignoring comment lines and it is a comment line, or
+        we are ignoring blank lines and it is a blank line, in which case it
+        will be written to the file but not added  to the hash.)
 
         As is normal for file writes, the '\n' at the end of a line must be
         specified.
@@ -1360,7 +1395,9 @@ class HashFile(object):
         if self.mode != 'w':
             raise MuddleBug("Cannot write to HashFile '%s', opened for read"%self.name)
         self.fd.write(text)
-        self.sha.update(text)
+
+        if self._add_to_hash(text):
+            self.sha.update(text)
 
     def readline(self):
         """
@@ -1374,9 +1411,10 @@ class HashFile(object):
 
         if text == '':
             return ''
-        else:
+
+        if self._add_to_hash(text):
             self.sha.update(text)
-            return text
+        return text
 
     def hash(self):
         """

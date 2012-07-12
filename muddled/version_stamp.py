@@ -3,6 +3,13 @@
 .. TODO .. Insert accurate documentation for version 2 stamp files ..
 
 .. TODO .. Insert approximate (historical) documentation for version 1 stamp files ..
+
+.. TODO .. Don't forget to mention that blank lines and comment lines starting
+           with '#' are not added to the SHA1 hash. Also don't forget to
+           mention that Config files (INI files) also allow comments starting
+           with ';', and inline comments starting with ';', but we don't
+           treat those specially (possibly we should also omit them from
+           SHA1 calculation).
 """
 
 import os
@@ -151,7 +158,8 @@ class VersionStamp(object):
 
         Returns the SHA1 hash for the file.
         """
-        with HashFile(filename, 'w') as fd:
+        with HashFile(filename, 'w',
+                      ignore_comments=True, ignore_blank_lines=True) as fd:
             self.write_to_file_object(fd, version)
             return fd.hash()
 
@@ -244,29 +252,47 @@ class VersionStamp(object):
         version 1 format.
 
         Returns the SHA1 hash for the file.
+
+        Note that the SHA1 does not include blank lines or comment lines that
+        start with a '#' (or whitespace and a '#').
         """
 
         if version not in (1, 2):
             raise GiveUp('Attempt to write version %d stamp file;'
                          ' we only support 1 or 2'%version)
 
+        fd.write('# Muddle stamp file\n')
+        # It's nice to include timestamps in the file, so that the user
+        # can tell when it was written without relying on file system
+        # information (which is not always available). However, we don't
+        # want that to affect the hash for the file, so we write it out
+        # in comments. On the good side, this means that two stamp files
+        # for the same tree, at different times, will have the same hash
+        # (which is a good way of saying they are "the same"), but on the
+        # bad side it means that VersionStamp can't recover the times when
+        # it is reading the file back in. Oh well.
+        # We present the time in two forms, in the hope that at least one
+        # will make some sense to the user.
+        now = datetime.now()
+        now = datetime(now.year, now.month, now.day,
+                       now.hour, now.minute, now.second, 0, now.tzinfo)
+        fd.write("# Written at %s\n"%now.isoformat(' '))
+        now = datetime.utcnow()
+        # Drop any microseconds!
+        now = datetime(now.year, now.month, now.day,
+                       now.hour, now.minute, now.second, 0, now.tzinfo)
+        fd.write("#            %s UTC\n"%now.isoformat(' '))
+        fd.write('\n')
+
         # Note we take care to write out the sections by hand, so that they
         # come out in the order we want, other than in some random order (as
         # we're effectively writing out a dictionary)
 
         config = make_RawConfigParser(ordered=True)
+
         if version > 1:
             config.add_section("STAMP")
             config.set("STAMP", "version", version)
-            now = datetime.now()
-            now = datetime(now.year, now.month, now.day,
-                           now.hour, now.minute, now.second, 0, now.tzinfo)
-            config.set("STAMP", "now", now.isoformat(' '))
-            now = datetime.utcnow()
-            # Drop any microseconds!
-            now = datetime(now.year, now.month, now.day,
-                           now.hour, now.minute, now.second, 0, now.tzinfo)
-            config.set("STAMP", "utc", now.isoformat(' '))
         config.add_section("ROOT")
         config.set("ROOT", "repository", self.repository)
         config.set("ROOT", "description", self.description)
@@ -445,12 +471,16 @@ class VersionStamp(object):
         """Construct a VersionStamp by reading in a stamp file.
 
         Returns a new VersionStamp instance.
+
+        Note that the SHA1 computed and reported for that VersionStamp does not
+        include blank lines or comment lines that start with a '#' (or
+        whitespace and a '#').
         """
 
         stamp = VersionStamp()
 
         print 'Reading stamp file %s'%filename
-        fd = HashFile(filename)
+        fd = HashFile(filename, ignore_comments=True, ignore_blank_lines=True)
 
         config = make_RawConfigParser()
         config.readfp(fd)

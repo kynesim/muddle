@@ -402,6 +402,42 @@ def test_options():
                      "  expected {'Jim': False, 'Bill': 'Some sort of string', 'Fred': 99}\n"
                      '  got      %s'%options)
 
+def capture_revisions():
+    checkouts = captured_muddle(['query', 'checkouts'])
+    checkouts = checkouts.strip()
+    checkouts = checkouts.split('\n')
+
+    revisions = {}
+    for co in checkouts:
+        id = captured_muddle(['query', 'checkout-id', co])
+        id = id.strip()
+        revisions[co] = id
+    return revisions
+
+def compare_revisions(old, new):
+    keys = set(old.keys())
+    keys.update(new.keys())
+    maxlen = 0
+    for k in keys:
+        if len(k) > maxlen:
+            maxlen = len(k)
+
+    different = False
+    for label in sorted(keys):
+        if label not in old:
+            print '%-*s: not in old'%(maxlen, label)
+            different = True
+        elif label not in new:
+            print '%-*s: not in new'%(maxlen, label)
+            different = True
+        else:
+            old_id = old[label]
+            new_id = new[label]
+            if old_id != new_id:
+                print '%-*s: old=%s, new=%s'%(maxlen, label, old_id, new_id)
+                different = True
+    return different
+
 def main(args):
 
     if args:
@@ -413,7 +449,8 @@ def main(args):
     # somewhere in $TMPDIR...
     root_dir = normalise_dir(os.path.join(os.getcwd(), 'transient'))
 
-    with TransientDirectory(root_dir, keep_on_error=True):
+    #with TransientDirectory(root_dir, keep_on_error=True):
+    with NewDirectory(root_dir):
 
         banner('MAKE REPOSITORIES')
         make_repos_with_subdomain(root_dir)
@@ -456,6 +493,18 @@ def main(args):
                 raise GiveUp('The revision of first_co did not change')
 
             muddle(['stamp', 'save', 'amended.stamp'])
+
+        with NewDirectory('build4') as d2:
+            banner('TESTING UNSTAMP -UPDATE -- TEST 1')
+            muddle(['unstamp', os.path.join(d.where, 'versions', '01.stamp')])
+            old_revisions = capture_revisions()
+            # And check the "null" operation
+            banner('TESTING UNSTAMP -UPDATE -- TEST 1 COMMENCES')
+            muddle(['unstamp', '-update', os.path.join(d.where, 'versions', '01.stamp')])
+            new_revisions = capture_revisions()
+            different = compare_revisions(old_revisions, new_revisions)
+            if not different:
+                print 'The tree was not changed by the "null" update'
 
 if __name__ == '__main__':
     args = sys.argv[1:]

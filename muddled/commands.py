@@ -4182,6 +4182,7 @@ class UnStamp(Command):
         """
         domain_names = domains.keys()
         domain_names.sort()
+        root_path = builder.invocation.db.root_path
         for domain_name in domain_names:
             domain_repo, domain_desc = domains[domain_name]
 
@@ -4217,21 +4218,52 @@ class UnStamp(Command):
                     actual_co_dir = os.path.join(domain_root_path, 'src')
             else:
                 print "Inspecting checkout %s"%label.name
-                actual_co_dir = co_dir
+                if co_dir:
+                    actual_co_dir = os.path.join(root_path, 'src', co_dir)
+                else:
+                    actual_co_dir = os.path.join(root_path, 'src')
 
-            # First check - do we have a directory for the checkout
-            if not os.path.exist(actual_co_dir):
+            if not os.path.exists(os.path.join(actual_co_dir, co_leaf)):
+                # First check - do we have a directory for the checkout?
                 # No, we've never heard of it. So add it in...
+                print 'No directory for %s: %s'%(label, os.path.join(actual_co_dir, co_leaf))
                 checkout_from_repo(builder, label, repo, actual_co_dir, co_leaf)
                 changed_checkouts.append(str(label))
             else:
                 # It's there. Does it match?
+                #
+                # XXX Ideally, we'd have way to get the "effective" repository
+                # XXX information for this checkout in the current build,
+                # XXX including its actual revision and branch, so we could
+                # XXX compare that directly. For the moment, we have to do
+                # XXX it in stages...
+                #
+                print 'Found directory for %s - checking repositories'%label
                 builder_repo = get_checkout_repo(label)
-                if builder_repo != repo:
+                if not builder_repo.same_ignoring_revision(repo):
                     # It's not the identical repository.
+                    print '..repositories do not match'
+                    print '  build: %r'%builder_repo
+                    print '  stamp: %r'%repo
                     # Overwrite its information
                     checkout_from_repo(builder, label, repo, actual_co_dir, co_leaf)
                     changed_checkouts.append(str(label))
+                else:
+                    l = label.copy_with_tag(LabelTag.CheckedOut)
+                    rule = builder.invocation.ruleset.rule_for_target(l)
+                    try:
+                        vcs = rule.action.vcs
+                    except AttributeError:
+                        raise GiveUp("Rule for label '%s' has no VCS - cannot find its id"%l)
+                    old_revision = vcs.revision_to_checkout(builder, show_pushd=False)
+                    new_revision = repo.revision
+                    if old_revision != new_revision:
+                        print '.. revisions do not match'
+                        print '   build: %s'%old_revision
+                        print '   stamp: %s'%new_revision
+                        # Overwrite its information
+                        checkout_from_repo(builder, label, repo, actual_co_dir, co_leaf)
+                        changed_checkouts.append(str(label))
 
         # Then use "muddle pull" to update them - this has the advantage
         # of reporting problems properly, and also updates _just_pulled
@@ -4243,8 +4275,7 @@ class UnStamp(Command):
             try:
                 p = Pull()
                 p.options['no_operation'] = True # XXX for the moment, a no-op
-                p.with_build_tree(builder, builder.invocation.root_path,
-                                  changed_checkouts)
+                p.with_build_tree(builder, root_path, changed_checkouts)
             except GiveUp as e:
                 had_problems = True
 

@@ -1,15 +1,160 @@
 """VersionStamp and stamp file support.
 
-.. TODO .. Insert accurate documentation for version 2 stamp files ..
+Stamp files
+===========
+Stamp files are INI files, implemented using the Python ConfigParser module
+(specifically, RawConfigParser).
 
-.. TODO .. Insert approximate (historical) documentation for version 1 stamp files ..
+INI files are composed of one or more sections, each of the form:
 
-.. TODO .. Don't forget to mention that blank lines and comment lines starting
-           with '#' are not added to the SHA1 hash. Also don't forget to
-           mention that Config files (INI files) also allow comments starting
-           with ';', and inline comments starting with ';', but we don't
-           treat those specially (possibly we should also omit them from
-           SHA1 calculation).
+    [header]
+    key = value
+    key = value
+
+Indentation is allowed, but will be ignored.
+
+Comment lines may be introduced with either '#' or ';', and in-line comments
+may be added by following '[header]' or 'key = value' with whitespace and a
+';' (but not a '#').
+
+Muddle treats '#' comment lines specially in stamp files, but is not aware
+of ';' comments, and we recommend not using them in muddle stamp files.
+
+When a stamp file is written or read, a SHA1 hash is calculated from the lines
+of text being written/read. Since mid-July 2012, comment lines starting with
+'#', and blank lines (whitespace only) are not included in that SHA1 hash.
+Since a stamp file uniquely describes the current state of a muddle build tree,
+the hash calculated from its content can be regarded as a version id for the
+build tree.
+
+It can sometimes be useful to edit a stamp file. If you do so, it is advisable
+to add a comment or comments indicating what has been done and why.
+
+All muddle commands for handling stamp files are subcommands of either "muddle
+stamp" or "muddle unstamp".
+
+Version 1 Stamp Files
+=====================
+We retain limited support for version 1 stamp files, mainly to allow reading
+existing (legacy) files. There *is* provision for writing version 1 stamp
+files, but it is not guaranteed to be accurate.
+
+Version 1 stamp files were replaced because they could not unambiguously
+store all of the information needed by the Repository class we now use to
+remember where a checkout "came from".
+
+Support for version 1 stamp files will be removed at some future time.
+
+Version 2 Stamp Files
+=====================
+Version 2 stamp files are the current form of stamp file.
+
+This section describes the current content of a stamp file, as currently
+written by muddle. For the rest of this section, "stamp files" should be taken
+to mean "version 2 stamp files".
+
+All stamp files start with some standard comment lines::
+
+    # Muddle stamp file
+    # Written at 2012-07-12 13:13:13
+    #            2012-07-12 12:13:13 UTC
+
+The date and time stamps are in local time and UTC respectively.
+
+This is followed by a general section:
+
+    [STAMP]
+    version = 2
+
+which at the moment just identifies the version of the stamp file.
+
+Next comes a section identifying the build description - this repeats
+information taken from the RootRepository, Description and VersionsRepository
+files in the ``.muddle/`` directory of the build. For instance::
+
+  [ROOT]
+  repository = git+ssh://git@palmera.c//opt/kynesim/projects/001
+  description = builds/01.py
+  versions_repo = git+file:///home/tibs/temp/r/versions
+
+The keys ('repository', etc.) are always presented in the same order - this is
+a general principle within stamp file sections, so that stamp files themselves
+can be comparable with simple tools such as ``diff``.
+
+Next, if the build tree has subdomains, will come sections describing those
+domains. For instance::
+
+    [DOMAIN subdomain1]
+    description = builds/01.py
+    name = subdomain1
+    repository = git+file:///home/tibs/sw/muddle/tests/transient/repo/subdomain1
+
+    [DOMAIN subdomain1(subdomain3)]
+    description = builds/01.py
+    name = subdomain1(subdomain3)
+    repository = git+file:///home/tibs/sw/muddle/tests/transient/repo/subdomain3
+
+Domain sections occur in "C" sort order of the domain names. Note that there
+will not be any domain sections if there are no subdomains (i.e., if there is
+no ``domains/`` directory in the build tree).
+
+Next come sections for each checkout. For instance::
+
+    [CHECKOUT (subdomain1)builds]
+    co_label = checkout:(subdomain1)builds/checked_out
+    co_leaf = builds
+    repo_vcs = git
+    repo_from_url_string = None
+    repo_base_url = file:///home/tibs/sw/muddle/tests/transient/repo/subdomain1
+    repo_name = builds
+    repo_prefix_as_is = False
+    repo_revision = 7d8377a18efcd8b3d7b788de8cee26aa6d770005
+
+and::
+
+    [CHECKOUT builds]
+    co_label = checkout:builds/checked_out
+    co_leaf = builds
+    repo_vcs = git
+    repo_from_url_string = None
+    repo_base_url = ssh://git@palmera.c//opt/kynesim/projects/001
+    repo_name = builds
+    repo_prefix_as_is = False
+    repo_revision = dfb06f29c81828bbdfc48ce53d7bc4203b68a459
+
+    [CHECKOUT busybox-1.17.1]
+    co_label = checkout:busybox-1.17.1/checked_out
+    co_dir = linux
+    co_leaf = busybox-1.17.1
+    repo_vcs = git
+    repo_from_url_string = None
+    repo_base_url = ssh://git@palmera.c//opt/kynesim/projects/001
+    repo_name = busybox-1.17.1
+    repo_prefix = linux
+    repo_prefix_as_is = False
+    repo_revision = 965b4809b5ca93df0a4973e043a5a9af0ecf50e3
+
+The values presented give the checkout label, its location in the build tree
+('co_dir' and 'co_leaf'), and its Repository instance (the 'repo_xxx' values.
+See "muddle doc version_control.checkout_from_repo" for some information on
+how the 'co_xxx' values are used, and "muddle doc repository.Repository" for
+more information on the Repository class).
+
+Again, these are presented in "C" sort order of the checkout name, including
+the domain component - this means that subdomain checkouts will occur before
+toplevel checkouts. Also, while not all checkout sections will contain the
+same values, the order in which they are presented will always be the same.
+
+Finally, if "muddle stamp" reported any problems in creating the stamp file,
+these will be saved in a problems section. For instance::
+
+    [PROBLEMS]
+    problem1 = builds: 'svnversion' reports checkout has revision '459M'
+
+(a subversion revision ending in 'M' means that the checkout was modified and
+not yet committed). Problems are presented as 'problem1', 'problem2', etc. In
+general, the checkout name should be the first part of the message occurring as
+the problem value.
 """
 
 import os

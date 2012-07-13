@@ -24,6 +24,7 @@ import pydoc
 import shutil
 import subprocess
 import sys
+import tempfile
 import textwrap
 import time
 import urllib
@@ -3404,73 +3405,92 @@ class StampVersion(Command):
 @subcommand('stamp', 'diff', CAT_EXPORT)
 class StampDiff(Command):
     """
-    :Syntax: muddle stamp diff [-u[nified]|-c[ontext]|-n|-h[tml]|-x] <file1> <file2> [<output_file>]
+    :Syntax: muddle stamp diff [<style>] <path1> <path2> [<output_file>]
 
-    Compare two stamp files.
+    Compare two builds, as version stamps.
 
-    The two (existing) stamp files named are compared. If <output_file> is
-    given, then the output is written to it (overwriting any previous file of
-    that name), otherwise output is to standard output.
+    Each of <path1> and <path2> may be an existing stamp file, or the top-level
+    directory of a muddle build tree (i.e., the directory that contains the
+    '.muddle' and 'src' directories).
 
-    If '-u' is specified, then the output is a unified difference. This is the
-    default.
+    If <output_file> is given, then the results of the comparison will be
+    written to it, otherwise they will be written to standard output.
 
-    If '-c' is specified, then the output is a context difference. This uses a
-    "before/after" style of presentation.
+    <style> specifies the way the comparison is done:
 
-    If '-n' is specified, then the output is from "ndiff" - this is normally
-    a more human-friendly set of differences, but outputs the parts of the files
-    that match as well as those that do not.
+    * -u, -unified - output a unified difference between stamp files.
+    * -c, -context - output a context difference between stamp files. This
+      uses a "before/after" style of presentation.
+    * -n, -ndiff - use Python's "ndiff" to output the difference between stamp
+      files. This is normally a more human-friendly set of differences, but
+      outputs the parts of the files that match as well as those that do not.
+    * -h, -html - output the difference between stamp files as an HTML page,
+      displaying the files in two columns, with differences highlighted by
+      colour.
+    * -d, -direct - output the difference between two VersionStamp
+      datastructures (this is the datastructure used to hold a stamp file
+      internally within muddle). This is the default.
 
-    If '-h' is specified, then the output is an HTML page, displaying
-    differences in two columns (with colours).
+    NOTE that at the moment '-d' only compares checkout information, not
+    repository and domain information. It also ignores any "problems" in
+    the stamp file.
 
-    If '-x' is specified, then both stamp files are read in as VersionStamp
-    entities, and the checkouts therein are compared (just the checkouts).
-    This option only writes to stdout, not to <output_file>
+    For textual comparisons between stamp files, "muddle stamp diff" will
+    first generate a temporary stamp file, if necessary (i.e., if <path1>
+    or <path2> is a build tree), using the equivalent of "muddle stamp save".
+
+    For direct ('-d') comparison, a VersionStamp will be created from the
+    build tree or read from the stamp file, as appropriate.
     """
 
     def requires_build_tree(self):
         return False
 
     def print_syntax(self):
-        print ':Syntax: muddle stamp diff [-u[nified]|-n|-h[tml]] <file1> <file2> [<output_file>]'
+        print ':Syntax: muddle stamp diff [<style>] <path1> <path2> [<output_file>]'
 
     def without_build_tree(self, muddle_binary, root_path, args):
         if not args:
-            raise GiveUp("'stamp diff' needs two stamp files to compare")
-        self.compare_stamp_files(args)
+            raise GiveUp("'stamp diff' needs two paths (stamp file or build tree) to compare")
+        self.compare_stamps(muddle_binary, args)
 
     def with_build_tree(self, builder, current_dir, args):
-        if not args:
-            raise GiveUp("'stamp diff' needs two stamp files to compare")
-        self.compare_stamp_files(args)
+        self.without_build_tree(builder.muddle_binary, current_dir, args)
 
-    def compare_stamp_files(self, args):
-        diff_style = 'unified'
-        file1 = file2 = output_file = None
+    def compare_stamps(self, muddle_binary, args):
+
+        path1 = path2 = output_file = None
+        # The default is to compare using VersionStamp
+        diff_style = 'direct'
+        # Which doesn't *need* explicit text files
+        requires_text_filess = False
+
         while args:
-            word = args[0]
-            args = args[1:]
+            word = args.pop(0)
             if word in ('-u', '-unified'):
                 diff_style = 'unified'
-            elif word == '-n':
+                requires_text_filess = True
+            elif word in ('-n', '-ndiff'):
                 diff_style = 'ndiff'
+                requires_text_filess = True
             elif word in ('-c', '-context'):
                 diff_style = 'context'
+                requires_text_filess = True
             elif word in ('-h', '-html'):
                 diff_style = 'html'
-            elif word == '-x':
-                diff_style = 'local'
+                requires_text_filess = True
+            elif word in ('-d', '-direct'):
+                diff_style = 'direct'
+                requires_text_filess = False
             elif word.startswith('-'):
                 print "Unexpected switch '%s'"%word
                 self.print_syntax()
                 return 2
             else:
-                if file1 is None:
-                    file1 = word
-                elif file2 is None:
-                    file2 = word
+                if path1 is None:
+                    path1 = word
+                elif path2 is None:
+                    path2 = word
                 elif output_file is None:
                     output_file = word
                 else:
@@ -3478,25 +3498,108 @@ class StampDiff(Command):
                     self.print_syntax()
                     return 2
 
+        # What sort of things are we comparing?
+        if os.path.isdir(path1) and os.path.exists(os.path.join(path1, '.muddle')):
+            path1_is_build = True
+        elif os.path.isfile(path1):
+            path1_is_build = False
+        else:
+            raise GiveUp('"%s" is not a file or a build tree - cannot compare it'%path1)
+
+        if os.path.isdir(path2) and os.path.exists(os.path.join(path2, '.muddle')):
+            path2_is_build = True
+        elif os.path.isfile(path2):
+            path2_is_build = False
+        else:
+            raise GiveUp('"%s" is not a file or a build tree - cannot compare it'%path2)
+
         if self.no_op():
-            print 'Comparing stamp files %s and %s'%(file1, file2)
+            parts = ['Comparing']
+            if path1_is_build:
+                parts.append('build tree')
+            else:
+                parts.append('stamp file')
+            parts.append('"%s"'%path1)
+            parts.append('and')
+            if path2_is_build:
+                parts.append('build tree')
+            else:
+                parts.append('stamp file')
+            parts.append('"%s"'%path2)
+            print ' '.join(parts)
             return
 
-        if output_file:
-            with open(output_file, 'w') as fd:
-                self.diff(file1, file2, diff_style, fd)
-        else:
-            self.diff(file1, file2, diff_style, sys.stdout)
+        path1 = utils.normalise_path(path1)
+        path2 = utils.normalise_path(path2)
 
-    def diff_local(self, file1, file2, fd):
+        if requires_text_filess:
+            if path1_is_build:
+                # Prepare a version stamp file
+                (build_root, build_domain) = utils.find_root_and_domain(path1)
+                b = mechanics.load_builder(build_root, muddle_binary, default_domain=build_domain)
+                print 'Calculating stamp for %s'%path1
+                stamp1, problems = VersionStamp.from_builder(b, quiet=True)
+                with tempfile.NamedTemporaryFile(suffix='.stamp', mode='w', delete=False) as fd:
+                    file1 = fd.name
+                    print 'Writing stamp for %s to %s'%(path1, file1)
+                    stamp1.write_to_file_object(fd)
+            else:
+                file1 = path1
+            if path2_is_build:
+                # Prepare a version stamp file
+                (build_root, build_domain) = utils.find_root_and_domain(path2)
+                b = mechanics.load_builder(build_root, muddle_binary, default_domain=build_domain)
+                print 'Calculating stamp for %s'%path2
+                stamp2, problems = VersionStamp.from_builder(b, quiet=True)
+                with tempfile.NamedTemporaryFile(suffix='.stamp', mode='w', delete=False) as fd:
+                    file2 = fd.name
+                    print 'Writing stamp for %s to %s'%(path2, file2)
+                    stamp2.write_to_file_object(fd)
+            else:
+                file2 = path2
+            if output_file:
+                print 'Writing output to %s'%output_file
+                with open(output_file, 'w') as fd:
+                    self.diff(path1, path2, file1, file2, diff_style, fd)
+            else:
+                self.diff(path1, path2, file1, file2, diff_style, sys.stdout)
+        else:
+            if path1_is_build:
+                # Calculate its VersionStamp
+                (build_root, build_domain) = utils.find_root_and_domain(path1)
+                b = mechanics.load_builder(build_root, muddle_binary, default_domain=build_domain)
+                print 'Calculating stamp for %s'%path1
+                stamp1, problems = VersionStamp.from_builder(b, quiet=True)
+            else:
+                # Read the file in as a VersionStamp
+                stamp1 = VersionStamp.from_file(path1)
+            if path2_is_build:
+                (build_root, build_domain) = utils.find_root_and_domain(path2)
+                b = mechanics.load_builder(build_root, muddle_binary, default_domain=build_domain)
+                print 'Calculating stamp for %s'%path2
+                stamp2, problems = VersionStamp.from_builder(b, quiet=True)
+            else:
+                stamp2 = VersionStamp.from_file(path2)
+            if output_file:
+                print 'Writing output to %s'%output_file
+                with open(output_file, 'w') as fd:
+                    self.diff_direct(path1_is_build, path2_is_build,
+                                     path1, path2, stamp1, stamp2, fd)
+            else:
+                self.diff_direct(path1_is_build, path2_is_build,
+                                 path1, path2, stamp1, stamp2, sys.stdout)
+
+    def diff_direct(self, path1_is_build, path2_is_build, path1, path2, stamp1, stamp2, fd):
         """
         Output comparison using VersionStamp instances.
+
+        Currently, only compares the checkouts.
+
+        XXX TODO It *should* compare everything (including any problems!)
         """
-        stamp1 = VersionStamp.from_file(file1)
-        stamp2 = VersionStamp.from_file(file2)
-        fd.write('Comparing stamp files\n')
-        fd.write('File 1: %s\n'%file1)
-        fd.write('File 2: %s\n'%file2)
+        fd.write('Comparing version stamps\n')
+        fd.write('Source 1: %s %s\n'%('build tree' if path1_is_build else 'stamp file', path1))
+        fd.write('Source 2: %s %s\n'%('build tree' if path2_is_build else 'stamp file', path2))
         fd.write('\n')
         deleted, new, changed, problems = stamp1.compare_checkouts(stamp2)
         if deleted:
@@ -3523,29 +3626,36 @@ class StampDiff(Command):
             fd.write('\n')
             fd.write("The checkouts in the stamp files appear to be the same\n")
 
-    def diff(self, file1, file2, diff_style='unified', fd=sys.stdout):
+    def diff(self, path1, path2, file1, file2, diff_style='unified', fd=sys.stdout):
         """
-        Output a comparison of file1 and file2 to html_file.
+        Output a comparison of two stamp files
         """
-        if diff_style == 'local':
-            self.diff_local(file1, file2, fd)
-            return
-
         with open(file1) as fd1:
             file1_lines = fd1.readlines()
         with open(file2) as fd2:
             file2_lines = fd2.readlines()
 
+        # Ensure it is obvious in the output which stamp files were compared,
+        # and, if we generated them, where we made them from
+        if path1 == file1:
+            name1 = path1
+        else:
+            name1 = '%s from %s'%(file1, path1)
+        if path2 == file2:
+            name2 = path2
+        else:
+            name2 = '%s from %s'%(file2, path2)
+
         if diff_style == 'html':
             diff = difflib.HtmlDiff().make_file(file1_lines, file2_lines,
-                                                file1, file2)
+                                                name1, name2)
         elif diff_style == 'ndiff':
             diff = difflib.ndiff(file1_lines, file2_lines)
             file1_date = time.ctime(os.stat(file1).st_mtime)
             file2_date = time.ctime(os.stat(file2).st_mtime)
             help = ["#First character indicates provenance:\n"
-                    "# '-' only in %s of %s\n"%(file1, file1_date),
-                    "# '+' only in %s of %s\n"%(file2, file2_date),
+                    "# '-' only in %s of %s\n"%(name1, file1_date),
+                    "# '+' only in %s of %s\n"%(name2, file2_date),
                     "# ' ' in both\n",
                     "# '?' pointers to intra-line differences\n"
                     "#---------------------------------------\n"]
@@ -3554,13 +3664,13 @@ class StampDiff(Command):
             file1_date = time.ctime(os.stat(file1).st_mtime)
             file2_date = time.ctime(os.stat(file2).st_mtime)
             diff = difflib.context_diff(file1_lines, file2_lines,
-                                        file1, file2,
+                                        name1, name2,
                                         file1_date, file2_date)
         else:
             file1_date = time.ctime(os.stat(file1).st_mtime)
             file2_date = time.ctime(os.stat(file2).st_mtime)
             diff = difflib.unified_diff(file1_lines, file2_lines,
-                                        file1, file2,
+                                        name1, name2,
                                         file1_date, file2_date)
 
         fd.writelines(diff)

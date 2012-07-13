@@ -1462,6 +1462,10 @@ def normalise_dir(dir):
     dir = os.path.normpath(dir)     # remove double slashes, etc.
     return dir
 
+# It should really be called normalise_path - allow me to use that without
+# yet having replaced all occurrences...
+normalise_path = normalise_dir
+
 class Directory(object):
     """A class to facilitate pushd/popd behaviour
 

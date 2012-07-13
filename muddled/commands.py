@@ -3208,7 +3208,7 @@ class StampSave(Command):
     version of muddle or not). Note that the version 1 stamp file created
     by muddle 2.3 and above is not absolutely guaranteed to be correct.
 
-    See 'unstamp' for restoring from stamp files.
+    See "muddle unstamp" for restoring from stamp files.
     """
 
     def requires_build_tree(self):
@@ -3334,7 +3334,7 @@ class StampVersion(Command):
     particular version of muddle or not). Note that the version 1 stamp file
     created by muddle 2.3 and above is not absolutely guaranteed to be correct.
 
-    See 'unstamp' for restoring from stamp files.
+    See "muddle unstamp" for restoring from stamp files.
     """
 
     def requires_build_tree(self):
@@ -3822,19 +3822,29 @@ class StampPull(Command):
 @command('unstamp', CAT_EXPORT)
 class UnStamp(Command):
     """
+    To create a build tree from a stamp file:
+
     :Syntax: muddle unstamp <file>
     :or:     muddle unstamp <url>
     :or:     muddle unstamp <vcs>+<url>
     :or:     muddle unstamp <vcs>+<repo_url> <version_desc>
 
-    The "unstamp" command reads the contents of a "stamp" file, as produced by
-    the "muddle stamp" command, and:
+    To update a build tree from a stamp file:
+
+    :Syntax: muddle unstamp -u[pdate] <file>
+
+    Creating a build tree from a stamp file
+    ---------------------------------------
+    The normal "unstamp" command reads the contents of a "stamp" file, as
+    produced by the "muddle stamp" command, and:
 
     1. Retrieves each checkout mentioned
     2. Reconstructs the corresponding muddle directory structure
     3. Confirms that the muddle build description is compatible with
        the checkouts.
 
+    This form of the command cannot be used within an existing muddle build
+    tree, as its intent is to create a new build tree.
 
     The file may be specified as:
 
@@ -3881,21 +3891,74 @@ class UnStamp(Command):
 
       and then unstamp the ProjectThing.stamp file therein.
 
+    Updating a build tree from a stamp file
+    ---------------------------------------
+    The "-update" form ("unstamp -update" or "unstamp -u") also reads the
+    contents of a "stamp" file, but it then tries to amend the current build
+    tree to match the stamp file.
+
+    This form of the command must be used within an existing muddle build tree,
+    as its intent is to alter it.
+
+    The stamp file must be specified as a local path - the URL forms are not
+    supported.
+
+    The command looks up each checkout described in the stamp file. If it
+    already exists, then it sets it to the correct revision, using "muddle
+    pull".
+
+        XXX Future versions of this command will also be able to change
+        the branch of a checkout. This is not yet supported.
+
+    If the checkout does not exist, then it will be cloned, using "muddle
+    checkout".
+
+    In the simplest case, the "unstamp -update" operation may just involve
+    choosing different revisions on some checkouts.
+
+    Before using this form of the command, it is probably worth using::
+
+        muddle stamp diff . <file>
+
+    to determine what changes will be made.
+
+    After using this form of the command, it is highly recommended to use::
+
+        muddle veryclean
+
+    to delete the directories built from the checkout sources.
     """
 
     def print_syntax(self):
         print """
+    To create a build tree:
+
     :Syntax: muddle unstamp <file>
     :or:     muddle unstamp <url>
     :or:     muddle unstamp <vcs>+<url>
     :or:     muddle unstamp <vcs>+<repo_url> <version_desc>
 
-Try "muddle help unstamp" for more information."""
+    To update a build tree:
+
+    :Syntax: muddle unstamp -u[pdate] <file>
+
+    Try "muddle help unstamp" for more information."""
 
     def requires_build_tree(self):
         return False
 
+    def with_build_tree(self, builder, current_dir, args):
+
+        if ('-u' not in args) and ('update' not in args):
+            raise GiveUp('Plain "muddle unstamp" does not work in a build tree.\n'
+                         'Did you mean "muddle unstamp -update"?\n'
+                         'See "muddle help unstamp for more information.')
+
     def without_build_tree(self, muddle_binary, root_path, args):
+
+        if ('-u' in args) or ('-update' in args):
+            raise GiveUp('"muddle unstamp -update" needs a build tree to update')
+
         # Strongly assume the user wants us to work in the current directory
         current_dir = os.getcwd()
 

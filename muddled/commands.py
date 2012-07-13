@@ -3944,19 +3944,33 @@ class UnStamp(Command):
 
     Try "muddle help unstamp" for more information."""
 
+    allowed_switches = {
+            '-u' : 'update',
+            '-update' : 'update',
+            }
+
     def requires_build_tree(self):
         return False
 
     def with_build_tree(self, builder, current_dir, args):
 
-        if ('-u' not in args) and ('update' not in args):
+        args = self.remove_switches(args)
+
+        if 'update' not in self.switches:
             raise GiveUp('Plain "muddle unstamp" does not work in a build tree.\n'
                          'Did you mean "muddle unstamp -update"?\n'
                          'See "muddle help unstamp for more information.')
 
+        if len(args) != 1:
+            raise GiveUp('"muddle unstamp -update" takes a single stamp file as argument')
+
+        self.update_from_file(builder, args[0])
+
     def without_build_tree(self, muddle_binary, root_path, args):
 
-        if ('-u' in args) or ('-update' in args):
+        args = self.remove_switches(args)
+
+        if 'update' in self.switches:
             raise GiveUp('"muddle unstamp -update" needs a build tree to update')
 
         # Strongly assume the user wants us to work in the current directory
@@ -4003,7 +4017,6 @@ class UnStamp(Command):
             self.print_syntax()
             return 2
 
-
     def unstamp_from_file(self, muddle_binary, root_path, current_dir, thing):
         """
         Unstamp from a file (local, over the network, or from a repository)
@@ -4048,8 +4061,7 @@ class UnStamp(Command):
 
         # Once we've checked everything out, we should ideally check
         # if the build description matches what we've checked out...
-        return self.check_build(current_dir, stamp.checkouts, builder,
-                                muddle_binary)
+        return self.check_build(current_dir, stamp.checkouts, muddle_binary)
 
     def unstamp_from_repo(self, muddle_binary, root_path, current_dir, repo,
                           version_path):
@@ -4088,8 +4100,24 @@ class UnStamp(Command):
 
         # Once we've checked everything out, we should ideally check
         # if the build description matches what we've checked out...
-        return self.check_build(current_dir, stamp.checkouts, builder,
-                                muddle_binary)
+        return self.check_build(current_dir, stamp.checkouts, muddle_binary)
+
+    def update_from_file(self, builder, filename):
+        """
+        Update our build from the given stamp file.
+        """
+
+        if self.no_op():
+            return
+
+        stamp = VersionStamp.from_file(filename)
+        self.update_from_stamp(builder, stamp.domains, stamp.checkouts)
+
+        # Once we've checked everything out, we should ideally check
+        # if the build description matches what we've checked out...
+        return self.check_build(builder.invocation.db.root_path,
+                                stamp.checkouts,
+                                builder.muddle_binary)
 
     def _domain_path(self, root_path, domain_name):
         """Turn a domain name into its path.
@@ -4148,7 +4176,84 @@ class UnStamp(Command):
             new_label = label.copy_with_tag(LabelTag.CheckedOut)
             builder.build_label(new_label, silent=False)
 
-    def check_build(self, current_dir, checkouts, builder, muddle_binary):
+    def update_from_stamp(self, builder, domains, checkouts):
+        """
+        Given the information from our stamp file, update the current build.
+        """
+        domain_names = domains.keys()
+        domain_names.sort()
+        for domain_name in domain_names:
+            domain_repo, domain_desc = domains[domain_name]
+
+            # Take care to allow for multiple parts
+            # Thus domain 'fred(jim)' maps to <root>/domains/fred/domains/jim
+            domain_root_path = self._domain_path(root_path, domain_name)
+
+            if not os.path.exists(domain_root_path):
+                print "Adding domain %s"%domain_name
+                os.makedirs(domain_root_path)
+                domain_builder = mechanics.minimal_build_tree(builder.muddle_binary,
+                                                              domain_root_path,
+                                                              domain_repo, domain_desc)
+                # Tell the domain's builder that it *is* a domain
+                domain_builder.invocation.mark_domain(domain_name)
+
+        co_labels = checkouts.keys()
+        co_labels.sort()
+        changed_checkouts = []
+
+        get_checkout_repo = builder.invocation.db.get_checkout_repo
+
+        for label in co_labels:
+            # Determine if the checkout has changed, and if so, update its
+            # information and add its label to the list of changed checkouts.
+            co_dir, co_leaf, repo = checkouts[label]
+            if label.domain:
+                domain_root_path = self._domain_path(root_path, label.domain)
+                print "Inspecting checkout (%s)%s"%(label.domain,label.name)
+                if co_dir:
+                    actual_co_dir = os.path.join(domain_root_path, 'src', co_dir)
+                else:
+                    actual_co_dir = os.path.join(domain_root_path, 'src')
+            else:
+                print "Inspecting checkout %s"%label.name
+                actual_co_dir = co_dir
+
+            # First check - do we have a directory for the checkout
+            if not os.path.exist(actual_co_dir):
+                # No, we've never heard of it. So add it in...
+                checkout_from_repo(builder, label, repo, actual_co_dir, co_leaf)
+                changed_checkouts.append(str(label))
+            else:
+                # It's there. Does it match?
+                builder_repo = get_checkout_repo(label)
+                if builder_repo != repo:
+                    # It's not the identical repository.
+                    # Overwrite its information
+                    checkout_from_repo(builder, label, repo, actual_co_dir, co_leaf)
+                    changed_checkouts.append(str(label))
+
+        # Then use "muddle pull" to update them - this has the advantage
+        # of reporting problems properly, and also updates _just_pulled
+        # for us. NB: We *could* propagate a '-stop' switch is we cared,
+        # but currently we don't provide such...
+        had_problems = False
+        if changed_checkouts:
+            print 'Updating the changed checkouts'
+            try:
+                p = Pull()
+                p.options['no_operation'] = True # XXX for the moment, a no-op
+                p.with_build_tree(builder, builder.invocation.root_path,
+                                  changed_checkouts)
+            except GiveUp as e:
+                had_problems = True
+
+        if had_problems:
+            # Do we need the message? Or should we just raise GiveUp()
+            # (to set the muddle exit code) as "muddle pull" itself does.
+            raise GiveUp('Problems occurred updating some of the checkouts')
+
+    def check_build(self, current_dir, checkouts, muddle_binary):
         """
         Check that the build tree we now have on disk looks a bit like what we want...
         """

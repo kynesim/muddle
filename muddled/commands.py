@@ -3534,52 +3534,33 @@ class StampDiff(Command):
 
         if requires_text_filess:
             if path1_is_build:
-                # Prepare a version stamp file
-                (build_root, build_domain) = utils.find_root_and_domain(path1)
-                b = mechanics.load_builder(build_root, muddle_binary, default_domain=build_domain)
-                print 'Calculating stamp for %s'%path1
-                stamp1, problems = VersionStamp.from_builder(b, quiet=True)
-                with tempfile.NamedTemporaryFile(suffix='.stamp', mode='w', delete=False) as fd:
-                    file1 = fd.name
-                    print 'Writing stamp for %s to %s'%(path1, file1)
-                    stamp1.write_to_file_object(fd)
+                file1 = self._generate_stamp_file(path1, muddle_binary)
             else:
                 file1 = path1
+
             if path2_is_build:
-                # Prepare a version stamp file
-                (build_root, build_domain) = utils.find_root_and_domain(path2)
-                b = mechanics.load_builder(build_root, muddle_binary, default_domain=build_domain)
-                print 'Calculating stamp for %s'%path2
-                stamp2, problems = VersionStamp.from_builder(b, quiet=True)
-                with tempfile.NamedTemporaryFile(suffix='.stamp', mode='w', delete=False) as fd:
-                    file2 = fd.name
-                    print 'Writing stamp for %s to %s'%(path2, file2)
-                    stamp2.write_to_file_object(fd)
+                file2 = self._generate_stamp_file(path2, muddle_binary)
             else:
                 file2 = path2
+
             if output_file:
                 print 'Writing output to %s'%output_file
                 with open(output_file, 'w') as fd:
                     self.diff(path1, path2, file1, file2, diff_style, fd)
             else:
                 self.diff(path1, path2, file1, file2, diff_style, sys.stdout)
+
         else:
             if path1_is_build:
-                # Calculate its VersionStamp
-                (build_root, build_domain) = utils.find_root_and_domain(path1)
-                b = mechanics.load_builder(build_root, muddle_binary, default_domain=build_domain)
-                print 'Calculating stamp for %s'%path1
-                stamp1, problems = VersionStamp.from_builder(b, quiet=True)
+                stamp1 = self._calculate_stamp(path1, muddle_binary)
             else:
-                # Read the file in as a VersionStamp
                 stamp1 = VersionStamp.from_file(path1)
+
             if path2_is_build:
-                (build_root, build_domain) = utils.find_root_and_domain(path2)
-                b = mechanics.load_builder(build_root, muddle_binary, default_domain=build_domain)
-                print 'Calculating stamp for %s'%path2
-                stamp2, problems = VersionStamp.from_builder(b, quiet=True)
+                stamp2 = self._calculate_stamp(path2, muddle_binary)
             else:
                 stamp2 = VersionStamp.from_file(path2)
+
             if output_file:
                 print 'Writing output to %s'%output_file
                 with open(output_file, 'w') as fd:
@@ -3588,6 +3569,36 @@ class StampDiff(Command):
             else:
                 self.diff_direct(path1_is_build, path2_is_build,
                                  path1, path2, stamp1, stamp2, sys.stdout)
+
+    def _calculate_stamp(self, path, muddle_binary):
+        """Calculate the stamp for the build at 'path'
+
+        We probably don't strictly *need* 'muddle_binary' for our purposes,
+        but since we know our caller has it to hand, we might as well use it.
+
+        Note that we ignore any problems reported in generating the stamp.
+        """
+        (build_root, build_domain) = utils.find_root_and_domain(path)
+        b = mechanics.load_builder(build_root, muddle_binary, default_domain=build_domain)
+        print 'Calculating stamp for %s'%path
+        stamp, problems = VersionStamp.from_builder(b, quiet=True)
+        return stamp
+
+    def _generate_stamp_file(self, path, muddle_binary):
+        """Generate a stamp file for the build at 'path'
+
+        We probably don't strictly *need* 'muddle_binary' for our purposes,
+        but since we know our caller has it to hand, we might as well use it.
+
+        Generates a stamp (ignoring any problems), and then writes the stamp
+        file from that.
+        """
+        stamp = self._calculate_stamp(path, muddle_binary)
+        with tempfile.NamedTemporaryFile(suffix='.stamp', mode='w', delete=False) as fd:
+            filename = fd.name
+            print 'Writing stamp for %s to %s'%(path, filename)
+            stamp.write_to_file_object(fd)
+        return filename
 
     def diff_direct(self, path1_is_build, path2_is_build, path1, path2, stamp1, stamp2, fd):
         """

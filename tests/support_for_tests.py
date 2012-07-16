@@ -292,10 +292,14 @@ def check_nosuch_files(paths, verbose=True):
     if verbose:
         print '++ All named files do not exist'
 
-def banner(text):
+def banner(text, level=1):
     """Print a banner around the given text.
+
+    'level' is 1..3, with 1 being the "most important" level of banner
     """
-    delim = '*' * (len(text)+4)
+    delimiters = {1:'*', 2:'+', 3:'.'}
+    delim_char = delimiters[level]
+    delim = delim_char * (len(text)+4)
     print delim
     print '* %s *'%text
     print delim

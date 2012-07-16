@@ -253,10 +253,9 @@ def make_standard_checkout(co_dir, progname, desc):
     git('commit -a -m "Commit {desc} checkout {progname}"'.format(desc=desc,
         progname=progname))
 
-def make_repos_with_subdomain(root_dir):
+def make_repos_with_subdomain(repo):
     """Create git repositories for our subdomain tests.
     """
-    repo = os.path.join(root_dir, 'repo')
     with NewDirectory('repo'):
         with NewDirectory('main'):
             with NewDirectory('builds') as d:
@@ -438,6 +437,71 @@ def compare_revisions(old, new):
                 different = True
     return different
 
+def test_stamp_unstamp(root_dir):
+    """Simple test of stamping and then unstamping
+
+    Returns the path to the stamp file it creates
+    """
+    banner('TEST BASIC STAMP AND UNSTAMP')
+    with NewDirectory('build') as d:
+        banner('CHECK REPOSITORIES OUT', 2)
+        checkout_build_descriptions(root_dir, d)
+        muddle(['checkout', '_all'])
+        check_checkout_files(d)
+
+        banner('STAMP', 2)
+        muddle(['stamp', 'version'])
+
+        first_stamp = os.path.join(d.where, 'versions', '01.stamp')
+
+    with NewDirectory('build2') as d2:
+        banner('UNSTAMP', 2)
+        muddle(['unstamp', os.path.join(d.where, 'versions', '01.stamp')])
+        check_checkout_files(d2)
+
+    return first_stamp
+
+def test_stamp_is_current_working_set(first_stamp):
+    """Check we are stamping the current working set
+    """
+    with NewDirectory('build3') as d2:
+        banner('TESTING STAMP CURRENT WORKING SET')
+        muddle(['unstamp', first_stamp])
+        # So, we've selected specific revisions for all of our checkouts
+        # and thus they are all in "detached HEAD" state
+        build_rev = captured_muddle(['query', 'checkout-id', 'builds'])
+        main_co_rev = captured_muddle(['query', 'checkout-id', 'main_co'])
+        first_co_rev = captured_muddle(['query', 'checkout-id', 'first_co'])
+        second_co_rev = captured_muddle(['query', 'checkout-id', 'second_co'])
+
+        with Directory('src'):
+            with Directory('first_co'):
+                append('Makefile.muddle', '\n# A comment\n')
+                git('commit Makefile.muddle -m "Add a comment"')
+
+        first_co_rev2 = captured_muddle(['query', 'checkout-id', 'first_co'])
+
+        if first_co_rev == first_co_rev2:
+            raise GiveUp('The revision of first_co did not change')
+
+        muddle(['stamp', 'save', 'amended.stamp'])
+
+def test_unstamp_update_identity_operation(repo, first_stamp):
+    """Test the "unstamp -update" identity operation
+    """
+    with NewDirectory('build4') as d2:
+        banner('TESTING UNSTAMP -UPDATE -- TEST 1')
+        muddle(['init', 'git+file://{repo}/main'.format(repo=repo), 'builds/01.py'])
+        muddle(['checkout', '_all'])
+        old_revisions = capture_revisions()
+        # And check the "null" operation
+        banner('TESTING UNSTAMP -UPDATE -- TEST 1 COMMENCES')
+        muddle(['unstamp', '-update', first_stamp])
+        new_revisions = capture_revisions()
+        different = compare_revisions(old_revisions, new_revisions)
+        if not different:
+            print 'The tree was not changed by the "null" update'
+
 def main(args):
 
     if args:
@@ -448,65 +512,23 @@ def main(args):
     # although if it's anyone other than me they might prefer
     # somewhere in $TMPDIR...
     root_dir = normalise_dir(os.path.join(os.getcwd(), 'transient'))
+    repo = os.path.join(root_dir, 'repo')
 
     #with TransientDirectory(root_dir, keep_on_error=True):
     with NewDirectory(root_dir):
 
-        banner('MAKE REPOSITORIES')
-        make_repos_with_subdomain(root_dir)
-
-        with NewDirectory('build') as d:
-            banner('CHECK REPOSITORIES OUT')
-            checkout_build_descriptions(root_dir, d)
-            muddle(['checkout', '_all'])
-            check_checkout_files(d)
-
-            banner('STAMP')
-            muddle(['stamp', 'version'])
-
-        with NewDirectory('build2') as d2:
-            banner('UNSTAMP')
-            muddle(['unstamp', os.path.join(d.where, 'versions', '01.stamp')])
-            check_checkout_files(d2)
-
         banner('TESTING CHECKOUT OPTIONS')
         test_options()
 
-        with NewDirectory('build3') as d2:
-            banner('TESTING STAMP CURRENT WORKING SET')
-            muddle(['unstamp', os.path.join(d.where, 'versions', '01.stamp')])
-            # So, we've selected specific revisions for all of our checkouts
-            # and thus they are all in "detached HEAD" state
-            build_rev = captured_muddle(['query', 'checkout-id', 'builds'])
-            main_co_rev = captured_muddle(['query', 'checkout-id', 'main_co'])
-            first_co_rev = captured_muddle(['query', 'checkout-id', 'first_co'])
-            second_co_rev = captured_muddle(['query', 'checkout-id', 'second_co'])
+        banner('MAKE REPOSITORIES')
+        make_repos_with_subdomain(repo)
 
-            with Directory('src'):
-                with Directory('first_co'):
-                    append('Makefile.muddle', '\n# A comment\n')
-                    git('commit Makefile.muddle -m "Add a comment"')
+        first_stamp = test_stamp_unstamp(root_dir)
 
-            first_co_rev2 = captured_muddle(['query', 'checkout-id', 'first_co'])
+        test_stamp_is_current_working_set(first_stamp)
 
-            if first_co_rev == first_co_rev2:
-                raise GiveUp('The revision of first_co did not change')
+        test_unstamp_update_identity_operation(repo, first_stamp)
 
-            muddle(['stamp', 'save', 'amended.stamp'])
-
-        with NewDirectory('build4') as d2:
-            banner('TESTING UNSTAMP -UPDATE -- TEST 1')
-            repo = os.path.join(root_dir, 'repo')
-            muddle(['init', 'git+file://{repo}/main'.format(repo=repo), 'builds/01.py'])
-            muddle(['checkout', '_all'])
-            old_revisions = capture_revisions()
-            # And check the "null" operation
-            banner('TESTING UNSTAMP -UPDATE -- TEST 1 COMMENCES')
-            muddle(['unstamp', '-update', os.path.join(d.where, 'versions', '01.stamp')])
-            new_revisions = capture_revisions()
-            different = compare_revisions(old_revisions, new_revisions)
-            if not different:
-                print 'The tree was not changed by the "null" update'
 
 if __name__ == '__main__':
     args = sys.argv[1:]

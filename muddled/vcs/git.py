@@ -174,20 +174,36 @@ class Git(VersionControlSystem):
         """
         Will be called in the actual checkout's directory.
         """
-        if repo.revision and repo.revision != 'HEAD':
+        starting_revision = self._git_rev_parse_HEAD()
+
+        if repo.revision and repo.revision == starting_revision:
+
+            # XXX We really only want to grumble here if an unfettered pull
+            # XXX would take us past this revision - if it would have had
+            # XXX no effect, it seems a bit unfair to complain.
+            # XXX So ideally we'd check here with whatever is currently
+            # XXX fetched, and then (if necessary) check again further on
+            # XXX after actually doing a fetch. But it's not obvious how
+            # XXX to do this, so I shall ignore it for the moment...
+            #
+            # XXX (checking HEAD against FETCH_HEAD may or may not be
+            # XXX helpful)
+
+            # It's a bit debatable whether we should raise GiveUp or just
+            # print the message and return. However, if we just printed, the
+            # "report any problems" mechanism in the "muddle pull" command
+            # would not know to mention this happening, which would mean that
+            # for a joint pull of many checkouts, such messages might get lost.
+            # So we'll go with (perhaps) slightly overkill approach.
             raise utils.GiveUp(\
-                "The build description specifies revision %s for this checkout.\n"
-                "'muddle pull' does a git fetch and then a fast-forwards merge.\n"
-                "Since git always merges to the currrent HEAD, muddle does not\n"
-                "support 'muddle pull' for a git checkout with a revision"
-                " specified."%repo.revision)
+                "The build description specifies revision %s... for this checkout,\n"
+                "and it is already at that revision. 'muddle %s' will not take the\n"
+                "checkout past the specified revision."%(repo.revision[:8], cmd))
 
         # Refuse to pull if there are any local changes or untracked files.
         self._is_it_safe()
 
         self._shallow_not_allowed(options)
-
-        starting_revision = self._git_rev_parse_HEAD()
 
         if not upstream or upstream == 'origin':
             # If we're not given an upstream repository name, assume we're dealing
@@ -213,10 +229,24 @@ class Git(VersionControlSystem):
             remote = 'remotes/%s/master'%(upstream)
         else:
             remote = 'remotes/%s/%s'%(upstream,repo.branch)
-        if (git_supports_ff_only()):
-            utils.run_cmd("git merge --ff-only %s"%remote, verbose=verbose)
+
+        if repo.revision:
+            # If the build description specifies a particular revision, all we
+            # can really do is go to that revision (we did the fetch anyway in
+            # case the user had edited the build descrtiption to refer to a
+            # revision id we had not yet reached).
+            # XXX This may also be a revision specified in an "unstamp -update"
+            # XXX operation - should the message be changed to reflect this?
+            print '++ Just changing to the revision specified in the build description'
+            utils.run_cmd("git checkout %s"%repo.revision)
         else:
-            utils.run_cmd("git merge --ff %s"%remote, verbose=verbose)
+            # Merge what we fetched into the working tree, but only if this is
+            # a fast-forward merge, and thus doesn't require the user to do any
+            # thinking.
+            if (git_supports_ff_only()):
+                utils.run_cmd("git merge --ff-only %s"%remote, verbose=verbose)
+            else:
+                utils.run_cmd("git merge --ff %s"%remote, verbose=verbose)
 
         ending_revision = self._git_rev_parse_HEAD()
 

@@ -4274,7 +4274,6 @@ class UnStamp(Command):
             print 'Updating the changed checkouts'
             try:
                 p = Pull()
-                p.options['no_operation'] = True # XXX for the moment, a no-op
                 p.with_build_tree(builder, root_path, changed_checkouts)
             except GiveUp as e:
                 had_problems = True

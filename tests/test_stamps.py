@@ -469,22 +469,40 @@ def test_stamp_is_current_working_set(first_stamp):
         muddle(['unstamp', first_stamp])
         # So, we've selected specific revisions for all of our checkouts
         # and thus they are all in "detached HEAD" state
-        build_rev = captured_muddle(['query', 'checkout-id', 'builds'])
-        main_co_rev = captured_muddle(['query', 'checkout-id', 'main_co'])
-        first_co_rev = captured_muddle(['query', 'checkout-id', 'first_co'])
-        second_co_rev = captured_muddle(['query', 'checkout-id', 'second_co'])
+        revisions = capture_revisions()
 
         with Directory('src'):
             with Directory('first_co'):
                 append('Makefile.muddle', '\n# A comment\n')
                 git('commit Makefile.muddle -m "Add a comment"')
 
-        first_co_rev2 = captured_muddle(['query', 'checkout-id', 'first_co'])
+        # Don't forget that ".strip()" to remove the trailing newline!
+        first_co_rev2 = captured_muddle(['query', 'checkout-id', 'first_co']).strip()
 
-        if first_co_rev == first_co_rev2:
+        if first_co_rev2 == revisions['first_co']:
             raise GiveUp('The revision of first_co did not change')
 
+        revisions['first_co'] = first_co_rev2
+
         muddle(['stamp', 'save', 'amended.stamp'])
+
+        stamp = VersionStamp.from_file('amended.stamp')
+        if len(stamp.checkouts) != len(revisions):
+            raise GiveUp('Stamp file has %d checkouts, build tree %d'%(len(stamp.checkouts),
+                                                                       len(revisions)))
+
+        for co in stamp.checkouts:
+            if co.domain:
+                dom_plus_name = '(%s)%s'%(co.domain, co.name)
+            else:
+                dom_plus_name = co.name
+            repo = stamp.checkouts[co][-1]      # ah, named tuples would be good here
+            #print dom_plus_name
+            #print '  S:',repo.revision
+            #print '  D:',revisions[dom_plus_name]
+            if repo.revision != revisions[dom_plus_name]:
+                raise GiveUp('Checkout %s is revision %s in stamp file,'
+                        ' %s on disk'%(dom_plus_name, repo.revision, revisions[dom_plus_name]))
 
 def test_unstamp_update_identity_operation(repo, first_stamp):
     """Test the "unstamp -update" identity operation

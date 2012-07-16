@@ -231,6 +231,22 @@ option~Aha~There = No colons here
 option~AhaTwo = what:pardon
 """
 
+def make_checkout_bare():
+    """Use nasty trickery to turn our checkout bare...
+    """
+    # 1. Lose the working set
+    files = os.listdir('.')
+    for file in files:
+        if file != '.git':
+            os.remove(file)
+    # 2. Move the contents of .git/ up one level, and delete the empty .git/
+    files = os.listdir('.git')
+    for file in files:
+        os.rename(os.path.join('.git', file), file)
+    os.rmdir('.git')
+    # 3. Tell git what we've done
+    git('config --bool core.bare true')
+
 def make_build_desc(co_dir, file_content):
     """Take some of the repetition out of making build descriptions.
     """
@@ -242,6 +258,8 @@ def make_build_desc(co_dir, file_content):
     git('add .gitignore')
     git('commit -m "Commit .gitignore"')
 
+    make_checkout_bare()
+
 def make_standard_checkout(co_dir, progname, desc):
     """Take some of the repetition out of making checkouts.
     """
@@ -252,6 +270,8 @@ def make_standard_checkout(co_dir, progname, desc):
     git('add {progname}.c Makefile.muddle'.format(progname=progname))
     git('commit -a -m "Commit {desc} checkout {progname}"'.format(desc=desc,
         progname=progname))
+
+    make_checkout_bare()
 
 def make_repos_with_subdomain(repo):
     """Create git repositories for our subdomain tests.
@@ -413,7 +433,11 @@ def capture_revisions():
         revisions[co] = id
     return revisions
 
-def compare_revisions(old, new):
+def revisions_differ(old, new):
+    """Finds all the differences (if any).
+
+    Returns True if they are different.
+    """
     keys = set(old.keys())
     keys.update(new.keys())
     maxlen = 0
@@ -432,8 +456,8 @@ def compare_revisions(old, new):
         else:
             old_id = old[label]
             new_id = new[label]
+            print '%-*s: old=%s, new=%s'%(maxlen, label, old_id, new_id)
             if old_id != new_id:
-                print '%-*s: old=%s, new=%s'%(maxlen, label, old_id, new_id)
                 different = True
     return different
 
@@ -507,18 +531,59 @@ def test_stamp_is_current_working_set(first_stamp):
 def test_unstamp_update_identity_operation(repo, first_stamp):
     """Test the "unstamp -update" identity operation
     """
+    banner('TESTING UNSTAMP -UPDATE -- TEST 1 (IDENTITY)')
     with NewDirectory('build4') as d2:
-        banner('TESTING UNSTAMP -UPDATE -- TEST 1')
         muddle(['init', 'git+file://{repo}/main'.format(repo=repo), 'builds/01.py'])
         muddle(['checkout', '_all'])
         old_revisions = capture_revisions()
         # And check the "null" operation
-        banner('TESTING UNSTAMP -UPDATE -- TEST 1 COMMENCES')
         muddle(['unstamp', '-update', first_stamp])
         new_revisions = capture_revisions()
-        different = compare_revisions(old_revisions, new_revisions)
-        if not different:
+        if revisions_differ(old_revisions, new_revisions):
+            raise GiveUp('Null update changed stuff!')  # and then debug by hand...
+        else:
             print 'The tree was not changed by the "null" update'
+
+def test_unstamp_update_2(repo, first_stamp):
+    """Test the "unstamp -update" identity operation a bit more
+    """
+    banner('TESTING UNSTAMP -UPDATE -- TEST 2')
+    with NewDirectory('build5a') as d:
+        muddle(['init', 'git+file://{repo}/main'.format(repo=repo), 'builds/01.py'])
+        muddle(['checkout', '_all'])
+        old_revisions = capture_revisions()
+
+        # Make some amdendments and check them in
+        with Directory('src'):
+            with Directory('first_co'):
+                append('Makefile.muddle', '\n# A comment\n')
+                git('commit Makefile.muddle -m "Add a comment"')
+                muddle(['push'])
+
+        with Directory('domains'):
+            with Directory('subdomain1'):
+                with Directory('src'):
+                    with Directory('builds'):
+                        append('01.py', '\n# A comment\n')
+                        git('commit 01.py -m "Add a comment"')
+                        muddle(['push'])
+
+        new_revisions = capture_revisions()
+
+        # Keep this state for later on
+        muddle(['stamp', 'save', 'new_state.stamp'])
+
+        # Revert to the original
+        muddle(['unstamp', '-update', first_stamp])
+        current_revisions = capture_revisions()
+        if revisions_differ(current_revisions, old_revisions):
+            raise GiveUp('Update back to original failed')
+
+        # And back (forwards) again
+        muddle(['unstamp', '-update', 'new_state.stamp'])
+        current_revisions = capture_revisions()
+        if revisions_differ(current_revisions, new_revisions):
+            raise GiveUp('Update forward again failed')
 
 def main(args):
 
@@ -546,6 +611,8 @@ def main(args):
         test_stamp_is_current_working_set(first_stamp)
 
         test_unstamp_update_identity_operation(repo, first_stamp)
+
+        test_unstamp_update_2(repo, first_stamp)
 
 
 if __name__ == '__main__':

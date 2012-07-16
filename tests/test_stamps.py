@@ -456,8 +456,8 @@ def revisions_differ(old, new):
         else:
             old_id = old[label]
             new_id = new[label]
-            print '%-*s: old=%s, new=%s'%(maxlen, label, old_id, new_id)
             if old_id != new_id:
+                print '%-*s: old=%s, new=%s'%(maxlen, label, old_id, new_id)
                 different = True
     return different
 

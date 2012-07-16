@@ -496,7 +496,9 @@ def main(args):
 
         with NewDirectory('build4') as d2:
             banner('TESTING UNSTAMP -UPDATE -- TEST 1')
-            muddle(['unstamp', os.path.join(d.where, 'versions', '01.stamp')])
+            repo = os.path.join(root_dir, 'repo')
+            muddle(['init', 'git+file://{repo}/main'.format(repo=repo), 'builds/01.py'])
+            muddle(['checkout', '_all'])
             old_revisions = capture_revisions()
             # And check the "null" operation
             banner('TESTING UNSTAMP -UPDATE -- TEST 1 COMMENCES')

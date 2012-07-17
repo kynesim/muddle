@@ -116,7 +116,7 @@ class File(VersionControlSystem):
     def reparent(self, co_dir, remote_repo, options, force=False, verbose=True):
         pass
 
-    def revision_to_checkout(self, repo, co_leaf, options, force=False, verbose=False):
+    def revision_to_checkout(self, repo, co_leaf, options, force=False, before=None, verbose=False):
         """
         Determine a revision id for this checkout, usable to check it out again.
         """

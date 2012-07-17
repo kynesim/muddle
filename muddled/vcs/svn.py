@@ -166,7 +166,7 @@ class Subversion(VersionControlSystem):
         """
         pass                # or should we say something? I assume not...
 
-    def revision_to_checkout(self, repo, co_leaf, options, force=False, verbose=False):
+    def revision_to_checkout(self, repo, co_leaf, options, force=False, before=None, verbose=False):
         """
         Determine a revision id for this checkout, usable to check it out again.
 
@@ -175,6 +175,9 @@ class Subversion(VersionControlSystem):
         For the moment, at lease, the 'force' argument is ignored (so the
         working copy must be be equivalent to the repository).
         """
+        if before:
+            raise utils.GiveUp('%s: "before" argument not currently supported'%co_leaf)
+
         retcode, revision, ignore = utils.get_cmd_data('svnversion', verbose=verbose)
         revision = revision.strip()
         if all([x.isdigit() for x in revision]):

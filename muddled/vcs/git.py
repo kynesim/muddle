@@ -469,36 +469,60 @@ class Git(VersionControlSystem):
             raise utils.GiveUp("'git rev-parse HEAD' failed with return code %d"%retcode)
         return revision.strip()
 
-    def _calculate_revision(self, co_leaf, orig_revision, force=False, verbose=True):
+    def _calculate_revision(self, co_leaf, orig_revision, force=False,
+                            before=None, verbose=True):
         """
         This returns a bare SHA1 object name for the current revision
+
+        NB: if 'before' is specified, 'force' is ignored.
         """
-        retcode, revision, ignore = utils.get_cmd_data('git rev-parse HEAD',
-                                                       fail_nonzero=False)
-        if retcode:
-            if revision:
-                text = utils.indent(revision.strip(),'    ')
-                if force:
-                    if verbose:
-                        print "'git rev-parse HEAD' had problems with checkout" \
-                              " '%s'"%co_leaf
-                        print "    %s"%text
-                        print "using original revision %s"%orig_revision
-                    return orig_revision
-            else:
-                text = '    (it failed with return code %d)'%retcode
-            raise utils.GiveUp("%s\n%s"%(utils.wrap("%s: 'git rev-parse HEAD'"
-                " could not determine a revision id for checkout:"%co_leaf),
-                text))
+        if before:
+            print "git rev-list -n 1 --before='%s' HEAD"%before
+            retcode, revision, ignore = utils.get_cmd_data("git rev-list -n 1 --before='%s' HEAD"%before,
+                                                           fail_nonzero=False)
+            print retcode, revision
+            if retcode:
+                if revision:
+                    text = utils.indent(revision.strip(),'    ')
+                else:
+                    text = '    (it failed with return code %d)'%retcode
+                raise utils.GiveUp("%s\n%s"%(utils.wrap("%s:"
+                    " \"git rev-list -n 1 --before='%s' HEAD\"'"
+                    " could not determine a revision id for checkout:"%(co_leaf, before)),
+                    text))
+        else:
+            retcode, revision, ignore = utils.get_cmd_data('git rev-parse HEAD',
+                                                           fail_nonzero=False)
+            if retcode:
+                if revision:
+                    text = utils.indent(revision.strip(),'    ')
+                    if force:
+                        if verbose:
+                            print "'git rev-parse HEAD' had problems with checkout" \
+                                  " '%s'"%co_leaf
+                            print "    %s"%text
+                            print "using original revision %s"%orig_revision
+                        return orig_revision
+                else:
+                    text = '    (it failed with return code %d)'%retcode
+                raise utils.GiveUp("%s\n%s"%(utils.wrap("%s: 'git rev-parse HEAD'"
+                    " could not determine a revision id for checkout:"%co_leaf),
+                    text))
         return revision.strip()
 
-    def revision_to_checkout(self, repo, co_leaf, options, force=False, verbose=True):
+    def revision_to_checkout(self, repo, co_leaf, options, force=False, before=None, verbose=True):
         """
         Determine a revision id for this checkout, usable to check it out again.
 
         a) Document
         b) Review the code to see if we now support versions of git that  would
            allow us to do this more sensibly
+
+        If 'before' is given, it should be a string describing a date/time, and
+        the revision id chosen will be the last revision at or before that
+        date/time.
+
+        NB: if 'before' is specified, 'force' is ignored.
 
         XXX TODO: Needs reviewing given we're using a later version of git now
         """
@@ -529,7 +553,8 @@ class Git(VersionControlSystem):
             # better?
             revision = self._git_describe_long(co_leaf, orig_revision, force, verbose)
         else:
-            revision = self._calculate_revision(co_leaf, orig_revision, force, verbose)
+            revision = self._calculate_revision(co_leaf, orig_revision, force,
+                                                before, verbose)
         return revision
 
     def allows_relative_in_repo(self):

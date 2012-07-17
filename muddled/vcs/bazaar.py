@@ -340,7 +340,26 @@ class Bazaar(VersionControlSystem):
                                                       fail_nonzero=False)
         return missing, cmd
 
-    def revision_to_checkout(self, repo, co_leaf, options, force=False, verbose=True):
+    def _revision_id(self, env, revspec):
+        """Find the revision id for revision 'revspec'
+        """
+        cmd = "bzr log -l 1 -r '%s' --long --show-ids"%revspec
+        retcode, text, ignore = utils.get_cmd_data(cmd, env=env, fail_nonzero=False)
+        if retcode != 0:
+            raise utils.GiveUp("%s: '%s' failed with return code %d\n%s"%(co_leaf,
+                                                                cmd, retcode, text))
+        # Let's look for the revision-id field therein
+        lines = text.split('\n')
+        for line in lines:
+            line = line.strip()
+            parts = line.split(':')
+            if parts[0] == 'revision-id':
+                revision = ':'.join(parts[1:]) # although I hope there aren't internal colons!
+                return revision
+        raise utils.GiveUp("%s: '%s' did not return text contining 'revision-id:'"
+                           "\n%s"%(co_leaf, cmd, text))
+
+    def revision_to_checkout(self, repo, co_leaf, options, force=False, before=None, verbose=True):
         """
         Determine a revision id for this checkout, usable to check it out again.
 
@@ -351,6 +370,13 @@ class Bazaar(VersionControlSystem):
         If 'force' is true, then if we can't get one from bzr, and it seems
         "reasonable" to do so, use the original revision from the muddle
         depend file (if it is not HEAD).
+
+        If 'before' is given, it should be a string describing a date/time, and
+        the revision id chosen will be the last revision at or before that
+        date/time.
+
+        .. note:: This depends upon what the VCS concerned actually supports.
+           This feature is experimental. XXX NOT YET IMPLEMENTED XXX
 
         'bzr revno' always returns a simple integer (or so I believe)
 
@@ -383,6 +409,11 @@ class Bazaar(VersionControlSystem):
         """
 
         env = self._derive_env()
+
+        if before:
+            # XXX For now, we're going to short-circuit everything else if we
+            # XXX are asked for 'before'.
+            return self._revision_id(env, before)
 
         if repo.revision:
             orig_revision = repo.revision
@@ -431,19 +462,12 @@ class Bazaar(VersionControlSystem):
             #    print 'Assuming this is a problem with bzr itself, and ignoring it'
             #    print '(This is a horrible hack, until I find a better way round)'
             else:
-                raise utils.GiveUp("%s: 'bzr missing' suggests checkout does"
-                                    " not match the remote repository:\n%s"%(co_leaf,
+                raise utils.GiveUp("%s: 'bzr missing' suggests this checkout revision"
+                                    " is not present in the remote repository:\n%s"%(co_leaf,
                                     utils.indent(missing,'    ')))
 
-        # So, let's get our revision number - where we are in the history
-        # of the current branch
-        retcode, revno, ignore = utils.get_cmd_data('bzr revno', env=env)
-        revno = revno.strip()
-        if all([x.isdigit() for x in revno]):
-            return revno
-        else:
-            raise utils.GiveUp("%s: 'bzr revno' reports checkout has revision"
-                    " '%s', which is not an integer"%(co_leaf, revno))
+        # So let's go with the revision id for the last commit of this local branch
+        return self._revision_id(env, 'revno:-1')
 
     def _just_revno(self):
         """

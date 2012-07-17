@@ -3157,13 +3157,23 @@ class Doc(Command):
 @subcommand('stamp', 'save', CAT_EXPORT)
 class StampSave(Command):
     """
-    :Syntax: muddle stamp save [-f[orce]|-h[ead]|-v[ersion] <version>] [<filename>]
+    :Syntax: muddle stamp save [<switche>] [<filename>]
 
     Go through each checkout, and save its remote repository and current
     revision id/number to a file.
 
     This is intended to be enough information to allow reconstruction of the
     entire build tree, as-is.
+
+    <switches> may be:
+
+    * -before <when> - use the (last) revision id at or before <when>
+    * -f, -force - "force" a revision id
+    * -h, -head - use HEAD for all checkouts
+    * -v <version>, -version <version>  - specify the version of stamp file
+
+    These are explained more below. Switches may occur before or after
+    <filename>.
 
     If a <filename> is specified, then output will be written to a file called
     either <filename>.stamp or <filename>.partial. If <filename> already ended
@@ -3182,6 +3192,18 @@ class StampSave(Command):
     If a file already exists with the name ultimately chosen, that file will
     be overwritten.
 
+    If '-before' is specified, then use the (last) revision id at or before
+    that date and time. <when> is left a bit unspecified at the moment, and
+    thus this feature is experimental.
+
+       | XXX At the moment '-before' is only supported for git, and thus any
+       | XXX form of date/time/revision id that git will accept may be used for
+       | XXX <when>.
+
+    For instance::
+
+        muddle stamp save -before "2012-06-26 23:00:00"
+
     If '-f' or '-force' is specified, then attempt to "force" a revision id,
     even if it is not necessarily correct. For instance, if a local working
     directory contains uncommitted changes, then ignore this and use the
@@ -3195,6 +3217,8 @@ class StampSave(Command):
       problems in particular checkouts, but inspection shows that these
       are artefacts that may be ignored, such as an executable built in
       the source directory.)
+
+    Note that if '-before' is specified, '-force' will be ignored.
 
     If '-h' or '-head' is specified, then HEAD will be used for all checkouts.
     In this case, the repository specified in the build description is used,
@@ -3218,27 +3242,28 @@ class StampSave(Command):
         force = False
         just_use_head = False
         filename = None
+        when = None
         version = 2
 
         while args:
-            word = args[0]
-            args = args[1:]
+            word = args.pop(0)
             if word in ('-f', '-force'):
                 force = True
                 just_use_head = False
             elif word in ('-h', '-head'):
                 just_use_head = True
                 force = False
+            elif word == '-before':
+                when = args.pop(0)
             elif word in ('-v', '-version'):
                 try:
-                    version = int(args[0])
+                    version = int(args.pop(0))
                 except IndexError:
                     raise GiveUp("-version must be followed by 1 or 2, for 'stamp save'")
                 except ValueError as e:
                     raise GiveUp("-version must be followed by 1 or 2, not '%s'"%args[0])
                 if version not in (1, 2):
                     raise GiveUp("-version must be followed by 1 or 2, not '%s'"%args[0])
-                args = args[1:]
             elif word.startswith('-'):
                 raise GiveUp("Unexpected switch '%s' for 'stamp save'"%word)
             elif filename is None:
@@ -3254,7 +3279,7 @@ class StampSave(Command):
         if self.no_op():
             return
 
-        stamp, problems = VersionStamp.from_builder(builder, force, just_use_head)
+        stamp, problems = VersionStamp.from_builder(builder, force, just_use_head, before=when)
 
         working_filename = 'working.stamp'
         print 'Writing to',working_filename

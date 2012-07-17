@@ -285,6 +285,7 @@ class VersionStamp(object):
         self.checkouts = {}     # label -> (co_dir, co_leaf, repo)
         self.options = {}       # label -> {option_name : option_value}
         self.problems = []      # one string per problem
+        self.before = None      # Set by from_builder() if 'before' is specified
 
     def __str__(self):
         """Make 'print' do something useful.
@@ -429,6 +430,11 @@ class VersionStamp(object):
         fd.write("#            %s UTC\n"%now.isoformat(' '))
         fd.write('\n')
 
+        # If we were asked to calculate a stamp "before" a particular time,
+        # we might as well say so...
+        if self.before:
+            fd.write('# Stamp calculated for checkouts at or before %s'%self.before)
+
         # Note we take care to write out the sections by hand, so that they
         # come out in the order we want, other than in some random order (as
         # we're effectively writing out a dictionary)
@@ -506,12 +512,12 @@ class VersionStamp(object):
                                 truncate(str(item), columns=truncate)))
 
     @staticmethod
-    def from_builder(builder, force=False, just_use_head=False, quiet=False):
+    def from_builder(builder, force=False, just_use_head=False, before=None, quiet=False):
         """Construct a VersionStamp from a muddle build description.
 
         'builder' is the muddle Builder for our build description.
 
-        If '-force' is true, then attempt to "force" a revision id, even if it
+        If 'force' is true, then attempt to "force" a revision id, even if it
         is not necessarily correct. For instance, if a local working directory
         contains uncommitted changes, then ignore this and use the revision id
         of the committed data. If it is actually impossible to determine a
@@ -524,9 +530,16 @@ class VersionStamp(object):
             shows that these are artefacts that may be ignored, such as an
             executable built in the source directory.)
 
-        If '-head' is true, then HEAD will be used for all checkouts.  In this
-        case, the repository specified in the build description is used, and
-        the revision id and status of each checkout is not checked.
+        If 'just_use_head' is true, then HEAD will be used for all checkouts.
+        In this case, the repository specified in the build description is
+        used, and the revision id and status of each checkout is not checked.
+
+        If 'before' is given, it should be a string describing a date/time, and
+        the revision id chosen for each checkout will be the last revision
+        at or before that date/time.
+
+        .. note:: This depends upon what the VCS concerned actually supports.
+           This feature is experimental.
 
         If 'quiet' is True, then we will not print information about what
         we are doing, and we will not print out problems as they are found.
@@ -576,7 +589,8 @@ class VersionStamp(object):
                         print 'Forcing head'
                     rev = "HEAD"
                 else:
-                    rev = vcs.revision_to_checkout(builder, force=force, verbose=True)
+                    rev = vcs.revision_to_checkout(builder, force=force,
+                                                   before=before, verbose=True)
 
                 repo = vcs.repo.copy_with_changed_revision(rev)
 

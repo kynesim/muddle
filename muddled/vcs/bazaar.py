@@ -25,13 +25,15 @@ class Bazaar(VersionControlSystem):
         A thunk around _prune_spurious_bzr_output applied to
         utils.get_cmd_data
         """
-        retcode, text, ignore = utils.get_cmd_data(cmd, env=env, 
+        retcode, text, error = utils.get_cmd_data(cmd, env=env,
                                                    isSystem=isSystem,
                                                    fold_stderr=fold_stderr,
                                                    verbose=verbose,
                                                    fail_nonzero=fail_nonzero)
-        text = self._prune_spurious_bzr_output(text)
-        return retcode, text, ignore
+        if text:
+            text = self._prune_spurious_bzr_output(text)
+        # XXX Do we need to consider pruning 'error' as well?
+        return retcode, text, error
 
     def _prune_spurious_bzr_output(self, in_str):
         """
@@ -389,7 +391,7 @@ class Bazaar(VersionControlSystem):
             parts = line.split(':')
             if parts[0] == 'revision-id':
                 revision = ':'.join(parts[1:]) # although I hope there aren't internal colons!
-                return revision
+                return revision.strip()
         raise utils.GiveUp("%s: '%s' did not return text contining 'revision-id:'"
                            "\n%s"%(co_leaf, cmd, text))
 

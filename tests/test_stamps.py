@@ -7,6 +7,8 @@ Our test build structure is::
                 subdomain1
                         subdomain3
                 subdomain2
+
+NB: Uses both git and bazaar.
 """
 
 import os
@@ -14,6 +16,7 @@ import shutil
 import string
 import subprocess
 import sys
+import tempfile
 import traceback
 
 from support_for_tests import *
@@ -74,8 +77,9 @@ def describe_to(builder):
     muddled.pkgs.make.medium(builder, "first_pkg", [role], "first_co")
 
     # So we can test stamping a Repository using a direct URL
+    # Note this is a Bazaar repository
     co_label = Label(LabelType.Checkout, 'second_co')
-    repo = Repository.from_url('git', 'file://{repo}/main/second_co')
+    repo = Repository.from_url('bzr', 'file://{repo}/main/second_co')
     checkout_from_repo(builder, co_label, repo)
     muddled.pkgs.make.simple(builder, "second_pkg", role, "second_co")
 
@@ -273,6 +277,26 @@ def make_standard_checkout(co_dir, progname, desc):
 
     make_checkout_bare()
 
+def make_bzr_standard_checkout(co_dir, progname, desc):
+    """Create a bzr repository for our testing.
+    """
+    bzr('init')
+    c = os.getcwd()
+    print c
+    d = tempfile.mkdtemp()
+    try:
+        with Directory(d):
+            bzr('init')
+            touch('{progname}.c'.format(progname=progname),
+                    MAIN_C_SRC.format(progname=progname))
+            touch('Makefile.muddle', MUDDLE_MAKEFILE.format(progname=progname))
+            bzr('add {progname}.c Makefile.muddle'.format(progname=progname))
+            bzr('commit -m "Commit {desc} checkout {progname}"'.format(desc=desc,
+                progname=progname))
+            bzr('push %s'%c)
+    finally:
+        shutil.rmtree(d)
+
 def make_repos_with_subdomain(repo):
     """Create git repositories for our subdomain tests.
     """
@@ -285,7 +309,7 @@ def make_repos_with_subdomain(repo):
             with NewDirectory('first_co') as d:
                 make_standard_checkout(d.where, 'first', 'first')
             with NewDirectory('second_co') as d:
-                make_standard_checkout(d.where, 'second', 'second')
+                make_bzr_standard_checkout(d.where, 'second', 'second')
         with NewDirectory('subdomain1'):
             with NewDirectory('builds') as d:
                 make_build_desc(d.where, SUBDOMAIN1_BUILD_DESC.format(repo=repo))
@@ -461,6 +485,18 @@ def revisions_differ(old, new):
                 different = True
     return different
 
+def read_just_pulled():
+    """Read the _just_pulled file, and return a set of label names.
+    """
+    with open('.muddle/_just_pulled') as fd:
+        text = fd.read()
+    label_strings = set()
+    just_pulled = text.split('\n')
+    for thing in just_pulled:
+        if thing:
+            label_strings.add(thing)
+    return label_strings
+
 def test_stamp_unstamp(root_dir):
     """Simple test of stamping and then unstamping
 
@@ -494,6 +530,15 @@ def test_stamp_is_current_working_set(first_stamp):
         # So, we've selected specific revisions for all of our checkouts
         # and thus they are all in "detached HEAD" state
         revisions = capture_revisions()
+
+        # XXX To be considered XXX
+        # Here, we are deliberately making a change that we do not push to the
+        # remote repository. Thus our stamp file will contain a revision id
+        # that no-one else can make sense of. This may be a Bad Thing.
+        # Indeed, if we try to do this with a bzr repository, our own code
+        # in 'muddle query checkout-id' would use 'bzr missing' and notice that
+        # the revision was not present at the far end, and give up with a
+        # complaint at that point.
 
         with Directory('src'):
             with Directory('first_co'):
@@ -540,7 +585,7 @@ def test_unstamp_update_identity_operation(repo, first_stamp):
         muddle(['unstamp', '-update', first_stamp])
         new_revisions = capture_revisions()
         if revisions_differ(old_revisions, new_revisions):
-            raise GiveUp('Null update changed stuff!')  # and then debug by hand...
+            raise GiveUp('Null update changed stuff!')
         else:
             print 'The tree was not changed by the "null" update'
 
@@ -548,7 +593,7 @@ def test_unstamp_update_2(repo, first_stamp):
     """Test the "unstamp -update" identity operation a bit more
     """
     banner('TESTING UNSTAMP -UPDATE -- TEST 2')
-    with NewDirectory('build5a') as d:
+    with NewDirectory('build5') as d:
         muddle(['init', 'git+file://{repo}/main'.format(repo=repo), 'builds/01.py'])
         muddle(['checkout', '_all'])
         old_revisions = capture_revisions()
@@ -558,6 +603,10 @@ def test_unstamp_update_2(repo, first_stamp):
             with Directory('first_co'):
                 append('Makefile.muddle', '\n# A comment\n')
                 git('commit Makefile.muddle -m "Add a comment"')
+                muddle(['push'])
+            with Directory('second_co'):
+                append('Makefile.muddle', '\n# A comment\n')
+                bzr('commit Makefile.muddle -m "Add a comment"')
                 muddle(['push'])
 
         with Directory('domains'):
@@ -584,6 +633,14 @@ def test_unstamp_update_2(repo, first_stamp):
         current_revisions = capture_revisions()
         if revisions_differ(current_revisions, new_revisions):
             raise GiveUp('Update forward again failed')
+
+        # One of the points of using "muddle pull" internally in the
+        # "muddle unstamp -update" command is that we want our "just pulled"
+        # list to be available. So check that.
+        just_pulled = read_just_pulled()
+        if just_pulled != set(['checkout:first_co/checked_out',
+                               'checkout:(subdomain1)builds/checked_out']):
+            raise GiveUp('Just pulled list does not match')
 
 def main(args):
 

@@ -5,6 +5,7 @@ Muddle support for Bazaar.
 """
 
 import os
+import re
 
 from muddled.version_control import register_vcs_handler, VersionControlSystem
 import muddled.utils as utils
@@ -17,6 +18,39 @@ class Bazaar(VersionControlSystem):
     def __init__(self):
         self.short_name = 'bzr'
         self.long_name = 'Bazaar'
+
+    def _pruned_cmd_data(self, cmd, env=None, isSystem=False, fold_stderr=True,
+                         verbose=False, fail_nonzero=True):
+        """
+        A thunk around _prune_spurious_bzr_output applied to
+        utils.get_cmd_data
+        """
+        retcode, text, ignore = utils.get_cmd_data(cmd, env=env, 
+                                                   isSystem=isSystem,
+                                                   fold_stderr=fold_stderr,
+                                                   verbose=verbose,
+                                                   fail_nonzero=fail_nonzero)
+        text = self._prune_spurious_bzr_output(text)
+        return retcode, text, ignore
+
+    def _prune_spurious_bzr_output(self, in_str):
+        """
+        Sanitise the output of a bzr command by removing warnings which
+        bzr will happily produce despite being told to be quiet, but
+        which are in fact a tale told by an idiot, full of sound and
+        fury, signifying nothing.
+        """
+        # If you downloaded your bazaar it may report that compiled 
+        # extensions couldn't be loaded; this doesn't mean your repo doesn't
+        # match.
+        lines = in_str.split('\n')
+        rv = [ ]
+        my_re = re.compile(".*some compiled extensions")
+        for l in lines:
+            if (not my_re.match(l)):
+                rv.append(l)
+        out_str = "\n".join(rv)
+        return out_str
 
     def _normalised_repo(self, repo):
         """
@@ -186,7 +220,7 @@ class Bazaar(VersionControlSystem):
         # --quiet means only report warnings and errors
         cmd = 'bzr status --quiet -r branch:%s'%self._normalised_repo(repo.url),
 
-        retcode, text, ignore = utils.get_cmd_data(cmd, env=env, fold_stderr=False)
+        retcode, text, ignore = self._pruned_cmd_data(cmd, env=env, fold_stderr=False)
         if text:
             return text
         else:
@@ -322,7 +356,7 @@ class Bazaar(VersionControlSystem):
         <text> is its output.
         """
         cmd = 'bzr version-info --check-clean'
-        retcode, text, ignore = utils.get_cmd_data(cmd, env=env, fold_stderr=False)
+        retcode, text, ignore = self._pruned_cmd_data(cmd, env=env, fold_stderr=False)
         if 'clean: False' in text:
             return False, cmd, text
         return True, cmd, None
@@ -335,7 +369,7 @@ class Bazaar(VersionControlSystem):
         Return (True, <cmd>) if it is missing, (False, <cmd>) if it is not
         """
         cmd = 'bzr missing -q --mine-only'
-        retcode, missing, ignore = utils.get_cmd_data(cmd, env=env,
+        retcode, missing, ignore = self._pruned_cmd_data(cmd, env=env,
                                                       fold_stderr=True,
                                                       fail_nonzero=False)
         return missing, cmd
@@ -344,7 +378,7 @@ class Bazaar(VersionControlSystem):
         """Find the revision id for revision 'revspec'
         """
         cmd = "bzr log -l 1 -r '%s' --long --show-ids"%revspec
-        retcode, text, ignore = utils.get_cmd_data(cmd, env=env, fail_nonzero=False)
+        retcode, text, ignore = self._pruned_cmd_data(cmd, env=env, fail_nonzero=False)
         if retcode != 0:
             raise utils.GiveUp("%s: '%s' failed with return code %d\n%s"%(co_leaf,
                                                                 cmd, retcode, text))
@@ -473,7 +507,7 @@ class Bazaar(VersionControlSystem):
         """
         This returns the revision number for the working tree
         """
-        retcode, revision, ignore = utils.get_cmd_data('bzr revno --tree')
+        retcode, revision, ignore = self._pruned_cmd_data('bzr revno --tree')
         return revision.strip()
 
     def allows_relative_in_repo(self):
@@ -483,7 +517,7 @@ class Bazaar(VersionControlSystem):
         """
         Retrieve a file's content via BZR.
         """
-        retcode, text, ignore = utils.get_cmd_data('bzr cat %s'%self._normalised_repo(url),
+        retcode, text, ignore = self._pruned_cmd_data('bzr cat %s'%self._normalised_repo(url),
                                                     fold_stderr=False, verbose=verbose)
         return text
 

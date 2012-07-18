@@ -449,7 +449,7 @@ class Bazaar(VersionControlSystem):
         if before:
             # XXX For now, we're going to short-circuit everything else if we
             # XXX are asked for 'before'.
-            return self._revision_id(env, before)
+            return self._revision_id(env, 'before:date:%s'%before)
 
         if repo.revision:
             orig_revision = repo.revision

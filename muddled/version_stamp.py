@@ -34,7 +34,7 @@ All muddle commands for handling stamp files are subcommands of either "muddle
 stamp" or "muddle unstamp".
 
 Version 1 Stamp Files
-=====================
+---------------------
 We retain limited support for version 1 stamp files, mainly to allow reading
 existing (legacy) files. There *is* provision for writing version 1 stamp
 files, but it is not guaranteed to be accurate.
@@ -46,7 +46,7 @@ remember where a checkout "came from".
 Support for version 1 stamp files will be removed at some future time.
 
 Version 2 Stamp Files
-=====================
+---------------------
 Version 2 stamp files are the current form of stamp file.
 
 This section describes the current content of a stamp file, as currently
@@ -155,6 +155,32 @@ these will be saved in a problems section. For instance::
 not yet committed). Problems are presented as 'problem1', 'problem2', etc. In
 general, the checkout name should be the first part of the message occurring as
 the problem value.
+
+Release stamp files
+-------------------
+Release stamp files are an extension of normal stamp files that also specify
+a release. As such, they have an extra section (at the start) of the form::
+
+    [RELEASE]
+    version = 1.2.3
+    archive = tar
+    compression = gzip
+
+This indicates that the rest of the stamp file describes a release "numbered"
+1.2.3, that the release will be archived using tar, and that the tar file will
+be compressed using gzip.
+
+The ``version`` specified must start with an ASCII alphanumeric, and may only
+contain ASCII alphanumerics, and the characters '.', '-' or '_'. For instance:
+
+    version = v1-2.11
+    version = xvii
+    version = 0.9.3alpha1
+
+The ``archive`` value must currently be ``tar`` - other values may perhaps be
+allowed in the future.
+
+The ``compression`` value must be either ``gzip`` or ``bzip2``.
 """
 
 import os
@@ -391,23 +417,7 @@ class VersionStamp(object):
                    type_name = 'str'
                 config.set(section, 'option~%s'%key, '%s:%s'%(type_name, value))
 
-    def write_to_file_object(self, fd, version=2):
-        """Write our data out to a file-like object (one with a 'write' method).
-
-        By default, writes out a version 2 stamp file, as opposed to the older
-        version 1 format.
-
-        Returns the SHA1 hash for the file.
-
-        Note that the SHA1 does not include blank lines or comment lines that
-        start with a '#' (or whitespace and a '#').
-        """
-
-        if version not in (1, 2):
-            raise GiveUp('Attempt to write version %d stamp file;'
-                         ' we only support 1 or 2'%version)
-
-        fd.write('# Muddle stamp file\n')
+    def _write_to_file_object_start(self, fd, version=2):
         # It's nice to include timestamps in the file, so that the user
         # can tell when it was written without relying on file system
         # information (which is not always available). However, we don't
@@ -434,15 +444,20 @@ class VersionStamp(object):
             fd.write('# Stamp calculated for checkouts at or before %s\n'%self.before)
         fd.write('\n')
 
+        if version > 1:
+            config = make_RawConfigParser(ordered=True)
+            config.add_section("STAMP")
+            config.set("STAMP", "version", version)
+            config.write(fd)
+
+    def _write_to_file_object_end(self, fd):
+
         # Note we take care to write out the sections by hand, so that they
         # come out in the order we want, other than in some random order (as
         # we're effectively writing out a dictionary)
 
         config = make_RawConfigParser(ordered=True)
 
-        if version > 1:
-            config.add_section("STAMP")
-            config.set("STAMP", "version", version)
         config.add_section("ROOT")
         config.set("ROOT", "repository", self.repository)
         config.set("ROOT", "description", self.description)
@@ -486,6 +501,26 @@ class VersionStamp(object):
                 config.set(section, 'problem%d'%(index+1), item)
             config.write(fd)
 
+    def write_to_file_object(self, fd, version=2):
+        """Write our data out to a file-like object (one with a 'write' method).
+
+        By default, writes out a version 2 stamp file, as opposed to the older
+        version 1 format.
+
+        Returns the SHA1 hash for the file.
+
+        Note that the SHA1 does not include blank lines or comment lines that
+        start with a '#' (or whitespace and a '#').
+        """
+
+        if version not in (1, 2):
+            raise GiveUp('Attempt to write version %d stamp file;'
+                         ' we only support 1 or 2'%version)
+
+        fd.write('# Muddle stamp file\n')
+        self._write_to_file_object_start(fd, version)
+        self._write_to_file_object_end(fd)
+
     def print_problems(self, output=None, truncate=None, indent=''):
         """Print out any problems.
 
@@ -511,47 +546,9 @@ class VersionStamp(object):
                                 truncate(str(item), columns=truncate)))
 
     @staticmethod
-    def from_builder(builder, force=False, just_use_head=False, before=None, quiet=False):
-        """Construct a VersionStamp from a muddle build description.
-
-        'builder' is the muddle Builder for our build description.
-
-        If 'force' is true, then attempt to "force" a revision id, even if it
-        is not necessarily correct. For instance, if a local working directory
-        contains uncommitted changes, then ignore this and use the revision id
-        of the committed data. If it is actually impossible to determine a
-        sensible revision id, then use the revision specified by the build
-        description (which defaults to HEAD). For really serious problems, this
-        may refuse to guess a revision id.
-
-            (Typical use of this is expected to be when a trying to calculate a
-            stamp reports problems in particular checkouts, but inspection
-            shows that these are artefacts that may be ignored, such as an
-            executable built in the source directory.)
-
-        If 'just_use_head' is true, then HEAD will be used for all checkouts.
-        In this case, the repository specified in the build description is
-        used, and the revision id and status of each checkout is not checked.
-
-        If 'before' is given, it should be a string describing a date/time, and
-        the revision id chosen for each checkout will be the last revision
-        at or before that date/time.
-
-        .. note:: This depends upon what the VCS concerned actually supports.
-           This feature is experimental.
-
-        If 'quiet' is True, then we will not print information about what
-        we are doing, and we will not print out problems as they are found.
-
-        Returns a tuple of:
-
-            * the new VersionStamp instance
-            * a (possibly empty) list of problem summaries. If this is
-              empty, then the stamp was calculated fully. Note that this
-              is the same list as held withing the VersionStamp instance.
+    def _from_builder(stamp, builder, force=False, just_use_head=False, before=None, quiet=False):
+        """The internal mechanisms of the 'from_builder' static method.
         """
-        stamp = VersionStamp()
-
         stamp.repository = builder.invocation.db.repo.get()
         stamp.description = builder.invocation.db.build_desc.get()
         stamp.versions_repo = builder.invocation.db.versions_repo.get()
@@ -624,26 +621,60 @@ class VersionStamp(object):
                 # This should not, I think, happen, but just in case...
                 stamp.problems.append('Unable to work out revision ids for all the checkouts')
 
+    @staticmethod
+    def from_builder(builder, force=False, just_use_head=False, before=None, quiet=False):
+        """Construct a VersionStamp from a muddle build description.
+
+        'builder' is the muddle Builder for our build description.
+
+        If 'force' is true, then attempt to "force" a revision id, even if it
+        is not necessarily correct. For instance, if a local working directory
+        contains uncommitted changes, then ignore this and use the revision id
+        of the committed data. If it is actually impossible to determine a
+        sensible revision id, then use the revision specified by the build
+        description (which defaults to HEAD). For really serious problems, this
+        may refuse to guess a revision id.
+
+            (Typical use of this is expected to be when a trying to calculate a
+            stamp reports problems in particular checkouts, but inspection
+            shows that these are artefacts that may be ignored, such as an
+            executable built in the source directory.)
+
+        If 'just_use_head' is true, then HEAD will be used for all checkouts.
+        In this case, the repository specified in the build description is
+        used, and the revision id and status of each checkout is not checked.
+
+        If 'before' is given, it should be a string describing a date/time, and
+        the revision id chosen for each checkout will be the last revision
+        at or before that date/time.
+
+        .. note:: This depends upon what the VCS concerned actually supports.
+           This feature is experimental.
+
+        If 'quiet' is True, then we will not print information about what
+        we are doing, and we will not print out problems as they are found.
+
+        Returns a tuple of:
+
+            * the new VersionStamp instance
+            * a (possibly empty) list of problem summaries. If this is empty,
+              then the stamp was calculated fully. Note that this is the same
+              list as held within the VersionStamp instance itself.
+        """
+        stamp = VersionStamp()
+
+        VersionStamp._from_builder(stamp, builder,
+                                   force=force,
+                                   just_use_head=just_use_head,
+                                   before=before,
+                                   quiet=quiet)
+
         return stamp, stamp.problems
 
     @staticmethod
-    def from_file(filename):
-        """Construct a VersionStamp by reading in a stamp file.
-
-        Returns a new VersionStamp instance.
-
-        Note that the SHA1 computed and reported for that VersionStamp does not
-        include blank lines or comment lines that start with a '#' (or
-        whitespace and a '#').
+    def _from_config(stamp, config):
+        """The internal mechanisms of the 'from_file' static method.
         """
-
-        stamp = VersionStamp()
-
-        print 'Reading stamp file %s'%filename
-        fd = HashFile(filename, ignore_comments=True, ignore_blank_lines=True)
-
-        config = make_RawConfigParser()
-        config.readfp(fd)
 
         if config.has_section("STAMP"):
             # It is at least a version 2 stamp file
@@ -696,6 +727,27 @@ class VersionStamp(object):
                     stamp.problems.append(value)
             else:
                 print 'Ignoring configuration section [%s]'%section
+
+    @staticmethod
+    def from_file(filename):
+        """Construct a VersionStamp by reading in a stamp file.
+
+        Returns a new VersionStamp instance.
+
+        Note that the SHA1 computed and reported for that VersionStamp does not
+        include blank lines or comment lines that start with a '#' (or
+        whitespace and a '#').
+        """
+
+        stamp = VersionStamp()
+
+        print 'Reading stamp file %s'%filename
+        fd = HashFile(filename, ignore_comments=True, ignore_blank_lines=True)
+
+        config = make_RawConfigParser()
+        config.readfp(fd)
+
+        VersionStamp._from_config(stamp, config)
 
         print 'File has SHA1 hash %s'%fd.hash()
         return stamp
@@ -846,6 +898,138 @@ class VersionStamp(object):
         # XXX Doesn't compare options.
 
         return deleted, new, changed, problems
+
+
+relese_version_re = re.compile(r"[A-Za-z0-9][A-Za-z0-9._-]+")
+
+def check_release_version(version):
+    """Check a release version for legality.
+
+    Raises a GiveUp exception if the version is not allowed.
+    """
+    m = build_release_version_re.match(version)
+    if m is None or m.end() != len(version):
+        raise GiveUp("Release version '%s' is not allowed (it must start with 'A'-'Z', 'a'-'z' or '0'-'9', and may only continue with 'A'-'Z', 'a'-'z', '0'-'9', '_' '-' or ',')"%name)
+
+
+class ReleaseStamp(VersionStamp):
+    """A VersionStamp with extra stuff to describe a release.
+    """
+
+    def __init__(self):
+        super(ReleaseStamp, self).__init__()
+
+    @staticmethod
+    def from_builder(builder, force=False, just_use_head=False, before=None, quiet=False):
+        """Construct a ReleaseStamp from a muddle build description.
+
+        'builder' is the muddle Builder for our build description.
+
+        If 'force' is true, then attempt to "force" a revision id, even if it
+        is not necessarily correct. For instance, if a local working directory
+        contains uncommitted changes, then ignore this and use the revision id
+        of the committed data. If it is actually impossible to determine a
+        sensible revision id, then use the revision specified by the build
+        description (which defaults to HEAD). For really serious problems, this
+        may refuse to guess a revision id.
+
+            (Typical use of this is expected to be when a trying to calculate a
+            stamp reports problems in particular checkouts, but inspection
+            shows that these are artefacts that may be ignored, such as an
+            executable built in the source directory.)
+
+        If 'just_use_head' is true, then HEAD will be used for all checkouts.
+        In this case, the repository specified in the build description is
+        used, and the revision id and status of each checkout is not checked.
+
+        If 'before' is given, it should be a string describing a date/time, and
+        the revision id chosen for each checkout will be the last revision
+        at or before that date/time.
+
+        .. note:: This depends upon what the VCS concerned actually supports.
+           This feature is experimental.
+
+        If 'quiet' is True, then we will not print information about what
+        we are doing, and we will not print out problems as they are found.
+
+        Returns a tuple of:
+
+            * the new ReleaseStamp instance
+            * a (possibly empty) list of problem summaries. If this is empty,
+              then the stamp was calculated fully. Note that this is the same
+              list as held within the ReleaseStamp instance itself.
+        """
+
+        stamp = ReleaseStamp()
+
+        VersionStamp._from_builder(stamp, builder,
+                                   force=force,
+                                   just_use_head=just_use_head,
+                                   before=before,
+                                   quiet=quiet)
+
+        # and then set whatever other properties we want to set...
+
+        return stamp, stamp.problems
+
+    @staticmethod
+    def from_file(filename):
+        """Construct a ReleaseStamp by reading in a stamp file.
+
+        Returns a new ReleaseStamp instance.
+
+        Note that the SHA1 computed and reported for that ReleaseStamp does not
+        include blank lines or comment lines that start with a '#' (or
+        whitespace and a '#').
+        """
+
+        stamp = ReleaseStamp()
+
+        print 'Reading release file %s'%filename
+        fd = HashFile(filename, ignore_comments=True, ignore_blank_lines=True)
+
+        config = make_RawConfigParser()
+        config.readfp(fd)
+
+        VersionStamp._from_config(stamp, config)
+
+        if stamp.version < 2:
+            raise GiveUp('Release stamp files must be version 2 stamp files or later')
+
+        # and then read whatever other configuration values we want to read
+        stamp.release_version = config.get("RELEASE", "version")
+        stamp.release_archive = config.get("RELEASE", "archive")
+        stamp.release_compression = config.get("RELEASE", "compression")
+        # and follow precedent by removing that entire section
+        sections.remove("RELEASE")
+
+        check_release_version(stamp.release_version)
+
+        if stamp.release_archive not in ('tar'):
+            raise GiveUp('Release archive is not allowed (it must be "tar")')
+
+        if stamp.release_compression not in ('gzip', 'bzip2'):
+            raise GiveUp('Release compression is not allowed (it must be "gzip" or "bzip2")')
+
+        print 'File has SHA1 hash %s'%fd.hash()
+        return stamp
+
+    def write_to_file_object(self, fd):
+        """Write our data out to a file-like object (one with a 'write' method).
+        """
+
+        fd.write('# Muddle release file\n')
+        self._write_to_file_object_start(fd, version=2)
+
+        config = make_RawConfigParser(ordered=True)
+        config.add_section("RELEASE")
+        config.set("RELEASE", "version", self.release_version)
+        config.set("RELEASE", "archive", self.release_archive)
+        config.set("RELEASE", "compression", self.release_compression)
+        config.write(fd)
+
+        self._write_to_file_object_end(fd)
+
 
 def _read_v2_checkout(section, config, problems):
     """Read a version 2 stamp file CHECKOUT section.

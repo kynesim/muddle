@@ -17,6 +17,27 @@ from stat import *
 
 from support_for_tests import *
 
+def is_executable(thing):
+    return os.stat(thing)[stat.ST_MODE] & stat.S_IXUSR
+
+def onpath(name):
+    path = os.environ['PATH']
+    path = path.split(os.path.pathsep)
+    for place in path:
+        thing = os.path.join(place, name)
+        if os.path.exists(thing) and is_executable(thing):
+            return True
+    return False
+
+def check_prerequisites():
+    problems = []
+    for item in ('git', 'bzr', 'svn'):
+        if not onpath(item):
+            problems.append(item)
+    if problems:
+        raise GiveUp('Some prerequisites are not available:\n'
+                     'The following are not on the PATH: %s'%', '.join(problems))
+
 def run_tests(args):
     ignore = set()
     while args:
@@ -34,6 +55,10 @@ def run_tests(args):
     this_dir = os.path.split(__file__)[0]
     os.chdir(this_dir)
     files = os.listdir('.')
+
+    # This branch of muddle does not have a working lifecycle test yet,
+    # so ignore it for now
+    ignore.add('test_lifecycle_git.py')
 
     unrecognised = ignore.difference(files)
 
@@ -61,8 +86,11 @@ def run_tests(args):
         print
     print 'All tests succeeded'
 
+    print '(NB: ignored %s)'%(', '.join(ignore))
+
 if __name__ == '__main__':
     try:
+        check_prerequisites()
         run_tests(sys.argv[1:])
     except GiveUp as e:
         print e

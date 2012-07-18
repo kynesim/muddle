@@ -428,12 +428,11 @@ class VersionStamp(object):
         now = datetime(now.year, now.month, now.day,
                        now.hour, now.minute, now.second, 0, now.tzinfo)
         fd.write("#            %s UTC\n"%now.isoformat(' '))
-        fd.write('\n')
-
         # If we were asked to calculate a stamp "before" a particular time,
         # we might as well say so...
         if self.before:
-            fd.write('# Stamp calculated for checkouts at or before %s'%self.before)
+            fd.write('# Stamp calculated for checkouts at or before %s\n'%self.before)
+        fd.write('\n')
 
         # Note we take care to write out the sections by hand, so that they
         # come out in the order we want, other than in some random order (as
@@ -556,6 +555,8 @@ class VersionStamp(object):
         stamp.repository = builder.invocation.db.repo.get()
         stamp.description = builder.invocation.db.build_desc.get()
         stamp.versions_repo = builder.invocation.db.versions_repo.get()
+
+        stamp.before = before        # remember for annotating the stamp file
 
         if not quiet:
             print 'Finding all checkouts...',

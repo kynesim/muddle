@@ -657,8 +657,7 @@ def main(args):
     root_dir = normalise_dir(os.path.join(os.getcwd(), 'transient'))
     repo = os.path.join(root_dir, 'repo')
 
-    #with TransientDirectory(root_dir, keep_on_error=True):
-    with NewDirectory(root_dir):
+    with TransientDirectory(root_dir, keep_on_error=True):
 
         banner('TESTING CHECKOUT OPTIONS')
         test_options()

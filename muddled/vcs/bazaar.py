@@ -162,8 +162,32 @@ class Bazaar(VersionControlSystem):
 
         starting_revno = self._just_revno()
 
-        utils.run_cmd("bzr pull %s %s"%(rspec, self._normalised_repo(repo.url)),
-                      env=env, verbose=verbose)
+        retcode, text, ignore = self._pruned_cmd_data("bzr pull %s %s"%(rspec,
+                                                    self._normalised_repo(repo.url)),
+                                                env=env, verbose=verbose)
+        print text
+        if text.startswith('No revisions to pull') and repo.revision:
+            # Try going back to that particular revision.
+            #
+            # First we 'uncommit' to take our history back. The --force answers
+            # 'yes' to all questions (otherwise the user would be prompted as
+            # to whether they really wanted to do this operation
+            retcode, text, ignore = self._pruned_cmd_data("bzr uncommit --force --quiet %s"%rspec,
+                                                    env=env, verbose=verbose)
+            if retcode:
+                raise GiveUp('Error uncommiting to revision %s (we already tried'
+                             ' pull)\nReturn code  %d\n%s'%(rspec, retcode, text))
+            print text
+            # Then we need to 'revert' to undo any changes (since uncommit
+            # doesn't change our working set). The --no-backup stops us
+            # being left with copies of the changes in backup files (which
+            # is exactly what we don't want)
+            retcode, text, ignore = self._pruned_cmd_data("bzr revert --no-backup %s"%rspec,
+                                                    env=env, verbose=verbose)
+            if retcode:
+                raise GiveUp('Error reverting to revision %s (we already'
+                             ' uncommitted)\nReturn code %d\n%s'%(rspec, retcode, text))
+            print text
 
         ending_revno = self._just_revno()
         # Did we update anything?

@@ -197,8 +197,8 @@ class Git(VersionControlSystem):
             # So we'll go with (perhaps) slightly overkill approach.
             raise utils.GiveUp(\
                 "The build description specifies revision %s... for this checkout,\n"
-                "and it is already at that revision. 'muddle %s' will not take the\n"
-                "checkout past the specified revision."%(repo.revision[:8], cmd))
+                "and it is already at that revision. 'muddle pull' will not take the\n"
+                "checkout past the specified revision."%(repo.revision[:8]))
 
         # Refuse to pull if there are any local changes or untracked files.
         self._is_it_safe()

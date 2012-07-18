@@ -590,7 +590,7 @@ def test_unstamp_update_identity_operation(repo, first_stamp):
             print 'The tree was not changed by the "null" update'
 
 def test_unstamp_update_2(repo, first_stamp):
-    """Test the "unstamp -update" identity operation a bit more
+    """Test the "unstamp -update" operation a bit more
     """
     banner('TESTING UNSTAMP -UPDATE -- TEST 2')
     with NewDirectory('build5') as d:
@@ -639,7 +639,10 @@ def test_unstamp_update_2(repo, first_stamp):
         # list to be available. So check that.
         just_pulled = read_just_pulled()
         if just_pulled != set(['checkout:first_co/checked_out',
+                               'checkout:second_co/checked_out',
                                'checkout:(subdomain1)builds/checked_out']):
+            print 'Read _just_pulled as:'
+            print just_pulled
             raise GiveUp('Just pulled list does not match')
 
 def main(args):

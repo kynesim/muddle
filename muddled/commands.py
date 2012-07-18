@@ -3196,9 +3196,10 @@ class StampSave(Command):
     that date and time. <when> is left a bit unspecified at the moment, and
     thus this feature is experimental.
 
-       | XXX At the moment '-before' is only supported for git, and thus any
-       | XXX form of date/time/revision id that git will accept may be used for
-       | XXX <when>.
+       | XXX At the moment '-before' is only supported for git and bzr, and
+       | XXX thus any form of date/time/revision id that git and/or will accept
+       | XXX may be used for <when>. The simple for "yyyy-mm-dd hh:mm:ss" seems
+       | XXX acceptabl to both.
 
     For instance::
 

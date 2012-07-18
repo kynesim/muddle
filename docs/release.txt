@@ -1,0 +1,142 @@
+The muddle release mechanism
+============================
+
+.. note:: This is written as part of specifying the mechanism before
+   implementation. It should be expanded to be more helpful once the
+   implementation is done.
+
+Muddle release files
+--------------------
+These are a muddle stamp file (specifically, a stamp version file) with extra
+fields (at the start). The required part is::
+
+    [RELEASE]
+    version = 1.2.3
+
+but there will be optional fields, probably including::
+
+    compression = <mechanism>
+
+(``gzip`` or ``bzip2``, with ``gzip`` the default).
+
+Release files are created using::
+
+    $ muddle stamp release
+    $ muddle stamp release -v 1.2.3
+    $ muddle stamp release -version 1.2.3 -compression bzip2
+
+The first creates a file containing::
+
+    [RELEASE]
+    verison = <REPLACE THIS>
+    compression = gzip
+
+which needs editing with a text editor (to replace ``<REPLACE THIS>``) before
+it can be used. The ``muddle release`` command will not accept release files
+where this field has not been edited (actually, where there are "naughty"
+characters in the field - I propose using the same rules as are used for the
+build name in the build description).
+
+Release files are created in the ``versions/`` directory, and are called
+either::
+
+    versions/<build-name>-<version>.release
+
+(if the ``-version`` switch was used), or else::
+
+    versions/<build-name>-<sha1-hash>.release
+
+(if it was not).
+
+``muddle push version`` will be amended to know about ``.release`` files.
+
+The ``_release`` build target
+-----------------------------
+This is a new build target, for use as ``muddle build _release``.
+
+It needs to be specified in the build description (if it is not, maybe it
+should default to ``_all``, or maybe it should cause a release build to FAIL
+INSTANTLY).
+
+For instance::
+
+    builder.add_release_roles(<role-name>)
+    builder.add_release_roles([<role-name1>. <role-name2>])
+    builder.add_release_deployments(<deployment-name>)
+    builder.add_release_deployments([<deployment-name1>, <deployment-name2>])
+
+*Or* just have::
+
+    builder.add_release_labels(<label>)
+    builder.add_release_labels([<label1>, <label2>])
+
+where <label> can be wildcarded. Whatever seems simplest.
+
+The ``release_from`` function in the build description
+------------------------------------------------------
+This looks like::
+
+    def release_from(builder):
+        ...
+
+It is the job of this function to generate the release tarball.
+
+.. note:: ``muddle bootstrap`` should probably generate a suitable template.
+
+There will be some extra values retrievable from the builder (by some means),
+including
+
+* the name of the release directory, which muddle will already have created,
+  and which will be called ``<build-name>-<release-version>.<release-sha1>``
+* the full path to the release directory (yes, the name could be derived from
+  that, but we can be friendly)
+* the release SHA1 and release version
+
+The function works by putting stuff to be released into the release
+directory, which muddle will tar up and compress to produce the release
+tarball. Muddle will already have copied the release file into the release
+directory.
+
+
+The ``muddle release`` command
+------------------------------
+For example::
+
+  $ muddle release project99-1.2.3.release
+
+This:
+
+1. Creates a directory called ``project99-1.2.3.release`` and cd's into it
+
+2. Does (the equivalent of) ``muddle unstamp`` using that release file.
+
+3. Copies the release file as ``.muddle/Release``. This indicates that this
+   is a release build tree, and "normal" muddle will refuse to build in it.
+   (Of course, the user can delete the file - that's their business).
+
+4. Sets some muddle environment variables:
+   
+   * ``MUDDLE_RELEASE_HASH`` is the SHA1 hash of the release file
+   * ``MUDDLE_RELEASE_VERSION`` is the version string from the ``version =``
+     line.
+
+   "Normal" muddle will also create those environment variables, but they will
+   be set to ``(unset)``.
+
+5. Does (the equivalent of) ``mudddle build _release``.
+
+6. Creates the release directory,
+   ``<build-name>-<release-version>.<release-sha1>``, and copies the release
+   file into it.
+
+7. Calls the ``release_from(builder)`` function in the build description
+   (obviously it is an error if there isn't one).
+
+8. Creates a compressed tarball of the release directory, using the
+   appropriate compression mechanism.
+
+
+
+
+
+.. vim: set filetype=rst tabstop=8 softtabstop=2 shiftwidth=2 expandtab:

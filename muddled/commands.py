@@ -4055,13 +4055,16 @@ class UnStamp(Command):
 
     The command looks up each checkout described in the stamp file. If it
     already exists, then it sets it to the correct revision, using "muddle
-    pull".
+    pull". This last means that the value "_just_pulled" will be set to
+    those checkouts which have been pulled, so one can do, for instance,
+    "muddle distrebuild _just_pulled".
 
         XXX Future versions of this command will also be able to change
         the branch of a checkout. This is not yet supported.
 
     If the checkout does not exist, then it will be cloned, using "muddle
-    checkout".
+    checkout". Newly cloned checkouts will not be represented in
+    "_just_pulled".
 
     In the simplest case, the "unstamp -update" operation may just involve
     choosing different revisions on some checkouts.

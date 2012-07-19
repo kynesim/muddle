@@ -920,7 +920,7 @@ class VersionStamp(object):
         return deleted, new, changed, problems
 
 
-class Release(object):
+class ReleaseSpec(object):
     """The basic specification of a Release.
 
     Note that we allow setting of invalid values, as this is needed for
@@ -951,7 +951,7 @@ class Release(object):
             self.compression = compression
 
     def __str__(self):
-        return 'Release(name=%r, version=%r, archive=%r, compression=%r)'%(
+        return 'ReleaseSpec(name=%r, version=%r, archive=%r, compression=%r)'%(
                 self.name, self.version, self.archive, self.compression)
 
     def check_version(self):
@@ -960,7 +960,7 @@ class Release(object):
         Raises a GiveUp exception if the version is not allowed.
         """
         if not self.version:
-            raise GiveUp('Release version is not set')
+            raise GiveUp('ReleaseSpec version is not set')
         m = self.version_re.match(self.version)
         if m is None or m.end() != len(self.version):
             raise GiveUp("Release version \"%s\" is not allowed (it must start"
@@ -1023,37 +1023,13 @@ class ReleaseStamp(VersionStamp):
 
     def __init__(self):
         super(ReleaseStamp, self).__init__()
-        self.release = Release()
+        self.release_spec = ReleaseSpec()
 
     @staticmethod
-    def from_builder(builder, force=False, just_use_head=False, before=None, quiet=False):
+    def from_builder(builder, quiet=False):
         """Construct a ReleaseStamp from a muddle build description.
 
         'builder' is the muddle Builder for our build description.
-
-        If 'force' is true, then attempt to "force" a revision id, even if it
-        is not necessarily correct. For instance, if a local working directory
-        contains uncommitted changes, then ignore this and use the revision id
-        of the committed data. If it is actually impossible to determine a
-        sensible revision id, then use the revision specified by the build
-        description (which defaults to HEAD). For really serious problems, this
-        may refuse to guess a revision id.
-
-            (Typical use of this is expected to be when a trying to calculate a
-            stamp reports problems in particular checkouts, but inspection
-            shows that these are artefacts that may be ignored, such as an
-            executable built in the source directory.)
-
-        If 'just_use_head' is true, then HEAD will be used for all checkouts.
-        In this case, the repository specified in the build description is
-        used, and the revision id and status of each checkout is not checked.
-
-        If 'before' is given, it should be a string describing a date/time, and
-        the revision id chosen for each checkout will be the last revision
-        at or before that date/time.
-
-        .. note:: This depends upon what the VCS concerned actually supports.
-           This feature is experimental.
 
         If 'quiet' is True, then we will not print information about what
         we are doing, and we will not print out problems as they are found.
@@ -1069,14 +1045,12 @@ class ReleaseStamp(VersionStamp):
         stamp = ReleaseStamp()
 
         VersionStamp._from_builder(stamp, builder,
-                                   force=force,
-                                   just_use_head=just_use_head,
-                                   before=before,
+                                   force=False, just_use_head=False, before=None,
                                    quiet=quiet)
 
         # and then add in release information
-        stamp.release = builder.release
-        stamp.release.check()
+        stamp.release_spec = builder.release_spec
+        stamp.release_spec.check()
 
         return stamp, stamp.problems
 
@@ -1113,9 +1087,9 @@ class ReleaseStamp(VersionStamp):
         # and follow precedent by removing that entire section
         config.remove_section("RELEASE")
 
-        stamp.release = Release(name=name, version=version,
-                                archive=archive, compression=compression)
-        stamp.release.check()
+        stamp.release_spec = ReleaseSpec(name=name, version=version,
+                                         archive=archive, compression=compression)
+        stamp.release_spec.check()
 
         # And extract the rest of the data from the configuration
         VersionStamp._extract_config_body(stamp, config)
@@ -1140,23 +1114,23 @@ class ReleaseStamp(VersionStamp):
         # If the user has not specified the release name or version, then
         # we write out illegal (and obvious) values, which they can replace
         # later on with a text editor.
-        if self.release.name:
-            self.release.check_name()
-            config.set("RELEASE", "name", self.release.name)
+        if self.release_spec.name:
+            self.release_spec.check_name()
+            config.set("RELEASE", "name", self.release_spec.name)
         else:
             config.set("RELEASE", "name", '<REPLACE THIS>')
 
-        if self.release.version:
-            self.release.check_name()
-            config.set("RELEASE", "version", self.release.version)
+        if self.release_spec.version:
+            self.release_spec.check_name()
+            config.set("RELEASE", "version", self.release_spec.version)
         else:
             config.set("RELEASE", "version", '<REPLACE THIS>')
 
-        self.release.check_archive()
-        config.set("RELEASE", "archive", self.release.archive)
+        self.release_spec.check_archive()
+        config.set("RELEASE", "archive", self.release_spec.archive)
 
-        self.release.check_compression()
-        config.set("RELEASE", "compression", self.release.compression)
+        self.release_spec.check_compression()
+        config.set("RELEASE", "compression", self.release_spec.compression)
 
         config.write(fd)
         self._write_to_file_object_end(fd)

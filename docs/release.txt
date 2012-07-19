@@ -19,13 +19,40 @@ but there will be optional fields, probably including::
 
 (``gzip`` or ``bzip2``, with ``gzip`` the default).
 
-Release files are created using::
+Release files are created using ``muddle release``.
 
-    $ muddle stamp release
-    $ muddle stamp release -v 1.2.3
-    $ muddle stamp release -name Project99 -version 1.2.3 -compression bzip2
+The command::
 
-The first creates a file containing::
+    $ muddle stamp release Project99 1.2.3
+
+creates a release stamp file called::
+
+    versions/Project99_1.2.3.release
+
+which looks like a normal version 2 stamp file with an extra section after
+the ``[STAMP]`` section::
+
+    [RELEASE]
+    name = Project99
+    version = 1.2.3
+    archive = tar
+    compression = gzip
+
+You can use the ``-archive`` and ``-compression`` switches to specify the
+release archive mechanism and release compression - for instance::
+
+    $ muddle stamp release Project99 1.2.3 -archive tar -compression bzip2
+
+It is also possible to create a "template" release file, with unspecified
+release name and version::
+
+    $ muddle stamp release -template
+
+which creates a file called::
+
+    versions/this-is-not-a-file-name.release
+
+with the ``[RELEASE]`` section set to::
 
     [RELEASE]
     name = <REPLACE THIS>
@@ -33,24 +60,25 @@ The first creates a file containing::
     archive = tar
     compression = gzip
 
-which needs editing with a text editor (to replace ``<REPLACE THIS>``) before
-it can be used. The ``muddle release`` command will not accept release files
-where this field has not been edited (actually, where there are "naughty"
-characters in the field - I propose using the same rules as are used for the
-build name in the build description).
+The user is expected to rename the file and edit the ``<REPLACE THIS>`` values
+to something sensible. The ``muddle release`` command will not accept release
+files where theses field has not been edited (actually, where there are
+"naughty" characters in the field).
 
-Release files are created in the ``versions/`` directory, and are called
-either::
+.. note:: Both release name and release version follow the same rules:
 
-    versions/<build-name>-<version>.release
+   * the first character must be an ASCI alphanumeric ('A'-'Z', 'a'-'z',
+     '0'-'9')
+   * any following characters must be ASCII alphanumeric, '-', '_' or '.'
 
-(if the ``-version`` switch was used), or else::
+   The release archive must currently be "tar".
 
-    versions/<build-name>-<sha1-hash>.release
+   The release compression must currently be one of "gzip" or "bzip2". The
+   default is "gzip".
 
-(if it was not).
-
-``muddle push version`` will be amended to know about ``.release`` files.
+Since release files go in the ``versions/`` directory, ``muddle stamp release``
+will add them to the version control system in that directory, just as
+``muddle stamp version`` does for its stamp files.
 
 The ``_release`` build target
 -----------------------------

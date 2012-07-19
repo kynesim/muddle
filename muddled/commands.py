@@ -46,7 +46,7 @@ from muddled.utils import GiveUp, MuddleBug, Unsupported, \
         DirType, LabelTag, LabelType, find_label_dir
 from muddled.version_control import split_vcs_url, checkout_from_repo
 from muddled.repository import Repository
-from muddled.version_stamp import VersionStamp
+from muddled.version_stamp import VersionStamp, ReleaseStamp, ReleaseSpec
 from muddled.licenses import print_standard_licenses, get_gpl_checkouts, \
         get_not_licensed_checkouts, get_implicit_gpl_checkouts, \
         get_license_clashes, licenses_in_role, get_license_clashes_in_role
@@ -3282,7 +3282,7 @@ class StampSave(Command):
 
         stamp, problems = VersionStamp.from_builder(builder, force, just_use_head, before=when)
 
-        working_filename = 'working.stamp'
+        working_filename = '_temporary.stamp'
         print 'Writing to',working_filename
         hash = stamp.write_to_file(working_filename, version=version)
         print 'Wrote revision data to %s'%working_filename
@@ -3426,6 +3426,130 @@ class StampVersion(Command):
                 vcs_name, just_url = version_control.split_vcs_url(versions_url)
                 if vcs_name:
                     print 'Adding version stamp file to VCS'
+                    version_control.vcs_init_directory(vcs_name, [version_filename])
+
+@subcommand('stamp', 'release', CAT_EXPORT)
+class StampRelease(Command):
+    """
+    :Syntax: muddle stamp release [<switches>] <release-name> <release-version>
+    :or:     muddle stamp release [<switches>] -template
+
+    This is similar to "stamp version", but saves a release stamp file - a
+    stamp file that describes a release of the build tree.
+
+    The release stamp file written will be called::
+
+        versions/<release_name>_<release_version>.release
+
+    The "versions/" directory is at the build root (i.e., it is a sibling of
+    the ".muddle/" and "src/" directories). If it does not exist, it will be
+    created.
+
+      If the VersionsRepository is set (in the .muddle/ directory), and it is
+      a distributed VCS (e.g., git or bzr) then ``git init`` (or ``bzr init``,
+      or the equivalent) will be done in the directory if necessary, and then
+      the file will be added to the local working set in that directory.
+      For subversion, the file adding will be done, but no attempt will be
+      made to initialise the directory.
+
+    If the ``-template`` option is used, then the file created will be called::
+
+        versions/this-is-not-a-file-name.release
+
+    and both the release name and release version values in the file will be
+    set to ``<REPLACE THIS>``. The user will have to rename the file, and edit
+    both of those to sensible values, before using it (well, we don't enforce
+    renaming the file, but...).
+
+    <switches> may be:
+
+    * -archive <name>
+
+      This specifies how the release will be archived. At the moment the only
+      permitted value is "tar".
+
+    * -compression <name>
+
+       This specifies how the archive will be compressed. The default is
+       "gzip", and at the moment the only other alternative is "bzip2".
+
+    See "muddle release" for using release files to build a release.
+
+    Note that release files are also valid stamp files, so "muddle unstamp"
+    can be used to retore a build tree from them.
+    """
+
+    def requires_build_tree(self):
+        return True
+
+    def with_build_tree(self, builder, current_dir, args):
+        name = None
+        version = None
+        archive = None
+        compression = None
+        is_template = False
+
+        while args:
+            word = args.pop(0)
+            if word == '-template':
+                is_template = True
+            elif word == '-archive':
+                archive = args.pop(0)
+            elif word == '-compression':
+                compression = args.pop(0)
+            elif word.startswith('-'):
+                raise GiveUp("Unexpected switch '%s' for 'stamp release'"%word)
+            elif name is None:
+                name = word
+            elif version is None:
+                version = word
+            else:
+                raise GiveUp("Unexpected argument '%s' for 'stamp release'"%word)
+
+        if is_template and (name or version):
+            raise GiveUp('Cannot specify -template and release name or version')
+        if not is_template and (name is None or version is None):
+            raise GiveUp('Must specify either -template or both a release name and version')
+
+        if self.no_op():
+            return
+
+        release = ReleaseSpec(name, version, archive, compression)
+        builder.release_spec = release
+
+        stamp, problems = ReleaseStamp.from_builder(builder)
+
+        if problems:
+            print problems
+            raise GiveUp('Problems prevent writing release stamp file')
+
+        version_dir = os.path.join(builder.invocation.db.root_path, 'versions')
+        if not os.path.exists(version_dir):
+            print 'Creating directory %s'%version_dir
+            os.mkdir(version_dir)
+
+        working_filename = os.path.join(version_dir, '_temporary.stamp')
+        print 'Writing to',working_filename
+        hash = stamp.write_to_file(working_filename)
+        print 'Wrote revision data to %s'%working_filename
+        print 'File has SHA1 hash %s'%hash
+
+        if is_template:
+            version_filename = 'this-is-not-a-file-name.release'
+        else:
+            version_filename = "%s_%s.release"%(name, version)
+
+        final_name = os.path.join(version_dir, version_filename)
+        print 'Renaming %s to %s'%(working_filename, final_name)
+        os.rename(working_filename, final_name)
+
+        db = builder.invocation.db
+        versions_url = db.versions_repo.from_disc()
+        if versions_url:
+            with utils.Directory(version_dir):
+                vcs_name, just_url = version_control.split_vcs_url(versions_url)
+                if vcs_name:
+                    print 'Adding release stamp file to VCS'
                     version_control.vcs_init_directory(vcs_name, [version_filename])
 
 @subcommand('stamp', 'diff', CAT_EXPORT)

@@ -38,6 +38,7 @@ def check_build_name(name):
         raise GiveUp("Build name '%s' is not allowed (it may only contain"
                      " 'A'-'Z', 'a'-'z', '0'-'9', '_' or '-')"%name)
 
+
 class Invocation(object):
     """
     An invocation is the central muddle object. It holds the

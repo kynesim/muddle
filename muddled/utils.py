@@ -176,6 +176,10 @@ for key, value in DirTypeDict.items():
 
 DirType = __directory_type_type(**DirTypeDict)
 
+# A useful named tuple for aggregating release information
+ReleaseTuple = namedtuple('ReleaseTuple',
+                          ['name', 'version', 'archive', 'compression'])
+
 def string_cmp(a,b):
     """
     Return -1 if a < b, 0 if a == b,  +1 if a > b.

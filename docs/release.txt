@@ -23,12 +23,14 @@ Release files are created using::
 
     $ muddle stamp release
     $ muddle stamp release -v 1.2.3
-    $ muddle stamp release -version 1.2.3 -compression bzip2
+    $ muddle stamp release -name Project99 -version 1.2.3 -compression bzip2
 
 The first creates a file containing::
 
     [RELEASE]
-    verison = <REPLACE THIS>
+    name = <REPLACE THIS>
+    version = <REPLACE THIS>
+    archive = tar
     compression = gzip
 
 which needs editing with a text editor (to replace ``<REPLACE THIS>``) before

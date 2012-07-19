@@ -162,16 +162,19 @@ Release stamp files are an extension of normal stamp files that also specify
 a release. As such, they have an extra section (at the start) of the form::
 
     [RELEASE]
+    name = project99
     version = 1.2.3
     archive = tar
     compression = gzip
 
-This indicates that the rest of the stamp file describes a release "numbered"
-1.2.3, that the release will be archived using tar, and that the tar file will
+This indicates that the rest of the stamp file describes a release called (or
+for) "project99", and that it is version 1.2.3. The release will be archived
+using tar, and the tar file will
 be compressed using gzip.
 
-The ``version`` specified must start with an ASCII alphanumeric, and may only
-contain ASCII alphanumerics, and the characters '.', '-' or '_'. For instance:
+Both the ``name`` and ``version`` specified must start with an ASCII
+alphanumeric, and may only contain ASCII alphanumerics, and the characters '.',
+'-' or '_'. For instance:
 
     version = v1-2.11
     version = xvii
@@ -186,6 +189,7 @@ The ``compression`` value must be either ``gzip`` or ``bzip2``.
 import os
 import posixpath
 import sys
+import re
 
 from collections import namedtuple, Mapping
 from datetime import datetime
@@ -195,10 +199,12 @@ from StringIO import StringIO
 from muddled.depend import Label
 from muddled.repository import Repository
 from muddled.utils import MuddleSortedDict, MuddleOrderedDict, \
-        HashFile, GiveUp, truncate, LabelType, LabelTag
+        HashFile, GiveUp, truncate, LabelType, LabelTag, ReleaseTuple
 from muddled.version_control import split_vcs_url
 
 CheckoutTupleV1 = namedtuple('CheckoutTupleV1', 'name repo rev rel dir domain co_leaf branch')
+
+# XXX Ideally we'd have a CheckoutTuple for v2 as well!
 
 def maybe_set_option(config, section, name, value):
     """Set an option in a section, if its value is not None.
@@ -450,7 +456,7 @@ class VersionStamp(object):
             config.set("STAMP", "version", version)
             config.write(fd)
 
-    def _write_to_file_object_end(self, fd):
+    def _write_to_file_object_end(self, fd, version=2):
 
         # Note we take care to write out the sections by hand, so that they
         # come out in the order we want, other than in some random order (as
@@ -519,7 +525,7 @@ class VersionStamp(object):
 
         fd.write('# Muddle stamp file\n')
         self._write_to_file_object_start(fd, version)
-        self._write_to_file_object_end(fd)
+        self._write_to_file_object_end(fd, version)
 
     def print_problems(self, output=None, truncate=None, indent=''):
         """Print out any problems.
@@ -900,7 +906,13 @@ class VersionStamp(object):
         return deleted, new, changed, problems
 
 
-relese_version_re = re.compile(r"[A-Za-z0-9][A-Za-z0-9._-]+")
+# Actually, we use the same regular expression for release versions and names
+release_version_re = re.compile(r"[A-Za-z0-9][A-Za-z0-9._-]+")
+release_name_re = release_version_re
+
+# For both of these, the first value is the default
+release_archive_values = ('tar')
+release_compression_values = ('gzip', 'bzip2')
 
 def check_release_version(version):
     """Check a release version for legality.
@@ -911,6 +923,25 @@ def check_release_version(version):
     if m is None or m.end() != len(version):
         raise GiveUp("Release version '%s' is not allowed (it must start with 'A'-'Z', 'a'-'z' or '0'-'9', and may only continue with 'A'-'Z', 'a'-'z', '0'-'9', '_' '-' or ',')"%name)
 
+def check_release_name(name):
+    """Check a release name for legality.
+
+    Raises a GiveUp exception if the name is not allowed.
+    """
+    m = build_release_name_re.match(name)
+    if m is None or m.end() != len(name):
+        raise GiveUp("Release name '%s' is not allowed (it must start with 'A'-'Z', 'a'-'z' or '0'-'9', and may only continue with 'A'-'Z', 'a'-'z', '0'-'9', '_' '-' or ',')"%name)
+
+def check_release_archive(archive):
+    if archive not in release_archive_values:
+        raise GiveUp('Release archive "%s" is not allowed (it must be %s)'%(
+            archive, ', '.join(release_archive_values)))
+
+def check_release_compression(compression):
+    if compression not in release_compression_values:
+        raise GiveUp('Release archive "%s" is not allowed (it must be %s)'%(
+            compression, ', '.join(release_compressions_values)))
+
 
 class ReleaseStamp(VersionStamp):
     """A VersionStamp with extra stuff to describe a release.
@@ -918,6 +949,9 @@ class ReleaseStamp(VersionStamp):
 
     def __init__(self):
         super(ReleaseStamp, self).__init__()
+        self.release = ReleaseTupe(None, None,
+                                   release_archive_values[0],
+                                   release_compression_values[0])
 
     @staticmethod
     def from_builder(builder, force=False, just_use_head=False, before=None, quiet=False):
@@ -968,7 +1002,13 @@ class ReleaseStamp(VersionStamp):
                                    before=before,
                                    quiet=quiet)
 
-        # and then set whatever other properties we want to set...
+        # and then add in release information
+        stamp.release = builder.release
+
+        check_release_name(stamp.name)
+        check_release_version(stamp.version)
+        check_release_archive(stamp.archive)
+        check_release_compression(stamp.compression)
 
         return stamp, stamp.problems
 
@@ -997,19 +1037,20 @@ class ReleaseStamp(VersionStamp):
             raise GiveUp('Release stamp files must be version 2 stamp files or later')
 
         # and then read whatever other configuration values we want to read
-        stamp.release_version = config.get("RELEASE", "version")
-        stamp.release_archive = config.get("RELEASE", "archive")
-        stamp.release_compression = config.get("RELEASE", "compression")
+        name = config.get("RELEASE", "name")
+        version = config.get("RELEASE", "version")
+        archive = config.get("RELEASE", "archive")
+        compression = config.get("RELEASE", "compression")
         # and follow precedent by removing that entire section
         sections.remove("RELEASE")
 
-        check_release_version(stamp.release_version)
+        check_release_name(name)
+        check_release_version(version)
+        check_release_archive(archive)
+        check_release_compression(compression)
 
-        if stamp.release_archive not in ('tar'):
-            raise GiveUp('Release archive is not allowed (it must be "tar")')
-
-        if stamp.release_compression not in ('gzip', 'bzip2'):
-            raise GiveUp('Release compression is not allowed (it must be "gzip" or "bzip2")')
+        stamp.release = ReleaseTuple(name=name, version=version,
+                                     archive=archive, compression=compression)
 
         print 'File has SHA1 hash %s'%fd.hash()
         return stamp
@@ -1023,11 +1064,29 @@ class ReleaseStamp(VersionStamp):
 
         config = make_RawConfigParser(ordered=True)
         config.add_section("RELEASE")
-        config.set("RELEASE", "version", self.release_version)
-        config.set("RELEASE", "archive", self.release_archive)
-        config.set("RELEASE", "compression", self.release_compression)
-        config.write(fd)
 
+        # If the user has not specified the release name or version, then
+        # we write out illegal (and obvious) values, which they can replace
+        # later on with a text editor.
+        if self.release.name:
+            check_release_name(self.release.name)
+            config.set("RELEASE", "name", self.release.name)
+        else:
+            config.set("RELEASE", "name", '<REPLACE THIS>')
+
+        if self.release.version:
+            check_release_version(self.release.version)
+            config.set("RELEASE", "version", self.release.version)
+        else:
+            config.set("RELEASE", "version", '<REPLACE THIS>')
+
+        check_release_archive(self.release.archive)
+        config.set("RELEASE", "archive", self.release.archive)
+
+        check_release_compression(self.release.compression)
+        config.set("RELEASE", "compression", self.release.compression)
+
+        config.write(fd)
         self._write_to_file_object_end(fd)
 
 

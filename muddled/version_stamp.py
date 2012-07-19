@@ -184,6 +184,9 @@ The ``archive`` value must currently be ``tar`` - other values may perhaps be
 allowed in the future.
 
 The ``compression`` value must be either ``gzip`` or ``bzip2``.
+
+Note that any release stamp file can be read as a "normal" stamp file - the
+extra release-specific information will just be ignored.
 """
 
 import os
@@ -199,7 +202,7 @@ from StringIO import StringIO
 from muddled.depend import Label
 from muddled.repository import Repository
 from muddled.utils import MuddleSortedDict, MuddleOrderedDict, \
-        HashFile, GiveUp, truncate, LabelType, LabelTag, ReleaseTuple
+        HashFile, GiveUp, truncate, LabelType, LabelTag
 from muddled.version_control import split_vcs_url
 
 CheckoutTupleV1 = namedtuple('CheckoutTupleV1', 'name repo rev rel dir domain co_leaf branch')
@@ -678,8 +681,11 @@ class VersionStamp(object):
         return stamp, stamp.problems
 
     @staticmethod
-    def _from_config(stamp, config):
-        """The internal mechanisms of the 'from_file' static method.
+    def _extract_config_header(stamp, config):
+        """Part 1 of the internal mechanisms of the 'from_file' static method.
+
+        Extract the STAMP (if any) and ROOT sections. After they've been
+        used, they will be removed from the configuration.
         """
 
         if config.has_section("STAMP"):
@@ -701,10 +707,17 @@ class VersionStamp(object):
         stamp.description = config.get("ROOT", "description")
         stamp.versions_repo = maybe_get_option(config, "ROOT", "versions_repo")
 
-        sections = config.sections()
         if config.has_section("STAMP"):
-            sections.remove("STAMP")
-        sections.remove("ROOT")
+            config.remove_section("STAMP")
+        config.remove_section("ROOT")
+
+    @staticmethod
+    def _extract_config_body(stamp, config):
+        """Part 2 of the internal mechanisms of the 'from_file' static method.
+
+        Extract the DOMAIN, CHECKOUT and PROBLEM sections.
+        """
+        sections = config.sections()
         for section in sections:
             if section.startswith("DOMAIN"):
                 # Because we are using a set, we will not grumble if we
@@ -753,7 +766,8 @@ class VersionStamp(object):
         config = make_RawConfigParser()
         config.readfp(fd)
 
-        VersionStamp._from_config(stamp, config)
+        VersionStamp._extract_config_header(stamp, config)
+        VersionStamp._extract_config_body(stamp, config)
 
         print 'File has SHA1 hash %s'%fd.hash()
         return stamp
@@ -906,42 +920,102 @@ class VersionStamp(object):
         return deleted, new, changed, problems
 
 
-# Actually, we use the same regular expression for release versions and names
-release_version_re = re.compile(r"[A-Za-z0-9][A-Za-z0-9._-]+")
-release_name_re = release_version_re
+class Release(object):
+    """The basic specification of a Release.
 
-# For both of these, the first value is the default
-release_archive_values = ('tar')
-release_compression_values = ('gzip', 'bzip2')
+    Note that we allow setting of invalid values, as this is needed for
+    writing out "template" release stamp files.
 
-def check_release_version(version):
-    """Check a release version for legality.
-
-    Raises a GiveUp exception if the version is not allowed.
+    However, we then provide 'check' methods for making sure the values make
+    sense.
     """
-    m = build_release_version_re.match(version)
-    if m is None or m.end() != len(version):
-        raise GiveUp("Release version '%s' is not allowed (it must start with 'A'-'Z', 'a'-'z' or '0'-'9', and may only continue with 'A'-'Z', 'a'-'z', '0'-'9', '_' '-' or ',')"%name)
 
-def check_release_name(name):
-    """Check a release name for legality.
+    # Actually, we use the same regular expression for release versions and names
+    version_re = re.compile(r"[A-Za-z0-9][A-Za-z0-9._-]+")
+    name_re = version_re
 
-    Raises a GiveUp exception if the name is not allowed.
-    """
-    m = build_release_name_re.match(name)
-    if m is None or m.end() != len(name):
-        raise GiveUp("Release name '%s' is not allowed (it must start with 'A'-'Z', 'a'-'z' or '0'-'9', and may only continue with 'A'-'Z', 'a'-'z', '0'-'9', '_' '-' or ',')"%name)
+    # For both of these, the first value is the default
+    allowed_archive_values = ['tar']
+    allowed_compression_values = ['gzip', 'bzip2']
 
-def check_release_archive(archive):
-    if archive not in release_archive_values:
-        raise GiveUp('Release archive "%s" is not allowed (it must be %s)'%(
-            archive, ', '.join(release_archive_values)))
+    def __init__(self, name=None, version=None, archive=None, compression=None):
+        self.name = name
+        self.version = version
+        if archive is None:
+            self.archive = self.allowed_archive_values[0]
+        else:
+            self.archive = archive
+        if compression is None:
+            self.compression = self.allowed_compression_values[0]
+        else:
+            self.compression = compression
 
-def check_release_compression(compression):
-    if compression not in release_compression_values:
-        raise GiveUp('Release archive "%s" is not allowed (it must be %s)'%(
-            compression, ', '.join(release_compressions_values)))
+    def __str__(self):
+        return 'Release(name=%r, version=%r, archive=%r, compression=%r)'%(
+                self.name, self.version, self.archive, self.compression)
 
+    def check_version(self):
+        """Check a release version for legality.
+
+        Raises a GiveUp exception if the version is not allowed.
+        """
+        if not self.version:
+            raise GiveUp('Release version is not set')
+        m = self.version_re.match(self.version)
+        if m is None or m.end() != len(self.version):
+            raise GiveUp("Release version \"%s\" is not allowed (it must start"
+                         " with 'A'-'Z', 'a'-'z' or '0'-'9', and may only"
+                         " continue with 'A'-'Z', 'a'-'z', '0'-'9', '_' '-'"
+                         " or '.')"%self.version)
+
+    def check_name(self):
+        """Check a release name for legality.
+
+        Raises a GiveUp exception if the name is not allowed.
+        """
+        if not self.name:
+            raise GiveUp('Release name is not set')
+        m = self.name_re.match(self.name)
+        if m is None or m.end() != len(self.name):
+            raise GiveUp("Release name \"%s\" is not allowed (it must start"
+                         " with 'A'-'Z', 'a'-'z' or '0'-'9', and may only"
+                         " continue with 'A'-'Z', 'a'-'z', '0'-'9', '_' '-'"
+                         " or '.')"%self.name)
+
+    def check_archive(self):
+        if self.archive not in self.allowed_archive_values:
+            raise GiveUp('Release archive "%s" is not allowed (it must be %s)'%(
+                self.archive, ', '.join(self.allowed_archive_values)))
+
+    def check_compression(self):
+        if self.compression not in self.allowed_compression_values:
+            raise GiveUp('Release compression "%s" is not allowed (it must be %s)'%(
+                self.compression, ', '.join(self.allowed_compression_values)))
+
+    def check(self):
+        """Check all of the values.
+
+        If any are wrong, raise a GiveUp exception detailing all the errors.
+        """
+        problems = []
+        try:
+            self.check_version()
+        except GiveUp as e:
+            problems.append(str(e))
+        try:
+            self.check_name()
+        except GiveUp as e:
+            problems.append(str(e))
+        try:
+            self.check_archive()
+        except GiveUp as e:
+            problems.append(str(e))
+        try:
+            self.check_compression()
+        except GiveUp as e:
+            problems.append(str(e))
+        if problems:
+            raise GiveUp('Release information is not correct\n  %s'%('\n  '.join(problems)))
 
 class ReleaseStamp(VersionStamp):
     """A VersionStamp with extra stuff to describe a release.
@@ -949,9 +1023,7 @@ class ReleaseStamp(VersionStamp):
 
     def __init__(self):
         super(ReleaseStamp, self).__init__()
-        self.release = ReleaseTupe(None, None,
-                                   release_archive_values[0],
-                                   release_compression_values[0])
+        self.release = Release()
 
     @staticmethod
     def from_builder(builder, force=False, just_use_head=False, before=None, quiet=False):
@@ -1004,11 +1076,7 @@ class ReleaseStamp(VersionStamp):
 
         # and then add in release information
         stamp.release = builder.release
-
-        check_release_name(stamp.name)
-        check_release_version(stamp.version)
-        check_release_archive(stamp.archive)
-        check_release_compression(stamp.compression)
+        stamp.release.check()
 
         return stamp, stamp.problems
 
@@ -1031,7 +1099,8 @@ class ReleaseStamp(VersionStamp):
         config = make_RawConfigParser()
         config.readfp(fd)
 
-        VersionStamp._from_config(stamp, config)
+        # Extract the stamp file header from the configuration
+        VersionStamp._extract_config_header(stamp, config)
 
         if stamp.version < 2:
             raise GiveUp('Release stamp files must be version 2 stamp files or later')
@@ -1042,24 +1111,27 @@ class ReleaseStamp(VersionStamp):
         archive = config.get("RELEASE", "archive")
         compression = config.get("RELEASE", "compression")
         # and follow precedent by removing that entire section
-        sections.remove("RELEASE")
+        config.remove_section("RELEASE")
 
-        check_release_name(name)
-        check_release_version(version)
-        check_release_archive(archive)
-        check_release_compression(compression)
+        stamp.release = Release(name=name, version=version,
+                                archive=archive, compression=compression)
+        stamp.release.check()
 
-        stamp.release = ReleaseTuple(name=name, version=version,
-                                     archive=archive, compression=compression)
+        # And extract the rest of the data from the configuration
+        VersionStamp._extract_config_body(stamp, config)
 
         print 'File has SHA1 hash %s'%fd.hash()
         return stamp
 
-    def write_to_file_object(self, fd):
+    def write_to_file_object(self, fd, version=2):
         """Write our data out to a file-like object (one with a 'write' method).
         """
 
-        fd.write('# Muddle release file\n')
+        if version != 2:
+            raise GiveUp('Release stamp files must be version 2 stamp files,'
+                         ' not version %s'%version)
+
+        fd.write('# Muddle release stamp file\n')
         self._write_to_file_object_start(fd, version=2)
 
         config = make_RawConfigParser(ordered=True)
@@ -1069,21 +1141,21 @@ class ReleaseStamp(VersionStamp):
         # we write out illegal (and obvious) values, which they can replace
         # later on with a text editor.
         if self.release.name:
-            check_release_name(self.release.name)
+            self.release.check_name()
             config.set("RELEASE", "name", self.release.name)
         else:
             config.set("RELEASE", "name", '<REPLACE THIS>')
 
         if self.release.version:
-            check_release_version(self.release.version)
+            self.release.check_name()
             config.set("RELEASE", "version", self.release.version)
         else:
             config.set("RELEASE", "version", '<REPLACE THIS>')
 
-        check_release_archive(self.release.archive)
+        self.release.check_archive()
         config.set("RELEASE", "archive", self.release.archive)
 
-        check_release_compression(self.release.compression)
+        self.release.check_compression()
         config.set("RELEASE", "compression", self.release.compression)
 
         config.write(fd)

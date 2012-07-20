@@ -255,7 +255,7 @@ class Command(object):
         """
         raise GiveUp("Can't run %s with a build tree."%self.cmd_name)
 
-    def without_build_tree(self, muddle_binary, root_path, args):
+    def without_build_tree(self, muddle_binary, current_dir, args):
         """
         Run this command without a build tree.
 
@@ -265,11 +265,7 @@ class Command(object):
           needed if "muddle" is going to be run explicitly, or if a
           Makefile.muddle is going to use $(MUDDLE_BINARY)
 
-        * 'root_path' - this is either the current directory, or the value
-          specified with the muddle '--tree' switch.
-
-          XXX I was surprised that it is not always the current directory.
-          XXX This may change.
+        * 'current_dir' is the current directory.
 
         * 'args' - this is any other arguments given to muddle, that occurred
           after the command name.
@@ -1037,7 +1033,7 @@ Usage:
 Available <options> are:
 
   --help, -h, -?      This help text
-  --tree <dir>        Use the muddle build tree at <dir>
+  --tree <dir>        Use the muddle build tree at <dir>.
   --just-print, -n    Just print what muddle would have done. For commands that
                       'do something', just print out the labels for which that
                       action would be performed. For commands that "enquire"
@@ -1046,8 +1042,10 @@ Available <options> are:
                       being run from. Note that this uses git to interrogate
                       the .git/ directory in the muddle source directory.
 
-If you don't give --tree, muddle will traverse directories up to the root to
-try and find a .muddle directory, which signifies the top of the build tree.
+Muddle always starts by looking for a build tree, signified by the presence of
+a .muddle directory. If you give --tree, then it will look in the directory
+given, otherwise, it will traverse directories from the current directory up
+to the root.
 """
 
     labels_help = """\
@@ -1300,7 +1298,7 @@ the parentheses. So, for instance, use:
     def with_build_tree(self, builder, current_dir, args):
         self.print_help(args)
 
-    def without_build_tree(self, muddle_binary, root_path, args):
+    def without_build_tree(self, muddle_binary, current_dir, args):
         self.print_help(args)
 
     def print_help(self, args):
@@ -1589,7 +1587,7 @@ class Init(Command):
         raise GiveUp("Can't initialise a build tree "
                     "when one already exists (%s)"%builder.invocation.db.root_path)
 
-    def without_build_tree(self, muddle_binary, root_path, args):
+    def without_build_tree(self, muddle_binary, current_dir, args):
         """
         Initialise a build tree.
         """
@@ -1599,19 +1597,19 @@ class Init(Command):
         repo = args[0]
         build = args[1]
 
-        print "Initialising build tree in %s "%root_path
+        print "Initialising build tree in %s "%current_dir
         print "Repository: %s"%repo
         print "Build description: %s"%build
 
         if self.no_op():
             return
 
-        db = Database(root_path)
+        db = Database(current_dir)
         db.setup(repo, build)
 
         print
         print "Checking out build description .. \n"
-        mechanics.load_builder(root_path, muddle_binary)
+        mechanics.load_builder(current_dir, muddle_binary)
 
         print "Done.\n"
 
@@ -1688,7 +1686,7 @@ class Bootstrap(Command):
 
         self.bootstrap(current_dir, args)
 
-    def without_build_tree(self, muddle_binary, root_path, args):
+    def without_build_tree(self, muddle_binary, current_dir, args):
         """
         Bootstrap a build tree.
         """
@@ -1697,7 +1695,7 @@ class Bootstrap(Command):
             print 'You are not currently within a build tree. "-subdomain" ignored'
             args = args[1:]
 
-        self.bootstrap(root_path, args)
+        self.bootstrap(current_dir, args)
 
     def bootstrap(self, root_path, args):
         if len(args) != 2:
@@ -1896,7 +1894,7 @@ class QueryDistributions(QueryCommand):
                                      ', '.join(the_distributions[name]))
         print '(those marked with a "*" have content set by this build)'
 
-    def without_build_tree(self, muddle_binary, root_path, args):
+    def without_build_tree(self, muddle_binary, current_dir, args):
         names = get_distribution_names()
         print 'Standard distributions are:\n'
         maxlen = len(max(names, key=len))
@@ -1919,7 +1917,7 @@ class QueryVCS(QueryCommand):
     def with_build_tree(self, builder, current_dir, args):
         self.do_command()
 
-    def without_build_tree(self, muddle_binary, root_path, args):
+    def without_build_tree(self, muddle_binary, current_dir, args):
         self.do_command()
 
     def do_command(self):
@@ -2215,7 +2213,7 @@ class QueryLicenses(QueryCommand):
     def with_build_tree(self, builder, current_dir, args):
         print_standard_licenses()
 
-    def without_build_tree(self, muddle_binary, root_path, args):
+    def without_build_tree(self, muddle_binary, current_dir, args):
         print_standard_licenses()
 
 @subcommand('query', 'domains', CAT_QUERY)
@@ -3136,7 +3134,7 @@ class Whereami(Command):
                 rv = '%s in subdomain %s'%(rv, domain)
             print rv
 
-    def without_build_tree(self, muddle_binary, root_path, args):
+    def without_build_tree(self, muddle_binary, current_dir, args):
         detail = self.want_detail(args)
         if detail:
             print 'None None None'
@@ -3169,7 +3167,7 @@ class Doc(Command):
     def with_build_tree(self, builder, current_dir, args):
         self.doc_for(args)
 
-    def without_build_tree(self, muddle_binary, root_path, args):
+    def without_build_tree(self, muddle_binary, current_dir, args):
         self.doc_for(args)
 
     def doc_for(self, args):
@@ -3671,7 +3669,7 @@ class StampDiff(Command):
     def print_syntax(self):
         print ':Syntax: muddle stamp diff [<style>] <path1> <path2> [<output_file>]'
 
-    def without_build_tree(self, muddle_binary, root_path, args):
+    def without_build_tree(self, muddle_binary, current_dir, args):
         if not args:
             raise GiveUp("'stamp diff' needs two paths (stamp file or build tree) to compare")
         self.compare_stamps(muddle_binary, args)
@@ -4191,15 +4189,12 @@ class UnStamp(Command):
 
         self.update_from_file(builder, args[0])
 
-    def without_build_tree(self, muddle_binary, root_path, args):
+    def without_build_tree(self, muddle_binary, current_dir, args):
 
         args = self.remove_switches(args)
 
         if 'update' in self.switches:
             raise GiveUp('"muddle unstamp -update" needs a build tree to update')
-
-        # Strongly assume the user wants us to work in the current directory
-        current_dir = os.getcwd()
 
         # In an ideal world, we'd only be called if there really was no muddle
         # build tree. However, in practice, the top-level script may call us
@@ -4208,14 +4203,14 @@ class UnStamp(Command):
         self.check_for_broken_build(current_dir)
 
         if len(args) == 1:
-            self.unstamp_from_file(muddle_binary, root_path, current_dir, args[0])
+            self.unstamp_from_file(muddle_binary, current_dir, args[0])
         elif len(args) == 2:
-            self.unstamp_from_repo(muddle_binary, root_path, current_dir, args[0], args[1])
+            self.unstamp_from_repo(muddle_binary, current_dir, args[0], args[1])
         else:
             self.print_syntax()
             return 2
 
-    def unstamp_from_file(self, muddle_binary, root_path, current_dir, thing):
+    def unstamp_from_file(self, muddle_binary, current_dir, thing):
         """
         Unstamp from a file (local, over the network, or from a repository)
         """
@@ -4251,10 +4246,9 @@ class UnStamp(Command):
 
         stamp = VersionStamp.from_file(filename)
 
-        self.unstamp_from_stamp(muddle_binary, root_path, current_dir, stamp)
+        self.unstamp_from_stamp(muddle_binary, current_dir, stamp)
 
-    def unstamp_from_repo(self, muddle_binary, root_path, current_dir, repo,
-                          version_path):
+    def unstamp_from_repo(self, muddle_binary, current_dir, repo, version_path):
         """
         Unstamp from a repository and version path.
         """
@@ -4281,11 +4275,9 @@ class UnStamp(Command):
 
         stamp = VersionStamp.from_file(os.path.join("versions", version_file))
 
-        self.unstamp_from_stamp(muddle_binary, root_path, current_dir, stamp,
-                                               versions_repo=actual_url)
+        self.unstamp_from_stamp(muddle_binary, current_dir, stamp, versions_repo=actual_url)
 
-    def unstamp_from_stamp(self, muddle_binary, root_path, current_dir, stamp,
-                           versions_repo=None):
+    def unstamp_from_stamp(self, muddle_binary, current_dir, stamp, versions_repo=None):
         """Given a stamp file, do our work.
         """
         builder = mechanics.minimal_build_tree(muddle_binary, current_dir,
@@ -4293,7 +4285,7 @@ class UnStamp(Command):
                                                stamp.description,
                                                versions_repo=versions_repo)
 
-        self.restore_stamp(builder, root_path, stamp.domains, stamp.checkouts)
+        self.restore_stamp(builder, current_dir, stamp.domains, stamp.checkouts)
 
         # Once we've checked everything out, we should ideally check
         # if the build description matches what we've checked out...
@@ -4328,7 +4320,7 @@ class UnStamp(Command):
             path_parts.append(d)
         return os.path.join(*path_parts)
 
-    def restore_stamp(self, builder, root_path, domains, checkouts):
+    def restore_stamp(self, builder, current_dir, domains, checkouts):
         """
         Given the information from our stamp file, restore things.
         """
@@ -4341,7 +4333,7 @@ class UnStamp(Command):
 
             # Take care to allow for multiple parts
             # Thus domain 'fred(jim)' maps to <root>/domains/fred/domains/jim
-            domain_root_path = self._domain_path(root_path, domain_name)
+            domain_root_path = self._domain_path(current_dir, domain_name)
 
             os.makedirs(domain_root_path)
 
@@ -4357,7 +4349,7 @@ class UnStamp(Command):
         for label in co_labels:
             co_dir, co_leaf, repo = checkouts[label]
             if label.domain:
-                domain_root_path = self._domain_path(root_path, label.domain)
+                domain_root_path = self._domain_path(current_dir, label.domain)
                 print "Unstamping checkout (%s)%s"%(label.domain,label.name)
                 if co_dir:
                     actual_co_dir = os.path.join(domain_root_path, 'src', co_dir)
@@ -4830,10 +4822,7 @@ class Release(Command):
     def requires_build_tree(self):
         return False
 
-    def without_build_tree(self, muddle_binary, root_path, args):
-
-        # Strongly assume the user wants us to work in the current directory
-        current_dir = os.getcwd()
+    def without_build_tree(self, muddle_binary, current_dir, args):
 
         # In an ideal world, we'd only be called if there really was no muddle
         # build tree. However, in practice, the top-level script may call us
@@ -4852,7 +4841,7 @@ class Release(Command):
 
         # Let the unstamp command do the unstamping for us...
         unstamp = UnStamp()
-        unstamp.unstamp_from_stamp(muddle_binary, root_path, current_dir, release)
+        unstamp.unstamp_from_stamp(muddle_binary, current_dir, current_dir, release)
 
         # Immediately mark ourselves as a release build by copying the release
         # file into the .muddle directory. Some muddle commands will refuse to
@@ -6449,7 +6438,7 @@ class CopyWithout(Command):
     def with_build_tree(self, builder, current_dir, args):
         self.do_copy(args)
 
-    def without_build_tree(self, muddle_binary, root_path, args):
+    def without_build_tree(self, muddle_binary, current_dir, args):
         self.do_copy(args)
 
     def do_copy(self, args):
@@ -6506,7 +6495,7 @@ class Subst(Command):
     def with_build_tree(self, builder, current_dir, args):
         self.do_subst(args)
 
-    def without_build_tree(self, muddle_binary, root_path, args):
+    def without_build_tree(self, muddle_binary, current_dir, args):
         self.do_subst(args)
 
     def do_subst(self, args):

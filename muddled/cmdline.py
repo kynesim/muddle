@@ -234,7 +234,7 @@ def _cmdline(args, current_dir, original_env, muddle_binary):
         if command.requires_build_tree():
             raise utils.GiveUp("Command %s requires a build tree."%(command_name))
 
-        command.without_build_tree(muddle_binary, specified_root, args)
+        command.without_build_tree(muddle_binary, current_dir, args)
 
 def cmdline(args, muddle_binary=None):
     """
@@ -265,6 +265,7 @@ def cmdline(args, muddle_binary=None):
         muddle_binary = os.path.join(this_dir, '__main__.py')
 
     try:
+        os.chdir(original_dir)          # In case we set it to shell_dir
         _cmdline(args, original_dir, original_env, muddle_binary)
     finally:
         os.chdir(original_dir)          # Should not really be necessary...

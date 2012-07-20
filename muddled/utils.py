@@ -431,6 +431,19 @@ def find_local_relative_root(builder, label):
 
     return os.path.relpath(local_root, top_root)
 
+def is_release_build(dir):
+    """
+    Check if the given 'dir' is the top level of a release build.
+
+    'dir' should be the path to the directory contining the build's
+    ``.muddle`` directory (the "top" of the build).
+
+    The build is assumed to be a release build if there is a file called
+    ``.muddle/Release``.
+    """
+    file_name = os.path.join(dir, '.muddle', "Release")
+    return os.path.exists(file_name)
+
 def ensure_dir(dir, verbose=True):
     """
     Ensure that dir exists and is a directory, or throw an error.

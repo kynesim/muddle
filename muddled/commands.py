@@ -192,6 +192,13 @@ class Command(object):
         """
         return True
 
+    def allowed_in_release_build(self):
+        """
+        Returns True iff this command is allowed in a release build
+        (a build tree that has been created using "muddle release").
+        """
+        return True
+
     def set_options(self, opt_dict):
         """
         Set command options - usually from the options passed to mudddle.
@@ -593,6 +600,10 @@ class CheckoutCommand(CPDCommand):
     required_type = LabelType.Checkout
     # Subclasses should override the following as necessary
     required_tag = LabelTag.CheckedOut
+
+    # In general, these commands are not allowed in release builds
+    def allowed_in_release_build(self):
+        return False
 
     def interpret_all(self, builder):
         """Return the result of argument "_all"
@@ -1670,6 +1681,9 @@ class Bootstrap(Command):
     """
 
     def requires_build_tree(self):
+        return False
+
+    def allowed_in_release_build(self):
         return False
 
     def with_build_tree(self, builder, current_dir, args):
@@ -3436,6 +3450,11 @@ class StampVersion(Command):
     def requires_build_tree(self):
         return True
 
+    # We don't allow this in a release build because it wants to add the
+    # stamp file to the VCS in the versions/ directory
+    def allowed_in_release_build(self):
+        return False
+
     def with_build_tree(self, builder, current_dir, args):
         force = False
         version = 2
@@ -3551,6 +3570,11 @@ class StampRelease(Command):
 
     def requires_build_tree(self):
         return True
+
+    # We don't allow this in a release build because it already is a release
+    # build, and we thus *have* a release stamp file somewhere
+    def allowed_in_release_build(self):
+        return False
 
     def with_build_tree(self, builder, current_dir, args):
         name = None
@@ -3936,6 +3960,10 @@ class StampPush(Command):
     def requires_build_tree(self):
         return True
 
+    # In general, VCS operations are not allowed in release builds
+    def allowed_in_release_build(self):
+        return False
+
     def with_build_tree(self, builder, current_dir, args):
         if len(args) > 1:
             raise GiveUp("Unexpected argument '%s' for 'stamp push'"%' '.join(args))
@@ -3997,6 +4025,9 @@ class StampPull(Command):
 
     def requires_build_tree(self):
         return True
+
+    def allowed_in_release_build(self):
+        return False
 
     def with_build_tree(self, builder, current_dir, args):
         if len(args) > 1:
@@ -4173,6 +4204,9 @@ class UnStamp(Command):
             }
 
     def requires_build_tree(self):
+        return False
+
+    def allowed_in_release_build(self):
         return False
 
     def with_build_tree(self, builder, current_dir, args):
@@ -5511,6 +5545,10 @@ class Status(CheckoutCommand):
                         '-j': 'join',
                        }
 
+    # This checkout command *is* allowed in a release build
+    def allowed_in_release_build(self):
+        return True
+
     def build_these_labels(self, builder, labels):
 
         if len(labels) == 0:
@@ -5587,6 +5625,10 @@ class Reparent(CheckoutCommand):
     # XXX Is this what we want???
     required_tag = LabelTag.Pulled
     allowed_switches = {'-f':'force', '-force':'force'}
+
+    # This checkout command *is* allowed in a release build (I think it makes sense)
+    def allowed_in_release_build(self):
+        return True
 
     def build_these_labels(self, builder, labels):
 

@@ -1343,6 +1343,13 @@ class Builder(object):
         check_build_name(name)
         self._build_name = name
 
+    def is_release_build(self):
+        """
+        Are we a release build (i.e., a build tree created by "muddle release")?
+
+        We look to see if there is a file called .muddle/Release
+        """
+        return utils.is_release_build(self.invocation.db.root_path)
 
     def get_all_checkout_labels_below(self, dir):
         """

@@ -52,11 +52,15 @@ class Invocation(object):
         Construct a fresh invocation with a .muddle directory at the given
         root_path.
 
-        * self.db         - The metadata database for this project.
-        * self.ruleset    - The rules describing this build
-        * self.env        - A dictionary of label to environment
+        * self.db - The metadata database for this project.
+        * self.ruleset - The rules describing this build
+        * self.env - A dictionary of label to environment
         * self.default_roles - The roles to build when you don't specify any.
-        * self.default_deployment_labels - The deployments to deploy ditto
+          These will also be used for "guessing" a role for a package when one
+          is not specified. '_default_roles' is calculated from this.
+        * self.default_deployment_labels - The deployments to deploy when you
+          don't specify any specific roles. The translation of
+          '_default_deployments'.
         * self.banned_roles - An array of pairs of the form (role, domain)
           which aren't allowed to share libraries.
         * self.domain_params - Maps domain names to dictionaries storing
@@ -65,6 +69,10 @@ class Invocation(object):
         * self.unifications - This is a list of tuples of the form
           (source-label, target-label), where one "replaces" the other in the
           build tree.
+        * self.what_to_release - a set of entities to build for a release
+          build. It may contain labels and also "special" names, such as
+          '_default_deployments' or even '_all'. You may not include '_release'
+          (did you need to ask?). "_just_pulled" is not allowed either.
         """
         self.db = db.Database(root_path)
         self.ruleset = depend.RuleSet()
@@ -74,6 +82,7 @@ class Invocation(object):
         self.banned_roles = []
         self.domain_params = {}
         self.unifications = []
+        self.what_to_release = set()
 
     def note_unification(self, source, target):
         self.unifications.append( (source, target) )
@@ -463,6 +472,29 @@ class Invocation(object):
             raise MuddleBug('Attempt to add label %s to default deployments'%label)
 
         self.default_deployment_labels.append(label)
+
+    def add_to_release_build(self, thing):
+        """Add a thing to the set of entities to build for a release build.
+
+        'thing' must either be a Label, or else one of the "special" names,
+        "_all", "_default_deployments", "_default_roles".
+
+        It may not be "_release" (!) or "_just_pulled".
+
+        Special names are expanded after all build descriptions have been
+        read.
+
+        The special name "_release" corresponds to this set.
+        """
+        # Surely we have a list of these somewhere else?
+        allowed_names = ('_all', '_default_deployments', '_default_roles')
+
+        if isinstance(thing, Label) or thing in allowed_names:
+            self.what_to_release.add(thing)
+        else:
+            raise GiveUp('%s is not allowed in the "things to release" list\n'
+                         'It is not a label or one of the allowed "special" names (%s)'%(
+                thing, ', '.join(allowed_names)))
 
     def list_environments_for(self, label):
         """
@@ -1461,6 +1493,23 @@ class Builder(object):
         We look to see if there is a file called .muddle/Release
         """
         return utils.is_release_build(self.invocation.db.root_path)
+
+    # XXX Is it too much to have a version of this here, to save the user
+    # XXX having to type 'builder.invocation.add_to_release_build()'?
+    def add_to_release_build(self, thing):
+        """Add a thing to the set of entities to build for a release build.
+
+        'thing' must either be a Label, or else one of the "special" names,
+        "_all", "_default_deployments", "_default_roles".
+
+        It may not be "_release" (!) or "_just_pulled".
+
+        Special names are expanded after all build descriptions have been
+        read.
+
+        The special name "_release" corresponds to this set.
+        """
+        self.invocation.add_to_release_build(thing)
 
     def get_all_checkout_labels_below(self, dir):
         """

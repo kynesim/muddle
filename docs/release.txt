@@ -86,6 +86,18 @@ This is a new build target, for use as ``muddle build _release``.
 
 It needs to be specified in the build description.
 
+We use ``builder.invocation.add_to_release_build()`` to do this.
+
+.. note:: Since that's a bit long, I've defined an alias,
+   ``builder.add_to_release_build()``.
+
+   1. Is that a bad thing?
+   2. Should I only define it in one place?
+   3. What about the "equivalents" for deployment and role?
+
+
+XXX Tidy the below up
+
 If it is not, then what does "muddle build _release" do?
 
 Alternatives:

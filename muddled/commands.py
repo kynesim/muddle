@@ -3080,11 +3080,38 @@ class QueryRelease(QueryCommand):
 
     For instance::
 
-        ...
+        This is a release build
+        Release spec:
+          name        = simple
+          version     = v1.0
+          archive     = tar
+          compression = gzip
+          hash        = c7c10cf4d6da4519714ac334a983ab518c68c5d1
+        What to release (the meaning of "_release"):
+          _default_deployments
+          package:(subdomain2)second_pkg{x86}/*
 
     or::
 
-        ...
+        This is NOT a release build
+        Release spec:
+          name        = None
+          version     = None
+          archive     = tar
+          compression = gzip
+          hash        = None
+        What to release (the meaning of "_release"):
+          _default_deployments
+          package:(subdomain2)second_pkg{x86}/*
+
+    What is to be released is defined in the build description, using
+    'builder.add_to_release_build()'.
+
+    If nothing has been designated for release, then that final clause will be
+    replaced with::
+
+        What to release (the meaning of "_release"):
+          <nothing defined>
     """
 
     def with_build_tree(self, builder, current_dir, args):
@@ -3098,8 +3125,13 @@ class QueryRelease(QueryCommand):
         print '  archive     = %s'%builder.release_spec.archive
         print '  compression = %s'%builder.release_spec.compression
         print '  hash        = %s'%builder.release_spec.hash
-        print 'Release labels (meaning of "_release"):'
-        print 'XXX'
+        print 'What to release (the meaning of "_release"):'
+        what_to_release = builder.invocation.what_to_release
+        if what_to_release:
+            for thing in sorted(map(str,what_to_release)):
+                print '  %s'%thing
+        else:
+            print '  <nothing defined>'
 
 @command('where', CAT_QUERY, ['whereami'])
 class Whereami(Command):

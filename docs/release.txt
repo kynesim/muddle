@@ -84,23 +84,30 @@ The ``_release`` build target
 -----------------------------
 This is a new build target, for use as ``muddle build _release``.
 
-It needs to be specified in the build description (if it is not, maybe it
-should default to ``_all``, or maybe it should cause a release build to FAIL
-INSTANTLY).
+It needs to be specified in the build description.
 
-For instance::
+If it is not, then what does "muddle build _release" do?
+
+Alternatives:
+
+1. Copy how deployment works::
 
     builder.add_release_roles(<role-name>)
     builder.add_release_roles([<role-name1>. <role-name2>])
     builder.add_release_deployments(<deployment-name>)
     builder.add_release_deployments([<deployment-name1>, <deployment-name2>])
 
-*Or* just have::
+2. By labels::
 
-    builder.add_release_labels(<label>)
-    builder.add_release_labels([<label1>, <label2>])
+    builder.add_to_release_build(<label>)
+    builder.add_to_release_build([<label1>, <label2>])
 
-where <label> can be wildcarded. Whatever seems simplest.
+   where <label> can be wildcarded.
+
+3. By labels, as above, but also allow the "special" values ``_all``,
+   ``_default_roles``, ``_default_deployments``.
+
+That last is perhaps the most hacky, but perhaps also the simplest.
 
 The ``release_from`` function in the build description
 ------------------------------------------------------
@@ -110,6 +117,9 @@ This looks like::
         ...
 
 It is the job of this function to generate the release tarball.
+
+I think we can assume that ``describe_to()`` will have been called first, so
+that we have labels available.
 
 .. note:: ``muddle bootstrap`` should probably generate a suitable template.
 
@@ -126,6 +136,10 @@ The function works by putting stuff to be released into the release
 directory, which muddle will tar up and compress to produce the release
 tarball. Muddle will already have copied the release file into the release
 directory.
+
+This step should probably be available as a specific muddle command - but
+maybe via "muddle release -again" or somesuch. Of course, doing that
+guarantees that the ``describe_to`` will have been executed first.
 
 
 The ``muddle release`` command
@@ -168,6 +182,9 @@ This:
 
 7. Calls the ``release_from(builder)`` function in the build description
    (obviously it is an error if there isn't one).
+
+   Note that the tarball directory (step 6) will be passed to the function
+   somehow - either as another function argument, or via the builder object.
 
       This is probably actually best done with yet another muddle command -
       maybe::

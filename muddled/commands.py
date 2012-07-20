@@ -3067,6 +3067,40 @@ class QueryKernelver(QueryCommand):
         label = self.get_label_from_fragment(builder, args)
         print self.kernel_version(builder, label)
 
+@subcommand('query', 'release', CAT_QUERY)
+class QueryRelease(QueryCommand):
+    """
+    :Syntax: muddle query release
+
+    Print information about this build as a release.
+
+    For a release build, prints out the release specification.
+
+    Prints the "translation" of the special "_release" argument.
+
+    For instance::
+
+        ...
+
+    or::
+
+        ...
+    """
+
+    def with_build_tree(self, builder, current_dir, args):
+        if builder.is_release_build():
+            print 'This is a release build'
+        else:
+            print 'This is NOT a release build'
+        print 'Release spec:'
+        print '  name        = %s'%builder.release_spec.name
+        print '  version     = %s'%builder.release_spec.version
+        print '  archive     = %s'%builder.release_spec.archive
+        print '  compression = %s'%builder.release_spec.compression
+        print '  hash        = %s'%builder.release_spec.hash
+        print 'Release labels (meaning of "_release"):'
+        print 'XXX'
+
 @command('where', CAT_QUERY, ['whereami'])
 class Whereami(Command):
     """

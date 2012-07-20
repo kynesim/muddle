@@ -152,7 +152,7 @@ def subcommand(main_command, sub_command, category, aliases=None):
 
 class Command(object):
     """
-    Abstract base class for muddle commands
+    Abstract base class for muddle commands. Stuffed with helpful functionality.
 
     Each subclass is a ``muddle`` command, and its docstring is the "help"
     text for that command.
@@ -242,14 +242,86 @@ class Command(object):
     def with_build_tree(self, builder, current_dir, args):
         """
         Run this command with a build tree.
+
+        Arguments are:
+
+        * 'builder' is the Builder instance, as constructed from the build
+          tree we are in.
+
+        * 'current_dir' is the current directory.
+
+        * 'args' - this is any other arguments given to muddle, that occurred
+          after the command name.
         """
         raise GiveUp("Can't run %s with a build tree."%self.cmd_name)
 
     def without_build_tree(self, muddle_binary, root_path, args):
         """
         Run this command without a build tree.
+
+        Arguments are:
+
+        * 'muddle_binary' is the location of the muddle binary - this is only
+          needed if "muddle" is going to be run explicitly, or if a
+          Makefile.muddle is going to use $(MUDDLE_BINARY)
+
+        * 'root_path' - this is either the current directory, or the value
+          specified with the muddle '--tree' switch.
+
+          XXX I was surprised that it is not always the current directory.
+          XXX This may change.
+
+        * 'args' - this is any other arguments given to muddle, that occurred
+          after the command name.
         """
         raise GiveUp("Can't run %s without a build tree."%self.cmd_name)
+
+    def check_for_broken_build(self, current_dir):
+        """Check to see if there is a "partial" build in the current directory.
+
+        Intended for use in 'without_build_tree()', in classes such as UnStamp,
+        which want to operate in an empty directory (or, at least, one without
+        a muddle build tree in it).
+
+        The top-level muddle code does a simple check for whether there is a
+        build tree in the current directory before calling a
+        'without_build_tree()' method, but sometimes we want to be a bit more
+        careful and check for a "partial" build tree, presumably left by a
+        previous, failed, command.
+
+        If it finds a problem, it prints out a description of the problem,
+        and raises a GiveUp error with retcode 4, so that muddle will exit
+        with exit code 4.
+        """
+        dir, domain = utils.find_root_and_domain(current_dir)
+        if dir:
+            print
+            print 'Found a .muddle directory in %s'%dir
+            if dir == current_dir:
+                print '(which is the current directory)'
+            else:
+                print 'The current directory is     %s'%current_dir
+            print
+            got_src = os.path.exists(os.path.join(dir,'src'))
+            got_dom = os.path.exists(os.path.join(dir,'domains'))
+            if got_src or got_dom:
+                extra = ', and also the '
+                if got_src: extra += '"src/"'
+                if got_src and got_dom: extra += ' and '
+                if got_dom: extra += '"domains/"'
+                if got_src and got_dom:
+                    extra += ' directories '
+                else:
+                    extra += ' directory '
+                extra += 'alongside it'
+            else:
+                extra = ''
+            print utils.wrap('This presumably means that the current directory is'
+                             ' inside a broken or partial build. Please fix this'
+                             ' (e.g., by deleting the ".muddle/" directory%s)'
+                             ' before retrying the "%s" command.'%(extra, self.cmd_name))
+            raise GiveUp(retcode=4)
+
 
 class CPDCommand(Command):
     """
@@ -4133,34 +4205,7 @@ class UnStamp(Command):
         # build tree. However, in practice, the top-level script may call us
         # because it can't find an *intact* build tree. So it's up to us to
         # know that we want to be a bit more careful...
-        dir, domain = utils.find_root_and_domain(current_dir)
-        if dir:
-            print
-            print 'Found a .muddle directory in %s'%dir
-            if dir == current_dir:
-                print '(which is the current directory)'
-            else:
-                print 'The current directory is     %s'%current_dir
-            print
-            got_src = os.path.exists(os.path.join(dir,'src'))
-            got_dom = os.path.exists(os.path.join(dir,'domains'))
-            if got_src or got_dom:
-                extra = ', and also the '
-                if got_src: extra += '"src/"'
-                if got_src and got_dom: extra += ' and '
-                if got_dom: extra += '"domains/"'
-                if got_src and got_dom:
-                    extra += ' directories '
-                else:
-                    extra += ' directory '
-                extra += 'alongside it'
-            else:
-                extra = ''
-            print utils.wrap('This presumably means that the current directory is'
-                             ' inside a broken or partial build. Please fix this'
-                             ' (e.g., by deleting the ".muddle/" directory%s)'
-                             ' before retrying the "unstamp" command.'%extra)
-            return 4
+        self.check_for_broken_build(current_dir)
 
         if len(args) == 1:
             self.unstamp_from_file(muddle_binary, root_path, current_dir, args[0])
@@ -4206,15 +4251,7 @@ class UnStamp(Command):
 
         stamp = VersionStamp.from_file(filename)
 
-        builder = mechanics.minimal_build_tree(muddle_binary, current_dir,
-                                               stamp.repository,
-                                               stamp.description)
-
-        self.restore_stamp(builder, root_path, stamp.domains, stamp.checkouts)
-
-        # Once we've checked everything out, we should ideally check
-        # if the build description matches what we've checked out...
-        return self.check_build(current_dir, stamp.checkouts, muddle_binary)
+        self.unstamp_from_stamp(muddle_binary, root_path, current_dir, stamp)
 
     def unstamp_from_repo(self, muddle_binary, root_path, current_dir, repo,
                           version_path):
@@ -4244,10 +4281,17 @@ class UnStamp(Command):
 
         stamp = VersionStamp.from_file(os.path.join("versions", version_file))
 
+        self.unstamp_from_stamp(muddle_binary, root_path, current_dir, stamp,
+                                               versions_repo=actual_url)
+
+    def unstamp_from_stamp(self, muddle_binary, root_path, current_dir, stamp,
+                           versions_repo=None):
+        """Given a stamp file, do our work.
+        """
         builder = mechanics.minimal_build_tree(muddle_binary, current_dir,
                                                stamp.repository,
                                                stamp.description,
-                                               versions_repo=actual_url)
+                                               versions_repo=versions_repo)
 
         self.restore_stamp(builder, root_path, stamp.domains, stamp.checkouts)
 
@@ -4730,6 +4774,91 @@ class Distribute(CPDCommand):
             raise GiveUp('\n'.join(text))
 
         return checkout_set, package_set
+
+# -----------------------------------------------------------------------------
+# Release
+# -----------------------------------------------------------------------------
+
+@command('release', CAT_EXPORT)
+class Release(Command):
+    """
+    Produce a customer release from a release stamp file.
+
+    :Syntax: muddle release <release-file>
+
+
+    CURRENTLY JUST A PLACEHOLDER AWAITING IMPLEMENTATION.
+
+
+    For example::
+
+      $ muddle release project99-1.2.3.release
+
+    This:
+
+    1. Creates a directory called ``project99-1.2.3.release`` and cd's into it
+
+    2. Does (the equivalent of) ``muddle unstamp`` using that release file.
+
+    3. Copies the release file as ``.muddle/Release``. This indicates that this
+       is a release build tree, and "normal" muddle will refuse to build in it.
+       (Of course, the user can delete the file - that's their business).
+
+    4. Sets some muddle environment variables:
+
+       * ``MUDDLE_RELEASE_HASH`` is the SHA1 hash of the release file
+       * ``MUDDLE_RELEASE_VERSION`` is the version string from the ``version =``
+         line.
+
+       "Normal" muddle will also create those environment variables, but they will
+       be set to ``(unset)``.
+
+    5. Does (the equivalent of) ``mudddle build _release``.
+
+    6. Creates the release directory,
+       ``<build-name>-<release-version>.<release-sha1>``, and copies the release
+       file into it.
+
+    7. Calls the ``release_from(builder)`` function in the build description
+       (obviously it is an error if there isn't one).
+
+    8. Creates a compressed tarball of the release directory, using the
+       appropriate compression mechanism.
+
+    """
+
+    def requires_build_tree(self):
+        return False
+
+    def without_build_tree(self, muddle_binary, root_path, args):
+
+        # Strongly assume the user wants us to work in the current directory
+        current_dir = os.getcwd()
+
+        # In an ideal world, we'd only be called if there really was no muddle
+        # build tree. However, in practice, the top-level script may call us
+        # because it can't find an *intact* build tree. So it's up to us to
+        # know that we want to be a bit more careful...
+        self.check_for_broken_build(current_dir)
+
+        if len(args) == 1:
+            release_file = args[0]
+        else:
+            print 'Syntax: muddle release <release-file>'
+            return 2
+
+        # Check we can read the release file as such
+        release = ReleaseStamp.from_file(release_file)
+
+        # Let the unstamp command do the unstamping for us...
+        unstamp = UnStamp()
+        unstamp.unstamp_from_stamp(muddle_binary, root_path, current_dir, release)
+
+        # Immediately mark ourselves as a release build by copying the release
+        # file into the .muddle directory. Some muddle commands will refuse to
+        # work in a release build.
+        shutil.copy(release_file, os.path.join(current_dir, '.muddle', 'Release'))
+
 
 # =============================================================================
 # Checkout, package and deployment commands

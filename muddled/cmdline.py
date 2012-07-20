@@ -224,7 +224,7 @@ def _cmdline(args, current_dir, original_env, muddle_binary):
                     args.append(str(label))
 
         if builder.is_release_build() and not command.allowed_in_release_build():
-            raise GiveUp("Command %s is not allowed in a release build"%command_name)
+            raise utils.GiveUp("Command %s is not allowed in a release build"%command_name)
 
         command.with_build_tree(builder, current_dir, args)
     else:

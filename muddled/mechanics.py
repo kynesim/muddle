@@ -1068,45 +1068,132 @@ class Builder(object):
         """
         Set some global variables used throughout muddle.
 
+        All labels
+        ----------
+        ``MUDDLE``
+            The muddle executable itself. This can be used in muddle Makefiles,
+            for instance::
+
+                fred_objdir = $(shell $(MUDDLE) query objdir package:fred{base})
+
         ``MUDDLE_ROOT``
-            Absolute path where the build tree starts.
+            The absolute path to the root of the build tree (where the
+            '.muddle' and 'src' directories are).
+
         ``MUDDLE_LABEL``
             The label currently being built.
+
         ``MUDDLE_KIND``, ``MUDDLE_NAME``, ``MUDDLE_ROLE``, ``MUDDLE_TAG``, ``MUDDLE_DOMAIN``
-            Broken-down bits of the label being built
+            Broken-down bits of the label being built. Values will not exist if
+            the label does not contain them (so if 'label' is a checkout label,
+            ``MUDDLE_ROLE`` will not be set).
+
         ``MUDDLE_OBJ``
-            Where we should build object files for this object - the object
-            directory for packages, the src directory for checkouts, and the
-            deploy directory for deployments.
+            Where we should build object files for this label - the ``obj``
+            directory for packages, the ``src`` directory for checkouts, and the
+            ``deploy`` directory for deployments. See "muddle query objdir".
+
+        Package labels
+        --------------
+        For package labels, we also set:
+
+        ``MUDDLE_OBJ_OBJ``,  ``MUDDLE_OBJ_INCLUDE``,  ``MUDDLE_OBJ_LIB``, ``MUDDLE_OBJ_BIN``
+            ``$(MUDDLE_OBJ)/obj``, ``$(MUDDLE_OBJ)/include``,
+            ``$(MUDDLE_OBJ)/lib``, ``$(MUDDLE_OBJ)/bin``, respectively. Note
+            that we do not *create* these directories - it is up to the muddle
+            Makefile to do so.
+
         ``MUDDLE_INSTALL``
-            Where we should install package files to, if we're a package.
-        ``MUDDLE_DEPLOY_FROM``
-            Where we should deploy from (probably just ``MUDDLE_INSTALL`` with
-            the last component removed)
-        ``MUDDLE_DEPLOY_TO``
-            Where we should deploy to, if we're a deployment.
-        ``MUDDLE``
-            The muddle executable itself.
+            Where we should install package files to.
+
         ``MUDDLE_INSTRUCT``
-            A shortcut to the 'muddle instruct' command for this package, if
-            this is a package build. Unset otherwise.
-        ``MUDDLE_OBJ_OBJ``
-            ``$(MUDDLE_OBJ)/obj``
-        ``MUDDLE_OBJ_INCLUDE``
-            ``$(MUDDLE_OBJ)/include``
-        ``MUDDLE_OBJ_LIB``
-            ``$(MUDDLE_OBJ)/lib``
+            A shortcut to the 'muddle instruct' command for this package.
+            Essentially "$(MUDDLE) instruct $(MUDDLE_LABEL)"
+
+        ``MUDDLE_UNINSTRUCT``
+            A shortcut to the 'muddle uninstruct' command for this package.
+            Essentially "$(MUDDLE) uninstruct $(MUDDLE_LABEL)"
+
         ``MUDDLE_PKGCONFIG_DIRS``
-            Sets pkg-config to look only at packages we are declared to be
-            dependent on, or none if there are not declared dependencies.
+            A path suitable for passing to pkg-config to tell it to look only
+            at packages this label is declared to be dependent on. It will be
+            empty if the label doesn't have any dependencies.
+
         ``MUDDLE_PKGCONFIG_DIRS_AS_PATH``
-            The same values as in ``MODULE_PKGCONFIG_DIRS``, but with items
-            separated by colons.
+            The same as ``MUDDLE_PKGCONFIG_DIRS``, for historical reasons.
+
+        ``MUDDLE_INCLUDE_DIRS``
+            A space separated list of include directories, constructed from
+            the packages that this label depends on. Names will have been
+            intelligently escaped for the shell. Only directories that actually
+            exist will be included.
+
+            Typically used in a muddle Makefile as::
+
+                CFLAGS += $(MUDDLE_INCLUDE_DIRS:%=-I%)
+
+        ``MUDDLE_LIB_DIRS``
+            A space separated list of library directories, constructed from
+            the packages that this label depends on. Names will have been
+            intelligently escaped for the shell. Only directories that actually
+            exist will be included.
+
+            Typically used in a muddle Makefile as::
+
+                LDFLAGS += $(MUDDLE_LIB_DIRS:%=-L%)
+
         ``MUDDLE_LD_LIBRARY_PATH``
             The same values as in ``MUDDLE_LIB_DIRS``, but with items separated
             by colons. This is useful for passing (as LD_LIBRARY_PATH) to
             configure scripts that try to look for libraries when linking test
             programs.
+
+        ``MUDDLE_KERNEL_DIR``
+            If any of the packages that this label depends on has a directory
+            called ``kerneldir`` in its ``obj`` dir (so, in its own terms,
+            $(MUDDLE_OBJ)/kerneldir), then we set this value to that directory.
+            Otherwise it is not set. If there is more than one candidate, then
+            the last found is used (but the order of search is not defined, so
+            this would be confusing).
+
+            If the build tree is building a Linux kernel, it can be useful to
+            build the kernel into a directory of this name.
+
+        ``MUDDLE_KERNEL_SOURCE_DIR``
+            Like ``MUDDLE_KERNEL_DIR``, but it looks for a directory called
+            ``kernelsource``. The same comments apply.
+
+        Deployment labels
+        -----------------
+        For deployment labels we also set:
+
+        ``MUDDLE_DEPLOY_FROM``
+            Where we should deploy from (probably just ``MUDDLE_INSTALL`` with
+            the last component removed)
+
+        ``MUDDLE_DEPLOY_TO``
+            Where we should deploy to, if we're a deployment.
+
+        Release build values
+        --------------------
+        When building in a release tree (typically by use of "muddle release")
+        extra envirinment variables are set to allow the build to know useful
+        information about the release. In a non-release build, these will all
+        be set to "(unset)".
+
+        ``MUDDLE_RELEASE_NAME``
+            The release name.
+
+        ``MUDDLE_RELEASE_VERSION``
+            The release version.
+
+        ``MUDDLE_RELEASE_HASH``
+            The hash of the release stamp file. This acts as a useful unique
+            identifier for a particular release, as it is calculated from the
+            stamp file information describing all the release checkouts.
+
+            Two releases with the same name and version, but with different
+            checkout information, will have different release hashes.
         """
         store.set("MUDDLE_ROOT", self.invocation.db.root_path)
         store.set("MUDDLE_LABEL", label.__str__())
@@ -1131,6 +1218,7 @@ class Builder(object):
             store.set("MUDDLE_OBJ_LIB", os.path.join(obj_dir, "lib"))
             store.set("MUDDLE_OBJ_INCLUDE", os.path.join(obj_dir, "include"))
             store.set("MUDDLE_OBJ_OBJ", os.path.join(obj_dir, "obj"))
+            store.set("MUDDLE_OBJ_BIN", os.path.join(obj_dir, "bin"))
 
             # include and library dirs are slightly interesting ..
             dep_dirs = self.get_dependent_package_dirs(label)
@@ -1207,6 +1295,21 @@ class Builder(object):
         elif (label.type == LabelType.Deployment):
             store.set("MUDDLE_DEPLOY_FROM", self.invocation.role_install_path(label.role))
             store.set("MUDDLE_DEPLOY_TO", self.invocation.deploy_path(label.name))
+
+        if self.release_spec.name is None:
+            store.set("MUDDLE_RELEASE_NAME", "(unset)")
+        else:
+            store.set("MUDDLE_RELEASE_NAME", self.release_spec.name)
+
+        if self.release_spec.version is None:
+            store.set("MUDDLE_RELEASE_VERSION", "(unset)")
+        else:
+            store.set("MUDDLE_RELEASE_VERSION", self.release_spec.version)
+
+        if self.release_spec.hash is None:
+            store.set("MUDDLE_RELEASE_HASH", "(unset)")
+        else:
+            store.set("MUDDLE_RELEASE_HASH", self.release_spec.hash)
 
 
     def kill_label(self, label, useTags = True, useMatch = True):

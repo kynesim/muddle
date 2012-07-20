@@ -140,13 +140,20 @@ This:
 
 2. Does (the equivalent of) ``muddle unstamp`` using that release file.
 
-3. Copies the release file as ``.muddle/Release``. This indicates that this
-   is a release build tree, and "normal" muddle will refuse to build in it.
-   (Of course, the user can delete the file - that's their business).
+3. Copies the release file as ``.muddle/Release``. Also creates a small file
+   called ``.muddle/ReleaseSpec``, which contains the basic information
+   describing a release (name, version, SHA1 hash of the release file, etc.)
+   The existence of this latter file indicates that this is a release build
+   tree, and some muddle commands will thus refuse to work in it (notably,
+   anything to do with pushing to or pulling from a VCS).
+
+   (Of course, the user can delete the file, but if they do then that's their
+   responsibility.)
 
 4. In a release build tree, muddle sets some extra environment variables:
    
    * ``MUDDLE_RELEASE_HASH`` is the SHA1 hash of the release file
+   * ``MUDDLE_RELEASE_NAME`` is the name string from the ``name =`` line.
    * ``MUDDLE_RELEASE_VERSION`` is the version string from the ``version =``
      line.
 
@@ -161,6 +168,21 @@ This:
 
 7. Calls the ``release_from(builder)`` function in the build description
    (obviously it is an error if there isn't one).
+
+      This is probably actually best done with yet another muddle command -
+      maybe::
+
+          $ muddle release -???
+
+      This would allow for sequences like:
+
+          $ muddle ../release project99_v1.2.3.release
+          ...
+          <realise that we have the wrong compiler installed>
+          ...
+          $ muddle veryclean _all
+          $ muddle build _release
+          $ muddle release -???
 
 8. Creates a compressed tarball of the release directory, using the
    appropriate compression mechanism.

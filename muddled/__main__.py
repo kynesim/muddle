@@ -40,14 +40,14 @@ if __name__ == "__main__":
         muddle_binary = __file__
         muddled.cmdline.cmdline(sys.argv[1:], muddle_binary)
         sys.exit(0)
-    except MuddleBug, why:
+    except MuddleBug, e:
         print
-        print "%s"%why
+        print "%s"%e
         traceback.print_exc()
-        sys.exit(1)
-    except GiveUp as f:
+        sys.exit(e.retcode)
+    except GiveUp as e:
         print
-        text = str(f)
+        text = str(e)
         if text:
             print text
-        sys.exit(1)
+        sys.exit(e.retcode)

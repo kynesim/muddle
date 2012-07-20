@@ -42,8 +42,34 @@ class GiveUp(Exception):
 
     This is not an error in muddle itself, however, so there is no need for
     a traceback.
+
+    By default, a return code of 1 is indicated by the 'retcode' value - this
+    can be set by the caller to another value, which __main__.py should then
+    use as its return code if the exception reaches it.
     """
-    pass
+
+    # We provide a single attribute, which is used to specify the exit code
+    # to use when a command line handler gets back a GiveUp exception.
+    retcode = 1
+
+    def __init__(self, message=None, retcode=1):
+        self.message = message
+        self.retcode = retcode
+
+    def __str__(self):
+        if self.message is None:
+            return ''
+        else:
+            return self.message
+
+    def __repr__(self):
+        parts = []
+        if self.message is not None:
+            parts.append(repr(self.message))
+        if self.retcode != 1:
+            parts.append('%d'%self.retcode)
+        return 'GiveUp(%s)'%(', '.join(parts))
+
 
 class Unsupported(GiveUp):
     """

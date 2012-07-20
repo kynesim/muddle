@@ -4880,11 +4880,27 @@ class Release(Command):
         # Immediately mark ourselves as a release build by copying the release
         # file into the .muddle directory. Some muddle commands will refuse to
         # work in a release build.
-        shutil.copy(release_file, os.path.join(current_dir, '.muddle', 'Release'))
+        shutil.copyfile(release_file, os.path.join(current_dir, '.muddle', 'Release'))
         # Also store our release spec in a simple format - this is hopefully
         # rather quicker to re-read (every muddle command!) than the actual
         # release stamp file
         release.release_spec.write_to_file(os.path.join(current_dir, '.muddle', 'ReleaseSpec'))
+
+        # XXX next do "muddle build _release"
+
+        # Create the directory from which the release tarball will be created
+        results_dir = '%s_%s_%s'%(release.release_spec.name,
+                                  release.release_spec.version,
+                                  release.release_spec.hash)
+        results_path = os.path.join(current_dir, results_dir)
+        if os.path.exists(results_dir):
+            print 'Removing old %s'%results_path
+            shutil.rmtree(results_path)
+        print 'Creating %s'%results_path
+        os.mkdir(results_path)
+        # And we always want the release stamp file in the release tarball
+        release_filename = os.path.split(release_file)[-1]
+        shutil.copyfile(release_file, os.path.join(results_dir, release_filename))
 
 
 # =============================================================================

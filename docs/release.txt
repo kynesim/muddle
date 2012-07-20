@@ -163,7 +163,7 @@ This:
 5. Does (the equivalent of) ``mudddle build _release``.
 
 6. Creates the release directory,
-   ``<build-name>-<release-version>.<release-sha1>``, and copies the release
+   ``<release-name>_<release-version>_<release-sha1>``, and copies the release
    file into it.
 
 7. Calls the ``release_from(builder)`` function in the build description

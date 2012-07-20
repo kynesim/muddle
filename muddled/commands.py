@@ -4830,7 +4830,7 @@ class Release(Command):
        is a release build tree, and "normal" muddle will refuse to build in it.
        (Of course, the user can delete the file - that's their business).
 
-    4. Sets some muddle environment variables:
+    4. In a release build tree, muddle sets some extra environment variables:
 
        * ``MUDDLE_RELEASE_HASH`` is the SHA1 hash of the release file
        * ``MUDDLE_RELEASE_VERSION`` is the version string from the ``version =``
@@ -4875,7 +4875,7 @@ class Release(Command):
 
         # Let the unstamp command do the unstamping for us...
         unstamp = UnStamp()
-        unstamp.unstamp_from_stamp(muddle_binary, current_dir, current_dir, release)
+        unstamp.unstamp_from_stamp(muddle_binary, current_dir, release)
 
         # Immediately mark ourselves as a release build by copying the release
         # file into the .muddle directory. Some muddle commands will refuse to

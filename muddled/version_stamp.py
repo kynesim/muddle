@@ -923,11 +923,25 @@ class VersionStamp(object):
 class ReleaseSpec(object):
     """The basic specification of a Release.
 
-    Note that we allow setting of invalid values, as this is needed for
-    writing out "template" release stamp files.
+    The following correspond to the [RELEASE] section in a release stamp file:
 
-    However, we then provide 'check' methods for making sure the values make
-    sense.
+        * 'name'
+        * 'version'
+        * 'archive'
+        * 'compression'
+
+    'name' and 'version' may be set to None, or to a valid name/version.
+
+    When a 'name' or 'version' of None is written out to a release file, it
+    is written out as '<REPLACE THIS>', a carefully invalid value, indicating
+    that the user needs to edit the file.
+
+    Otherwise, 'name' and 'version' values must start with ASCII alphanumeric
+    and continue with ASCII alphanumeric, hyphen, underscore or dot.
+
+    'archive' and 'compression' may be set to None or a value from the
+    'allowed_' lists. If they are set to None, they in fact get set to the
+    first 'allowed_' value, so this is a simple way of selecting the default.
     """
 
     # Actually, we use the same regular expression for release versions and names
@@ -941,81 +955,83 @@ class ReleaseSpec(object):
     def __init__(self, name=None, version=None, archive=None, compression=None):
         self.name = name
         self.version = version
-        if archive is None:
-            self.archive = self.allowed_archive_values[0]
+        self.archive = archive
+        self.compression = compression
+
+    @property
+    def name(self):
+        return self._name
+
+    @name.setter
+    def name(self, value):
+        if value is None:
+            self._name = value
+            return
+
+        m = self.name_re.match(value)
+        if m is None or m.end() != len(value):
+            raise GiveUp("Release name \"%s\" is not allowed (it must start"
+                         " with 'A'-'Z', 'a'-'z' or '0'-'9', and may only"
+                         " continue with 'A'-'Z', 'a'-'z', '0'-'9', '_' '-'"
+                         " or '.')"%value)
         else:
-            self.archive = archive
-        if compression is None:
-            self.compression = self.allowed_compression_values[0]
+            self._name = value
+
+    @property
+    def version(self):
+        return self._version
+
+    @version.setter
+    def version(self, value):
+        if value is None:
+            self._version = value
+            return
+
+        m = self.version_re.match(value)
+        if m is None or m.end() != len(value):
+            raise GiveUp("Release version \"%s\" is not allowed (it must start"
+                         " with 'A'-'Z', 'a'-'z' or '0'-'9', and may only"
+                         " continue with 'A'-'Z', 'a'-'z', '0'-'9', '_' '-'"
+                         " or '.')"%value)
         else:
-            self.compression = compression
+            self._version = value
+
+    @property
+    def archive(self):
+        return self._archive
+
+    @archive.setter
+    def archive(self, value):
+        if value is None:
+            self._archive = self.allowed_archive_values[0]
+            return
+
+        if value not in self.allowed_archive_values:
+            raise GiveUp('Release archive "%s" is not allowed (it must be %s)'%(
+                value, ', '.join(self.allowed_archive_values)))
+        else:
+            self._archive = value
+
+    @property
+    def compression(self):
+        return self._compression
+
+    @compression.setter
+    def compression(self, value):
+        if value is None:
+            self._compression = self.allowed_compression_values[0]
+            return
+
+        if value not in self.allowed_compression_values:
+            raise GiveUp('Release compression "%s" is not allowed (it must be %s)'%(
+                value, ', '.join(self.allowed_compression_values)))
+        else:
+            self._compression = value
 
     def __str__(self):
         return 'ReleaseSpec(name=%r, version=%r, archive=%r, compression=%r)'%(
                 self.name, self.version, self.archive, self.compression)
 
-    def check_version(self):
-        """Check a release version for legality.
-
-        Raises a GiveUp exception if the version is not allowed.
-        """
-        if not self.version:
-            raise GiveUp('ReleaseSpec version is not set')
-        m = self.version_re.match(self.version)
-        if m is None or m.end() != len(self.version):
-            raise GiveUp("Release version \"%s\" is not allowed (it must start"
-                         " with 'A'-'Z', 'a'-'z' or '0'-'9', and may only"
-                         " continue with 'A'-'Z', 'a'-'z', '0'-'9', '_' '-'"
-                         " or '.')"%self.version)
-
-    def check_name(self):
-        """Check a release name for legality.
-
-        Raises a GiveUp exception if the name is not allowed.
-        """
-        if not self.name:
-            raise GiveUp('Release name is not set')
-        m = self.name_re.match(self.name)
-        if m is None or m.end() != len(self.name):
-            raise GiveUp("Release name \"%s\" is not allowed (it must start"
-                         " with 'A'-'Z', 'a'-'z' or '0'-'9', and may only"
-                         " continue with 'A'-'Z', 'a'-'z', '0'-'9', '_' '-'"
-                         " or '.')"%self.name)
-
-    def check_archive(self):
-        if self.archive not in self.allowed_archive_values:
-            raise GiveUp('Release archive "%s" is not allowed (it must be %s)'%(
-                self.archive, ', '.join(self.allowed_archive_values)))
-
-    def check_compression(self):
-        if self.compression not in self.allowed_compression_values:
-            raise GiveUp('Release compression "%s" is not allowed (it must be %s)'%(
-                self.compression, ', '.join(self.allowed_compression_values)))
-
-    def check(self):
-        """Check all of the values.
-
-        If any are wrong, raise a GiveUp exception detailing all the errors.
-        """
-        problems = []
-        try:
-            self.check_version()
-        except GiveUp as e:
-            problems.append(str(e))
-        try:
-            self.check_name()
-        except GiveUp as e:
-            problems.append(str(e))
-        try:
-            self.check_archive()
-        except GiveUp as e:
-            problems.append(str(e))
-        try:
-            self.check_compression()
-        except GiveUp as e:
-            problems.append(str(e))
-        if problems:
-            raise GiveUp('Release information is not correct\n  %s'%('\n  '.join(problems)))
 
 class ReleaseStamp(VersionStamp):
     """A VersionStamp with extra stuff to describe a release.
@@ -1050,7 +1066,6 @@ class ReleaseStamp(VersionStamp):
 
         # and then add in release information
         stamp.release_spec = builder.release_spec
-        stamp.release_spec.check()
 
         return stamp, stamp.problems
 
@@ -1089,7 +1104,6 @@ class ReleaseStamp(VersionStamp):
 
         stamp.release_spec = ReleaseSpec(name=name, version=version,
                                          archive=archive, compression=compression)
-        stamp.release_spec.check()
 
         # And extract the rest of the data from the configuration
         VersionStamp._extract_config_body(stamp, config)
@@ -1115,21 +1129,16 @@ class ReleaseStamp(VersionStamp):
         # we write out illegal (and obvious) values, which they can replace
         # later on with a text editor.
         if self.release_spec.name:
-            self.release_spec.check_name()
             config.set("RELEASE", "name", self.release_spec.name)
         else:
             config.set("RELEASE", "name", '<REPLACE THIS>')
 
         if self.release_spec.version:
-            self.release_spec.check_name()
             config.set("RELEASE", "version", self.release_spec.version)
         else:
             config.set("RELEASE", "version", '<REPLACE THIS>')
 
-        self.release_spec.check_archive()
         config.set("RELEASE", "archive", self.release_spec.archive)
-
-        self.release_spec.check_compression()
         config.set("RELEASE", "compression", self.release_spec.compression)
 
         config.write(fd)

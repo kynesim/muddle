@@ -4881,6 +4881,10 @@ class Release(Command):
         # file into the .muddle directory. Some muddle commands will refuse to
         # work in a release build.
         shutil.copy(release_file, os.path.join(current_dir, '.muddle', 'Release'))
+        # Also store our release spec in a simple format - this is hopefully
+        # rather quicker to re-read (every muddle command!) than the actual
+        # release stamp file
+        release.release_spec.write_to_file(os.path.join(current_dir, '.muddle', 'ReleaseSpec'))
 
 
 # =============================================================================

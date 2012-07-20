@@ -18,6 +18,7 @@ from muddled.depend import Label, Action
 from muddled.utils import domain_subpath, GiveUp, MuddleBug, LabelType, LabelTag
 from muddled.repository import Repository
 from muddled.version_control import split_vcs_url, checkout_from_repo
+from muddled.version_stamp import ReleaseSpec
 
 class ErrorInBuildDescription(GiveUp):
     """We want to be able to distinguish this exception *in this module*
@@ -759,6 +760,9 @@ class Invocation(object):
 class Builder(object):
     """
     A builder performs actions on an Invocation.
+
+    Don't construct a Builder directly, always use the 'load_builder()'
+    function, or 'minimal_build_tree()' if that is more appropriate.
     """
 
     def __init__(self, inv, muddle_binary, domain_params = None,
@@ -817,6 +821,10 @@ class Builder(object):
         # or actually None, since we've not set it yet
         # directory with each...
         self.distribution = None
+
+        # By default, we have an "empty" release spec, since we're not
+        # normally a release build
+        self.release_spec = ReleaseSpec()
 
     def get_subdomain_parameters(self, domain):
         return self.invocation.get_domain_parameters(domain)
@@ -1596,17 +1604,17 @@ def load_builder(root_path, muddle_binary, params = None,
     """
 
     inv = Invocation(root_path)
-    build = Builder(inv, muddle_binary, params, default_domain = default_domain)
-    can_load = build.load_build_description()
-    if (not can_load):
+    builder = Builder(inv, muddle_binary, params, default_domain = default_domain)
+    can_load = builder.load_build_description()
+    if not can_load:
         return None
 
-    # We shouldn't have changed the RootRepository, Description or
-    # VersionsRepository file, so there's no particular reason to
-    # write them back out - and if we do, I believe it (occasionally)
-    # goes wrong and leaves a file blank
-    ##inv.commit()  # XXX
-    return build
+    # Are we a release build?
+    if builder.is_release_build():
+        release_spec_file = os.path.join(root_path, '.muddle', 'ReleaseSpec')
+        builder.release_spec = ReleaseSpec.from_file(release_spec_file)
+
+    return builder
 
 
 def minimal_build_tree(muddle_binary, root_path, repo_location, build_desc, versions_repo=None):

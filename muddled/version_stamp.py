@@ -942,6 +942,12 @@ class ReleaseSpec(object):
     'archive' and 'compression' may be set to None or a value from the
     'allowed_' lists. If they are set to None, they in fact get set to the
     first 'allowed_' value, so this is a simple way of selecting the default.
+
+    We also allow the SHA1 hash of a stamp file to be remembered:
+
+        * 'hash'
+
+    There is no special handling for this, and it defaults to None.
     """
 
     # Actually, we use the same regular expression for release versions and names
@@ -952,11 +958,22 @@ class ReleaseSpec(object):
     allowed_archive_values = ['tar']
     allowed_compression_values = ['gzip', 'bzip2']
 
-    def __init__(self, name=None, version=None, archive=None, compression=None):
+    def __init__(self, name=None, version=None, archive=None, compression=None, hash=None):
         self.name = name
         self.version = version
         self.archive = archive
         self.compression = compression
+        self.hash = hash
+
+    def __str__(self):
+        parts = []
+        parts.append(repr(name))
+        parts.append(repr(version))
+        parts.append(repr(archive))
+        parts.append(repr(compression))
+        if self.hash:
+            parts.append(repr(hash))
+        return 'ReleaseSpec(%s)'%(', '.join(parts))
 
     @property
     def name(self):
@@ -1028,9 +1045,27 @@ class ReleaseSpec(object):
         else:
             self._compression = value
 
-    def __str__(self):
-        return 'ReleaseSpec(name=%r, version=%r, archive=%r, compression=%r)'%(
-                self.name, self.version, self.archive, self.compression)
+    def write_to_file(self, filename):
+        """Write a simple representation of ourself out to a file.
+        """
+        with open(filename, 'w') as fd:
+            fd.write('%s\n'%self.name)
+            fd.write('%s\n'%self.version)
+            fd.write('%s\n'%self.archive)
+            fd.write('%s\n'%self.compression)
+            fd.write('%s\n'%self.hash)
+
+    @staticmethod
+    def from_file(filename):
+        """Read a simple representation of ourself from a file.
+        """
+        with open(filename) as fd:
+            name = fd.readline().strip()
+            version = fd.readline().strip()
+            archive = fd.readline().strip()
+            compression = fd.readline().strip()
+            hash = fd.readline().strip()
+        return ReleaseSpec(name, version, archive, compression, hash)
 
 
 class ReleaseStamp(VersionStamp):
@@ -1108,7 +1143,11 @@ class ReleaseStamp(VersionStamp):
         # And extract the rest of the data from the configuration
         VersionStamp._extract_config_body(stamp, config)
 
-        print 'File has SHA1 hash %s'%fd.hash()
+        hash = fd.hash()
+        print 'File has SHA1 hash %s'%hash
+
+        stamp.release_spec.hash = hash
+
         return stamp
 
     def write_to_file_object(self, fd, version=2):

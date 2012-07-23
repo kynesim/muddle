@@ -24,6 +24,7 @@ import pydoc
 import shutil
 import subprocess
 import sys
+import tarfile
 import tempfile
 import textwrap
 import time
@@ -3779,6 +3780,7 @@ class StampRelease(Command):
                     print 'Adding release stamp file to VCS'
                     version_control.vcs_init_directory(vcs_name, [version_filename])
 
+
 @subcommand('stamp', 'diff', CAT_EXPORT)
 class StampDiff(Command):
     """
@@ -5019,7 +5021,9 @@ class Release(Command):
         # release stamp file
         release.release_spec.write_to_file(os.path.join(current_dir, '.muddle', 'ReleaseSpec'))
 
-        # XXX next do "muddle build _release"
+        # Next do "muddle build _release"
+        ##buildish = Build()
+        ##buildish.with_build_tree(builder, current_dir, ['_release'])
 
         # Create the directory from which the release tarball will be created
         results_dir = '%s_%s_%s'%(release.release_spec.name,
@@ -5034,6 +5038,24 @@ class Release(Command):
         # And we always want the release stamp file in the release tarball
         release_filename = os.path.split(release_file)[-1]
         shutil.copyfile(release_file, os.path.join(results_dir, release_filename))
+
+        # Call the 'release_from()' function in our (top level) build
+        # description, passing it the path to the release tarball directory
+        pass
+
+        # Finally, tar up the tarball directory, and then compress it
+        if release.release_spec.compression == 'gzip':
+            tf_name = '%s.tgz'%results_dir
+            mode = 'w:gz'
+        elif release.release_spec.compression == 'bzip2':
+            tf_name = '%s.tar.bz2'%results_dir        # is this the best name?
+            mode = 'w:bz2'
+        else:
+            tf_name = '%s.tar'%results_dir          # should never happen
+            mode = 'w'                              # but better than crashing...
+        tf = tarfile.open(tf_name, mode)
+        tf.add(results_dir, recursive=True)
+        tf.close()
 
 
 # =============================================================================

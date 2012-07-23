@@ -297,23 +297,19 @@ def make_bzr_standard_checkout(co_dir, progname, desc):
     finally:
         shutil.rmtree(d)
 
-def make_repos_with_subdomain(repo, toplevel_build_desc=TOPLEVEL_BUILD_DESC,
-                              also_with_bzr=True):
+def make_repos_with_subdomain(repo):
     """Create git repositories for our subdomain tests.
     """
     with NewDirectory('repo'):
         with NewDirectory('main'):
             with NewDirectory('builds') as d:
-                make_build_desc(d.where, toplevel_build_desc.format(repo=repo))
+                make_build_desc(d.where, TOPLEVEL_BUILD_DESC.format(repo=repo))
             with NewDirectory('main_co') as d:
                 make_standard_checkout(d.where, 'main1', 'main')
             with NewDirectory('first_co') as d:
                 make_standard_checkout(d.where, 'first', 'first')
             with NewDirectory('second_co') as d:
-                if also_with_bzr:
-                    make_bzr_standard_checkout(d.where, 'second', 'second')
-                else:
-                    make_standard_checkout(d.where, 'second', 'second')
+                make_bzr_standard_checkout(d.where, 'second', 'second')
         with NewDirectory('subdomain1'):
             with NewDirectory('builds') as d:
                 make_build_desc(d.where, SUBDOMAIN1_BUILD_DESC.format(repo=repo))

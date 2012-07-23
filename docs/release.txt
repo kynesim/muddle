@@ -86,40 +86,59 @@ This is a new build target, for use as ``muddle build _release``.
 
 It needs to be specified in the build description.
 
-We use ``builder.invocation.add_to_release_build()`` to do this.
+We use ``builder.add_to_release_build()`` to do this.
 
-.. note:: Since that's a bit long, I've defined an alias,
-   ``builder.add_to_release_build()``.
+.. note:: Precedence would suggest that this should be a method on the
+   Invocation, and not the Builder. But accessing the methods that are
+   already on ``builder.invocation.`` is a pain, and there seems little
+   justification for adding to that pain. I could have provided a method
+   on the Invocation and an alias on the builder, but again that seems to
+   be making life awkward for no real reason. So, it can go on the Builder.
 
-   1. Is that a bad thing?
-   2. Should I only define it in one place?
-   3. What about the "equivalents" for deployment and role?
+Items can be added to the ``_release`` entity as labels, individually::
 
+    builder.add_to_release_build(package('fred', 'x86')
 
-XXX Tidy the below up
+or as sequences::
 
-If it is not, then what does "muddle build _release" do?
+    builder.add_to_release_build([package('fred', 'x86'),
+                                  Label.from_string('package:(infrastructure)jim{*}/*')])
 
-Alternatives:
+Wildcards can be useful, as shown.
 
-1. Copy how deployment works::
+The "special" values ``_all``, ``_default_roles`` and ``_default_deployments``
+can also be used::
 
-    builder.add_release_roles(<role-name>)
-    builder.add_release_roles([<role-name1>. <role-name2>])
-    builder.add_release_deployments(<deployment-name>)
-    builder.add_release_deployments([<deployment-name1>, <deployment-name2>])
+    builder.add_to_release_build('_default_deployments')
 
-2. By labels::
+The ``_release`` value is interpreted and expanded lazily, as that implies,
+when the muddle command line is interpreted. This means one is allowed to
+do::
 
-    builder.add_to_release_build(<label>)
-    builder.add_to_release_build([<label1>, <label2>])
+    builder.add_to_release_build('_default_deployments')
 
-   where <label> can be wildcarded.
+before the deployments have actually all been described, which is useful.
 
-3. By labels, as above, but also allow the "special" values ``_all``,
-   ``_default_roles``, ``_default_deployments``.
+``muddle query release`` can be used to find out what ``_release`` is set to
+(see ``muddle help query release`` for details).
 
-That last is perhaps the most hacky, but perhaps also the simplest.
+.. note:: What to release is only specified by the *top-level* build
+   description. Thus is a subdomain build description includes calls to
+   ``builder.add_to_release_build()``, those calls *will be ignored*.
+   It is up to the top-level build to explicitly include anything it wishes
+   to release from the subdomain.
+
+   This decision is made partly because of the confusion if a subdomain
+   were to include, for instance, ``_all`` in its "what to release". Does that
+   mean "_all for the subdomain", or just "overall _all"? I think it would
+   have to mean the former, and that would mean we would either need to make
+   up a syntax for saying that (and ``(subdomain)_all`` is not nice), or we
+   would need to expand the ``_all`` as part of including the subdomain into
+   its parent (since at that point its meaning is fully known). That last
+   would seem to be the way to go, but I'm still sufficiently uncomfortable
+   with it to want to leave it undone.
+
+   It is possible that this decision might be reviewed in the future.
 
 The ``release_from`` function in the build description
 ------------------------------------------------------
@@ -153,6 +172,9 @@ This step should probably be available as a specific muddle command - but
 maybe via "muddle release -again" or somesuch. Of course, doing that
 guarantees that the ``describe_to`` will have been executed first.
 
+.. warning:: Only the ``release_from()`` function in the top-level build
+   will be executed. Any ``release_from()`` functions in subdomain build
+   descriptions will not be called by muddle itself.
 
 The ``muddle release`` command
 ------------------------------

@@ -161,6 +161,7 @@ def captured_muddle(args, verbose=True, error_fails=True):
         return output
     except subprocess.CalledProcessError as e:
         if error_fails:
+            print e.output
             raise
         else:
             return e.output
@@ -297,12 +298,45 @@ def banner(text, level=1):
 
     'level' is 1..3, with 1 being the "most important" level of banner
     """
-    delimiters = {1:'*', 2:'+', 3:'.'}
+    delimiters = {1:'*', 2:'+', 3:'-'}
+    endpoints  = {1:'*', 2:'|', 3:':'}
     delim_char = delimiters[level]
+    endpoint_char = endpoints[level]
     delim = delim_char * (len(text)+4)
     print delim
-    print '* %s *'%text
+    print '%s %s %s'%(endpoint_char, text, endpoint_char)
     print delim
+
+def check_text_lines_v_lines(actual_lines, wanted_lines):
+    """Check two pieces of text are the same.
+
+    'wanted_lines' is the lines of text we want, presented as a list,
+    without any newlines.
+
+    Prints out the differences (if any) and then raises a GiveUp if there
+    *were* differences
+    """
+    diffs = unified_diff(wanted_lines, actual_lines,
+                         fromfile='Expected', tofile='Got', lineterm='')
+    difflines = list(diffs)
+    for line in difflines:
+        sys.stdout.write('%s\n'%line)
+    if difflines:
+        raise GiveUp('Text did not match')
+
+def check_text_v_lines(actual, wanted_lines):
+    """Check two pieces of text are the same.
+
+    'text' is the text we got from our test.
+
+    'wanted_lines' is the lines of text we want, presented as a list,
+    without any newlines.
+
+    Prints out the differences (if any) and then raises a GiveUp if there
+    *were* differences
+    """
+    actual_lines = actual.splitlines()
+    check_text_lines_v_lines(actual_lines, wanted_lines)
 
 def check_text(actual, wanted):
     """Check two pieces of text are the same.
@@ -313,13 +347,9 @@ def check_text(actual, wanted):
     if actual == wanted:
         return
 
-    actual_lines = actual.splitlines(True)
-    wanted_lines = wanted.splitlines(True)
-    diffs = unified_diff(wanted_lines, actual_lines, fromfile='Expected', tofile='Got')
-    for line in diffs:
-        sys.stdout.write(line)
-    if diffs:
-        raise GiveUp('Text did not match')
+    actual_lines = actual.splitlines()
+    wanted_lines = wanted.splitlines()
+    check_text_lines_v_lines(actual_lines, wanted_lines)
 
 def check_text_endswith(text, should_end_with):
     """Check a text ends with another.

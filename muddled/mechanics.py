@@ -69,10 +69,6 @@ class Invocation(object):
         * self.unifications - This is a list of tuples of the form
           (source-label, target-label), where one "replaces" the other in the
           build tree.
-        * self.what_to_release - a set of entities to build for a release
-          build. It may contain labels and also "special" names, such as
-          '_default_deployments' or even '_all'. You may not include '_release'
-          (did you need to ask?). "_just_pulled" is not allowed either.
         """
         self.db = db.Database(root_path)
         self.ruleset = depend.RuleSet()
@@ -82,7 +78,6 @@ class Invocation(object):
         self.banned_roles = []
         self.domain_params = {}
         self.unifications = []
-        self.what_to_release = set()
 
     def note_unification(self, source, target):
         self.unifications.append( (source, target) )
@@ -473,29 +468,6 @@ class Invocation(object):
 
         self.default_deployment_labels.append(label)
 
-    def add_to_release_build(self, thing):
-        """Add a thing to the set of entities to build for a release build.
-
-        'thing' must either be a Label, or else one of the "special" names,
-        "_all", "_default_deployments", "_default_roles".
-
-        It may not be "_release" (!) or "_just_pulled".
-
-        Special names are expanded after all build descriptions have been
-        read.
-
-        The special name "_release" corresponds to this set.
-        """
-        # Surely we have a list of these somewhere else?
-        allowed_names = ('_all', '_default_deployments', '_default_roles')
-
-        if isinstance(thing, Label) or thing in allowed_names:
-            self.what_to_release.add(thing)
-        else:
-            raise GiveUp('%s is not allowed in the "things to release" list\n'
-                         'It is not a label or one of the allowed "special" names (%s)'%(
-                thing, ', '.join(allowed_names)))
-
     def list_environments_for(self, label):
         """
         Return a list of environments that contribute to the environment for
@@ -795,6 +767,11 @@ class Builder(object):
 
     Don't construct a Builder directly, always use the 'load_builder()'
     function, or 'minimal_build_tree()' if that is more appropriate.
+
+    * self.what_to_release - a set of entities to build for a release
+      build. It may contain labels and also "special" names, such as
+      '_default_deployments' or even '_all'. You may not include '_release'
+      (did you need to ask?). "_just_pulled" is not allowed either.
     """
 
     def __init__(self, inv, muddle_binary, domain_params = None,
@@ -857,6 +834,9 @@ class Builder(object):
         # By default, we have an "empty" release spec, since we're not
         # normally a release build
         self.release_spec = ReleaseSpec()
+
+        # The user has not specified what to build for a release build
+        self.what_to_release = set()
 
     def get_subdomain_parameters(self, domain):
         return self.invocation.get_domain_parameters(domain)
@@ -1494,13 +1474,15 @@ class Builder(object):
         """
         return utils.is_release_build(self.invocation.db.root_path)
 
-    # XXX Is it too much to have a version of this here, to save the user
-    # XXX having to type 'builder.invocation.add_to_release_build()'?
     def add_to_release_build(self, thing):
         """Add a thing to the set of entities to build for a release build.
 
-        'thing' must either be a Label, or else one of the "special" names,
-        "_all", "_default_deployments", "_default_roles".
+        'thing' must be:
+
+        * a Label
+        * one of the "special" names, "_all", "_default_deployments",
+          "_default_roles".
+        * a sequence of either/both
 
         It may not be "_release" (!) or "_just_pulled".
 
@@ -1509,7 +1491,22 @@ class Builder(object):
 
         The special name "_release" corresponds to this set.
         """
-        self.invocation.add_to_release_build(thing)
+        # Surely we have a list of these somewhere else?
+        allowed_names = ('_all', '_default_deployments', '_default_roles')
+
+        if isinstance(thing, Label):
+            self.what_to_release.add(thing)
+        elif isinstance(thing, basestring):
+            if thing in allowed_names:
+                self.what_to_release.add(thing)
+            else:
+                raise GiveUp('%s is not allowed in the "things to release" list\n'
+                             'It is not a label or one of the allowed "special" names (%s)'%(
+                                 thing, ', '.join(allowed_names)))
+        else:
+            # Let's guess it's a sequence, and fall over appropriately if not
+            for item in thing:
+                self.add_to_release_build(item)
 
     def get_all_checkout_labels_below(self, dir):
         """
@@ -1918,6 +1915,10 @@ def _new_sub_domain(root_path, muddle_binary, domain_name, domain_repo, domain_b
     env = domain_builder.invocation.env
     for l in env.keys():
         labels.append(l)
+
+    # Note that we are *not* adding in the labels in
+    # domain_builder.what_to_release, because we explicitly say that
+    # what to release is only set by the top-level build.
 
     ruleset = domain_builder.invocation.ruleset
 

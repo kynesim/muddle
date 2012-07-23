@@ -375,14 +375,13 @@ class CPDCommand(Command):
             if word == '_all':
                 initial_list.extend(self.interpret_all(builder))
             elif word == '_default_roles':
-                for role in builder.invocation.default_roles:
-                    label = Label(LabelType.Package, '*', role, LabelTag.PostInstalled)
-                    labels = builder.invocation.expand_wildcards(label)
-                    initial_list.extend(labels)
+                initial_list.extend(self.interpret_default_roles(builder))
             elif word == '_default_deployments':
                 initial_list.extend(builder.invocation.default_deployment_labels)
             elif word == '_just_pulled':
                 initial_list.extend(builder.invocation.db.just_pulled.get())
+            elif word == '_release':
+                initial_list.extend(self.interpret_release(builder))
             else:
                 labels = label_from_fragment(word, default_type=self.required_type)
 
@@ -573,6 +572,55 @@ class CPDCommand(Command):
         """Return the result of argument "_all"
         """
         raise MuddleBug('No "interpret_all" method provided for command "%s"'%self.cmd_name)
+
+    def interpret_default_roles(self, builder):
+        """Return the result of argument "_default_roles"
+        """
+        results = []
+        for role in builder.invocation.default_roles:
+            label = Label(LabelType.Package, '*', role, LabelTag.PostInstalled)
+            labels = builder.invocation.expand_wildcards(label)
+            results.extend(labels)
+        return results
+
+    def interpret_release(self, builder):
+        """Return the result of argument "_release"
+        """
+        results = []
+        expand_wildcards = builder.invocation.expand_wildcards
+        for thing in builder.what_to_release:
+            if isinstance(thing, Label):
+                # It may be a wildcarded label, so try expanding it
+                labels = expand_wildcards(thing)
+
+                used_labels = []
+                # We're only interested in any labels that are actually used
+                for label in labels:
+                    if builder.invocation.target_label_exists(label):
+                        used_labels.append(label)
+
+                # But it's an error if none of them were wanted
+                if not used_labels:
+                    raise GiveUp(self.diagnose_unused_labels(builder, labels, thing))
+
+                results.extend(used_labels)
+
+            elif thing == '_all':
+                results.extend(self.interpret_all(builder))
+            elif thing == '_default_roles':
+                results.extend(self.interpret_default_roles(builder))
+            elif thing == '_default_deployments':
+                results.extend(builder.invocation.default_deployment_labels)
+            elif thing == '_just_pulled':
+                raise GiveUp('_release may not contain _just_pulled (it varies too much):\n'
+                             '%s'%(builder.what_to_release))
+            elif thing == '_release':
+                raise GiveUp('_release may not contain _release (how did that get there?):\n'
+                             '%s'%(builder.what_to_release))
+            else:
+                raise GiveUp('_release contain "%s" (which we don\'t understand):\n'
+                             '%s'%(builder.what_to_release))
+        return results
 
     def interpret_labels(self, builder, args, initial_list):
         """
@@ -3070,16 +3118,17 @@ class QueryKernelver(QueryCommand):
 @subcommand('query', 'release', CAT_QUERY)
 class QueryRelease(QueryCommand):
     """
-    :Syntax: muddle query release
+    :Syntax: muddle query release [-labels]
 
-    Print information about this build as a release.
+    Print information about this build as a release, including the release
+    specification, and the "translation" of the special "_release" argument.
 
-    For a release build, prints out the release specification.
-
-    Prints the "translation" of the special "_release" argument.
+        (That content, what is to be released, is defined in the build
+        description, using 'builder.add_to_release_build()'.)
 
     For instance::
 
+        $ muddle query release
         This is a release build
         Release spec:
           name        = simple
@@ -3087,12 +3136,13 @@ class QueryRelease(QueryCommand):
           archive     = tar
           compression = gzip
           hash        = c7c10cf4d6da4519714ac334a983ab518c68c5d1
-        What to release (the meaning of "_release"):
+        What to release (the meaning of "_release", before expansion):
           _default_deployments
           package:(subdomain2)second_pkg{x86}/*
 
     or::
 
+        $ muddle query release
         This is NOT a release build
         Release spec:
           name        = None
@@ -3100,38 +3150,55 @@ class QueryRelease(QueryCommand):
           archive     = tar
           compression = gzip
           hash        = None
-        What to release (the meaning of "_release"):
+        What to release (the meaning of "_release", before expansion):
           _default_deployments
           package:(subdomain2)second_pkg{x86}/*
-
-    What is to be released is defined in the build description, using
-    'builder.add_to_release_build()'.
 
     If nothing has been designated for release, then that final clause will be
     replaced with::
 
         What to release (the meaning of "_release"):
           <nothing defined>
+
+    With the '-labels' switch, just prints out that last list of "what to
+    release"::
+
+         $ muddle query release -labels
+         _default_deployments
+         package:(subdomain2)second_pkg{x86}/*
+
+    The '-labels' variant prints nothing out if nothing has been designated
+    for release.
     """
 
+    allowed_switches = {'-labels': 'labels'}
+
     def with_build_tree(self, builder, current_dir, args):
-        if builder.is_release_build():
-            print 'This is a release build'
+
+        args = self.remove_switches(args, allowed_more=False)
+
+        what_to_release = builder.what_to_release
+        if 'labels' in self.switches:
+            if what_to_release:
+                for thing in sorted(map(str,what_to_release)):
+                    print '%s'%thing
         else:
-            print 'This is NOT a release build'
-        print 'Release spec:'
-        print '  name        = %s'%builder.release_spec.name
-        print '  version     = %s'%builder.release_spec.version
-        print '  archive     = %s'%builder.release_spec.archive
-        print '  compression = %s'%builder.release_spec.compression
-        print '  hash        = %s'%builder.release_spec.hash
-        print 'What to release (the meaning of "_release"):'
-        what_to_release = builder.invocation.what_to_release
-        if what_to_release:
-            for thing in sorted(map(str,what_to_release)):
-                print '  %s'%thing
-        else:
-            print '  <nothing defined>'
+            if builder.is_release_build():
+                print 'This is a release build'
+            else:
+                print 'This is NOT a release build'
+            print 'Release spec:'
+            print '  name        = %s'%builder.release_spec.name
+            print '  version     = %s'%builder.release_spec.version
+            print '  archive     = %s'%builder.release_spec.archive
+            print '  compression = %s'%builder.release_spec.compression
+            print '  hash        = %s'%builder.release_spec.hash
+            print 'What to release (the meaning of "_release", before expansion):'
+            if what_to_release:
+                for thing in sorted(map(str,what_to_release)):
+                    print '  %s'%thing
+            else:
+                print '  <nothing defined>'
 
 @command('where', CAT_QUERY, ['whereami'])
 class Whereami(Command):

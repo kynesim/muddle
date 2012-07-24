@@ -1,27 +1,63 @@
 The muddle release mechanism
 ============================
 
-.. note:: This is written as part of specifying the mechanism before
-   implementation. It should be expanded to be more helpful once the
-   implementation is done.
+Summary
+-------
+The muddle release mechanism is intended to be useful in preparing some form
+of meaningful binary release for a customer. It is more specific than can be
+obtained using ``muddle distribute``, and also has more mechanism associated
+with it.
+
+The normal pattern of usage is expected to be:
+
+1. Produce a build that needs releasing to the customer.
+
+2. Define what is to be released, in the build description.
+
+3. Verify the build tree is up-to-date and builds the entities to be released::
+
+        $ cd build-dir
+        $ muddle pull _all
+        $ muddle veryclean
+        $ muddle build _release
+
+4. Produce a release file, and ideally archive it::
+
+        $ muddle stamp release simple v1.0
+        $ pushd versions
+        $ git commit simple_v1.0.release -m 'Release file for simple v1.0'
+        $ muddle stamp push
+
+   (a more detailed commit message would doubtless be a go0d thing.)
+
+5. Create a clean working directory and prepare the release using that
+   release file::
+
+        $ cd ..
+        $ mkdir release-dir
+        $ cd release-dir
+        $ muddle release ../build-dir/versions/simple_v1.0.release
+
+6. Send the customer the resultant archive file, which will be called
+   something like::
+
+        simple_v1.0_40c60888d187c4e639820e77bd9532d007f74f92.tgz
 
 Muddle release files
 --------------------
-These are a muddle stamp file (specifically, a stamp version file) with extra
-fields (at the start). The required part is::
+Muddle releases are defined in release files, which are muddle stamp files
+(specifically, a stamp version files) with extra fields (at the start)::
 
     [RELEASE]
     version = 1.2.3
+    name = simple
+    archive = tar
+    compression = gzip
 
-but there will be optional fields, probably including::
+See the DESCRIPTION section of ``muddle doc version_stamp`` for details on
+the content of stamp files.
 
-    compression = <mechanism>
-
-(``gzip`` or ``bzip2``, with ``gzip`` the default).
-
-Release files are created using ``muddle release``.
-
-The command::
+Release files are created using ``muddle release``.  The command::
 
     $ muddle stamp release Project99 1.2.3
 
@@ -62,8 +98,7 @@ with the ``[RELEASE]`` section set to::
 
 The user is expected to rename the file and edit the ``<REPLACE THIS>`` values
 to something sensible. The ``muddle release`` command will not accept release
-files where theses field has not been edited (actually, where there are
-"naughty" characters in the field).
+files where these fields have not been edited.
 
 .. note:: Both release name and release version follow the same rules:
 
@@ -77,18 +112,22 @@ files where theses field has not been edited (actually, where there are
    default is "gzip".
 
 Since release files go in the ``versions/`` directory, ``muddle stamp release``
-will add them to the version control system in that directory, just as
-``muddle stamp version`` does for its stamp files.
+will automatically add them to the version control system in that directory,
+just as ``muddle stamp version`` does for its stamp files. They can then be
+committed, and then pushed with ``muddle stamp push``.
+
+See ``muddle help stamp release`` and ``muddle help stamp push`` for more
+information.
 
 The ``_release`` build target
 -----------------------------
-This is a new build target, for use as ``muddle build _release``.
+This is a build target specifically for use in ``muddle build _release``,
+indicating what is to be built for a release.
 
-It needs to be specified in the build description.
+Its meaning is defined in the build description, using
+``builder.add_to_release_build()``.
 
-We use ``builder.add_to_release_build()`` to do this.
-
-.. note:: Precedence would suggest that this should be a method on the
+.. Precedence would suggest that this should be a method on the
    Invocation, and not the Builder. But accessing the methods that are
    already on ``builder.invocation.`` is a pain, and there seems little
    justification for adding to that pain. I could have provided a method
@@ -104,102 +143,149 @@ or as sequences::
     builder.add_to_release_build([package('fred', 'x86'),
                                   Label.from_string('package:(infrastructure)jim{*}/*')])
 
-Wildcards can be useful, as shown.
+Wildcarded labels can be used, if necessary.
 
 The "special" values ``_all``, ``_default_roles`` and ``_default_deployments``
 can also be used::
 
     builder.add_to_release_build('_default_deployments')
 
-The ``_release`` value is interpreted and expanded lazily, as that implies,
-when the muddle command line is interpreted. This means one is allowed to
-do::
+The ``_release`` value is interpreted and expanded lazily, when the muddle
+command line is interpreted. This means one is allowed to specify::
 
     builder.add_to_release_build('_default_deployments')
 
-before the deployments have actually all been described, which is useful.
+in the build description before the deployments have all been described, which
+is useful.
 
 .. warning:: This also means that ``add_to_release_build()`` itself cannot
-   complain if you add a non-existant label, since after all this is part
-   of its intent. Such warnings will have to wait until ``_release`` is
-   actually used in a "muddle" command.
+   complain if you add a non-existent label. Such warnings will have to wait
+   until ``_release`` is actually used in a "muddle" command.
 
 ``muddle query release`` can be used to find out what ``_release`` is set to
 (see ``muddle help query release`` for details).
 
-.. note:: What to release is only specified by the *top-level* build
-   description. Thus is a subdomain build description includes calls to
-   ``builder.add_to_release_build()``, those calls *will be ignored*.
+.. warning:: If your build includes subdomains, then you need to know that
+   only calls to ``add_to_release_build()`` in the top-level build will
+   be effective. Calls in subdomain build descriptions *will be ignored*.
    It is up to the top-level build to explicitly include anything it wishes
    to release from the subdomain.
 
-   This decision is made partly because of the confusion if a subdomain
-   were to include, for instance, ``_all`` in its "what to release". Does that
-   mean "_all for the subdomain", or just "overall _all"? I think it would
-   have to mean the former, and that would mean we would either need to make
-   up a syntax for saying that (and ``(subdomain)_all`` is not nice), or we
-   would need to expand the ``_all`` as part of including the subdomain into
-   its parent (since at that point its meaning is fully known). That last
-   would seem to be the way to go, but I'm still sufficiently uncomfortable
-   with it to want to leave it undone.
+   This decision is made to avoid confusion over what is meant by adding
+   special names (such as ``_all``) to the release specification in a
+   subdomain. It is possible that a future version of muddle might instead
+   expand a subdomain's ``_release`` value as the subdomain was "promoted",
+   but I am not sure that this is worth the added complication.
 
-   It is possible that this decision might be reviewed in the future.
+   There is also a strong argument that only the top-level build description
+   can have full awareness of what should actually be released.
 
 The ``release_from`` function in the build description
 ------------------------------------------------------
-This looks like::
+The ``_release`` special name describes what is to be built for a release,
+but another mechanism is needed to tell muddle what to do with the results.
+
+The ``release_from()`` function in the build description is responsible for
+copying files into the release directory (which will become the release
+tarball). For instance::
+
+    import shutil
 
     def release_from(builder, release_dir):
-        ...
 
-It is the job of this function to generate the release tarball.
+        f0 = package('first_pkg', 'x86')
+        m0 = package('main_pkg', 'x86')
+        s1 = package('second_pkg', 'x86', domain='subdomain1')
 
-I think we can assume that ``describe_to()`` will have been called first, so
-that we have labels available.
+        install_path = builder.invocation.package_install_path
 
-.. note:: ``muddle bootstrap`` should probably generate a suitable template.
+        # Copy our executables, with permissions intact
+        shutil.copy(os.path.join(install_path(f0), 'first'), release_dir)
+        shutil.copy(os.path.join(install_path(m0), 'main0'), release_dir)
+        shutil.copy(os.path.join(install_path(s1), 'second'), release_dir)
 
-As with the normal use of the build description, the build description's
-checkout directory will have been added to the Python path (so other files
-therein can be imported).
+The normal build description will have been loaded before this function is
+called, so it is safe to assume  that ``builder`` has its normal content.
 
-There will be some extra values retrievable from the builder (by some means),
-including
+Also, muddle will have added the build description's checkout directory to the
+Python path before calling it (so other Python files therein can be imported),
+just as it does before calling ``describe_to``.
 
-* the name of the release directory, which muddle will already have created,
-  and which will be called ``<build-name>-<release-version>.<release-sha1>``
-* the full path to the release directory (yes, the name could be derived from
-  that, but we can be friendly)
-* the release SHA1 and release version
+Muddle will already have copied the release file into the release
+directory, but otherwise it will be empty.
 
-The function works by putting stuff to be released into the release
-directory, which muddle will tar up and compress to produce the release
-tarball. Muddle will already have copied the release file into the release
-directory.
+The following methods may be particularly useful:
 
-This step should probably be available as a specific muddle command - but
-maybe via "muddle release -again" or somesuch. Of course, doing that
-guarantees that the ``describe_to`` will have been executed first.
+* ``builder.invocation.checkout_path``
+* ``builder.invocation.package_obj_path``
+* ``builder.invocation.package_install_path``
+* ``builder.invocation.deploy_path``
 
-.. warning:: Only the ``release_from()`` function in the top-level build
-   will be executed. Any ``release_from()`` functions in subdomain build
-   descriptions will not be called by muddle itself.
+Use ``muddle doc <method>`` to confirm what they do. 
+
+.. note:: ``muddle bootstrap`` puts an empty ``release_from`` function into
+   its template build description.
+
+.. warning:: If your build includes subdomains, then you need to know that
+   only the ``release_from()`` function in the top-level build will be
+   executed. Any ``release_from()`` functions in subdomain build descriptions
+   will not be called by muddle itself.
 
 The ``muddle release`` command
 ------------------------------
+The ``muddle release`` command actually makes a release.
+
 For example::
 
   $ muddle release project99-1.2.3.release
 
 This:
 
-1. Creates a directory called ``project99-1.2.3.release`` and cd's into it
+1. Checks that the current directory is empty, and refuses to proceed if it is
+   not.
+  
+   We always recommend doing ``muddle init`` or ``muddle bootstrap`` in an
+   empty directory, but muddle insists that ``muddle release`` must be done in
+   an empty directory.
 
-2. Does (the equivalent of) ``muddle unstamp`` using that release file.
+2. Does ``muddle unstamp <release-file>``,
 
-3. Copies the release file as ``.muddle/Release``. Also creates a small file
-   called ``.muddle/ReleaseSpec``, which contains the basic information
-   describing a release (name, version, SHA1 hash of the release file, etc.)
+3. Copies the release file to ``.muddle/Release``, and the release
+   specification to ``.muddle/ReleaseSpec``. The existence of the latter
+   indicates that this is a release build tree, and "normal" muddle will
+   refuse to build in it.
+
+   The ``ReleaseSpec`` contains the basic information describing a release
+   (the name, version, archive and compression mechanisms, and the SHA1 hash
+   of the release file).
+
+4. Sets some extra environment variables, which can be used in the normal
+   manner in muddle Makefiles:
+
+   * ``MUDDLE_RELEASE_NAME`` is the release name, from the release file.
+   * ``MUDDLE_RELEASE_VERSION`` is the release version, from the release file.
+   * ``MUDDLE_RELEASE_HASH`` is the SHA1 hash of the release file
+
+   "Normal" muddle will also create those environment variables, but they
+   will be set to ``(unset)``.
+
+5. Does ``mudddle build _release``.
+
+6. Creates the release directory, which will be called
+   ``<release-name>_<release-version>_<release-sha1>``.
+   It copies the release file therein.
+
+7. Calls the ``release_from(builder, release_dir)`` function in the build
+   description, which is responsible for copying across whatever else needs
+   to be put into the release directory.
+
+   (Obviously it is an error if the build description does not have such
+   a function.)
+
+8. Creates a compressed tarball of the release directory, using the
+   compression mechanism specified in the release file. It will have
+   the same basename as the release directory.
+
    The existence of this latter file indicates that this is a release build
    tree, and some muddle commands will thus refuse to work in it (notably,
    anything to do with pushing to or pulling from a VCS).
@@ -207,48 +293,44 @@ This:
    (Of course, the user can delete the file, but if they do then that's their
    responsibility.)
 
-4. In a release build tree, muddle sets some extra environment variables:
-   
-   * ``MUDDLE_RELEASE_HASH`` is the SHA1 hash of the release file
-   * ``MUDDLE_RELEASE_NAME`` is the name string from the ``name =`` line.
-   * ``MUDDLE_RELEASE_VERSION`` is the version string from the ``version =``
-     line.
+Other useful commands
+---------------------
+Whether a build is a release build, the content of the release specification,
+and what ``_release`` is defined as, can be found using::
 
-   "Normal" muddle will also create those environment variables, but they will
-   be set to ``(unset)``.
+    $ muddle query release
 
-5. Does (the equivalent of) ``mudddle build _release``.
+You can find out exactly what labels will be built in the normal manner, using::
 
-6. Creates the release directory,
-   ``<release-name>_<release-version>_<release-sha1>``, and copies the release
-   file into it.
+    $ muddle -n build _release
 
-7. Calls the ``release_from(builder)`` function in the build description
-   (obviously it is an error if there isn't one).
+Since a release file is an extended stamp file, it is perfectly legitimate to
+use it as such::
 
-   Note that the tarball directory (step 6) will be passed to the function
-   somehow - either as another function argument, or via the builder object.
+    $ muddle unstamp simple_v1.0.release
 
-      This is probably actually best done with yet another muddle command -
-      maybe::
+This will tell you that it is ignoring the ``RELEASE`` section, which it has
+no use for.
 
-          $ muddle release -???
+Version include files
+---------------------
+If you want to produce a version.h file, so that C or C++ programs can report
+the build version, then you can use ``muddle subst`` and the release specific
+environment variables.
 
-      This would allow for sequences like:
+For instance, create a template ``version.h.in`` file for "project99"::
 
-          $ muddle ../release project99_v1.2.3.release
-          ...
-          <realise that we have the wrong compiler installed>
-          ...
-          $ muddle veryclean _all
-          $ muddle build _release
-          $ muddle release -???
+    #ifndef PROJECT99_VERSION_FILE
+    #define PROJECT99_VERSION_FILE
+    #define BUILD_VERSION "${MUDDLE_RELEASE_NAME}: $(MUDDLE_RELEASE_VERSION}"
+    #endif
 
-8. Creates a compressed tarball of the release directory, using the
-   appropriate compression mechanism.
+In the ``Makefile.muddle``, then add::
 
+    $(MUDDLE_OBJ_INCLUDE)/version.h: version.h.in
+        $(MUDDLE) subst $< $@
 
-
-
+Remember that the ``MUDDLE_RELEASE_`` environment variables will be set to
+``(unset)`` when the build is not a release build.
 
 .. vim: set filetype=rst tabstop=8 softtabstop=2 shiftwidth=2 expandtab:

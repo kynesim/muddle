@@ -1073,7 +1073,9 @@ class Builder(object):
 
     def set_default_variables(self, label, store):
         """
-        Set some global variables used throughout muddle.
+        Muddle defines a variety of environment variables which are available
+        to its muddle Makefiles. The particular variables provided depend on
+        the type of label being built, or the type of build.
 
         All labels
         ----------

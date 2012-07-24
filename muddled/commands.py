@@ -1077,6 +1077,8 @@ class Help(Command):
       muddle help aliases        says which commands have more than one name
       muddle help vcs [name]     name the supported version control systems,
                                  or give details about one in particular
+      muddle help environment    list the environment variables muddle defines
+                                 for use in muddle Makefiles
 
     <switch> may be::
 
@@ -1404,6 +1406,9 @@ the parentheses. So, for instance, use:
         if args[0] == "vcs":
             return self.help_vcs(args[1:])
 
+        if args[0] == "environment":
+            return self.help_environment(args[1:])
+
         if len(args) == 1:
             cmd = args[0]
             try:
@@ -1529,6 +1534,14 @@ the parentheses. So, for instance, use:
             str_list.append("Available version control systems:\n\n")
             str_list.append(version_control.list_registered(indent='  '))
             return "".join(str_list)
+
+    def help_environment(self, args):
+        """
+        Return help on MUDDLE_xxx environment variables
+        """
+        return ('Muddle environment variables\n'
+                '============================\n'
+                '%s'%textwrap.dedent(mechanics.Builder.set_default_variables.__doc__))
 
     def help_all(self):
         """
@@ -1793,6 +1806,9 @@ class Bootstrap(Command):
 
                              def describe_to(builder):
                                  builder.build_name = '{name}'
+
+                             def release_from(builder, release_dir):
+                                 pass
                              '''.format(name=build_name)
         with utils.NewDirectory(build_dir):
             with open(build_desc_filename, "w") as fd:
@@ -4956,6 +4972,10 @@ class Release(Command):
     1. Checks the current directory is empty, and refuses to proceed if it
        is not.
 
+       We always recommend doing ``muddle init`` or ``muddle bootstrap`` in an
+       empty directory, but muddle insists that ``muddle release`` must be done
+       in an empty directory.
+
     2. Does ``muddle unstamp <release-file>``,
 
     3. Copies the release file to ``.muddle/Release``, and the release
@@ -6709,10 +6729,10 @@ class CopyWithout(Command):
 @command('subst', CAT_MISC)
 class Subst(Command):
     """
-    :Syntax: muddle subst <src_file> <xml_file> <dst_file>
+    :Syntax: muddle subst <src_file> [<xml_file>] <output_file>
 
-    Substitute (with "${.. }") <src file> into <dst file> using data from
-    the environment or from the given xml file.
+    Reads in <src_file>, and replaces any strings of the form "${..}" with
+    values from the XML file (if any) or from the environment.
 
     XML queries look a bit like XPath queries - "/elem/elem/elem..."
     An implicit "::text()" is appended so you get all the text in the specified
@@ -6740,24 +6760,32 @@ class Subst(Command):
         self.do_subst(args)
 
     def do_subst(self, args):
-        if len(args) != 3:
-            raise GiveUp("Syntax: subst [src] [xml] [dst]")
+        if len(args) == 2:
+            src = args[0]
+            xml_file = None
+            dst = args[1]
+        elif len(args) == 3:
+            src = args[0]
+            xml_file = args[1]
+            dst = args[2]
+        else:
+            raise GiveUp("Syntax: subst <src_file> [<xml_file>] <output_file>")
 
-        src = args[0]
-        xml_file = args[1]
-        dst = args[2]
 
         if self.no_op():
             print 'Substitute source file %s'%src
-            print '       using data from %s'%xml_file
+            if xml_file:
+                print '       using data from %s'%xml_file
             print '            to produce %s'%dst
             return
 
-        f = open(xml_file, "r")
-        xml_doc = xml.dom.minidom.parse(f)
-        f.close()
+        if xml_file:
+            f = open(xml_file, "r")
+            xml_doc = xml.dom.minidom.parse(f)
+            f.close()
+        else:
+            xml_doc = None
 
         subst.subst_file(src, dst, xml_doc, self.old_env)
-        return 0
 
 # End file.

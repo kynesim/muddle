@@ -149,7 +149,7 @@ The ``release_from`` function in the build description
 ------------------------------------------------------
 This looks like::
 
-    def release_from(builder):
+    def release_from(builder, release_dir):
         ...
 
 It is the job of this function to generate the release tarball.
@@ -158,6 +158,10 @@ I think we can assume that ``describe_to()`` will have been called first, so
 that we have labels available.
 
 .. note:: ``muddle bootstrap`` should probably generate a suitable template.
+
+As with the normal use of the build description, the build description's
+checkout directory will have been added to the Python path (so other files
+therein can be imported).
 
 There will be some extra values retrievable from the builder (by some means),
 including

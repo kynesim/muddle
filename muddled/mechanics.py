@@ -20,6 +20,10 @@ from muddled.repository import Repository
 from muddled.version_control import split_vcs_url, checkout_from_repo
 from muddled.version_stamp import ReleaseSpec
 
+# Temporarily - in a later version of muddle we will be getting this from
+# muddled.depend
+from muddled.licenses import _normalise_checkout_label as normalise_checkout_label
+
 class ErrorInBuildDescription(GiveUp):
     """We want to be able to distinguish this exception *in this module*
 
@@ -822,9 +826,9 @@ class Builder(object):
         build_fname = os.path.split(build_desc)[1]
         self._build_name = os.path.splitext(build_fname)[0]
 
-        # It's useful to know our build description's Repository
-        # Should this be kept in our Invocation?
+        # It's useful to know our build description's Repository and label
         self.build_desc_repo = None
+        self.build_desc_label = None
 
         # The current distribution name and target directory, as a tuple,
         # or actually None, since we've not set it yet
@@ -993,7 +997,11 @@ class Builder(object):
         co_label = Label(LabelType.Checkout, build_co_name, None,
                          LabelTag.CheckedOut, domain=self.default_domain)
 
-        # But is it also a perfectly normal build ..
+        # Remember a modified version of the same label
+        # (modified as it is used in the self.invocation.db dictionaries)
+        self.build_desc_label = normalise_checkout_label(co_label)
+
+        # But, of course, this checkout is also a perfectly normal build ..
         checkout_from_repo(self, co_label, repo)
 
         # Although we want to load it once we've checked it out...
@@ -1722,29 +1730,90 @@ class BuildDescriptionAction(Action):
     def build_label(self, builder, label):
         """
         Actually load the build description into the invocation.
-        """
-        # TODO: where is 'label' used?
-        desc = builder.invocation.db.build_desc_file_name()
 
-        setup = None # To make sure it's defined.
+        Note that the Python path (sys.path) will have the build description
+        checkout directory added to its start, so that the release_from()
+        function itself can import things therefrom.
+        """
+        setup = dynamic_load_build_desc(builder)
+        checkout_dir = builder.invocation.checkout_path(builder.build_desc_label)
+
+        old_path = sys.path
+        sys.path.insert(0, checkout_dir)
         try:
-            old_path = sys.path
-            # TODO: should we use a domain?
-            tmp = Label(LabelType.Checkout, self.build_co)
-            sys.path.insert(0, builder.invocation.checkout_path(tmp))
-            setup = utils.dynamic_load(desc)
             setup.describe_to(builder)
+        except Exception as a:
+            traceback.print_exc()
+            filename = builder.invocation.db.build_desc_file_name()
+            raise GiveUp('Cannot run "describe_to(builder)"\n'
+                         '  In build description %s\n'
+                         '  %s: %s'%(filename, a.__class__.__name__, a))
+        finally:
             sys.path = old_path
-        except AttributeError, a:
-            if setup is None:
-                traceback.print_exc()
-                print "Cannot load %s - %s"%(desc, a)
-            else:
-                traceback.print_exc()
-                print "No describe_to() attribute in module %s"%setup
-                print "Available attributes: %s"%(dir(setup))
-                print "Error was %s"%str(a)
-                raise MuddleBug("Cannot load build description %s"%setup)
+
+def run_release_from(builder, release_dir):
+    """Run the build descriptions "release_from()" function.
+
+    'release_dir' is the path to the directory where the release is being
+    assembled, which will become the final release archive/tarball.
+
+    The function is called as::
+
+        release_from(builder, release_dir)
+
+    We only run the "release_from()" in the top-level build description.
+
+    Note that the Python path (sys.path) will have the build description
+    checkout directory added to its start, so that the release_from()
+    function itself can import things therefrom.
+    """
+    setup = dynamic_load_build_desc(builder)
+    checkout_dir = builder.invocation.checkout_path(builder.build_desc_label)
+
+    old_path = sys.path
+    sys.path.insert(0, checkout_dir)
+    try:
+        setup.release_from(builder, release_dir)
+    except Exception as a:
+        traceback.print_exc()
+        filename = builder.invocation.db.build_desc_file_name()
+        raise GiveUp('Cannot run "release_from(builder, release_dir)"\n'
+                     '  In build description %s\n'
+                     '  %s: %s'%(filename, a.__class__.__name__, a))
+    finally:
+        sys.path = old_path
+
+def dynamic_load_build_desc(builder):
+    """Dynamically load the build description for this builder.
+
+    Specifically, load the top-level build description. At the moment we do
+    not provide support for (re)loading subdomain build descriptions.
+
+        (When each build description is first read, it is always the top-level
+        build description of its own build.)
+
+    Note that the Python path (sys.path) will have the build description
+    checkout directory added to its start, so that the build description
+    can import things therefrom.
+
+    Returns the apropriate module
+    """
+    # We know the name of the build description within its checkout
+    filename = builder.invocation.db.build_desc_file_name()
+    # And since we know its label, we can look up its directory
+    checkout_dir = builder.invocation.checkout_path(builder.build_desc_label)
+
+    old_path = sys.path
+    sys.path.insert(0, checkout_dir)
+    try:
+        return utils.dynamic_load(filename)
+    except AttributeError as a:
+        traceback.print_exc()
+        print "Cannot load %s: %s"%(filename, a)
+        raise MuddleBug("Cannot load build description %s"%filename)
+    finally:
+        sys.path = old_path
+
 
 def load_builder(root_path, muddle_binary, params = None,
                  default_domain = None):

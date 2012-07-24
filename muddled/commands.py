@@ -5027,36 +5027,47 @@ class Release(Command):
         build_cmd.with_build_tree(builder, current_dir, ['_release'])
 
         # Create the directory from which the release tarball will be created
-        results_dir = '%s_%s_%s'%(release.release_spec.name,
+        release_dir = '%s_%s_%s'%(release.release_spec.name,
                                   release.release_spec.version,
                                   release.release_spec.hash)
-        results_path = os.path.join(current_dir, results_dir)
-        if os.path.exists(results_dir):
-            print 'Removing old %s'%results_path
-            shutil.rmtree(results_path)
-        print 'Creating %s'%results_path
-        os.mkdir(results_path)
+        release_path = os.path.join(current_dir, release_dir)
+
+        # XXX Is this the right thing to do?
+        if os.path.exists(release_dir):
+            print 'Removing old %s'%release_path
+            shutil.rmtree(release_path)
+
+        print 'Creating %s'%release_path
+        os.mkdir(release_path)
         # And we always want the release stamp file in the release tarball
         release_filename = os.path.split(release_file)[-1]
-        shutil.copyfile(release_file, os.path.join(results_dir, release_filename))
+        shutil.copyfile(release_file, os.path.join(release_dir, release_filename))
 
         # Call the 'release_from()' function in our (top level) build
         # description, passing it the path to the release tarball directory
-        pass
+        print 'Running the "release_from" function...'
+        mechanics.run_release_from(builder, release_path)
 
         # Finally, tar up the tarball directory, and then compress it
+        print 'Making the tarball'
+        tf_name, mode = self.calc_tf_name(release, release_dir)
+        tf = tarfile.open(tf_name, mode)
+        tf.add(release_dir, recursive=True)
+        tf.close()
+
+    def calc_tf_name(self, release, release_dir):
+        """Work out the name and mode of the archive file we want to generate.
+        """
         if release.release_spec.compression == 'gzip':
-            tf_name = '%s.tgz'%results_dir
+            tf_name = '%s.tgz'%release_dir
             mode = 'w:gz'
         elif release.release_spec.compression == 'bzip2':
-            tf_name = '%s.tar.bz2'%results_dir        # is this the best name?
+            tf_name = '%s.tar.bz2'%release_dir        # is this the best name?
             mode = 'w:bz2'
         else:
-            tf_name = '%s.tar'%results_dir          # should never happen
+            tf_name = '%s.tar'%release_dir          # should never happen
             mode = 'w'                              # but better than crashing...
-        tf = tarfile.open(tf_name, mode)
-        tf.add(results_dir, recursive=True)
-        tf.close()
+        return tf_name, mode
 
 
 # =============================================================================

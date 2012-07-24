@@ -28,14 +28,6 @@ try:
 except:
     curses = None
 
-class MuddleBug(Exception):
-    """
-    Use this to indicate that something has gone wrong with muddle itself.
-
-    We thus expect that a traceback will be produced.
-    """
-    pass
-
 class GiveUp(Exception):
     """
     Use this to indicate that something has gone wrong and we are giving up.
@@ -69,6 +61,15 @@ class GiveUp(Exception):
         if self.retcode != 1:
             parts.append('%d'%self.retcode)
         return 'GiveUp(%s)'%(', '.join(parts))
+
+
+class MuddleBug(GiveUp):
+    """
+    Use this to indicate that something has gone wrong with muddle itself.
+
+    We thus expect that a traceback will be produced.
+    """
+    pass
 
 
 class Unsupported(GiveUp):
@@ -681,19 +682,25 @@ def truncate(text, columns=None, less=0):
 
 
 def dynamic_load(filename):
-    if (filename == None):
-        raise MuddleBug(\
-            "Attempt to call DynamicLoad() with filename None")
     try:
-        with open(filename, 'rb') as fin:
-            contents = fin.read()
+        try:
+            with open(filename, 'rb') as fin:
+                contents = fin.read()
+        except IOError as e:
+            if e.errno == errno.ENOENT:
+                raise GiveUp('No such file: %s'%filename)
+            else:
+                raise GiveUp('Cannot open file %s\n%s\n'%(filename, e))
         hasher = hashlib.md5()
         hasher.update(contents)
         md5_digest = hasher.hexdigest()
         return imp.load_source(md5_digest, filename)
+    except GiveUp:
+        raise
     except Exception:
         raise GiveUp("Cannot load build description %s:\n"
                        "%s"%(filename, traceback.format_exc()))
+
 
 def do_shell_quote(str):
     return maybe_shell_quote(str, True)

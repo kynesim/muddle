@@ -6522,7 +6522,7 @@ class RunIn(Command):
                         continue
                     dir = builder.invocation.package_obj_path(lbl)
                 elif (lbl.type == LabelType.Deployment):
-                    dir = builder.invocation.deploy_path(lbl.name)
+                    dir = builder.invocation.deploy_path(lbl)
 
                 if (dir in dirs_done):
                     continue

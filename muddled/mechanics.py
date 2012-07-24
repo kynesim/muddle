@@ -567,16 +567,9 @@ class Invocation(object):
     def checkout_path(self, label):
         """
         Return the path in which the given checkout resides.
-        If 'label' is None, returns the root checkout path
-
-        TODO: No-one uses (I hope) the "None" variant of this call.
-        Deprecate it, extirpate it, please...
         """
-        if label:
-            assert label.type == LabelType.Checkout
-            return self.db.get_checkout_path(label)
-        else:
-            return self.db.get_checkout_path(None)
+        assert label.type == LabelType.Checkout
+        return self.db.get_checkout_path(label)
 
     def packages_using_checkout(self, co_label):
         """
@@ -687,22 +680,16 @@ class Invocation(object):
 
         return p
 
-    def deploy_path(self, deploy, domain=None):
+    def deploy_path(self, label):
         """
-        Where should deployment deploy deploy to?
-
-        This is slightly tricky, but it turns out that the deployment name is
-        what we want.
+        Where should deployment 'label' deploy to?
         """
-        if domain:
-            p = os.path.join(self.db.root_path, domain_subpath(domain), "deploy")
+        assert label.type == LabelType.Deployment
+        if label.domain:
+            p = os.path.join(self.db.root_path, domain_subpath(label.domain), "deploy")
         else:
             p = os.path.join(self.db.root_path, "deploy")
-        if (deploy is not None):
-            p = os.path.join(p, deploy)
-
-        return p
-
+        return os.path.join(p, label.name)
 
     def commit(self):
         """
@@ -1197,7 +1184,7 @@ class Builder(object):
         Release build values
         --------------------
         When building in a release tree (typically by use of "muddle release")
-        extra envirinment variables are set to allow the build to know useful
+        extra environment variables are set to allow the build to know useful
         information about the release. In a non-release build, these will all
         be set to "(unset)".
 
@@ -1314,7 +1301,7 @@ class Builder(object):
 
         elif (label.type == LabelType.Deployment):
             store.set("MUDDLE_DEPLOY_FROM", self.invocation.role_install_path(label.role))
-            store.set("MUDDLE_DEPLOY_TO", self.invocation.deploy_path(label.name))
+            store.set("MUDDLE_DEPLOY_TO", self.invocation.deploy_path(label))
 
         if self.release_spec.name is None:
             store.set("MUDDLE_RELEASE_NAME", "(unset)")

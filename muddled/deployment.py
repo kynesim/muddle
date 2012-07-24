@@ -16,7 +16,7 @@ class CleanDeploymentBuilder(Action):
         if (label.type == utils.LabelType.Deployment and
             (label.tag == utils.LabelTag.Clean or
             label.tag == utils.LabelTag.DistClean)):
-            deploy_path = builder.invocation.deploy_path(label.name, domain= label.domain)
+            deploy_path = builder.invocation.deploy_path(label)
             print "> Remove %s"%deploy_path
             utils.recursively_remove(deploy_path)
             builder.kill_label(label.copy_with_tag(utils.LabelTag.Deployed))
@@ -140,7 +140,9 @@ def inform_deployment_path(builder, name, deployment, roles, domain=None):
                            domain=domain)
         env = builder.invocation.get_environment_for(lbl)
         env.set_type(name, env_store.EnvType.SimpleValue)
-        env.set(name, builder.invocation.deploy_path(deployment))
+
+        deployment_label = depend.Label(utils.LabelType.Deployment, deployment)
+        env.set(name, builder.invocation.deploy_path(deployment_label))
 
 
 def deployment_rule_from_name(builder, name):

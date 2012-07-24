@@ -377,7 +377,7 @@ def find_label_dir(builder, label):
     elif label.type == LabelType.Package:
         dir = builder.invocation.package_install_path(label)
     elif label.type == LabelType.Deployment:
-        dir = builder.invocation.deploy_path(label.name, domain=label.domain)
+        dir = builder.invocation.deploy_path(label)
     else:
         dir = None
     return dir

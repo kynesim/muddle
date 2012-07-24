@@ -316,6 +316,11 @@ def check_text_lines_v_lines(actual_lines, wanted_lines):
     Prints out the differences (if any) and then raises a GiveUp if there
     *were* differences
     """
+    #len_wanted_lines = len(wanted_lines)
+    #len_actual_lines = len(actual_lines)
+    #if len_wanted_lines != len_actual_lines:
+    #    print 'There are %d wanted line%s'%(len_wanted_lines, '' if len_wanted_lines==1 else 's')
+    #    print 'There are %d actual line%s'%(len_actual_lines, '' if len_actual_lines==1 else 's')
     diffs = unified_diff(wanted_lines, actual_lines,
                          fromfile='Expected', tofile='Got', lineterm='')
     difflines = list(diffs)

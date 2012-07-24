@@ -602,7 +602,7 @@ class CPDCommand(Command):
 
                 # But it's an error if none of them were wanted
                 if not used_labels:
-                    raise GiveUp(self.diagnose_unused_labels(builder, labels, thing))
+                    raise GiveUp(self.diagnose_unused_labels(builder, labels, str(thing)))
 
                 results.extend(used_labels)
 
@@ -5022,8 +5022,9 @@ class Release(Command):
         release.release_spec.write_to_file(os.path.join(current_dir, '.muddle', 'ReleaseSpec'))
 
         # Next do "muddle build _release"
-        ##buildish = Build()
-        ##buildish.with_build_tree(builder, current_dir, ['_release'])
+        builder = mechanics.load_builder(current_dir, muddle_binary)
+        build_cmd = Build()
+        build_cmd.with_build_tree(builder, current_dir, ['_release'])
 
         # Create the directory from which the release tarball will be created
         results_dir = '%s_%s_%s'%(release.release_spec.name,

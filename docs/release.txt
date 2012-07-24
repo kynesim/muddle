@@ -119,6 +119,11 @@ do::
 
 before the deployments have actually all been described, which is useful.
 
+.. warning:: This also means that ``add_to_release_build()`` itself cannot
+   complain if you add a non-existant label, since after all this is part
+   of its intent. Such warnings will have to wait until ``_release`` is
+   actually used in a "muddle" command.
+
 ``muddle query release`` can be used to find out what ``_release`` is set to
 (see ``muddle help query release`` for details).
 

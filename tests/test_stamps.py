@@ -305,7 +305,7 @@ def make_repos_with_subdomain(repo):
             with NewDirectory('builds') as d:
                 make_build_desc(d.where, TOPLEVEL_BUILD_DESC.format(repo=repo))
             with NewDirectory('main_co') as d:
-                make_standard_checkout(d.where, 'main1', 'main')
+                make_standard_checkout(d.where, 'main0', 'main')
             with NewDirectory('first_co') as d:
                 make_standard_checkout(d.where, 'first', 'first')
             with NewDirectory('second_co') as d:
@@ -370,7 +370,7 @@ def check_checkout_files(d):
                              c.join('main_co', 'checked_out'),
                              c.join('second_co', 'checked_out')])
 
-    def check_src_files(main_c_file='main1.c'):
+    def check_src_files(main_c_file='main0.c'):
         check_files([s.join('builds', '01.py'),
                      s.join('main_co', 'Makefile.muddle'),
                      s.join('main_co', main_c_file),
@@ -381,7 +381,7 @@ def check_checkout_files(d):
 
     check_dot_muddle(is_subdomain=False)
     with Directory('src') as s:
-        check_src_files('main1.c')
+        check_src_files('main0.c')
 
     with Directory(d.join('domains', 'subdomain1', 'src')) as s:
         check_src_files('subdomain1.c')

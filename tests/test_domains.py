@@ -390,7 +390,7 @@ def make_repos_with_subdomain(root_dir):
             with NewDirectory('builds') as d:
                 make_build_desc(d.where, TOPLEVEL_BUILD_DESC.format(repo=repo))
             with NewDirectory('main_co') as d:
-                make_standard_checkout(d.where, 'main1', 'main')
+                make_standard_checkout(d.where, 'main0', 'main')
             with NewDirectory('first_co') as d:
                 make_standard_checkout(d.where, 'first', 'first')
             with NewDirectory('second_co') as d:
@@ -469,7 +469,7 @@ def check_checkout_files(d):
                              c.join('main_co', 'checked_out'),
                              c.join('second_co', 'checked_out')])
 
-    def check_src_files(main_c_file='main1.c'):
+    def check_src_files(main_c_file='main0.c'):
         check_files([s.join('builds', '01.py'),
                      s.join('main_co', 'Makefile.muddle'),
                      s.join('main_co', main_c_file),
@@ -480,7 +480,7 @@ def check_checkout_files(d):
 
     check_dot_muddle(is_subdomain=False)
     with Directory('src') as s:
-        check_src_files('main1.c')
+        check_src_files('main0.c')
 
     with Directory(d.join('domains', 'subdomain1', 'src')) as s:
         check_src_files('subdomain1.c')
@@ -942,7 +942,7 @@ def check_files_after_build(d):
     # Top level
     with Directory('deploy'):
         with Directory('everything') as e:
-            check_files_in(e, ['first', 'second', 'main1'])
+            check_files_in(e, ['first', 'second', 'main0'])
             with Directory('sub1') as s1:
                 check_files_in(s1, ['first', 'second', 'subdomain1'])
                 with Directory('sub3') as s3:
@@ -955,11 +955,11 @@ def check_files_after_build(d):
                     check_files_in(s4, ['first', 'second', 'subdomain4'])
     with Directory('obj') as o:
         check_files([o.join('first_pkg', 'x86', 'first'),
-                     o.join('main_pkg', 'x86', 'main1'),
+                     o.join('main_pkg', 'x86', 'main0'),
                      o.join('second_pkg', 'x86', 'second')])
     with Directory('install'):
         with Directory('x86') as x:
-            check_files_in(x, ['first', 'second', 'main1'])
+            check_files_in(x, ['first', 'second', 'main0'])
     with Directory('.muddle'):
         with Directory('tags') as t:
             check_files([t.join('package', 'main_pkg', 'x86-built'),
@@ -1054,7 +1054,7 @@ def check_programs_after_build(d):
             raise GiveUp('Program {0} printed out "{1}"'.format(fullpath, result))
 
     with Directory(d.join('deploy', 'everything')) as e:
-        check_result(e, [],     'main1')
+        check_result(e, [],     'main0')
         check_result(e, [],     'first')
         check_result(e, [],     'second')
         check_result(e, ['sub1'], 'subdomain1')

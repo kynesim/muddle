@@ -4947,45 +4947,64 @@ class Release(Command):
 
     :Syntax: muddle release <release-file>
 
-
-    CURRENTLY JUST A PLACEHOLDER AWAITING IMPLEMENTATION.
-
-
     For example::
 
       $ muddle release project99-1.2.3.release
 
     This:
 
-    1. Creates a directory called ``project99-1.2.3.release`` and cd's into it
+    1. Checks the current directory is empty, and refuses to proceed if it
+       is not.
 
-    2. Does (the equivalent of) ``muddle unstamp`` using that release file.
+    2. Does ``muddle unstamp <release-file>``,
 
-    3. Copies the release file as ``.muddle/Release``. This indicates that this
-       is a release build tree, and "normal" muddle will refuse to build in it.
-       (Of course, the user can delete the file - that's their business).
+    3. Copies the release file to ``.muddle/Release``, and the release
+       specification to ``.muddle/ReleaseSpec``. The existence of the latter
+       indicates that this is a release build tree, and "normal" muddle will
+       refuse to build in it.
 
-    4. In a release build tree, muddle sets some extra environment variables:
+    4. Sets some extra environment variables, which can be used in the normal
+       manner in muddle Makefiles:
 
+       * ``MUDDLE_RELEASE_NAME`` is the release name, from the release file.
+       * ``MUDDLE_RELEASE_VERSION`` is the release version, from the release
+         file.
        * ``MUDDLE_RELEASE_HASH`` is the SHA1 hash of the release file
-       * ``MUDDLE_RELEASE_VERSION`` is the version string from the ``version =``
-         line.
 
-       "Normal" muddle will also create those environment variables, but they will
-       be set to ``(unset)``.
+       "Normal" muddle will also create those environment variables, but they
+       will be set to ``(unset)``.
 
-    5. Does (the equivalent of) ``mudddle build _release``.
+    5. Does ``mudddle build _release``.
 
-    6. Creates the release directory,
-       ``<build-name>-<release-version>.<release-sha1>``, and copies the release
-       file into it.
+       The meaning of "_release" is defined in the build description, using
+       ``builder.add_to_release_build()``. See::
 
-    7. Calls the ``release_from(builder)`` function in the build description
-       (obviously it is an error if there isn't one).
+           $ muddle doc mechanics.Builder.add_to_release_build
+
+       for more information on that method, and "muddle query release" for the
+       current setting.
+
+       Note that, if youi have subdomains, only calls of
+       ``add_to_release_build()`` in the top-level build description  will be
+       effective.
+
+    6. Creates the release directory, which will be called
+       ``<release-name>_<release-version>_<release-sha1>``.
+       It copies the release file therein.
+
+    7. Calls the ``release_from(builder, release_dir)`` function in the build
+       description, which is responsible for copying across whatever else needs
+       to be put into the release directory.
+
+       (Obviously it is an error if the build description does not have such
+       a function.)
+
+       Note that, if you have subdomains, only the ``release_from()`` function
+       in the top-level build will be called.
 
     8. Creates a compressed tarball of the release directory, using the
-       appropriate compression mechanism.
-
+       compression mechanism specified in the release file. It will have
+       the same basename as the release directory.
     """
 
     def requires_build_tree(self):
@@ -4993,17 +5012,15 @@ class Release(Command):
 
     def without_build_tree(self, muddle_binary, current_dir, args):
 
-        # In an ideal world, we'd only be called if there really was no muddle
-        # build tree. However, in practice, the top-level script may call us
-        # because it can't find an *intact* build tree. So it's up to us to
-        # know that we want to be a bit more careful...
-        self.check_for_broken_build(current_dir)
-
         if len(args) == 1:
             release_file = args[0]
         else:
             print 'Syntax: muddle release <release-file>'
             return 2
+
+        # Check the current directory is empty
+        if len(os.listdir(current_dir)):
+            raise GiveUp('Cannot release into %s, it is not empty'%current_dir)
 
         # Check we can read the release file as such
         release = ReleaseStamp.from_file(release_file)
@@ -5031,11 +5048,6 @@ class Release(Command):
                                   release.release_spec.version,
                                   release.release_spec.hash)
         release_path = os.path.join(current_dir, release_dir)
-
-        # XXX Is this the right thing to do?
-        if os.path.exists(release_dir):
-            print 'Removing old %s'%release_path
-            shutil.rmtree(release_path)
 
         print 'Creating %s'%release_path
         os.mkdir(release_path)

@@ -325,9 +325,23 @@ For instance, create a template ``version.h.in`` file for "project99"::
     #define BUILD_VERSION "${MUDDLE_RELEASE_NAME}: $(MUDDLE_RELEASE_VERSION}"
     #endif
 
-In the ``Makefile.muddle``, then add::
+(of course, a string constant might be more appropriate, depending on the
+language and situation).
+
+In the ``Makefile.muddle``, then, for instance, alter::
+
+   .PHONY: config
+    config:
+
+to be::
+
+   .PHONY: config
+    config: $(MUDDLE_OBJ_INCLUDE)/version.h
+
+and add a new rule::
 
     $(MUDDLE_OBJ_INCLUDE)/version.h: version.h.in
+        -mkdir -p $(MUDDLE_OBJ_INCLUDE)
         $(MUDDLE) subst $< $@
 
 Remember that the ``MUDDLE_RELEASE_`` environment variables will be set to

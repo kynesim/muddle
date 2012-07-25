@@ -737,11 +737,11 @@ def query_string_value(xml_doc, env, k):
                     proc_params.append(trimmed)
 
                 if (fn_name == "ifeq" and len(proc_params) == 2):
-                    print 'ifeq   %s'%proc_params
+                    #print 'ifeq   %s'%proc_params
                     result = query_string_value(xml_doc, env, proc_params[0])
-                    print 'result %r'%result
-                    print 'rest   %r'%rest
-                    print "groups %s"%(" ".join(m.groups()))
+                    #print 'result %r'%result
+                    #print 'rest   %r'%rest
+                    #print "groups %s"%(" ".join(m.groups()))
                     if (proc_params[1] is not None and
                         result is not None):
                         if (result.strip() == proc_params[1]):

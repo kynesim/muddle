@@ -1074,8 +1074,12 @@ class Builder(object):
     def set_default_variables(self, label, store):
         """
         Muddle defines a variety of environment variables which are available
-        to its muddle Makefiles. The particular variables provided depend on
-        the type of label being built, or the type of build.
+        whilst a label is being built. The particular variables provided depend
+        on the type of label being built, or the type of build.
+
+        Package labels are associated with muddle Makefiles, so any environment
+        variable specific to a package label will be available within a muddle
+        Makefile (i.e., commands such as "muddle build" work on package labels).
 
         All labels
         ----------

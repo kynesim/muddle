@@ -1539,9 +1539,12 @@ the parentheses. So, for instance, use:
         """
         Return help on MUDDLE_xxx environment variables
         """
+        text = mechanics.Builder.set_default_variables.__doc__
+        text = textwrap.dedent(text)
+        text = text.replace("``", "'")
         return ('Muddle environment variables\n'
                 '============================\n'
-                '%s'%textwrap.dedent(mechanics.Builder.set_default_variables.__doc__))
+                '%s'%text)
 
     def help_all(self):
         """

@@ -726,8 +726,7 @@ def main(args):
     repo = os.path.join(root_dir, 'repo')
 
     #with TransientDirectory(root_dir, keep_on_error=True, keep_anyway=keep) as root_d:
-    #with TransientDirectory(root_dir, keep_on_error=True) as root_d:
-    with NewDirectory(root_dir) as root_d:
+    with TransientDirectory(root_dir, keep_on_error=True) as root_d:
 
         test_ReleaseStamp_basics(root_d)
 

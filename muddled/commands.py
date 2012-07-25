@@ -6737,20 +6737,133 @@ class Subst(Command):
     Reads in <src_file>, and replaces any strings of the form "${..}" with
     values from the XML file (if any) or from the environment.
 
-    XML queries look a bit like XPath queries - "/elem/elem/elem..."
-    An implicit "::text()" is appended so you get all the text in the specified
-    element.
+    For the examples, I'm assuming we're building a release build, using
+    "muddle release", and thus the MUDDLE_RELEASE_xxx environment variables
+    are set.
 
-    You can escape a "${ .. }" by passing "$${ .. }"
+    Without an XML file
+    -------------------
+    So, in the two argument form, we might run::
 
-    You can insert literals with "${" .. " }"
+        $ muddle subst version.h.in version.h
 
-    Or call functions with "${fn: .. }". Available functions include:
+    on version.h.in::
 
-    * "${val:(something)}" - Value of something as a query (env var or XPath)
-    * "${ifeq:(a,b,c)}" - If eval(a)==eval(b), expand to eval(c)
-    * "${ifneq:(a,b,c)}" - If eval(a)!=eval(b), expand to eval(c)
-    * "${echo:(..)}" -  Evaluate all your parameters in turn.
+        #ifndef PROJECT99_VERSION_FILE
+        #define PROJECT99_VERSION_FILE
+        #define BUILD_VERSION "${MUDDLE_RELEASE_NAME}: $(MUDDLE_RELEASE_VERSION}"
+        #endif
+
+    to produce::
+
+        #ifndef PROJECT99_VERSION_FILE
+        #define PROJECT99_VERSION_FILE
+        #define BUILD_VERSION "simple: v1.0"
+        #endif
+
+    With an XML file
+    ----------------
+    In the three argument form, values will first be looked up in the XML file,
+    and then, if they're not found, in the environment. So given values.xml::
+
+        <?xml version="1.0" ?>
+        <values>
+            <version>Kynesim version 99</version>
+            <more>
+                <value1>This is value 1</value1>
+                <value2>This is value 2</value2>
+            </more>
+        </values>
+
+    and values.h.in::
+
+        #ifndef KYNESIM_VALUES
+        #define KYNESIM_VALUES
+        #define KYNESIM_VERSION "${/values/version}"
+        #define RELEASE_VERSION "Release version ${MUDDLE_RELEASE_VERSION}"
+        #endif
+
+    then running::
+
+        $ muddle subst values.h values.xml values.h.in
+
+    would give us values.h::
+
+        #ifndef KYNESIM_VALUES
+        #define KYNESIM_VALUES
+        #define KYNESIM_VERSION "Kynesim version 99"
+        #define RELEASE_VERSION "Release version v1.0"
+        #endif
+
+    XML queries are used in the "${..}" to extract particular values from the
+    XML. These look a bit like XPath queries - "/elem/elem/elem...", so for
+    instance::
+
+        ${/values/more/value2}
+
+    would be replaced by::
+
+        This is value 2
+
+    You can escape a "${ .. }" by passing "$${ .. }", so::
+
+        $${/values/more/value1}
+
+    becomes::
+
+        ${/values/more/value1}
+
+    Both ${/version} and ${"/version"} give the same result.
+
+    You can also nest evaluations. With the environment variable THING set
+    to "/values/version", then::
+
+        ${ ${THING} }
+
+    will evaluate to::
+
+        Kynesim version 99
+
+    You can call functions with "${fn: .. }". Parameters can be surrounded by
+    matching double quotes - these will be stripped before the parameter is
+    evaluated. The available functions are:
+
+    * "${fn:val(something)}"
+
+      This expands to the value of 'something' as a query (either as an
+      environment variable or XPath)
+
+    * "${fn:ifeq(something,b)c}"
+
+      If ${something} evaluates to b, then this expands to c. Both b and c
+      may contain "${..}" sequences.
+
+      Note that 'something' is expanded without you needing to specify such,
+      but b and c are not.
+
+      It is allowed to do things like::
+
+          ${fn:ifeq(/values/version,"Kynesim version 99")
+              def missing_function(a):
+                  # 'Version ${/values/version} of the software does not provide
+                  # this function, so we do so here
+                  <implementation code>
+           }
+
+    * "${fn:ifneq(something,b)c}"
+
+      The same, but you get c if evaluating 'something' does not give b.
+
+    * "${fn:echo(a,b,c,...)}"
+
+      Evaluates each parameter (a, b, c, ...) in turn. Spaces between
+      parameters are ignored. So::
+
+          ${fn:echo(a, " space ", ${/values/more/value1}}
+
+      would give::
+
+          a space This is value 1
     """
 
     def requires_build_tree(self):
@@ -6789,6 +6902,12 @@ class Subst(Command):
         else:
             xml_doc = None
 
-        subst.subst_file(src, dst, xml_doc, self.old_env)
+        try:
+            subst.subst_file(src, dst, xml_doc, self.old_env)
+        except GiveUp as e:
+            if xml_file:
+                raise GiveUp("%s\nWhilst processing %s with XML file %s"%(e, src, xml_file))
+            else:
+                raise GiveUp("%s\nWhilst processing %s"%(e, src))
 
 # End file.

@@ -101,37 +101,46 @@ class PushbackInputStream(object):
         self.input = str
         self.idx = 0
         self.pushback_char = -1
-        self.line = 1
-        self.char = 1
+        self.line_no = 0
+        self.char_no = 0
+        self.newline_starting = True    # on the next char read
 
     def next(self):
         res = -1
-        if (self.pushback_char != -1):
-            c = self.pushback_char
+        if self.pushback_char != -1:
+            res = self.pushback_char
             self.pushback_char = -1
-            res = c
-        elif (self.idx >= len(self.input)):
+            if g_trace_parser:
+                print "next(%d,%d) = %c (pushback)"%(self.line_no, self.char_no, res)
+            # We don't want to change our line or character number
+            return res
+        elif self.idx >= len(self.input):
             res = -1
         else:
-            i = self.idx
-            self.idx = self.idx + 1
-            res = self.input[i]
+            res = self.input[self.idx]
+            self.idx += 1
 
-        if (res == '\n'):
-            self.char = 1
-            self.line = self.line + 1
-        elif (res != -1):
-            self.char = self.char + 1
+        if self.newline_starting:       # we are starting a new line now
+            self.char_no = 0
+            self.line_no += 1
+            self.newline_starting = False
 
-        if (g_trace_parser):
+        if res != -1:
+            self.char_no += 1
+
+        if res == '\n':
+            self.newline_starting = True    # on the next char read
+
+        if g_trace_parser:
             if res < 0:
-                print "next(%d,%d) = -1"%(self.line,self.char)
+                print "next(%d,%d) = -1"%(self.line_no, self.char_no)
             else:
-                print "next(%d,%d) = %c "%(self.line,self.char,res)
+                print "next(%d,%d) = %c "%(self.line_no, self.char_no, res)
 
         return res
 
     def push_back(self,c):
+        # Only a single push back is allowed, but we don't actually check
         self.pushback_char = c
 
     def peek(self):
@@ -143,7 +152,25 @@ class PushbackInputStream(object):
             return self.input[self.idx]
 
     def report(self):
-        return "line %d, char %d"%(self.line, self.char)
+        return "line %d, char %d"%(self.line_no, self.char_no)
+
+    def print_what_we_just_read(self):
+        lines = self.input.splitlines()
+        maxlen = len('%d'%self.line_no)
+        print 'Just read:'
+        count = self.line_no - 2
+        for line in lines[self.line_no-3:self.line_no]:
+            print 'Line %*d: %s'%(maxlen, count, line)
+            count += 1
+        if self.idx == len(self.input):
+            print '     %s  <EOF>'%(' '*maxlen)
+
+    def get_line(self, line_no):
+        """Return line 'line_no'. Line numbers start at 1.
+        """
+        lines = self.input.splitlines()
+        return lines[line_no - 1]
+
 
 
 class TreeNode(object):
@@ -157,13 +184,15 @@ class TreeNode(object):
     ContainerType = "container"
 
 
-    def __init__(self,in_type):
+    def __init__(self, in_type, input_stream):
         self.type = in_type
         self.children = [ ]
         self.string = ""
         # The default function is to evaluate something.
         self.instr_type = "val"
         self.function = ""
+        # We keep a note of the input stream for error messages
+        self.input_stream = input_stream
 
 
     def set_string(self, inStr):
@@ -274,7 +303,7 @@ class TreeNode(object):
             res = query_string_value(xml_doc, env, key_name)
 
         if (res is None):
-            raise utils.MuddleBug("Attempt to substitute key '%s' which does not exist."%key_name)
+            raise utils.GiveUp("Attempt to substitute key '%s' which does not exist."%key_name)
 
         if (g_trace_parser):
             print "node.val(%s -> %s) = %s"%(self.expr, key_name, res)
@@ -296,7 +325,7 @@ class TreeNode(object):
             res = query_string_value(xml_doc, env, key_name)
 
         if (res is None):
-            raise utils.MuddleBug("Attempt to substitute key '%s' which does not exist."%key_name)
+            raise utils.GiveUp("Attempt to substitute key '%s' which does not exist."%key_name)
 
         if (g_trace_parser):
             print "node.fnval(%s -> %s) = %s"%(self.params[0], key_name, res)
@@ -328,8 +357,6 @@ class TreeNode(object):
         for p in self.params:
             p.eval(xml_doc, env, output_list)
 
-
-
 def parse_document(input_stream, node, end_chars, has_escapes):
     """
     Parse a document into a tree node.
@@ -345,11 +372,17 @@ def parse_document(input_stream, node, end_chars, has_escapes):
     #   2 - Got '$$'
     #   3 - Got '\'
     state = 0
-    cur_str = [ ]
+    cur_str = []
+    start_line_no = input_stream.line_no
+    start_char_no = input_stream.char_no - 1 # because we already ate 1 char
+
+    state_desc = {0:'Parsing text',
+                  1:'After $',
+                  2:'After $$',
+                  3:'After \\'}
 
     while True:
         c = input_stream.next()
-
 
         if (g_trace_parser):
             print "parse_document(): c = %s cur_str = [ %s ] state = %d"%(c,",".join(cur_str), state)
@@ -359,17 +392,28 @@ def parse_document(input_stream, node, end_chars, has_escapes):
             ends_now = (c in end_chars)
 
         if ((end_chars is not None) and (c < 0)):
-            raise utils.GiveUp("Stream ends whilst waiting for end chars: Syntax error")
+            #input_stream.print_what_we_just_read()
+            print 'Current state is %s'%state_desc[state]
+            end_chars = ', '.join(map(repr, end_chars))
+            print "Expected end char (%s) for item at line %d, char %d"%(
+                    end_chars,
+                    start_line_no,
+                    start_char_no)
+            print '  %s'%input_stream.get_line(start_line_no)
+            print '  %s^ char %d'%(' '*(start_char_no - 1), start_char_no)
+            print "The text that was not ended is %r"%(''.join(cur_str))
+            raise utils.GiveUp("Syntax Error: Input text ends whilst waiting for"
+                               " end char (%s)"%end_chars)
 
         if (ends_now):
-            cur_node = TreeNode(TreeNode.StringType)
+            cur_node = TreeNode(TreeNode.StringType, input_stream)
             cur_node.set_string("".join(cur_str))
             node.append_child(cur_node)
             # Push back ..
             input_stream.push_back(c)
             cur_str = [ ]
             if (g_trace_parser):
-                print "parse_document(): terminating character %s detected. Ending."%(c)
+                print "parse_document(): terminating character %r detected. Ending."%(c)
             return
 
         if (state == 0):
@@ -386,13 +430,18 @@ def parse_document(input_stream, node, end_chars, has_escapes):
                 state = 2
             elif (c == '{'):
                 # Start of an instruction.
-                cur_node = TreeNode(TreeNode.StringType)
+                cur_node = TreeNode(TreeNode.StringType, input_stream)
                 cur_node.set_string("".join(cur_str))
                 cur_str = [ ]
                 node.append_child(cur_node)
                 parse_instruction(input_stream, node)
                 # Eat the trailing character
-                input_stream.next()
+                x = input_stream.next()
+                if x != '}':
+                    print '  %s'%input_stream.get_line(start_line_no)
+                    print '  %s^ char %d'%(' '*(start_char_no - 1), start_char_no)
+                    print "The text that was not ended is %r"%(''.join(cur_str))
+                    raise utils.GiveUp('Instruction did not end with %r: %s'%('}', input_stream.report()))
                 # .. and back to the start.
                 state = 0
             else:
@@ -438,7 +487,8 @@ def flatten_literal_node(in_node):
     elif (in_node.type == TreeNode.ContainerType):
         pass
     else:
-        # Annoyingly, we can't report here yet.
+        # Annoyingly, we can't report here yet.          XXX Pardon?
+        in_node.input_stream.print_what_we_just_read() # XXX Is this useful?
         raise utils.GiveUp("Non literal where literal expected.")
 
     for i in in_node.children:
@@ -453,7 +503,7 @@ def parse_literal(input_stream, echars):
     """
     Given a set of end chars, parse a literal.
     """
-    dummy = TreeNode(TreeNode.ContainerType)
+    dummy = TreeNode(TreeNode.ContainerType, input_stream)
     parse_document(input_stream, dummy, echars, True)
     return flatten_literal_node(dummy)
 
@@ -464,11 +514,14 @@ def parse_param(input_stream, node, echars):
     """
     skip_whitespace(input_stream)
 
-    if (input_stream.peek() == '\"'):
+    if input_stream.peek() == '"':
         input_stream.next(); # Skip the quote.
-        e2chars = set([ '"' ])
-        parse_document(input_stream, node, e2chars, True)
+        closing_quote = set([ '"' ])
+        parse_document(input_stream, node, closing_quote, True)
         # Skip the '"'
+        c = input_stream.peek()
+        if c != '"':
+            raise utils.GiveUp('Quoted parameter did not end with %r: %s'%('"', input_stream.report()))
         input_stream.next()
         skip_whitespace(input_stream)
         c = input_stream.peek()
@@ -476,8 +529,9 @@ def parse_param(input_stream, node, echars):
             # Fine.
             return
         else:
-            raise utils.GiveUp("Quoted parameter ends with invalid character %c - %s"%(c,
-                                                                                        input_stream.report()))
+            input_stream.print_what_we_just_read()
+            raise utils.GiveUp("Quoted parameter ends with invalid character %r: "
+                               "%s"%(c, input_stream.report()))
     else:
         parse_document(input_stream, node, echars, True)
 
@@ -507,20 +561,24 @@ def parse_instruction(input_stream, node):
         input_stream.next()
         skip_whitespace(input_stream)
         # Quoted string. So we know ..
-        result = TreeNode(TreeNode.InstructionType)
-        container = TreeNode(TreeNode.ContainerType)
+        result = TreeNode(TreeNode.InstructionType, input_stream)
+        container = TreeNode(TreeNode.ContainerType, input_stream)
         echars = set([ '"' ])
         old_report = input_stream.report() # In case we need it later..
         parse_document(input_stream, container, echars, True)
         if (input_stream.next() != '"'):
+            input_stream.print_what_we_just_read()
             raise utils.GiveUp("Literal instruction @ %s never ends"%(old_report))
 
         skip_whitespace(input_stream)
         c = input_stream.next()
         if (c != '}'):
             # Rats
+            input_stream.print_what_we_just_read()
             raise utils.GiveUp("Syntax Error - no end to literal instruction @ %s"%
                                 (input_stream.report()))
+        # Remember to push back the '}' for our caller to find
+        input_stream.push_back(c)
         # Otherwise ..
         result.set_val(container)
         node.append_child(result)
@@ -530,8 +588,8 @@ def parse_instruction(input_stream, node):
         return
 
     # Otherwise ..
-    dummy = TreeNode(TreeNode.ContainerType)
-    result = TreeNode(TreeNode.InstructionType)
+    dummy = TreeNode(TreeNode.ContainerType, input_stream)
+    result = TreeNode(TreeNode.InstructionType, input_stream)
 
     echars = set([ ':', '}' ])
     parse_document(input_stream, dummy, echars, True)
@@ -546,13 +604,13 @@ def parse_instruction(input_stream, node):
             echars = set([ '(', '}' ])
             fn_name = parse_literal(input_stream, echars)
             params = [ ]
-            rest = TreeNode(TreeNode.ContainerType)
+            rest = TreeNode(TreeNode.ContainerType, input_stream)
             c2 = input_stream.next()
             if (c2 == '('):
                 # We have parameters!
                 while True:
                     echars = set([ ',', ')' ] )
-                    param_node = TreeNode(TreeNode.ContainerType)
+                    param_node = TreeNode(TreeNode.ContainerType, input_stream)
                     parse_param(input_stream, param_node, echars)
                     params.append(param_node)
                     c = input_stream.next()
@@ -563,7 +621,8 @@ def parse_instruction(input_stream, node):
             parse_document(input_stream, rest, echars, True)
             result.set_fn(fn_name, params, rest)
         else:
-            raise utils.GiveUp("Invalid designator in value: %s at %s"%(str, input_stream.report()))
+            input_stream.print_what_we_just_read()
+            raise utils.GiveUp("Invalid designator in value: %r at %s"%(str, input_stream.report()))
     else:
         # This was the end of the directive.
         result.set_val(dummy)
@@ -595,8 +654,8 @@ def subst_str(in_str, xml_doc, env):
 
     """
 
-    top_node = TreeNode(TreeNode.ContainerType)
     stream = PushbackInputStream(in_str)
+    top_node = TreeNode(TreeNode.ContainerType, stream)
     parse_document(stream, top_node, None, False)
 
     output_list = []
@@ -621,6 +680,31 @@ def subst_str_old(in_str, xml_doc, env):
                  val(query)  - just looks up query.
 
     """
+
+def query_string_value(xml_doc, env, k):
+    """
+    Given a string-valued query, work out what the result was
+    """
+    v = None
+    result_node = None
+
+    if (len(k) == 0):
+        return ""
+
+    if (k[0] == '/'):
+        # An XML query
+        if xml_doc is not None:
+            result_node = query_result(split_query(k), xml_doc)
+        if (result_node is not None):
+            v = get_text_in_xml_node(result_node)
+    else:
+        # An environment variable
+        if (k in env):
+            v = env[k]
+        else:
+            raise utils.GiveUp("Environment variable '%s' not defined."%k)
+
+    return v
 
     the_re = re.compile(r"(\$)?\$\{([^\}]+)\}")
     fn_re = re.compile(r'fn:([^()]+)\(([^\)]+)\)(.*)$')
@@ -653,9 +737,11 @@ def subst_str_old(in_str, xml_doc, env):
                     proc_params.append(trimmed)
 
                 if (fn_name == "ifeq" and len(proc_params) == 2):
+                    print 'ifeq   %s'%proc_params
                     result = query_string_value(xml_doc, env, proc_params[0])
-                    #print "rest=%s"%rest
-                    #print "groups = %s"%(" ".join(m.groups()))
+                    print 'result %r'%result
+                    print 'rest   %r'%rest
+                    print "groups %s"%(" ".join(m.groups()))
                     if (proc_params[1] is not None and
                         result is not None):
                         if (result.strip() == proc_params[1]):

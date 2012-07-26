@@ -18,6 +18,11 @@ from muddled.depend import Label, Action, normalise_checkout_label
 from muddled.utils import domain_subpath, GiveUp, MuddleBug, LabelType, LabelTag
 from muddled.repository import Repository
 from muddled.version_control import split_vcs_url, checkout_from_repo
+from muddled.version_stamp import ReleaseSpec
+
+# Temporarily - in a later version of muddle we will be getting this from
+# muddled.depend
+from muddled.licenses import _normalise_checkout_label as normalise_checkout_label
 
 class ErrorInBuildDescription(GiveUp):
     """We want to be able to distinguish this exception *in this module*
@@ -38,6 +43,7 @@ def check_build_name(name):
         raise GiveUp("Build name '%s' is not allowed (it may only contain"
                      " 'A'-'Z', 'a'-'z', '0'-'9', '_' or '-')"%name)
 
+
 class Invocation(object):
     """
     An invocation is the central muddle object. It holds the
@@ -51,11 +57,15 @@ class Invocation(object):
         'root_path' (the directory containing the ".muddle" and "src"
         directories for the build).
 
-        * self.db         - The metadata database for this project.
-        * self.ruleset    - The rules describing this build
-        * self.env        - A dictionary of label to environment
+        * self.db - The metadata database for this project.
+        * self.ruleset - The rules describing this build
+        * self.env - A dictionary of label to environment
         * self.default_roles - The roles to build when you don't specify any.
-        * self.default_deployment_labels - The deployments to deploy ditto
+          These will also be used for "guessing" a role for a package when one
+          is not specified. '_default_roles' is calculated from this.
+        * self.default_deployment_labels - The deployments to deploy when you
+          don't specify any specific roles. This is the meaning of
+          '_default_deployments'.
 
         There are then a series of values used in managing subdomains:
 
@@ -561,16 +571,9 @@ class Invocation(object):
     def checkout_path(self, label):
         """
         Return the path in which the given checkout resides.
-        If 'label' is None, returns the root checkout path
-
-        TODO: No-one uses (I hope) the "None" variant of this call.
-        Deprecate it, extirpate it, please...
         """
-        if label:
-            assert label.type == LabelType.Checkout
-            return self.db.get_checkout_path(label)
-        else:
-            return self.db.get_checkout_path(None)
+        assert label.type == LabelType.Checkout
+        return self.db.get_checkout_path(label)
 
     def packages_using_checkout(self, co_label):
         """
@@ -681,22 +684,16 @@ class Invocation(object):
 
         return p
 
-    def deploy_path(self, deploy, domain=None):
+    def deploy_path(self, label):
         """
-        Where should deployment deploy deploy to?
-
-        This is slightly tricky, but it turns out that the deployment name is
-        what we want.
+        Where should deployment 'label' deploy to?
         """
-        if domain:
-            p = os.path.join(self.db.root_path, domain_subpath(domain), "deploy")
+        assert label.type == LabelType.Deployment
+        if label.domain:
+            p = os.path.join(self.db.root_path, domain_subpath(label.domain), "deploy")
         else:
             p = os.path.join(self.db.root_path, "deploy")
-        if (deploy is not None):
-            p = os.path.join(p, deploy)
-
-        return p
-
+        return os.path.join(p, label.name)
 
     def commit(self):
         """
@@ -762,6 +759,14 @@ class Invocation(object):
 class Builder(object):
     """
     A builder performs actions on an Invocation.
+
+    Don't construct a Builder directly, always use the 'load_builder()'
+    function, or 'minimal_build_tree()' if that is more appropriate.
+
+    * self.what_to_release - a set of entities to build for a release
+      build. It may contain labels and also "special" names, such as
+      '_default_deployments' or even '_all'. You may not include '_release'
+      (did you need to ask?). "_just_pulled" is not allowed either.
     """
 
     def __init__(self, inv, muddle_binary, domain_params = None,
@@ -865,6 +870,13 @@ class Builder(object):
         # or actually None, since we've not set it yet
         # directory with each...
         self.distribution = None
+
+        # By default, we have an "empty" release spec, since we're not
+        # normally a release build
+        self.release_spec = ReleaseSpec()
+
+        # The user has not specified what to build for a release build
+        self.what_to_release = set()
 
         # Should (other) checkouts default to using the same branch as
         # the build description? This is ignored if a checkout already
@@ -1143,47 +1155,140 @@ class Builder(object):
 
     def set_default_variables(self, label, store):
         """
-        Set some global variables used throughout muddle.
+        Muddle defines a variety of environment variables which are available
+        whilst a label is being built. The particular variables provided depend
+        on the type of label being built, or the type of build.
+
+        Package labels are associated with muddle Makefiles, so any environment
+        variable specific to a package label will be available within a muddle
+        Makefile (i.e., commands such as "muddle build" work on package labels).
+
+        All labels
+        ----------
+        ``MUDDLE``
+            The muddle executable itself. This can be used in muddle Makefiles,
+            for instance::
+
+                fred_objdir = $(shell $(MUDDLE) query objdir package:fred{base})
 
         ``MUDDLE_ROOT``
-            Absolute path where the build tree starts.
+            The absolute path to the root of the build tree (where the
+            '.muddle' and 'src' directories are).
+
         ``MUDDLE_LABEL``
             The label currently being built.
+
         ``MUDDLE_KIND``, ``MUDDLE_NAME``, ``MUDDLE_ROLE``, ``MUDDLE_TAG``, ``MUDDLE_DOMAIN``
-            Broken-down bits of the label being built
+            Broken-down bits of the label being built. Values will not exist if
+            the label does not contain them (so if 'label' is a checkout label,
+            ``MUDDLE_ROLE`` will not be set).
+
         ``MUDDLE_OBJ``
-            Where we should build object files for this object - the object
-            directory for packages, the src directory for checkouts, and the
-            deploy directory for deployments.
+            Where we should build object files for this label - the ``obj``
+            directory for packages, the ``src`` directory for checkouts, and the
+            ``deploy`` directory for deployments. See "muddle query objdir".
+
+        Package labels
+        --------------
+        For package labels, we also set:
+
+        ``MUDDLE_OBJ_OBJ``,  ``MUDDLE_OBJ_INCLUDE``,  ``MUDDLE_OBJ_LIB``, ``MUDDLE_OBJ_BIN``
+            ``$(MUDDLE_OBJ)/obj``, ``$(MUDDLE_OBJ)/include``,
+            ``$(MUDDLE_OBJ)/lib``, ``$(MUDDLE_OBJ)/bin``, respectively. Note
+            that we do not *create* these directories - it is up to the muddle
+            Makefile to do so.
+
         ``MUDDLE_INSTALL``
-            Where we should install package files to, if we're a package.
-        ``MUDDLE_DEPLOY_FROM``
-            Where we should deploy from (probably just ``MUDDLE_INSTALL`` with
-            the last component removed)
-        ``MUDDLE_DEPLOY_TO``
-            Where we should deploy to, if we're a deployment.
-        ``MUDDLE``
-            The muddle executable itself.
+            Where we should install package files to.
+
         ``MUDDLE_INSTRUCT``
-            A shortcut to the 'muddle instruct' command for this package, if
-            this is a package build. Unset otherwise.
-        ``MUDDLE_OBJ_OBJ``
-            ``$(MUDDLE_OBJ)/obj``
-        ``MUDDLE_OBJ_INCLUDE``
-            ``$(MUDDLE_OBJ)/include``
-        ``MUDDLE_OBJ_LIB``
-            ``$(MUDDLE_OBJ)/lib``
+            A shortcut to the 'muddle instruct' command for this package.
+            Essentially "$(MUDDLE) instruct $(MUDDLE_LABEL)"
+
+        ``MUDDLE_UNINSTRUCT``
+            A shortcut to the 'muddle uninstruct' command for this package.
+            Essentially "$(MUDDLE) uninstruct $(MUDDLE_LABEL)"
+
         ``MUDDLE_PKGCONFIG_DIRS``
-            Sets pkg-config to look only at packages we are declared to be
-            dependent on, or none if there are not declared dependencies.
+            A path suitable for passing to pkg-config to tell it to look only
+            at packages this label is declared to be dependent on. It will be
+            empty if the label doesn't have any dependencies.
+
         ``MUDDLE_PKGCONFIG_DIRS_AS_PATH``
-            The same values as in ``MODULE_PKGCONFIG_DIRS``, but with items
-            separated by colons.
+            The same as ``MUDDLE_PKGCONFIG_DIRS``, for historical reasons.
+
+        ``MUDDLE_INCLUDE_DIRS``
+            A space separated list of include directories, constructed from
+            the packages that this label depends on. Names will have been
+            intelligently escaped for the shell. Only directories that actually
+            exist will be included.
+
+            Typically used in a muddle Makefile as::
+
+                CFLAGS += $(MUDDLE_INCLUDE_DIRS:%=-I%)
+
+        ``MUDDLE_LIB_DIRS``
+            A space separated list of library directories, constructed from
+            the packages that this label depends on. Names will have been
+            intelligently escaped for the shell. Only directories that actually
+            exist will be included.
+
+            Typically used in a muddle Makefile as::
+
+                LDFLAGS += $(MUDDLE_LIB_DIRS:%=-L%)
+
         ``MUDDLE_LD_LIBRARY_PATH``
             The same values as in ``MUDDLE_LIB_DIRS``, but with items separated
             by colons. This is useful for passing (as LD_LIBRARY_PATH) to
             configure scripts that try to look for libraries when linking test
             programs.
+
+        ``MUDDLE_KERNEL_DIR``
+            If any of the packages that this label depends on has a directory
+            called ``kerneldir`` in its ``obj`` dir (so, in its own terms,
+            $(MUDDLE_OBJ)/kerneldir), then we set this value to that directory.
+            Otherwise it is not set. If there is more than one candidate, then
+            the last found is used (but the order of search is not defined, so
+            this would be confusing).
+
+            If the build tree is building a Linux kernel, it can be useful to
+            build the kernel into a directory of this name.
+
+        ``MUDDLE_KERNEL_SOURCE_DIR``
+            Like ``MUDDLE_KERNEL_DIR``, but it looks for a directory called
+            ``kernelsource``. The same comments apply.
+
+        Deployment labels
+        -----------------
+        For deployment labels we also set:
+
+        ``MUDDLE_DEPLOY_FROM``
+            Where we should deploy from (probably just ``MUDDLE_INSTALL`` with
+            the last component removed)
+
+        ``MUDDLE_DEPLOY_TO``
+            Where we should deploy to, if we're a deployment.
+
+        Release build values
+        --------------------
+        When building in a release tree (typically by use of "muddle release")
+        extra environment variables are set to allow the build to know useful
+        information about the release. In a non-release build, these will all
+        be set to "(unset)".
+
+        ``MUDDLE_RELEASE_NAME``
+            The release name.
+
+        ``MUDDLE_RELEASE_VERSION``
+            The release version.
+
+        ``MUDDLE_RELEASE_HASH``
+            The hash of the release stamp file. This acts as a useful unique
+            identifier for a particular release, as it is calculated from the
+            stamp file information describing all the release checkouts.
+
+            Two releases with the same name and version, but with different
+            checkout information, will have different release hashes.
         """
         store.set("MUDDLE_ROOT", self.invocation.db.root_path)
         store.set("MUDDLE_LABEL", label.__str__())
@@ -1208,6 +1313,7 @@ class Builder(object):
             store.set("MUDDLE_OBJ_LIB", os.path.join(obj_dir, "lib"))
             store.set("MUDDLE_OBJ_INCLUDE", os.path.join(obj_dir, "include"))
             store.set("MUDDLE_OBJ_OBJ", os.path.join(obj_dir, "obj"))
+            store.set("MUDDLE_OBJ_BIN", os.path.join(obj_dir, "bin"))
 
             # include and library dirs are slightly interesting ..
             dep_dirs = self.get_dependent_package_dirs(label)
@@ -1283,7 +1389,22 @@ class Builder(object):
 
         elif (label.type == LabelType.Deployment):
             store.set("MUDDLE_DEPLOY_FROM", self.invocation.role_install_path(label.role))
-            store.set("MUDDLE_DEPLOY_TO", self.invocation.deploy_path(label.name))
+            store.set("MUDDLE_DEPLOY_TO", self.invocation.deploy_path(label))
+
+        if self.release_spec.name is None:
+            store.set("MUDDLE_RELEASE_NAME", "(unset)")
+        else:
+            store.set("MUDDLE_RELEASE_NAME", self.release_spec.name)
+
+        if self.release_spec.version is None:
+            store.set("MUDDLE_RELEASE_VERSION", "(unset)")
+        else:
+            store.set("MUDDLE_RELEASE_VERSION", self.release_spec.version)
+
+        if self.release_spec.hash is None:
+            store.set("MUDDLE_RELEASE_HASH", "(unset)")
+        else:
+            store.set("MUDDLE_RELEASE_HASH", self.release_spec.hash)
 
 
     def kill_label(self, label, useTags = True, useMatch = True):
@@ -1428,6 +1549,47 @@ class Builder(object):
         check_build_name(name)
         self._build_name = name
 
+    def is_release_build(self):
+        """
+        Are we a release build (i.e., a build tree created by "muddle release")?
+
+        We look to see if there is a file called .muddle/Release
+        """
+        return utils.is_release_build(self.invocation.db.root_path)
+
+    def add_to_release_build(self, thing):
+        """Add a thing to the set of entities to build for a release build.
+
+        'thing' must be:
+
+        * a Label
+        * one of the "special" names, "_all", "_default_deployments",
+          "_default_roles".
+        * a sequence of either/both
+
+        It may not be "_release" (!) or "_just_pulled".
+
+        Special names are expanded after all build descriptions have been
+        read.
+
+        The special name "_release" corresponds to this set.
+        """
+        # Surely we have a list of these somewhere else?
+        allowed_names = ('_all', '_default_deployments', '_default_roles')
+
+        if isinstance(thing, Label):
+            self.what_to_release.add(thing)
+        elif isinstance(thing, basestring):
+            if thing in allowed_names:
+                self.what_to_release.add(thing)
+            else:
+                raise GiveUp('%s is not allowed in the "things to release" list\n'
+                             'It is not a label or one of the allowed "special" names (%s)'%(
+                                 thing, ', '.join(allowed_names)))
+        else:
+            # Let's guess it's a sequence, and fall over appropriately if not
+            for item in thing:
+                self.add_to_release_build(item)
 
     def get_all_checkout_labels_below(self, dir):
         """
@@ -1643,29 +1805,90 @@ class BuildDescriptionAction(Action):
     def build_label(self, builder, label):
         """
         Actually load the build description into the invocation.
-        """
-        # TODO: where is 'label' used?
-        desc = builder.invocation.db.build_desc_file_name()
 
-        setup = None # To make sure it's defined.
+        Note that the Python path (sys.path) will have the build description
+        checkout directory added to its start, so that the release_from()
+        function itself can import things therefrom.
+        """
+        setup = dynamic_load_build_desc(builder)
+        checkout_dir = builder.invocation.checkout_path(builder.build_desc_label)
+
+        old_path = sys.path
+        sys.path.insert(0, checkout_dir)
         try:
-            old_path = sys.path
-            # TODO: should we use a domain?
-            tmp = Label(LabelType.Checkout, self.build_co)
-            sys.path.insert(0, builder.invocation.checkout_path(tmp))
-            setup = utils.dynamic_load(desc)
             setup.describe_to(builder)
+        except Exception as a:
+            traceback.print_exc()
+            filename = builder.invocation.db.build_desc_file_name()
+            raise GiveUp('Cannot run "describe_to(builder)"\n'
+                         '  In build description %s\n'
+                         '  %s: %s'%(filename, a.__class__.__name__, a))
+        finally:
             sys.path = old_path
-        except AttributeError, a:
-            if setup is None:
-                traceback.print_exc()
-                print "Cannot load %s - %s"%(desc, a)
-            else:
-                traceback.print_exc()
-                print "No describe_to() attribute in module %s"%setup
-                print "Available attributes: %s"%(dir(setup))
-                print "Error was %s"%str(a)
-                raise MuddleBug("Cannot load build description %s"%setup)
+
+def run_release_from(builder, release_dir):
+    """Run the build descriptions "release_from()" function.
+
+    'release_dir' is the path to the directory where the release is being
+    assembled, which will become the final release archive/tarball.
+
+    The function is called as::
+
+        release_from(builder, release_dir)
+
+    We only run the "release_from()" in the top-level build description.
+
+    Note that the Python path (sys.path) will have the build description
+    checkout directory added to its start, so that the release_from()
+    function itself can import things therefrom.
+    """
+    setup = dynamic_load_build_desc(builder)
+    checkout_dir = builder.invocation.checkout_path(builder.build_desc_label)
+
+    old_path = sys.path
+    sys.path.insert(0, checkout_dir)
+    try:
+        setup.release_from(builder, release_dir)
+    except Exception as a:
+        traceback.print_exc()
+        filename = builder.invocation.db.build_desc_file_name()
+        raise GiveUp('Cannot run "release_from(builder, release_dir)"\n'
+                     '  In build description %s\n'
+                     '  %s: %s'%(filename, a.__class__.__name__, a))
+    finally:
+        sys.path = old_path
+
+def dynamic_load_build_desc(builder):
+    """Dynamically load the build description for this builder.
+
+    Specifically, load the top-level build description. At the moment we do
+    not provide support for (re)loading subdomain build descriptions.
+
+        (When each build description is first read, it is always the top-level
+        build description of its own build.)
+
+    Note that the Python path (sys.path) will have the build description
+    checkout directory added to its start, so that the build description
+    can import things therefrom.
+
+    Returns the apropriate module
+    """
+    # We know the name of the build description within its checkout
+    filename = builder.invocation.db.build_desc_file_name()
+    # And since we know its label, we can look up its directory
+    checkout_dir = builder.invocation.checkout_path(builder.build_desc_label)
+
+    old_path = sys.path
+    sys.path.insert(0, checkout_dir)
+    try:
+        return utils.dynamic_load(filename)
+    except AttributeError as a:
+        traceback.print_exc()
+        print "Cannot load %s: %s"%(filename, a)
+        raise MuddleBug("Cannot load build description %s"%filename)
+    finally:
+        sys.path = old_path
+
 
 def load_builder(root_path, muddle_binary, params = None,
                  default_domain = None):
@@ -1674,17 +1897,17 @@ def load_builder(root_path, muddle_binary, params = None,
     """
 
     inv = Invocation(root_path)
-    build = Builder(inv, muddle_binary, params, default_domain = default_domain)
-    can_load = build.load_build_description()
-    if (not can_load):
+    builder = Builder(inv, muddle_binary, params, default_domain = default_domain)
+    can_load = builder.load_build_description()
+    if not can_load:
         return None
 
-    # We shouldn't have changed the RootRepository, Description or
-    # VersionsRepository file, so there's no particular reason to
-    # write them back out - and if we do, I believe it (occasionally)
-    # goes wrong and leaves a file blank
-    ##inv.commit()  # XXX
-    return build
+    # Are we a release build?
+    if builder.is_release_build():
+        release_spec_file = os.path.join(root_path, '.muddle', 'ReleaseSpec')
+        builder.release_spec = ReleaseSpec.from_file(release_spec_file)
+
+    return builder
 
 
 def minimal_build_tree(muddle_binary, root_path, repo_location, build_desc, versions_repo=None):
@@ -1841,6 +2064,10 @@ def _new_sub_domain(root_path, muddle_binary, domain_name, domain_repo, domain_b
     env = domain_builder.invocation.env
     for l in env.keys():
         labels.append(l)
+
+    # Note that we are *not* adding in the labels in
+    # domain_builder.what_to_release, because we explicitly say that
+    # what to release is only set by the top-level build.
 
     ruleset = domain_builder.invocation.ruleset
 

@@ -33,8 +33,7 @@ class ToolsDeploymentBuilder(Action):
                                 "unrecognised tools deployment label %s"%(label))
 
     def deploy(self, builder, label):
-        deploy_dir = builder.invocation.deploy_path(label.name,
-                                                    domain = label.domain)
+        deploy_dir = builder.invocation.deploy_path(label)
 
         utils.recursively_remove(deploy_dir)
         utils.ensure_dir(deploy_dir)
@@ -75,7 +74,8 @@ def attach_env(builder, role, env, name):
     env.set_external("PATH")
     env.set_external("PKG_CONFIG_PATH")
 
-    deploy_base = builder.invocation.deploy_path(name)
+    deploy_label = depend.Label(utils.LabelType.Deployment, name)
+    deploy_base = builder.invocation.deploy_path(deploy_label)
 
     env.ensure_prepended("LD_LIBRARY_PATH", os.path.join(deploy_base, "lib"))
     env.ensure_prepended("PKG_CONFIG_PATH", os.path.join(deploy_base, "lib", "pkgconfig"))

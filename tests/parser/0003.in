@@ -1,3 +1,0 @@
-How about a function?
-
-Hello, I am ${fn:val("/top/my-name-is")} .

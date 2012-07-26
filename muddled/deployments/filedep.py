@@ -99,7 +99,7 @@ class FileDeploymentBuilder(Action):
             raise utils.GiveUp("Attempt to build a deployment with an unexpected tag in label %s"%(label))
 
     def deploy(self, builder, label):
-        deploy_dir = builder.invocation.deploy_path(label.name, domain = label.domain)
+        deploy_dir = builder.invocation.deploy_path(label)
         # First off, delete the target directory
 
         utils.recursively_remove(deploy_dir)
@@ -178,7 +178,7 @@ class FileDeploymentBuilder(Action):
                                "*",
                                domain = domain)
 
-            deploy_dir = builder.invocation.deploy_path(label.name, domain = label.domain)
+            deploy_dir = builder.invocation.deploy_path(label)
 
             instr_list = builder.load_instructions(lbl)
             for (lbl, fn, instrs) in instr_list:

@@ -17,6 +17,7 @@ Contents:
    repositories
    instructions
    distribute
+   release
    jottings
    muddle_patch.README
    muddle-useful

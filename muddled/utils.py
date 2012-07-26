@@ -28,7 +28,42 @@ try:
 except:
     curses = None
 
-class MuddleBug(Exception):
+class GiveUp(Exception):
+    """
+    Use this to indicate that something has gone wrong and we are giving up.
+
+    This is not an error in muddle itself, however, so there is no need for
+    a traceback.
+
+    By default, a return code of 1 is indicated by the 'retcode' value - this
+    can be set by the caller to another value, which __main__.py should then
+    use as its return code if the exception reaches it.
+    """
+
+    # We provide a single attribute, which is used to specify the exit code
+    # to use when a command line handler gets back a GiveUp exception.
+    retcode = 1
+
+    def __init__(self, message=None, retcode=1):
+        self.message = message
+        self.retcode = retcode
+
+    def __str__(self):
+        if self.message is None:
+            return ''
+        else:
+            return self.message
+
+    def __repr__(self):
+        parts = []
+        if self.message is not None:
+            parts.append(repr(self.message))
+        if self.retcode != 1:
+            parts.append('%d'%self.retcode)
+        return 'GiveUp(%s)'%(', '.join(parts))
+
+
+class MuddleBug(GiveUp):
     """
     Use this to indicate that something has gone wrong with muddle itself.
 
@@ -36,14 +71,6 @@ class MuddleBug(Exception):
     """
     pass
 
-class GiveUp(Exception):
-    """
-    Use this to indicate that something has gone wrong and we are giving up.
-
-    This is not an error in muddle itself, however, so there is no need for
-    a traceback.
-    """
-    pass
 
 class Unsupported(GiveUp):
     """
@@ -350,7 +377,7 @@ def find_label_dir(builder, label):
     elif label.type == LabelType.Package:
         dir = builder.invocation.package_install_path(label)
     elif label.type == LabelType.Deployment:
-        dir = builder.invocation.deploy_path(label.name, domain=label.domain)
+        dir = builder.invocation.deploy_path(label)
     else:
         dir = None
     return dir
@@ -404,6 +431,19 @@ def find_local_relative_root(builder, label):
     top_root = normalise_dir(top_root)
 
     return os.path.relpath(local_root, top_root)
+
+def is_release_build(dir):
+    """
+    Check if the given 'dir' is the top level of a release build.
+
+    'dir' should be the path to the directory contining the build's
+    ``.muddle`` directory (the "top" of the build).
+
+    The build is assumed to be a release build if there is a file called
+    ``.muddle/ReleaseSpec``.
+    """
+    file_name = os.path.join(dir, '.muddle', "ReleaseSpec")
+    return os.path.exists(file_name)
 
 def ensure_dir(dir, verbose=True):
     """
@@ -644,19 +684,25 @@ def truncate(text, columns=None, less=0):
 
 
 def dynamic_load(filename):
-    if (filename == None):
-        raise MuddleBug(\
-            "Attempt to call DynamicLoad() with filename None")
     try:
-        with open(filename, 'rb') as fin:
-            contents = fin.read()
+        try:
+            with open(filename, 'rb') as fin:
+                contents = fin.read()
+        except IOError as e:
+            if e.errno == errno.ENOENT:
+                raise GiveUp('No such file: %s'%filename)
+            else:
+                raise GiveUp('Cannot open file %s\n%s\n'%(filename, e))
         hasher = hashlib.md5()
         hasher.update(contents)
         md5_digest = hasher.hexdigest()
         return imp.load_source(md5_digest, filename)
+    except GiveUp:
+        raise
     except Exception:
         raise GiveUp("Cannot load build description %s:\n"
                        "%s"%(filename, traceback.format_exc()))
+
 
 def do_shell_quote(str):
     return maybe_shell_quote(str, True)

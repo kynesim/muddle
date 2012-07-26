@@ -72,8 +72,7 @@ class AssemblyDescriptor(object):
             else:
                 return builder.invocation.package_obj_path(self.from_label)
         elif (self.from_label.type == utils.LabelType.Deployment):
-            return builder.invocation.deploy_path(self.from_label.name,
-                                                  domain=self.from_label.domain)
+            return builder.invocation.deploy_path(self.from_label)
         else:
             raise utils.GiveUp("Label %s for collection action has unknown kind."%(self.from_label))
 
@@ -102,7 +101,7 @@ class CollectDeploymentBuilder(Action):
         Actually do the copies ..
         """
 
-        utils.ensure_dir(builder.invocation.deploy_path(label.name, domain=label.domain))
+        utils.ensure_dir(builder.invocation.deploy_path(label))
 
         if (label.tag == utils.LabelTag.Deployed):
             self.apply_instructions(builder, label, True)
@@ -115,7 +114,7 @@ class CollectDeploymentBuilder(Action):
     def deploy(self, builder, label):
         for asm in self.assemblies:
             src = os.path.join(asm.get_source_dir(builder), asm.from_rel)
-            dst = os.path.join(builder.invocation.deploy_path(label.name, domain=label.domain),
+            dst = os.path.join(builder.invocation.deploy_path(label),
                                asm.to_name)
 
             if (not os.path.exists(src)):
@@ -195,7 +194,7 @@ class CollectDeploymentBuilder(Action):
             if not asm.obeyInstructions:
                 continue
 
-            deploy_dir = builder.invocation.deploy_path(label.name, domain = label.domain)
+            deploy_dir = builder.invocation.deploy_path(label)
 
             instr_list = builder.load_instructions(lbl)
             for (lbl, fn, instrs) in instr_list:

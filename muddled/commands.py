@@ -24,6 +24,7 @@ import pydoc
 import shutil
 import subprocess
 import sys
+import tarfile
 import tempfile
 import textwrap
 import time
@@ -46,7 +47,7 @@ from muddled.utils import GiveUp, MuddleBug, Unsupported, \
         DirType, LabelTag, LabelType, find_label_dir
 from muddled.version_control import split_vcs_url, checkout_from_repo
 from muddled.repository import Repository
-from muddled.version_stamp import VersionStamp
+from muddled.version_stamp import VersionStamp, ReleaseStamp, ReleaseSpec
 from muddled.licenses import print_standard_licenses, get_gpl_checkouts, \
         get_not_licensed_checkouts, get_implicit_gpl_checkouts, \
         get_license_clashes, licenses_in_role, get_license_clashes_in_role
@@ -152,7 +153,7 @@ def subcommand(main_command, sub_command, category, aliases=None):
 
 class Command(object):
     """
-    Abstract base class for muddle commands
+    Abstract base class for muddle commands. Stuffed with helpful functionality.
 
     Each subclass is a ``muddle`` command, and its docstring is the "help"
     text for that command.
@@ -189,6 +190,13 @@ class Command(object):
         """
         Returns True iff this command requires an initialised
         build tree, False otherwise.
+        """
+        return True
+
+    def allowed_in_release_build(self):
+        """
+        Returns True iff this command is allowed in a release build
+        (a build tree that has been created using "muddle release").
         """
         return True
 
@@ -242,14 +250,82 @@ class Command(object):
     def with_build_tree(self, builder, current_dir, args):
         """
         Run this command with a build tree.
+
+        Arguments are:
+
+        * 'builder' is the Builder instance, as constructed from the build
+          tree we are in.
+
+        * 'current_dir' is the current directory.
+
+        * 'args' - this is any other arguments given to muddle, that occurred
+          after the command name.
         """
         raise GiveUp("Can't run %s with a build tree."%self.cmd_name)
 
-    def without_build_tree(self, muddle_binary, root_path, args):
+    def without_build_tree(self, muddle_binary, current_dir, args):
         """
         Run this command without a build tree.
+
+        Arguments are:
+
+        * 'muddle_binary' is the location of the muddle binary - this is only
+          needed if "muddle" is going to be run explicitly, or if a
+          Makefile.muddle is going to use $(MUDDLE_BINARY)
+
+        * 'current_dir' is the current directory.
+
+        * 'args' - this is any other arguments given to muddle, that occurred
+          after the command name.
         """
         raise GiveUp("Can't run %s without a build tree."%self.cmd_name)
+
+    def check_for_broken_build(self, current_dir):
+        """Check to see if there is a "partial" build in the current directory.
+
+        Intended for use in 'without_build_tree()', in classes such as UnStamp,
+        which want to operate in an empty directory (or, at least, one without
+        a muddle build tree in it).
+
+        The top-level muddle code does a simple check for whether there is a
+        build tree in the current directory before calling a
+        'without_build_tree()' method, but sometimes we want to be a bit more
+        careful and check for a "partial" build tree, presumably left by a
+        previous, failed, command.
+
+        If it finds a problem, it prints out a description of the problem,
+        and raises a GiveUp error with retcode 4, so that muddle will exit
+        with exit code 4.
+        """
+        dir, domain = utils.find_root_and_domain(current_dir)
+        if dir:
+            print
+            print 'Found a .muddle directory in %s'%dir
+            if dir == current_dir:
+                print '(which is the current directory)'
+            else:
+                print 'The current directory is     %s'%current_dir
+            print
+            got_src = os.path.exists(os.path.join(dir,'src'))
+            got_dom = os.path.exists(os.path.join(dir,'domains'))
+            if got_src or got_dom:
+                extra = ', and also the '
+                if got_src: extra += '"src/"'
+                if got_src and got_dom: extra += ' and '
+                if got_dom: extra += '"domains/"'
+                if got_src and got_dom:
+                    extra += ' directories '
+                else:
+                    extra += ' directory '
+                extra += 'alongside it'
+            else:
+                extra = ''
+            print utils.wrap('This presumably means that the current directory is'
+                             ' inside a broken or partial build. Please fix this'
+                             ' (e.g., by deleting the ".muddle/" directory%s)'
+                             ' before retrying the "%s" command.'%(extra, self.cmd_name))
+            raise GiveUp(retcode=4)
+
 
 class CPDCommand(Command):
     """
@@ -300,14 +376,13 @@ class CPDCommand(Command):
             if word == '_all':
                 initial_list.extend(self.interpret_all(builder))
             elif word == '_default_roles':
-                for role in builder.invocation.default_roles:
-                    label = Label(LabelType.Package, '*', role, LabelTag.PostInstalled)
-                    labels = builder.invocation.expand_wildcards(label)
-                    initial_list.extend(labels)
+                initial_list.extend(self.interpret_default_roles(builder))
             elif word == '_default_deployments':
                 initial_list.extend(builder.invocation.default_deployment_labels)
             elif word == '_just_pulled':
                 initial_list.extend(builder.invocation.db.just_pulled.get())
+            elif word == '_release':
+                initial_list.extend(self.interpret_release(builder))
             else:
                 labels = label_from_fragment(word, default_type=self.required_type)
 
@@ -499,6 +574,55 @@ class CPDCommand(Command):
         """
         raise MuddleBug('No "interpret_all" method provided for command "%s"'%self.cmd_name)
 
+    def interpret_default_roles(self, builder):
+        """Return the result of argument "_default_roles"
+        """
+        results = []
+        for role in builder.invocation.default_roles:
+            label = Label(LabelType.Package, '*', role, LabelTag.PostInstalled)
+            labels = builder.invocation.expand_wildcards(label)
+            results.extend(labels)
+        return results
+
+    def interpret_release(self, builder):
+        """Return the result of argument "_release"
+        """
+        results = []
+        expand_wildcards = builder.invocation.expand_wildcards
+        for thing in builder.what_to_release:
+            if isinstance(thing, Label):
+                # It may be a wildcarded label, so try expanding it
+                labels = expand_wildcards(thing)
+
+                used_labels = []
+                # We're only interested in any labels that are actually used
+                for label in labels:
+                    if builder.invocation.target_label_exists(label):
+                        used_labels.append(label)
+
+                # But it's an error if none of them were wanted
+                if not used_labels:
+                    raise GiveUp(self.diagnose_unused_labels(builder, labels, str(thing)))
+
+                results.extend(used_labels)
+
+            elif thing == '_all':
+                results.extend(self.interpret_all(builder))
+            elif thing == '_default_roles':
+                results.extend(self.interpret_default_roles(builder))
+            elif thing == '_default_deployments':
+                results.extend(builder.invocation.default_deployment_labels)
+            elif thing == '_just_pulled':
+                raise GiveUp('_release may not contain _just_pulled (it varies too much):\n'
+                             '%s'%(builder.what_to_release))
+            elif thing == '_release':
+                raise GiveUp('_release may not contain _release (how did that get there?):\n'
+                             '%s'%(builder.what_to_release))
+            else:
+                raise GiveUp('_release contain "%s" (which we don\'t understand):\n'
+                             '%s'%(builder.what_to_release))
+        return results
+
     def interpret_labels(self, builder, args, initial_list):
         """
         Turn 'initial_list' into a list of labels of the required type.
@@ -525,6 +649,10 @@ class CheckoutCommand(CPDCommand):
     required_type = LabelType.Checkout
     # Subclasses should override the following as necessary
     required_tag = LabelTag.CheckedOut
+
+    # In general, these commands are not allowed in release builds
+    def allowed_in_release_build(self):
+        return False
 
     def interpret_all(self, builder):
         """Return the result of argument "_all"
@@ -949,6 +1077,8 @@ class Help(Command):
       muddle help aliases        says which commands have more than one name
       muddle help vcs [name]     name the supported version control systems,
                                  or give details about one in particular
+      muddle help environment    list the environment variables muddle defines
+                                 for use in muddle Makefiles
 
     <switch> may be::
 
@@ -965,7 +1095,7 @@ Usage:
 Available <options> are:
 
   --help, -h, -?      This help text
-  --tree <dir>        Use the muddle build tree at <dir>
+  --tree <dir>        Use the muddle build tree at <dir>.
   --just-print, -n    Just print what muddle would have done. For commands that
                       'do something', just print out the labels for which that
                       action would be performed. For commands that "enquire"
@@ -974,8 +1104,10 @@ Available <options> are:
                       being run from. Note that this uses git to interrogate
                       the .git/ directory in the muddle source directory.
 
-If you don't give --tree, muddle will traverse directories up to the root to
-try and find a .muddle directory, which signifies the top of the build tree.
+Muddle always starts by looking for a build tree, signified by the presence of
+a .muddle directory. If you give --tree, then it will look in the directory
+given, otherwise, it will traverse directories from the current directory up
+to the root.
 """
 
     labels_help = """\
@@ -1228,7 +1360,7 @@ the parentheses. So, for instance, use:
     def with_build_tree(self, builder, current_dir, args):
         self.print_help(args)
 
-    def without_build_tree(self, muddle_binary, root_path, args):
+    def without_build_tree(self, muddle_binary, current_dir, args):
         self.print_help(args)
 
     def print_help(self, args):
@@ -1273,6 +1405,9 @@ the parentheses. So, for instance, use:
 
         if args[0] == "vcs":
             return self.help_vcs(args[1:])
+
+        if args[0] == "environment":
+            return self.help_environment(args[1:])
 
         if len(args) == 1:
             cmd = args[0]
@@ -1400,6 +1535,17 @@ the parentheses. So, for instance, use:
             str_list.append(version_control.list_registered(indent='  '))
             return "".join(str_list)
 
+    def help_environment(self, args):
+        """
+        Return help on MUDDLE_xxx environment variables
+        """
+        text = mechanics.Builder.set_default_variables.__doc__
+        text = textwrap.dedent(text)
+        text = text.replace("``", "'")
+        return ('Muddle environment variables\n'
+                '============================\n'
+                '%s'%text)
+
     def help_all(self):
         """
         Return help for all commands
@@ -1517,7 +1663,7 @@ class Init(Command):
         raise GiveUp("Can't initialise a build tree "
                     "when one already exists (%s)"%builder.invocation.db.root_path)
 
-    def without_build_tree(self, muddle_binary, root_path, args):
+    def without_build_tree(self, muddle_binary, current_dir, args):
         """
         Initialise a build tree.
         """
@@ -1527,19 +1673,19 @@ class Init(Command):
         repo = args[0]
         build = args[1]
 
-        print "Initialising build tree in %s "%root_path
+        print "Initialising build tree in %s "%current_dir
         print "Repository: %s"%repo
         print "Build description: %s"%build
 
         if self.no_op():
             return
 
-        db = Database(root_path)
+        db = Database(current_dir)
         db.setup(repo, build)
 
         print
         print "Checking out build description .. \n"
-        mechanics.load_builder(root_path, muddle_binary)
+        mechanics.load_builder(current_dir, muddle_binary)
 
         print "Done.\n"
 
@@ -1602,6 +1748,9 @@ class Bootstrap(Command):
     def requires_build_tree(self):
         return False
 
+    def allowed_in_release_build(self):
+        return False
+
     def with_build_tree(self, builder, current_dir, args):
         if args[0] != '-subdomain':
             raise GiveUp("Can't bootstrap a build tree when one already"
@@ -1616,7 +1765,7 @@ class Bootstrap(Command):
 
         self.bootstrap(current_dir, args)
 
-    def without_build_tree(self, muddle_binary, root_path, args):
+    def without_build_tree(self, muddle_binary, current_dir, args):
         """
         Bootstrap a build tree.
         """
@@ -1625,7 +1774,7 @@ class Bootstrap(Command):
             print 'You are not currently within a build tree. "-subdomain" ignored'
             args = args[1:]
 
-        self.bootstrap(root_path, args)
+        self.bootstrap(current_dir, args)
 
     def bootstrap(self, root_path, args):
         if len(args) != 2:
@@ -1660,6 +1809,9 @@ class Bootstrap(Command):
 
                              def describe_to(builder):
                                  builder.build_name = '{name}'
+
+                             def release_from(builder, release_dir):
+                                 pass
                              '''.format(name=build_name)
         with utils.NewDirectory(build_dir):
             with open(build_desc_filename, "w") as fd:
@@ -1824,7 +1976,7 @@ class QueryDistributions(QueryCommand):
                                      ', '.join(the_distributions[name]))
         print '(those marked with a "*" have content set by this build)'
 
-    def without_build_tree(self, muddle_binary, root_path, args):
+    def without_build_tree(self, muddle_binary, current_dir, args):
         names = get_distribution_names()
         print 'Standard distributions are:\n'
         maxlen = len(max(names, key=len))
@@ -1847,7 +1999,7 @@ class QueryVCS(QueryCommand):
     def with_build_tree(self, builder, current_dir, args):
         self.do_command()
 
-    def without_build_tree(self, muddle_binary, root_path, args):
+    def without_build_tree(self, muddle_binary, current_dir, args):
         self.do_command()
 
     def do_command(self):
@@ -2143,7 +2295,7 @@ class QueryLicenses(QueryCommand):
     def with_build_tree(self, builder, current_dir, args):
         print_standard_licenses()
 
-    def without_build_tree(self, muddle_binary, root_path, args):
+    def without_build_tree(self, muddle_binary, current_dir, args):
         print_standard_licenses()
 
 @subcommand('query', 'domains', CAT_QUERY)
@@ -3042,6 +3194,91 @@ class QueryKernelver(QueryCommand):
         label = self.get_label_from_fragment(builder, args)
         print self.kernel_version(builder, label)
 
+@subcommand('query', 'release', CAT_QUERY)
+class QueryRelease(QueryCommand):
+    """
+    :Syntax: muddle query release [-labels]
+
+    Print information about this build as a release, including the release
+    specification, and the "translation" of the special "_release" argument.
+
+        (That content, what is to be released, is defined in the build
+        description, using 'builder.add_to_release_build()'.)
+
+    For instance::
+
+        $ muddle query release
+        This is a release build
+        Release spec:
+          name        = simple
+          version     = v1.0
+          archive     = tar
+          compression = gzip
+          hash        = c7c10cf4d6da4519714ac334a983ab518c68c5d1
+        What to release (the meaning of "_release", before expansion):
+          _default_deployments
+          package:(subdomain2)second_pkg{x86}/*
+
+    or::
+
+        $ muddle query release
+        This is NOT a release build
+        Release spec:
+          name        = None
+          version     = None
+          archive     = tar
+          compression = gzip
+          hash        = None
+        What to release (the meaning of "_release", before expansion):
+          _default_deployments
+          package:(subdomain2)second_pkg{x86}/*
+
+    If nothing has been designated for release, then that final clause will be
+    replaced with::
+
+        What to release (the meaning of "_release"):
+          <nothing defined>
+
+    With the '-labels' switch, just prints out that last list of "what to
+    release"::
+
+         $ muddle query release -labels
+         _default_deployments
+         package:(subdomain2)second_pkg{x86}/*
+
+    The '-labels' variant prints nothing out if nothing has been designated
+    for release.
+    """
+
+    allowed_switches = {'-labels': 'labels'}
+
+    def with_build_tree(self, builder, current_dir, args):
+
+        args = self.remove_switches(args, allowed_more=False)
+
+        what_to_release = builder.what_to_release
+        if 'labels' in self.switches:
+            if what_to_release:
+                for thing in sorted(map(str,what_to_release)):
+                    print '%s'%thing
+        else:
+            if builder.is_release_build():
+                print 'This is a release build'
+            else:
+                print 'This is NOT a release build'
+            print 'Release spec:'
+            print '  name        = %s'%builder.release_spec.name
+            print '  version     = %s'%builder.release_spec.version
+            print '  archive     = %s'%builder.release_spec.archive
+            print '  compression = %s'%builder.release_spec.compression
+            print '  hash        = %s'%builder.release_spec.hash
+            print 'What to release (the meaning of "_release", before expansion):'
+            if what_to_release:
+                for thing in sorted(map(str,what_to_release)):
+                    print '  %s'%thing
+            else:
+                print '  <nothing defined>'
+
 @command('where', CAT_QUERY, ['whereami'])
 class Whereami(Command):
     """
@@ -3123,7 +3360,7 @@ class Whereami(Command):
                 rv = '%s in subdomain %s'%(rv, domain)
             print rv
 
-    def without_build_tree(self, muddle_binary, root_path, args):
+    def without_build_tree(self, muddle_binary, current_dir, args):
         detail = self.want_detail(args)
         if detail:
             print 'None None None'
@@ -3156,7 +3393,7 @@ class Doc(Command):
     def with_build_tree(self, builder, current_dir, args):
         self.doc_for(args)
 
-    def without_build_tree(self, muddle_binary, root_path, args):
+    def without_build_tree(self, muddle_binary, current_dir, args):
         self.doc_for(args)
 
     def doc_for(self, args):
@@ -3341,7 +3578,7 @@ class StampSave(Command):
 
         stamp, problems = VersionStamp.from_builder(builder, force, just_use_head, before=when)
 
-        working_filename = 'working.stamp'
+        working_filename = '_temporary.stamp'
         print 'Writing to',working_filename
         hash = stamp.write_to_file(working_filename, version=version)
         print 'Wrote revision data to %s'%working_filename
@@ -3425,6 +3662,11 @@ class StampVersion(Command):
     def requires_build_tree(self):
         return True
 
+    # We don't allow this in a release build because it wants to add the
+    # stamp file to the VCS in the versions/ directory
+    def allowed_in_release_build(self):
+        return False
+
     def with_build_tree(self, builder, current_dir, args):
         force = False
         version = 2
@@ -3487,6 +3729,136 @@ class StampVersion(Command):
                     print 'Adding version stamp file to VCS'
                     version_control.vcs_init_directory(vcs_name, [version_filename])
 
+@subcommand('stamp', 'release', CAT_EXPORT)
+class StampRelease(Command):
+    """
+    :Syntax: muddle stamp release [<switches>] <release-name> <release-version>
+    :or:     muddle stamp release [<switches>] -template
+
+    This is similar to "stamp version", but saves a release stamp file - a
+    stamp file that describes a release of the build tree.
+
+    The release stamp file written will be called::
+
+        versions/<release_name>_<release_version>.release
+
+    The "versions/" directory is at the build root (i.e., it is a sibling of
+    the ".muddle/" and "src/" directories). If it does not exist, it will be
+    created.
+
+      If the VersionsRepository is set (in the .muddle/ directory), and it is
+      a distributed VCS (e.g., git or bzr) then ``git init`` (or ``bzr init``,
+      or the equivalent) will be done in the directory if necessary, and then
+      the file will be added to the local working set in that directory.
+      For subversion, the file adding will be done, but no attempt will be
+      made to initialise the directory.
+
+    If the ``-template`` option is used, then the file created will be called::
+
+        versions/this-is-not-a-file-name.release
+
+    and both the release name and release version values in the file will be
+    set to ``<REPLACE THIS>``. The user will have to rename the file, and edit
+    both of those to sensible values, before using it (well, we don't enforce
+    renaming the file, but...).
+
+    <switches> may be:
+
+    * -archive <name>
+
+      This specifies how the release will be archived. At the moment the only
+      permitted value is "tar".
+
+    * -compression <name>
+
+       This specifies how the archive will be compressed. The default is
+       "gzip", and at the moment the only other alternative is "bzip2".
+
+    See "muddle release" for using release files to build a release.
+
+    Note that release files are also valid stamp files, so "muddle unstamp"
+    can be used to retore a build tree from them.
+    """
+
+    def requires_build_tree(self):
+        return True
+
+    # We don't allow this in a release build because it already is a release
+    # build, and we thus *have* a release stamp file somewhere
+    def allowed_in_release_build(self):
+        return False
+
+    def with_build_tree(self, builder, current_dir, args):
+        name = None
+        version = None
+        archive = None
+        compression = None
+        is_template = False
+
+        while args:
+            word = args.pop(0)
+            if word == '-template':
+                is_template = True
+            elif word == '-archive':
+                archive = args.pop(0)
+            elif word == '-compression':
+                compression = args.pop(0)
+            elif word.startswith('-'):
+                raise GiveUp("Unexpected switch '%s' for 'stamp release'"%word)
+            elif name is None:
+                name = word
+            elif version is None:
+                version = word
+            else:
+                raise GiveUp("Unexpected argument '%s' for 'stamp release'"%word)
+
+        if is_template and (name or version):
+            raise GiveUp('Cannot specify -template and release name or version')
+        if not is_template and (name is None or version is None):
+            raise GiveUp('Must specify either -template or both a release name and version')
+
+        if self.no_op():
+            return
+
+        release = ReleaseSpec(name, version, archive, compression)
+        builder.release_spec = release
+
+        stamp, problems = ReleaseStamp.from_builder(builder)
+
+        if problems:
+            print problems
+            raise GiveUp('Problems prevent writing release stamp file')
+
+        version_dir = os.path.join(builder.invocation.db.root_path, 'versions')
+        if not os.path.exists(version_dir):
+            print 'Creating directory %s'%version_dir
+            os.mkdir(version_dir)
+
+        working_filename = os.path.join(version_dir, '_temporary.stamp')
+        print 'Writing to',working_filename
+        hash = stamp.write_to_file(working_filename)
+        print 'Wrote revision data to %s'%working_filename
+        print 'File has SHA1 hash %s'%hash
+
+        if is_template:
+            version_filename = 'this-is-not-a-file-name.release'
+        else:
+            version_filename = "%s_%s.release"%(name, version)
+
+        final_name = os.path.join(version_dir, version_filename)
+        print 'Renaming %s to %s'%(working_filename, final_name)
+        os.rename(working_filename, final_name)
+
+        db = builder.invocation.db
+        versions_url = db.versions_repo.from_disc()
+        if versions_url:
+            with utils.Directory(version_dir):
+                vcs_name, just_url = version_control.split_vcs_url(versions_url)
+                if vcs_name:
+                    print 'Adding release stamp file to VCS'
+                    version_control.vcs_init_directory(vcs_name, [version_filename])
+
+
 @subcommand('stamp', 'diff', CAT_EXPORT)
 class StampDiff(Command):
     """
@@ -3534,7 +3906,7 @@ class StampDiff(Command):
     def print_syntax(self):
         print ':Syntax: muddle stamp diff [<style>] <path1> <path2> [<output_file>]'
 
-    def without_build_tree(self, muddle_binary, root_path, args):
+    def without_build_tree(self, muddle_binary, current_dir, args):
         if not args:
             raise GiveUp("'stamp diff' needs two paths (stamp file or build tree) to compare")
         self.compare_stamps(muddle_binary, args)
@@ -3801,6 +4173,10 @@ class StampPush(Command):
     def requires_build_tree(self):
         return True
 
+    # In general, VCS operations are not allowed in release builds
+    def allowed_in_release_build(self):
+        return False
+
     def with_build_tree(self, builder, current_dir, args):
         if len(args) > 1:
             raise GiveUp("Unexpected argument '%s' for 'stamp push'"%' '.join(args))
@@ -3862,6 +4238,9 @@ class StampPull(Command):
 
     def requires_build_tree(self):
         return True
+
+    def allowed_in_release_build(self):
+        return False
 
     def with_build_tree(self, builder, current_dir, args):
         if len(args) > 1:
@@ -4040,6 +4419,9 @@ class UnStamp(Command):
     def requires_build_tree(self):
         return False
 
+    def allowed_in_release_build(self):
+        return False
+
     def with_build_tree(self, builder, current_dir, args):
 
         args = self.remove_switches(args)
@@ -4054,58 +4436,28 @@ class UnStamp(Command):
 
         self.update_from_file(builder, args[0])
 
-    def without_build_tree(self, muddle_binary, root_path, args):
+    def without_build_tree(self, muddle_binary, current_dir, args):
 
         args = self.remove_switches(args)
 
         if 'update' in self.switches:
             raise GiveUp('"muddle unstamp -update" needs a build tree to update')
 
-        # Strongly assume the user wants us to work in the current directory
-        current_dir = os.getcwd()
-
         # In an ideal world, we'd only be called if there really was no muddle
         # build tree. However, in practice, the top-level script may call us
         # because it can't find an *intact* build tree. So it's up to us to
         # know that we want to be a bit more careful...
-        dir, domain = utils.find_root_and_domain(current_dir)
-        if dir:
-            print
-            print 'Found a .muddle directory in %s'%dir
-            if dir == current_dir:
-                print '(which is the current directory)'
-            else:
-                print 'The current directory is     %s'%current_dir
-            print
-            got_src = os.path.exists(os.path.join(dir,'src'))
-            got_dom = os.path.exists(os.path.join(dir,'domains'))
-            if got_src or got_dom:
-                extra = ', and also the '
-                if got_src: extra += '"src/"'
-                if got_src and got_dom: extra += ' and '
-                if got_dom: extra += '"domains/"'
-                if got_src and got_dom:
-                    extra += ' directories '
-                else:
-                    extra += ' directory '
-                extra += 'alongside it'
-            else:
-                extra = ''
-            print utils.wrap('This presumably means that the current directory is'
-                             ' inside a broken or partial build. Please fix this'
-                             ' (e.g., by deleting the ".muddle/" directory%s)'
-                             ' before retrying the "unstamp" command.'%extra)
-            return 4
+        self.check_for_broken_build(current_dir)
 
         if len(args) == 1:
-            self.unstamp_from_file(muddle_binary, root_path, current_dir, args[0])
+            self.unstamp_from_file(muddle_binary, current_dir, args[0])
         elif len(args) == 2:
-            self.unstamp_from_repo(muddle_binary, root_path, current_dir, args[0], args[1])
+            self.unstamp_from_repo(muddle_binary, current_dir, args[0], args[1])
         else:
             self.print_syntax()
             return 2
 
-    def unstamp_from_file(self, muddle_binary, root_path, current_dir, thing):
+    def unstamp_from_file(self, muddle_binary, current_dir, thing):
         """
         Unstamp from a file (local, over the network, or from a repository)
         """
@@ -4141,18 +4493,9 @@ class UnStamp(Command):
 
         stamp = VersionStamp.from_file(filename)
 
-        builder = mechanics.minimal_build_tree(muddle_binary, current_dir,
-                                               stamp.repository,
-                                               stamp.description)
+        self.unstamp_from_stamp(muddle_binary, current_dir, stamp)
 
-        self.restore_stamp(builder, root_path, stamp.domains, stamp.checkouts)
-
-        # Once we've checked everything out, we should ideally check
-        # if the build description matches what we've checked out...
-        return self.check_build(current_dir, stamp.checkouts, muddle_binary)
-
-    def unstamp_from_repo(self, muddle_binary, root_path, current_dir, repo,
-                          version_path):
+    def unstamp_from_repo(self, muddle_binary, current_dir, repo, version_path):
         """
         Unstamp from a repository and version path.
         """
@@ -4179,12 +4522,17 @@ class UnStamp(Command):
 
         stamp = VersionStamp.from_file(os.path.join("versions", version_file))
 
+        self.unstamp_from_stamp(muddle_binary, current_dir, stamp, versions_repo=actual_url)
+
+    def unstamp_from_stamp(self, muddle_binary, current_dir, stamp, versions_repo=None):
+        """Given a stamp file, do our work.
+        """
         builder = mechanics.minimal_build_tree(muddle_binary, current_dir,
                                                stamp.repository,
                                                stamp.description,
-                                               versions_repo=actual_url)
+                                               versions_repo=versions_repo)
 
-        self.restore_stamp(builder, root_path, stamp.domains, stamp.checkouts)
+        self.restore_stamp(builder, current_dir, stamp.domains, stamp.checkouts)
 
         # Once we've checked everything out, we should ideally check
         # if the build description matches what we've checked out...
@@ -4219,7 +4567,7 @@ class UnStamp(Command):
             path_parts.append(d)
         return os.path.join(*path_parts)
 
-    def restore_stamp(self, builder, root_path, domains, checkouts):
+    def restore_stamp(self, builder, current_dir, domains, checkouts):
         """
         Given the information from our stamp file, restore things.
         """
@@ -4232,7 +4580,7 @@ class UnStamp(Command):
 
             # Take care to allow for multiple parts
             # Thus domain 'fred(jim)' maps to <root>/domains/fred/domains/jim
-            domain_root_path = self._domain_path(root_path, domain_name)
+            domain_root_path = self._domain_path(current_dir, domain_name)
 
             os.makedirs(domain_root_path)
 
@@ -4248,7 +4596,7 @@ class UnStamp(Command):
         for label in co_labels:
             co_dir, co_leaf, repo = checkouts[label]
             if label.domain:
-                domain_root_path = self._domain_path(root_path, label.domain)
+                domain_root_path = self._domain_path(current_dir, label.domain)
                 print "Unstamping checkout (%s)%s"%(label.domain,label.name)
                 if co_dir:
                     actual_co_dir = os.path.join(domain_root_path, 'src', co_dir)
@@ -4665,6 +5013,156 @@ class Distribute(CPDCommand):
             raise GiveUp('\n'.join(text))
 
         return checkout_set, package_set
+
+# -----------------------------------------------------------------------------
+# Release
+# -----------------------------------------------------------------------------
+
+@command('release', CAT_EXPORT)
+class Release(Command):
+    """
+    Produce a customer release from a release stamp file.
+
+    :Syntax: muddle release <release-file>
+
+    For example::
+
+      $ muddle release project99-1.2.3.release
+
+    This:
+
+    1. Checks the current directory is empty, and refuses to proceed if it
+       is not.
+
+       We always recommend doing ``muddle init`` or ``muddle bootstrap`` in an
+       empty directory, but muddle insists that ``muddle release`` must be done
+       in an empty directory.
+
+    2. Does ``muddle unstamp <release-file>``,
+
+    3. Copies the release file to ``.muddle/Release``, and the release
+       specification to ``.muddle/ReleaseSpec``. The existence of the latter
+       indicates that this is a release build tree, and "normal" muddle will
+       refuse to build in it.
+
+    4. Sets some extra environment variables, which can be used in the normal
+       manner in muddle Makefiles:
+
+       * ``MUDDLE_RELEASE_NAME`` is the release name, from the release file.
+       * ``MUDDLE_RELEASE_VERSION`` is the release version, from the release
+         file.
+       * ``MUDDLE_RELEASE_HASH`` is the SHA1 hash of the release file
+
+       "Normal" muddle will also create those environment variables, but they
+       will be set to ``(unset)``.
+
+    5. Does ``mudddle build _release``.
+
+       The meaning of "_release" is defined in the build description, using
+       ``builder.add_to_release_build()``. See::
+
+           $ muddle doc mechanics.Builder.add_to_release_build
+
+       for more information on that method, and "muddle query release" for the
+       current setting.
+
+       Note that, if youi have subdomains, only calls of
+       ``add_to_release_build()`` in the top-level build description  will be
+       effective.
+
+    6. Creates the release directory, which will be called
+       ``<release-name>_<release-version>_<release-sha1>``.
+       It copies the release file therein.
+
+    7. Calls the ``release_from(builder, release_dir)`` function in the build
+       description, which is responsible for copying across whatever else needs
+       to be put into the release directory.
+
+       (Obviously it is an error if the build description does not have such
+       a function.)
+
+       Note that, if you have subdomains, only the ``release_from()`` function
+       in the top-level build will be called.
+
+    8. Creates a compressed tarball of the release directory, using the
+       compression mechanism specified in the release file. It will have
+       the same basename as the release directory.
+    """
+
+    def requires_build_tree(self):
+        return False
+
+    def without_build_tree(self, muddle_binary, current_dir, args):
+
+        if len(args) == 1:
+            release_file = args[0]
+        else:
+            print 'Syntax: muddle release <release-file>'
+            return 2
+
+        # Check the current directory is empty
+        if len(os.listdir(current_dir)):
+            raise GiveUp('Cannot release into %s, it is not empty'%current_dir)
+
+        # Check we can read the release file as such
+        release = ReleaseStamp.from_file(release_file)
+
+        # Let the unstamp command do the unstamping for us...
+        unstamp = UnStamp()
+        unstamp.unstamp_from_stamp(muddle_binary, current_dir, release)
+
+        # Immediately mark ourselves as a release build by copying the release
+        # file into the .muddle directory. Some muddle commands will refuse to
+        # work in a release build.
+        shutil.copyfile(release_file, os.path.join(current_dir, '.muddle', 'Release'))
+        # Also store our release spec in a simple format - this is hopefully
+        # rather quicker to re-read (every muddle command!) than the actual
+        # release stamp file
+        release.release_spec.write_to_file(os.path.join(current_dir, '.muddle', 'ReleaseSpec'))
+
+        # Next do "muddle build _release"
+        builder = mechanics.load_builder(current_dir, muddle_binary)
+        build_cmd = Build()
+        build_cmd.with_build_tree(builder, current_dir, ['_release'])
+
+        # Create the directory from which the release tarball will be created
+        release_dir = '%s_%s_%s'%(release.release_spec.name,
+                                  release.release_spec.version,
+                                  release.release_spec.hash)
+        release_path = os.path.join(current_dir, release_dir)
+
+        print 'Creating %s'%release_path
+        os.mkdir(release_path)
+        # And we always want the release stamp file in the release tarball
+        release_filename = os.path.split(release_file)[-1]
+        shutil.copyfile(release_file, os.path.join(release_dir, release_filename))
+
+        # Call the 'release_from()' function in our (top level) build
+        # description, passing it the path to the release tarball directory
+        print 'Running the "release_from" function...'
+        mechanics.run_release_from(builder, release_path)
+
+        # Finally, tar up the tarball directory, and then compress it
+        print 'Making the tarball'
+        tf_name, mode = self.calc_tf_name(release, release_dir)
+        tf = tarfile.open(tf_name, mode)
+        tf.add(release_dir, recursive=True)
+        tf.close()
+
+    def calc_tf_name(self, release, release_dir):
+        """Work out the name and mode of the archive file we want to generate.
+        """
+        if release.release_spec.compression == 'gzip':
+            tf_name = '%s.tgz'%release_dir
+            mode = 'w:gz'
+        elif release.release_spec.compression == 'bzip2':
+            tf_name = '%s.tar.bz2'%release_dir        # is this the best name?
+            mode = 'w:bz2'
+        else:
+            tf_name = '%s.tar'%release_dir          # should never happen
+            mode = 'w'                              # but better than crashing...
+        return tf_name, mode
+
 
 # =============================================================================
 # Checkout, package and deployment commands
@@ -5328,6 +5826,10 @@ class Status(CheckoutCommand):
                         '-j': 'join',
                        }
 
+    # This checkout command *is* allowed in a release build
+    def allowed_in_release_build(self):
+        return True
+
     def build_these_labels(self, builder, labels):
 
         if len(labels) == 0:
@@ -5404,6 +5906,10 @@ class Reparent(CheckoutCommand):
     # XXX Is this what we want???
     required_tag = LabelTag.Pulled
     allowed_switches = {'-f':'force', '-force':'force'}
+
+    # This checkout command *is* allowed in a release build (I think it makes sense)
+    def allowed_in_release_build(self):
+        return True
 
     def build_these_labels(self, builder, labels):
 
@@ -6277,7 +6783,7 @@ class RunIn(Command):
                         continue
                     dir = builder.invocation.package_obj_path(lbl)
                 elif (lbl.type == LabelType.Deployment):
-                    dir = builder.invocation.deploy_path(lbl.name)
+                    dir = builder.invocation.deploy_path(lbl)
 
                 if (dir in dirs_done):
                     continue
@@ -6422,7 +6928,7 @@ class CopyWithout(Command):
     def with_build_tree(self, builder, current_dir, args):
         self.do_copy(args)
 
-    def without_build_tree(self, muddle_binary, root_path, args):
+    def without_build_tree(self, muddle_binary, current_dir, args):
         self.do_copy(args)
 
     def do_copy(self, args):
@@ -6452,25 +6958,138 @@ class CopyWithout(Command):
 @command('subst', CAT_MISC)
 class Subst(Command):
     """
-    :Syntax: muddle subst <src_file> <xml_file> <dst_file>
+    :Syntax: muddle subst <src_file> [<xml_file>] <output_file>
 
-    Substitute (with "${.. }") <src file> into <dst file> using data from
-    the environment or from the given xml file.
+    Reads in <src_file>, and replaces any strings of the form "${..}" with
+    values from the XML file (if any) or from the environment.
 
-    XML queries look a bit like XPath queries - "/elem/elem/elem..."
-    An implicit "::text()" is appended so you get all the text in the specified
-    element.
+    For the examples, I'm assuming we're building a release build, using
+    "muddle release", and thus the MUDDLE_RELEASE_xxx environment variables
+    are set.
 
-    You can escape a "${ .. }" by passing "$${ .. }"
+    Without an XML file
+    -------------------
+    So, in the two argument form, we might run::
 
-    You can insert literals with "${" .. " }"
+        $ muddle subst version.h.in version.h
 
-    Or call functions with "${fn: .. }". Available functions include:
+    on version.h.in::
 
-    * "${val:(something)}" - Value of something as a query (env var or XPath)
-    * "${ifeq:(a,b,c)}" - If eval(a)==eval(b), expand to eval(c)
-    * "${ifneq:(a,b,c)}" - If eval(a)!=eval(b), expand to eval(c)
-    * "${echo:(..)}" -  Evaluate all your parameters in turn.
+        #ifndef PROJECT99_VERSION_FILE
+        #define PROJECT99_VERSION_FILE
+        #define BUILD_VERSION "${MUDDLE_RELEASE_NAME}: $(MUDDLE_RELEASE_VERSION}"
+        #endif
+
+    to produce::
+
+        #ifndef PROJECT99_VERSION_FILE
+        #define PROJECT99_VERSION_FILE
+        #define BUILD_VERSION "simple: v1.0"
+        #endif
+
+    With an XML file
+    ----------------
+    In the three argument form, values will first be looked up in the XML file,
+    and then, if they're not found, in the environment. So given values.xml::
+
+        <?xml version="1.0" ?>
+        <values>
+            <version>Kynesim version 99</version>
+            <more>
+                <value1>This is value 1</value1>
+                <value2>This is value 2</value2>
+            </more>
+        </values>
+
+    and values.h.in::
+
+        #ifndef KYNESIM_VALUES
+        #define KYNESIM_VALUES
+        #define KYNESIM_VERSION "${/values/version}"
+        #define RELEASE_VERSION "Release version ${MUDDLE_RELEASE_VERSION}"
+        #endif
+
+    then running::
+
+        $ muddle subst values.h values.xml values.h.in
+
+    would give us values.h::
+
+        #ifndef KYNESIM_VALUES
+        #define KYNESIM_VALUES
+        #define KYNESIM_VERSION "Kynesim version 99"
+        #define RELEASE_VERSION "Release version v1.0"
+        #endif
+
+    XML queries are used in the "${..}" to extract particular values from the
+    XML. These look a bit like XPath queries - "/elem/elem/elem...", so for
+    instance::
+
+        ${/values/more/value2}
+
+    would be replaced by::
+
+        This is value 2
+
+    You can escape a "${ .. }" by passing "$${ .. }", so::
+
+        $${/values/more/value1}
+
+    becomes::
+
+        ${/values/more/value1}
+
+    Both ${/version} and ${"/version"} give the same result.
+
+    You can also nest evaluations. With the environment variable THING set
+    to "/values/version", then::
+
+        ${ ${THING} }
+
+    will evaluate to::
+
+        Kynesim version 99
+
+    You can call functions with "${fn: .. }". Parameters can be surrounded by
+    matching double quotes - these will be stripped before the parameter is
+    evaluated. The available functions are:
+
+    * "${fn:val(something)}"
+
+      This expands to the value of 'something' as a query (either as an
+      environment variable or XPath)
+
+    * "${fn:ifeq(something,b)c}"
+
+      If ${something} evaluates to b, then this expands to c. Both b and c
+      may contain "${..}" sequences.
+
+      Note that 'something' is expanded without you needing to specify such,
+      but b and c are not.
+
+      It is allowed to do things like::
+
+          ${fn:ifeq(/values/version,"Kynesim version 99")
+              def missing_function(a):
+                  # 'Version ${/values/version} of the software does not provide
+                  # this function, so we do so here
+                  <implementation code>
+           }
+
+    * "${fn:ifneq(something,b)c}"
+
+      The same, but you get c if evaluating 'something' does not give b.
+
+    * "${fn:echo(a,b,c,...)}"
+
+      Evaluates each parameter (a, b, c, ...) in turn. Spaces between
+      parameters are ignored. So::
+
+          ${fn:echo(a, " space ", ${/values/more/value1}}
+
+      would give::
+
+          a space This is value 1
     """
 
     def requires_build_tree(self):
@@ -6479,28 +7098,42 @@ class Subst(Command):
     def with_build_tree(self, builder, current_dir, args):
         self.do_subst(args)
 
-    def without_build_tree(self, muddle_binary, root_path, args):
+    def without_build_tree(self, muddle_binary, current_dir, args):
         self.do_subst(args)
 
     def do_subst(self, args):
-        if len(args) != 3:
-            raise GiveUp("Syntax: subst [src] [xml] [dst]")
+        if len(args) == 2:
+            src = args[0]
+            xml_file = None
+            dst = args[1]
+        elif len(args) == 3:
+            src = args[0]
+            xml_file = args[1]
+            dst = args[2]
+        else:
+            raise GiveUp("Syntax: subst <src_file> [<xml_file>] <output_file>")
 
-        src = args[0]
-        xml_file = args[1]
-        dst = args[2]
 
         if self.no_op():
             print 'Substitute source file %s'%src
-            print '       using data from %s'%xml_file
+            if xml_file:
+                print '       using data from %s'%xml_file
             print '            to produce %s'%dst
             return
 
-        f = open(xml_file, "r")
-        xml_doc = xml.dom.minidom.parse(f)
-        f.close()
+        if xml_file:
+            f = open(xml_file, "r")
+            xml_doc = xml.dom.minidom.parse(f)
+            f.close()
+        else:
+            xml_doc = None
 
-        subst.subst_file(src, dst, xml_doc, self.old_env)
-        return 0
+        try:
+            subst.subst_file(src, dst, xml_doc, self.old_env)
+        except GiveUp as e:
+            if xml_file:
+                raise GiveUp("%s\nWhilst processing %s with XML file %s"%(e, src, xml_file))
+            else:
+                raise GiveUp("%s\nWhilst processing %s"%(e, src))
 
 # End file.

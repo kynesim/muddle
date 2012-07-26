@@ -5,7 +5,7 @@ Stamp files
 Stamp files are INI files, implemented using the Python ConfigParser module
 (specifically, RawConfigParser).
 
-INI files are composed of one or more sections, each of the form:
+INI files are composed of one or more sections, each of the form::
 
     [header]
     key = value
@@ -61,7 +61,7 @@ All stamp files start with some standard comment lines::
 
 The date and time stamps are in local time and UTC respectively.
 
-This is followed by a general section:
+This is followed by a general section::
 
     [STAMP]
     version = 2
@@ -159,7 +159,8 @@ the problem value.
 Release stamp files
 -------------------
 Release stamp files are an extension of normal stamp files that also specify
-a release. As such, they have an extra section (at the start) of the form::
+a release. As such, they have an extra section (after the ``[STAMP]`` section)
+of the form::
 
     [RELEASE]
     name = project99
@@ -169,12 +170,11 @@ a release. As such, they have an extra section (at the start) of the form::
 
 This indicates that the rest of the stamp file describes a release called (or
 for) "project99", and that it is version 1.2.3. The release will be archived
-using tar, and the tar file will
-be compressed using gzip.
+using tar, and the tar file will be compressed using gzip.
 
 Both the ``name`` and ``version`` specified must start with an ASCII
 alphanumeric, and may only contain ASCII alphanumerics, and the characters '.',
-'-' or '_'. For instance:
+'-' or '_'. For instance::
 
     version = v1-2.11
     version = xvii

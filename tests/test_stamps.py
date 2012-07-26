@@ -7,6 +7,8 @@ Our test build structure is::
                 subdomain1
                         subdomain3
                 subdomain2
+
+NB: Uses both git and bazaar.
 """
 
 import os
@@ -14,6 +16,7 @@ import shutil
 import string
 import subprocess
 import sys
+import tempfile
 import traceback
 
 from support_for_tests import *
@@ -74,8 +77,9 @@ def describe_to(builder):
     muddled.pkgs.make.medium(builder, "first_pkg", [role], "first_co")
 
     # So we can test stamping a Repository using a direct URL
+    # Note this is a Bazaar repository
     co_label = Label(LabelType.Checkout, 'second_co')
-    repo = Repository.from_url('git', 'file://{repo}/main/second_co')
+    repo = Repository.from_url('bzr', 'file://{repo}/main/second_co')
     checkout_from_repo(builder, co_label, repo)
     muddled.pkgs.make.simple(builder, "second_pkg", role, "second_co")
 
@@ -201,10 +205,12 @@ int main(int argc, char **argv)
 """
 
 OPTIONS_TEST  = """\
+# Muddle stamp file
+# Writen at 2012-01-29 17:55:40
+#           2012-01-29 17:55:40 UTC
+
 [STAMP]
 version = 2
-now = 2012-01-29 17:55:40
-utc = 2012-01-29 17:55:40
 
 [ROOT]
 repository = git+file:///Users/tibs/sw/m3/tests/transient/repo/main
@@ -229,6 +235,22 @@ option~Aha~There = No colons here
 option~AhaTwo = what:pardon
 """
 
+def make_checkout_bare():
+    """Use nasty trickery to turn our checkout bare...
+    """
+    # 1. Lose the working set
+    files = os.listdir('.')
+    for file in files:
+        if file != '.git':
+            os.remove(file)
+    # 2. Move the contents of .git/ up one level, and delete the empty .git/
+    files = os.listdir('.git')
+    for file in files:
+        os.rename(os.path.join('.git', file), file)
+    os.rmdir('.git')
+    # 3. Tell git what we've done
+    git('config --bool core.bare true')
+
 def make_build_desc(co_dir, file_content):
     """Take some of the repetition out of making build descriptions.
     """
@@ -239,6 +261,8 @@ def make_build_desc(co_dir, file_content):
     touch('.gitignore', GITIGNORE)
     git('add .gitignore')
     git('commit -m "Commit .gitignore"')
+
+    make_checkout_bare()
 
 def make_standard_checkout(co_dir, progname, desc):
     """Take some of the repetition out of making checkouts.
@@ -251,10 +275,31 @@ def make_standard_checkout(co_dir, progname, desc):
     git('commit -a -m "Commit {desc} checkout {progname}"'.format(desc=desc,
         progname=progname))
 
-def make_repos_with_subdomain(root_dir):
+    make_checkout_bare()
+
+def make_bzr_standard_checkout(co_dir, progname, desc):
+    """Create a bzr repository for our testing.
+    """
+    bzr('init')
+    c = os.getcwd()
+    print c
+    d = tempfile.mkdtemp()
+    try:
+        with Directory(d):
+            bzr('init')
+            touch('{progname}.c'.format(progname=progname),
+                    MAIN_C_SRC.format(progname=progname))
+            touch('Makefile.muddle', MUDDLE_MAKEFILE.format(progname=progname))
+            bzr('add {progname}.c Makefile.muddle'.format(progname=progname))
+            bzr('commit -m "Commit {desc} checkout {progname}"'.format(desc=desc,
+                progname=progname))
+            bzr('push %s'%c)
+    finally:
+        shutil.rmtree(d)
+
+def make_repos_with_subdomain(repo):
     """Create git repositories for our subdomain tests.
     """
-    repo = os.path.join(root_dir, 'repo')
     with NewDirectory('repo'):
         with NewDirectory('main'):
             with NewDirectory('builds') as d:
@@ -264,7 +309,7 @@ def make_repos_with_subdomain(root_dir):
             with NewDirectory('first_co') as d:
                 make_standard_checkout(d.where, 'first', 'first')
             with NewDirectory('second_co') as d:
-                make_standard_checkout(d.where, 'second', 'second')
+                make_bzr_standard_checkout(d.where, 'second', 'second')
         with NewDirectory('subdomain1'):
             with NewDirectory('builds') as d:
                 make_build_desc(d.where, SUBDOMAIN1_BUILD_DESC.format(repo=repo))
@@ -353,10 +398,6 @@ def check_checkout_files(d):
     with Directory(d.join('domains', 'subdomain2')):
         check_dot_muddle(is_subdomain=True)
 
-def stamp():
-    """Produce a version stamp.
-    """
-
 def check_problem(got, starts):
     """We can't be bothered to check ALL of the string...
     """
@@ -404,6 +445,206 @@ def test_options():
                      "  expected {'Jim': False, 'Bill': 'Some sort of string', 'Fred': 99}\n"
                      '  got      %s'%options)
 
+def capture_revisions():
+    checkouts = captured_muddle(['query', 'checkouts'])
+    checkouts = checkouts.strip()
+    checkouts = checkouts.split('\n')
+
+    revisions = {}
+    for co in checkouts:
+        id = captured_muddle(['query', 'checkout-id', co])
+        id = id.strip()
+        revisions[co] = id
+    return revisions
+
+def revisions_differ(old, new):
+    """Finds all the differences (if any).
+
+    Returns True if they are different.
+    """
+    keys = set(old.keys())
+    keys.update(new.keys())
+    maxlen = 0
+    for k in keys:
+        if len(k) > maxlen:
+            maxlen = len(k)
+
+    different = False
+    for label in sorted(keys):
+        if label not in old:
+            print '%-*s: not in old'%(maxlen, label)
+            different = True
+        elif label not in new:
+            print '%-*s: not in new'%(maxlen, label)
+            different = True
+        else:
+            old_id = old[label]
+            new_id = new[label]
+            if old_id != new_id:
+                print '%-*s: old=%s, new=%s'%(maxlen, label, old_id, new_id)
+                different = True
+    return different
+
+def read_just_pulled():
+    """Read the _just_pulled file, and return a set of label names.
+    """
+    with open('.muddle/_just_pulled') as fd:
+        text = fd.read()
+    label_strings = set()
+    just_pulled = text.split('\n')
+    for thing in just_pulled:
+        if thing:
+            label_strings.add(thing)
+    return label_strings
+
+def test_stamp_unstamp(root_dir):
+    """Simple test of stamping and then unstamping
+
+    Returns the path to the stamp file it creates
+    """
+    banner('TEST BASIC STAMP AND UNSTAMP')
+    with NewDirectory('build') as d:
+        banner('CHECK REPOSITORIES OUT', 2)
+        checkout_build_descriptions(root_dir, d)
+        muddle(['checkout', '_all'])
+        check_checkout_files(d)
+
+        banner('STAMP', 2)
+        muddle(['stamp', 'version'])
+
+        first_stamp = os.path.join(d.where, 'versions', '01.stamp')
+
+    with NewDirectory('build2') as d2:
+        banner('UNSTAMP', 2)
+        muddle(['unstamp', os.path.join(d.where, 'versions', '01.stamp')])
+        check_checkout_files(d2)
+
+    return first_stamp
+
+def test_stamp_is_current_working_set(first_stamp):
+    """Check we are stamping the current working set
+    """
+    with NewDirectory('build3') as d2:
+        banner('TESTING STAMP CURRENT WORKING SET')
+        muddle(['unstamp', first_stamp])
+        # So, we've selected specific revisions for all of our checkouts
+        # and thus they are all in "detached HEAD" state
+        revisions = capture_revisions()
+
+        # XXX To be considered XXX
+        # Here, we are deliberately making a change that we do not push to the
+        # remote repository. Thus our stamp file will contain a revision id
+        # that no-one else can make sense of. This may be a Bad Thing.
+        # Indeed, if we try to do this with a bzr repository, our own code
+        # in 'muddle query checkout-id' would use 'bzr missing' and notice that
+        # the revision was not present at the far end, and give up with a
+        # complaint at that point.
+
+        with Directory('src'):
+            with Directory('first_co'):
+                append('Makefile.muddle', '\n# A comment\n')
+                git('commit Makefile.muddle -m "Add a comment"')
+
+        # Don't forget that ".strip()" to remove the trailing newline!
+        first_co_rev2 = captured_muddle(['query', 'checkout-id', 'first_co']).strip()
+
+        if first_co_rev2 == revisions['first_co']:
+            raise GiveUp('The revision of first_co did not change')
+
+        revisions['first_co'] = first_co_rev2
+
+        muddle(['stamp', 'save', 'amended.stamp'])
+
+        stamp = VersionStamp.from_file('amended.stamp')
+        if len(stamp.checkouts) != len(revisions):
+            raise GiveUp('Stamp file has %d checkouts, build tree %d'%(len(stamp.checkouts),
+                                                                       len(revisions)))
+
+        for co in stamp.checkouts:
+            if co.domain:
+                dom_plus_name = '(%s)%s'%(co.domain, co.name)
+            else:
+                dom_plus_name = co.name
+            repo = stamp.checkouts[co][-1]      # ah, named tuples would be good here
+            #print dom_plus_name
+            #print '  S:',repo.revision
+            #print '  D:',revisions[dom_plus_name]
+            if repo.revision != revisions[dom_plus_name]:
+                raise GiveUp('Checkout %s is revision %s in stamp file,'
+                        ' %s on disk'%(dom_plus_name, repo.revision, revisions[dom_plus_name]))
+
+def test_unstamp_update_identity_operation(repo, first_stamp):
+    """Test the "unstamp -update" identity operation
+    """
+    banner('TESTING UNSTAMP -UPDATE -- TEST 1 (IDENTITY)')
+    with NewDirectory('build4') as d2:
+        muddle(['init', 'git+file://{repo}/main'.format(repo=repo), 'builds/01.py'])
+        muddle(['checkout', '_all'])
+        old_revisions = capture_revisions()
+        # And check the "null" operation
+        muddle(['unstamp', '-update', first_stamp])
+        new_revisions = capture_revisions()
+        if revisions_differ(old_revisions, new_revisions):
+            raise GiveUp('Null update changed stuff!')
+        else:
+            print 'The tree was not changed by the "null" update'
+
+def test_unstamp_update_2(repo, first_stamp):
+    """Test the "unstamp -update" operation a bit more
+    """
+    banner('TESTING UNSTAMP -UPDATE -- TEST 2')
+    with NewDirectory('build5') as d:
+        muddle(['init', 'git+file://{repo}/main'.format(repo=repo), 'builds/01.py'])
+        muddle(['checkout', '_all'])
+        old_revisions = capture_revisions()
+
+        # Make some amdendments and check them in
+        with Directory('src'):
+            with Directory('first_co'):
+                append('Makefile.muddle', '\n# A comment\n')
+                git('commit Makefile.muddle -m "Add a comment"')
+                muddle(['push'])
+            with Directory('second_co'):
+                append('Makefile.muddle', '\n# A comment\n')
+                bzr('commit Makefile.muddle -m "Add a comment"')
+                muddle(['push'])
+
+        with Directory('domains'):
+            with Directory('subdomain1'):
+                with Directory('src'):
+                    with Directory('builds'):
+                        append('01.py', '\n# A comment\n')
+                        git('commit 01.py -m "Add a comment"')
+                        muddle(['push'])
+
+        new_revisions = capture_revisions()
+
+        # Keep this state for later on
+        muddle(['stamp', 'save', 'new_state.stamp'])
+
+        # Revert to the original
+        muddle(['unstamp', '-update', first_stamp])
+        current_revisions = capture_revisions()
+        if revisions_differ(current_revisions, old_revisions):
+            raise GiveUp('Update back to original failed')
+
+        # And back (forwards) again
+        muddle(['unstamp', '-update', 'new_state.stamp'])
+        current_revisions = capture_revisions()
+        if revisions_differ(current_revisions, new_revisions):
+            raise GiveUp('Update forward again failed')
+
+        # One of the points of using "muddle pull" internally in the
+        # "muddle unstamp -update" command is that we want our "just pulled"
+        # list to be available. So check that.
+        just_pulled = read_just_pulled()
+        if just_pulled != set(['checkout:first_co/checked_out',
+                               'checkout:second_co/checked_out',
+                               'checkout:(subdomain1)builds/checked_out']):
+            print 'Read _just_pulled as:'
+            print just_pulled
+            raise GiveUp('Just pulled list does not match')
+
 def main(args):
 
     if args:
@@ -414,28 +655,24 @@ def main(args):
     # although if it's anyone other than me they might prefer
     # somewhere in $TMPDIR...
     root_dir = normalise_dir(os.path.join(os.getcwd(), 'transient'))
+    repo = os.path.join(root_dir, 'repo')
 
     with TransientDirectory(root_dir, keep_on_error=True):
 
-        banner('MAKE REPOSITORIES')
-        make_repos_with_subdomain(root_dir)
-
-        with NewDirectory('build') as d:
-            banner('CHECK REPOSITORIES OUT')
-            checkout_build_descriptions(root_dir, d)
-            muddle(['checkout', '_all'])
-            check_checkout_files(d)
-
-            banner('STAMP')
-            muddle(['stamp', 'version'])
-
-        with NewDirectory('build2') as d2:
-            banner('UNSTAMP')
-            muddle(['unstamp', os.path.join(d.where, 'versions', '01.stamp')])
-            check_checkout_files(d2)
-
         banner('TESTING CHECKOUT OPTIONS')
         test_options()
+
+        banner('MAKE REPOSITORIES')
+        make_repos_with_subdomain(repo)
+
+        first_stamp = test_stamp_unstamp(root_dir)
+
+        test_stamp_is_current_working_set(first_stamp)
+
+        test_unstamp_update_identity_operation(repo, first_stamp)
+
+        test_unstamp_update_2(repo, first_stamp)
+
 
 if __name__ == '__main__':
     args = sys.argv[1:]

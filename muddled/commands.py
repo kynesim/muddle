@@ -24,6 +24,7 @@ import pydoc
 import shutil
 import subprocess
 import sys
+import tempfile
 import textwrap
 import time
 import urllib
@@ -2035,7 +2036,7 @@ class QueryCheckoutLicenses(QueryCommand):
                 print '* nothing builds against %s'%co_label
             for key, value in sorted(builder.invocation.db.license_not_affected_by.items()):
                 print '* %s is not affected by %s'%(key,
-                                    label_list_to_string(value, join_with=', '))
+                                    label_list_to_string(sorted(value), join_with=', '))
 
         implicit_gpl_licensed, because = get_implicit_gpl_checkouts(builder)
         if implicit_gpl_licensed:
@@ -3215,13 +3216,23 @@ class Doc(Command):
 @subcommand('stamp', 'save', CAT_EXPORT)
 class StampSave(Command):
     """
-    :Syntax: muddle stamp save [-f[orce]|-h[ead]|-v[ersion] <version>] [<filename>]
+    :Syntax: muddle stamp save [<switche>] [<filename>]
 
     Go through each checkout, and save its remote repository and current
     revision id/number to a file.
 
     This is intended to be enough information to allow reconstruction of the
     entire build tree, as-is.
+
+    <switches> may be:
+
+    * -before <when> - use the (last) revision id at or before <when>
+    * -f, -force - "force" a revision id
+    * -h, -head - use HEAD for all checkouts
+    * -v <version>, -version <version>  - specify the version of stamp file
+
+    These are explained more below. Switches may occur before or after
+    <filename>.
 
     If a <filename> is specified, then output will be written to a file called
     either <filename>.stamp or <filename>.partial. If <filename> already ended
@@ -3240,6 +3251,19 @@ class StampSave(Command):
     If a file already exists with the name ultimately chosen, that file will
     be overwritten.
 
+    If '-before' is specified, then use the (last) revision id at or before
+    that date and time. <when> is left a bit unspecified at the moment, and
+    thus this feature is experimental.
+
+       | XXX At the moment '-before' is only supported for git and bzr, and
+       | XXX thus any form of date/time/revision id that git and/or will accept
+       | XXX may be used for <when>. The simple for "yyyy-mm-dd hh:mm:ss" seems
+       | XXX acceptabl to both.
+
+    For instance::
+
+        muddle stamp save -before "2012-06-26 23:00:00"
+
     If '-f' or '-force' is specified, then attempt to "force" a revision id,
     even if it is not necessarily correct. For instance, if a local working
     directory contains uncommitted changes, then ignore this and use the
@@ -3254,6 +3278,8 @@ class StampSave(Command):
       are artefacts that may be ignored, such as an executable built in
       the source directory.)
 
+    Note that if '-before' is specified, '-force' will be ignored.
+
     If '-h' or '-head' is specified, then HEAD will be used for all checkouts.
     In this case, the repository specified in the build description is used,
     and the revision id and status of each checkout is not checked.
@@ -3266,7 +3292,7 @@ class StampSave(Command):
     version of muddle or not). Note that the version 1 stamp file created
     by muddle 2.3 and above is not absolutely guaranteed to be correct.
 
-    See 'unstamp' for restoring from stamp files.
+    See "muddle unstamp" for restoring from stamp files.
     """
 
     def requires_build_tree(self):
@@ -3276,27 +3302,28 @@ class StampSave(Command):
         force = False
         just_use_head = False
         filename = None
+        when = None
         version = 2
 
         while args:
-            word = args[0]
-            args = args[1:]
+            word = args.pop(0)
             if word in ('-f', '-force'):
                 force = True
                 just_use_head = False
             elif word in ('-h', '-head'):
                 just_use_head = True
                 force = False
+            elif word == '-before':
+                when = args.pop(0)
             elif word in ('-v', '-version'):
                 try:
-                    version = int(args[0])
+                    version = int(args.pop(0))
                 except IndexError:
                     raise GiveUp("-version must be followed by 1 or 2, for 'stamp save'")
                 except ValueError as e:
                     raise GiveUp("-version must be followed by 1 or 2, not '%s'"%args[0])
                 if version not in (1, 2):
                     raise GiveUp("-version must be followed by 1 or 2, not '%s'"%args[0])
-                args = args[1:]
             elif word.startswith('-'):
                 raise GiveUp("Unexpected switch '%s' for 'stamp save'"%word)
             elif filename is None:
@@ -3312,7 +3339,7 @@ class StampSave(Command):
         if self.no_op():
             return
 
-        stamp, problems = VersionStamp.from_builder(builder, force, just_use_head)
+        stamp, problems = VersionStamp.from_builder(builder, force, just_use_head, before=when)
 
         working_filename = 'working.stamp'
         print 'Writing to',working_filename
@@ -3392,7 +3419,7 @@ class StampVersion(Command):
     particular version of muddle or not). Note that the version 1 stamp file
     created by muddle 2.3 and above is not absolutely guaranteed to be correct.
 
-    See 'unstamp' for restoring from stamp files.
+    See "muddle unstamp" for restoring from stamp files.
     """
 
     def requires_build_tree(self):
@@ -3463,73 +3490,92 @@ class StampVersion(Command):
 @subcommand('stamp', 'diff', CAT_EXPORT)
 class StampDiff(Command):
     """
-    :Syntax: muddle stamp diff [-u[nified]|-c[ontext]|-n|-h[tml]|-x] <file1> <file2> [<output_file>]
+    :Syntax: muddle stamp diff [<style>] <path1> <path2> [<output_file>]
 
-    Compare two stamp files.
+    Compare two builds, as version stamps.
 
-    The two (existing) stamp files named are compared. If <output_file> is
-    given, then the output is written to it (overwriting any previous file of
-    that name), otherwise output is to standard output.
+    Each of <path1> and <path2> may be an existing stamp file, or the top-level
+    directory of a muddle build tree (i.e., the directory that contains the
+    '.muddle' and 'src' directories).
 
-    If '-u' is specified, then the output is a unified difference. This is the
-    default.
+    If <output_file> is given, then the results of the comparison will be
+    written to it, otherwise they will be written to standard output.
 
-    If '-c' is specified, then the output is a context difference. This uses a
-    "before/after" style of presentation.
+    <style> specifies the way the comparison is done:
 
-    If '-n' is specified, then the output is from "ndiff" - this is normally
-    a more human-friendly set of differences, but outputs the parts of the files
-    that match as well as those that do not.
+    * -u, -unified - output a unified difference between stamp files.
+    * -c, -context - output a context difference between stamp files. This
+      uses a "before/after" style of presentation.
+    * -n, -ndiff - use Python's "ndiff" to output the difference between stamp
+      files. This is normally a more human-friendly set of differences, but
+      outputs the parts of the files that match as well as those that do not.
+    * -h, -html - output the difference between stamp files as an HTML page,
+      displaying the files in two columns, with differences highlighted by
+      colour.
+    * -d, -direct - output the difference between two VersionStamp
+      datastructures (this is the datastructure used to hold a stamp file
+      internally within muddle). This is the default.
 
-    If '-h' is specified, then the output is an HTML page, displaying
-    differences in two columns (with colours).
+    NOTE that at the moment '-d' only compares checkout information, not
+    repository and domain information. It also ignores any "problems" in
+    the stamp file.
 
-    If '-x' is specified, then both stamp files are read in as VersionStamp
-    entities, and the checkouts therein are compared (just the checkouts).
-    This option only writes to stdout, not to <output_file>
+    For textual comparisons between stamp files, "muddle stamp diff" will
+    first generate a temporary stamp file, if necessary (i.e., if <path1>
+    or <path2> is a build tree), using the equivalent of "muddle stamp save".
+
+    For direct ('-d') comparison, a VersionStamp will be created from the
+    build tree or read from the stamp file, as appropriate.
     """
 
     def requires_build_tree(self):
         return False
 
     def print_syntax(self):
-        print ':Syntax: muddle stamp diff [-u[nified]|-n|-h[tml]] <file1> <file2> [<output_file>]'
+        print ':Syntax: muddle stamp diff [<style>] <path1> <path2> [<output_file>]'
 
     def without_build_tree(self, muddle_binary, root_path, args):
         if not args:
-            raise GiveUp("'stamp diff' needs two stamp files to compare")
-        self.compare_stamp_files(args)
+            raise GiveUp("'stamp diff' needs two paths (stamp file or build tree) to compare")
+        self.compare_stamps(muddle_binary, args)
 
     def with_build_tree(self, builder, current_dir, args):
-        if not args:
-            raise GiveUp("'stamp diff' needs two stamp files to compare")
-        self.compare_stamp_files(args)
+        self.without_build_tree(builder.muddle_binary, current_dir, args)
 
-    def compare_stamp_files(self, args):
-        diff_style = 'unified'
-        file1 = file2 = output_file = None
+    def compare_stamps(self, muddle_binary, args):
+
+        path1 = path2 = output_file = None
+        # The default is to compare using VersionStamp
+        diff_style = 'direct'
+        # Which doesn't *need* explicit text files
+        requires_text_filess = False
+
         while args:
-            word = args[0]
-            args = args[1:]
+            word = args.pop(0)
             if word in ('-u', '-unified'):
                 diff_style = 'unified'
-            elif word == '-n':
+                requires_text_filess = True
+            elif word in ('-n', '-ndiff'):
                 diff_style = 'ndiff'
+                requires_text_filess = True
             elif word in ('-c', '-context'):
                 diff_style = 'context'
+                requires_text_filess = True
             elif word in ('-h', '-html'):
                 diff_style = 'html'
-            elif word == '-x':
-                diff_style = 'local'
+                requires_text_filess = True
+            elif word in ('-d', '-direct'):
+                diff_style = 'direct'
+                requires_text_filess = False
             elif word.startswith('-'):
                 print "Unexpected switch '%s'"%word
                 self.print_syntax()
                 return 2
             else:
-                if file1 is None:
-                    file1 = word
-                elif file2 is None:
-                    file2 = word
+                if path1 is None:
+                    path1 = word
+                elif path2 is None:
+                    path2 = word
                 elif output_file is None:
                     output_file = word
                 else:
@@ -3537,65 +3583,175 @@ class StampDiff(Command):
                     self.print_syntax()
                     return 2
 
+        # What sort of things are we comparing?
+        if os.path.isdir(path1) and os.path.exists(os.path.join(path1, '.muddle')):
+            path1_is_build = True
+        elif os.path.isfile(path1):
+            path1_is_build = False
+        else:
+            raise GiveUp('"%s" is not a file or a build tree - cannot compare it'%path1)
+
+        if os.path.isdir(path2) and os.path.exists(os.path.join(path2, '.muddle')):
+            path2_is_build = True
+        elif os.path.isfile(path2):
+            path2_is_build = False
+        else:
+            raise GiveUp('"%s" is not a file or a build tree - cannot compare it'%path2)
+
         if self.no_op():
-            print 'Comparing stamp files %s and %s'%(file1, file2)
+            parts = ['Comparing']
+            if path1_is_build:
+                parts.append('build tree')
+            else:
+                parts.append('stamp file')
+            parts.append('"%s"'%path1)
+            parts.append('and')
+            if path2_is_build:
+                parts.append('build tree')
+            else:
+                parts.append('stamp file')
+            parts.append('"%s"'%path2)
+            print ' '.join(parts)
             return
 
-        if diff_style == 'local':
-            if output_file:
-                raise GiveUp('"muddle stamp diff -x" does not support an output file')
-            self.diff_local(file1, file2)
-        else:
-            self.diff(file1, file2, diff_style, output_file)
+        path1 = utils.normalise_path(path1)
+        path2 = utils.normalise_path(path2)
 
-    def diff_local(self, file1, file2):
+        if requires_text_filess:
+            if path1_is_build:
+                file1 = self._generate_stamp_file(path1, muddle_binary)
+            else:
+                file1 = path1
+
+            if path2_is_build:
+                file2 = self._generate_stamp_file(path2, muddle_binary)
+            else:
+                file2 = path2
+
+            if output_file:
+                print 'Writing output to %s'%output_file
+                with open(output_file, 'w') as fd:
+                    self.diff(path1, path2, file1, file2, diff_style, fd)
+            else:
+                self.diff(path1, path2, file1, file2, diff_style, sys.stdout)
+
+        else:
+            if path1_is_build:
+                stamp1 = self._calculate_stamp(path1, muddle_binary)
+            else:
+                stamp1 = VersionStamp.from_file(path1)
+
+            if path2_is_build:
+                stamp2 = self._calculate_stamp(path2, muddle_binary)
+            else:
+                stamp2 = VersionStamp.from_file(path2)
+
+            if output_file:
+                print 'Writing output to %s'%output_file
+                with open(output_file, 'w') as fd:
+                    self.diff_direct(path1_is_build, path2_is_build,
+                                     path1, path2, stamp1, stamp2, fd)
+            else:
+                self.diff_direct(path1_is_build, path2_is_build,
+                                 path1, path2, stamp1, stamp2, sys.stdout)
+
+    def _calculate_stamp(self, path, muddle_binary):
+        """Calculate the stamp for the build at 'path'
+
+        We probably don't strictly *need* 'muddle_binary' for our purposes,
+        but since we know our caller has it to hand, we might as well use it.
+
+        Note that we ignore any problems reported in generating the stamp.
+        """
+        (build_root, build_domain) = utils.find_root_and_domain(path)
+        b = mechanics.load_builder(build_root, muddle_binary, default_domain=build_domain)
+        print 'Calculating stamp for %s'%path
+        stamp, problems = VersionStamp.from_builder(b, quiet=True)
+        return stamp
+
+    def _generate_stamp_file(self, path, muddle_binary):
+        """Generate a stamp file for the build at 'path'
+
+        We probably don't strictly *need* 'muddle_binary' for our purposes,
+        but since we know our caller has it to hand, we might as well use it.
+
+        Generates a stamp (ignoring any problems), and then writes the stamp
+        file from that.
+        """
+        stamp = self._calculate_stamp(path, muddle_binary)
+        with tempfile.NamedTemporaryFile(suffix='.stamp', mode='w', delete=False) as fd:
+            filename = fd.name
+            print 'Writing stamp for %s to %s'%(path, filename)
+            stamp.write_to_file_object(fd)
+        return filename
+
+    def diff_direct(self, path1_is_build, path2_is_build, path1, path2, stamp1, stamp2, fd):
         """
         Output comparison using VersionStamp instances.
-        """
-        stamp1 = VersionStamp.from_file(file1)
-        stamp2 = VersionStamp.from_file(file2)
-        print
-        deleted, new, changed, problems = stamp1.compare_checkouts(stamp2)
-        if deleted or new or changed or problems:
-            print
-        if deleted:
-            print 'The following were deleted in the second stamp file:'
-            for co_label, co_dir, co_leaf, repo in deleted:
-                print '  %s'%co_label
-        if new:
-            print 'The following were new in the second stamp file:'
-            for co_label, co_dir, co_leaf, repo in new:
-                print '  %s'%co_label
-        if changed:
-            print 'The following were changed:'
-            for co_label, rev1, rev2 in changed:
-                print '  %s went from revision %s to %s'%(co_label, rev1, rev2)
-        if problems:
-            print 'The following problems were found:'
-            for co_label, problem in problems:
-                print '  %s'%(problem)
-        if not (deleted or new or changed or problems):
-            print "The checkouts in the stamp files appear to be the same"
 
-    def diff(self, file1, file2, diff_style='unified', output_file=None):
+        Currently, only compares the checkouts.
+
+        XXX TODO It *should* compare everything (including any problems!)
         """
-        Output a comparison of file1 and file2 to html_file.
+        fd.write('Comparing version stamps\n')
+        fd.write('Source 1: %s %s\n'%('build tree' if path1_is_build else 'stamp file', path1))
+        fd.write('Source 2: %s %s\n'%('build tree' if path2_is_build else 'stamp file', path2))
+        fd.write('\n')
+        deleted, new, changed, problems = stamp1.compare_checkouts(stamp2)
+        if deleted:
+            fd.write('\n')
+            fd.write('The following were deleted in the second stamp file:\n')
+            for co_label, co_dir, co_leaf, repo in deleted:
+                fd.write('  %s\n'%co_label)
+        if new:
+            fd.write('\n')
+            fd.write('The following were new in the second stamp file:\n')
+            for co_label, co_dir, co_leaf, repo in new:
+                fd.write('  %s\n'%co_label)
+        if changed:
+            fd.write('\n')
+            fd.write('The following were changed:\n')
+            for co_label, rev1, rev2 in changed:
+                fd.write('  %s went from revision %s to %s\n'%(co_label, rev1, rev2))
+        if problems:
+            fd.write('\n')
+            fd.write('The following problems were found:\n')
+            for co_label, problem in problems:
+                fd.write('  %s\n'%(problem))
+        if not (deleted or new or changed or problems):
+            fd.write('\n')
+            fd.write("The checkouts in the stamp files appear to be the same\n")
+
+    def diff(self, path1, path2, file1, file2, diff_style='unified', fd=sys.stdout):
+        """
+        Output a comparison of two stamp files
         """
         with open(file1) as fd1:
             file1_lines = fd1.readlines()
         with open(file2) as fd2:
             file2_lines = fd2.readlines()
 
+        # Ensure it is obvious in the output which stamp files were compared,
+        # and, if we generated them, where we made them from
+        if path1 == file1:
+            name1 = path1
+        else:
+            name1 = '%s from %s'%(file1, path1)
+        if path2 == file2:
+            name2 = path2
+        else:
+            name2 = '%s from %s'%(file2, path2)
+
         if diff_style == 'html':
             diff = difflib.HtmlDiff().make_file(file1_lines, file2_lines,
-                                                file1, file2)
+                                                name1, name2)
         elif diff_style == 'ndiff':
             diff = difflib.ndiff(file1_lines, file2_lines)
             file1_date = time.ctime(os.stat(file1).st_mtime)
             file2_date = time.ctime(os.stat(file2).st_mtime)
             help = ["#First character indicates provenance:\n"
-                    "# '-' only in %s of %s\n"%(file1, file1_date),
-                    "# '+' only in %s of %s\n"%(file2, file2_date),
+                    "# '-' only in %s of %s\n"%(name1, file1_date),
+                    "# '+' only in %s of %s\n"%(name2, file2_date),
                     "# ' ' in both\n",
                     "# '?' pointers to intra-line differences\n"
                     "#---------------------------------------\n"]
@@ -3604,20 +3760,16 @@ class StampDiff(Command):
             file1_date = time.ctime(os.stat(file1).st_mtime)
             file2_date = time.ctime(os.stat(file2).st_mtime)
             diff = difflib.context_diff(file1_lines, file2_lines,
-                                        file1, file2,
+                                        name1, name2,
                                         file1_date, file2_date)
         else:
             file1_date = time.ctime(os.stat(file1).st_mtime)
             file2_date = time.ctime(os.stat(file2).st_mtime)
             diff = difflib.unified_diff(file1_lines, file2_lines,
-                                        file1, file2,
+                                        name1, name2,
                                         file1_date, file2_date)
 
-        if output_file:
-            with open(output_file,'w') as fd:
-                fd.writelines(diff)
-        else:
-            sys.stdout.writelines(diff)
+        fd.writelines(diff)
 
 @subcommand('stamp', 'push', CAT_EXPORT)
 class StampPush(Command):
@@ -3755,19 +3907,29 @@ class StampPull(Command):
 @command('unstamp', CAT_EXPORT)
 class UnStamp(Command):
     """
+    To create a build tree from a stamp file:
+
     :Syntax: muddle unstamp <file>
     :or:     muddle unstamp <url>
     :or:     muddle unstamp <vcs>+<url>
     :or:     muddle unstamp <vcs>+<repo_url> <version_desc>
 
-    The "unstamp" command reads the contents of a "stamp" file, as produced by
-    the "muddle stamp" command, and:
+    To update a build tree from a stamp file:
+
+    :Syntax: muddle unstamp -u[pdate] <file>
+
+    Creating a build tree from a stamp file
+    ---------------------------------------
+    The normal "unstamp" command reads the contents of a "stamp" file, as
+    produced by the "muddle stamp" command, and:
 
     1. Retrieves each checkout mentioned
     2. Reconstructs the corresponding muddle directory structure
     3. Confirms that the muddle build description is compatible with
        the checkouts.
 
+    This form of the command cannot be used within an existing muddle build
+    tree, as its intent is to create a new build tree.
 
     The file may be specified as:
 
@@ -3814,21 +3976,91 @@ class UnStamp(Command):
 
       and then unstamp the ProjectThing.stamp file therein.
 
+    Updating a build tree from a stamp file
+    ---------------------------------------
+    The "-update" form ("unstamp -update" or "unstamp -u") also reads the
+    contents of a "stamp" file, but it then tries to amend the current build
+    tree to match the stamp file.
+
+    This form of the command must be used within an existing muddle build tree,
+    as its intent is to alter it.
+
+    The stamp file must be specified as a local path - the URL forms are not
+    supported.
+
+    The command looks up each checkout described in the stamp file. If it
+    already exists, then it sets it to the correct revision, using "muddle
+    pull". This last means that the value "_just_pulled" will be set to
+    those checkouts which have been pulled, so one can do, for instance,
+    "muddle distrebuild _just_pulled".
+
+        XXX Future versions of this command will also be able to change
+        the branch of a checkout. This is not yet supported.
+
+    If the checkout does not exist, then it will be cloned, using "muddle
+    checkout". Newly cloned checkouts will not be represented in
+    "_just_pulled".
+
+    In the simplest case, the "unstamp -update" operation may just involve
+    choosing different revisions on some checkouts.
+
+    Before using this form of the command, it is probably worth using::
+
+        muddle stamp diff . <file>
+
+    to determine what changes will be made.
+
+    After using this form of the command, it is highly recommended to use::
+
+        muddle veryclean
+
+    to delete the directories built from the checkout sources.
     """
 
     def print_syntax(self):
         print """
+    To create a build tree:
+
     :Syntax: muddle unstamp <file>
     :or:     muddle unstamp <url>
     :or:     muddle unstamp <vcs>+<url>
     :or:     muddle unstamp <vcs>+<repo_url> <version_desc>
 
-Try "muddle help unstamp" for more information."""
+    To update a build tree:
+
+    :Syntax: muddle unstamp -u[pdate] <file>
+
+    Try "muddle help unstamp" for more information."""
+
+    allowed_switches = {
+            '-u' : 'update',
+            '-update' : 'update',
+            }
 
     def requires_build_tree(self):
         return False
 
+    def with_build_tree(self, builder, current_dir, args):
+
+        args = self.remove_switches(args)
+
+        if 'update' not in self.switches:
+            raise GiveUp('Plain "muddle unstamp" does not work in a build tree.\n'
+                         'Did you mean "muddle unstamp -update"?\n'
+                         'See "muddle help unstamp for more information.')
+
+        if len(args) != 1:
+            raise GiveUp('"muddle unstamp -update" takes a single stamp file as argument')
+
+        self.update_from_file(builder, args[0])
+
     def without_build_tree(self, muddle_binary, root_path, args):
+
+        args = self.remove_switches(args)
+
+        if 'update' in self.switches:
+            raise GiveUp('"muddle unstamp -update" needs a build tree to update')
+
         # Strongly assume the user wants us to work in the current directory
         current_dir = os.getcwd()
 
@@ -3872,7 +4104,6 @@ Try "muddle help unstamp" for more information."""
         else:
             self.print_syntax()
             return 2
-
 
     def unstamp_from_file(self, muddle_binary, root_path, current_dir, thing):
         """
@@ -3918,8 +4149,7 @@ Try "muddle help unstamp" for more information."""
 
         # Once we've checked everything out, we should ideally check
         # if the build description matches what we've checked out...
-        return self.check_build(current_dir, stamp.checkouts, builder,
-                                muddle_binary)
+        return self.check_build(current_dir, stamp.checkouts, muddle_binary)
 
     def unstamp_from_repo(self, muddle_binary, root_path, current_dir, repo,
                           version_path):
@@ -3958,8 +4188,24 @@ Try "muddle help unstamp" for more information."""
 
         # Once we've checked everything out, we should ideally check
         # if the build description matches what we've checked out...
-        return self.check_build(current_dir, stamp.checkouts, builder,
-                                muddle_binary)
+        return self.check_build(current_dir, stamp.checkouts, muddle_binary)
+
+    def update_from_file(self, builder, filename):
+        """
+        Update our build from the given stamp file.
+        """
+
+        if self.no_op():
+            return
+
+        stamp = VersionStamp.from_file(filename)
+        self.update_from_stamp(builder, stamp.domains, stamp.checkouts)
+
+        # Once we've checked everything out, we should ideally check
+        # if the build description matches what we've checked out...
+        return self.check_build(builder.invocation.db.root_path,
+                                stamp.checkouts,
+                                builder.muddle_binary)
 
     def _domain_path(self, root_path, domain_name):
         """Turn a domain name into its path.
@@ -4018,7 +4264,114 @@ Try "muddle help unstamp" for more information."""
             new_label = label.copy_with_tag(LabelTag.CheckedOut)
             builder.build_label(new_label, silent=False)
 
-    def check_build(self, current_dir, checkouts, builder, muddle_binary):
+    def update_from_stamp(self, builder, domains, checkouts):
+        """
+        Given the information from our stamp file, update the current build.
+        """
+        domain_names = domains.keys()
+        domain_names.sort()
+        root_path = builder.invocation.db.root_path
+        for domain_name in domain_names:
+            domain_repo, domain_desc = domains[domain_name]
+
+            # Take care to allow for multiple parts
+            # Thus domain 'fred(jim)' maps to <root>/domains/fred/domains/jim
+            domain_root_path = self._domain_path(root_path, domain_name)
+
+            if not os.path.exists(domain_root_path):
+                print "Adding domain %s"%domain_name
+                os.makedirs(domain_root_path)
+                domain_builder = mechanics.minimal_build_tree(builder.muddle_binary,
+                                                              domain_root_path,
+                                                              domain_repo, domain_desc)
+                # Tell the domain's builder that it *is* a domain
+                domain_builder.invocation.mark_domain(domain_name)
+
+        co_labels = checkouts.keys()
+        co_labels.sort()
+        changed_checkouts = []
+
+        get_checkout_repo = builder.invocation.db.get_checkout_repo
+
+        for label in co_labels:
+            # Determine if the checkout has changed, and if so, update its
+            # information and add its label to the list of changed checkouts.
+            co_dir, co_leaf, repo = checkouts[label]
+            if label.domain:
+                domain_root_path = self._domain_path(root_path, label.domain)
+                print "Inspecting checkout (%s)%s"%(label.domain,label.name)
+                if co_dir:
+                    actual_co_dir = os.path.join(domain_root_path, 'src', co_dir)
+                else:
+                    actual_co_dir = os.path.join(domain_root_path, 'src')
+            else:
+                print "Inspecting checkout %s"%label.name
+                if co_dir:
+                    actual_co_dir = os.path.join(root_path, 'src', co_dir)
+                else:
+                    actual_co_dir = os.path.join(root_path, 'src')
+
+            if not os.path.exists(os.path.join(actual_co_dir, co_leaf)):
+                # First check - do we have a directory for the checkout?
+                # No, we've never heard of it. So add it in...
+                print 'No directory for %s: %s'%(label, os.path.join(actual_co_dir, co_leaf))
+                checkout_from_repo(builder, label, repo, actual_co_dir, co_leaf)
+                changed_checkouts.append(str(label))
+            else:
+                # It's there. Does it match?
+                #
+                # XXX Ideally, we'd have way to get the "effective" repository
+                # XXX information for this checkout in the current build,
+                # XXX including its actual revision and branch, so we could
+                # XXX compare that directly. For the moment, we have to do
+                # XXX it in stages...
+                #
+                print 'Found directory for %s - checking repositories'%label
+                builder_repo = get_checkout_repo(label)
+                if not builder_repo.same_ignoring_revision(repo):
+                    # It's not the identical repository.
+                    print '..repositories do not match'
+                    print '  build: %r'%builder_repo
+                    print '  stamp: %r'%repo
+                    # Overwrite its information
+                    checkout_from_repo(builder, label, repo, actual_co_dir, co_leaf)
+                    changed_checkouts.append(str(label))
+                else:
+                    l = label.copy_with_tag(LabelTag.CheckedOut)
+                    rule = builder.invocation.ruleset.rule_for_target(l)
+                    try:
+                        vcs = rule.action.vcs
+                    except AttributeError:
+                        raise GiveUp("Rule for label '%s' has no VCS - cannot find its id"%l)
+                    old_revision = vcs.revision_to_checkout(builder, show_pushd=False)
+                    new_revision = repo.revision
+                    if old_revision != new_revision:
+                        print '.. revisions do not match'
+                        print '   build: %s'%old_revision
+                        print '   stamp: %s'%new_revision
+                        # Overwrite its information
+                        checkout_from_repo(builder, label, repo, actual_co_dir, co_leaf)
+                        changed_checkouts.append(str(label))
+
+        # Then use "muddle pull" to update them - this has the advantage
+        # of reporting problems properly, and also updates _just_pulled
+        # for us. NB: We *could* propagate a '-stop' switch is we cared,
+        # but currently we don't provide such...
+        had_problems = False
+        if changed_checkouts:
+            print 'Updating the changed checkouts'
+            try:
+                p = Pull()
+                p.with_build_tree(builder, root_path, changed_checkouts)
+            except GiveUp as e:
+                had_problems = True
+
+        if had_problems:
+            # Do we need the message? Or should we just raise GiveUp()
+            # (to set the muddle exit code) as "muddle pull" itself does.
+            raise GiveUp('Problems occurred updating some of the checkouts')
+
+    def check_build(self, current_dir, checkouts, muddle_binary):
         """
         Check that the build tree we now have on disk looks a bit like what we want...
         """

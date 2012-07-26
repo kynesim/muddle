@@ -114,7 +114,7 @@ class VersionControlSystem(object):
             print "Re-associating checkout '%s' with remote repository:" \
                     " %s does not support 'reparent'"%(co_leaf, self.short_name)
 
-    def revision_to_checkout(self, repo, co_leaf, options, force=False, verbose=True):
+    def revision_to_checkout(self, repo, co_leaf, options, force=False, before=None, verbose=True):
         """
         TODO: Is 'co_leaf' (used for reporting problems) the best thing to
         pass down? It shouldn't be too long, so the entire directory path
@@ -519,7 +519,7 @@ class VersionControlHandler(object):
             self.vcs_handler.reparent(actual_dir, # or self.checkout_leaf
                                       self.repo, self.options, force, verbose)
 
-    def revision_to_checkout(self, builder, force=False, verbose=False, show_pushd=True):
+    def revision_to_checkout(self, builder, force=False, before=None, verbose=False, show_pushd=True):
         """
         Determine a revision id for this checkout, usable to check it out again.
 
@@ -541,6 +541,15 @@ class VersionControlHandler(object):
             because they can tell that the checkout is seriously
             astray/broken.)
 
+        If 'before' is given, it should be a string describing a date/time, and
+        the revision id chosen will be the last revision at or before that
+        date/time.
+
+        .. note:: This depends upon what the VCS concerned actually supports.
+           This feature is experimental.
+
+        NB: if 'before' is specified, 'force' is ignored.
+
         If 'show_pushd' is false, then we won't report as we "pushd" into the
         checkout directory.
 
@@ -552,7 +561,7 @@ class VersionControlHandler(object):
             return self.vcs_handler.revision_to_checkout(self.repo,
                                                          self.checkout_leaf,
                                                          self.options,
-                                                         force, verbose)
+                                                         force, before, verbose)
 
     def get_current_branch(self, builder, verbose=False, show_pushd=False):
         """

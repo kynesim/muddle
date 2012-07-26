@@ -241,6 +241,8 @@ class Git(VersionControlSystem):
             # can really do is go to that revision (we did the fetch anyway in
             # case the user had edited the build descrtiption to refer to a
             # revision id we had not yet reached).
+            # XXX This may also be a revision specified in an "unstamp -update"
+            # XXX operation - should the message be changed to reflect this?
             print '++ Just changing to the revision specified in the build description'
             utils.run_cmd("git checkout %s"%repo.revision)
         elif merge:
@@ -597,36 +599,60 @@ class Git(VersionControlSystem):
             raise utils.GiveUp("'git rev-parse HEAD' failed with return code %d"%retcode)
         return revision.strip()
 
-    def _calculate_revision(self, co_leaf, orig_revision, force=False, verbose=True):
+    def _calculate_revision(self, co_leaf, orig_revision, force=False,
+                            before=None, verbose=True):
         """
         This returns a bare SHA1 object name for the current revision
+
+        NB: if 'before' is specified, 'force' is ignored.
         """
-        retcode, revision, ignore = utils.get_cmd_data('git rev-parse HEAD',
-                                                       fail_nonzero=False)
-        if retcode:
-            if revision:
-                text = utils.indent(revision.strip(),'    ')
-                if force:
-                    if verbose:
-                        print "'git rev-parse HEAD' had problems with checkout" \
-                              " '%s'"%co_leaf
-                        print "    %s"%text
-                        print "using original revision %s"%orig_revision
-                    return orig_revision
-            else:
-                text = '    (it failed with return code %d)'%retcode
-            raise utils.GiveUp("%s\n%s"%(utils.wrap("%s: 'git rev-parse HEAD'"
-                " could not determine a revision id for checkout:"%co_leaf),
-                text))
+        if before:
+            print "git rev-list -n 1 --before='%s' HEAD"%before
+            retcode, revision, ignore = utils.get_cmd_data("git rev-list -n 1 --before='%s' HEAD"%before,
+                                                           fail_nonzero=False)
+            print retcode, revision
+            if retcode:
+                if revision:
+                    text = utils.indent(revision.strip(),'    ')
+                else:
+                    text = '    (it failed with return code %d)'%retcode
+                raise utils.GiveUp("%s\n%s"%(utils.wrap("%s:"
+                    " \"git rev-list -n 1 --before='%s' HEAD\"'"
+                    " could not determine a revision id for checkout:"%(co_leaf, before)),
+                    text))
+        else:
+            retcode, revision, ignore = utils.get_cmd_data('git rev-parse HEAD',
+                                                           fail_nonzero=False)
+            if retcode:
+                if revision:
+                    text = utils.indent(revision.strip(),'    ')
+                    if force:
+                        if verbose:
+                            print "'git rev-parse HEAD' had problems with checkout" \
+                                  " '%s'"%co_leaf
+                            print "    %s"%text
+                            print "using original revision %s"%orig_revision
+                        return orig_revision
+                else:
+                    text = '    (it failed with return code %d)'%retcode
+                raise utils.GiveUp("%s\n%s"%(utils.wrap("%s: 'git rev-parse HEAD'"
+                    " could not determine a revision id for checkout:"%co_leaf),
+                    text))
         return revision.strip()
 
-    def revision_to_checkout(self, repo, co_leaf, options, force=False, verbose=True):
+    def revision_to_checkout(self, repo, co_leaf, options, force=False, before=None, verbose=True):
         """
         Determine a revision id for this checkout, usable to check it out again.
 
         a) Document
         b) Review the code to see if we now support versions of git that  would
            allow us to do this more sensibly
+
+        If 'before' is given, it should be a string describing a date/time, and
+        the revision id chosen will be the last revision at or before that
+        date/time.
+
+        NB: if 'before' is specified, 'force' is ignored.
 
         XXX TODO: Needs reviewing given we're using a later version of git now
         """
@@ -638,9 +664,6 @@ class Git(VersionControlSystem):
 
         # Earlier versions of this command line used 'git status -q', but
         # the '-q' switch is not present in git 1.7.0.4
-
-        # NB: this is actually a broken solution to a broken problem, as
-        # our git support is probably not terribly well designed.
 
         if repo.revision:
             orig_revision = repo.revision
@@ -663,7 +686,8 @@ class Git(VersionControlSystem):
             except utils.GiveUp:
                 revision = self._calculate_revision(co_leaf, orig_revision, force, verbose)
         else:
-            revision = self._calculate_revision(co_leaf, orig_revision, force, verbose)
+            revision = self._calculate_revision(co_leaf, orig_revision, force,
+                                                before, verbose)
         return revision
 
     def allows_relative_in_repo(self):

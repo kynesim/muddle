@@ -12,6 +12,7 @@ Bazaar.
 """
 
 import os
+import re
 
 from muddled.version_control import register_vcs_handler, VersionControlSystem
 import muddled.utils as utils
@@ -24,6 +25,41 @@ class Bazaar(VersionControlSystem):
     def __init__(self):
         self.short_name = 'bzr'
         self.long_name = 'Bazaar'
+
+    def _pruned_cmd_data(self, cmd, env=None, isSystem=False, fold_stderr=True,
+                         verbose=False, fail_nonzero=True):
+        """
+        A thunk around _prune_spurious_bzr_output applied to
+        utils.get_cmd_data
+        """
+        retcode, text, error = utils.get_cmd_data(cmd, env=env,
+                                                   isSystem=isSystem,
+                                                   fold_stderr=fold_stderr,
+                                                   verbose=verbose,
+                                                   fail_nonzero=fail_nonzero)
+        if text:
+            text = self._prune_spurious_bzr_output(text)
+        # XXX Do we need to consider pruning 'error' as well?
+        return retcode, text, error
+
+    def _prune_spurious_bzr_output(self, in_str):
+        """
+        Sanitise the output of a bzr command by removing warnings which
+        bzr will happily produce despite being told to be quiet, but
+        which are in fact a tale told by an idiot, full of sound and
+        fury, signifying nothing.
+        """
+        # If you downloaded your bazaar it may report that compiled 
+        # extensions couldn't be loaded; this doesn't mean your repo doesn't
+        # match.
+        lines = in_str.split('\n')
+        rv = [ ]
+        my_re = re.compile(".*some compiled extensions")
+        for l in lines:
+            if (not my_re.match(l)):
+                rv.append(l)
+        out_str = "\n".join(rv)
+        return out_str
 
     def _normalised_repo(self, repo):
         """
@@ -139,8 +175,32 @@ class Bazaar(VersionControlSystem):
 
         starting_revno = self._just_revno()
 
-        utils.run_cmd("bzr pull %s %s"%(rspec, self._normalised_repo(repo.url)),
-                      env=env, verbose=verbose)
+        retcode, text, ignore = self._pruned_cmd_data("bzr pull %s %s"%(rspec,
+                                                    self._normalised_repo(repo.url)),
+                                                env=env, verbose=verbose)
+        print text
+        if text.startswith('No revisions to pull') and repo.revision:
+            # Try going back to that particular revision.
+            #
+            # First we 'uncommit' to take our history back. The --force answers
+            # 'yes' to all questions (otherwise the user would be prompted as
+            # to whether they really wanted to do this operation
+            retcode, text, ignore = self._pruned_cmd_data("bzr uncommit --force --quiet %s"%rspec,
+                                                    env=env, verbose=verbose)
+            if retcode:
+                raise GiveUp('Error uncommiting to revision %s (we already tried'
+                             ' pull)\nReturn code  %d\n%s'%(rspec, retcode, text))
+            print text
+            # Then we need to 'revert' to undo any changes (since uncommit
+            # doesn't change our working set). The --no-backup stops us
+            # being left with copies of the changes in backup files (which
+            # is exactly what we don't want)
+            retcode, text, ignore = self._pruned_cmd_data("bzr revert --no-backup %s"%rspec,
+                                                    env=env, verbose=verbose)
+            if retcode:
+                raise GiveUp('Error reverting to revision %s (we already'
+                             ' uncommitted)\nReturn code %d\n%s'%(rspec, retcode, text))
+            print text
 
         ending_revno = self._just_revno()
         # Did we update anything?
@@ -202,7 +262,7 @@ class Bazaar(VersionControlSystem):
         # --quiet means only report warnings and errors
         cmd = 'bzr status --quiet -r branch:%s'%self._normalised_repo(repo.url),
 
-        retcode, text, ignore = utils.get_cmd_data(cmd, env=env, fold_stderr=False)
+        retcode, text, ignore = self._pruned_cmd_data(cmd, env=env, fold_stderr=False)
         if text:
             return text
         else:
@@ -338,7 +398,7 @@ class Bazaar(VersionControlSystem):
         <text> is its output.
         """
         cmd = 'bzr version-info --check-clean'
-        retcode, text, ignore = utils.get_cmd_data(cmd, env=env, fold_stderr=False)
+        retcode, text, ignore = self._pruned_cmd_data(cmd, env=env, fold_stderr=False)
         if 'clean: False' in text:
             return False, cmd, text
         return True, cmd, None
@@ -351,12 +411,31 @@ class Bazaar(VersionControlSystem):
         Return (True, <cmd>) if it is missing, (False, <cmd>) if it is not
         """
         cmd = 'bzr missing -q --mine-only'
-        retcode, missing, ignore = utils.get_cmd_data(cmd, env=env,
+        retcode, missing, ignore = self._pruned_cmd_data(cmd, env=env,
                                                       fold_stderr=True,
                                                       fail_nonzero=False)
         return missing, cmd
 
-    def revision_to_checkout(self, repo, co_leaf, options, force=False, verbose=True):
+    def _revision_id(self, env, revspec):
+        """Find the revision id for revision 'revspec'
+        """
+        cmd = "bzr log -l 1 -r '%s' --long --show-ids"%revspec
+        retcode, text, ignore = self._pruned_cmd_data(cmd, env=env, fail_nonzero=False)
+        if retcode != 0:
+            raise utils.GiveUp("%s: '%s' failed with return code %d\n%s"%(co_leaf,
+                                                                cmd, retcode, text))
+        # Let's look for the revision-id field therein
+        lines = text.split('\n')
+        for line in lines:
+            line = line.strip()
+            parts = line.split(':')
+            if parts[0] == 'revision-id':
+                revision = ':'.join(parts[1:]) # although I hope there aren't internal colons!
+                return revision.strip()
+        raise utils.GiveUp("%s: '%s' did not return text contining 'revision-id:'"
+                           "\n%s"%(co_leaf, cmd, text))
+
+    def revision_to_checkout(self, repo, co_leaf, options, force=False, before=None, verbose=True):
         """
         Determine a revision id for this checkout, usable to check it out again.
 
@@ -367,6 +446,13 @@ class Bazaar(VersionControlSystem):
         If 'force' is true, then if we can't get one from bzr, and it seems
         "reasonable" to do so, use the original revision from the muddle
         depend file (if it is not HEAD).
+
+        If 'before' is given, it should be a string describing a date/time, and
+        the revision id chosen will be the last revision at or before that
+        date/time.
+
+        .. note:: This depends upon what the VCS concerned actually supports.
+           This feature is experimental. XXX NOT YET IMPLEMENTED XXX
 
         'bzr revno' always returns a simple integer (or so I believe)
 
@@ -399,6 +485,11 @@ class Bazaar(VersionControlSystem):
         """
 
         env = self._derive_env()
+
+        if before:
+            # XXX For now, we're going to short-circuit everything else if we
+            # XXX are asked for 'before'.
+            return self._revision_id(env, 'before:date:%s'%before)
 
         if repo.revision:
             orig_revision = repo.revision
@@ -447,25 +538,18 @@ class Bazaar(VersionControlSystem):
             #    print 'Assuming this is a problem with bzr itself, and ignoring it'
             #    print '(This is a horrible hack, until I find a better way round)'
             else:
-                raise utils.GiveUp("%s: 'bzr missing' suggests checkout does"
-                                    " not match the remote repository:\n%s"%(co_leaf,
+                raise utils.GiveUp("%s: 'bzr missing' suggests this checkout revision"
+                                    " is not present in the remote repository:\n%s"%(co_leaf,
                                     utils.indent(missing,'    ')))
 
-        # So, let's get our revision number - where we are in the history
-        # of the current branch
-        retcode, revno, ignore = utils.get_cmd_data('bzr revno', env=env)
-        revno = revno.strip()
-        if all([x.isdigit() for x in revno]):
-            return revno
-        else:
-            raise utils.GiveUp("%s: 'bzr revno' reports checkout has revision"
-                    " '%s', which is not an integer"%(co_leaf, revno))
+        # So let's go with the revision id for the last commit of this local branch
+        return self._revision_id(env, 'revno:-1')
 
     def _just_revno(self):
         """
         This returns the revision number for the working tree
         """
-        retcode, revision, ignore = utils.get_cmd_data('bzr revno --tree')
+        retcode, revision, ignore = self._pruned_cmd_data('bzr revno --tree')
         return revision.strip()
 
     def allows_relative_in_repo(self):
@@ -475,7 +559,7 @@ class Bazaar(VersionControlSystem):
         """
         Retrieve a file's content via BZR.
         """
-        retcode, text, ignore = utils.get_cmd_data('bzr cat %s'%self._normalised_repo(url),
+        retcode, text, ignore = self._pruned_cmd_data('bzr cat %s'%self._normalised_repo(url),
                                                     fold_stderr=False, verbose=verbose)
         return text
 

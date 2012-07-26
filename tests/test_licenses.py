@@ -655,7 +655,7 @@ Exceptions to "implicit" GPL licensing are:
 * nothing builds against checkout:busybox/*
 * package:private2{x86-private}/* is not affected by checkout:gpl2plus/*
 * package:private3{x86-private}/* is not affected by checkout:gpl2plus/*
-* package:private4{x86-private}/* is not affected by checkout:gpl2plus/*, checkout:gpl2/*
+* package:private4{x86-private}/* is not affected by checkout:gpl2/*, checkout:gpl2plus/*
 * package:(subdomain)manhattan{x86-private}/* is not affected by checkout:(subdomain)xyzlib/*
 
 The following are "implicitly" GPL licensed for the given reasons:

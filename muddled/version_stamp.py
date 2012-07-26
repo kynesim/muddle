@@ -1,8 +1,160 @@
 """VersionStamp and stamp file support.
 
-.. TODO .. Insert accurate documentation for version 2 stamp files ..
+Stamp files
+===========
+Stamp files are INI files, implemented using the Python ConfigParser module
+(specifically, RawConfigParser).
 
-.. TODO .. Insert approximate (historical) documentation for version 1 stamp files ..
+INI files are composed of one or more sections, each of the form:
+
+    [header]
+    key = value
+    key = value
+
+Indentation is allowed, but will be ignored.
+
+Comment lines may be introduced with either '#' or ';', and in-line comments
+may be added by following '[header]' or 'key = value' with whitespace and a
+';' (but not a '#').
+
+Muddle treats '#' comment lines specially in stamp files, but is not aware
+of ';' comments, and we recommend not using them in muddle stamp files.
+
+When a stamp file is written or read, a SHA1 hash is calculated from the lines
+of text being written/read. Since mid-July 2012, comment lines starting with
+'#', and blank lines (whitespace only) are not included in that SHA1 hash.
+Since a stamp file uniquely describes the current state of a muddle build tree,
+the hash calculated from its content can be regarded as a version id for the
+build tree.
+
+It can sometimes be useful to edit a stamp file. If you do so, it is advisable
+to add a comment or comments indicating what has been done and why.
+
+All muddle commands for handling stamp files are subcommands of either "muddle
+stamp" or "muddle unstamp".
+
+Version 1 Stamp Files
+=====================
+We retain limited support for version 1 stamp files, mainly to allow reading
+existing (legacy) files. There *is* provision for writing version 1 stamp
+files, but it is not guaranteed to be accurate.
+
+Version 1 stamp files were replaced because they could not unambiguously
+store all of the information needed by the Repository class we now use to
+remember where a checkout "came from".
+
+Support for version 1 stamp files will be removed at some future time.
+
+Version 2 Stamp Files
+=====================
+Version 2 stamp files are the current form of stamp file.
+
+This section describes the current content of a stamp file, as currently
+written by muddle. For the rest of this section, "stamp files" should be taken
+to mean "version 2 stamp files".
+
+All stamp files start with some standard comment lines::
+
+    # Muddle stamp file
+    # Written at 2012-07-12 13:13:13
+    #            2012-07-12 12:13:13 UTC
+
+The date and time stamps are in local time and UTC respectively.
+
+This is followed by a general section:
+
+    [STAMP]
+    version = 2
+
+which at the moment just identifies the version of the stamp file.
+
+Next comes a section identifying the build description - this repeats
+information taken from the RootRepository, Description and VersionsRepository
+files in the ``.muddle/`` directory of the build. For instance::
+
+  [ROOT]
+  repository = git+ssh://git@palmera.c//opt/kynesim/projects/001
+  description = builds/01.py
+  versions_repo = git+file:///home/tibs/temp/r/versions
+
+The keys ('repository', etc.) are always presented in the same order - this is
+a general principle within stamp file sections, so that stamp files themselves
+can be comparable with simple tools such as ``diff``.
+
+Next, if the build tree has subdomains, will come sections describing those
+domains. For instance::
+
+    [DOMAIN subdomain1]
+    description = builds/01.py
+    name = subdomain1
+    repository = git+file:///home/tibs/sw/muddle/tests/transient/repo/subdomain1
+
+    [DOMAIN subdomain1(subdomain3)]
+    description = builds/01.py
+    name = subdomain1(subdomain3)
+    repository = git+file:///home/tibs/sw/muddle/tests/transient/repo/subdomain3
+
+Domain sections occur in "C" sort order of the domain names. Note that there
+will not be any domain sections if there are no subdomains (i.e., if there is
+no ``domains/`` directory in the build tree).
+
+Next come sections for each checkout. For instance::
+
+    [CHECKOUT (subdomain1)builds]
+    co_label = checkout:(subdomain1)builds/checked_out
+    co_leaf = builds
+    repo_vcs = git
+    repo_from_url_string = None
+    repo_base_url = file:///home/tibs/sw/muddle/tests/transient/repo/subdomain1
+    repo_name = builds
+    repo_prefix_as_is = False
+    repo_revision = 7d8377a18efcd8b3d7b788de8cee26aa6d770005
+
+and::
+
+    [CHECKOUT builds]
+    co_label = checkout:builds/checked_out
+    co_leaf = builds
+    repo_vcs = git
+    repo_from_url_string = None
+    repo_base_url = ssh://git@palmera.c//opt/kynesim/projects/001
+    repo_name = builds
+    repo_prefix_as_is = False
+    repo_revision = dfb06f29c81828bbdfc48ce53d7bc4203b68a459
+
+    [CHECKOUT busybox-1.17.1]
+    co_label = checkout:busybox-1.17.1/checked_out
+    co_dir = linux
+    co_leaf = busybox-1.17.1
+    repo_vcs = git
+    repo_from_url_string = None
+    repo_base_url = ssh://git@palmera.c//opt/kynesim/projects/001
+    repo_name = busybox-1.17.1
+    repo_prefix = linux
+    repo_prefix_as_is = False
+    repo_revision = 965b4809b5ca93df0a4973e043a5a9af0ecf50e3
+
+The values presented give the checkout label, its location in the build tree
+('co_dir' and 'co_leaf'), and its Repository instance (the 'repo_xxx' values.
+See "muddle doc version_control.checkout_from_repo" for some information on
+how the 'co_xxx' values are used, and "muddle doc repository.Repository" for
+more information on the Repository class).
+
+Again, these are presented in "C" sort order of the checkout name, including
+the domain component - this means that subdomain checkouts will occur before
+toplevel checkouts. Also, while not all checkout sections will contain the
+same values, the order in which they are presented will always be the same.
+
+Finally, if "muddle stamp" reported any problems in creating the stamp file,
+these will be saved in a problems section. For instance::
+
+    [PROBLEMS]
+    problem1 = builds: 'svnversion' reports checkout has revision '459M'
+
+(a subversion revision ending in 'M' means that the checkout was modified and
+not yet committed). Problems are presented as 'problem1', 'problem2', etc. In
+general, the checkout name should be the first part of the message occurring as
+the problem value.
 """
 
 import os
@@ -133,6 +285,7 @@ class VersionStamp(object):
         self.checkouts = {}     # label -> (co_dir, co_leaf, repo)
         self.options = {}       # label -> {option_name : option_value}
         self.problems = []      # one string per problem
+        self.before = None      # Set by from_builder() if 'before' is specified
 
     def __str__(self):
         """Make 'print' do something useful.
@@ -151,7 +304,8 @@ class VersionStamp(object):
 
         Returns the SHA1 hash for the file.
         """
-        with HashFile(filename, 'w') as fd:
+        with HashFile(filename, 'w',
+                      ignore_comments=True, ignore_blank_lines=True) as fd:
             self.write_to_file_object(fd, version)
             return fd.hash()
 
@@ -244,29 +398,51 @@ class VersionStamp(object):
         version 1 format.
 
         Returns the SHA1 hash for the file.
+
+        Note that the SHA1 does not include blank lines or comment lines that
+        start with a '#' (or whitespace and a '#').
         """
 
         if version not in (1, 2):
             raise GiveUp('Attempt to write version %d stamp file;'
                          ' we only support 1 or 2'%version)
 
+        fd.write('# Muddle stamp file\n')
+        # It's nice to include timestamps in the file, so that the user
+        # can tell when it was written without relying on file system
+        # information (which is not always available). However, we don't
+        # want that to affect the hash for the file, so we write it out
+        # in comments. On the good side, this means that two stamp files
+        # for the same tree, at different times, will have the same hash
+        # (which is a good way of saying they are "the same"), but on the
+        # bad side it means that VersionStamp can't recover the times when
+        # it is reading the file back in. Oh well.
+        # We present the time in two forms, in the hope that at least one
+        # will make some sense to the user.
+        now = datetime.now()
+        now = datetime(now.year, now.month, now.day,
+                       now.hour, now.minute, now.second, 0, now.tzinfo)
+        fd.write("# Written at %s\n"%now.isoformat(' '))
+        now = datetime.utcnow()
+        # Drop any microseconds!
+        now = datetime(now.year, now.month, now.day,
+                       now.hour, now.minute, now.second, 0, now.tzinfo)
+        fd.write("#            %s UTC\n"%now.isoformat(' '))
+        # If we were asked to calculate a stamp "before" a particular time,
+        # we might as well say so...
+        if self.before:
+            fd.write('# Stamp calculated for checkouts at or before %s\n'%self.before)
+        fd.write('\n')
+
         # Note we take care to write out the sections by hand, so that they
         # come out in the order we want, other than in some random order (as
         # we're effectively writing out a dictionary)
 
         config = make_RawConfigParser(ordered=True)
+
         if version > 1:
             config.add_section("STAMP")
             config.set("STAMP", "version", version)
-            now = datetime.now()
-            now = datetime(now.year, now.month, now.day,
-                           now.hour, now.minute, now.second, 0, now.tzinfo)
-            config.set("STAMP", "now", now.isoformat(' '))
-            now = datetime.utcnow()
-            # Drop any microseconds!
-            now = datetime(now.year, now.month, now.day,
-                           now.hour, now.minute, now.second, 0, now.tzinfo)
-            config.set("STAMP", "utc", now.isoformat(' '))
         config.add_section("ROOT")
         config.set("ROOT", "repository", self.repository)
         config.set("ROOT", "description", self.description)
@@ -335,12 +511,12 @@ class VersionStamp(object):
                                 truncate(str(item), columns=truncate)))
 
     @staticmethod
-    def from_builder(builder, force=False, just_use_head=False, quiet=False):
+    def from_builder(builder, force=False, just_use_head=False, before=None, quiet=False):
         """Construct a VersionStamp from a muddle build description.
 
         'builder' is the muddle Builder for our build description.
 
-        If '-force' is true, then attempt to "force" a revision id, even if it
+        If 'force' is true, then attempt to "force" a revision id, even if it
         is not necessarily correct. For instance, if a local working directory
         contains uncommitted changes, then ignore this and use the revision id
         of the committed data. If it is actually impossible to determine a
@@ -353,9 +529,16 @@ class VersionStamp(object):
             shows that these are artefacts that may be ignored, such as an
             executable built in the source directory.)
 
-        If '-head' is true, then HEAD will be used for all checkouts.  In this
-        case, the repository specified in the build description is used, and
-        the revision id and status of each checkout is not checked.
+        If 'just_use_head' is true, then HEAD will be used for all checkouts.
+        In this case, the repository specified in the build description is
+        used, and the revision id and status of each checkout is not checked.
+
+        If 'before' is given, it should be a string describing a date/time, and
+        the revision id chosen for each checkout will be the last revision
+        at or before that date/time.
+
+        .. note:: This depends upon what the VCS concerned actually supports.
+           This feature is experimental.
 
         If 'quiet' is True, then we will not print information about what
         we are doing, and we will not print out problems as they are found.
@@ -372,6 +555,8 @@ class VersionStamp(object):
         stamp.repository = builder.invocation.db.repo.get()
         stamp.description = builder.invocation.db.build_desc.get()
         stamp.versions_repo = builder.invocation.db.versions_repo.get()
+
+        stamp.before = before        # remember for annotating the stamp file
 
         if not quiet:
             print 'Finding all checkouts...',
@@ -405,7 +590,8 @@ class VersionStamp(object):
                         print 'Forcing head'
                     rev = "HEAD"
                 else:
-                    rev = vcs.revision_to_checkout(builder, force=force, verbose=True)
+                    rev = vcs.revision_to_checkout(builder, force=force,
+                                                   before=before, verbose=True)
 
                 repo = vcs.repo.copy_with_changed_revision(rev)
 
@@ -445,12 +631,16 @@ class VersionStamp(object):
         """Construct a VersionStamp by reading in a stamp file.
 
         Returns a new VersionStamp instance.
+
+        Note that the SHA1 computed and reported for that VersionStamp does not
+        include blank lines or comment lines that start with a '#' (or
+        whitespace and a '#').
         """
 
         stamp = VersionStamp()
 
         print 'Reading stamp file %s'%filename
-        fd = HashFile(filename)
+        fd = HashFile(filename, ignore_comments=True, ignore_blank_lines=True)
 
         config = make_RawConfigParser()
         config.readfp(fd)
@@ -510,12 +700,13 @@ class VersionStamp(object):
         print 'File has SHA1 hash %s'%fd.hash()
         return stamp
 
-    def compare_checkouts(self, other, quiet=False):
+    def compare_checkouts(self, other, fd=sys.stdout):
         """Compare the checkouts in this VersionStamp with those in another.
 
         'other' is another VersionStamp.
 
-        If 'quiet', then don't output messages about the comparison.
+        'fd' is where any messages should be written, defaulting to stdout.
+        If this is None, then no messages will be writen.
 
         Note that this only compares the checkouts (including their options) -
         it does not compare any of the other fields in a VersionStamp.
@@ -565,47 +756,46 @@ class VersionStamp(object):
 
         for label in co_labels:
             if label in self.checkouts and label in other.checkouts:
+                errors = set()
+                named = False
                 co_dir1, co_leaf1, repo1 = self.checkouts[label]
                 co_dir2, co_leaf2, repo2 = other.checkouts[label]
 
                 if (co_dir1 != co_dir2 or co_leaf1 != co_leaf2 or
                     repo1 != repo2):
 
-                    errors = []
-                    named = False
-
                     if repo1.same_ignoring_revision(repo2):
                         if repo1.revision != repo2.revision:
                             changed.add((label, repo1.revision, repo2.revision))
                     else:
-                        errors.append('repository')
-                        if not quiet:
-                            print label
-                            print '  Repository mismatch:'
-                            print '    %s from %s'%(repo1.url, repo1)
-                            print '    %s from %s'%(repo2.url, repo2)
+                        errors.add('repository')
+                        if fd is not None:
+                            fd.write('%s\n'%label)
+                            fd.write('  Repository mismatch:\n')
+                            fd.write('    %s from %s\n'%(repo1.url, repo1))
+                            fd.write('    %s from %s\n'%(repo2.url, repo2))
                             named = True
 
                     # It's a problem if anything but the revision is different
 
                     if co_dir1 != co_dir2:
-                        errors.append('co_dir')
-                        if not quiet:
+                        errors.add('co_dir')
+                        if fd is not None:
                             if not named:
-                                print label
+                                fd.write('%s\n'%label)
                                 named = True
-                            print '  Checkout directory mismatch:'
-                            print '    %s'%co_dir1
-                            print '    %s'%co_dir2
+                            fd.write('  Checkout directory mismatch:\n')
+                            fd.write('    %s\n'%co_dir1)
+                            fd.write('    %s\n'%co_dir2)
                     if co_leaf1 != co_leaf2:
-                        errors.append('co_leaf')
-                        if not quiet:
+                        errors.add('co_leaf')
+                        if fd is not None:
                             if not named:
-                                print label
+                                fd.write('%s\n'%label)
                                 named = True
-                            print '  Checkout leaf mismatch:'
-                            print '    %s'%co_leaf1
-                            print '    %s'%co_leaf2
+                            fd.write('  Checkout leaf mismatch:\n')
+                            fd.write('    %s\n'%co_leaf1)
+                            fd.write('    %s\n'%co_leaf2)
 
                 if label in self.options:
                     options1 = self.options[label]
@@ -618,36 +808,38 @@ class VersionStamp(object):
                     options2 = {}
 
                 if options1 != options2:
-                    errors.append('options')
+                    errors.add('options')
                     if not named:
-                        print label
+                        if fd is not None:
+                            fd.write('%s\n'%label)
                         named = True
-                    print '  Options mismatch:'
-                    keys = set(options1.keys() + options2.keys())
-                    keys = list(keys)
-                    keys.sort()
-                    for key in keys:
-                        if key in options1 and key not in options2:
-                            print '    option %s was deleted'%key
-                        elif key not in options1 and key in options2:
-                            print '    option %s is new'%key
-                        else:
-                            print "    option %s changed from" \
-                                  " '%s' to '%s'"%(key, options1[key], options2[key])
+                    if fd is not None:
+                        fd.write('  Options mismatch:\n')
+                        keys = set(options1.keys() + options2.keys())
+                        keys = list(keys)
+                        keys.sort()
+                        for key in keys:
+                            if key in options1 and key not in options2:
+                                fd.write('    option %s was deleted\n'%key)
+                            elif key not in options1 and key in options2:
+                                fd.write('    option %s is new\n'%key)
+                            else:
+                                fd.write("    option %s changed from"
+                                         " '%s' to '%s'\n"%(key, options1[key], options2[key]))
 
                 if errors:
-                    if not quiet:
-                        print '  ...only revision mismatch is allowed'
+                    if fd is not None:
+                        fd.write('  ...only revision mismatch is allowed\n')
                     problems.append((label, 'Checkout %s does not match:'
-                                            ' %s'%(label, ', '.join(errors))))
+                                            ' %s'%(label, ', '.join(sorted(errors)))))
             elif label in self.checkouts:
-                if not quiet:
-                    print 'Checkout %s was deleted'%label
+                if fd is not None:
+                    fd.write('Checkout %s was deleted\n'%label)
                 co_dir, co_leaf, repo = self.checkouts[label]
                 deleted.add( (label, co_dir, co_leaf, repo) )
             else:       # It must be in other.checkouts...
-                if not quiet:
-                    print 'Checkout %s is new'%label
+                if fd is not None:
+                    fd.write('Checkout %s is new\n'%label)
                 co_dir, co_leaf, repo = other.checkouts[label]
                 new.add( (label, co_dir, co_leaf, repo) )
 

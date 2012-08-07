@@ -365,7 +365,7 @@ class VersionControlHandler(object):
             domain = self.checkout_label.domain
             build_desc_label = builder.invocation.db.get_domain_build_desc_label(domain)
             # Figure out its VCS
-            build_desc_label = build_desc_label.copy_with_tag(LabelTag.CheckedOut)
+            build_desc_label = build_desc_label.copy_with_tag(utils.LabelTag.CheckedOut)
             rule = builder.invocation.ruleset.rule_for_target(build_desc_label)
             try:
                 vcs = rule.action.vcs
@@ -381,7 +381,7 @@ class VersionControlHandler(object):
                                    " but VCS '%s' does not support branching"%(
                                        build_desc_branch, self.long_name))
         else:
-            print 'Nowt to do'
+            print 'Not following build description'
             return None
 
     def checkout(self, builder, verbose=True):

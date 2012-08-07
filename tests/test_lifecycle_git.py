@@ -396,7 +396,10 @@ def test_git_lifecycle(root_d):
         # If we amend the build description, though:
         with Directory('src'):
             with Directory('builds'):
-                append('01.py', '    builder.follow_build_desc_branch\n')
+                append('01.py', '    builder.follow_build_desc_branch = True\n')
+                # Then remove the .pyc file, because Python probably won't realise
+                # that this new 01.py is later than the previous version
+                os.remove('01.pyc')
         # our checkout should now follow the build description's branch
         muddle(['pull', 'checkout'])
         check_branch('src/builds', 'test-v0.1')

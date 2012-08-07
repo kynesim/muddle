@@ -2613,7 +2613,7 @@ class QueryBuildDescBranch(QueryCommand):
     will be the build description with the same domain as <label>.
 
     If <label> is '_all', then all domains will have their build descriptions
-    queries.
+    queried.
 
     If <label> is not given, then the domain being queried will be determined
     by the current directory and its position in the build tree. See the output

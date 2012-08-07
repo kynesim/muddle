@@ -327,6 +327,63 @@ class VersionControlHandler(object):
 
         return src_rel_dir
 
+    def branch_to_follow(self, builder):
+        """Determine what branch is *actually* wanted.
+
+        If our Repository instance explicitly specifies a revision, or a branch
+        (i.e., the build description explicitly selected such), then we return
+        None, since we do not need to override it (a specific revision always
+        "wins" over a branch name, although perhaps we should check they match).
+
+            This also means that if our caller calls us, gets a branch name
+            back, sets that branch name as self.repo.branch, and then calls
+            us again later on, that second time we'll return None and the
+            caller will know the Repository (already) has the wanted branch.
+
+        Otherwise, if the build description set builder.follow_build_desc_branch,
+        and our VCS supports branching, we return the build description's
+        branch. If our VCS does not support branching, we raise an explanatory
+        GiveUp exception.
+
+        Otherwise we return None.
+        """
+        if self.repo.revision or self.repo.branch:
+            print 'Revision already set to %s'%self.repo.revision
+            print 'Branch already set to %s'%self.repo.branch
+            return None         # we're happy with that we've got
+        elif builder.follow_build_desc_branch:
+            # XXX TODO XXX
+            # This next is going to be *way* too slow to do for every time this
+            # method is called - once per label - so should really be cached.
+            # Probably as
+            # builder.invocation.db.get_domain_build_desc_branch([builder],domain)
+            #
+            # But for now let's just try to get it working
+            #
+            # ...following "muddle query build-desc-branch":
+            # First, find the build description for our checkout
+            domain = self.checkout_label.domain
+            build_desc_label = builder.invocation.db.get_domain_build_desc_label(domain)
+            # Figure out its VCS
+            build_desc_label = build_desc_label.copy_with_tag(LabelTag.CheckedOut)
+            rule = builder.invocation.ruleset.rule_for_target(build_desc_label)
+            try:
+                vcs = rule.action.vcs
+            except AttributeError:
+                raise GiveUp("Rule for build description label '%s' has no VCS"
+                             " - cannot find its branch"%build_desc_label)
+            build_desc_branch = vcs.get_current_branch(builder, show_pushd=False)
+
+            if self.vcs_handler.supports_branching():
+                return build_desc_branch
+            else:
+                raise utils.GiveUp("Build description requests branch '%s',"
+                                   " but VCS '%s' does not support branching"%(
+                                       build_desc_branch, self.long_name))
+        else:
+            print 'Nowt to do'
+            return None
+
     def checkout(self, builder, verbose=True):
         """
         Check this checkout out of version control.
@@ -346,6 +403,12 @@ class VersionControlHandler(object):
         # Be careful - if the parent is 'src/', then it may well exist by now
         if not os.path.exists(parent_dir):
             os.makedirs(parent_dir)
+
+        specific_branch = self.branch_to_follow(builder)
+        if specific_branch:
+            # The build description told us to follow it, onto this branch
+            # - so let's remember it on the Repository
+            self.repo.branch = specific_branch
 
         with utils.Directory(parent_dir):
             try:
@@ -375,6 +438,13 @@ class VersionControlHandler(object):
                                '  %s does not allow "pull"'%(self.checkout_label,
                                self.src_rel_dir(), self.repo))
 
+        specific_branch = self.branch_to_follow(builder)
+        if specific_branch:
+            # The build description told us to follow it, onto this branch
+            # - so let's remember it on the Repository
+            self.repo.branch = specific_branch
+            print 'Specific branch %s in %s'%(specific_branch, self.checkout_label)
+
         with utils.Directory(builder.invocation.checkout_path(self.checkout_label)):
             try:
                 return self.vcs_handler.pull(self.repo, self.options,
@@ -401,6 +471,12 @@ class VersionControlHandler(object):
             raise utils.GiveUp('Failure merging %s in %s:\n'
                                '  %s does not allow "pull"'%(self.checkout_label,
                                self.src_rel_dir(), self.repo))
+
+        specific_branch = self.branch_to_follow(builder)
+        if specific_branch:
+            # The build description told us to follow it, onto this branch
+            # - so let's remember it on the Repository
+            self.repo.branch = specific_branch
 
         with utils.Directory(builder.invocation.checkout_path(self.checkout_label)):
             try:

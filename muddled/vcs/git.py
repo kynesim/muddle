@@ -241,9 +241,11 @@ class Git(VersionControlSystem):
             # can really do is go to that revision (we did the fetch anyway in
             # case the user had edited the build descrtiption to refer to a
             # revision id we had not yet reached).
-            # XXX This may also be a revision specified in an "unstamp -update"
-            # XXX operation - should the message be changed to reflect this?
-            print '++ Just changing to the revision specified in the build description'
+            #
+            # This may also be a revision specified in an "unstamp -update"
+            # operation, which is why the message doesn't say it's the build
+            # description we're obeying
+            print '++ Just changing to the revision explicitly requested for this checkout'
             utils.run_cmd("git checkout %s"%repo.revision)
         elif merge:
             # Just merge what we fetched into the current working tree

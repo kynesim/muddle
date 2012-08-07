@@ -221,6 +221,14 @@ class Git(VersionControlSystem):
         # Refuse to do anything if this was a shallow checkout
         self._shallow_not_allowed(options)
 
+        # Are we on the correct branch?
+        this_branch = self.get_current_branch()
+        if repo.branch is None:
+            if this_branch != 'master':
+                self.goto_branch('master')
+        elif repo.branch != this_branch:
+            self.goto_branch(repo.branch)
+
         if not upstream:
             # If we're not given an upstream repository name, assume we're
             # dealing with an "ordinary" pull, from our origin

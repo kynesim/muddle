@@ -391,7 +391,7 @@ def test_git_lifecycle(root_d):
         # build description. It shouldn't affect the build description.
         muddle(['pull', 'checkout'])
         check_branch('src/builds', 'test-v0.1')
-        check_branch('src/checkout', 'master')      # XXX WORKING ON THIS
+        check_branch('src/checkout', 'master')
 
         # If we amend the build description, though:
         with Directory('src'):
@@ -400,7 +400,7 @@ def test_git_lifecycle(root_d):
         # our checkout should now follow the build description's branch
         muddle(['pull', 'checkout'])
         check_branch('src/builds', 'test-v0.1')
-        check_branch('src/checkout', 'test-v0.1')
+        check_branch('src/checkout', 'test-v0.1')      # XXX WORKING ON THIS
 
         # ...also want to check what happens if we explicitly select
         # branch master of checkout, by name, in the build description

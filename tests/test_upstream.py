@@ -605,8 +605,7 @@ def test_builds_bad_upstream_2(root):
         text = captured_muddle(['init', 'git+file://{repo}/main'.format(repo=root.join('repo')),
                                    'builds_bad_upstream_2/01.py'], error_fails=False)
         check_text_endswith(text, """\
-
-Upstream repository name '$@~#sausage' is not allowed
+GiveUp: Upstream repository name '$@~#sausage' is not allowed
 """.format(root_dir=root.where))
 
 

@@ -118,8 +118,7 @@ class CpioDeploymentBuilder(Action):
 
         if (label.tag == utils.LabelTag.Deployed):
             # Collect all the relevant files ..
-            deploy_dir = builder.invocation.deploy_path(label.name,
-                                                        domain = label.domain)
+            deploy_dir = builder.invocation.deploy_path(label)
             deploy_file = os.path.join(deploy_dir,
                                        self.target_file)
 

@@ -386,4 +386,36 @@ def build_role_on_architecture(builder, role, arch):
     gen = pkg.ArchSpecificAction(arch)
     builder.invocation.ruleset.wrap_actions(gen, lbl)
 
+def packages_use_role(builder, pkgs, in_role, use_role, domain = None):
+    """
+    Specifies that one role uses the results of another role; this
+    is most often used to allow roles built for a target to use roles
+    built for the host.
+
+    We would normally want a role_uses_role(), but this tends to lead
+    to undesirable excessive rebuilding of entire roles when the host
+    tools change.
+    """
+    for p in pkgs:
+        role_label = depend.Label(utils.LabelType.Package,
+                                  "*", use_role,
+                                  utils.LabelTag.PostInstalled)
+        pkg.do_depend_label(builder, p, [ in_role ], 
+                            role_label)
+
+        role_path = builder.invocation.role_install_path(use_role, domain)
+        pkg.prepend_env_for_package(builder, p,
+                                    [ in_role ],
+                                    "PATH", 
+                                    os.path.join(role_path, "bin"),
+                                    domain = domain)
+        pkg.prepend_env_for_package(builder, p,
+                                    [ in_role ],
+                                    "LD_LIBRARY_PATH", 
+                                    os.path.join(role_path, "lib"), 
+                                    domain = domain);
+        
+    
+    
+
 # End File.

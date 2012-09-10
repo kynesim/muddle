@@ -444,6 +444,28 @@ def append_env_for_package(builder, pkg_name, pkg_roles,
             env.set_type(name, type)
 
 
+def prepend_env_for_package(builder, pkg_name, pkg_roles,
+                           name, value,
+                           domain = None,
+                           type = None):
+    """
+    Set the environment variable name to value in the given
+    package built in the given roles. Useful for customising
+    package behaviour in particular roles in the build
+    description.
+    """
+
+    for r in pkg_roles:
+        lbl = depend.Label(utils.LabelType.Package,
+                           pkg_name,
+                           r,
+                           "*",
+                           domain = domain)
+        env = builder.invocation.get_environment_for(lbl)
+        env.prepend(name, value)
+        if (type is not None):
+            env.set_type(name, type)
+
 def set_env_for_package(builder, pkg_name, pkg_roles,
                         name, value,
                         domain = None):

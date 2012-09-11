@@ -228,7 +228,8 @@ def test_git_lifecycle(root_d):
     print '  ',checkout_rev_2
     print '  ',checkout_rev_3
 
-    # Second build tree
+    # Second build tree, where the build description gives a specific revision
+    # for a checkout.
     with NewDirectory(root_d.join('build2')) as d:
         muddle(['init', repo_url, 'builds/01.py'])
         # But we want to specify the revision for our source checkout
@@ -254,7 +255,9 @@ def test_git_lifecycle(root_d):
         if not text.endswith('checkout past the specified revision.'):
             raise GiveUp('Expected muddle pull to fail trying to go "past" revision:\n%s'%text)
 
-        # What if we're at a different revision?
+        # What if the checkout is at the wrong revision? (e.g., someone used
+        # git explicitly to change it, or equally we changed the build description
+        # itself).
         # All muddle can really do is go to the revision specified in the
         # build description...
         with Directory(d.join('src', 'checkout')):
@@ -266,7 +269,7 @@ def test_git_lifecycle(root_d):
             muddle(['merge'])
             check_revision('checkout', checkout_rev_2)
 
-        # What if we try to do work on a specified revision
+        # What if we try to do work on that specified revision
         # (and, in git terms, at a detached HEAD)
         with Directory(d.join('src', 'checkout')):
             append('Makefile.muddle', '# Additional comment number 3\n')
@@ -369,7 +372,7 @@ def test_git_lifecycle(root_d):
                 if not text.endswith('checkout past the specified revision.'):
                     raise GiveUp('Expected muddle pull to fail trying to go "past" revision:\n%s'%text)
 
-    # Third build tree
+    # Third build tree, investigating use of "muddle branch-tree"
     with NewDirectory(root_d.join('build3')) as d:
         muddle(['init', repo_url, 'builds/01.py'])
         muddle(['checkout', '_all'])
@@ -391,6 +394,35 @@ def test_git_lifecycle(root_d):
         # build description. It shouldn't affect the build description.
         muddle(['pull', 'checkout'])
         check_branch('src/builds', 'test-v0.1')
+        # XXX Although at the moment, it actually raises:
+        # XXX   GiveUp: Checkout in src/checkout has branch test-v0.1, expected master
+        # XXX because I haven't yet written any of the code to deal with *actually*
+        # XXX following the build desc branch.
+        # XXX
+        # XXX On the other hand, if I've been developing on a branch, and do a
+        # XXX muddle pull, is it better if muddle refuses to pull (because I'm
+        # XXX not on the branch it expects), or forces me to the branch it wants
+        # XXX (which may be a shock, particularly if I manage not to notice and
+        # XXX wonder why things have changed more than I expected).
+        # XXX
+        # XXX If we think the latter is bad, and it should refuse, then (a)
+        # XXX should it *just* refuse, or (b) should it pull to the branch
+        # XXX that the build description wants, and leave me on the branch
+        # XXX I want to be on (and warn me of such)? (ok, that's not really
+        # XXX "refusing" any more).
+        # XXX
+        # XXX   (Point for not having "muddle pull" change us to the branch
+        # XXX   specified in the build description (at least without having
+        # XXX   follow_build_desc_branch set True) is that it would be a change
+        # XXX   in how "muddle pull" has worked in the past, and thus a big
+        # XXX   surprise. Now once we've asked to follow the build description,
+        # XXX   then that's a new thing, so we *can* have new behaviour.)
+        # XXX
+        # XXX And what command *should* I use to go to the branch specified
+        # XXX by the build description (explicitly or implicitly)? I don't
+        # XXX particularly like using "muddle parent" for this, as it's
+        # XXX really a bit beyond its original remit (and essentially
+        # XXX unguessable).
         check_branch('src/checkout', 'master')
 
         # If we amend the build description, though:
@@ -407,6 +439,8 @@ def test_git_lifecycle(root_d):
         # - we should revert to master again.
 
 
+    # XXX  NB: text higher up may alter conclusions reached below. Oh dear.
+    #
     # So, things I intend to test:
     #
     # 1. DONE That we can make some changes and push them

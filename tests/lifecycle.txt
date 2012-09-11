@@ -1,0 +1,139 @@
+================================
+Simple project lifecycle support
+================================
+
+  **This is a work-in-progress, and this document will change as I find out
+  what it should actually have said all along...**
+
+What is this about?
+===================
+Let us assume that we have been developing a build tree, and we reach the
+point of releasing version 1 of the product that it builds. We can do the
+normal steps of generating stamp files (``muddle stamp``), perhaps producing
+source releases (``muddle distribute``), and quite likely producing an actual
+release tarball (``muddle release``), but then we want to continue development
+towards the next version of the product.
+
+The problem is that we almost certainly also want to be able to go back and
+produce later "bugfix" releases based on version 1, and ideally we would like
+muddle to make this easy for us.
+
+One rather cumbersome way to do this would be make a branch of our build
+description describing, explicitly, what is in release 1. So we could look at
+the stamp file we produced for our release (of course we made a stamp file),
+and for each checkout, explicitly specify its revision in the build
+description. If we committed that (on its branch), then we could later build
+our tree again, making sure we're using the branch of the build description.
+If we needed to fix a bug in a particular package, we could then branch that
+package, determine the new revision, update the build description, and so on.
+
+This would be rather tedious, and definitely error prone.
+
+A slightly (but only slightly) better approach would still specify all of the
+revisions "by hand", but when a package was changed for a bugfix, we would
+perofrm the change on an appropriate branch, and amend the build description
+for that package to specify this new branch instead of the revision.
+
+Which is really not that much better.
+
+So instead we provide a mechanism to branch all checkouts in a build tree,
+and to use the same branch (i.e., branch name) for the build description and
+the checkouts.
+
+.. note:: This assumes that all the checkouts support this mechanism. At time
+   of writing, muddle supports this for git. If most checkouts use git, and a
+   few use a VCS that is not supported for this purpose, then one of the
+   "solutions" above may be adopted for the less able VCS checkouts.
+
+How we do it
+============
+This means we would:
+
+1. Decide we're going to make release 1. If our build is called
+   "WidgetFactory", we might thus decide to use a branch called
+   "WidgetFactory-v1".
+
+     (It seems sensible to put the name of our build tree into the branch
+     name as a way of avoiding clashes with any previous branches in the
+     individual checkouts. It is quite likely that some checkout of source
+     code from elsewhere might have already have a branch called "v1.0", for
+     instance. Whilst muddle can warn if this is the case, it is ultimately
+     up to the user to choose an appropriate branch name.)
+
+2. We then use::
+
+      muddle branch-tree -check WidgetFactory-v1
+
+   to make sure that no checkouts are already using a branch of that name.
+
+3. Assuming that this is indeed a new branch name, we can use::
+
+      muddle branch-tree WidgetFactory-v1
+
+   to actually branch all the checkouts.
+
+4. We then edit the build description (which is now on the new branch) and
+   add a line to the ``describe_to()`` function::
+
+      builder.follow_build_desc_branch = True
+
+   This tells muddle that checkouts should use the same branch as the build
+   description. Of course, if the build description explicitly specifies a
+   revision or branch for a checkout, then that takes precedence, so please
+   remember to check.
+
+5. We can then do::
+
+     muddle push _all
+
+   to push the build description and all the branched checkouts.
+
+If anyone does a ``muddle init`` of the build tree, they will still get the
+normal ("master") branch, which we have not altered, and can ``muddle
+checkout`` and continue mainstream development just as normal.
+
+However, if we want to do a bugfix on version 1, we can do ``muddle init``,
+as normal, and then::
+
+    cd src/builds
+    git branch WidgetFactory-v1
+    muddle checkout _all
+
+*This* branch of the build description is the one we altered, and *it* says
+to follow the branch of the build description. So the ``muddle checkout _all``
+command will checkout the WidgetFacttory-v1 branch of all the checkouts. And
+now our developer can make bugfixes in whichever checkouts are necessary, and
+commit/push in the normal manner, but safely on the version 1 branch.
+
+Other useful things
+===================
+
+``muddle query build-desc-branch``
+
+
+Details of how ``muddle push`` and other commands work
+======================================================
+
+... the various muddle help commands
+
+... forcing use of an existing branch (and why one might do that)
+
+... ``muddle push``
+
+... ``muddle pull``
+
+... ``muddle merge``
+
+... ``muddle reparent``
+
+How do I tell a checkout to go (back) to the branch implicitly specified by
+this mechanism?
+
+... an example of a build with git and bzr checkouts in it, and how to cope
+(as mentioned in the introduction)
+
+What happens if there are sub-domains
+=====================================
+To be written
+
+.. vim: set filetype=rst tabstop=8 softtabstop=2 shiftwidth=2 expandtab:

@@ -98,9 +98,11 @@ class SquashFSDeploymentBuilder(Action):
         else:
             tgt = self.target_name
             
+        utils.ensure_dir(builder.invocation.deploy_path(label))
+
         final_tgt = os.path.join(builder.invocation.deploy_path(label), 
                                  tgt)
-        cmd = "%s -all-root -info \"%s\" \"%s\""%(self.mksquashfs, my_tmp, final_tgt)
+        cmd = "%s \"%s\" \"%s\" -all-root -info -comp xz"%(self.mksquashfs, my_tmp, final_tgt)
         utils.run_cmd(cmd)
         
 
@@ -117,7 +119,7 @@ class SquashFSDeploymentBuilder(Action):
         if (label.tag == utils.LabelTag.Deployed):
             self.apply_instructions(builder, label, True, self.my_tmp)
             self.deploy(builder, label, self.my_tmp)
-            self.do_genromfs(builder, label, self.my_tmp)
+            self.do_mksquashfs(builder, label, self.my_tmp)
             utils.recursively_remove(self.my_tmp)
         else:
             raise utils.GiveUp("Attempt to build a deployment with an unexpected tag in label %s"%(label))

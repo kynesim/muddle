@@ -356,7 +356,7 @@ Muddle is version-control agnostic.
 
 ::
 
- muddle vcs
+ muddle help vcs
 
 will tell you which version control systems your copy of muddle currently
 supports. Feel free to add your favourites!

@@ -101,6 +101,7 @@ class RomFSDeploymentBuilder(Action):
         else:
             tgt = self.target_name
             
+        utils.ensure_dir(builder.invocation.deploy_path(label))
         final_tgt = os.path.join(builder.invocation.deploy_path(label), 
                                  tgt)
         cmd = "%s -f \"%s\""%(self.genromfs, final_tgt)

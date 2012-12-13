@@ -179,7 +179,10 @@ class Bazaar(VersionControlSystem):
                                                     self._normalised_repo(repo.url)),
                                                 env=env, verbose=verbose)
         print text
-        if text.startswith('No revisions to pull') and repo.revision:
+        if (text.startswith('No revisions to pull')  # older versions of bzr
+            or
+            text.startswith('No revisions or tags to pull') # bzr v2.6
+           ) and repo.revision:
             # Try going back to that particular revision.
             #
             # First we 'uncommit' to take our history back. The --force answers

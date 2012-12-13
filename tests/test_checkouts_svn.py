@@ -112,7 +112,6 @@ def test_svn_simple_build():
         banner('Stamping simple build')
         muddle(['stamp', 'version'])
         with Directory('versions'):
-            svn('add test_build.stamp')
             svn('commit -m "A proper stamp file"')
             cat('test_build.stamp')
 

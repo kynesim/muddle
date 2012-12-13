@@ -1,7 +1,9 @@
 #! /usr/bin/env python
 """Test checkout support for bzr.
 
-    $ ./test_checkouts_bzr.py
+    $ ./test_checkouts_bzr.py [-keep]
+
+With -keep, do not delete the 'transient' directory used for the tests.
 
 Bazaar must be installed.
 """
@@ -364,28 +366,34 @@ def test_just_pulled():
 
 def main(args):
 
+    keep = False
     if args:
-        print __doc__
-        return
+        if len(args) == 1 and args[0] == '-keep':
+            keep = True
+        else:
+            print __doc__
+            return
 
     # Choose a place to work, rather hackily
     #root_dir = os.path.join('/tmp','muddle_tests')
     root_dir = normalise_dir(os.path.join(os.getcwd(), 'transient'))
 
-    with TransientDirectory(root_dir, keep_on_error=True):
-        banner('TEST SIMPLE BUILD (BZR)')
-        test_bzr_simple_build()
+    with TransientDirectory(root_dir, keep_on_error=True, keep_anyway=keep) as root_d:
 
-    with TransientDirectory(root_dir, keep_on_error=True):
-        banner('TEST CHECKOUT BUILD (BZR)')
-        setup_bzr_checkout_repositories()
-        test_bzr_checkout_build()
-        banner('TEST MUDDLE PATCH (BZR)')
-        test_bzr_muddle_patch()
+        with NewDirectory('simple'):
+            banner('TEST SIMPLE BUILD (BZR)')
+            test_bzr_simple_build()
 
-    with TransientDirectory(root_dir, keep_on_error=True):
-        banner('TEST _JUST_PULLED')
-        test_just_pulled()
+        with NewDirectory('checkout'):
+            banner('TEST CHECKOUT BUILD (BZR)')
+            setup_bzr_checkout_repositories()
+            test_bzr_checkout_build()
+            banner('TEST MUDDLE PATCH (BZR)')
+            test_bzr_muddle_patch()
+
+        with NewDirectory('just_pulled'):
+            banner('TEST _JUST_PULLED')
+            test_just_pulled()
 
 if __name__ == '__main__':
     args = sys.argv[1:]

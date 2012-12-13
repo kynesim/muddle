@@ -1,5 +1,9 @@
 #! /usr/bin/env python
 """Test the muddle release mechanism, including release stamp files
+
+    $ ./test_release.py [-keep]
+
+With -keep, do not delete the 'transient' directory used for the tests.
 """
 
 import os

@@ -1,6 +1,10 @@
 #! /usr/bin/env python
 """Test "muddle distribute" support
 
+    $ ./test_distribute.py [-keep]
+
+With -keep, do not delete the 'transient' directory used for the tests.
+
 Our test build structure is::
 
         <top>
@@ -426,16 +430,20 @@ def add_some_instructions(d):
 
 def main(args):
 
+    keep = False
     if args:
-        print __doc__
-        raise GiveUp('Unexpected arguments %s'%' '.join(args))
+        if len(args) == 1 and args[0] == '-keep':
+            keep = True
+        else:
+            print __doc__
+            raise GiveUp('Unexpected arguments %s'%' '.join(args))
 
     # Working in a local transient directory seems to work OK
     # although if it's anyone other than me they might prefer
     # somewhere in $TMPDIR...
     root_dir = normalise_dir(os.path.join(os.getcwd(), 'transient'))
 
-    with TransientDirectory(root_dir, keep_on_error=True):
+    with TransientDirectory(root_dir, keep_on_error=True, keep_anyway=keep) as root_d:
 
         banner('MAKE REPOSITORIES')
         make_repos_with_subdomain(root_dir)

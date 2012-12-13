@@ -1,5 +1,9 @@
 #! /usr/bin/env python
 """Test upstream repository support in muddle
+
+    $ ./test_upstream.py [-keep]
+
+With -keep, do not delete the 'transient' directory used for the tests.
 """
 
 import os
@@ -686,9 +690,13 @@ def check_push_pull_permissions():
 
 def main(args):
 
+    keep = False
     if args:
-        print __doc__
-        raise GiveUp('Unexpected arguments %s'%' '.join(args))
+        if len(args) == 1 and args[0] == '-keep':
+            keep = True
+        else:
+            print __doc__
+            raise GiveUp('Unexpected arguments %s'%' '.join(args))
 
     # This test is independent
     check_push_pull_permissions()
@@ -698,7 +706,7 @@ def main(args):
     # somewhere in $TMPDIR...
     root_dir = normalise_dir(os.path.join(os.getcwd(), 'transient'))
 
-    with TransientDirectory(root_dir, keep_on_error=True) as root:
+    with TransientDirectory(root_dir, keep_on_error=True, keep_anyway=keep) as root:
 
         banner('MAKE REPOSITORIES')
         make_repos(root_dir)

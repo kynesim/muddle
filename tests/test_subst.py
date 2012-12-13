@@ -1,6 +1,10 @@
 #! /usr/bin/env python
 """Test the muddle subst mechanism.
 
+./test_subst.py [-keep]
+
+With -keep, do not delete the 'transient' directory used for the tests.
+
 Written so I could figure out the details of how it works - it seemed sensible
 to enshrine that as yet another test...
 
@@ -465,8 +469,7 @@ def main(args):
 
     root_dir = normalise_dir(os.path.join(os.getcwd(), 'transient'))
 
-    #with TransientDirectory(root_dir, keep_on_error=True, keep_anyway=keep) as root_d:
-    with TransientDirectory(root_dir, keep_on_error=True) as root_d:
+    with TransientDirectory(root_dir, keep_on_error=True, keep_anyway=keep) as root_d:
 
         banner('TESTING MUDDLE SUBST')
 

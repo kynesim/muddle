@@ -1,6 +1,10 @@
 #! /usr/bin/env python
 """Test checkout license support in muddle
 
+    $ ./test_licenses.py [-keep]
+
+With -keep, do not delete the 'transient' directory used for the tests.
+
 Some of this might look suspiciously like it was copied from (a version of)
 test_distribute.py. There's a reason for that.
 
@@ -1189,22 +1193,20 @@ def subsequent_tests(root_dir, d):
 
 def main(args):
 
+    keep = False
+    if args:
+        if len(args) == 1 and args[0] == '-keep':
+            keep = True
+        else:
+            print __doc__
+            raise GiveUp('Unexpected arguments %s'%' '.join(args))
+
     # Working in a local transient directory seems to work OK
     # although if it's anyone other than me they might prefer
     # somewhere in $TMPDIR...
     root_dir = normalise_dir(os.path.join(os.getcwd(), 'transient'))
 
-    if args == ['-just']:
-        with Directory(root_dir):
-            with Directory('build') as d:
-                actual_tests(root_dir, d)
-        return
-
-    elif args:
-        print __doc__
-        raise GiveUp('Unexpected arguments %s'%' '.join(args))
-
-    with TransientDirectory(root_dir, keep_on_error=True) as root:
+    with TransientDirectory(root_dir, keep_on_error=True, keep_anyway=keep) as root:
 
         banner('MAKE REPOSITORIES')
         make_repos(root_dir)

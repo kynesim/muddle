@@ -1001,10 +1001,10 @@ that "build" a label (whether checkout, package or deployment):
     muddle buildlabel _default_deployments _default_roles
 
 * within a 'src/' directory, or within a non-checkout subdirectory inside
-  'src'/,  "muddle rebuild" for each checkout that is below the current
-  directory (i.e., rebuild all packages using the checkouts below the
+  'src'/,  "muddle build" for each checkout that is below the current
+  directory (i.e., build all packages using the checkouts below the
   current directory).
-* within a checkout directory, "muddle rebuild" for the package(s) that use
+* within a checkout directory, "muddle build" for the package(s) that use
   that checkout.
 * within an 'obj/' directory, no defined action
 * within an 'obj/<package>' directory, "muddle rebuild" for the named
@@ -1015,7 +1015,9 @@ that "build" a label (whether checkout, package or deployment):
 * within an 'install/<role>' directory (or one of its subdirectories),
   "muddle rebuild package:*{<role>}".
 * within a 'deploy/' directory, no defined action.
-* within a 'deploy/<deployment>' directory, "muddle redeploy <deployment>".
+* within a 'deploy/<deployment>' directory, "muddle redeploy <deployment>"
+  (note, "redeploy" rather than "deploy", as this seems more likely to be
+  useful).
 
 If you have subdomains (see "muddle help subdomains"), then:
 

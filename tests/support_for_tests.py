@@ -322,11 +322,14 @@ def check_text_lines_v_lines(actual_lines, wanted_lines):
     #    print 'There are %d wanted line%s'%(len_wanted_lines, '' if len_wanted_lines==1 else 's')
     #    print 'There are %d actual line%s'%(len_actual_lines, '' if len_actual_lines==1 else 's')
     diffs = unified_diff(wanted_lines, actual_lines,
-                         fromfile='Expected', tofile='Got', lineterm='')
+                         fromfile='Missing lines', tofile='Extra lines', lineterm='')
     difflines = list(diffs)
-    for line in difflines:
-        sys.stdout.write('%s\n'%line)
     if difflines:
+        print
+        print 'Text did not match'
+        for line in difflines:
+            sys.stdout.write('%s\n'%line)
+        print
         raise GiveUp('Text did not match')
 
 def check_text_v_lines(actual, wanted_lines):

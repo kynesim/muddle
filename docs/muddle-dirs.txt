@@ -59,19 +59,6 @@ Notation in this chapter
   Remember that, in the current scheme of things, only ``package:`` labels use
   ``{role}``, and "normal" builds do not use ``(domain)``.
 
-* In this document I use the command ``m3`` instead of ``muddle``.
-
-  The simple reason for this is that when I made the examples I was using a
-  development branch of muddle, and using ``m3`` to distinguish it from the
-  "normal" ``muddle``. Since then, that branch has been merged back into the
-  muddle trunk, so this should not matter.
-
-  However, it is also a useful reminder that the muddle command need not be
-  called ``muddle``. This is particularly important to remember when writing
-  makefiles that call back to muddle - they should use ``$(shell $(MUDDLE)
-  ...)`` rather than the tempting ``$(shell muddle ...)``, for that very
-  reason.
-
 An overview of the directory structure
 ======================================
 Normal practice is to keep a muddle build in its own directory. This is not a
@@ -115,7 +102,7 @@ and then use the muddle ``init`` command:
 
   .. sourcecode:: console
 
-    $ m3 init svn+http://muddle.googlecode.com/svn/trunk/muddle/examples/cpio builds/01.py
+    $ muddle init svn+http://muddle.googlecode.com/svn/trunk/muddle/examples/cpio builds/01.py
     > Make directory /home/tibs/sw/m3/example/.muddle
     Initialised build tree in /home/tibs/sw/m3/example
     Repository: svn+http://muddle.googlecode.com/svn/trunk/muddle/examples/cpio
@@ -241,7 +228,7 @@ If we ask muddle what checkouts it knows about:
 
   .. sourcecode:: console
 
-    $ m3 query checkouts
+    $ muddle query checkouts
     builds
     cpio_co
 
@@ -389,7 +376,7 @@ description above:
 
   .. sourcecode:: console
 
-    $ m3 depends user-short
+    $ muddle depends user-short
     -----
     checkout:builds/changes_committed <-VcsCheckoutBuilder-- [ checkout:builds/up_to_date[T] ]
     checkout:builds/changes_pushed <-VcsCheckoutBuilder-- [ checkout:builds/changes_committed ]
@@ -425,7 +412,7 @@ using the ``query deps`` command:
 
   .. sourcecode:: console
 
-    $ m3 query deps deployment:cpio_dep/deployed
+    $ muddle query deps deployment:cpio_dep/deployed
     Build order for deployment:cpio_dep/deployed ..
     checkout:cpio_co/checked_out
     package:pkg_cpio{x86}/preconfig
@@ -450,7 +437,7 @@ So we start by checking out the actual source for our build:
 
   .. sourcecode:: console
 
-    $ m3 checkout _all
+    $ muddle checkout _all
     > Building checkout:cpio_co/checked_out
     > svn checkout  http://muddle.googlecode.com/svn/trunk/muddle/examples/cpio/cpio_co cpio_co
     A    cpio_co/hello_world.c
@@ -576,7 +563,7 @@ If one tries to build a package that doesn't exist, one will be told so:
 
   .. sourcecode:: console
 
-    $ m3 build cpio
+    $ muddle build cpio
     Building package:cpio{x86}/postinstalled
     There is no rule to build label package:cpio{x86}/postinstalled
 
@@ -584,14 +571,14 @@ It's simple to find out what packages there are:
 
   .. sourcecode:: console
 
-    $ m3 query packages
+    $ muddle query packages
     pkg_cpio
 
 So let's build it:
 
   .. sourcecode:: console
 
-    $ m3 build pkg_cpio
+    $ muddle build pkg_cpio
     Building package:pkg_cpio{x86}/postinstalled
     > Building package:pkg_cpio{x86}/preconfig
     > Make directory /home/tibs/sw/m3/example/obj/pkg_cpio/x86
@@ -686,7 +673,7 @@ with the ``makeenv`` query:
 
   .. sourcecode:: console
 
-    $ m3 query makeenv package:pkg_cpio{x86}/built
+    $ muddle query makeenv package:pkg_cpio{x86}/built
     MUDDLE=/home/tibs/sw/m3/muddle3_labels/muddle/muddled/__main__.py
     MUDDLE_INCLUDE_DIRS=
     MUDDLE_INSTALL=/home/tibs/sw/m3/example/install/x86
@@ -734,7 +721,7 @@ specify its name.
 
   .. sourcecode:: console
 
-    $ m3 deploy
+    $ muddle deploy
     Building deployment:cpio_dep/deployed
     > Building deployment:cpio_dep/deployed
     > Make directory /home/tibs/sw/m3/example/deploy/cpio_dep
@@ -787,7 +774,7 @@ muddle provides a convenience command to rebuild a package:
 
   .. sourcecode:: console
 
-    $ m3 rebuild pkg_cpio
+    $ muddle rebuild pkg_cpio
     Killing package:pkg_cpio{x86}/built
     Clearing tags: package:pkg_cpio{x86}/built package:pkg_cpio{x86}/installed package:pkg_cpio{x86}/postinstalled package:pkg_cpio{x86}/built
     Building package:pkg_cpio{x86}/postinstalled
@@ -811,7 +798,7 @@ conflation of the ``distclean`` and ``build`` commands:
 
   .. sourcecode:: console
 
-    $ m3 distrebuild pkg_cpio
+    $ muddle distrebuild pkg_cpio
     Building: package:pkg_cpio{x86}/distclean ..
     > Building package:pkg_cpio{x86}/distclean[T]
     > make  -f Makefile distclean
@@ -845,7 +832,7 @@ the tag files in the ``.muddle/`` directories:
   .. sourcecode:: console
 
     $ rm .muddle/tags/package/pkg_cpio/*
-    $ m3 build pkg_cpio
+    $ muddle build pkg_cpio
     Building package:pkg_cpio{x86}/postinstalled
     > Building package:pkg_cpio{x86}/preconfig
     > Building package:pkg_cpio{x86}/configured
@@ -869,7 +856,7 @@ You can even do things like:
   .. sourcecode:: console
 
     $ rm .muddle/tags/checkout/builds/checked_out
-    $ m3 checkout _all
+    $ muddle checkout _all
     > svn checkout  http://muddle.googlecode.com/svn/trunk/muddle/examples/cpio/builds builds
     Checked out revision 459.
 
@@ -912,7 +899,7 @@ Once we're back to the stage just after ``init``, we can just do:
 
   .. sourcecode:: console
 
-    $ m3
+    $ muddle
     Building deployment:cpio_dep/deployed
     > Building package:pkg_cpio{x86}/preconfig
     ...
@@ -943,7 +930,7 @@ and go into a particular checkout directory:
   .. sourcecode:: console
 
     $ pushd src/cpio_co
-    $ m3
+    $ muddle
     Killing package:pkg_cpio{x86}/built
     Clearing tags: package:pkg_cpio{x86}/built package:pkg_cpio{x86}/installed package:pkg_cpio{x86}/postinstalled package:pkg_cpio{x86}/built
     Building package:pkg_cpio{x86}/*
@@ -982,7 +969,7 @@ to do:
 
   .. sourcecode:: console
 
-    $ m3 distrebuild pkg_cpio
+    $ muddle distrebuild pkg_cpio
 
 (yes, this has identical effect, and no, by now I'm not going to include the
 listing yet again).
@@ -994,11 +981,16 @@ listing yet again).
 
       $ tar -zcvf build.tgz .muddle/Description .muddle/RootRepository .muddle/tags/checkout src
 
+   However, muddle provides an alternative that will work in all cases,
+   including when there are subdomains:
 
-   `Issue 125`_ suggests adding a muddle command to make this convenient
-   (including in the with-domains case).
+   .. sourcecode:: console
 
-   .. _`issue 125`: http://code.google.com/p/muddle/issues/detail?id=125
+      $ muddle distribute --with-vcs _source_release ../save_dir
+      $ cd ..
+      $ tar -zcvf build.tgz save_dir
+
+    (where ``save_dir`` should be replaced by something more informative).
 
 Adding a new checkout/package
 =============================
@@ -1046,7 +1038,7 @@ That's enough to give us:
 
   .. sourcecode:: console
 
-    $ m3 query checkouts
+    $ muddle query checkouts
     builds
     cpio_co
     fred
@@ -1055,7 +1047,7 @@ and:
 
   .. sourcecode:: console
 
-    $ m3 query deps deployment:cpio_dep/deployed
+    $ muddle query deps deployment:cpio_dep/deployed
     Build order for deployment:cpio_dep/deployed ..
     checkout:fred/checked_out
     checkout:cpio_co/checked_out
@@ -1074,7 +1066,7 @@ However, if we were to try to build:
 
   .. sourcecode:: console
 
-    $ m3
+    $ muddle
     Building deployment:cpio_dep/deployed
     > Building checkout:fred/checked_out
     > svn checkout  http://muddle.googlecode.com/svn/trunk/muddle/examples/cpio/fred fred
@@ -1106,7 +1098,7 @@ label syntax):
 
   .. sourcecode:: console
 
-    $ m3 assert checkout:fred/checked_out
+    $ muddle assert checkout:fred/checked_out
     > Make directory /home/tibs/sw/m3/example3/.muddle/tags/checkout/fred
 
 and now the tag file is present:
@@ -1120,7 +1112,7 @@ and we can then do:
 
   .. sourcecode:: console
 
-    $ m3
+    $ muddle
     Building deployment:cpio_dep/deployed
     > Building package:fred{x86}/preconfig
     > Make directory /home/tibs/sw/m3/example3/obj/fred/x86
@@ -1187,7 +1179,7 @@ However, it is worth giving a quick example of creating a version stamp:
 
   .. sourcecode:: console
 
-    $ m3 stamp version
+    $ muddle stamp version
     Finding all checkouts... found 2
     Processing Svn checkout 'builds'
     Processing Svn checkout 'cpio_co'
@@ -1365,7 +1357,7 @@ and start with the same build that we used before:
 
   .. sourcecode:: console
 
-    $ m3 init svn+http://muddle.googlecode.com/svn/trunk/muddle/examples/cpio builds/01.py
+    $ muddle init svn+http://muddle.googlecode.com/svn/trunk/muddle/examples/cpio builds/01.py
     > Make directory /home/tibs/sw/m3/example2/.muddle
     Initialised build tree in /home/tibs/sw/m3/example2
     Repository: svn+http://muddle.googlecode.com/svn/trunk/muddle/examples/cpio
@@ -1481,7 +1473,7 @@ If we *now* do a "checkout _all":
 
   .. sourcecode:: console
 
-    $ m3 checkout _all
+    $ muddle checkout _all
     > Make directory /home/tibs/sw/m3/example3/domains/b/.muddle
     Initialised build tree in /home/tibs/sw/m3/example3/domains/b
     Repository: svn+http://muddle.googlecode.com/svn/trunk/muddle/examples/b
@@ -1553,7 +1545,7 @@ If we then do:
 
   .. sourcecode:: console
 
-    $ m3 build _all
+    $ muddle build _all
     Building package:(b)pkg_b{x86}/postinstalled package:pkg_cpio{x86}/postinstalled
     > Building checkout:(b)b_co/checked_out
     > svn checkout  http://muddle.googlecode.com/svn/trunk/muddle/examples/b/b_co b_co
@@ -1671,7 +1663,7 @@ If we ask after packages, we have both sets:
 
   .. sourcecode:: console
 
-    $ m3 query packages
+    $ muddle query packages
     pkg_b
     pkg_cpio
 
@@ -1682,7 +1674,7 @@ If we ask what domains we have, we get:
 
   .. sourcecode:: console
 
-    $ m3 query domains
+    $ muddle query domains
 
     b
 
@@ -1695,7 +1687,7 @@ well:
 
   .. sourcecode:: console
 
-    $ m3 depend user-short
+    $ muddle depend user-short
     -----
     checkout:builds/changes_committed <-VcsCheckoutBuilder-- [ checkout:builds/up_to_date[T] ]
     checkout:builds/changes_pushed <-VcsCheckoutBuilder-- [ checkout:builds/changes_committed ]
@@ -1730,7 +1722,7 @@ and our deployment has the expected build order:
 
   .. sourcecode:: console
 
-    $ m3 query deps deployment:everything/deployed
+    $ muddle query deps deployment:everything/deployed
     Build order for deployment:everything/deployed ..
     checkout:cpio_co/checked_out
     checkout:(b)b_co/checked_out
@@ -1750,7 +1742,7 @@ Which means that when we deploy:
 
   .. sourcecode:: console
 
-    $ m3 deploy
+    $ muddle deploy
     Building deployment:everything/deployed
     > Building deployment:everything/deployed
     > Make directory /home/tibs/sw/m3/example3/deploy/everything
@@ -1785,7 +1777,7 @@ Thus we can try:
 
   .. sourcecode:: console
 
-    $ m3 stamp version
+    $ muddle stamp version
     Finding all checkouts... found 4
     Processing Svn checkout 'builds'
     builds: 'svnversion' reports checkout has revision '459M'
@@ -1806,7 +1798,7 @@ state without that edit:
 
   .. sourcecode:: console
 
-    $ m3 stamp save -force
+    $ muddle stamp save -force
     Forcing original revision ids when necessary
     Finding all checkouts... found 4
     Processing Svn checkout 'builds'

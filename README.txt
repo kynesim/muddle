@@ -515,28 +515,31 @@ When you invoke muddle with no arguments, it will try to guess what you meant.
 To help it, the build description gives it:
 
  * A list of default roles.
- * A default label.
+ * A list of default deployments.
+ * Knowledge of where it is in the build tree (the same information as you
+   can get with "muddle where".
 
 The rules it uses are these:
 
   If you invoke muddle from a checkout
-      Rebuild all the packages that depend on this checkout, in all the default roles.
+      Build all the packages that depend on this checkout, in all the default
+      roles.
 
   If you invoke muddle from a package build directory
       Rebuild this package and role.
 
   If you invoke muddle from a package install directory
-      Build every package in this role.
+      Rebuild every package in this role.
 
   If you invoke muddle from a deployment directory
-      Deploy this deployment
+      Redeploy this deployment
 
   If you invoke muddle from the root
-      Build the default label, if there is one.
+      Build the default roles and deployments, if they are defined.
 
 If you don't give an action command like build, rebuild, etc., an
-argument, muddle will apply these rules to guess what it should be
-building, rebuilding, etc.
+argument, muddle will apply the same rules to guess what it should be
+building, redeploying, etc.
 
 The choice of verb above is a carefully tuned compromise between
 forcing long build times on (not-so-)innocents who typed ``muddle`` whilst

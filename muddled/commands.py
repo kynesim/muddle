@@ -401,6 +401,9 @@ class CPDCommand(Command):
 
         #print 'Initial list:', label_list_to_string(initial_list)
 
+        if not initial_list:
+            raise GiveUp('Expanding "%s" does not give any target labels'%' '.join(args))
+
         # Now take those full labels and turn them into just checkouts,
         # packages or deployments, according to what we want
         intermediate_set = self.interpret_labels(builder, args, initial_list)
@@ -574,16 +577,6 @@ class CPDCommand(Command):
         """
         raise MuddleBug('No "interpret_all" method provided for command "%s"'%self.cmd_name)
 
-    def interpret_default_roles(self, builder):
-        """Return the result of argument "_default_roles"
-        """
-        results = []
-        for role in builder.invocation.default_roles:
-            label = Label(LabelType.Package, '*', role, LabelTag.PostInstalled)
-            labels = builder.invocation.expand_wildcards(label)
-            results.extend(labels)
-        return results
-
     def interpret_release(self, builder):
         """Return the result of argument "_release"
         """
@@ -609,7 +602,7 @@ class CPDCommand(Command):
             elif thing == '_all':
                 results.extend(self.interpret_all(builder))
             elif thing == '_default_roles':
-                results.extend(self.interpret_default_roles(builder))
+                results.extend(builder.invocation.get_labels_in_default_roles())
             elif thing == '_default_deployments':
                 results.extend(builder.invocation.default_deployment_labels)
             elif thing == '_just_pulled':
@@ -619,8 +612,8 @@ class CPDCommand(Command):
                 raise GiveUp('_release may not contain _release (how did that get there?):\n'
                              '%s'%(builder.what_to_release))
             else:
-                raise GiveUp('_release contain "%s" (which we don\'t understand):\n'
-                             '%s'%(builder.what_to_release))
+                raise GiveUp('_release contains "%s" (which we don\'t understand):\n'
+                             '%s'%(thing, builder.what_to_release))
         return results
 
     def interpret_labels(self, builder, args, initial_list):
@@ -977,9 +970,19 @@ class AnyLabelCommand(Command):
 
             # But it's an error if none of them were wanted
             if not used_labels:
+                # XXX =====================================
+                if args:
+                    print 'Arguments (shown one per line) were:'
+                    for arg in args:
+                        print '  ', arg
+                else:
+                    print 'There were no arguments,implicit or explicit'
+                # XXX =====================================
                 if len(labels) == 1:
                     raise GiveUp("Label %s, from argument '%s', is"
                                  " not a target"%(labels[0], word))
+                elif len(labels) == 0:
+                    raise GiveUp("Argument '%s' does not expand into anything"%(word))
                 else:
                     # XXX This isn't a great error message, but it's OK
                     # XXX for now, and significantly better than nothing
@@ -1110,7 +1113,7 @@ given, otherwise, it will traverse directories from the current directory up
 to the root.
 """
 
-    labels_help = """\
+    help_label_summary = """\
 More complete documentation on labels is available in the muddle documentation
 at http://muddle.readthedocs.org/. Information on the label class itself can
 be obtained with "muddle doc depend.Label". This is a summary.
@@ -1168,7 +1171,9 @@ always need a role (although muddle will sometimes try to guess one for you).
 Some muddle commands only operate on particular types of label. For instance,
 commands in category "checkout" (see "muddle help categories") only operate
 on checkout: labels.
+"""
 
+    help_label_fragments = """\
 Label fragments
 ---------------
 Typing all of a label on the command line can be onerous. Muddle thus allows
@@ -1203,7 +1208,9 @@ Other commands default to the "end tag" for that particular label type.
 
 You can always used "muddle -n <command> <fragment>" to see what labels the
 <command> will actually end up using.
+"""
 
+    help_label_absent = """\
 "muddle" with no label arguments
 --------------------------------
 Muddle tries quite hard to do the sensible thing if you type it without any
@@ -1227,7 +1234,7 @@ that "build" a label (whether checkout, package or deployment):
   "muddle rebuild package:<package>{<role>}".
 * within an 'install/' directory, no defined action.
 * within an 'install/<role>' directory (or one of its subdirectories),
-  "muddle build package:*{<role>}".
+  "muddle rebuild package:*{<role>}".
 * within a 'deploy/' directory, no defined action.
 * within a 'deploy/<deployment>' directory, "muddle redeploy <deployment>".
 
@@ -1259,7 +1266,9 @@ deployment):
   for each, and those will be used as the arguments.
 
 Otherwise, muddle will say "Not sure what you want to build".
+"""
 
+    help_label_wrong = """\
 How "muddle" commands intepret labels of the "wrong" type
 ---------------------------------------------------------
 Most muddle commands that want label arguments actually want labels of a
@@ -1270,7 +1279,7 @@ Sometimes, however, it is more convenient to specify a label of a different
 type. For instance: "muddle checkout package:fred", to checkout the checkouts
 needed by package "fred".
 
-Labels of particular types are intrepreted as follows:
+Labels of particular types are interpreted as follows:
 
 * in a checkout command:
 
@@ -1292,12 +1301,15 @@ Labels of particular types are intrepreted as follows:
   - checkout: -> any deployments that depend upon this checkout (at any depth)
   - package: -> any deployments that depend upon this package (at any depth)
   - deployment: -> itself
+"""
 
+    help_label_all_and_friends = """\
 _all and friends
 ----------------
 There are some special command line arguments that represent a set of labels.
 
-* _all represents all target labels
+* _all represents all target labels of the appropriate type for the command.
+  For example, in "muddle checkout _all" it expands to all "checkout:" labels.
 * _default_roles represents package labels for all of the default roles, as
   given in the build description. Specifically, package:*{<role>}/postinstalled
   for each such <role>. You can find out what the default roles are with
@@ -1307,11 +1319,16 @@ There are some special command line arguments that represent a set of labels.
   default deployments are with "muddle query default-deployments".
 * _just_pulled represents the checkouts that were (actually) pulled by the
   last "muddle pull" or "muddle merge" command.
+* _release represents the labels to be built for a release build, as set
+  in the build description with "builder.add_to_release_build".
 
 The help for particular commands will indicate if these values can be used,
 but they are generally valid for all commands that "build" checkout, package
-or deployment labels.
+or deployment labels. As normal, you can use "muddle -n <command> _xxx" to
+see exactly what labels the "_xxx" value would expand to.
+"""
 
+    help_label_star = """\
 Unexpected results
 ------------------
 Note: at a Unix shell, typing:
@@ -1324,7 +1341,6 @@ muddle will then typically complain that there is no package called 'deploy'.
 Instead, escape the "*", for instance:
 
     $ muddle build '*'
-
 """
 
     subdomains_help = """\
@@ -1394,8 +1410,8 @@ the parentheses. So, for instance, use:
         if args[0] == "categories":
             return self.help_categories()
 
-        if args[0] == "labels":
-            return self.help_labels()
+        if args[0] in ("label", "labels"):
+            return self.help_labels(args[1:])
 
         if args[0] == "subdomains":
             return self.help_subdomains()
@@ -1508,11 +1524,61 @@ the parentheses. So, for instance, use:
 
         return "\n".join(result_array)
 
-    def help_labels(self):
+    def help_labels(self, args):
         """
-        Return help on how to use labels
+        Help on labels within muddle.
+
+        "muddle help label" and "muddle help labels" are equivalent.
+
+        help label            - show this text
+        help label summary    - a summary of how labels work
+        help label fragment
+        help label fragments  - using partial labels in commands
+        help label absent     - what "muddle" with no label arguments does
+        help label wrong      - what "muddle <cmd>" does with a label of the "wrong" type
+                                (e.g., "muddle build checkout:something")
+        help label _all
+        help label _default_roles
+        help label _default_deployments
+        help label _just_pulled
+                              - these explain the "special" command line arguments
+        help label star       - the unexpected result of "muddle build *" and its like
+        help label everything - all the "muddle help label" subtopics
         """
-        return textwrap.dedent(Help.labels_help)
+        if args and len(args) > 1:
+            raise GiveUp('"muddle help label" only takes one argument.')
+
+        if not args:
+            return textwrap.dedent(Help.help_labels.__doc__)
+
+        subtopic = args[0]
+        if subtopic == "summary":
+            help_text = Help.help_label_summary
+        elif subtopic in ("fragment", "fragments"):
+            help_text = Help.help_label_fragments
+        elif subtopic == "absent":
+            help_text = Help.help_label_absent
+        elif subtopic == "wrong":
+            help_text = Help.help_label_wrong
+        elif subtopic in ("_all", "_default_roles", "_default_deployments",
+                          "_just_pulled"):
+            help_text = Help.help_label_all_and_friends
+        elif subtopic == "star":
+            help_text = Help.help_label_star
+        elif subtopic == "everything":
+            parts = []
+            parts.append(Help.help_label_summary)
+            parts.append(Help.help_label_fragments)
+            parts.append(Help.help_label_absent)
+            parts.append(Help.help_label_wrong)
+            parts.append(Help.help_label_all_and_friends)
+            parts.append(Help.help_label_star)
+            help_text = '\n'.join(parts)
+        else:
+            raise GiveUp('Unrecognised help label subtopic "%s" -'
+                         ' see "muddle help label"'%subtopic)
+
+        return textwrap.dedent(help_text)
 
     def help_subdomains(self):
         """
@@ -6520,6 +6586,16 @@ class RunIn(Command):
     * Deployment labels are run in the directory corresponding to their deployments.
 
     We only ever run the command in any directory once.
+
+    <label> may be a label fragment, or one of _default_roles,
+    _default_deployments or _just_pulled. It may not be _all (since it would
+    not be clear what type of label to expand it to), or _release (since that
+    may contain _all). If it is a label fragment, and the label type is not
+    given, then "checkout:" is assumed.
+
+    In practice, it is often simplest to use a shell script for <command>,
+    rather than trying to work out the appropriate quoting rules for
+    whatever command is actually wanted.
     """
 
     def requires_build_tree(self):
@@ -6531,7 +6607,21 @@ class RunIn(Command):
             print self.__doc__
             return
 
-        labels = self.decode_labels(builder, args[0:1] )
+        what = args[0]
+        if what == '_all':
+            # It's not clear what _all would mean (really, *all* labels?)
+            # so let's not allow it
+            raise GiveUp('"muddle runin _all" is not supported')
+        elif what == '_default_roles':
+            labels = builder.invocation.get_labels_in_default_roles()
+        elif what == '_default_deployments':
+            labels = builder.invocation.default_deployment_labels
+        elif what == '_just_pulled':
+            labels = builder.invocation.db.just_pulled.get()
+        elif what == '_release':
+            raise GiveUp('"muddle runin _release" is not supported')
+        else:
+            labels = builder.invocation.label_from_fragment(args[0], LabelType.Checkout)
         command = " ".join(args[1:])
         dirs_done = set()
 
@@ -6579,19 +6669,6 @@ class RunIn(Command):
                                         stdout=sys.stdout, stderr=subprocess.STDOUT)
                 else:
                     print "! %s does not exist."%dir
-
-    def decode_labels(self, builder, in_args):
-        """
-        Each argument is a label - convert each to a proper label
-        object and then return the resulting list
-        """
-        rv = [ ]
-        for arg in in_args:
-            # XXX Label fragments would be better?
-            lbl = Label.from_string(arg)
-            rv.append(lbl)
-
-        return rv
 
 @command('env', CAT_MISC)       # We're not *really* a normal package command
 class Env(PackageCommand):

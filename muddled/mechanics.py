@@ -462,6 +462,17 @@ class Invocation(object):
         self.default_roles.append(role)
         return True
 
+    def get_labels_in_default_roles(self):
+        """
+        Return a list of the package labels in the default roles.
+        """
+        results = []
+        for role in self.default_roles:
+            label = Label(LabelType.Package, '*', role, LabelTag.PostInstalled)
+            labels = self.expand_wildcards(label)
+            results.extend(labels)
+        return results
+
     def add_default_deployment_label(self, label):
         """
         Set the label that's built when you call muddle from the root

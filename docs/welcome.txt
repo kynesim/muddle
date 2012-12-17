@@ -1,6 +1,10 @@
 Welcome to Muddle
 =================
 
+.. note:: This is Richard's original document about Muddle. As such, it
+   is not intended as a gentle introduction. If you are after lighter
+   fare, you may want to come back to this later on.
+
 Muddle is a package-level build system. It aims to do for software and
 firmware distributions what Make does for individual software
 packages.

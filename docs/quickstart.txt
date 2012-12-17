@@ -155,9 +155,9 @@ This means that muddle has three phases to its work:
 3. Deploy, which puts together things from ``install`` and stores the results
    in ``deploy``. Deployment will also build things if necessary.
 
-Remember that building (phase 2) does not do deployment (phase 3). It is up to
-the user to decide when the packages have built correctly and are in a
-suitable state for deployment.
+.. warning:: Remember that building (phase 2) does not do deployment (phase
+   3). It is up to the user to decide when the packages have built correctly
+   and are in a suitable state for deployment.
 
 Step 4: getting the latest version of code and rebuilding
 =========================================================

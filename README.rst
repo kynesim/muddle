@@ -1,1 +1,1 @@
-docs/introduction.txt
+docs/introduction.rst

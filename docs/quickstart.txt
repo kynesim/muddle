@@ -1,0 +1,308 @@
+===================================================================
+Quick start: so you've been asked to work on a project using muddle
+===================================================================
+
+This is intended as a short introduction to the absolute minimum you're likely
+to need.
+
+Step 1: getting muddle
+======================
+The very first thing you need is muddle itself.
+
+Getting muddle needs git. If you don't have git on your system, and you're on
+a Debian based system (Debian, Ubuntu, Linux Mint, etc.), then you can do::
+
+  $ sudo apt-get install git gitk
+
+(the ``gitk`` program is an invaluable UI for looking at the state of git
+checkouts - it's always worth checking it out as well as git itself).
+
+Then decide where to put muddle. I have a ``sw`` directory for useful software
+checkouts, so I would do::
+
+  $ cd sw
+  $ git clone https://code.google.com/p/muddle/
+
+which creates me a directory ``~/sw/muddle``.
+
+To *use* muddle, you can then either:
+
+1. just type ``~/sw/muddle/muddle`` - this is the simplest thing to do,
+   but the longest to type.
+2. add an alias to your ``.bashrc`` or equivalent::
+
+      alias muddle="${HOME}/sw/muddle/muddle"
+
+3. add ``~/sw/muddle`` to your PATH::
+
+      export PATH=${PATH}:${HOME}/sw/muddle
+
+Personally, I use the second option, but all are sensible.
+
+You should now be able to do::
+
+  $ muddle help
+
+and get meaningful output. To find help on a particular muddle command, you
+can, for instance, do::
+
+  $ muddle help checkout
+
+.. note:: Some people also like to keep muddle in ``/opt`` - for instance,
+   as ``/opt/muddle``.
+
+.. note:: Muddle is actively developed, and we normally assume that you will
+   keep it up-to-date with the current state of that development. Unless your
+   project says to do otherwise, it's normally worth doing a ``git update``
+   once a week or so -- for instance::
+
+      $ pushd ~/sw/muddle
+      $ git update
+
+Step 2: getting your project's build description
+================================================
+You should have been given a ``muddle init`` line to use to bootstrap your
+project.
+
+For simplicity in explaining things, I'm going to assume that you keep your
+current projects in a directory called ``~/work``, and this new project is
+``project99``.
+
+Muddle wants each project to live in its own directory, so we would do::
+
+  $ mkdir ~/work/project99
+  $ cd ~/work/project99
+
+and then type the ``muddle init`` line, something of the form::
+
+  $ muddle init git+https://code.google.com/p/raw-cctv-replay builds/01.py
+
+The first argument to ``git init`` says where the project build description is
+kept (for the RAW project, that's on Google code), and the second argument
+says where the build description can be found within the ``src`` directory.
+
+.. note:: Please use the ``muddle init`` command for your own project, unless
+   you want to work on RAW, which is a rather large project.
+
+.. note:: Some builds check for particular software on the system, and use
+   ``sudo apt-get`` to install things if necessary. The build documentation
+   should always tell you about this.
+
+After ``muddle init`` has succeeded, you should have two directories in your
+project directory:
+
+* ``.muddle`` which contains the "state" of the muddle build, and
+* ``src``, which will typically contain ``builds/01.py`` (or whatever else was
+  named by that final argument to ``muddle init``.
+
+.. note:: If the ``muddle init`` command goes wrong, then you will need to
+   delete both directories before trying it again.
+
+The build description is a Python file (for some projects, more than one)
+which describes the build to muddle. It is traditionally kept in the
+``src/builds`` directory, and for historical reasons the main build
+description file is called ``01.py``.
+
+Step 3: building the project the first time
+===========================================
+The simplest way of building the project for the first time is just to use the
+"muddle" command directly - it will realise that it needs to checkout all the
+source code and build it from scratch. So::
+
+  $ cd ~/sw/project99
+  $ muddle
+
+Alternatively, some people prefer to separate the checkout and build phases,
+so that all the internet access is done in one go. This can be done with::
+
+  $ cd ~/sw/project99
+  $ muddle checkout _all
+  $ muddle
+
+After this has finished, you should have a much fuller ``src`` directory, and
+also ``obj``, ``install`` and ``deploy`` directories. If you're building
+software to put on an embedded system, that will generally be in one or more
+of the ``deploy`` directories, and your project documentation should tell you
+what to do next.
+
+The muddle directories and its phases
+=====================================
+Muddle keeps the build tree in several different directories.
+
+* ``.muddle`` is where information about the build tree is kept, for instance
+  which packages have been built.
+
+* ``src`` is where the source code is kept, as checked out with ``muddle
+  checkout _all``.
+
+* ``obj`` is where muddle builds things. A well-behaved muddle build always
+  builds "out of tree" in ``obj``, so that building things doesn't change
+  anything in the ``src`` directory.
+
+* ``install`` is where the muddle build puts its results, those programs,
+  libraries and so on that are going to be used to make a deployment.
+
+* ``deploy`` is where deployments are assembled. These are the parts of the
+  final system that will be put onto the target hardware.
+
+This means that muddle has three phases to its work:
+
+1. Checkout, which populates the ``src`` directories.
+
+2. Build, which builds in ``obj`` and puts the results into ``install``.
+   Building will also check things out into ``src`` if necessary.
+
+3. Deploy, which puts together things from ``install`` and stores the results
+   in ``deploy``. Deployment will also build things if necessary.
+
+Remember that building (phase 2) does not do deployment (phase 3). It is up to
+the user to decide when the packages have built correctly and are in a
+suitable state for deployment.
+
+Step 4: getting the latest version of code and rebuilding
+=========================================================
+Eventually, some of the software in your project will be updated, and you will
+need to retrieve the new versions of the source code, and rebuild it.
+
+This is typically done from the "top level" directory - i.e., the directory
+containing the ``src`` and ``.muddle`` directories. So, with our project::
+
+  $ cd ~/work/project99
+  $ muddle pull _all
+
+Hopefully that will succeed without any problems. If there are any problems,
+they will be summarised at the end of the command output.
+
+Once the source code is updated, you can then rebuild all packages by doing::
+
+  $ muddle distrebuild _all
+
+or just rebuild everything affected by the updated sources::
+
+  $ muddle distrebuild _just_pulled
+
+If you also want to redeploy - that is, rebuild the ``deploy`` directories -
+then you can:
+
+1. Redeploy *all* deployments::
+
+    $ muddle redeploy _all
+
+2. Redeploy the default deployments, the same as the very first ``muddle``
+   command::
+
+    $ muddle redeploy _default_deployments
+
+3. Redeploy something specific::
+
+    $ muddle redeploy <some-specific-deployment>
+
+Step 5: editing code and rebuilding
+===================================
+If you need to edit code, then it may be worth your getting a deeper knowledge
+of how muddle works, and a good starting point is probably the "Muddle and its
+directories" chapter.
+
+There is more than one way to use muddle - this very short introduction is
+only that.
+
+Throughout this section, we assume that you are in a checkout source
+directory - for instance::
+
+  $ cd ~/work/project99
+  $ cd src/some_program-v1.9
+
+Edit and rebuild
+----------------
+The normal edit/rebuild cycle is fairly simple - edit::
+
+  $ gvim sourcecode.c
+
+and then rebuild::
+
+  $ muddle rebuild
+
+Muddle knows what package uses this source checkout (if the checkout is
+``some_program-v1.9`` then the package is probably ``some_program``), and so
+it will rebuild the package that uses that source code.
+
+.. note:: Inside ``src/``, just typing ``muddle`` does a *build*, not a
+   rebuild. Muddle cannot tell that you've changed the source code, so it
+   still thinks that the last build of the code is valid, so you need to
+   tell it explicitly to do a rebuild.
+
+Doing a ``rebuild`` also tells muddle that any packages that depend on this
+one will also need rebuilding - this is important in the next section.
+
+If you also need to reconfigure the package, then you need to "distclean" it
+first. So::
+
+  $ muddle distclean
+  $ muddle rebuild
+
+There's a convenient command that does those together::
+
+  $ muddle distrebuild
+
+Build anything else that needs it
+---------------------------------
+Once you've finished the "edit, compile" loop, and are happy with the
+state of the package, there may be other things needing building.
+
+You *could* just do ``muddle rebuild _all``, but that would rebuild every
+single package. However, muddle knows which packages depend on the package
+you've just been working on, and so::
+
+  $ muddle build _all
+
+should just build those packages that need it.
+
+Commit your changes
+-------------------
+Once the code for your checkout is correct, you can commit it using the
+appropairte version control commands (there is a ``muddle commit``, but I tend
+just to use the VCS directly) - for instance::
+
+  $ git add sourcecode.c
+  $ git commit
+
+and then push it back to the far repository::
+
+  $ muddle push
+
+You could, of course, also use the approriate version control command
+directly, but ``muddle push`` keeps track of which remote repository the build
+description says should be used, which may or may not be the same as the
+repository that was originally pulled from.
+
+Consider redeploying
+--------------------
+Building does not redeploy. This is easy to forget, but deployment is
+deployment of a system for use on the target hardware, and it is not normally
+appropriate to do it every time some component of the system is rebuilt (not
+least because the overall system may not work again until more than one
+checkout/package is altered).
+
+So it is up to the user to decide when to redeploy, at which time::
+
+  $ muddle redeploy
+
+will redeploy the deployment containing the package that uses this source
+checkout (i.e., what should be the minimum necessary redeployment), whilst::
+
+  $ muddle redeploy _all
+
+will redeploy everything, and::
+
+  $ muddle redeploy _default_deployments
+
+will redeploy, well, the default deployments, just as the very first
+``muddle`` command would have done.
+
+Step 6: finding out more
+========================
+If you want to progress to the next level of use of muddle, then reading the
+chapter "Muddle and its directories" is a useful next step. There are various
+"frequently asked questions" answered in the "Jottings" section as well.
+
+.. vim: set filetype=rst tabstop=8 softtabstop=2 shiftwidth=2 expandtab:

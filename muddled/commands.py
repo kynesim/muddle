@@ -5900,6 +5900,41 @@ class Checkout(CheckoutCommand):
         for co in labels:
             builder.build_label(co)
 
+@command('sync', CAT_CHECKOUT)
+class Sync(CheckoutCommand):
+    """
+    :Syntax: muddle sync [ <checkout> ... ]
+
+    Synchronise the specified checkouts with the build description branch,
+    if that wishes it so.
+
+    <checkout> should be a label fragment specifying a checkout, or one of
+    _all and friends, as for any checkout command. The <type> defaults to
+    "checkout", and the checkout <tag> will be "/changes_committed". See
+    "muddle help labels" for more information.
+
+    If no checkouts are named, what we do depends on where we are in the
+    build tree. See "muddle help labels".
+
+    WARNING: this is an experimental command, and may go away again.
+    """
+
+    # XXX Is this correct?
+    required_tag = LabelTag.ChangesCommitted
+
+    def build_these_labels(self, builder, labels):
+        for co in labels:
+            rule = builder.invocation.ruleset.rule_for_target(co)
+            try:
+                vcs = rule.action.vcs
+            except AttributeError:
+                print "Rule for label '%s' has no VCS - cannot find its status"%co
+                continue
+        try:
+            vcs.maybe_sync_with_build_desc_branch(builder)
+        except GiveUp as e:
+            print e
+
 # -----------------------------------------------------------------------------
 # Checkout "upstream" commands
 # -----------------------------------------------------------------------------

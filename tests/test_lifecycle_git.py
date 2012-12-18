@@ -389,48 +389,41 @@ def test_git_lifecycle(root_d):
         check_branch('src/builds', 'test-v0.1')
         check_branch('src/checkout', 'test-v0.1')
 
-        # Doing a "mudddle pull" on the checkout should put it back to the
-        # master branch, as that's what is (implicitly) asked for in the
-        # build description. It shouldn't affect the build description.
-        muddle(['pull', 'checkout'])
-        check_branch('src/builds', 'test-v0.1')
-        # XXX Although at the moment, it actually raises:
-        # XXX   GiveUp: Checkout in src/checkout has branch test-v0.1, expected master
-        # XXX because I haven't yet written any of the code to deal with *actually*
-        # XXX following the build desc branch.
-        # XXX
-        # XXX On the other hand, if I've been developing on a branch, and do a
-        # XXX muddle pull, is it better if muddle refuses to pull (because I'm
-        # XXX not on the branch it expects), or forces me to the branch it wants
-        # XXX (which may be a shock, particularly if I manage not to notice and
-        # XXX wonder why things have changed more than I expected).
-        # XXX
-        # XXX If we think the latter is bad, and it should refuse, then (a)
-        # XXX should it *just* refuse, or (b) should it pull to the branch
-        # XXX that the build description wants, and leave me on the branch
-        # XXX I want to be on (and warn me of such)? (ok, that's not really
-        # XXX "refusing" any more).
-        # XXX
-        # XXX   (Point for not having "muddle pull" change us to the branch
-        # XXX   specified in the build description (at least without having
-        # XXX   follow_build_desc_branch set True) is that it would be a change
-        # XXX   in how "muddle pull" has worked in the past, and thus a big
-        # XXX   surprise. Now once we've asked to follow the build description,
-        # XXX   then that's a new thing, so we *can* have new behaviour.)
-        # XXX
         # XXX And what command *should* I use to go to the branch specified
         # XXX by the build description (explicitly or implicitly)? I don't
         # XXX particularly like using "muddle parent" for this, as it's
         # XXX really a bit beyond its original remit (and essentially
         # XXX unguessable).
+        # Doing a "mudddle sync" on the checkout should put it back to the
+        # master branch, as that's what is (implicitly) asked for in the
+        # build description. It shouldn't affect the build description.
+        muddle(['sync', 'checkout'])
+        check_branch('src/builds', 'test-v0.1')
         check_branch('src/checkout', 'master')
 
+        # XXX We have various things to mix and match:
+        # XXX
+        # XXX 1. build description says to follow itself or not
+        # XXX 2. build description is on master or not
+        # XXX
+        # XXX a. checkout has its own explicit branch
+        # XXX b. checkout does not specify an explicit branch
+        # XXX
+        # XXX i.   checkout starts on master
+        # XXX ii.  checkout starts on branch <something-else>
+        # XXX iii. checkout starts on <explicit-branch>
+
         # If we amend the build description, though:
+        print 'Setting build description for "follow my branch"'
         with Directory('src'):
             with Directory('builds'):
-                append('01.py', '    builder.follow_build_desc_branch\n')
-        # our checkout should now follow the build description's branch
-        muddle(['pull', 'checkout'])
+                append('01.py', '    builder.follow_build_desc_branch = True\n')
+                # Then remove the .pyc file, because Python probably won't realise
+                # that this new 01.py is later than the previous version
+                os.remove(d.join('src', 'builds', '01.pyc'))
+        # and sync again, our checkout should now follow the build
+        # description's branch
+        muddle(['sync', 'checkout'])
         check_branch('src/builds', 'test-v0.1')
         check_branch('src/checkout', 'test-v0.1')
 

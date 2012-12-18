@@ -167,6 +167,9 @@ This next bot needs integrating into the text following it:
   | really a bit beyond its original remit (and essentially
   | unguessable).
 
+  | For the moment, let's introduce a command 'sync' and use that, and I
+  | can figure out the "correct" solution later on...
+
 
 So, things I intend to test:
 

@@ -630,6 +630,50 @@ class VersionControlHandler(object):
                 raise utils.GiveUp('Failure checking existence of branch %s for %s in %s:\n%s'%(branch,
                                    self.checkout_label, self.src_rel_dir(), err))
 
+    def maybe_sync_with_build_desc_branch(self, builder):
+        """
+        If the build description wants us to follow its branch, do so.
+        """
+        our_domain = self.checkout_label.domain
+        print 'Synchronising for', self.checkout_label
+        print '  Domain is', our_domain
+        if builder.invocation.db.get_domain_follows_build_desc_branch(our_domain):
+            print '  Following build desc'
+
+            if self.repo.branch is not None:
+                print 'Build description for %s explicitly states branch "%s",' \
+                      ' so not following build description'%(self.checkout_label, self.repo.branch)
+                print '  Going to it...'
+                self.goto_branch(builder, self.repo.branch)
+                return
+
+            # We are meant to be following our build description's branch
+            # XXX If we're going to do this often, we probably want to cache
+            # XXX the branch information...
+            build_desc_label = builder.invocation.db.get_domain_build_desc_label(our_domain)
+            build_desc_label = build_desc_label.copy_with_tag(utils.LabelTag.CheckedOut)
+            print '  Build desc is', build_desc_label
+            rule = builder.invocation.ruleset.rule_for_target(build_desc_label)
+            try:
+                vcs = rule.action.vcs
+            except AttributeError:
+                raise GiveUp("Rule for label '%s' has no VCS - cannot find its id"%build_desc_label)
+
+            build_desc_branch = vcs.get_current_branch(builder, show_pushd=False)
+            print '  Build desc branch is', build_desc_branch
+            # And so follow it...
+            print '%s following build description onto branch "%s"'%(self.checkout_label, build_desc_branch)
+            self.goto_branch(builder, build_desc_branch)
+        else:
+            print '  NOT Following build desc'
+            print '  Our branch is', self.repo.branch
+            print '  Going to it...'
+            # We are meant to keep to our own branch, whatever that is
+            if self.repo.branch is None:
+                self.goto_branch(builder, 'master')
+            else:
+                self.goto_branch(builder, self.repo.branch)
+
     def must_pull_before_commit(self):
         return self.vcs_handler.must_pull_before_commit(self.options)
 

@@ -423,6 +423,7 @@ For instance::
   CDDL-1.0                         LicenseOpen('Common Development and Distribution License')
   EPL-1.0                          LicenseOpen('Eclipse Public License', version='1.0')
   IPA                              LicenseOpen('IPA Font License')
+  Libpng                           LicenseOpen('libpng license')
   MIT                              LicenseOpen('MIT License')
   MPL-1.1                          LicenseOpen('Mozilla Public License', version='1.1')
   MPL-2.0                          LicenseOpen('Mozilla Public License', version='2.0')
@@ -431,7 +432,7 @@ For instance::
   Python-2.0                       LicenseOpen('Python License', version='2.0')
   QPL-1.0                          LicenseOpen('Q Public License', version='1.0')
   UKOGL                            LicenseOpen('UK Open Government License')
-  Zlib                             LicenseOpen('zlib/libpng license')
+  Zlib                             LicenseOpen('zlib license')
 
   Proprietary                      LicenseProprietarySource('Proprietary Source')
 

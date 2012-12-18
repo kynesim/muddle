@@ -327,7 +327,8 @@ standard_licenses = {
         'Python-2.0':      LicenseOpen('Python License', version='2.0'),
         'QPL-1.0':         LicenseOpen('Q Public License', version='1.0'),
         'UKOGL':           LicenseOpen('UK Open Government License'),
-        'Zlib':            LicenseOpen('zlib/libpng license'), # ZLIB has its own license
+        'Libpng':          LicenseOpen('libpng license'), # libpng has its own license
+        'Zlib':            LicenseOpen('zlib license'), # ZLIB has its own license
 
         'GPL-2.0-linux':   LicenseGPL('GPL', version='v2.0', with_exception=True),
 

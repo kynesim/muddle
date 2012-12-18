@@ -645,8 +645,8 @@ def get_implicit_gpl_checkouts(builder):
 
     DEBUG = False
 
-    def add_if_not_us(our_co, this_co, result, because, reason):
-        """Add 'this_co' to 'result' if it is not 'our_co'.
+    def add_if_not_us_or_gpl(our_co, this_co, result, because, reason):
+        """Add 'this_co' to 'result' if it is not 'our_co' and not GPL itself.
 
         In which case, also add 'this_co':'reason' to 'because'
 
@@ -654,15 +654,19 @@ def get_implicit_gpl_checkouts(builder):
         """
         if our_co.just_match(this_co):
             # OK, that's just some variant on ourselves
-            if DEBUG: print 'WHICH is our_co'%this_co
+            if DEBUG: print 'BUT %s is our_co'%this_co
+            return
+        this_license = get_checkout_license(this_co, absent_is_None=True)
+        if this_license and this_license.is_gpl():
+            if DEBUG: print 'BUT %s is already GPL'%this_co
+            return
+        lbl = this_co.copy_with_tag('*')
+        result.add(lbl)
+        if lbl in because:
+            because[lbl].add(reason)
         else:
-            lbl = this_co.copy_with_tag('*')
-            result.add(lbl)
-            if lbl in because:
-                because[lbl].add(reason)
-            else:
-                because[lbl] = set([reason])
-            if DEBUG: print 'ADD %s'%lbl
+            because[lbl] = set([reason])
+        if DEBUG: print 'ADD %s'%lbl
 
     result = set()              # Checkouts implicitly affected
     because = {}                # checkout -> what it depended on that did so
@@ -703,12 +707,14 @@ def get_implicit_gpl_checkouts(builder):
                         if DEBUG: print 'NOT against %s'%co_label
                         continue
                     # We know that our original 'co_label' has type '/*`
-                    add_if_not_us(co_label, this_co, result, because,
-                                  '%s depends on %s'%(this_label.copy_with_tag('*'), co_label))
+                    add_if_not_us_or_gpl(co_label, this_co, result, because,
+                                         '%s depends on %s'%(this_label.copy_with_tag('*'),
+                                                             co_label))
             elif this_label.type == LabelType.Checkout:
                 # We know that our original 'co_label' has type '/*`
-                add_if_not_us(co_label, this_label, result, because,
-                              '%s depends on %s'%(this_label.copy_with_tag('*'), co_label))
+                add_if_not_us_or_gpl(co_label, this_label, result, because,
+                                     '%s depends on %s'%(this_label.copy_with_tag('*'),
+                                                         co_label))
             else:
                 # Deployments don't build stuff, so we can ignore them
                 if DEBUG: print 'IGNORE'

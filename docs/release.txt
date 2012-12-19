@@ -127,13 +127,6 @@ indicating what is to be built for a release.
 Its meaning is defined in the build description, using
 ``builder.add_to_release_build()``.
 
-.. Precedent would suggest that this should be a method on the
-   Invocation, and not the Builder. But accessing the methods that are
-   already on ``builder.`` is a pain, and there seems little
-   justification for adding to that pain. I could have provided a method
-   on the Invocation and an alias on the builder, but again that seems to
-   be making life awkward for no real reason. So, it can go on the Builder.
-
 Items can be added to the ``_release`` entity as labels, individually::
 
     builder.add_to_release_build(package('fred', 'x86')

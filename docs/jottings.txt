@@ -486,9 +486,9 @@ sets or list or dictionaries or whatever) must have a way of returning *all*
 of those labels. For Actions, this method is called ``_inner_labels()``.
 
 So ``_new_sub_domain()`` retrieves labels from various Well Known Places within
-the subdomain's Builder and its Invocation, and from all of the actions, and
-from the dictionaries managed for that subdomain by ``db.py``, and puts them
-into a single grand list.
+the subdomain's Builder, and from all of the actions, and from the
+dictionaries managed for that subdomain by ``db.py``, and puts them into a
+single grand list.
 
 We rely on the fact that we have *every* label - so for instance, we might
 have a list starting and ending like::
@@ -532,6 +532,6 @@ in-situ.
 
 All that then remains is for ``include_domain()`` to merge all the rules,
 dictionaries and so on into the main domain. We can then discard the old
-Builder (and its Invocation), since they're no longer of any interest.
+Builder, since they're no longer of any interest.
 
 .. vim: set filetype=rst tabstop=8 softtabstop=2 shiftwidth=2 expandtab:

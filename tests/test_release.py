@@ -134,7 +134,7 @@ def describe_to(builder):
                                  domain='subdomain2')
 
     # The 'arm' role is *not* a default role
-    builder.invocation.add_default_role(role)
+    builder.add_default_role(role)
     builder.by_default_deploy(deployment)
 
     # A single specific label
@@ -157,10 +157,10 @@ def release_from(builder, release_dir):
     # Useful directory-finding methods, all take a label to the appropriate
     # type:
     #
-    # * builder.invocation.checkout_path
-    # * builder.invocation.package_obj_path
-    # * builder.invocation.package_install_path
-    # * builder.invocation.deploy_path
+    # * builder.checkout_path
+    # * builder.package_obj_path
+    # * builder.package_install_path
+    # * builder.deploy_path
     #
     # Thus, since we know that the build description has been loaded
     # (i.e., "describe_to(builder)" has been executed), we can work out
@@ -171,7 +171,7 @@ def release_from(builder, release_dir):
     s1 = package('second_pkg', 'x86', domain='subdomain1')
     s2 = package('second_pkg', 'x86', domain='subdomain2')
 
-    install_path = builder.invocation.package_install_path
+    install_path = builder.package_install_path
 
     # Copy our executables, with permissions intact
     shutil.copy(os.path.join(install_path(f0), 'first'), release_dir)
@@ -220,7 +220,7 @@ def describe_to(builder):
                                  dest='sub3',
                                  domain='subdomain3')
 
-    builder.invocation.add_default_role(role)
+    builder.add_default_role(role)
     builder.by_default_deploy(deployment)
 
     # Add some labels to the release here
@@ -254,7 +254,7 @@ def describe_to(builder):
     muddled.deployments.filedep.deploy(builder, "", "everything", [role])
 
     # If no role is specified, assume this one
-    builder.invocation.add_default_role(role)
+    builder.add_default_role(role)
     # muddle at the top level will default to building this deployment
     builder.by_default_deploy("everything")
 

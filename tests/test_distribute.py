@@ -116,7 +116,7 @@ def describe_to(builder):
                                  domain='subdomain2')
 
     # The 'arm' role is *not* a default role
-    builder.invocation.add_default_role(role)
+    builder.add_default_role(role)
     builder.by_default_deploy(deployment)
 
     # Let's add some distribution specifics
@@ -189,7 +189,7 @@ def describe_to(builder):
                                  dest='sub3',
                                  domain='subdomain3')
 
-    builder.invocation.add_default_role(role)
+    builder.add_default_role(role)
     builder.by_default_deploy(deployment)
 
     # Our vertical distribution continues
@@ -221,7 +221,7 @@ def describe_to(builder):
     muddled.deployments.filedep.deploy(builder, "", "everything", [role])
 
     # If no role is specified, assume this one
-    builder.invocation.add_default_role(role)
+    builder.add_default_role(role)
     # muddle at the top level will default to building this deployment
     builder.by_default_deploy("everything")
 """
@@ -249,7 +249,7 @@ def describe_to(builder):
     muddled.deployments.filedep.deploy(builder, "", "everything", [role])
 
     # If no role is specified, assume this one
-    builder.invocation.add_default_role(role)
+    builder.add_default_role(role)
     # muddle at the top level will default to building this deployment
     builder.by_default_deploy("everything")
 

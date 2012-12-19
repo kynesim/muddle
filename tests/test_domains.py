@@ -107,7 +107,7 @@ def describe_to(builder):
                                  domain='subdomain2')
 
     # The 'arm' role is *not* a default role
-    builder.invocation.add_default_role(role)
+    builder.add_default_role(role)
     builder.by_default_deploy(deployment)
 """
 
@@ -148,7 +148,7 @@ def describe_to(builder):
                                  dest='sub3',
                                  domain='subdomain3')
 
-    builder.invocation.add_default_role(role)
+    builder.add_default_role(role)
     builder.by_default_deploy(deployment)
 """
 
@@ -199,7 +199,7 @@ def describe_to(builder):
                                  dest='sub4',
                                  domain='subdomain4')
 
-    builder.invocation.add_default_role(role)
+    builder.add_default_role(role)
     builder.by_default_deploy(deployment)
 """
 
@@ -225,7 +225,7 @@ def describe_to(builder):
     muddled.deployments.filedep.deploy(builder, "", "everything", [role])
 
     # If no role is specified, assume this one
-    builder.invocation.add_default_role(role)
+    builder.add_default_role(role)
     # muddle at the top level will default to building this deployment
     builder.by_default_deploy("everything")
 """
@@ -252,7 +252,7 @@ def describe_to(builder):
     muddled.deployments.filedep.deploy(builder, "", "everything", [role])
 
     # If no role is specified, assume this one
-    builder.invocation.add_default_role(role)
+    builder.add_default_role(role)
     # muddle at the top level will default to building this deployment
     builder.by_default_deploy("everything")
 """

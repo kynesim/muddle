@@ -211,8 +211,7 @@ def get_used_distribution_names(builder):
     """
     distribution_names = set()
 
-    invocation = builder
-    target_label_exists = invocation.target_label_exists
+    target_label_exists = builder.target_label_exists
 
     # We get all the "reasonable" checkout and package labels
     all_checkouts = builder.all_checkout_labels(LabelTag.CheckedOut)
@@ -224,7 +223,7 @@ def get_used_distribution_names(builder):
         # Is there a distribution target for this label?
         if target_label_exists(target):
             # If so, what names does it know?
-            rule = invocation.ruleset.map[target]
+            rule = builder.ruleset.map[target]
             names = rule.action.distribution_names()
             distribution_names.update(names)
 
@@ -1951,8 +1950,7 @@ def distribute(builder, name, target_dir, with_versions_dir=False,
     distribution_labels = set()
     domains = set()
 
-    invocation = builder
-    target_label_exists = invocation.target_label_exists
+    target_label_exists = builder.target_label_exists
 
     check_for_gpl_clashes = False
     check_for_binary_nonprivate_clashes = False
@@ -2038,7 +2036,7 @@ def distribute(builder, name, target_dir, with_versions_dir=False,
         # Is there a distribution target for this label?
         if target_label_exists(target):
             # If so, is it distributable with this distribution name?
-            rule = invocation.ruleset.rule_for_target(target)
+            rule = builder.ruleset.rule_for_target(target)
             if rule.action.does_distribution(name):
                 # Yes, we like this label
                 distribution_labels.add(target)
@@ -2121,7 +2119,7 @@ def distribute(builder, name, target_dir, with_versions_dir=False,
         for label in distribution_labels:
             maxlen = max(maxlen,len(str(label)))
         for label in distribution_labels:
-            rule = invocation.ruleset.map[label]
+            rule = builder.ruleset.map[label]
             print '%-*s %s'%(maxlen, label, rule.action)
         return
 

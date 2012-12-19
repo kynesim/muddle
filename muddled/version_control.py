@@ -616,7 +616,7 @@ def get_vcs_handler_from_string(repo_str):
 
 def vcs_handler_for(builder, co_label, co_leaf, repo, co_dir=None):
     """
-    Create a VCS handler for the given url, invocation and checkout name.
+    Create a VCS handler for the given url, checkout name, etc.
 
     Which VCS is determined by interpreting the initial part of the URI's
     protocol.
@@ -624,7 +624,6 @@ def vcs_handler_for(builder, co_label, co_leaf, repo, co_dir=None):
     We then create a handler that will call the appropriate VCS-specific
     mechanisms for any VCS operations on this checkout.
 
-    * inv - The invocation for which we're trying to build a handler.
     * co_label - The label for this checkout. This includes the name and domain
       (if any) for the checkout
     * co_leaf - The 'leaf' directory for this checkout. This is the final

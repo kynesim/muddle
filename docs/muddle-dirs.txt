@@ -293,7 +293,7 @@ This example build has a fairly simple build description, in ``src/builds/01.py`
                                         {"x86": "/"},
                                         "cpio_dep", [ "x86" ])
 
-        builder.invocation.add_default_role("x86")
+        builder.add_default_role("x86")
         builder.by_default_deploy("cpio_dep")
 
     # End file.
@@ -1464,7 +1464,7 @@ So the "top level" build description is now:
                                        rel = "", dest = "usr",
                                        domain = "b")
 
-        builder.invocation.add_default_role("x86")
+        builder.add_default_role("x86")
         builder.by_default_deploy("everything")
 
     # End file.

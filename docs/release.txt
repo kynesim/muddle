@@ -129,7 +129,7 @@ Its meaning is defined in the build description, using
 
 .. Precedent would suggest that this should be a method on the
    Invocation, and not the Builder. But accessing the methods that are
-   already on ``builder.invocation.`` is a pain, and there seems little
+   already on ``builder.`` is a pain, and there seems little
    justification for adding to that pain. I could have provided a method
    on the Invocation and an alias on the builder, but again that seems to
    be making life awkward for no real reason. So, it can go on the Builder.
@@ -207,7 +207,7 @@ tarball). For instance::
         m0 = package('main_pkg', 'x86')
         s1 = package('second_pkg', 'x86', domain='subdomain1')
 
-        install_path = builder.invocation.package_install_path
+        install_path = builder.package_install_path
 
         # Copy our executables, with permissions intact
         shutil.copy(os.path.join(install_path(f0), 'first'), release_dir)
@@ -226,10 +226,10 @@ directory, but otherwise it will be empty.
 
 The following methods may be particularly useful:
 
-* ``builder.invocation.checkout_path``
-* ``builder.invocation.package_obj_path``
-* ``builder.invocation.package_install_path``
-* ``builder.invocation.deploy_path``
+* ``builder.checkout_path``
+* ``builder.package_obj_path``
+* ``builder.package_install_path``
+* ``builder.deploy_path``
 
 Use ``muddle doc <method>`` to confirm what they do. 
 

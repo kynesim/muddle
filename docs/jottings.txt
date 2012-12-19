@@ -165,12 +165,12 @@ following::
     checkouts.simple.relative(builder, co_name='docs')
 
     null_pkg = null_package(builder, name='meta', role='meta')
-    package_depends_on_checkout(builder.invocation.ruleset,
+    package_depends_on_checkout(builder.ruleset,
                                 pkg_name='meta', role_name='meta',
                                 co_name='docs')
 
     # And add it to our default roles
-    builder.invocation.add_default_role('meta')
+    builder.add_default_role('meta')
 
 in your build description.
 
@@ -324,7 +324,7 @@ the following:
       rule = depend.depend_one(None,
                       Label(LabelType.Checkout, 'kernel', 'base', LabelTag.Configured),
                       Label(LabelType.Package, 'u-boot', 'boot', LabelTag.Installed))
-      builder.invocation.ruleset.add(rule)
+      builder.ruleset.add(rule)
 
       # We also want to tell the kernel build what architecture and
       # configuration file it should use.

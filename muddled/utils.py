@@ -373,11 +373,11 @@ def find_label_dir(builder, label):
     This is the heart of "muddle query dir".
     """
     if label.type == LabelType.Checkout:
-        dir = builder.invocation.db.get_checkout_path(label)
+        dir = builder.db.get_checkout_path(label)
     elif label.type == LabelType.Package:
-        dir = builder.invocation.package_install_path(label)
+        dir = builder.package_install_path(label)
     elif label.type == LabelType.Deployment:
-        dir = builder.invocation.deploy_path(label)
+        dir = builder.deploy_path(label)
     else:
         dir = None
     return dir
@@ -425,7 +425,7 @@ def find_local_relative_root(builder, label):
     to the root of the entire muddle build tree.
     """
     local_root = find_local_root(builder, label)
-    top_root = builder.invocation.db.root_path
+    top_root = builder.db.root_path
 
     local_root = normalise_dir(local_root)
     top_root = normalise_dir(top_root)

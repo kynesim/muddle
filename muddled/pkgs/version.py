@@ -41,7 +41,7 @@ class VersionBuilder(PackageBuilder):
 
     def file_name(self, builder):
         tmp = depend.Label(utils.LabelType.Package, self.name, self.role)
-        inst_path = builder.invocation.package_install_path(tmp)
+        inst_path = builder.package_install_path(tmp)
         ret = utils.rel_join(inst_path, self.filename)
         return ret
 
@@ -107,7 +107,7 @@ def simple(builder, name, roles,
     for r in roles:
         the_pkg = VersionBuilder(name, r, filename,
                                  swname, version, build, withDate, withUser, withMachine)
-        pkg.add_package_rules(builder.invocation.ruleset,
+        pkg.add_package_rules(builder.ruleset,
                               name, r, the_pkg)
 
 

@@ -24,7 +24,7 @@ def describe_to(builder):
     muddled.deployments.filedep.deploy(builder, "/opt/kynesim/screen-example",
                                        "screen", [ "x86" ])
     # If you don't specify a role, build this one.
-    builder.invocation.add_default_role("x86")
+    builder.add_default_role("x86")
     # 'muddle' from the root directory deploys ..
     builder.by_default_deploy("screen")
 

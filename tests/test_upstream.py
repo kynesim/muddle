@@ -124,7 +124,7 @@ def describe_to(builder):
                                  dep_name=deployment,   # always the same
                                  rel='', dest='sub', domain='{subdomain3}')
 
-    builder.invocation.add_default_role(role)
+    builder.add_default_role(role)
     builder.by_default_deploy(deployment)
 """
 
@@ -156,7 +156,7 @@ def describe_to(builder):
     collect.deploy(builder, deployment)
     collect.copy_from_role_install(builder, deployment,
                                    role=role, rel="", dest="", domain=None)
-    builder.invocation.add_default_role(role)
+    builder.add_default_role(role)
     builder.by_default_deploy(deployment)
 """
 
@@ -188,7 +188,7 @@ def describe_to(builder):
     collect.deploy(builder, deployment)
     collect.copy_from_role_install(builder, deployment,
                                    role=role, rel="", dest="", domain=None)
-    builder.invocation.add_default_role(role)
+    builder.add_default_role(role)
     builder.by_default_deploy(deployment)
 """
 
@@ -220,7 +220,7 @@ def describe_to(builder):
     collect.deploy(builder, deployment)
     collect.copy_from_role_install(builder, deployment,
                                    role=role, rel="", dest="", domain=None)
-    builder.invocation.add_default_role(role)
+    builder.add_default_role(role)
     builder.by_default_deploy(deployment)
 """
 
@@ -265,7 +265,7 @@ def describe_to(builder):
     collect.deploy(builder, deployment)
     collect.copy_from_role_install(builder, deployment,
                                    role=role, rel="", dest="", domain=None)
-    builder.invocation.add_default_role(role)
+    builder.add_default_role(role)
     builder.by_default_deploy(deployment)
 """
 
@@ -302,7 +302,7 @@ def describe_to(builder):
     collect.deploy(builder, deployment)
     collect.copy_from_role_install(builder, deployment,
                                    role=role, rel="", dest="", domain=None)
-    builder.invocation.add_default_role(role)
+    builder.add_default_role(role)
     builder.by_default_deploy(deployment)
 """
 
@@ -339,7 +339,7 @@ def describe_to(builder):
     collect.deploy(builder, deployment)
     collect.copy_from_role_install(builder, deployment,
                                    role=role, rel="", dest="", domain=None)
-    builder.invocation.add_default_role(role)
+    builder.add_default_role(role)
     builder.by_default_deploy(deployment)
 """
 
@@ -373,7 +373,7 @@ def describe_to(builder):
     collect.deploy(builder, deployment)
     collect.copy_from_role_install(builder, deployment,
                                    role=role, rel="", dest="", domain=None)
-    builder.invocation.add_default_role(role)
+    builder.add_default_role(role)
     builder.by_default_deploy(deployment)
 """
 
@@ -407,7 +407,7 @@ def describe_to(builder):
     collect.deploy(builder, deployment)
     collect.copy_from_role_install(builder, deployment,
                                    role=role, rel="", dest="", domain=None)
-    builder.invocation.add_default_role(role)
+    builder.add_default_role(role)
     builder.by_default_deploy(deployment)
 """
 
@@ -648,15 +648,9 @@ def check_exception(testing, fn, args, exception=GiveUp, startswith=None, endswi
 
 def check_push_pull_permissions():
 
-    class DummyInvocation(object):
-        def __init__(self):
-            pass
+    class DummyBuilder(object):
         def checkout_path(self, anything):
             return ''
-
-    class DummyBuilder(object):
-        def __init__(self):
-            self.invocation = DummyInvocation()
 
     dummy_builder = DummyBuilder()
 

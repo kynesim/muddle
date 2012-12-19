@@ -439,13 +439,13 @@ def set_license(builder, co_label, license, license_file=None, not_built_against
         co_label = Label(LabelType.Checkout, co_label, tag='*')
 
     if isinstance(license, License):
-        builder.invocation.db.set_checkout_license(co_label, license)
+        builder.db.set_checkout_license(co_label, license)
     else:
-        builder.invocation.db.set_checkout_license(co_label,
+        builder.db.set_checkout_license(co_label,
                                                    standard_licenses[license])
 
     if license_file:
-        builder.invocation.db.set_checkout_license_file(co_label, license_file)
+        builder.db.set_checkout_license_file(co_label, license_file)
 
     if not_built_against:
         set_nothing_builds_against(builder, co_label)
@@ -473,9 +473,9 @@ def get_license(builder, co_label, absent_is_None=True):
     the licenses dictionary, None will be returned. Otherwise, an appropriate
     GiveUp exception will be raised.
 
-    This is a simple wrapper around builder.invocation.db.get_checkout_license.
+    This is a simple wrapper around builder.db.get_checkout_license.
     """
-    return builder.invocation.db.get_checkout_license(co_label, absent_is_None)
+    return builder.db.get_checkout_license(co_label, absent_is_None)
 
 def set_nothing_builds_against(builder, co_label):
     """Asserts that no packages "build against" this checkout.
@@ -496,7 +496,7 @@ def set_nothing_builds_against(builder, co_label):
     An example might be busybox, which is GPL-2 licensed, but which builds a
     set of independent programs.
     """
-    builder.invocation.db.set_nothing_builds_against(co_label)
+    builder.db.set_nothing_builds_against(co_label)
 
 def set_license_not_affected_by(builder, this_label, co_label):
     """Asserts that the license for co_label does not affect this_label
@@ -528,18 +528,18 @@ def set_license_not_affected_by(builder, this_label, co_label):
     indeed, that it exists or is depended upon by 'pkg_label').
 
     This is a simple wrapper around
-    builder.invocation.db.set_license_not_affected_by.
+    builder.db.set_license_not_affected_by.
     """
-    builder.invocation.db.set_license_not_affected_by(this_label, co_label)
+    builder.db.set_license_not_affected_by(this_label, co_label)
 
 def get_not_licensed_checkouts(builder):
     """Return the set of all checkouts which do not have a license.
 
     (Actually, a set of checkout labels, with the label tag "/checked_out").
     """
-    all_checkouts = builder.invocation.all_checkout_labels()
+    all_checkouts = builder.all_checkout_labels()
     result = set()
-    checkout_has_license = builder.invocation.db.checkout_has_license
+    checkout_has_license = builder.db.checkout_has_license
     for co_label in all_checkouts:
         if not checkout_has_license(co_label):
             result.add(normalise_checkout_label(co_label))
@@ -550,8 +550,8 @@ def get_gpl_checkouts(builder):
 
     That's checkouts with any sort of GPL license.
     """
-    all_checkouts = builder.invocation.all_checkout_labels()
-    get_checkout_license = builder.invocation.db.get_checkout_license
+    all_checkouts = builder.all_checkout_labels()
+    get_checkout_license = builder.db.get_checkout_license
     gpl_licensed = set()
     for co_label in all_checkouts:
         license = get_checkout_license(co_label, absent_is_None=True)
@@ -564,8 +564,8 @@ def get_open_checkouts(builder):
 
     That's checkouts with any sort of GPL or open license.
     """
-    all_checkouts = builder.invocation.all_checkout_labels()
-    get_checkout_license = builder.invocation.db.get_checkout_license
+    all_checkouts = builder.all_checkout_labels()
+    get_checkout_license = builder.db.get_checkout_license
     gpl_licensed = set()
     for co_label in all_checkouts:
         license = get_checkout_license(co_label, absent_is_None=True)
@@ -578,8 +578,8 @@ def get_open_not_gpl_checkouts(builder):
 
     Note sure why anyone would want this, but it's easy to provide.
     """
-    all_checkouts = builder.invocation.all_checkout_labels()
-    get_checkout_license = builder.invocation.db.get_checkout_license
+    all_checkouts = builder.all_checkout_labels()
+    get_checkout_license = builder.db.get_checkout_license
     gpl_licensed = set()
     for co_label in all_checkouts:
         license = get_checkout_license(co_label, absent_is_None=True)
@@ -627,10 +627,10 @@ def get_implicit_gpl_checkouts(builder):
     all_gpl_checkouts = get_gpl_checkouts(builder)
 
     # Localise for our loop
-    get_checkout_license = builder.invocation.db.get_checkout_license
-    get_license_not_affected_by = builder.invocation.db.get_license_not_affected_by
-    get_nothing_builds_against = builder.invocation.db.get_nothing_builds_against
-    ruleset = builder.invocation.ruleset
+    get_checkout_license = builder.db.get_checkout_license
+    get_license_not_affected_by = builder.db.get_license_not_affected_by
+    get_nothing_builds_against = builder.db.get_nothing_builds_against
+    ruleset = builder.ruleset
 
     DEBUG = False
 
@@ -685,7 +685,7 @@ def get_implicit_gpl_checkouts(builder):
                     continue
 
                 # OK, what checkouts does that imply?
-                pkg_checkouts = builder.invocation.checkouts_for_package(this_label)
+                pkg_checkouts = builder.checkouts_for_package(this_label)
                 if DEBUG: print 'EXPANDS to %s'%(label_list_to_string(pkg_checkouts))
 
                 for this_co in pkg_checkouts:
@@ -713,8 +713,8 @@ def get_implicit_gpl_checkouts(builder):
 def get_prop_source_checkouts(builder):
     """Return a set of all the "proprietary source" licensed checkouts.
     """
-    all_checkouts = builder.invocation.all_checkout_labels()
-    get_checkout_license = builder.invocation.db.get_checkout_license
+    all_checkouts = builder.all_checkout_labels()
+    get_checkout_license = builder.db.get_checkout_license
     prop_licensed = set()
     for co_label in all_checkouts:
         license = get_checkout_license(co_label, absent_is_None=True)
@@ -725,8 +725,8 @@ def get_prop_source_checkouts(builder):
 def get_binary_checkouts(builder):
     """Return a set of all the "binary" licensed checkouts.
     """
-    all_checkouts = builder.invocation.all_checkout_labels()
-    get_checkout_license = builder.invocation.db.get_checkout_license
+    all_checkouts = builder.all_checkout_labels()
+    get_checkout_license = builder.db.get_checkout_license
     binary_licensed = set()
     for co_label in all_checkouts:
         license = get_checkout_license(co_label, absent_is_None=True)
@@ -737,8 +737,8 @@ def get_binary_checkouts(builder):
 def get_private_checkouts(builder):
     """Return a set of all the "private" licensed checkouts.
     """
-    all_checkouts = builder.invocation.all_checkout_labels()
-    get_checkout_license = builder.invocation.db.get_checkout_license
+    all_checkouts = builder.all_checkout_labels()
+    get_checkout_license = builder.db.get_checkout_license
     private_licensed = set()
     for co_label in all_checkouts:
         license = get_checkout_license(co_label, absent_is_None=True)
@@ -755,7 +755,7 @@ def checkout_license_allowed(builder, co_label, categories):
     Returns False if it is licensed, but its license is not in any of
     the given categories.
     """
-    license = builder.invocation.db.get_checkout_license(co_label, absent_is_None=True)
+    license = builder.db.get_checkout_license(co_label, absent_is_None=True)
     if license is None or license.category in categories:
         return True
     else:
@@ -777,7 +777,7 @@ def get_license_clashes(builder, implicit_gpl_checkouts):
     bad_binary = set()
     bad_private = set()
 
-    get_checkout_license = builder.invocation.db.get_checkout_license
+    get_checkout_license = builder.db.get_checkout_license
     for co_label in implicit_gpl_checkouts:
         license = get_checkout_license(co_label, absent_is_None=True)
         if license is None:
@@ -850,7 +850,7 @@ def report_license_clashes(builder, report_binary=True, report_private=True, jus
                 if length > maxlen:
                     maxlen = length
 
-        get_checkout_license = builder.invocation.db.get_checkout_license
+        get_checkout_license = builder.db.get_checkout_license
 
         if report_binary:
             for co_label in sorted(bad_binary):
@@ -869,14 +869,14 @@ def licenses_in_role(builder, role):
     the set, if some of the checkouts are not licensed.
     """
     licenses = set()
-    get_checkout_license = builder.invocation.db.get_checkout_license
+    get_checkout_license = builder.db.get_checkout_license
 
     lbl = Label(LabelType.Package, "*", role, "*", domain="*")
-    all_rules = builder.invocation.ruleset.rules_for_target(lbl)
+    all_rules = builder.ruleset.rules_for_target(lbl)
 
     for rule in all_rules:
         pkg_label = rule.target
-        checkouts = builder.invocation.checkouts_for_package(pkg_label)
+        checkouts = builder.checkouts_for_package(pkg_label)
         for co_label in checkouts:
             license = get_checkout_license(co_label, absent_is_None=True)
             licenses.add(license)
@@ -899,14 +899,14 @@ def get_license_clashes_in_role(builder, role):
     binary_items = {}
     private_items = {}
 
-    get_checkout_license = builder.invocation.db.get_checkout_license
+    get_checkout_license = builder.db.get_checkout_license
 
     lbl = Label(LabelType.Package, "*", role, "*", domain="*")
-    all_rules = builder.invocation.ruleset.rules_for_target(lbl)
+    all_rules = builder.ruleset.rules_for_target(lbl)
 
     for rule in all_rules:
         pkg_label = rule.target
-        checkouts = builder.invocation.checkouts_for_package(pkg_label)
+        checkouts = builder.checkouts_for_package(pkg_label)
         for co_label in checkouts:
             license = get_checkout_license(co_label, absent_is_None=True)
             if license:

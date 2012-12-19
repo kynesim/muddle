@@ -49,16 +49,16 @@ class AssemblyDescriptor(object):
 
     def get_source_dir(self, builder):
         if (self.from_label.type == utils.LabelType.Checkout):
-            return builder.invocation.checkout_path(self.from_label)
+            return builder.checkout_path(self.from_label)
         elif (self.from_label.type == utils.LabelType.Package):
             if ((self.from_label.name is None) or
                 (self.from_label.name == "*")):
-                return builder.invocation.role_install_path(self.from_label.role,
+                return builder.role_install_path(self.from_label.role,
                                                             domain = self.from_label.domain)
             else:
-                return builder.invocation.package_obj_path(self.from_label)
+                return builder.package_obj_path(self.from_label)
         elif (self.from_label.type == utils.LabelType.Deployment):
-            return builder.invocation.deploy_path(self.from_label)
+            return builder.deploy_path(self.from_label)
         else:
             raise utils.GiveUp("Label %s for romfs action has unknown kind."%(self.from_label))
 
@@ -98,9 +98,9 @@ class SquashFSDeploymentBuilder(Action):
         else:
             tgt = self.target_name
             
-        utils.ensure_dir(builder.invocation.deploy_path(label))
+        utils.ensure_dir(builder.deploy_path(label))
 
-        final_tgt = os.path.join(builder.invocation.deploy_path(label), 
+        final_tgt = os.path.join(builder.deploy_path(label), 
                                  tgt)
         cmd = "%s \"%s\" \"%s\" -all-root -info -comp xz"%(self.mksquashfs, my_tmp, final_tgt)
         utils.run_cmd(cmd)
@@ -205,13 +205,13 @@ def deploy(builder, name,
     deployment_rule = depend.Rule(dep_label, the_action)
 
     deployment.register_cleanup(builder, name)
-    builder.invocation.ruleset.add(deployment_rule)
+    builder.ruleset.add(deployment_rule)
 
     iapp_label = Label(utils.LabelType.Deployment, name, None,
                        utils.LabelTag.InstructionsApplied,
                        transient = True)
     iapp_rule = depend.Rule(iapp_label, the_action)
-    builder.invocation.ruleset.add(iapp_rule)
+    builder.ruleset.add(iapp_rule)
 
 
 def copy_from_checkout(builder, name, checkout, rel, dest, 

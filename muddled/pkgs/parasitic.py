@@ -110,7 +110,7 @@ class ParasiticBuilder(PackageBuilder):
 
         self.ensure_dirs(builder, label)
         tmp = Label(utils.LabelType.Checkout, self.co, domain=label.domain)
-        co_path = builder.invocation.checkout_path(tmp)
+        co_path = builder.checkout_path(tmp)
         with utils.Directory(co_path):
             self._amend_env(co_path)
             makefile_name = self.guess_makefile_name()
@@ -127,7 +127,7 @@ class ParasiticBuilder(PackageBuilder):
                 utils.run_cmd("make %s %s-install"%(make_args, self.target_name))
             elif (tag ==utils.LabelTag.PostInstalled):
                 if (self.rewrite_autoconf):
-                    obj_path = builder.invocation.package_obj_path(label)
+                    obj_path = builder.package_obj_path(label)
                     #print ">obj_path = %s"%(obj_path)
                     if (self.execRelPath is None):
                         sendExecPrefix = None

@@ -211,12 +211,11 @@ def get_used_distribution_names(builder):
     """
     distribution_names = set()
 
-    invocation = builder.invocation
-    target_label_exists = invocation.target_label_exists
+    target_label_exists = builder.target_label_exists
 
     # We get all the "reasonable" checkout and package labels
-    all_checkouts = builder.invocation.all_checkout_labels(LabelTag.CheckedOut)
-    all_packages = builder.invocation.all_package_labels()
+    all_checkouts = builder.all_checkout_labels(LabelTag.CheckedOut)
+    all_packages = builder.all_package_labels()
 
     combined_labels = all_checkouts.union(all_packages)
     for label in combined_labels:
@@ -224,7 +223,7 @@ def get_used_distribution_names(builder):
         # Is there a distribution target for this label?
         if target_label_exists(target):
             # If so, what names does it know?
-            rule = invocation.ruleset.map[target]
+            rule = builder.ruleset.map[target]
             names = rule.action.distribution_names()
             distribution_names.update(names)
 
@@ -253,7 +252,7 @@ def _assert_checkout_allowed_in_distribution(builder, co_label, name):
     exception.
     """
     if not checkout_license_allowed(builder, co_label, the_distributions[name]):
-        license = builder.invocation.db.get_checkout_license(co_label, absent_is_None=True)
+        license = builder.db.get_checkout_license(co_label, absent_is_None=True)
         raise GiveUp('Checkout %s is not allowed in distribution "%s"\n'
                      'Checkout has license "%s",\n'
                      '  which is "%s", distribution allows "%s"'%(co_label,
@@ -278,9 +277,9 @@ def _distribute_checkout(builder, actual_names, label, copy_vcs=False):
     # the label is built
 
     # Is there already a rule for distributing this label?
-    if builder.invocation.target_label_exists(target_label):
+    if builder.target_label_exists(target_label):
         # Yes, so retrieve it, and its action
-        rule = builder.invocation.ruleset.map[target_label]
+        rule = builder.ruleset.map[target_label]
         action = rule.action
         if DEBUG: print '   %s exists'%action
         # but don't *do* anything to that first action yet
@@ -292,7 +291,7 @@ def _distribute_checkout(builder, actual_names, label, copy_vcs=False):
         rule = Rule(target_label, action)   # to build target_label, run action
         rule.add(source_label)              # after we've built source_label
 
-        builder.invocation.ruleset.add(rule)
+        builder.ruleset.add(rule)
 
         # We've done with the first name
         actual_names = actual_names[1:]
@@ -361,9 +360,9 @@ def distribute_checkout(builder, name, label, copy_vcs=False):
         raise GiveUp('There is no distribution matching "%s"'%name)
 
     if label.type == LabelType.Package:
-        packages = builder.invocation.expand_wildcards(label)
+        packages = builder.expand_wildcards(label)
         for package in packages:
-            checkouts = builder.invocation.checkouts_for_package(package)
+            checkouts = builder.checkouts_for_package(package)
             for co_label in checkouts:
                 _distribute_checkout(builder, actual_names, co_label, copy_vcs)
 
@@ -432,9 +431,9 @@ def distribute_checkout_files(builder, name, label, source_files):
     # the label is built
 
     # Is there already a rule for distributing this label?
-    if builder.invocation.target_label_exists(target_label):
+    if builder.target_label_exists(target_label):
         # Yes, so retrieve it, and its action
-        rule = builder.invocation.ruleset.map[target_label]
+        rule = builder.ruleset.map[target_label]
         action = rule.action
         if DEBUG: print '   %s exists'%action
         # but don't *do* anything to that first action yet
@@ -448,7 +447,7 @@ def distribute_checkout_files(builder, name, label, source_files):
         rule = Rule(target_label, action)   # to build target_label, run action
         rule.add(source_label)              # after we've built source_label
 
-        builder.invocation.ruleset.add(rule)
+        builder.ruleset.add(rule)
 
         # We've done with the first name
         actual_names = actual_names[1:]
@@ -521,7 +520,7 @@ def distribute_build_desc(builder, name, label, copy_vcs=False):
         raise GiveUp('There is no distribution called "%s"'%name)
 
     # Check for a distribution build description
-    this_dir = builder.invocation.db.get_checkout_path(label)
+    this_dir = builder.db.get_checkout_path(label)
     dist_file = os.path.join('_distribution', '%s.py'%name)
     if os.path.exists(os.path.join(this_dir, dist_file)):
         print 'Found replacement build description for distribution "%s"'%name
@@ -536,7 +535,7 @@ def distribute_build_desc(builder, name, label, copy_vcs=False):
         except GiveUp as e:
             # An undefined license is always *allowed*, so we know we don't need
             # to check for that case in getting the license for our label
-            license = builder.invocation.db.get_checkout_license(label)
+            license = builder.db.get_checkout_license(label)
             if license.is_proprietary_source():
                 # Normally we would not distribute proprietary source checkouts for
                 # distributions that don't allow it. However, we make an exception
@@ -563,9 +562,9 @@ def distribute_build_desc(builder, name, label, copy_vcs=False):
     # the label is built
 
     # Is there already a rule for distributing this label?
-    if builder.invocation.target_label_exists(target_label):
+    if builder.target_label_exists(target_label):
         # Yes. Is it the right sort of action?
-        rule = builder.invocation.ruleset.map[target_label]
+        rule = builder.ruleset.map[target_label]
         action = rule.action
         if isinstance(action, DistributeBuildDescription):
             if DEBUG: print '   exists as DistributeBuildDescription: add/override'
@@ -600,7 +599,7 @@ def distribute_build_desc(builder, name, label, copy_vcs=False):
         rule = Rule(target_label, action)       # to build target_label, run action
         rule.add(source_label)                  # after we've built source_label
 
-        builder.invocation.ruleset.add(rule)
+        builder.ruleset.add(rule)
 
 def set_private_build_files(builder, name, private_files):
     """Set some private build files for the (current) build description.
@@ -638,7 +637,7 @@ def set_private_build_files(builder, name, private_files):
     # Work out the label for this build description
     label = _build_desc_label_in_domain(builder, None, LabelTag.Distributed)
     # And thus its directory
-    our_dir = builder.invocation.db.get_checkout_path(label)
+    our_dir = builder.db.get_checkout_path(label)
 
     # We'd better check
     for name in actual_names:
@@ -663,9 +662,9 @@ def set_private_build_files(builder, name, private_files):
 
     # Is there already a rule for distributing this label?
     name = actual_names[0]
-    if builder.invocation.target_label_exists(target_label):
+    if builder.target_label_exists(target_label):
         # Yes. Is it the right sort of action?
-        rule = builder.invocation.ruleset.map[target_label]
+        rule = builder.ruleset.map[target_label]
         action = rule.action
         if isinstance(action, DistributeBuildDescription):
             if DEBUG: print '   exists as DistributeBuildDescrption: add/override'
@@ -696,7 +695,7 @@ def set_private_build_files(builder, name, private_files):
         rule = Rule(target_label, action)       # to build target_label, run action
         rule.add(source_label)                  # after we've built source_label
 
-        builder.invocation.ruleset.add(rule)
+        builder.ruleset.add(rule)
 
     # Sort out the other distribution names
     for name in actual_names[1:]:
@@ -760,7 +759,7 @@ def distribute_package(builder, name, label, obj=False, install=True,
     if not actual_names:
         raise GiveUp('There is no distribution matching "%s"'%name)
 
-    packages = builder.invocation.expand_wildcards(label)
+    packages = builder.expand_wildcards(label)
     if len(packages) == 0:
         raise GiveUp('distribute_package() of %s does not distribute anything'
                      ' (no matching package labels)'%label)
@@ -779,9 +778,9 @@ def distribute_package(builder, name, label, obj=False, install=True,
         # the label is built
 
         # Is there already a rule for distributing this label?
-        if builder.invocation.target_label_exists(target_label):
+        if builder.target_label_exists(target_label):
             # Yes, so retrieve it, and its action
-            rule = builder.invocation.ruleset.map[target_label]
+            rule = builder.ruleset.map[target_label]
             action = rule.action
             if DEBUG: print '   %s exists'%action
             add_index = 0
@@ -793,7 +792,7 @@ def distribute_package(builder, name, label, obj=False, install=True,
             rule = Rule(target_label, action)   # to build target_label, run action
             rule.add(source_label)              # after we've built source_label
 
-            builder.invocation.ruleset.add(rule)
+            builder.ruleset.add(rule)
 
             # We've done with the first name
             add_index = 1
@@ -808,7 +807,7 @@ def distribute_package(builder, name, label, obj=False, install=True,
             # with it, which tells us what we want to know. It in turn is
             # "attached" to the various "buildy" tags on our label.
             tmp_label = pkg_label.copy_with_tag(LabelTag.Built)
-            rule = builder.invocation.ruleset.rule_for_target(tmp_label)
+            rule = builder.ruleset.rule_for_target(tmp_label)
             # Shall we assume it is a MakeBuilder? Let's not
             action = rule.action
             if not isinstance(action, MakeBuilder):
@@ -827,7 +826,7 @@ def distribute_package(builder, name, label, obj=False, install=True,
 def _set_checkout_tags(builder, label, target_dir):
     """Copy checkout muddle tags
     """
-    root_path = normalise_dir(builder.invocation.db.root_path)
+    root_path = normalise_dir(builder.db.root_path)
     local_root = find_local_relative_root(builder, label)
 
     tags_dir = os.path.join('.muddle', 'tags', 'checkout', label.name)
@@ -845,7 +844,7 @@ def _set_package_tags(builder, label, target_dir, which_tags):
     However, only copy package tags (a) for the particular role, and
     (b) for the tags named in 'which_tags'
     """
-    root_path = normalise_dir(builder.invocation.db.root_path)
+    root_path = normalise_dir(builder.db.root_path)
     local_root = find_local_relative_root(builder, label)
 
     tags_dir = os.path.join('.muddle', 'tags', 'package', label.name)
@@ -872,7 +871,7 @@ def _actually_distribute_some_checkout_files(builder, label, target_dir, files):
     """As it says.
     """
     # Get the actual directory of the checkout
-    co_src_dir = builder.invocation.db.get_checkout_location(label)
+    co_src_dir = builder.db.get_checkout_location(label)
 
     # So we can now copy our source directory, ignoring the VCS directory if
     # necessary. Note that this can create the target directory for us.
@@ -899,14 +898,14 @@ def _actually_distribute_checkout(builder, label, target_dir, copy_vcs):
     """As it says.
     """
     # Get the actual directory of the checkout
-    co_src_dir = builder.invocation.db.get_checkout_location(label)
+    co_src_dir = builder.db.get_checkout_location(label)
 
     # If we're not doing copy_vcs, find the VCS special files for this
     # checkout, and them our "without" string
     if copy_vcs:
         without = []
     else:
-        repo = builder.invocation.db.get_checkout_repo(label)
+        repo = builder.db.get_checkout_repo(label)
         vcs_handler = get_vcs_handler(repo.vcs)
         without = vcs_handler.get_vcs_special_files()
 
@@ -939,7 +938,7 @@ def _actually_distribute_normal_build_desc(builder, label, co_src_dir, target_di
     if copy_vcs:
         files_to_ignore = []
     else:
-        repo = builder.invocation.db.get_checkout_repo(label)
+        repo = builder.db.get_checkout_repo(label)
         vcs_handler = get_vcs_handler(repo.vcs)
         files_to_ignore = vcs_handler.get_vcs_special_files()
 
@@ -1002,7 +1001,7 @@ def _actually_distribute_replacement_build_desc(builder, label, co_src_dir, targ
 
     # Now to work out the name of the target build description file
     # Remember to use the checkout directory path relative to the root of tree
-    outer_path = builder.invocation.db.get_checkout_location(label)
+    outer_path = builder.db.get_checkout_location(label)
 
     inner_path = _build_desc_inner_path(builder, label)
 
@@ -1022,7 +1021,7 @@ def _actually_distribute_build_desc(builder, label, target_dir, copy_vcs,
     """Very similar to what we do for any other checkout, but with more arguments
     """
     # Get the actual directory of the checkout
-    co_src_dir = builder.invocation.db.get_checkout_location(label)
+    co_src_dir = builder.db.get_checkout_location(label)
 
     if replacement_build_desc:
         _actually_distribute_replacement_build_desc(builder, label,
@@ -1044,7 +1043,7 @@ def _actually_distribute_instructions(builder, label, target_dir):
         .muddle/instructions/<package-name>/_default,xml
         .muddle/instructions/<package-name>/<role>,xml
     """
-    root_path = normalise_dir(builder.invocation.db.root_path)
+    root_path = normalise_dir(builder.db.root_path)
     local_root = find_local_relative_root(builder, label)
 
     #    Although there is infrastructure for this (db.scan_instructions),
@@ -1078,11 +1077,11 @@ def _actually_distribute_obj(builder, label, target_dir):
     # Luckily, we know we should always have a role (since the build mechanism
     # works on "real" labels), so for the obj/ path we will get
     # obj/<name>/<role>/
-    obj_dir = builder.invocation.package_obj_path(label)
+    obj_dir = builder.package_obj_path(label)
 
     # We can then copy it over. copy_without will create the target
     # directory for us, if necessary
-    root_path = normalise_dir(builder.invocation.db.root_path)
+    root_path = normalise_dir(builder.db.root_path)
     rel_obj_dir = os.path.relpath(normalise_dir(obj_dir), root_path)
     tgt_obj_dir = os.path.join(target_dir, rel_obj_dir)
     tgt_obj_dir = normalise_dir(tgt_obj_dir)
@@ -1101,7 +1100,7 @@ def _actually_distribute_obj(builder, label, target_dir):
     # In order to stop muddle wanting to rebuild the sources on which this
     # package depends, we also need to set the tags for the checkouts it
     # depends on
-    checkouts = builder.invocation.checkouts_for_package(label)
+    checkouts = builder.checkouts_for_package(label)
     for co_label in checkouts:
         _set_checkout_tags(builder, co_label, target_dir)
 
@@ -1116,9 +1115,9 @@ def _actually_distribute_install(builder, label, target_dir):
     # Work out the install/ directory path/
     # Luckily, we know we should always have a role (since the build mechanism
     # works on "real" labels), so we shall get install/<role>.
-    install_dir = builder.invocation.package_install_path(label)
+    install_dir = builder.package_install_path(label)
 
-    root_path = normalise_dir(builder.invocation.db.root_path)
+    root_path = normalise_dir(builder.db.root_path)
     rel_install_dir = os.path.relpath(normalise_dir(install_dir), root_path)
     tgt_install_dir = os.path.join(target_dir, rel_install_dir)
     tgt_install_dir = normalise_dir(tgt_install_dir)
@@ -1139,7 +1138,7 @@ def _actually_distribute_install(builder, label, target_dir):
     # In order to stop muddle wanting to rebuild the sources on which this
     # package depends, we also need to set the tags for the checkouts it
     # depends on
-    checkouts = builder.invocation.checkouts_for_package(label)
+    checkouts = builder.checkouts_for_package(label)
     for co_label in checkouts:
         _set_checkout_tags(builder, co_label, target_dir)
 
@@ -1590,9 +1589,9 @@ def _build_desc_inner_path(builder, label):
     """
     domain = label.domain
     if domain:
-        root_repo, build_desc = builder.invocation.db.get_subdomain_info(domain)
+        root_repo, build_desc = builder.db.get_subdomain_info(domain)
     else:
-        build_desc = builder.invocation.db.build_desc.get()
+        build_desc = builder.db.build_desc.get()
 
     co_name, inner_path = build_co_and_path_from_str(build_desc)
     return inner_path
@@ -1641,11 +1640,11 @@ def _maybe_add_license_file(builder, name, label, distribution_labels):
     if label.type == LabelType.Checkout:
         checkouts = [label]
     elif label.type == LabelType.Package:
-        checkouts = builder.invocation.checkouts_for_package(label)
+        checkouts = builder.checkouts_for_package(label)
     else:
         raise MuddleBug('Expected a checkout or package label, not %s'%label)
 
-    get_checkout_license_file = builder.invocation.db.get_checkout_license_file
+    get_checkout_license_file = builder.db.get_checkout_license_file
     for co_label in checkouts:
         license_file = get_checkout_license_file(co_label, absent_is_None=True)
         if license_file:
@@ -1657,7 +1656,7 @@ def _copy_muddle_skeleton(builder, name, target_dir, domains):
     """Copy the "top files" for each necessary .muddle directory
     """
 
-    src_root = builder.invocation.db.root_path
+    src_root = builder.db.root_path
     tgt_root = target_dir
 
     for domain in sorted(domains):
@@ -1689,7 +1688,7 @@ def _copy_versions_dir(builder, name, target_dir, copy_vcs=False):
     """Copy the stamp versions directory
     """
 
-    src_root = builder.invocation.db.root_path
+    src_root = builder.db.root_path
     src_dir = os.path.join(src_root, 'versions')
     if not os.path.exists(src_dir):
         return
@@ -1705,7 +1704,7 @@ def _copy_versions_dir(builder, name, target_dir, copy_vcs=False):
     if copy_vcs:
         without = []
     else:
-        versions_repo_url = builder.invocation.db.versions_repo.get()
+        versions_repo_url = builder.db.versions_repo.get()
         without = vcs_special_files(versions_repo_url)
 
     if DEBUG:
@@ -1732,7 +1731,7 @@ def _find_open_deps_for_gpl(builder, label):
     label = label.copy_with_tag(LabelTag.CheckedOut)
 
     # Find the package(s) that depende on this checkout
-    package_labels = builder.invocation.packages_using_checkout(label)
+    package_labels = builder.packages_using_checkout(label)
     our_packages = set()
 
     # Typically we get the same package with different tags - turn them
@@ -1750,7 +1749,7 @@ def _find_open_deps_for_gpl(builder, label):
 
     # Check what each package depends on
     for pkg in our_packages:
-        rules_to_build = needed_to_build(builder.invocation.ruleset, pkg)
+        rules_to_build = needed_to_build(builder.ruleset, pkg)
         for rule in rules_to_build:
             lbl = rule.target
             if lbl.type == LabelType.Checkout:
@@ -1760,7 +1759,7 @@ def _find_open_deps_for_gpl(builder, label):
                     add_label(lbl, pkg)
             elif lbl.type == LabelType.Package:
                 # Find out what checkouts that package comes from
-                checkouts = builder.invocation.checkouts_for_package(label)
+                checkouts = builder.checkouts_for_package(label)
                 for co in checkouts:
                     add_label(co, pkg)
 
@@ -1873,7 +1872,7 @@ def select_all_binary_nonprivate_packages(builder, name, with_muddle_makefile, j
     binary_packages = set()
     for co_label in binary_checkouts:
         # Get the package(s) directly using this checkout
-        package_labels = builder.invocation.packages_using_checkout(co_label)
+        package_labels = builder.packages_using_checkout(co_label)
         for label in package_labels:
             binary_packages.add(label.copy_with_tag('*'))
     if just_from:
@@ -1947,21 +1946,20 @@ def distribute(builder, name, target_dir, with_versions_dir=False,
     distribution_labels = set()
     domains = set()
 
-    invocation = builder.invocation
-    target_label_exists = invocation.target_label_exists
+    target_label_exists = builder.target_label_exists
 
     check_for_gpl_clashes = False
     check_for_binary_nonprivate_clashes = False
 
     if checkout_labels is None:
         # We get all the "reasonable" checkout labels
-        all_checkouts = builder.invocation.all_checkout_labels(LabelTag.CheckedOut)
+        all_checkouts = builder.all_checkout_labels(LabelTag.CheckedOut)
     else:
         all_checkouts = checkout_labels
 
     if package_labels is None:
         # We get all the "reasonable" package labels
-        all_packages = builder.invocation.all_package_labels()
+        all_packages = builder.all_package_labels()
     else:
         all_packages = package_labels
 
@@ -2034,7 +2032,7 @@ def distribute(builder, name, target_dir, with_versions_dir=False,
         # Is there a distribution target for this label?
         if target_label_exists(target):
             # If so, is it distributable with this distribution name?
-            rule = invocation.ruleset.rule_for_target(target)
+            rule = builder.ruleset.rule_for_target(target)
             if rule.action.does_distribution(name):
                 # Yes, we like this label
                 distribution_labels.add(target)
@@ -2117,7 +2115,7 @@ def distribute(builder, name, target_dir, with_versions_dir=False,
         for label in distribution_labels:
             maxlen = max(maxlen,len(str(label)))
         for label in distribution_labels:
-            rule = invocation.ruleset.map[label]
+            rule = builder.ruleset.map[label]
             print '%-*s %s'%(maxlen, label, rule.action)
         return
 

@@ -15,5 +15,5 @@ def describe_to(builder):
     muddled.pkgs.make.simple(builder, "pkg_c", "x86", "c_co")
 
     # Set the default role ..
-    builder.invocation.add_default_role("x86")
+    builder.add_default_role("x86")
 

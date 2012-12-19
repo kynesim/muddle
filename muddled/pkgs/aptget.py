@@ -70,7 +70,7 @@ def simple(builder, name, role, apt_pkgs):
     """
 
     the_pkg = AptGetBuilder(name, role, apt_pkgs)
-    pkg.add_package_rules(builder.invocation.ruleset,
+    pkg.add_package_rules(builder.ruleset,
                           name, role, the_pkg)
 
 
@@ -86,7 +86,7 @@ def depends_on_aptget(builder, name, role, pkg, pkg_role):
                              pkg,  pkg_role,
                              utils.LabelTag.PreConfig)
 
-    the_rule = builder.invocation.ruleset.rule_for_target(tgt_label,
+    the_rule = builder.ruleset.rule_for_target(tgt_label,
                                                           createIfNotPresent = True)
     the_rule.add(depend.Label(utils.LabelType.Package,
                               name, role,

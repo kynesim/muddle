@@ -63,16 +63,16 @@ class AssemblyDescriptor(object):
 
     def get_source_dir(self, builder):
         if (self.from_label.type == utils.LabelType.Checkout):
-            return builder.invocation.checkout_path(self.from_label)
+            return builder.checkout_path(self.from_label)
         elif (self.from_label.type == utils.LabelType.Package):
             if ((self.from_label.name is None) or
                 self.from_label.name == "*"):
-                return builder.invocation.role_install_path(self.from_label.role,
+                return builder.role_install_path(self.from_label.role,
                                                             domain=self.from_label.domain)
             else:
-                return builder.invocation.package_obj_path(self.from_label)
+                return builder.package_obj_path(self.from_label)
         elif (self.from_label.type == utils.LabelType.Deployment):
-            return builder.invocation.deploy_path(self.from_label)
+            return builder.deploy_path(self.from_label)
         else:
             raise utils.GiveUp("Label %s for collection action has unknown kind."%(self.from_label))
 
@@ -101,7 +101,7 @@ class CollectDeploymentBuilder(Action):
         Actually do the copies ..
         """
 
-        utils.ensure_dir(builder.invocation.deploy_path(label))
+        utils.ensure_dir(builder.deploy_path(label))
 
         if (label.tag == utils.LabelTag.Deployed):
             self.apply_instructions(builder, label, True)
@@ -114,7 +114,7 @@ class CollectDeploymentBuilder(Action):
     def deploy(self, builder, label):
         for asm in self.assemblies:
             src = os.path.join(asm.get_source_dir(builder), asm.from_rel)
-            dst = os.path.join(builder.invocation.deploy_path(label),
+            dst = os.path.join(builder.deploy_path(label),
                                asm.to_name)
 
             if (not os.path.exists(src)):
@@ -150,7 +150,7 @@ class CollectDeploymentBuilder(Action):
 
             lbl = Label(utils.LabelType.Package, '*', asm.from_label.role,
                         '*', domain=asm.from_label.domain)
-            install_dir = builder.invocation.role_install_path(lbl.role, label.domain)
+            install_dir = builder.role_install_path(lbl.role, label.domain)
             instr_list = builder.load_instructions(lbl)
             app_dict = get_instruction_dict()
 
@@ -194,7 +194,7 @@ class CollectDeploymentBuilder(Action):
             if not asm.obeyInstructions:
                 continue
 
-            deploy_dir = builder.invocation.deploy_path(label)
+            deploy_dir = builder.deploy_path(label)
 
             instr_list = builder.load_instructions(lbl)
             for (lbl, fn, instrs) in instr_list:
@@ -235,14 +235,14 @@ def deploy(builder, name):
     # We need to clean it as well, annoyingly ..
     deployment.register_cleanup(builder, name)
 
-    builder.invocation.ruleset.add(deployment_rule)
+    builder.ruleset.add(deployment_rule)
 
     # InstructionsApplied is a standalone rule, invoked by the deployment
     iapp_label = Label(utils.LabelType.Deployment, name, None,
                        utils.LabelTag.InstructionsApplied,
                        transient = True)
     iapp_rule = depend.Rule(iapp_label, the_action)
-    builder.invocation.ruleset.add(iapp_rule)
+    builder.ruleset.add(iapp_rule)
 
 
 def copy_from_checkout(builder, name, checkout, rel, dest,

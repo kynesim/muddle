@@ -33,14 +33,14 @@ class ToolsDeploymentBuilder(Action):
                                 "unrecognised tools deployment label %s"%(label))
 
     def deploy(self, builder, label):
-        deploy_dir = builder.invocation.deploy_path(label)
+        deploy_dir = builder.deploy_path(label)
 
         utils.recursively_remove(deploy_dir)
         utils.ensure_dir(deploy_dir)
 
         for role in self.dependent_roles:
             print "> %s: Deploying role %s .."%(label.name, role)
-            install_dir = builder.invocation.role_install_path(role,
+            install_dir = builder.role_install_path(role,
                                                                domain = label.domain)
             # We do want an exact copy here - this is a copy from the install
             #  set to the role deployment and therefore may include symlinks
@@ -75,7 +75,7 @@ def attach_env(builder, role, env, name):
     env.set_external("PKG_CONFIG_PATH")
 
     deploy_label = depend.Label(utils.LabelType.Deployment, name)
-    deploy_base = builder.invocation.deploy_path(deploy_label)
+    deploy_base = builder.deploy_path(deploy_label)
 
     env.ensure_prepended("LD_LIBRARY_PATH", os.path.join(deploy_base, "lib"))
     env.ensure_prepended("PKG_CONFIG_PATH", os.path.join(deploy_base, "lib", "pkgconfig"))
@@ -117,13 +117,13 @@ def deploy(builder, name, rolesThatUseThis = [ ], rolesNeededForThis = [ ]):
                                "*",
                                role,
                                tag)
-            env = builder.invocation.get_environment_for(lbl)
+            env = builder.get_environment_for(lbl)
             attach_env(builder, role, env, name)
 
         deployment.role_depends_on_deployment(builder, role, name)
 
     the_rule = depend.Rule(tgt, ToolsDeploymentBuilder(rolesNeededForThis))
-    builder.invocation.ruleset.add(the_rule)
+    builder.ruleset.add(the_rule)
 
     deployment.deployment_depends_on_roles(builder, name, rolesNeededForThis)
 

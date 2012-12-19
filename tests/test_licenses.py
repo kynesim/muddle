@@ -547,9 +547,9 @@ Checkout licenses are:
 * checkout:private5/*             LicensePrivate('Shh')
 * checkout:scripts/*              LicenseProprietarySource('Proprietary Source')
 * checkout:ukogl/*                LicenseOpen('UK Open Government License')
-* checkout:zlib/*                 LicenseOpen('zlib/libpng license')
+* checkout:zlib/*                 LicenseOpen('zlib license')
 * checkout:(subdomain)manhattan/* LicensePrivate('Code Nightmare Green')
-* checkout:(subdomain)xyzlib/*    LicenseOpen('zlib/libpng license')
+* checkout:(subdomain)xyzlib/*    LicenseOpen('zlib license')
 
 The following checkouts do not have a license:
 
@@ -626,9 +626,9 @@ Checkout licenses are:
 * checkout:private5/*             LicensePrivate('Shh')
 * checkout:scripts/*              LicenseProprietarySource('Proprietary Source')
 * checkout:ukogl/*                LicenseOpen('UK Open Government License')
-* checkout:zlib/*                 LicenseOpen('zlib/libpng license')
+* checkout:zlib/*                 LicenseOpen('zlib license')
 * checkout:(subdomain)manhattan/* LicensePrivate('Code Nightmare Green')
-* checkout:(subdomain)xyzlib/*    LicenseOpen('zlib/libpng license')
+* checkout:(subdomain)xyzlib/*    LicenseOpen('zlib license')
 
 The following checkouts do not have a license:
 

@@ -113,7 +113,7 @@ class MergeDepModBuilder(PackageBuilder):
 
 
     def build_label(self, builder, label):
-        our_dir = builder.invocation.package_obj_path(label)
+        our_dir = builder.package_obj_path(label)
 
         dirlist = [ ]
         tag = label.tag
@@ -121,7 +121,7 @@ class MergeDepModBuilder(PackageBuilder):
         if (tag == utils.LabelTag.Built or tag == utils.LabelTag.Installed):
             for (l,s) in self.components:
                 tmp = Label(utils.LabelType.Package, l.name, l.role, domain=label.domain)
-                root_dir = builder.invocation.package_install_path(tmp)
+                root_dir = builder.package_install_path(tmp)
                 dirlist.append( (root_dir, s) )
 
                 print "dirlist:"
@@ -165,7 +165,7 @@ class MergeDepModBuilder(PackageBuilder):
             # Now we find all the modules.* files in our_dir and copy them over
             # to our install directory
             names = utils.find_by_predicate(our_dir, predicate_is_module_db)
-            tgt_dir = builder.invocation.package_install_path(label)
+            tgt_dir = builder.package_install_path(label)
             utils.copy_name_list_with_dirs(names, our_dir, tgt_dir)
             for n in names:
                 new_n = utils.replace_root_name(our_dir, tgt_dir, n)
@@ -217,7 +217,7 @@ def create(builder, name, role,
 
     action = MergeDepModBuilder(name, role, custom_depmod)
 
-    pkg.add_package_rules(builder.invocation.ruleset, name, role, action)
+    pkg.add_package_rules(builder.ruleset, name, role, action)
     pkg.do_depend(builder, name, [ role ],
                   pkgs_and_roles)
 

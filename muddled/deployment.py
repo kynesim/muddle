@@ -16,7 +16,7 @@ class CleanDeploymentBuilder(Action):
         if (label.type == utils.LabelType.Deployment and
             (label.tag == utils.LabelTag.Clean or
             label.tag == utils.LabelTag.DistClean)):
-            deploy_path = builder.invocation.deploy_path(label)
+            deploy_path = builder.deploy_path(label)
             print "> Remove %s"%deploy_path
             utils.recursively_remove(deploy_path)
             builder.kill_label(label.copy_with_tag(utils.LabelTag.Deployed))
@@ -39,7 +39,7 @@ def register_cleanup(builder, deployment):
                               None,
                               utils.LabelTag.Clean)
     rule = depend.Rule(target_lbl, CleanDeploymentBuilder())
-    builder.invocation.ruleset.add(rule)
+    builder.ruleset.add(rule)
 
 
 def pkg_depends_on_deployment(builder, pkg, roles, deployment, domain=None):
@@ -65,7 +65,7 @@ def pkg_depends_on_deployment(builder, pkg, roles, deployment, domain=None):
                            utils.LabelTag.PreConfig)
         the_rule = depend.Rule(tgt, None)
         the_rule.add(deployment_label)
-        builder.invocation.ruleset.add(the_rule)
+        builder.ruleset.add(the_rule)
 
 
 def role_depends_on_deployment(builder, role, deployment, domain=None):
@@ -83,7 +83,7 @@ def role_depends_on_deployment(builder, role, deployment, domain=None):
                        None,
                        utils.LabelTag.Deployed,
                        domain=domain))
-    builder.invocation.ruleset.add(the_rule)
+    builder.ruleset.add(the_rule)
 
 def deployment_depends_on_roles(builder, deployment, roles, domain=None):
     """
@@ -95,7 +95,7 @@ def deployment_depends_on_roles(builder, deployment, roles, domain=None):
                        deployment,
                        None,
                        utils.LabelTag.Deployed)
-    rule = builder.invocation.ruleset.rule_for_target(tgt,
+    rule = builder.ruleset.rule_for_target(tgt,
                                                       createIfNotPresent = True)
     for r in roles:
         lbl = depend.Label(utils.LabelType.Package,
@@ -114,7 +114,7 @@ def deployment_depends_on_deployment(builder, what, depends_on, domain=None):
                        what,
                        None,
                        utils.LabelTag.Deployed)
-    rule = builder.invocation.ruleset.rule_for_target(tgt,
+    rule = builder.ruleset.rule_for_target(tgt,
                                                       createIfNotPresent = True)
     rule.add(depend.Label(utils.LabelType.Deployment,
                           depends_on,
@@ -138,11 +138,11 @@ def inform_deployment_path(builder, name, deployment, roles, domain=None):
                            role,
                            "*",
                            domain=domain)
-        env = builder.invocation.get_environment_for(lbl)
+        env = builder.get_environment_for(lbl)
         env.set_type(name, env_store.EnvType.SimpleValue)
 
         deployment_label = depend.Label(utils.LabelType.Deployment, deployment)
-        env.set(name, builder.invocation.deploy_path(deployment_label))
+        env.set(name, builder.deploy_path(deployment_label))
 
 
 def deployment_rule_from_name(builder, name):
@@ -151,7 +151,7 @@ def deployment_rule_from_name(builder, name):
 
     Raises an exception if there is more than one such rule.
     """
-    rules =  builder.invocation.ruleset.rules_for_target(
+    rules =  builder.ruleset.rules_for_target(
         depend.Label(utils.LabelType.Deployment, name, None,
                      utils.LabelTag.Deployed),
         useTags = True,
@@ -170,7 +170,7 @@ def set_env(builder, deployment, name, value):
     lbl = depend.Label(utils.LabelType.Deployment,
                        deployment, None,
                        utils.LabelTag.Deployed)
-    env = builder.invocation.get_environment_for(lbl)
+    env = builder.get_environment_for(lbl)
     env.set(name, value)
 
 # End file.

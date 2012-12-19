@@ -371,7 +371,7 @@ class CPDCommand(Command):
         # Make sure we have a one-for-one correspondence between the input
         # list and the result
         initial_list = []
-        label_from_fragment = builder.invocation.label_from_fragment
+        label_from_fragment = builder.label_from_fragment
         expand_underscore_arg = builder.expand_underscore_arg
         for word in args:
             if word[0] == '_':
@@ -382,12 +382,12 @@ class CPDCommand(Command):
                 used_labels = []
                 # We're only interested in any labels that are actually used
                 for label in labels:
-                    if builder.invocation.target_label_exists(label):
+                    if builder.target_label_exists(label):
                         used_labels.append(label)
 
                 # But it's an error if none of them were wanted
                 if not used_labels:
-                    raise GiveUp(builder.invocation.diagnose_unused_labels(builder, labels, word,
+                    raise GiveUp(builder.diagnose_unused_labels(builder, labels, word,
                         self.required_type, self.required_tag))
 
                 # Don't forget to remember those we do want!
@@ -470,7 +470,7 @@ class CheckoutCommand(CPDCommand):
                 intermediate_set.add(label)
             elif label.type in LabelType.Package:
                 # All the checkouts that are used *directly* by this package
-                checkouts = builder.invocation.checkouts_for_package(label)
+                checkouts = builder.checkouts_for_package(label)
                 if checkouts:
                     found = True
                     intermediate_set.update(checkouts)
@@ -478,7 +478,7 @@ class CheckoutCommand(CPDCommand):
                 # All the checkouts needed for this particular deployment
                 # XXX I don't think we need to specify useMatch=True, because we
                 # XXX should already have expanded any wildcards
-                rules = depend.needed_to_build(builder.invocation.ruleset, label)
+                rules = depend.needed_to_build(builder.ruleset, label)
                 for r in rules:
                     l = r.target
                     if l.type == LabelType.Checkout:
@@ -541,7 +541,7 @@ class PackageCommand(CPDCommand):
         """
         potential_problems = []
         intermediate_set = set()
-        default_roles = builder.invocation.default_roles
+        default_roles = builder.default_roles
         for index, label in enumerate(initial_list):
             if label.type == LabelType.Package:
                 intermediate_set.add(label)
@@ -551,7 +551,7 @@ class PackageCommand(CPDCommand):
                 # that are actually built from this checkout.
                 # And the documentation says we should only use package labels
                 # with the default roles
-                package_labels = builder.invocation.packages_using_checkout(label)
+                package_labels = builder.packages_using_checkout(label)
                 found = False
                 for l in package_labels:
                     if l.role in default_roles:
@@ -574,7 +574,7 @@ class PackageCommand(CPDCommand):
                     # Here I think we definitely want any depth of dependency.
                     # XXX I don't think we need to specify useMatch=True, because we
                     # XXX should already have expanded any wildcards
-                    rules = depend.needed_to_build(builder.invocation.ruleset, label)
+                    rules = depend.needed_to_build(builder.ruleset, label)
                     found = False
                     for r in rules:
                         l = r.target
@@ -585,7 +585,7 @@ class PackageCommand(CPDCommand):
                         potential_problems.append('  Deployment %s does not use any packages'%label)
                 else:
                     # Just get the packages we immediately depend on
-                    packages = builder.invocation.packages_for_deployment(label)
+                    packages = builder.packages_for_deployment(label)
                     if packages:
                         intermediate_set.update(packages)
                     else:
@@ -652,7 +652,7 @@ class DeploymentCommand(CPDCommand):
                 found = True
                 intermediate_set.add(label)
             elif label.type in (LabelType.Checkout, LabelType.Package):
-                required_labels = depend.required_by(builder.invocation.ruleset, label)
+                required_labels = depend.required_by(builder.ruleset, label)
                 for l in required_labels:
                     if l.type == LabelType.Deployment:
                         found = True
@@ -734,7 +734,7 @@ class AnyLabelCommand(Command):
         # Make sure we have a one-for-one correspondence between the input
         # list and the result
         result_list = []
-        label_from_fragment = builder.invocation.label_from_fragment
+        label_from_fragment = builder.label_from_fragment
         for word in args:
             if word[0] == '_':
                 raise GiveUp('Command %s does not allow %s as an argument'%(self.cmd_name, word))
@@ -744,7 +744,7 @@ class AnyLabelCommand(Command):
             used_labels = []
             # We're only interested in any labels that are actually used
             for label in labels:
-                if builder.invocation.target_label_exists(label):
+                if builder.target_label_exists(label):
                     used_labels.append(label)
 
             # But it's an error if none of them were wanted
@@ -1508,7 +1508,7 @@ class Init(Command):
 
     def with_build_tree(self, builder, current_dir, args):
         raise GiveUp("Can't initialise a build tree "
-                    "when one already exists (%s)"%builder.invocation.db.root_path)
+                    "when one already exists (%s)"%builder.db.root_path)
 
     def without_build_tree(self, muddle_binary, current_dir, args):
         """
@@ -1602,7 +1602,7 @@ class Bootstrap(Command):
         if args[0] != '-subdomain':
             raise GiveUp("Can't bootstrap a build tree when one already"
                                " exists (%s)\nTry using '-bootstrap' if you"
-                               " want to bootstrap a subdomain"%builder.invocation.db.root_path)
+                               " want to bootstrap a subdomain"%builder.db.root_path)
         args = args[1:]
 
         if os.path.exists('.muddle'):
@@ -1713,7 +1713,7 @@ class QueryCommand(Command):
         if label.type == LabelType.Package and not label.role:
             raise GiveUp('A package label needs a role, not just %s'%label)
 
-        return builder.invocation.apply_unifications(label)
+        return builder.apply_unifications(label)
 
     def get_label(self, builder, args):
         if len(args) != 1:
@@ -1724,7 +1724,7 @@ class QueryCommand(Command):
         except GiveUp as exc:
             raise GiveUp("%s\nIt should contain at least <type>:<name>/<tag>"%exc)
 
-        return builder.invocation.apply_unifications(label)
+        return builder.apply_unifications(label)
 
 @subcommand('query', 'dependencies', CAT_QUERY, ['depend', 'depends'])
 class QueryDepend(QueryCommand):
@@ -1796,7 +1796,7 @@ class QueryDepend(QueryCommand):
             print 'Dependencies for %s'%label
         else:
             print 'All dependencies'
-        print builder.invocation.ruleset.to_string(matchLabel = label,
+        print builder.ruleset.to_string(matchLabel = label,
                                                    showSystem = show_sys, showUser = show_user,
                                                    ignore_empty = ignore_empty)
 
@@ -1875,7 +1875,7 @@ class QueryCheckouts(QueryCommand):
 
         joined = ('join' in self.switches)
 
-        cos = builder.invocation.all_checkout_labels(LabelTag.CheckedOut)
+        cos = builder.all_checkout_labels(LabelTag.CheckedOut)
         a_list = list(cos)
         a_list.sort()
         out_list = []
@@ -1898,7 +1898,7 @@ class QueryCheckoutDirs(QueryCommand):
     """
 
     def with_build_tree(self, builder, current_dir, args):
-        builder.invocation.db.dump_checkout_paths()
+        builder.db.dump_checkout_paths()
 
 @subcommand('query', 'upstream-repos', CAT_QUERY)
 class QueryUpstreamRepos(QueryCommand):
@@ -1938,11 +1938,11 @@ class QueryUpstreamRepos(QueryCommand):
                 raise GiveUp('"muddle query upstream-repos" takes a checkout:'
                              ' label as argument, not %s'%co_label)
 
-            orig_repo = builder.invocation.db.get_checkout_repo(co_label)
-            builder.invocation.db.print_upstream_repo_info(orig_repo, [co_label], just_url)
+            orig_repo = builder.db.get_checkout_repo(co_label)
+            builder.db.print_upstream_repo_info(orig_repo, [co_label], just_url)
         else:
             # Report on all the upstream repositories
-            builder.invocation.db.dump_upstream_repos(just_url=just_url)
+            builder.db.dump_upstream_repos(just_url=just_url)
 
 @subcommand('query', 'checkout-repos', CAT_QUERY)
 class QueryCheckoutRepos(QueryCommand):
@@ -1969,7 +1969,7 @@ class QueryCheckoutRepos(QueryCommand):
         args = self.remove_switches(args, allowed_more=False)
 
         just_url = ('url' in self.switches)
-        builder.invocation.db.dump_checkout_repos(just_url=just_url)
+        builder.db.dump_checkout_repos(just_url=just_url)
 
 @subcommand('query', 'checkout-licenses', CAT_QUERY)
 class QueryCheckoutLicenses(QueryCommand):
@@ -1996,7 +1996,7 @@ class QueryCheckoutLicenses(QueryCommand):
 
     def with_build_tree(self, builder, current_dir, args):
 
-        builder.invocation.db.dump_checkout_licenses(just_name=False)
+        builder.db.dump_checkout_licenses(just_name=False)
 
         not_licensed = get_not_licensed_checkouts(builder)
         if not_licensed:
@@ -2015,10 +2015,10 @@ class QueryCheckoutLicenses(QueryCommand):
                     maxlen = length
             return maxlen
 
-        maxlen = calc_maxlen(builder.invocation.db.checkout_licenses.keys())
+        maxlen = calc_maxlen(builder.db.checkout_licenses.keys())
 
         gpl_licensed = get_gpl_checkouts(builder)
-        get_co_license = builder.invocation.db.get_checkout_license
+        get_co_license = builder.db.get_checkout_license
         if gpl_licensed:
             print
             print 'The following checkouts have some sort of GPL license:'
@@ -2026,14 +2026,14 @@ class QueryCheckoutLicenses(QueryCommand):
             for label in sorted(gpl_licensed):
                 print '* %-*s %r'%(maxlen, label, get_co_license(label))
 
-        if builder.invocation.db.license_not_affected_by or \
-           builder.invocation.db.nothing_builds_against:
+        if builder.db.license_not_affected_by or \
+           builder.db.nothing_builds_against:
             print
             print 'Exceptions to "implicit" GPL licensing are:'
             print
-            for co_label in sorted(builder.invocation.db.nothing_builds_against):
+            for co_label in sorted(builder.db.nothing_builds_against):
                 print '* nothing builds against %s'%co_label
-            for key, value in sorted(builder.invocation.db.license_not_affected_by.items()):
+            for key, value in sorted(builder.db.license_not_affected_by.items()):
                 print '* %s is not affected by %s'%(key,
                                     label_list_to_string(sorted(value), join_with=', '))
 
@@ -2084,7 +2084,7 @@ class QueryRoleLicenses(QueryCommand):
 
         report_clashes = not ('no-clashes' in self.switches)
 
-        roles = builder.invocation.all_roles()
+        roles = builder.all_roles()
 
         print 'Licenses by role:'
         print
@@ -2165,7 +2165,7 @@ class QueryDomains(QueryCommand):
 
         joined = ('join' in self.switches)
 
-        domains = builder.invocation.all_domains()
+        domains = builder.all_domains()
         a_list = list(domains)
         a_list.sort()
         if a_list[0] == '':
@@ -2195,7 +2195,7 @@ class QueryPackages(QueryCommand):
 
         joined = ('join' in self.switches)
 
-        packages = builder.invocation.all_packages()
+        packages = builder.all_packages()
         a_list = list(packages)
         a_list.sort()
         if joined:
@@ -2224,7 +2224,7 @@ class QueryPackageRoles(QueryCommand):
 
         joined = ('join' in self.switches)
 
-        packages = builder.invocation.all_packages_with_roles()
+        packages = builder.all_packages_with_roles()
         a_list = list(packages)
         a_list.sort()
         if joined:
@@ -2249,7 +2249,7 @@ class QueryDeployments(QueryCommand):
 
         joined = ('join' in self.switches)
 
-        roles = builder.invocation.all_deployments()
+        roles = builder.all_deployments()
         a_list = list(roles)
         a_list.sort()
         if joined:
@@ -2275,7 +2275,7 @@ class QueryDefaultDeployments(QueryCommand):
 
         joined = ('join' in self.switches)
 
-        default_deployments = builder.invocation.default_deployment_labels
+        default_deployments = builder.default_deployment_labels
         a_list = map(str, default_deployments)
         a_list.sort()
         if joined:
@@ -2300,7 +2300,7 @@ class QueryRoles(QueryCommand):
 
         joined = ('join' in self.switches)
 
-        roles = builder.invocation.all_roles()
+        roles = builder.all_roles()
         a_list = list(roles)
         a_list.sort()
         if joined:
@@ -2314,7 +2314,7 @@ class QueryDefaultRoles(QueryCommand):
     :Syntax: muddle query default-roles [-j]
 
     Print the names of the default roles described in the build
-    description (as defined using 'builder.invocation.add_default_role()').
+    description (as defined using 'builder.add_default_role()').
 
     These are the roles that will be assumed for 'package:' label fragments.
 
@@ -2328,7 +2328,7 @@ class QueryDefaultRoles(QueryCommand):
 
         joined = ('join' in self.switches)
 
-        default_roles = list(builder.invocation.default_roles) # use a copy!
+        default_roles = list(builder.default_roles) # use a copy!
         default_roles.sort()
         if joined:
             print '%s'%" ".join(default_roles)
@@ -2350,7 +2350,7 @@ class QueryRoot(QueryCommand):
     """
 
     def with_build_tree(self, builder, current_dir, args):
-        print builder.invocation.db.root_path
+        print builder.db.root_path
 
 @subcommand('query', 'name', CAT_QUERY)
 class QueryName(QueryCommand):
@@ -2387,7 +2387,7 @@ class QueryNeededBy(QueryCommand):
 
     def with_build_tree(self, builder, current_dir, args):
         label = self.get_label_from_fragment(builder, args)
-        to_build = depend.needed_to_build(builder.invocation.ruleset, label, useMatch = True)
+        to_build = depend.needed_to_build(builder.ruleset, label, useMatch = True)
         if to_build:
             print "Build order for %s .. "%label
             for rule in to_build:
@@ -2426,7 +2426,7 @@ class QueryCheckoutId(QueryCommand):
         if label.type == LabelType.Deployment:
             raise GiveUp('Cannot work with a deployment label')
         if label.type == LabelType.Package:
-            checkouts = builder.invocation.checkouts_for_package(label)
+            checkouts = builder.checkouts_for_package(label)
             if len(checkouts) < 1:
                 raise GiveUp('No checkouts associated with %s'%label)
             elif len(checkouts) > 1:
@@ -2436,7 +2436,7 @@ class QueryCheckoutId(QueryCommand):
 
         # Figure out its VCS
         label = label.copy_with_tag(LabelTag.CheckedOut)
-        rule = builder.invocation.ruleset.rule_for_target(label)
+        rule = builder.ruleset.rule_for_target(label)
 
         try:
             vcs = rule.action.vcs
@@ -2506,15 +2506,15 @@ class QueryLocalRoot(QueryCommand):
         # =====================================================================
         wild = label.copy_with_tag('*')     # Once with /*
         print 'Instructions for', wild
-        for lbl, path in builder.invocation.db.scan_instructions(wild):
+        for lbl, path in builder.db.scan_instructions(wild):
             print lbl, path
         wild = wild.copy_with_role('*')     # Once with {*}/*
         print 'Instructions for', wild
-        for lbl, path in builder.invocation.db.scan_instructions(wild):
+        for lbl, path in builder.db.scan_instructions(wild):
             print lbl, path
         # =====================================================================
         inst_subdir = os.path.join('instructions', label.name)
-        inst_src_dir = os.path.join(builder.invocation.db.root_path, '.muddle', inst_subdir)
+        inst_src_dir = os.path.join(builder.db.root_path, '.muddle', inst_subdir)
 
         if label.role and label.role != '*':    # Surely we always have a role?
             src_name = '%s.xml'%label.role
@@ -2540,7 +2540,7 @@ class QueryEnv(QueryCommand):
 
     def with_build_tree(self, builder, current_dir, args):
         label = self.get_label_from_fragment(builder, args)
-        the_env = builder.invocation.effective_environment_for(label)
+        the_env = builder.effective_environment_for(label)
         print "Effective environment for %s .. "%label
         print the_env.get_setvars_script(builder, label, env_store.EnvLanguage.Sh)
 
@@ -2558,7 +2558,7 @@ class QueryEnvs(QueryCommand):
 
     def with_build_tree(self, builder, current_dir, args):
         label = self.get_label_from_fragment(builder, args)
-        a_list = builder.invocation.list_environments_for(label)
+        a_list = builder.list_environments_for(label)
 
         for (lvl, label, env) in a_list:
             script = env.get_setvars_script
@@ -2601,7 +2601,7 @@ class QueryInstFiles(QueryCommand):
 
     def with_build_tree(self, builder, current_dir, args):
         label = self.get_label_from_fragment(builder, args)
-        result = builder.invocation.db.scan_instructions(label)
+        result = builder.db.scan_instructions(label)
         for (l, f) in result:
             print "Label: %s  Filename: %s"%(l,f)
 
@@ -2622,7 +2622,7 @@ class QueryMatch(QueryCommand):
         # XXX # label = self.get_label(builder, args)
         label = self.get_label_from_fragment(builder, args)
         wildcard_label = Label("*", "*", "*", "*", domain="*")
-        all_rules = builder.invocation.ruleset.rules_for_target(wildcard_label)
+        all_rules = builder.ruleset.rules_for_target(wildcard_label)
         all_labels = set()
         for r in all_rules:
             all_labels.add(r.target)
@@ -2667,7 +2667,7 @@ class QueryMakeEnv(QueryCommand):
 
     def with_build_tree(self, builder, current_dir, args):
         label = self.get_label_from_fragment(builder, args)
-        rule_set = builder.invocation.ruleset.rules_for_target(label,
+        rule_set = builder.ruleset.rules_for_target(label,
                                                                useTags=True,
                                                                useMatch=True)
         if len(rule_set) == 0:
@@ -2685,7 +2685,7 @@ class QueryMakeEnv(QueryCommand):
             builder._build_label_env(label, env_store)
             build_action = rule.action
             tmp = Label(LabelType.Checkout, build_action.co, domain=label.domain)
-            co_path = builder.invocation.checkout_path(tmp)
+            co_path = builder.checkout_path(tmp)
             try:
                 build_action._amend_env(co_path)
             except AttributeError:
@@ -2716,7 +2716,7 @@ class QueryObjdir(QueryCommand):
 
     def with_build_tree(self, builder, current_dir, args):
         label = self.get_label_from_fragment(builder, args)
-        print builder.invocation.package_obj_path(label)
+        print builder.package_obj_path(label)
 
 @subcommand('query', 'precise-env', CAT_QUERY) # It used to be 'preciseenv'
 class QueryPreciseEnv(QueryCommand):
@@ -2728,7 +2728,7 @@ class QueryPreciseEnv(QueryCommand):
 
     def with_build_tree(self, builder, current_dir, args):
         label = self.get_label_from_fragment(builder, args)
-        the_env = builder.invocation.get_environment_for(label)
+        the_env = builder.get_environment_for(label)
 
         local_store = env_store.Store()
         builder.set_default_variables(label, local_store)
@@ -2750,7 +2750,7 @@ class QueryNeeds(QueryCommand):
 
     def with_build_tree(self, builder, current_dir, args):
         label = self.get_label_from_fragment(builder, args)
-        result = depend.required_by(builder.invocation.ruleset, label)
+        result = depend.required_by(builder.ruleset, label)
         print "Labels which require %s to build .. "%label
         for lbl in result:
             print lbl
@@ -2768,7 +2768,7 @@ class QueryRules(QueryCommand):
 
     def with_build_tree(self, builder, current_dir, args):
         label = self.get_label_from_fragment(builder, args)
-        local_rule = builder.invocation.ruleset.rule_for_target(label)
+        local_rule = builder.ruleset.rule_for_target(label)
         if (local_rule is None):
             print "No ruleset for %s"%label
         else:
@@ -2788,7 +2788,7 @@ class QueryTargets(QueryCommand):
 
     def with_build_tree(self, builder, current_dir, args):
         label = self.get_label_from_fragment(builder, args)
-        local_rules = builder.invocation.ruleset.targets_match(label, useMatch = True)
+        local_rules = builder.ruleset.targets_match(label, useMatch = True)
         print "Targets that match %s .. "%(label)
         for i in local_rules:
             print "%s"%i
@@ -2808,7 +2808,7 @@ class QueryUnused(QueryCommand):
         def all_deployables(builder):
             search_label = Label(LabelType.Deployment,
                                  "*", None, LabelTag.Deployed, domain="*")
-            all_rules = builder.invocation.ruleset.rules_for_target(search_label)
+            all_rules = builder.ruleset.rules_for_target(search_label)
             deployables = set()
             for r in all_rules:
                 deployables.add(r.target)
@@ -2824,7 +2824,7 @@ class QueryUnused(QueryCommand):
             print 'Finding labels unused by:'
         else:
             print 'Finding labels unused by the default deployables:'
-            targets = set(builder.invocation.default_deployment_labels)
+            targets = set(builder.default_deployment_labels)
 
         targets = list(targets)
         targets.sort()
@@ -2834,14 +2834,14 @@ class QueryUnused(QueryCommand):
         all_needed_labels = set()
         for label in targets:
             print '>>> Processing %s'%label
-            needed = depend.needed_to_build(builder.invocation.ruleset, label)
+            needed = depend.needed_to_build(builder.ruleset, label)
             for r in needed:
                 all_needed_labels.add(r.target)
 
         print 'Number of "needed" labels is %d.'%len(all_needed_labels)
 
         search_label = Label("*", "*", "*", "*", domain="*")
-        all_rules = builder.invocation.ruleset.rules_for_target(search_label)
+        all_rules = builder.ruleset.rules_for_target(search_label)
         all_labels = set()
         for r in all_rules:
             all_labels.add(r.target)
@@ -2964,7 +2964,7 @@ class QueryKernelver(QueryCommand):
     def kernel_version(self, builder, kernel_pkg):
         """Given the label for the kernel, determine its version.
         """
-        kernel_root = builder.invocation.package_obj_path(kernel_pkg)
+        kernel_root = builder.package_obj_path(kernel_pkg)
         include_file = os.path.join(kernel_root, 'obj', 'include', 'linux', 'version.h')
         with open(include_file) as fd:
             line1 = fd.readline()
@@ -3126,7 +3126,7 @@ class Whereami(Command):
         if r is None:
             raise utils.MuddleBug('Unable to determine location in the muddle build tree:\n'
                                   'Build tree is at  %s\n'
-                                  'Current directory %s'%(builder.invocation.db.root_path,
+                                  'Current directory %s'%(builder.db.root_path,
                                                           current_dir))
         (what, label, domain) = r
 
@@ -3492,7 +3492,7 @@ class StampVersion(Command):
             print problems
             raise GiveUp('Problems prevent writing version stamp file')
 
-        version_dir = os.path.join(builder.invocation.db.root_path, 'versions')
+        version_dir = os.path.join(builder.db.root_path, 'versions')
         if not os.path.exists(version_dir):
             print 'Creating directory %s'%version_dir
             os.mkdir(version_dir)
@@ -3508,7 +3508,7 @@ class StampVersion(Command):
         print 'Renaming %s to %s'%(working_filename, final_name)
         os.rename(working_filename, final_name)
 
-        db = builder.invocation.db
+        db = builder.db
         versions_url = db.versions_repo.from_disc()
         if versions_url:
             with utils.Directory(version_dir):
@@ -3617,7 +3617,7 @@ class StampRelease(Command):
             print problems
             raise GiveUp('Problems prevent writing release stamp file')
 
-        version_dir = os.path.join(builder.invocation.db.root_path, 'versions')
+        version_dir = os.path.join(builder.db.root_path, 'versions')
         if not os.path.exists(version_dir):
             print 'Creating directory %s'%version_dir
             os.mkdir(version_dir)
@@ -3637,7 +3637,7 @@ class StampRelease(Command):
         print 'Renaming %s to %s'%(working_filename, final_name)
         os.rename(working_filename, final_name)
 
-        db = builder.invocation.db
+        db = builder.db
         versions_url = db.versions_repo.from_disc()
         if versions_url:
             with utils.Directory(version_dir):
@@ -3969,7 +3969,7 @@ class StampPush(Command):
         if len(args) > 1:
             raise GiveUp("Unexpected argument '%s' for 'stamp push'"%' '.join(args))
 
-        db = builder.invocation.db
+        db = builder.db
 
         if args:
             versions_url = args[0]
@@ -4034,7 +4034,7 @@ class StampPull(Command):
         if len(args) > 1:
             raise GiveUp("Unexpected argument '%s' for 'stamp pull'"%' '.join(args))
 
-        db = builder.invocation.db
+        db = builder.db
 
         if args:
             versions_url = args[0]
@@ -4339,7 +4339,7 @@ class UnStamp(Command):
 
         # Once we've checked everything out, we should ideally check
         # if the build description matches what we've checked out...
-        return self.check_build(builder.invocation.db.root_path,
+        return self.check_build(builder.db.root_path,
                                 stamp.checkouts,
                                 builder.muddle_binary)
 
@@ -4377,7 +4377,7 @@ class UnStamp(Command):
                                                           domain_repo, domain_desc)
 
             # Tell the domain's builder that it *is* a domain
-            domain_builder.invocation.mark_domain(domain_name)
+            domain_builder.mark_domain(domain_name)
 
         co_labels = checkouts.keys()
         co_labels.sort()
@@ -4406,7 +4406,7 @@ class UnStamp(Command):
         """
         domain_names = domains.keys()
         domain_names.sort()
-        root_path = builder.invocation.db.root_path
+        root_path = builder.db.root_path
         for domain_name in domain_names:
             domain_repo, domain_desc = domains[domain_name]
 
@@ -4421,13 +4421,13 @@ class UnStamp(Command):
                                                               domain_root_path,
                                                               domain_repo, domain_desc)
                 # Tell the domain's builder that it *is* a domain
-                domain_builder.invocation.mark_domain(domain_name)
+                domain_builder.mark_domain(domain_name)
 
         co_labels = checkouts.keys()
         co_labels.sort()
         changed_checkouts = []
 
-        get_checkout_repo = builder.invocation.db.get_checkout_repo
+        get_checkout_repo = builder.db.get_checkout_repo
 
         for label in co_labels:
             # Determine if the checkout has changed, and if so, update its
@@ -4474,7 +4474,7 @@ class UnStamp(Command):
                     changed_checkouts.append(str(label))
                 else:
                     l = label.copy_with_tag(LabelTag.CheckedOut)
-                    rule = builder.invocation.ruleset.rule_for_target(l)
+                    rule = builder.ruleset.rule_for_target(l)
                     try:
                         vcs = rule.action.vcs
                     except AttributeError:
@@ -4527,7 +4527,7 @@ class UnStamp(Command):
 
         # Check our checkout labels match
         s_checkouts = set(checkouts.keys())
-        b_checkouts = b.invocation.all_checkout_labels(LabelTag.CheckedOut)
+        b_checkouts = b.all_checkout_labels(LabelTag.CheckedOut)
         s_difference = s_checkouts.difference(b_checkouts)
         b_difference = b_checkouts.difference(s_checkouts)
         if s_difference or b_difference:
@@ -4747,13 +4747,13 @@ class Distribute(CPDCommand):
         potential_problems = []
         package_set = set()
         checkout_set = set()
-        default_roles = builder.invocation.default_roles
+        default_roles = builder.default_roles
         for index, label in enumerate(initial_list):
             if label.type == LabelType.Package:
                 # If they specify a package, then we want that package and
                 # also all the checkouts that it (directly) depends on
                 package_set.add(label.copy_with_tag('*'))
-                checkouts = builder.invocation.checkouts_for_package(label)
+                checkouts = builder.checkouts_for_package(label)
                 if checkouts:
                     for co_label in checkouts:
                         checkout_set.add(co_label.copy_with_tag('*'))
@@ -4765,7 +4765,7 @@ class Distribute(CPDCommand):
                 # Here I think we definitely want any depth of dependency.
                 # XXX I don't think we need to specify useMatch=True, because we
                 # XXX should already have expanded any wildcards
-                rules = depend.needed_to_build(builder.invocation.ruleset, label)
+                rules = depend.needed_to_build(builder.ruleset, label)
                 found = False
                 for r in rules:
                     l = r.target
@@ -4773,7 +4773,7 @@ class Distribute(CPDCommand):
                         # If they specify a package, then we want that package and
                         # also all the checkouts that it (directly) depends on
                         package_set.add(l.copy_with_tag('*'))
-                        checkouts = builder.invocation.checkouts_for_package(l)
+                        checkouts = builder.checkouts_for_package(l)
                         if checkouts:
                             for co_label in checkouts:
                                 checkout_set.add(co_label.copy_with_tag('*'))
@@ -5386,7 +5386,7 @@ class Push(CheckoutCommand):
 
         for co in labels:
             try:
-                builder.invocation.db.clear_tag(co)
+                builder.db.clear_tag(co)
                 builder.build_label(co)
             except GiveUp as e:
                 if stop_on_problem:
@@ -5452,13 +5452,13 @@ class Pull(CheckoutCommand):
         problems = []
         not_needed  = []
 
-        builder.invocation.db.just_pulled.clear()
+        builder.db.just_pulled.clear()
 
         try:
             for co in labels:
                 try:
                     # First clear the 'pulled' tag
-                    builder.invocation.db.clear_tag(co)
+                    builder.db.clear_tag(co)
                     # And then build it again
                     builder.build_label(co)
                 except Unsupported as e:
@@ -5472,9 +5472,9 @@ class Pull(CheckoutCommand):
                         problems.append(e)
         finally:
             # Remember to commit the 'just pulled' information
-            builder.invocation.db.just_pulled.commit()
+            builder.db.just_pulled.commit()
 
-        just_pulled = builder.invocation.db.just_pulled.get()
+        just_pulled = builder.db.just_pulled.get()
         if just_pulled:
             print '\nThe following checkouts were pulled:\n ',
             print label_list_to_string(just_pulled, join_with='\n  ')
@@ -5538,13 +5538,13 @@ class Merge(CheckoutCommand):
 
         problems = []
 
-        builder.invocation.db.just_pulled.clear()
+        builder.db.just_pulled.clear()
 
         try:
             for co in labels:
                 try:
                     # First clear the 'merged' tag
-                    builder.invocation.db.clear_tag(co)
+                    builder.db.clear_tag(co)
                     # And then build it again
                     builder.build_label(co)
                 except GiveUp as e:
@@ -5555,9 +5555,9 @@ class Merge(CheckoutCommand):
                         problems.append(e)
         finally:
             # Remember to commit the 'just pulled' information
-            builder.invocation.db.just_pulled.commit()
+            builder.db.just_pulled.commit()
 
-        just_pulled = builder.invocation.db.just_pulled.get()
+        just_pulled = builder.db.just_pulled.get()
         if just_pulled:
             print '\nThe following checkouts were pulled/merged:\n ',
             print label_list_to_string(just_pulled, join_with='\n  ')
@@ -5629,7 +5629,7 @@ class Status(CheckoutCommand):
         something_needs_doing = 0
         something = []
         for co in labels:
-            rule = builder.invocation.ruleset.rule_for_target(co)
+            rule = builder.ruleset.rule_for_target(co)
             try:
                 vcs = rule.action.vcs
             except AttributeError:
@@ -5705,7 +5705,7 @@ class Reparent(CheckoutCommand):
             force = False
 
         for co in labels:
-            rule = builder.invocation.ruleset.rule_for_target(co)
+            rule = builder.ruleset.rule_for_target(co)
             try:
                 vcs = rule.action.vcs
             except AttributeError:
@@ -5772,7 +5772,7 @@ class Unimport(CheckoutCommand):
 
     def build_these_labels(self, builder, labels):
         for c in labels:
-            builder.invocation.db.clear_tag(c)
+            builder.db.clear_tag(c)
 
 @command('import', CAT_CHECKOUT)
 class Import(CheckoutCommand):
@@ -5810,7 +5810,7 @@ class Import(CheckoutCommand):
 
     def build_these_labels(self, builder, labels):
         for c in labels:
-            builder.invocation.db.set_tag(c)
+            builder.db.set_tag(c)
         # issue 143: Call reparent so the VCS is locked and loaded.
         rep = g_command_dict['reparent']() # should be Reparent but go via the dict just in case
         rep.set_options(self.options)
@@ -5898,9 +5898,9 @@ class UpstreamCommand(CheckoutCommand):
         self.build_these_labels(builder, labels, upstream_names, no_op)
 
     def build_these_labels(self, builder, labels, upstream_names, no_op):
-        get_checkout_repo = builder.invocation.db.get_checkout_repo
-        get_upstream_repos = builder.invocation.db.get_upstream_repos
-        get_checkout_location = builder.invocation.db.get_checkout_location
+        get_checkout_repo = builder.db.get_checkout_repo
+        get_upstream_repos = builder.db.get_upstream_repos
+        get_checkout_location = builder.db.get_checkout_location
         for co in labels:
             orig_repo = get_checkout_repo(co)
             upstreams = get_upstream_repos(orig_repo, upstream_names)
@@ -6113,7 +6113,7 @@ class Assert(AnyLabelCommand):
 
     def build_these_labels(self, builder, labels):
         for l in labels:
-            builder.invocation.db.set_tag(l)
+            builder.db.set_tag(l)
 
 @command('retract', CAT_ANYLABEL)
 class Retract(AnyLabelCommand):
@@ -6173,7 +6173,7 @@ class Retry(AnyLabelCommand):
     def build_these_labels(self, builder, labels):
         print "Clear: %s"%(label_list_to_string(labels))
         for l in labels:
-            builder.invocation.db.clear_tag(l)
+            builder.db.clear_tag(l)
 
         print "Build: %s"%(label_list_to_string(labels))
         for l in labels:
@@ -6260,7 +6260,7 @@ class VeryClean(Command):
                         tidy_domain(os.path.join(os.path.join(path, 'domains', name)))
 
         # And our top level is, of course, the top domain
-        tidy_domain(builder.invocation.db.root_path)
+        tidy_domain(builder.db.root_path)
 
 @command('instruct', CAT_MISC)
 class Instruct(Command):
@@ -6391,7 +6391,7 @@ class RunIn(Command):
         if what[0] == '_':
             labels = builder.expand_underscore_arg(what)
         else:
-            labels = builder.invocation.label_from_fragment(args[0], LabelType.Checkout)
+            labels = builder.label_from_fragment(args[0], LabelType.Checkout)
         command = " ".join(args[1:])
         dirs_done = set()
 
@@ -6400,7 +6400,7 @@ class RunIn(Command):
             return
 
         for l in labels:
-            matching = builder.invocation.ruleset.rules_for_target(l)
+            matching = builder.ruleset.rules_for_target(l)
 
             for m in matching:
                 lbl = m.target
@@ -6411,13 +6411,13 @@ class RunIn(Command):
                     continue
 
                 if (lbl.type == LabelType.Checkout):
-                    dir = builder.invocation.checkout_path(lbl)
+                    dir = builder.checkout_path(lbl)
                 elif (lbl.type == LabelType.Package):
                     if (lbl.role == "*"):
                         continue
-                    dir = builder.invocation.package_obj_path(lbl)
+                    dir = builder.package_obj_path(lbl)
                 elif (lbl.type == LabelType.Deployment):
-                    dir = builder.invocation.deploy_path(lbl)
+                    dir = builder.deploy_path(lbl)
 
                 if (dir in dirs_done):
                     continue
@@ -6432,7 +6432,7 @@ class RunIn(Command):
                     builder.set_default_variables(lbl, local_store)
                     local_store.apply(env)
                     # Add anything the rest of the system has put in.
-                    builder.invocation.setup_environment(lbl, env)
+                    builder.setup_environment(lbl, env)
 
                     with utils.Directory(dir):
                         subprocess.call(command, shell=True, env=env,
@@ -6505,7 +6505,7 @@ class Env(PackageCommand):
         env = env_store.Store()
 
         for lbl in args:
-            x_env = builder.invocation.effective_environment_for(lbl)
+            x_env = builder.effective_environment_for(lbl)
             env.merge(x_env)
 
             if self.mode == "run":

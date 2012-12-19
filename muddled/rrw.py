@@ -240,7 +240,7 @@ def set_global_package_env(builder, name, value,
                            "*",
                            r,
                            "*")
-        env = builder.invocation.get_environment_for(lbl)
+        env = builder.get_environment_for(lbl)
         env.set(name, value)
 
 
@@ -253,25 +253,25 @@ def append_to_path(builder, roles, val):
                            "*",
                            r,
                            "*")
-        env = builder.invocation.get_environment_for(lbl)
+        env = builder.get_environment_for(lbl)
         env.append("PATH", val)
 
 
 def set_domain_param(builder, domain, name, value):
     """
-    A convenience wrapper around builder.invocation.set_domain_parameter().
+    A convenience wrapper around builder.set_domain_parameter().
 
     It's slightly shorter to type...
     """
-    return builder.invocation.set_domain_parameter(domain, name, value)
+    return builder.set_domain_parameter(domain, name, value)
 
 def get_domain_param(builder, domain, name):
     """
-    A convenience wrapper around builder.invocation.get_domain_parameter().
+    A convenience wrapper around builder.get_domain_parameter().
 
     It's slightly shorter to type...
     """
-    return builder.invocation.get_domain_parameter(domain, name)
+    return builder.get_domain_parameter(domain, name)
 
 def set_env(builder, roles, bindings, domain = None):
     """
@@ -309,7 +309,7 @@ def package_requires(builder,
     <role>)
     """
     for (req, req_role) in reqs:
-        pkg.depend_across_roles(builder.invocation.ruleset,
+        pkg.depend_across_roles(builder.ruleset,
                                 in_pkg, pkg_roles,
                                 [ req ] , req_role)
 
@@ -368,7 +368,7 @@ def build_with_helper(builder, helpers, pkg_name, checkout, roles,
 
     # Now depend on any additional checkouts ..
     for r in roles:
-        pkg.package_depends_on_checkout(builder.invocation.ruleset,
+        pkg.package_depends_on_checkout(builder.ruleset,
                                         pkg_name,
                                         r,
                                         checkout)
@@ -384,7 +384,7 @@ def build_role_on_architecture(builder, role, arch):
     lbl = depend.Label(utils.LabelType.Package, "*", role, "*",
                        domain = builder.default_domain)
     gen = pkg.ArchSpecificAction(arch)
-    builder.invocation.ruleset.wrap_actions(gen, lbl)
+    builder.ruleset.wrap_actions(gen, lbl)
 
 def packages_use_role(builder, pkgs, in_role, use_role, domain = None):
     """
@@ -403,7 +403,7 @@ def packages_use_role(builder, pkgs, in_role, use_role, domain = None):
         pkg.do_depend_label(builder, p, [ in_role ], 
                             role_label)
 
-        role_path = builder.invocation.role_install_path(use_role, domain)
+        role_path = builder.role_install_path(use_role, domain)
         pkg.prepend_env_for_package(builder, p,
                                     [ in_role ],
                                     "PATH", 

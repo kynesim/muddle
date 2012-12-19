@@ -558,15 +558,15 @@ class VersionStamp(object):
     def _from_builder(stamp, builder, force=False, just_use_head=False, before=None, quiet=False):
         """The internal mechanisms of the 'from_builder' static method.
         """
-        stamp.repository = builder.invocation.db.repo.get()
-        stamp.description = builder.invocation.db.build_desc.get()
-        stamp.versions_repo = builder.invocation.db.versions_repo.get()
+        stamp.repository = builder.db.repo.get()
+        stamp.description = builder.db.build_desc.get()
+        stamp.versions_repo = builder.db.versions_repo.get()
 
         stamp.before = before        # remember for annotating the stamp file
 
         if not quiet:
             print 'Finding all checkouts...',
-        checkout_rules = list(builder.invocation.all_checkout_rules())
+        checkout_rules = list(builder.all_checkout_rules())
         if not quiet:
             print 'found %d'%len(checkout_rules)
 
@@ -588,7 +588,7 @@ class VersionStamp(object):
                                                            else label.name)
                 if label.domain:
                     domain_name = label.domain
-                    domain_repo, domain_desc = builder.invocation.db.get_subdomain_info(domain_name)
+                    domain_repo, domain_desc = builder.db.get_subdomain_info(domain_name)
                     stamp.domains[domain_name] = (domain_repo, domain_desc)
 
                 if just_use_head:

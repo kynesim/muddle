@@ -644,15 +644,9 @@ def check_exception(testing, fn, args, exception=GiveUp, startswith=None, endswi
 
 def check_push_pull_permissions():
 
-    class DummyInvocation(object):
-        def __init__(self):
-            pass
+    class DummyBuilder(object):
         def checkout_path(self, anything):
             return ''
-
-    class DummyBuilder(object):
-        def __init__(self):
-            self.invocation = DummyInvocation()
 
     dummy_builder = DummyBuilder()
 

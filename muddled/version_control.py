@@ -268,7 +268,7 @@ class VersionControlHandler(object):
         instantiates a muddle checkout.
         """
         # We want to be in the checkout's parent directory
-        parent_dir, rest = os.path.split(builder.invocation.checkout_path(self.checkout_label))
+        parent_dir, rest = os.path.split(builder.checkout_path(self.checkout_label))
 
         if not self.repo.pull:
             raise utils.GiveUp('Failure checking out %s in %s:\n'
@@ -307,7 +307,7 @@ class VersionControlHandler(object):
                                '  %s does not allow "pull"'%(self.checkout_label,
                                self.src_rel_dir(), self.repo))
 
-        with utils.Directory(builder.invocation.checkout_path(self.checkout_label)):
+        with utils.Directory(builder.checkout_path(self.checkout_label)):
             try:
                 return self.vcs_handler.pull(self.repo, self.options,
                                              upstream=upstream, verbose=verbose)
@@ -334,7 +334,7 @@ class VersionControlHandler(object):
                                '  %s does not allow "pull"'%(self.checkout_label,
                                self.src_rel_dir(), self.repo))
 
-        with utils.Directory(builder.invocation.checkout_path(self.checkout_label)):
+        with utils.Directory(builder.checkout_path(self.checkout_label)):
             try:
                 return self.vcs_handler.merge(self.repo, self.options, verbose)
             except utils.MuddleBug as err:
@@ -354,7 +354,7 @@ class VersionControlHandler(object):
         In a centralised VCS, like subverson, this does not do anything, as
         there is no *local* repository.
         """
-        with utils.Directory(builder.invocation.checkout_path(self.checkout_label)):
+        with utils.Directory(builder.checkout_path(self.checkout_label)):
             try:
                 self.vcs_handler.commit(self.repo, self.options, verbose)
             except utils.MuddleBug as err:
@@ -381,7 +381,7 @@ class VersionControlHandler(object):
                                '  %s does not allow "push"'%(self.checkout_label,
                                self.src_rel_dir(), self.repo))
 
-        with utils.Directory(builder.invocation.checkout_path(self.checkout_label)):
+        with utils.Directory(builder.checkout_path(self.checkout_label)):
             try:
                 self.vcs_handler.push(self.repo, self.options,
                                       upstream=upstream, verbose=verbose)
@@ -415,7 +415,7 @@ class VersionControlHandler(object):
         """
         if verbose:
             print '>>', self.checkout_label
-        with utils.Directory(builder.invocation.checkout_path(self.checkout_label), show_pushd=False):
+        with utils.Directory(builder.checkout_path(self.checkout_label), show_pushd=False):
             try:
                 status_text = self.vcs_handler.status(self.repo, self.options)
                 if status_text:
@@ -446,7 +446,7 @@ class VersionControlHandler(object):
         If 'force' is true, it does this regardless. If 'force' is false, then
         it only does it if the checkout is actually not so associated.
         """
-        actual_dir = builder.invocation.checkout_path(self.checkout_label)
+        actual_dir = builder.checkout_path(self.checkout_label)
         with utils.Directory(actual_dir):
             self.vcs_handler.reparent(actual_dir, # or self.checkout_leaf
                                       self.repo, self.options, force, verbose)
@@ -489,7 +489,7 @@ class VersionControlHandler(object):
         implementation will raise a GiveUp unless 'force' is true, in which
         case it will return the string '0'.
         """
-        with utils.Directory(builder.invocation.checkout_path(self.checkout_label), show_pushd=show_pushd):
+        with utils.Directory(builder.checkout_path(self.checkout_label), show_pushd=show_pushd):
             return self.vcs_handler.revision_to_checkout(self.repo,
                                                          self.checkout_leaf,
                                                          self.options,
@@ -700,11 +700,11 @@ def checkout_from_repo(builder, co_label, repo, co_dir=None, co_leaf=None):
         else:
             co_path = co_label.name
 
-    builder.invocation.db.set_checkout_path(co_label, co_path)
-    builder.invocation.db.set_checkout_repo(co_label, repo)
+    builder.db.set_checkout_path(co_label, co_path)
+    builder.db.set_checkout_repo(co_label, repo)
 
     vcs_handler = vcs_action_for(builder, co_label, repo, co_dir=co_dir, co_leaf=co_leaf)
-    pkg.add_checkout_rules(builder.invocation.ruleset, co_label, vcs_handler)
+    pkg.add_checkout_rules(builder.ruleset, co_label, vcs_handler)
 
 def conventional_repo_url(repo, rel, co_dir = None):
     """

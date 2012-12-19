@@ -126,7 +126,7 @@ def do_deps(gbuilder, goal):
 	# deps := `muddle depend user-short goal` !
 	#print 'Would do %s'%goal
 	label = Label.from_string(goal)
-	rules = gbuilder.invocation.ruleset.rules_for_target(label)
+	rules = gbuilder.ruleset.rules_for_target(label)
 
 	goalnode = Node.get(goal)
 	assert goalnode is not None
@@ -187,7 +187,7 @@ def process(goals):
 
 	if not goals:
 		print '# No goals given: assuming default deployments'
-		default_deployment_labels = gbuilder.invocation.default_deployment_labels
+		default_deployment_labels = gbuilder.default_deployment_labels
 		goals = map(str, default_deployment_labels)
 		print '#  %s'%', '.join(goals)
 
@@ -201,9 +201,9 @@ def process(goals):
 
 	full_goals = []
 	for g in goals:
-		labels = gbuilder.invocation.label_from_fragment(g, default_type=LabelType.Package)
+		labels = gbuilder.label_from_fragment(g, default_type=LabelType.Package)
 		for label in labels:
-			if gbuilder.invocation.target_label_exists(label):
+			if gbuilder.target_label_exists(label):
 				full_goals.append(str(label))
 
 	if not full_goals:

@@ -97,12 +97,12 @@ def _do_cmdline(args):
     if not builder:
         raise GiveUp("Cannot find a build tree.")
 
-    rootrepo = builder.invocation.db.repo.get()
+    rootrepo = builder.db.repo.get()
 
-    rules = builder.invocation.all_checkout_rules()
+    rules = builder.all_checkout_rules()
     rr = []
     for r in rules:
-        co_dir = builder.invocation.db.get_checkout_path(r.target)
+        co_dir = builder.db.get_checkout_path(r.target)
         if isinstance(r.action.vcs, muddled.vcs.git.Git):
             if verbose: print "In %s:"%co_dir
             os.chdir(co_dir)

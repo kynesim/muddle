@@ -689,9 +689,9 @@ Repository.register_path_handler('git', 'code.google.com', google_code_handler)
 def get_checkout_repo(builder, co_label):
     """Returns the Repository instance for this checkout label
 
-    A convenience wrapper around 'builder.invocation.db.get_checkout_repo'.
+    A convenience wrapper around 'builder.db.get_checkout_repo'.
     """
-    return builder.invocation.db.get_checkout_repo(co_label)
+    return builder.db.get_checkout_repo(co_label)
 
 def add_upstream_repo(builder, orig_repo, upstream_repo, names):
     """Add an upstream repo to 'orig_repo'.
@@ -706,9 +706,9 @@ def add_upstream_repo(builder, orig_repo, upstream_repo, names):
     Upstream repository names must be formed of A-Z, a-z, 0-9 and underscore or
     hyphen.
 
-    A convenience wrapper around 'builder.invocation.db.add_upstream_repo'.
+    A convenience wrapper around 'builder.db.add_upstream_repo'.
     """
-    builder.invocation.db.add_upstream_repo(orig_repo, upstream_repo, names)
+    builder.db.add_upstream_repo(orig_repo, upstream_repo, names)
 
 def get_upstream_repos(builder, orig_repo, names=None):
     """Retrieve the upstream repositories for 'orig_repo'
@@ -721,9 +721,9 @@ def get_upstream_repos(builder, orig_repo, names=None):
     are no upstream repositories for 'orig_repo', or none with any of the
     names in 'names' (if given).
 
-    A convenience wrapper around 'builder.invocation.db.get_upstream_repos'.
+    A convenience wrapper around 'builder.db.get_upstream_repos'.
     """
-    return builder.invocation.db.add_upstream_repo(orig_repo, names)
+    return builder.db.add_upstream_repo(orig_repo, names)
 
 if __name__ == '__main__':
     print 'Running doctests'

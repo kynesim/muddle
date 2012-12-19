@@ -131,10 +131,10 @@ def guess_cmd_in_build(builder, current_dir):
         command_name = "buildlabel"
 
         # and the labels to build are the default deployments
-        args = map(str, builder.invocation.default_deployment_labels)
+        args = map(str, builder.default_deployment_labels)
 
         # and the default roles
-        for role in builder.invocation.default_roles:
+        for role in builder.default_roles:
             label = Label(LabelType.Package, '*', role, LabelTag.PostInstalled)
             args.append(str(label))
 

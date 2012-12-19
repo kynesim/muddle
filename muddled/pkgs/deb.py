@@ -135,7 +135,7 @@ class DebDevAction(PackageBuilder):
 
 
     def ensure_dirs(self, builder, label):
-        inv = builder.invocation
+        inv = builder
 
         # TODO: Does the following check one dir and then make another???
         tmp = Label(utils.LabelType.Checkout, self.co_name, domain=label.domain)
@@ -161,7 +161,7 @@ class DebDevAction(PackageBuilder):
             pass
         elif (tag == utils.LabelTag.Installed):
             # Extract into /obj
-            inv = builder.invocation
+            inv = builder
             extract_into_obj(inv, self.co_name, label, self.pkg_file)
             if (self.nonDevPkgFile is not None):
                 extract_into_obj(inv, self.nonDevCoName, label, self.nonDevPkgFile)
@@ -173,7 +173,7 @@ class DebDevAction(PackageBuilder):
 
         elif (tag == utils.LabelTag.PostInstalled):
             if self.post_install_makefile is not None:
-                inv = builder.invocation
+                inv = builder
                 tmp = Label(utils.LabelType.Checkout, self.co_name, domain=label.domain)
                 co_path = inv.checkout_path(tmp)
                 with utils.Directory(co_path):
@@ -182,13 +182,13 @@ class DebDevAction(PackageBuilder):
 
             # .. and now we rewrite any pkgconfig etc. files left lying
             # about.
-            obj_path = builder.invocation.package_obj_path(label)
+            obj_path = builder.package_obj_path(label)
             print "> Rewrite .pc and .la files in %s"%(obj_path)
             rewrite.fix_up_pkgconfig_and_la(builder, obj_path)
 
         elif (tag == utils.LabelTag.Clean or tag == utils.LabelTag.DistClean):
             # Just remove the object directory.
-            inv = builder.invocation
+            inv = builder
             utils.recursively_remove(inv.package_obj_path(label))
         else:
             raise utils.MuddleBug("Invalid tag specified for deb pkg %s"%(label))
@@ -225,7 +225,7 @@ class DebAction(PackageBuilder):
 
 
     def ensure_dirs(self, builder, label):
-        inv = builder.invocation
+        inv = builder
 
         tmp = Label(utils.LabelType.Checkout, self.co_name, domain=label.domain)
         if not os.path.exists(inv.checkout_path(tmp)):
@@ -252,7 +252,7 @@ class DebAction(PackageBuilder):
             pass
         elif (tag == utils.LabelTag.Installed):
             # Concoct a suitable dpkg command.
-            inv = builder.invocation
+            inv = builder
 
             # Extract into the object directory .. so I can depend on them later.
             # - actually, Debian packaging doesn't work like that. Rats.
@@ -282,14 +282,14 @@ class DebAction(PackageBuilder):
                 builder.instruct(label.name, label.role, ifile)
         elif (tag == utils.LabelTag.PostInstalled):
             if self.post_install_makefile is not None:
-                inv = builder.invocation
+                inv = builder
                 tmp = Label(utils.LabelType.Checkout, self.co_name, domain=label.domain)
                 co_path = inv.checkout_path(tmp)
                 with utils.Directory(co_path):
                     utils.run_cmd("make -f %s %s-postinstall"%(self.post_install_makefile,
                                                                label.name))
         elif (tag == utils.LabelTag.Clean or tag == utils.LabelTag.DistClean):#
-            inv = builder.invocation
+            inv = builder
             admin_dir = os.path.join(inv.package_obj_path(label))
             utils.recursively_remove(admin_dir)
         else:
@@ -334,13 +334,13 @@ def simple(builder, coName, name, roles,
                             pkgFile, instrFile,
                             postInstallMakefile)
 
-        pkg.add_package_rules(builder.invocation.ruleset,
+        pkg.add_package_rules(builder.ruleset,
                               name, r, dep)
         # We should probably depend on the checkout .. .
-        pkg.package_depends_on_checkout(builder.invocation.ruleset,
+        pkg.package_depends_on_checkout(builder.ruleset,
                                         name, r, coName, dep)
         # .. and some other packages. Y'know, because we can ..
-        pkg.package_depends_on_packages(builder.invocation.ruleset,
+        pkg.package_depends_on_packages(builder.ruleset,
                                         name, r, utils.LabelTag.PreConfig,
                                         depends_on)
 

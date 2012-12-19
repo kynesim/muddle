@@ -69,7 +69,7 @@ class MakeBuilder(PackageBuilder):
         Make sure all the relevant directories exist.
         """
 
-        inv = builder.invocation
+        inv = builder
         co_label = Label(utils.LabelType.Checkout, self.co, domain=label.domain)
         if not os.path.exists(inv.checkout_path(co_label)):
             raise utils.GiveUp("Missing source directory\n"
@@ -111,7 +111,7 @@ class MakeBuilder(PackageBuilder):
         # XXX (from the label we're building) so for the moment we won't even
         # XXX try...
         tmp = Label(utils.LabelType.Checkout, self.co, domain=label.domain)
-        co_path =  builder.invocation.checkout_path(tmp)
+        co_path =  builder.checkout_path(tmp)
         with utils.Directory(co_path):
             self._amend_env(co_path)
 
@@ -135,7 +135,7 @@ class MakeBuilder(PackageBuilder):
             elif (tag == utils.LabelTag.PostInstalled):
                 if (self.rewriteAutoconf):
                     #print "> Rewrite autoconf for label %s"%(label)
-                    obj_path = builder.invocation.package_obj_path(label)
+                    obj_path = builder.package_obj_path(label)
                     #print ">obj_path = %s"%(obj_path)
                     if (self.execRelPath is None):
                         sendExecPrefix = None
@@ -186,10 +186,10 @@ def simple(builder, name, role, checkout, rev=None, branch=None,
                           rewriteAutoconf = rewriteAutoconf,
                           execRelPath = execRelPath)
     # Add the standard dependencies ..
-    pkg.add_package_rules(builder.invocation.ruleset,
+    pkg.add_package_rules(builder.ruleset,
                           name, role, the_pkg)
     # .. and make us depend on the checkout.
-    pkg.package_depends_on_checkout(builder.invocation.ruleset,
+    pkg.package_depends_on_checkout(builder.ruleset,
                                     name, role, checkout, the_pkg)
     ###attach_env(builder, name, role, checkout)
 
@@ -222,7 +222,7 @@ def medium(builder, name, roles, checkout, rev=None, branch=None,
                usesAutoconf = usesAutoconf,
                rewriteAutoconf = rewriteAutoconf,
                execRelPath = execRelPath)
-        pkg.package_depends_on_packages(builder.invocation.ruleset,
+        pkg.package_depends_on_packages(builder.ruleset,
                                        name, r, dep_tag,
                                        deps)
         ###attach_env(builder, name, r, checkout)
@@ -265,7 +265,7 @@ def twolevel(builder, name, roles,
                usesAutoconf = usesAutoconf,
                rewriteAutoconf = rewriteAutoconf,
                execRelPath = execRelPath)
-        pkg.package_depends_on_packages(builder.invocation.ruleset,
+        pkg.package_depends_on_packages(builder.ruleset,
                                        name, r, dep_tag,
                                        deps)
         ###attach_env(builder, name, r, co_name)
@@ -308,7 +308,7 @@ def multilevel(builder, name, roles,
                usesAutoconf = usesAutoconf,
                rewriteAutoconf = rewriteAutoconf,
                execRelPath = execRelPath)
-        pkg.package_depends_on_packages(builder.invocation.ruleset,
+        pkg.package_depends_on_packages(builder.ruleset,
                                        name, r, dep_tag,
                                        deps)
         ###attach_env(builder, name, r, co_name)
@@ -337,11 +337,11 @@ def attach_env(builder, name, role, checkout, domain=None):
     We retrieve the environment for ``package:<name>{<role>}/*``, and
     set MUDDLE_SRC therein to the checkout path for 'checkout:<checkout>'.
     """
-    env = builder.invocation.get_environment_for(
+    env = builder.get_environment_for(
         depend.Label(utils.LabelType.Package,
                      name, role, "*"))
     tmp = Label(utils.LabelType.Checkout, checkout, domain=domain)
-    env.set("MUDDLE_SRC", builder.invocation.checkout_path(tmp))
+    env.set("MUDDLE_SRC", builder.checkout_path(tmp))
 
 # Useful extensions
 
@@ -373,7 +373,7 @@ class ExpandingMakeBuilder(MakeBuilder):
         # have one
         self.ensure_dirs(builder, label)
 
-        inv = builder.invocation
+        inv = builder
 
         try:
             # muddle 2
@@ -465,10 +465,10 @@ def expanding_package(builder, name, archive_dir,
 
     # Define how to build our package
     dep = ExpandingMakeBuilder(name, role, co_name, archive_file, archive_dir, makefile)
-    pkg.add_package_rules(builder.invocation.ruleset, name, role, dep)
+    pkg.add_package_rules(builder.ruleset, name, role, dep)
 
     # It depends on the checkout
-    pkg.package_depends_on_checkout(builder.invocation.ruleset, name, role,
+    pkg.package_depends_on_checkout(builder.ruleset, name, role,
                                     co_name)
 
     # And maybe on other packages

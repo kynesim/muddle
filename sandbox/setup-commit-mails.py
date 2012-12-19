@@ -376,18 +376,18 @@ def _do_cmdline(args):
     if not builder:
         raise GiveUp("Cannot find a build tree.")
 
-    rootrepo = builder.invocation.db.repo.get()
+    rootrepo = builder.db.repo.get()
 
     repo = parse_repo_url(rootrepo)
 
-    rules = builder.invocation.all_checkout_rules()
+    rules = builder.all_checkout_rules()
     dirs = []
     for r in rules:
-        key = builder.invocation.db.normalise_checkout_label(r.target)
+        key = builder.db.normalise_checkout_label(r.target)
         # Unfortunately, we do not currently support subdomains
         if key.domain:
             continue
-        rel_dir = builder.invocation.db.checkout_locations.get(key, r.target.name)
+        rel_dir = builder.db.checkout_locations.get(key, r.target.name)
         if rel_dir.startswith("src/"):
             rel_dir = rel_dir[4:]
         dirs.append(rel_dir)

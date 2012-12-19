@@ -30,7 +30,7 @@ def describe_to(builder):
 
     # Assert that the kbus package depends on the original version of
     # kbus we pulled.
-    muddled.pkg.package_depends_on_checkout(builder.invocation.ruleset,
+    muddled.pkg.package_depends_on_checkout(builder.ruleset,
                                             "kbus", "main",
                                             "kbus")
 
@@ -39,7 +39,7 @@ def describe_to(builder):
                                        "orig_checkout", [ "main" ])
 
     # .. and set the default role
-    builder.invocation.add_default_role("main")
+    builder.add_default_role("main")
     builder.by_default_deploy("orig_checkout")
 
 # And that's all.

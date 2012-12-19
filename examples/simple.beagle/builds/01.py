@@ -23,7 +23,7 @@ def describe_to(builder):
     role = 'omap'
     roles = ['omap']
 
-    builder.invocation.add_default_role(role)
+    builder.add_default_role(role)
 
     # filedep.deploy(builder, target_dir, name, roles)
     #
@@ -45,7 +45,7 @@ def describe_to(builder):
     # We can retrieve the "environment" (technically, an environment Store)
     # that will be used for that label - this will create one if it doesn't
     # exist yet
-    env = builder.invocation.get_environment_for(label)
+    env = builder.get_environment_for(label)
     # And adding values to that is simple
     env.set("MUDDLE_CROSS_COMPILE", "/opt/codesourcery/arm-2008q3/bin/arm-none-linux-gnueabi-")
     env.set("MUDDLE_ARCH", "arm")
@@ -77,7 +77,7 @@ def describe_to(builder):
                 deps = [],
                 makefileName = os.path.join("omap_kernel","Makefile.muddle"))
 
-    muddled.pkg.package_depends_on_checkout(builder.invocation.ruleset,
+    muddled.pkg.package_depends_on_checkout(builder.ruleset,
                                     "omap_kernel",  # this package
                                     role,           # in this role
                                     "omap_kernel")  # depends on this checkout
@@ -121,7 +121,7 @@ def describe_to(builder):
                 makefileName = os.path.join("busybox","Makefile.muddle"))
 
     # And we also depend on having actually checked out busybox
-    muddled.pkg.package_depends_on_checkout(builder.invocation.ruleset,
+    muddled.pkg.package_depends_on_checkout(builder.ruleset,
                                     "busybox",      # this package
                                     role,           # in this role
                                     "busybox",      # depends on this checkout
@@ -147,7 +147,7 @@ def describe_to(builder):
                 checkout = "helpers",
                 deps = [],
                 makefileName = os.path.join("u-boot","Makefile.muddle"))
-    muddled.pkg.package_depends_on_checkout(builder.invocation.ruleset,
+    muddled.pkg.package_depends_on_checkout(builder.ruleset,
                                     "u-boot",       # this package
                                     role,           # in this role
                                     "u-boot",       # depends on this checkout
@@ -156,7 +156,7 @@ def describe_to(builder):
     rule = muddled.depend.depend_one(None,
                               Label.from_string('package:u-boot{%s}/built'%role),
                               Label.from_string('checkout:MLO/checked_out'))
-    builder.invocation.ruleset.add(rule)
+    builder.ruleset.add(rule)
 
 
     # And, of course, we need (the rest of) our Linux filesystem
@@ -169,7 +169,7 @@ def describe_to(builder):
     rule = muddled.depend.depend_one(None,
                               Label.from_string('package:rootfs/installed'),
                               Label.from_string('package:busybox/installed'))
-    builder.invocation.ruleset.add(rule)
+    builder.ruleset.add(rule)
 
     # Deploy all our roles
     builder.by_default_deploy_list(roles)

@@ -62,17 +62,11 @@ This means we would:
 
 2. We then use::
 
-      muddle branch-tree -check WidgetFactory-v1
-
-   to make sure that no checkouts are already using a branch of that name.
-
-3. Assuming that this is indeed a new branch name, we can use::
-
       muddle branch-tree WidgetFactory-v1
 
-   to actually branch all the checkouts.
+   to make various checks, and then branch all the checkouts.
 
-4. We then edit the build description (which is now on the new branch) and
+3. We then edit the build description (which is now on the new branch) and
    add a line to the ``describe_to()`` function::
 
       builder.follow_build_desc_branch = True
@@ -81,6 +75,12 @@ This means we would:
    description. Of course, if the build description explicitly specifies a
    revision or branch for a checkout, then that takes precedence, so please
    remember to check.
+
+4. We then need to commit everything. We really need a::
+
+     muddle commit _all -m <message>
+
+   but we don't have one yet...
 
 5. We can then do::
 
@@ -96,7 +96,7 @@ However, if we want to do a bugfix on version 1, we can do ``muddle init``,
 as normal, and then::
 
     cd src/builds
-    git branch WidgetFactory-v1
+    git checkout WidgetFactory-v1
     muddle checkout _all
 
 *This* branch of the build description is the one we altered, and *it* says
@@ -104,6 +104,12 @@ to follow the branch of the build description. So the ``muddle checkout _all``
 command will checkout the WidgetFacttory-v1 branch of all the checkouts. And
 now our developer can make bugfixes in whichever checkouts are necessary, and
 commit/push in the normal manner, but safely on the version 1 branch.
+
+Ideally we might be able to do::
+
+  muddle init -b <branch> ...
+
+to choose the initial branch of the build description.
 
 Other useful things
 ===================

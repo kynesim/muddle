@@ -6263,7 +6263,7 @@ class Retry(AnyLabelCommand):
 @command('branch-tree', CAT_MISC)        # or perhaps CAT_CHECKOUT
 class BranchTree(Command):
     """
-    :Syntax: muddle branch-tree [-c[check] | -f[orce] | -v] <branch>
+    :Syntax: muddle branch-tree [-c[check] | -f[orce]] [-v] <branch>
 
     Move all checkouts in the build tree (if they support it) to branch
     <branch>.
@@ -6276,8 +6276,8 @@ class BranchTree(Command):
           (which probably means it is not using git), or
        b) the build description explicitly specifies a particular revision, or
        c) it is a shallow checkout, in which case there is little point
-          branching it as it cannot be pushed.
-       d) the checkout already has a branch of the requested name, or
+          branching it as it cannot be pushed, or
+       d) the checkout already has a branch of the requested name.
 
        If any checkouts report problems, then the command will be aborted, and
        muddle will exit with status 1.
@@ -6291,9 +6291,9 @@ class BranchTree(Command):
     the checks).
 
     If the user specifies "-f" or "-force", omit step 1 (i.e., do not do the
-    checks), and ignore any checkouts which do not support this operation or
-    are shallow. If a checkout already has a branch of the requested name,
-    just check it out.
+    checks), and ignore any checkouts which do not support this operation, have
+    an explicit revision specified, or are shallow. If a checkout already has a
+    branch of the requested name, check it out.
 
     If the '-v' flag is used, report on each checkout (actually, each checkout
     directory) as it is entered.
@@ -6401,13 +6401,17 @@ class BranchTree(Command):
                 raise GiveUp('Unable to branch-tree to %s, because:\n  %s'%(branch,
                              '\n  '.join(problems)))
 
+            if check:
+                print 'No problems expected for "branch-tree %s"'%branch
+
         if not check:
             branched = self.branch_checkouts(builder, all_checkouts, branch, verbose)
             if branched:
                 print
                 print "If you want the tree branching to be persistent, remember to edit"
-                print "the branched build description, %s"%builder.db.build_desc_file_name()
-                print "add:"
+                print "the branched build description,"
+                print "  %s"%builder.db.build_desc_file_name()
+                print "and add:"
                 print
                 print "  builder.follow_build_desc_branch = True"
                 print
@@ -6488,10 +6492,10 @@ class BranchTree(Command):
             vcs.goto_branch(builder, branch, show_pushd=False)
             selected += 1
 
-        print 'Successfully created branch %s in %d out of %d checkout%s'%(branch,
+        print 'Successfully created  branch %s in %d out of %d checkout%s'%(branch,
                 created, len(all_checkouts), '' if created==1 else 's')
-        print 'Successfully selected that branch in %d out of %d checkout%s'%(selected,
-                len(all_checkouts), '' if selected==1 else 's')
+        print 'Successfully selected branch %s in %d out of %d checkout%s'%(branch,
+                selected, len(all_checkouts), '' if selected==1 else 's')
         if already_exists_in:
             print
             print 'Branch %s already existed in:\n  %s'%(branch,

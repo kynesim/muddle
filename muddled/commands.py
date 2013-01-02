@@ -6268,32 +6268,43 @@ class BranchTree(Command):
     Move all checkouts in the build tree (if they support it) to branch
     <branch>.
 
-    Checkouts that do not support branches (in the muddle/git sense) will
-    be mentioned at the end of the command, but otherwise will be ignored.
+    This works as follows:
 
-    .. note:: At the moment, only checkouts using git support this.
+    1. First inspect each checkout, and check if:
 
-    In normal usage, branch <branch> must not yet exist in any of the
-    checkouts in the build tree. The command will fail when it encounters
-    a checkout that already has a branch of the given name.
+       a) the checkout is using a VCS which does not support this operation
+          (which probably means it is not using git), or
+       b) the checkout already has a branch of the requested name, or
+       c) it is a shallow checkout, in which case there is little point
+          branching it as it cannot be pushed.
 
-    If the '-f', or '-force', flag is used, then if a branch called <branch>
-    already exists, it will be used. This will be mentioned at the end of the
-    command, but will not cause the command to fail.
+       If any checkouts report problems, then the command will be aborted, and
+       muddle will exit with status 1.
 
-    If the '-c', or '-check', flag is used, then the command will not in fact
-    branch anything, but will report if the named branch <branch> already
-    exists in any of the checkouts that the normal use of the command would
-    branch. If the branch name does exist in any checkouts, the command will
-    exit with return code 1. It is probably a good idea to use
-    'muddle branch-tree -check' before using 'muddle branch-tree' itself.
+    2. Then, branch each checkout as requested, and change to that branch.
+
+    3. Finally, remind the user to add "builder.follow_build_desc_branch = True"
+       to the build description.
+
+    If the user specifies "-c" or "-check", omit steps 2 and 3 (i.e., just do
+    the checks).
+
+    If the user specifies "-f" or "-force", omit step 1 (i.e., do not do the
+    checks), and ignore any checkouts which do not support this operation or
+    are shallow. If a checkout already has a branch of the requested name,
+    just check it out.
 
     If the '-v' flag is used, report on each checkout (actually, each checkout
     directory) as it is entered.
 
+    It is recommended that <branch> include the build name (as specified
+    using ``builder.build_name = <name>`` in the build description).
+
     Muddle does not itself provide a means of branching only some checkouts.
     Use the appropriate VCS commands to do that (possibly in combination with
     'muddle runin').
+
+    *The following needs checking and rewriting*
 
     Note that the branch of the build description will "stick", but using
     'muddle pull', 'push' or 'merge' on a checkout
@@ -6310,31 +6321,6 @@ class BranchTree(Command):
 
     to the build description. Note that this will *not* override any
     branches that are explicitly selected in the build description, though.
-
-    It is recommended that <branch> include the build name (as specified
-    using ``builder.build_name = <name>`` in the build description).
-
-    Alternative usage proposal
-    --------------------------
-    As follows:
-
-    1. First inspect each checkout, and report if:
-
-       (a) a branch of the requested name already exists, or
-       (b) that checkout does not support this operation (which probably means
-           it is not using git), or
-       (c) it is a shallow checkout, in which case there is little point
-           branching it as it cannot be pushed.
-
-       If any checkouts report anything, then give up.
-
-    2. Branch all checkouts as requested, and change to that branch.
-
-    3. Remind the user to add "builder.follow_build_desc_branch = True"
-       to the build description.
-
-    If the user specifies "-f" or "-force", omit step 1.
-    If the user specifies "-c" or "-check", omit steps 2 and 3.
     """
 
     allowed_switches = {'-f': 'force',
@@ -6368,84 +6354,107 @@ class BranchTree(Command):
             return
 
         all_checkouts = builder.all_checkout_labels(LabelTag.CheckedOut)
-        co_vcs = []
-        for co in sorted(all_checkouts):
-            try:
-                vcs = builder.db.get_checkout_vcs(builder, co)
-                co_vcs.append((co, vcs))
-            except GiveUp as e:
-                raise GiveUp("%s - cannot find its branch"%str(e))
 
-        if check:
-            self.check_branch_name(builder, co_vcs, branch, verbose)
-        else:
-            self.branch_checkouts(builder, co_vcs, branch, force, verbose)
+        if not force:
+            problems = self.check_checkouts(builder, all_checkouts, branch, verbose)
+            if problems:
+                raise GiveUp('Unable to branch-tree to %s, because:\n  %s'%(branch,
+                             '\n  '.join(problems)))
 
+        if not check:
+            branched = self.branch_checkouts(builder, all_checkouts, branch, verbose)
+            if branched:
+                print
+                print "If you want the tree branching to be persistent, remember to edit"
+                print "the branched build description, %s"%builder.db.build_desc_file_name()
+                print "add:"
+                print
+                print "  builder.follow_build_desc_branch = True"
+                print
+                print "to the describe_to() function, and check it in/push it."
 
-    def branch_checkouts(self, builder, co_vcs, branch, force, verbose):
+    def check_checkouts(self, builder, checkouts, branch, verbose):
         """
-        Branch all the checkouts.
+        Check if we can branch our checkouts.
+
+        Returns a list of problem reports, one per problem checkout.
+        """
+        problems = []
+        for co in checkouts:
+            vcs = builder.db.get_checkout_vcs(builder, co)
+
+            if not vcs.vcs_handler.supports_branching():
+                problems.append('%s uses %s, which does not support'
+                                ' lightweight branching'%(co, vcs.short_name))
+
+            # Shallow checkouts are not terribly well integrated - we do this
+            # very much by hand...
+            elif 'shallow_checkout' in vcs.options:
+                problems.append('%s is shallow, so cannot be branched'%co)
+
+            elif vcs.branch_exists(builder, branch, show_pushd=verbose):
+                problems.append('%s already has a branch called %s'%(co, branch))
+
+        return problems
+
+    def branch_checkouts(self, builder, all_checkouts, branch, verbose):
+        """
+        Branch our checkouts.
+
+        If we can't, say so but continue anyway.
 
         If 'verbose', show each pushd into a checkout directory.
+
+        Returns the number of branched checkouts.
         """
         created = 0
         selected = 0
-        problems = []
+        unsupported = []
+        shallow = []
         already_exists_in = []
-        for co, vcs in co_vcs:
-            try:
-                if force:
-                    if vcs.branch_exists(builder, branch, show_pushd=verbose):
-                        already_exists_in.append(co)
-                    else:
-                        vcs.create_branch(builder, branch, show_pushd=False)
-                        created += 1
-                else:
-                    vcs.create_branch(builder, branch, show_pushd=verbose)
-                    created += 1
+        for co in all_checkouts:
+            vcs = builder.db.get_checkout_vcs(builder, co)
 
-                vcs.goto_branch(builder, branch, show_pushd=False)
-                selected += 1
-            except GiveUp as e:
-                print e
-                problems.append(co)
+            if not vcs.vcs_handler.supports_branching():
+                print '%s uses %s, which does not support' \
+                      ' lightweight branching'%(co, vcs.short_name)
+                unsupported.append(co)
+                continue
 
-        print 'Successfully branched %d out of %d checkout%s'%(created, len(co_vcs),
-                '' if created==1 else 's')
-        print 'Successfully selected that branch in %d out of %d checkout%s'%(selected, len(co_vcs),
-                '' if selected==1 else 's')
+            # Shallow checkouts are not terribly well integrated - we do this
+            # very much by hand...
+            if 'shallow_checkout' in vcs.options:
+                print '%s is shallow, so cannot be branched'%co
+                shallow.append(co)
+                continue
+
+            if vcs.branch_exists(builder, branch, show_pushd=verbose):
+                already_exists_in.append(co)
+            else:
+                vcs.create_branch(builder, branch, show_pushd=False)
+                created += 1
+
+            vcs.goto_branch(builder, branch, show_pushd=False)
+            selected += 1
+
+        print 'Successfully created branch %s in %d out of %d checkout%s'%(branch,
+                created, len(all_checkouts), '' if created==1 else 's')
+        print 'Successfully selected that branch in %d out of %d checkout%s'%(selected,
+                len(all_checkouts), '' if selected==1 else 's')
         if already_exists_in:
             print
-            print 'Branch "%s" already existed in:\n  %s'%(branch,
+            print 'Branch %s already existed in:\n  %s'%(branch,
                          label_list_to_string(already_exists_in, join_with='\n  '))
-        if problems:
-            raise GiveUp('Unable to create or change to branch "%s", in:\n  %s'%(branch,
-                         label_list_to_string(problems, join_with='\n  ')))
+        if shallow:
+            print
+            print 'Unable to branch the following shallow checkouts:' \
+                    '\n  %s'%(label_list_to_string(shallow, join_with='\n  '))
+        if unsupported:
+            print
+            print 'Unable to branch the following checkouts which do not support it:' \
+                    '\n  %s'%(label_list_to_string(unsupported, join_with='\n  '))
 
-    def check_branch_name(self, builder, co_vcs, branch, verbose):
-        """
-        Check if there is a branch of that name in each checkout
-
-        If 'verbose', show each pushd into a checkout directory.
-
-        Outputs information about any checkouts in which the branch does
-        exist, and a summary at the end. If the branch was found anywhere,
-        that summary is done with a GiveUp exception, so that the top level
-        will exit with an exit code of 1.
-        """
-        count = 0
-        for co, vcs in co_vcs:
-            try:
-                if vcs.branch_exists(builder, branch, show_pushd=verbose):
-                    print 'Branch "%s" already exists in %s'%(branch, co)
-                    count += 1
-            except GiveUp as e:
-                print e
-        if count:
-            raise GiveUp('Branch "%s" already exists in %d out of %d checkout%s'%(branch,
-                         count, len(co_vcs), '' if count==1 else 's'))
-        else:
-            print 'Branch "%s" does not exist in any checkouts'%branch
+        return selected
 
 
 @command('veryclean', CAT_MISC)

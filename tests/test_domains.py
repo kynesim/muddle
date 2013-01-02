@@ -1,6 +1,10 @@
 #! /usr/bin/env python
 """Test domain support, and anything that might be affected by it.
 
+    $ ./test_domains.py [-keep]
+
+With -keep, do not delete the 'transient' directory used for the tests.
+
 We're working with a structure as follows:
 
     <toplevel>
@@ -107,7 +111,7 @@ def describe_to(builder):
                                  domain='subdomain2')
 
     # The 'arm' role is *not* a default role
-    builder.invocation.add_default_role(role)
+    builder.add_default_role(role)
     builder.by_default_deploy(deployment)
 """
 
@@ -148,7 +152,7 @@ def describe_to(builder):
                                  dest='sub3',
                                  domain='subdomain3')
 
-    builder.invocation.add_default_role(role)
+    builder.add_default_role(role)
     builder.by_default_deploy(deployment)
 """
 
@@ -199,7 +203,7 @@ def describe_to(builder):
                                  dest='sub4',
                                  domain='subdomain4')
 
-    builder.invocation.add_default_role(role)
+    builder.add_default_role(role)
     builder.by_default_deploy(deployment)
 """
 
@@ -225,7 +229,7 @@ def describe_to(builder):
     muddled.deployments.filedep.deploy(builder, "", "everything", [role])
 
     # If no role is specified, assume this one
-    builder.invocation.add_default_role(role)
+    builder.add_default_role(role)
     # muddle at the top level will default to building this deployment
     builder.by_default_deploy("everything")
 """
@@ -252,7 +256,7 @@ def describe_to(builder):
     muddled.deployments.filedep.deploy(builder, "", "everything", [role])
 
     # If no role is specified, assume this one
-    builder.invocation.add_default_role(role)
+    builder.add_default_role(role)
     # muddle at the top level will default to building this deployment
     builder.by_default_deploy("everything")
 """
@@ -1251,16 +1255,20 @@ def test_label_unification(root_dir, d):
 
 def main(args):
 
+    keep = False
     if args:
-        print __doc__
-        raise GiveUp('Unexpected arguments %s'%' '.join(args))
+        if len(args) == 1 and args[0] == '-keep':
+            keep = True
+        else:
+            print __doc__
+            raise GiveUp('Unexpected arguments %s'%' '.join(args))
 
     # Working in a local transient directory seems to work OK
     # although if it's anyone other than me they might prefer
     # somewhere in $TMPDIR...
     root_dir = normalise_dir(os.path.join(os.getcwd(), 'transient'))
 
-    with TransientDirectory(root_dir, keep_on_error=True):
+    with TransientDirectory(root_dir, keep_on_error=True, keep_anyway=keep) as root_d:
         banner('MAKE REPOSITORIES')
         make_repos_with_subdomain(root_dir)
 

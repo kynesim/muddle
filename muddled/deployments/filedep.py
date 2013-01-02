@@ -74,7 +74,7 @@ class FileDeploymentBuilder(Action):
                                role,
                                "*",
                                domain = domain)
-            env = builder.invocation.get_environment_for(lbl)
+            env = builder.get_environment_for(lbl)
 
             env.set_type("MUDDLE_TARGET_LOCATION", muddled.env_store.EnvType.SimpleValue)
             env.set("MUDDLE_TARGET_LOCATION", self.target_dir)
@@ -99,7 +99,7 @@ class FileDeploymentBuilder(Action):
             raise utils.GiveUp("Attempt to build a deployment with an unexpected tag in label %s"%(label))
 
     def deploy(self, builder, label):
-        deploy_dir = builder.invocation.deploy_path(label)
+        deploy_dir = builder.deploy_path(label)
         # First off, delete the target directory
 
         utils.recursively_remove(deploy_dir)
@@ -110,7 +110,7 @@ class FileDeploymentBuilder(Action):
                 print "> %s: Deploying role %s in domain %s .. "%(label.name, role, domain)
             else:
                 print "> %s: Deploying role %s .. "%(label.name, role)
-            install_dir = builder.invocation.role_install_path(role, domain = domain)
+            install_dir = builder.role_install_path(role, domain = domain)
             utils.recursively_copy(install_dir, deploy_dir, object_exactly=True)
 
 
@@ -132,7 +132,7 @@ class FileDeploymentBuilder(Action):
                                "*",
                                domain = domain)
 
-            install_dir = builder.invocation.role_install_path(role, domain = label.domain)
+            install_dir = builder.role_install_path(role, domain = label.domain)
 
             instr_list = builder.load_instructions(lbl)
 
@@ -178,7 +178,7 @@ class FileDeploymentBuilder(Action):
                                "*",
                                domain = domain)
 
-            deploy_dir = builder.invocation.deploy_path(label)
+            deploy_dir = builder.deploy_path(label)
 
             instr_list = builder.load_instructions(lbl)
             for (lbl, fn, instrs) in instr_list:
@@ -352,8 +352,8 @@ def deploy_with_domains(builder, target_dir, name, role_domains):
     app_rule = depend.Rule(iapp_label, the_action)
 
     # Now add 'em ..
-    builder.invocation.ruleset.add(deployment_rule)
-    builder.invocation.ruleset.add(app_rule)
+    builder.ruleset.add(deployment_rule)
+    builder.ruleset.add(app_rule)
 
     # .. and deal with cleanup, which is entirely generic
     deployment.register_cleanup(builder, name)

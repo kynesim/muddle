@@ -104,7 +104,7 @@ class CpioDeploymentBuilder(Action):
                                l.role,
                                "*",
                                domain = l.domain)
-            env = builder.invocation.get_environment_for(lbl)
+            env = builder.get_environment_for(lbl)
 
             env.set_type("MUDDLE_TARGET_LOCATION", muddled.env_store.EnvType.SimpleValue)
             env.set("MUDDLE_TARGET_LOCATION", target_loc)
@@ -118,7 +118,7 @@ class CpioDeploymentBuilder(Action):
 
         if (label.tag == utils.LabelTag.Deployed):
             # Collect all the relevant files ..
-            deploy_dir = builder.invocation.deploy_path(label)
+            deploy_dir = builder.deploy_path(label)
             deploy_file = os.path.join(deploy_dir,
                                        self.target_file)
 
@@ -131,7 +131,7 @@ class CpioDeploymentBuilder(Action):
 
             for (l,bt) in self.target_base:
                 if (type ( bt ) == types.TupleType ):
-                    real_source_path = os.path.join(builder.invocation.role_install_path(l.role,
+                    real_source_path = os.path.join(builder.role_install_path(l.role,
                                                                                          l.domain),
                                                     bt[0])
                     # This is bt[1] - the actual destination. base is computed differently
@@ -139,7 +139,7 @@ class CpioDeploymentBuilder(Action):
                     base = bt[1]
                 else:
                     base = bt
-                    real_source_path = os.path.join(builder.invocation.role_install_path(l.role,
+                    real_source_path = os.path.join(builder.role_install_path(l.role,
                                                                                          l.domain))
 
 
@@ -153,7 +153,7 @@ class CpioDeploymentBuilder(Action):
 
             # Normalise the hierarchy ..
             the_hierarchy.normalise()
-            print "Filesystem hierarchy is:\n%s"%the_hierarchy.as_str(builder.invocation.db.root_path)
+            print "Filesystem hierarchy is:\n%s"%the_hierarchy.as_str(builder.db.root_path)
 
             if (self.prune_function is not None):
                 self.prune_function(the_hierarchy)
@@ -373,7 +373,7 @@ def deploy_labels(builder, target_file, target_base, name,
 
 
     #print "Add to deployment %s .. "%(deployment_rule)
-    builder.invocation.ruleset.add(deployment_rule)
+    builder.ruleset.add(deployment_rule)
 
     the_action.attach_env(builder)
 
@@ -446,7 +446,7 @@ class CpioWrapper(object):
                                   from_role,
                                   utils.LabelTag.PostInstalled,
                                   domain = self.builder.default_domain)
-        r = self.builder.invocation.ruleset.rule_for_target(self.label, createIfNotPresent = False)
+        r = self.builder.ruleset.rule_for_target(self.label, createIfNotPresent = False)
         if (r is None):
             raise utils.GiveUp("Cannot copy from a deployment (%s) "%self.label +
                                " which has not yet been created.")
@@ -480,7 +480,7 @@ def create(builder, target_file, name, compressionMethod = None,
 
     deployment_rule = depend.Rule(dep_label, the_action)
 
-    builder.invocation.ruleset.add(deployment_rule)
+    builder.ruleset.add(deployment_rule)
     deployment.register_cleanup(builder, name)
 
     return CpioWrapper(builder, the_action, dep_label)

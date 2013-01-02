@@ -278,7 +278,7 @@ class Database(object):
 
         This should only be called by muddle itself.
         """
-        other_db = other_builder.invocation.db
+        other_db = other_builder.db
 
         self._merge_subdomain_labels(other_domain_name, other_db)
         self._merge_subdomain_upstreams(other_domain_name, other_db)

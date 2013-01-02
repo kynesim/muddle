@@ -1,7 +1,9 @@
 #! /usr/bin/env python
 """Test checkout support for git.
 
-    $ ./test_checkouts_git.py
+    $ ./test_checkouts_git.py [-keep]
+
+With -keep, do not delete the 'transient' directory used for the tests.
 
 Git must be installed.
 """
@@ -383,28 +385,33 @@ def test_just_pulled():
 
 def main(args):
 
+    keep = False
     if args:
-        print __doc__
-        return
+        if len(args) == 1 and args[0] == '-keep':
+            keep = True
+        else:
+            print __doc__
+            return
 
     # Choose a place to work, rather hackily
     #root_dir = os.path.join('/tmp','muddle_tests')
     root_dir = normalise_dir(os.path.join(os.getcwd(), 'transient'))
 
-    with TransientDirectory(root_dir, keep_on_error=True):
-        banner('TEST SIMPLE BUILD (GIT)')
-        test_git_simple_build()
+    with TransientDirectory(root_dir, keep_on_error=True, keep_anyway=keep) as root_d:
+        with NewDirectory('simple'):
+            banner('TEST SIMPLE BUILD (GIT)')
+            test_git_simple_build()
 
-    with TransientDirectory(root_dir, keep_on_error=True):
-        banner('TEST CHECKOUT BUILD (GIT)')
-        setup_git_checkout_repositories()
-        test_git_checkout_build()
-        banner('TEST MUDDLE PATCH (GIT)')
-        test_git_muddle_patch()
+        with NewDirectory('checkout'):
+            banner('TEST CHECKOUT BUILD (GIT)')
+            setup_git_checkout_repositories()
+            test_git_checkout_build()
+            banner('TEST MUDDLE PATCH (GIT)')
+            test_git_muddle_patch()
 
-    with TransientDirectory(root_dir, keep_on_error=True):
-        banner('TEST _JUST_PULLED')
-        test_just_pulled()
+        with NewDirectory('just_pulled'):
+            banner('TEST _JUST_PULLED')
+            test_just_pulled()
 
 if __name__ == '__main__':
     args = sys.argv[1:]

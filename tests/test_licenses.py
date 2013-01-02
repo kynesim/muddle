@@ -1,6 +1,10 @@
 #! /usr/bin/env python
 """Test checkout license support in muddle
 
+    $ ./test_licenses.py [-keep]
+
+With -keep, do not delete the 'transient' directory used for the tests.
+
 Some of this might look suspiciously like it was copied from (a version of)
 test_distribute.py. There's a reason for that.
 
@@ -129,7 +133,7 @@ def describe_to(builder):
     add_package(builder, 'not_licensed4', 'x86')
     add_package(builder, 'not_licensed5', 'x86')
 
-    builder.invocation.db.set_license_not_affected_by(package('private2', 'x86'),
+    builder.db.set_license_not_affected_by(package('private2', 'x86'),
                                                       checkout('gpl2plus'))
 
     collect.deploy(builder, deployment)
@@ -151,7 +155,7 @@ def describe_to(builder):
                                  domain='subdomain')
 
     # The 'arm' role is *not* a default role
-    builder.invocation.add_default_role(role)
+    builder.add_default_role(role)
     builder.by_default_deploy(deployment)
 """
 
@@ -253,7 +257,7 @@ def describe_to(builder):
                                  dest='sub',
                                  domain='subdomain')
 
-    builder.invocation.add_default_role(role) # The 'arm' role is *not* a default role
+    builder.add_default_role(role) # The 'arm' role is *not* a default role
     builder.by_default_deploy(deployment)
 
     # Let's have some distributions of our own
@@ -270,7 +274,7 @@ def describe_to(builder):
     for co_label in get_open_not_gpl_checkouts(builder):
         distribute_checkout(builder, 'just_open_src_and_bin', co_label)
         # Get the package(s) directly using this checkout
-        pkg_labels = builder.invocation.packages_using_checkout(co_label)
+        pkg_labels = builder.packages_using_checkout(co_label)
         for label in pkg_labels:
             distribute_package(builder, 'just_open_src_and_bin', label)
     # And we mustn't forget to add this new distribution to our
@@ -291,11 +295,11 @@ def describe_to(builder):
     name_distribution(builder, 'binary_and_private_install', ['binary', 'private'])
     for co_label in get_binary_checkouts(builder):
         # Get the package(s) directly using this checkout
-        pkg_labels = builder.invocation.packages_using_checkout(co_label)
+        pkg_labels = builder.packages_using_checkout(co_label)
         for label in pkg_labels:
             distribute_package(builder, 'binary_and_private_install', label)
     for co_label in get_private_checkouts(builder):
-        pkg_labels = builder.invocation.packages_using_checkout(co_label)
+        pkg_labels = builder.packages_using_checkout(co_label)
         for label in pkg_labels:
             distribute_package(builder, 'binary_and_private_install', label)
 
@@ -394,7 +398,7 @@ def describe_to(builder):
     add_package(builder, 'xyzlib',  'x86', 'Zlib')
     add_package(builder, 'manhattan', 'x86-private', 'CODE NIGHTMARE GREEN')
 
-    builder.invocation.db.set_license_not_affected_by(package('manhattan', 'x86-private'),
+    builder.db.set_license_not_affected_by(package('manhattan', 'x86-private'),
                                                       checkout('xyzlib'))
 
     # The 'everything' deployment is built from our single role, and goes
@@ -402,7 +406,7 @@ def describe_to(builder):
     muddled.deployments.filedep.deploy(builder, "", "everything", ['x86', 'x86-private'])
 
     # If no role is specified, assume this one
-    builder.invocation.add_default_role('x86')
+    builder.add_default_role('x86')
     # muddle at the top level will default to building this deployment
     builder.by_default_deploy("everything")
 """
@@ -547,9 +551,9 @@ Checkout licenses are:
 * checkout:private5/*             LicensePrivate('Shh')
 * checkout:scripts/*              LicenseProprietarySource('Proprietary Source')
 * checkout:ukogl/*                LicenseOpen('UK Open Government License')
-* checkout:zlib/*                 LicenseOpen('zlib/libpng license')
+* checkout:zlib/*                 LicenseOpen('zlib license')
 * checkout:(subdomain)manhattan/* LicensePrivate('Code Nightmare Green')
-* checkout:(subdomain)xyzlib/*    LicenseOpen('zlib/libpng license')
+* checkout:(subdomain)xyzlib/*    LicenseOpen('zlib license')
 
 The following checkouts do not have a license:
 
@@ -626,9 +630,9 @@ Checkout licenses are:
 * checkout:private5/*             LicensePrivate('Shh')
 * checkout:scripts/*              LicenseProprietarySource('Proprietary Source')
 * checkout:ukogl/*                LicenseOpen('UK Open Government License')
-* checkout:zlib/*                 LicenseOpen('zlib/libpng license')
+* checkout:zlib/*                 LicenseOpen('zlib license')
 * checkout:(subdomain)manhattan/* LicensePrivate('Code Nightmare Green')
-* checkout:(subdomain)xyzlib/*    LicenseOpen('zlib/libpng license')
+* checkout:(subdomain)xyzlib/*    LicenseOpen('zlib license')
 
 The following checkouts do not have a license:
 
@@ -1189,22 +1193,20 @@ def subsequent_tests(root_dir, d):
 
 def main(args):
 
+    keep = False
+    if args:
+        if len(args) == 1 and args[0] == '-keep':
+            keep = True
+        else:
+            print __doc__
+            raise GiveUp('Unexpected arguments %s'%' '.join(args))
+
     # Working in a local transient directory seems to work OK
     # although if it's anyone other than me they might prefer
     # somewhere in $TMPDIR...
     root_dir = normalise_dir(os.path.join(os.getcwd(), 'transient'))
 
-    if args == ['-just']:
-        with Directory(root_dir):
-            with Directory('build') as d:
-                actual_tests(root_dir, d)
-        return
-
-    elif args:
-        print __doc__
-        raise GiveUp('Unexpected arguments %s'%' '.join(args))
-
-    with TransientDirectory(root_dir, keep_on_error=True) as root:
+    with TransientDirectory(root_dir, keep_on_error=True, keep_anyway=keep) as root:
 
         banner('MAKE REPOSITORIES')
         make_repos(root_dir)

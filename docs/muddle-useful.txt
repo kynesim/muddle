@@ -30,20 +30,6 @@ available. For instance::
 .. note:: The Builder class actually lives in ``muddled.mechanics``, but is
 	  available directly as ``muddled.Builder`` for convenience.
 
-muddled.mechanics.Invocation
-----------------------------
-The Builder object always contains an instance of Invocation. For instance::
-
-    builder.invocation.add_default_role('omap')
-
-.. autoclass:: muddled.Invocation
-   :members:
-   :show-inheritance:
-   :undoc-members:
-
-.. note:: The Invocation class actually lives in ``muddled.mechanics``, but is
-	  available directly as ``muddled.Invocation`` for convenience.
-
 muddled.depend
 --------------
 Sometimes it is useful to work directly with dependencies. For instance::
@@ -51,7 +37,7 @@ Sometimes it is useful to work directly with dependencies. For instance::
     rule = muddled.depend.depend_one(None,
              muddled.depend.label_from_string('package:rootfs/installed'),
              muddled.depend.label_from_string('package:busybox/installed'))
-    builder.invocation.ruleset.add(rule)
+    builder.ruleset.add(rule)
 
 .. automodule:: muddled.depend
    :members:

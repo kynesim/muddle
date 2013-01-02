@@ -423,6 +423,7 @@ For instance::
   CDDL-1.0                         LicenseOpen('Common Development and Distribution License')
   EPL-1.0                          LicenseOpen('Eclipse Public License', version='1.0')
   IPA                              LicenseOpen('IPA Font License')
+  Libpng                           LicenseOpen('libpng license')
   MIT                              LicenseOpen('MIT License')
   MPL-1.1                          LicenseOpen('Mozilla Public License', version='1.1')
   MPL-2.0                          LicenseOpen('Mozilla Public License', version='2.0')
@@ -431,7 +432,7 @@ For instance::
   Python-2.0                       LicenseOpen('Python License', version='2.0')
   QPL-1.0                          LicenseOpen('Q Public License', version='1.0')
   UKOGL                            LicenseOpen('UK Open Government License')
-  Zlib                             LicenseOpen('zlib/libpng license')
+  Zlib                             LicenseOpen('zlib license')
 
   Proprietary                      LicenseProprietarySource('Proprietary Source')
 
@@ -1329,7 +1330,7 @@ for finding out which checkouts have particular categories of licenses.
 
 You can find out if a checkout has a license using::
 
-    builder.invocation.db.checkout_has_license(co_label)
+    builder.db.checkout_has_license(co_label)
 
 You can retrieve the particular license using::
 
@@ -1346,20 +1347,20 @@ You can find out if a checkout has a license that is in a particular category
   checkout_license_allowed(builder, co_label, categories)
 
 .. note:: Some of the functions in the ``licenses`` module are just wrappers
-   around calls of ``builder.invocation.db`` methods. Specifically:
+   around calls of ``builder.db`` methods. Specifically:
 
-   * ``set_license`` is partly a wrapper for ``builder.invocation.db.set_checkout_license``,
+   * ``set_license`` is partly a wrapper for ``builder.db.set_checkout_license``,
      but it (``set_license``) may also store the license file information,
      which the low-level ``set_checkout_license`` method does not do.
-   * ``get_license`` is a wrapper for ``builder.invocation.db.get_checkout_license``
+   * ``get_license`` is a wrapper for ``builder.db.get_checkout_license``
      (but beware that the latter swaps the default for ``absent_is_None``, so
      that it defaults to raising an exception if there is no license)
    * ``set_license_not_affected_by`` is a wrapper for
-     ``builder.invocation.db.set_license_not_affected_by``
+     ``builder.db.set_license_not_affected_by``
 
    There is also a boolean query::
 
-     builder.invocation.db.checkout_has_license(co_label)
+     builder.db.checkout_has_license(co_label)
 
    which doesn't currently have a wrapper function.
 

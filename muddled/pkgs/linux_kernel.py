@@ -66,9 +66,9 @@ class LinuxKernel(PackageBuilder):
         Make sure the relevant directories exist
         """
         tmp = Label(utils.LabelType.Checkout, self.co, domain=label.domain)
-        co_path = builder.invocation.checkout_path(tmp)
-        build_path = builder.invocation.package_obj_path(label)
-        inst_path = builder.invocation.package_install_path(label)
+        co_path = builder.checkout_path(tmp)
+        build_path = builder.package_obj_path(label)
+        inst_path = builder.package_install_path(label)
         utils.ensure_dir(co_path)
         utils.ensure_dir(os.path.join(build_path, "obj"))
         utils.ensure_dir(inst_path)
@@ -83,8 +83,8 @@ class LinuxKernel(PackageBuilder):
         self.ensure_dirs(builder, label)
 
         tmp = Label(utils.LabelType.Checkout, self.co, domain=label.domain)
-        co_path = builder.invocation.checkout_path(tmp)
-        build_path = builder.invocation.package_obj_path(label)
+        co_path = builder.checkout_path(tmp)
+        build_path = builder.package_obj_path(label)
 
         make_cmd = "make"
         if not self.in_place:
@@ -200,7 +200,7 @@ class LinuxKernel(PackageBuilder):
 
     def dist_clean(self, builder, label):
         # Just wipe out the object file directory
-        utils.recursively_remove(builder.invocation.package_obj_path(label))
+        utils.recursively_remove(builder.package_obj_path(label))
 
 
 
@@ -221,9 +221,9 @@ def simple(builder, name, role, checkout, linux_dir, config_file,
                           kernel_version,
                           makeInstall = makeInstall, inPlace = inPlace,
                           arch = arch, crossCompile = crossCompile)
-    pkg.add_package_rules(builder.invocation.ruleset,
+    pkg.add_package_rules(builder.ruleset,
                           name, role, the_pkg)
-    pkg.package_depends_on_checkout(builder.invocation.ruleset,
+    pkg.package_depends_on_checkout(builder.ruleset,
                                     name, role, checkout, the_pkg)
 
 
@@ -243,9 +243,9 @@ def twolevel(builder, name, role, checkout_dir, checkout_name, linux_dir,
                           kernel_version,
                           makeInstall = makeInstall, inPlace = inPlace,
                           arch = arch, crossCompile = crossCompile)
-    pkg.add_package_rules(builder.invocation.ruleset,
+    pkg.add_package_rules(builder.ruleset,
                           name, role, the_pkg)
-    pkg.package_depends_on_checkout(builder.invocation.ruleset,
+    pkg.package_depends_on_checkout(builder.ruleset,
                                     name, role, checkout_name, the_pkg)
 
 

@@ -112,10 +112,90 @@ def lookup_command(command_name, args, cmd_dict, subcmd_dict):
                                 " '%s %s'"%(command_name, subcommand_name))
     return command_class(), args
 
+def guess_cmd_in_build(builder, current_dir):
+    """Returns a tuple (command_name, args)
+    """
+    # Where are we?
+    where = builder.find_location_in_tree(current_dir)
+    if where is None:
+        raise utils.GiveUp("Can't decide what to do, can't seem to"
+                           " determine where you are in the build tree")
+
+    what, label, domain = where
+
+    args = []
+    if what == DirType.Root:
+        # We're at the very top of the build tree
+        #
+        # As such, our default is to build labels:
+        command_name = "buildlabel"
+
+        # and the labels to build are the default deployments
+        args = map(str, builder.default_deployment_labels)
+
+        # and the default roles
+        for role in builder.default_roles:
+            label = Label(LabelType.Package, '*', role, LabelTag.PostInstalled)
+            args.append(str(label))
+
+    elif what == DirType.DomainRoot:
+        domains = []
+        if domain is None:
+            subdirs = os.listdir(current_dir)
+            # Make a quick plausibility check
+            for dir in subdirs:
+                if os.path.isdir(os.path.join(current_dir, dir, '.muddle')):
+                    domains.append(dir)
+
+        else:
+            domains.append(domain)
+
+        # We're in domains/<somewhere>, so build everything specific
+        # to (just) this subdomain
+        command_name = "buildlabel"
+
+        # Choose all the packages from this domain that are needed by
+        # our build tree. Also, all the deployments that it contributes
+        # to our build tree. It is possible we might end up "over building"
+        # if any of those are not implied by the top-level build defaults,
+        # but that would be somewhate more complex to determine.
+        for name in domains:
+            args.append('deployment:({domain})*/deployed'.format(domain=name))
+            args.append('package:({domain})*{{*}}/postinstalled'.format(domain=name))
+
+    elif what == DirType.Deployed:
+        # We're in a deploy/ directory, so redeploying sounds sensible
+        # The redeploy command knows to "look around" and decide *what*
+        # needs redeploying
+        command_name = "redeploy"
+
+        if label:       # Given a specific deployment, choose it
+            args.append(str(label))
+
+    elif what == DirType.Object or what == DirType.Install:
+        # We're in obj/ or install/, so rebuilding is what we want to do
+        # The rebuild command knows to "look around" and decide *what*
+        # needs rebuilding
+        command_name = "rebuild"
+
+    elif what == DirType.Checkout:
+        # We're in src/, so we want to build, not rebuild
+        # The build command knows to "look around" and decide *what*
+        # needs building
+        command_name = "build"
+
+    else:
+        raise utils.GiveUp("Don't know what to do in this location: %s"%what)
+
+    return command_name, args
+
 def _cmdline(args, current_dir, original_env, muddle_binary):
     """
     The actual command line, with no safety net...
     """
+
+    guess_what_to_do = False
+    command_name = ""
 
     command = None
     command_options = { }
@@ -141,16 +221,23 @@ def _cmdline(args, current_dir, original_env, muddle_binary):
 
         args = args[1:]
 
-    if len(args) < 1:
-        # Make a first guess at a plausible command
-        command_name = "rebuild"            # We rely on knowing this exists
-        guess_what_to_do = True             # but it's only our best guess
-    else:
+    if args:
         command_name = args[0]
         args = args[1:]
-        guess_what_to_do = False
+    else:
+        guess_what_to_do = True
 
-    # First things first, let's look up the command ..
+    # Are we in a muddle build?
+    builder = find_and_load(specified_root, muddle_binary)
+    if builder and guess_what_to_do:
+        # We are, but we have to "guess" what to do
+        command_name, args = guess_cmd_in_build(builder, current_dir)
+
+    if not builder and guess_what_to_do:
+        # Guess that you wanted help.
+        command_name = "help"
+
+    # Now we've definitely got a command, we can look it up
     cmd_dict = commands.g_command_dict
     subcmd_dict = commands.g_subcommand_dict
 
@@ -158,85 +245,14 @@ def _cmdline(args, current_dir, original_env, muddle_binary):
     command.set_options(command_options)
     command.set_old_env(original_env)
 
-    builder = find_and_load(specified_root, muddle_binary)
+    # And armed with that, we can try to obey it
     if builder:
-        # There is a build tree...
-        if guess_what_to_do:
-            # Where are we?
-            where = builder.find_location_in_tree(current_dir)
-            if where is None:
-                raise utils.GiveUp("Can't seem to determine where you are in the build tree")
-
-            (what, label, domain) = where
-
-            if what == DirType.Root:
-                # We're at the very top of the build tree
-                #
-                # As such, our default is to build labels:
-                command_class = cmd_dict["buildlabel"]
-                command = command_class()
-                command.set_options(command_options)
-
-                # and the labels to build are the default deployments
-                args = map(str, builder.invocation.default_deployment_labels)
-
-                # and the default roles
-                for role in builder.invocation.default_roles:
-                    label = Label(LabelType.Package, '*', role, LabelTag.PostInstalled)
-                    args.append(str(label))
-
-            elif what == DirType.DomainRoot:
-                domains = []
-                if domain is None:
-                    subdirs = os.listdir(current_dir)
-                    # Make a quick plausibility check
-                    for dir in subdirs:
-                        if os.path.isdir(os.path.join(current_dir, dir, '.muddle')):
-                            domains.append(dir)
-
-                else:
-                    domains.append(domain)
-
-                # We're in domains/<somewhere>, so build everything specific
-                # to (just) this subdomain
-                command_class = cmd_dict["buildlabel"]
-                command = command_class()
-                command.set_options(command_options)
-
-                # Choose all the packages from this domain that are needed by
-                # our build tree. Also, all the deployments that it contributes
-                # to our build tree. It is possible we might end up "over building"
-                # if any of those are not implied by the top-level build defaults,
-                # but that would be somewhate more complex to determine.
-                args = []
-                for name in domains:
-                    args.append('deployment:({domain})*/deployed'.format(domain=name))
-                    args.append('package:({domain})*{{*}}/postinstalled'.format(domain=name))
-
-            elif what == DirType.Deployed:
-                # We're in a deploy/ directory, so redeploying sounds sensible
-                command_class = cmd_dict["redeploy"]
-                command = command_class()
-                command.set_options(command_options)
-
-                args = []
-                if label:       # Given a specific deployment, choose it
-                    args.append(str(label))
-
         if builder.is_release_build() and not command.allowed_in_release_build():
             raise utils.GiveUp("Command %s is not allowed in a release build"%command_name)
-
         command.with_build_tree(builder, current_dir, args)
     else:
-        # There is no build tree here ..
-        if guess_what_to_do:
-            # Guess that you wanted help.
-            command_class = cmd_dict["help"]
-            command = command_class()
-
         if command.requires_build_tree():
             raise utils.GiveUp("Command %s requires a build tree."%(command_name))
-
         command.without_build_tree(muddle_binary, current_dir, args)
 
 def cmdline(args, muddle_binary=None):

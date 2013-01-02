@@ -58,7 +58,7 @@ class VcsCheckoutBuilder(Action):
         Return True if this checkout has indeed been checked out
         """
         label = label.copy_with_tag(utils.LabelTag.CheckedOut, transient=False)
-        return builder.invocation.db.is_tag(label)
+        return builder.db.is_tag(label)
 
     def must_pull_before_commit(self):
         """
@@ -76,10 +76,10 @@ class VcsCheckoutBuilder(Action):
             self.vcs.checkout(builder)
         elif (target_tag == utils.LabelTag.Pulled):
             if self.vcs.pull(builder):
-                builder.invocation.db.just_pulled.add(label)
+                builder.db.just_pulled.add(label)
         elif (target_tag == utils.LabelTag.Merged):
             if self.vcs.merge(builder):
-                builder.invocation.db.just_pulled.add(label)
+                builder.db.just_pulled.add(label)
         elif (target_tag == utils.LabelTag.ChangesCommitted):
             if self._checkout_is_checked_out(builder, label):
                 self.vcs.commit(builder)
@@ -164,17 +164,17 @@ def null_package(builder, name, role):
         # And we'd like it always to be checked out
         # For this, we use a Null package that doesn't build itself
         null_pkg = null_package(builder, name='docs', role='meta')
-        pkg.package_depends_on_checkout(builder.invocation.ruleset,
+        pkg.package_depends_on_checkout(builder.ruleset,
                                         pkg_name='docs', role_name='meta',
                                         co_name='docs')
 
         # And add that to our default roles
-        builder.invocation.add_default_role('meta')
+        builder.add_default_role('meta')
 
     """
     this_pkg = NullPackageBuilder(name='meta', role='meta')
     # Add the standard rules for a package
-    add_package_rules(builder.invocation.ruleset, name, role, this_pkg)
+    add_package_rules(builder.ruleset, name, role, this_pkg)
     return this_pkg
 
 class Profile(object):
@@ -265,7 +265,7 @@ def package_depends_on_checkout(ruleset, pkg_name, role_name, co_name, action=No
     """
     Make the given package depend on the given checkout
 
-    * ruleset   - The ruleset to use - builder.invocation.ruleset, for example.
+    * ruleset   - The ruleset to use - builder.ruleset, for example.
     * pkg_name  - The package which depends.
     * role_name - The role which depends. Can be '*' for a wildcard.
     * co_name   - The checkout which this package and role depends on.
@@ -357,7 +357,7 @@ def do_depend_label(builder, pkg_name, role_names,
     If role_names is a string, we will implicitly convert it into the 
     singleton list [ role_names ].
     """
-    ruleset = builder.invocation.ruleset
+    ruleset = builder.ruleset
     if isinstance(role_names, basestring):
         r = role_names
         role_names = [ r ]
@@ -385,7 +385,7 @@ def do_depend(builder, pkg_name, role_names,
     singleton list [ role_names ].
     """
 
-    ruleset = builder.invocation.ruleset
+    ruleset = builder.ruleset
     if isinstance(role_names, basestring):
         r = role_names
         role_names = [ r ]
@@ -438,11 +438,33 @@ def append_env_for_package(builder, pkg_name, pkg_roles,
                            r,
                            "*",
                            domain = domain)
-        env = builder.invocation.get_environment_for(lbl)
+        env = builder.get_environment_for(lbl)
         env.append(name, value)
         if (type is not None):
             env.set_type(name, type)
 
+
+def prepend_env_for_package(builder, pkg_name, pkg_roles,
+                           name, value,
+                           domain = None,
+                           type = None):
+    """
+    Set the environment variable name to value in the given
+    package built in the given roles. Useful for customising
+    package behaviour in particular roles in the build
+    description.
+    """
+
+    for r in pkg_roles:
+        lbl = depend.Label(utils.LabelType.Package,
+                           pkg_name,
+                           r,
+                           "*",
+                           domain = domain)
+        env = builder.get_environment_for(lbl)
+        env.prepend(name, value)
+        if (type is not None):
+            env.set_type(name, type)
 
 def set_env_for_package(builder, pkg_name, pkg_roles,
                         name, value,
@@ -460,7 +482,7 @@ def set_env_for_package(builder, pkg_name, pkg_roles,
                            r,
                            "*",
                            domain = domain)
-        env = builder.invocation.get_environment_for(lbl)
+        env = builder.get_environment_for(lbl)
         env.set(name, value)
 
 def set_checkout_vcs_option(builder, label, **kwargs):
@@ -477,7 +499,7 @@ def set_checkout_vcs_option(builder, label, **kwargs):
     """
     if label.type is not utils.LabelType.Checkout:
         raise utils.GiveUp('set_checkout_vcs_option called on non-checkout %s'%label)
-    for rule in builder.invocation.ruleset.rules_for_target(label):
+    for rule in builder.ruleset.rules_for_target(label):
         if rule.action is not None:
             if not isinstance(rule.action, VcsCheckoutBuilder):
                 raise utils.MuddleBug('rule for checkout %s had a non-builder'

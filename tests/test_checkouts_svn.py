@@ -1,7 +1,9 @@
 #! /usr/bin/env python
 """Test checkout support for svn.
 
-    $ ./test_checkouts_svn.py
+    $ ./test_checkouts_svn.py [-keep]
+
+With -keep, do not delete the 'transient' directory used for the tests.
 
 Subversion must be installed.
 """
@@ -112,7 +114,6 @@ def test_svn_simple_build():
         banner('Stamping simple build')
         muddle(['stamp', 'version'])
         with Directory('versions'):
-            svn('add test_build.stamp')
             svn('commit -m "A proper stamp file"')
             cat('test_build.stamp')
 
@@ -261,24 +262,30 @@ def test_just_pulled():
 
 def main(args):
 
+    keep = False
     if args:
-        print __doc__
-        return
+        if len(args) == 1 and args[0] == '-keep':
+            keep = True
+        else:
+            print __doc__
+            return
 
     # Choose a place to work, rather hackily
     #root_dir = os.path.join('/tmp','muddle_tests')
     root_dir = normalise_dir(os.path.join(os.getcwd(), 'transient'))
 
-    with TransientDirectory(root_dir, keep_on_error=True):
-        banner('TEST SIMPLE BUILD (SUBVERSION)')
-        test_svn_simple_build()
-    with TransientDirectory(root_dir, keep_on_error=True):
-        banner('TEST BUILD WITH REVISION (SUBVERSION)')
-        test_svn_revisions_build()
+    with TransientDirectory(root_dir, keep_on_error=True, keep_anyway=keep) as root_d:
+        with NewDirectory('simple'):
+            banner('TEST SIMPLE BUILD (SUBVERSION)')
+            test_svn_simple_build()
 
-    with TransientDirectory(root_dir, keep_on_error=True):
-        banner('TEST _JUST_PULLED')
-        test_just_pulled()
+        with NewDirectory('checkout'):
+            banner('TEST BUILD WITH REVISION (SUBVERSION)')
+            test_svn_revisions_build()
+
+        with NewDirectory('just_pulled'):
+            banner('TEST _JUST_PULLED')
+            test_just_pulled()
 
 if __name__ == '__main__':
     args = sys.argv[1:]

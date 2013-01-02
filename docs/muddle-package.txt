@@ -131,8 +131,7 @@ muddled.licenses
 
 muddled.mechanics
 -----------------
-.. note:: *The main machinery that makes muddle go - the Builder and
-   Invocation classes.*
+.. note:: *The main machinery that makes muddle go - the Builder class.*
 .. automodule:: muddled.mechanics
    :members:
    :show-inheritance:

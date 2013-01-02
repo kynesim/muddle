@@ -127,13 +127,6 @@ indicating what is to be built for a release.
 Its meaning is defined in the build description, using
 ``builder.add_to_release_build()``.
 
-.. Precedence would suggest that this should be a method on the
-   Invocation, and not the Builder. But accessing the methods that are
-   already on ``builder.invocation.`` is a pain, and there seems little
-   justification for adding to that pain. I could have provided a method
-   on the Invocation and an alias on the builder, but again that seems to
-   be making life awkward for no real reason. So, it can go on the Builder.
-
 Items can be added to the ``_release`` entity as labels, individually::
 
     builder.add_to_release_build(package('fred', 'x86')
@@ -145,10 +138,20 @@ or as sequences::
 
 Wildcarded labels can be used, if necessary.
 
-The "special" values ``_all``, ``_default_roles`` and ``_default_deployments``
-can also be used::
+The "special" values that start with an underscore may also be used, for
+instance::
 
     builder.add_to_release_build('_default_deployments')
+
+.. warning:: The values ``_all``, ``release`` and ``just_pulled`` may not be
+   used:
+
+   * The interpretation of ``_all`` depends on the muddle command being
+     used - use ``_all_checkouts``, ``_all_packages`` or ``_all_deployments``
+     instead.
+   * Using ``_release`` inside ``_release`` would, of course, just be asking
+     for trouble.
+   * And ``just_pulled`` is too transient to be useful as a release target.
 
 The ``_release`` value is interpreted and expanded lazily, when the muddle
 command line is interpreted. This means one is allowed to specify::
@@ -172,7 +175,7 @@ is useful.
    to release from the subdomain.
 
    This decision is made to avoid confusion over what is meant by adding
-   special names (such as ``_all``) to the release specification in a
+   special names (such as ``_all_checkouts``) to the release specification in a
    subdomain. It is possible that a future version of muddle might instead
    expand a subdomain's ``_release`` value as the subdomain was "promoted",
    but I am not sure that this is worth the added complication.
@@ -197,7 +200,7 @@ tarball). For instance::
         m0 = package('main_pkg', 'x86')
         s1 = package('second_pkg', 'x86', domain='subdomain1')
 
-        install_path = builder.invocation.package_install_path
+        install_path = builder.package_install_path
 
         # Copy our executables, with permissions intact
         shutil.copy(os.path.join(install_path(f0), 'first'), release_dir)
@@ -216,10 +219,10 @@ directory, but otherwise it will be empty.
 
 The following methods may be particularly useful:
 
-* ``builder.invocation.checkout_path``
-* ``builder.invocation.package_obj_path``
-* ``builder.invocation.package_install_path``
-* ``builder.invocation.deploy_path``
+* ``builder.checkout_path``
+* ``builder.package_obj_path``
+* ``builder.package_install_path``
+* ``builder.deploy_path``
 
 Use ``muddle doc <method>`` to confirm what they do. 
 

@@ -20,9 +20,11 @@ The list of "special" names may be added to at any time, but at the time of
 writing is:
 
 * ``_all``
+* ``_all_checkouts``, ``_all_packages``, ``_all_deployments``
 * ``_default_roles``
 * ``_default_deployments``
 * ``_just_pulled``
+* ``_release``
 
 Many muddle commands support using these as if they were standard labels, and
 will then expand them to the implied labels. Those commands which do support
@@ -32,11 +34,23 @@ them all say so in their help text.
 
 ``_all``
 --------
-This expands to all of the target labels defined in the build description.
+This expands to all of the target labels defined in the build description
+*of the appropriate type* for the command.
 
 A typical use of ``_all`` would be::
 
   $ muddle pull _all
+
+where it means all checkouts.
+
+``_all_checkouts``, ``all_packages``, ``all_deployments``
+---------------------------------------------------------
+These expand to all the target labels defined in the build description of the
+specific type.
+
+So the previous example could also be specified (more explicitly) as::
+
+  $ muddle pull _all_checkouts
 
 ``_default_roles``
 ------------------
@@ -85,5 +99,11 @@ A typical use of ``_just_pulled`` would be::
 
   $ muddle pull _all
   $ muddle distrebuild _just_pulled
+
+``_release``
+------------
+This expands to the targets specified in the build description with
+``builder.add_to_release_build()``. It's definition and use is described
+in the chapter on "The muddle release mechanism".
 
 .. vim: set filetype=rst tabstop=8 softtabstop=2 shiftwidth=2 expandtab:

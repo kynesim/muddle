@@ -14,7 +14,7 @@ import muddled.utils as utils
 import muddled.env_store as env_store
 import muddled.instr as instr
 
-from muddled.depend import Label, Action, normalise_checkout_label
+from muddled.depend import Label, Action, normalise_checkout_label, label_list_to_string
 from muddled.utils import domain_subpath, GiveUp, MuddleBug, LabelType, LabelTag
 from muddled.repository import Repository
 from muddled.version_control import split_vcs_url, checkout_from_repo
@@ -40,40 +40,91 @@ def check_build_name(name):
                      " 'A'-'Z', 'a'-'z', '0'-'9', '_' or '-')"%name)
 
 
-class Invocation(object):
+class Builder(object):
     """
-    An invocation is the central muddle object. It holds the
-    database the builder uses to perform actions on behalf
-    of the user.
+    A builder does stuff following rules derived from a build description.
+
+    Don't construct a Builder directly, always use the 'load_builder()'
+    function, or 'minimal_build_tree()' if that is more appropriate.
+
+
+    * self.db - The metadata database for this project.
+    * self.ruleset - The rules describing this build
+    * self.env - A dictionary of label to environment
+    * self.default_roles - The roles to build when you don't specify any.
+      These will also be used for "guessing" a role for a package when one
+      is not specified. '_default_roles' is calculated from this.
+    * self.default_deployment_labels - The deployments to deploy when you
+      don't specify any specific roles. This is the meaning of
+      '_default_deployments'.
+
+    There are then a series of values used in managing subdomains:
+
+    * self.banned_roles - An array of pairs of the form (role, domain)
+      which aren't allowed to share libraries.
+    * self.domain_params - Maps domain names to dictionaries storing
+      parameters that other domains can retrieve. This is used to
+      communicate values from a build to its subdomains.
+    * self.unifications - This is a list of tuples of the form
+      (source-label, target-label), where one "replaces" the other in the
+      build tree.
+
+    And:
+
+    * self.what_to_release - a set of entities to build for a release
+      build. It may contain labels and also "special" names, such as
+      '_default_deployments' or even '_all'. You may not include '_release'
+      (did you need to ask?). "_just_pulled" is not allowed either.
     """
 
-    def __init__(self, root_path):
+    def __init__(self, root_path, muddle_binary, domain_params = None,
+                 default_domain = None):
         """
-        Construct a fresh invocation with a .muddle directory at the given
-        'root_path' (the directory containing the ".muddle" and "src"
-        directories for the build).
+        Construct a fresh Builder with a .muddle directory at the given
+        'root_path'.
 
-        * self.db - The metadata database for this project.
-        * self.ruleset - The rules describing this build
-        * self.env - A dictionary of label to environment
-        * self.default_roles - The roles to build when you don't specify any.
-          These will also be used for "guessing" a role for a package when one
-          is not specified. '_default_roles' is calculated from this.
-        * self.default_deployment_labels - The deployments to deploy when you
-          don't specify any specific roles. This is the meaning of
-          '_default_deployments'.
+        'muddle_binary' is the full path to our muddle "binary" - the program
+        that is muddle. This is needed when running muddle Makefiles that
+        invoke $(MUDDLE).
 
-        There are then a series of values used in managing subdomains:
+        'domain_params' is the set of domain parameters in effect when
+        this builder is loaded. It's used to communicate values down
+        to sub-domains.
 
-        * self.banned_roles - An array of pairs of the form (role, domain)
-          which aren't allowed to share libraries.
-        * self.domain_params - Maps domain names to dictionaries storing
-          parameters that other domains can retrieve. This is used to
-          communicate values from a build to its subdomains.
-        * self.unifications - This is a list of tuples of the form
-          (source-label, target-label), where one "replaces" the other in the
-          build tree.
+        Note that you MUST NOT set 'domain_params' Null unless you are
+        the top-level domain - it MUST come from the enclosing
+        domain's builder or modifications made by the subdomain's
+        buidler will be lost, and as this is the only way to
+        communicate values to a parent domain, this would be
+        bad. Ugh.
+
+        'default_domain' is the default domain value to add to anything
+        in local_pkgs , etc - it's used to make sure that if you're
+        cd'd into a domain subdirectory, we build the right labels.
         """
+        # Keep this for the moment for backwards compatibility
+        self.invocation = self
+
+        # The 'muddle_binary' is what will be run when the user does
+        # $(MUDDLE) inside a makefile. Obviously our caller has to
+        # decide this.
+        self.muddle_binary = muddle_binary
+        # The 'muddled_dir' is the directory of our package itself
+        # (which we need to find the resources inside this package,
+        # for instance). This is most easily taken from the location
+        # of *this* module, as we're running it.
+        self.muddled_dir = os.path.split(os.path.abspath(__file__))[0]
+
+        # XXX Check the utility of this
+        self.default_domain = default_domain
+
+        if (domain_params is None):
+            self.domain_params = { }
+        else:
+            self.domain_params = domain_params
+
+        # XXX -----------------------------------------------------------------
+        # XXX What used to be in the Invocation constructor
         self.db = db.Database(root_path)
         self.ruleset = depend.RuleSet()
         self.env = {}
@@ -82,6 +133,930 @@ class Invocation(object):
         self.banned_roles = []
         self.domain_params = {}
         self.unifications = []
+        # XXX -----------------------------------------------------------------
+
+        # Guess a default build name
+        # Whilst the build description filename should be a legal Python
+        # module name (and thus only include alphanumerics and underscores),
+        # and thus also be a legal build name, we shall be cautious and
+        # assign it directly to self._build_name (thus not checking), rather
+        # than assigning to the property self.build_name (which would check).
+        build_desc = self.db.build_desc.get()
+        build_fname = os.path.split(build_desc)[1]
+        self._build_name = os.path.splitext(build_fname)[0]
+
+        # It's useful to know our build description's Repository and label
+        self.build_desc_repo = None
+        self.build_desc_label = None
+
+        # The current distribution name and target directory, as a tuple,
+        # or actually None, since we've not set it yet
+        # directory with each...
+        self.distribution = None
+
+        # By default, we have an "empty" release spec, since we're not
+        # normally a release build
+        self.release_spec = ReleaseSpec()
+
+        # The user has not specified what to build for a release build
+        self.what_to_release = set()
+
+        # Should (other) checkouts default to using the same branch as
+        # the build description? This is ignored if a checkout already
+        # (explicitly) specifies its own branch or revision.
+        self._follow_build_desc_branch = False
+        self.db.set_domain_follows_build_desc_branch(None, False)
+
+    def get_default_domain(self):
+        return self.default_domain
+
+    def get_parameter(self, name):
+        """
+        Returns the given domain parameter, or None if it
+        wasn't defined.
+        """
+        return self.domain_params.get(name)
+
+    def set_parameter(self, name, value):
+        """
+        Set a domain parameter: Danger Will Robinson! This is a
+         very odd thing to do - domain parameters are typically
+         set by their enclosing domains. Setting your own is an
+         odd idea and liable to get you into trouble. It is,
+         however, the only way of communicating values back from
+         a domain to its parent (and you shouldn't really be doing
+         that either!)
+        """
+        self.domain_params[name] = value
+
+    def set_distribution(self, name, target_dir):
+        """Set the current distribution name and target directory.
+        """
+        self.distribution = (name, target_dir)
+
+    def get_distribution(self):
+        """Retrieve the current distribution name and target directory.
+
+        Raises GiveUp if there is no current distribution set.
+        """
+        if self.distribution:
+            return self.distribution
+        else:
+            raise GiveUp('No distribution name or target directory set')
+
+    def resource_file_name(self, file_name):
+        return os.path.join(self.muddled_dir, "resources", file_name)
+
+    def resource_body(self, file_name):
+        """
+        Return the body of a resource as a string.
+        """
+        rsrc_file = self.resource_file_name(file_name)
+        f = open(rsrc_file, "r")
+        result = f.read()
+        f.close()
+        return result
+
+    def instruct(self, pkg, role, instruction_file, domain=None):
+        """
+        Register the existence or non-existence of an instruction file.
+        If instruction_file is None, we unregister the instruction file.
+
+        * instruction_file - A db.InstructionFile object to save.
+        """
+        self.db.set_instructions(
+            Label(LabelType.Package, pkg, role,
+                  LabelTag.Temporary, domain=domain),
+            instruction_file)
+
+    def uninstruct_all(self):
+        self.db.clear_all_instructions()
+
+    def by_default_deploy(self, deployment):
+        """
+        Add a deployment label to the deployments to build by default.
+        """
+        label = Label(LabelType.Deployment, deployment, None, LabelTag.Deployed)
+        self.add_default_deployment_label(label)
+
+    def by_default_deploy_list(self, deployments):
+        """
+        Now we've got a list of default labels, we can just add them ..
+        """
+
+        for d in deployments:
+            dep_label = Label(LabelType.Deployment, d, None, LabelTag.Deployed)
+            self.add_default_deployment_label(dep_label)
+
+    def add_default_roles(self, roles):
+        """
+        Add the given roles to the list of default roles for this build.
+        """
+        for r in roles:
+            self.add_default_role(r)
+
+    def load_instructions(self, label):
+        """
+        Load the instructions which apply to the given label (usually a wildcard
+        on a role, from a deployment) and return a list of triples
+        (label, filename, instructionfile).
+        """
+        instr_names = self.db.scan_instructions(label)
+        return db.load_instructions(instr_names, instr.factory)
+
+    def load_build_description(self):
+        """
+        Load the build description for this builder.
+
+        This involves making sure we've checked out the build description and
+        then loading it.
+
+        Returns True on success, False on failure.
+
+        We store the build description repository as self.build_desc_repo,
+        since users may want to use it to determine other, relative,
+        repositories.
+        """
+
+        # The build description is a bit odd, but we still set it up as a
+        # normal checkout (albeit we check it out ourselves)
+
+        co_path = self.build_co_and_path()
+        if (co_path is None):
+            return False
+
+        # That gives us the checkout name (assumed the first element of the
+        # path we were given in the .muddled/Description file), and where we
+        # keep our build description therein (which we aren't interested in)
+        (build_co_name, build_desc_path) = co_path
+
+        # And we're going to want its Repository later on, to use as the basis
+        # for other (relative) checkouts
+        build_repo = self.db.repo.get()
+        vcs, base_url = split_vcs_url(build_repo)
+
+        if not vcs:
+            raise GiveUp('Build description URL must be of the form <vcs>+<url>, not'
+                         '\n  "%s"'%build_repo)
+
+        # For the moment (and always as default) we just use the simplest
+        # possible interpretation of that as a repository - i.e., build
+        # descriptions have to be simple top-level repositories at the
+        # base_url location, named by their checkout name.
+        repo = Repository(vcs, base_url, build_co_name)
+        # Remember this specifically as the "default" repository
+        self.build_desc_repo = repo
+
+        co_label = Label(LabelType.Checkout, build_co_name, None,
+                         LabelTag.CheckedOut, domain=self.default_domain)
+
+        # Remember a modified version of the same label
+        # (modified as it is used in the self.db dictionaries)
+        self.build_desc_label = normalise_checkout_label(co_label)
+
+        # And add it to our database
+        self.db.set_domain_build_desc_label(self.build_desc_label)
+
+        # But, of course, this checkout is also a perfectly normal build ..
+        checkout_from_repo(self, co_label, repo)
+
+        # Although we want to load it once we've checked it out...
+        checked_out = Label(LabelType.Checkout, build_co_name, None,
+                            LabelTag.CheckedOut, domain=self.default_domain,
+                            system=True)
+
+        loaded = checked_out.copy_with_tag(LabelTag.Loaded, system=True, transient=True)
+        loader = BuildDescriptionAction(self.db.build_desc_file_name(),
+                                        build_co_name)
+        self.ruleset.add(depend.depend_one(loader, loaded, checked_out))
+
+        # .. and load the build description.
+        try:
+            self.build_label(loaded, silent=True)
+        except ErrorInBuildDescription as e:
+            # Ah, an error in a subdomain build description
+            raise ErrorInBuildDescription('Error in build description for %s\n'
+                                          '%s'%(self.db.root_path, e))
+        except GiveUp as e:
+            # We don't normally want tracebacks for GiveUp exceptions, so
+            # just pass it on up...
+            raise
+        except Exception:
+            raise ErrorInBuildDescription('Error in build description for %s\n'
+                                          '%s'%(self.db.root_path,
+                                                traceback.format_exc()))
+            #raise ErrorInBuildDescription('Error in build description\n'
+            #                              '%s'%traceback.format_exc())
+
+        return True
+
+    def unify_labels(self, source, target):
+        """
+        Unify the 'source' label with/into the 'target' label.
+
+        Given a dependency tree containing rules to build both 'source' and
+        'target', this edits the tree such that the any occurrences of 'source'
+        are replaced by 'target', and dependencies are merged as appropriate.
+
+        Free variables (i.e. wildcards in the labels) are untouched - if you
+        need to understand that, see depend.py for quite how this works.
+
+        Why is it called "unify" rather than "replace"? Mainly because it
+        does more than replacement, as it has to merge the rules/dependencies
+        together. In retrospect, though, some variation on "merge" might have
+        been easier to remember (if also still inaccurate).
+        """
+        if not self.target_label_exists(source):
+            raise GiveUp('Cannot unify source label %s which does not exist'%source)
+        if not self.target_label_exists(target):
+            raise GiveUp('Cannot unify target label %s which does not exist'%target)
+
+        self.ruleset.unify(source, target)
+        self.unify_environments(source,target)
+        self.note_unification(source, target)
+
+
+    def get_dependent_package_dirs(self, label):
+        """
+        Find all the dependent packages for label and return a set of
+        the object directories for each. Mainly used as a helper function
+        by ``set_default_variables()``.
+        """
+        return_set = set()
+        rules = depend.needed_to_build(self.ruleset, label)
+        for r in rules:
+            # Exclude wildcards ..
+            if (r.target.type == LabelType.Package and
+                r.target.name is not None and r.target.name != "*" and
+                ((r.target.role is None) or r.target.role != "*") and
+                (self.role_combination_acceptable_for_lib(label.role, r.target.role,
+                                                                     label.domain, r.target.domain))):
+
+                # And don't depend on yourself.
+                if (not (r.target.name == label.name and r.target.role == label.role)):
+                    obj_dir = self.package_obj_path(r.target)
+                    return_set.add(obj_dir)
+
+        return return_set
+
+
+    def set_default_variables(self, label, store):
+        """
+        Muddle defines a variety of environment variables which are available
+        whilst a label is being built. The particular variables provided depend
+        on the type of label being built, or the type of build.
+
+        Package labels are associated with muddle Makefiles, so any environment
+        variable specific to a package label will be available within a muddle
+        Makefile (i.e., commands such as "muddle build" work on package labels).
+
+        All labels
+        ----------
+        ``MUDDLE``
+            The muddle executable itself. This can be used in muddle Makefiles,
+            for instance::
+
+                fred_objdir = $(shell $(MUDDLE) query objdir package:fred{base})
+
+        ``MUDDLE_ROOT``
+            The absolute path to the root of the build tree (where the
+            '.muddle' and 'src' directories are).
+
+        ``MUDDLE_LABEL``
+            The label currently being built.
+
+        ``MUDDLE_KIND``, ``MUDDLE_NAME``, ``MUDDLE_ROLE``, ``MUDDLE_TAG``, ``MUDDLE_DOMAIN``
+            Broken-down bits of the label being built. Values will not exist if
+            the label does not contain them (so if 'label' is a checkout label,
+            ``MUDDLE_ROLE`` will not be set).
+
+        ``MUDDLE_OBJ``
+            Where we should build object files for this label - the ``obj``
+            directory for packages, the ``src`` directory for checkouts, and the
+            ``deploy`` directory for deployments. See "muddle query objdir".
+
+        Package labels
+        --------------
+        For package labels, we also set:
+
+        ``MUDDLE_OBJ_OBJ``,  ``MUDDLE_OBJ_INCLUDE``,  ``MUDDLE_OBJ_LIB``, ``MUDDLE_OBJ_BIN``
+            ``$(MUDDLE_OBJ)/obj``, ``$(MUDDLE_OBJ)/include``,
+            ``$(MUDDLE_OBJ)/lib``, ``$(MUDDLE_OBJ)/bin``, respectively. Note
+            that we do not *create* these directories - it is up to the muddle
+            Makefile to do so.
+
+        ``MUDDLE_INSTALL``
+            Where we should install package files to.
+
+        ``MUDDLE_INSTRUCT``
+            A shortcut to the 'muddle instruct' command for this package.
+            Essentially "$(MUDDLE) instruct $(MUDDLE_LABEL)"
+
+        ``MUDDLE_UNINSTRUCT``
+            A shortcut to the 'muddle uninstruct' command for this package.
+            Essentially "$(MUDDLE) uninstruct $(MUDDLE_LABEL)"
+
+        ``MUDDLE_PKGCONFIG_DIRS``
+            A path suitable for passing to pkg-config to tell it to look only
+            at packages this label is declared to be dependent on. It will be
+            empty if the label doesn't have any dependencies.
+
+        ``MUDDLE_PKGCONFIG_DIRS_AS_PATH``
+            The same as ``MUDDLE_PKGCONFIG_DIRS``, for historical reasons.
+
+        ``MUDDLE_INCLUDE_DIRS``
+            A space separated list of include directories, constructed from
+            the packages that this label depends on. Names will have been
+            intelligently escaped for the shell. Only directories that actually
+            exist will be included.
+
+            Typically used in a muddle Makefile as::
+
+                CFLAGS += $(MUDDLE_INCLUDE_DIRS:%=-I%)
+
+        ``MUDDLE_LIB_DIRS``
+            A space separated list of library directories, constructed from
+            the packages that this label depends on. Names will have been
+            intelligently escaped for the shell. Only directories that actually
+            exist will be included.
+
+            Typically used in a muddle Makefile as::
+
+                LDFLAGS += $(MUDDLE_LIB_DIRS:%=-L%)
+
+        ``MUDDLE_LD_LIBRARY_PATH``
+            The same values as in ``MUDDLE_LIB_DIRS``, but with items separated
+            by colons. This is useful for passing (as LD_LIBRARY_PATH) to
+            configure scripts that try to look for libraries when linking test
+            programs.
+
+        ``MUDDLE_KERNEL_DIR``
+            If any of the packages that this label depends on has a directory
+            called ``kerneldir`` in its ``obj`` dir (so, in its own terms,
+            $(MUDDLE_OBJ)/kerneldir), then we set this value to that directory.
+            Otherwise it is not set. If there is more than one candidate, then
+            the last found is used (but the order of search is not defined, so
+            this would be confusing).
+
+            If the build tree is building a Linux kernel, it can be useful to
+            build the kernel into a directory of this name.
+
+        ``MUDDLE_KERNEL_SOURCE_DIR``
+            Like ``MUDDLE_KERNEL_DIR``, but it looks for a directory called
+            ``kernelsource``. The same comments apply.
+
+        Deployment labels
+        -----------------
+        For deployment labels we also set:
+
+        ``MUDDLE_DEPLOY_FROM``
+            Where we should deploy from (probably just ``MUDDLE_INSTALL`` with
+            the last component removed)
+
+        ``MUDDLE_DEPLOY_TO``
+            Where we should deploy to, if we're a deployment.
+
+        Release build values
+        --------------------
+        When building in a release tree (typically by use of "muddle release")
+        extra environment variables are set to allow the build to know useful
+        information about the release. In a non-release build, these will all
+        be set to "(unset)".
+
+        ``MUDDLE_RELEASE_NAME``
+            The release name.
+
+        ``MUDDLE_RELEASE_VERSION``
+            The release version.
+
+        ``MUDDLE_RELEASE_HASH``
+            The hash of the release stamp file. This acts as a useful unique
+            identifier for a particular release, as it is calculated from the
+            stamp file information describing all the release checkouts.
+
+            Two releases with the same name and version, but with different
+            checkout information, will have different release hashes.
+        """
+        store.set("MUDDLE_ROOT", self.db.root_path)
+        store.set("MUDDLE_LABEL", label.__str__())
+        store.set("MUDDLE_KIND", label.type)
+        store.set("MUDDLE_NAME", label.name)
+        store.set("MUDDLE", self.muddle_binary)
+        if (label.role is None):
+            store.erase("MUDDLE_ROLE")
+        else:
+            store.set("MUDDLE_ROLE",label.role)
+        if (label.domain is None):
+            store.erase("MUDDLE_DOMAIN")
+        else:
+            store.set("MUDDLE_DOMAIN",label.domain)
+
+        store.set("MUDDLE_TAG", label.tag)
+        if (label.type == LabelType.Checkout):
+            store.set("MUDDLE_OBJ", self.checkout_path(label))
+        elif (label.type == LabelType.Package):
+            obj_dir = self.package_obj_path(label)
+            store.set("MUDDLE_OBJ", obj_dir)
+            store.set("MUDDLE_OBJ_LIB", os.path.join(obj_dir, "lib"))
+            store.set("MUDDLE_OBJ_INCLUDE", os.path.join(obj_dir, "include"))
+            store.set("MUDDLE_OBJ_OBJ", os.path.join(obj_dir, "obj"))
+            store.set("MUDDLE_OBJ_BIN", os.path.join(obj_dir, "bin"))
+
+            # include and library dirs are slightly interesting ..
+            dep_dirs = self.get_dependent_package_dirs(label)
+            inc_dirs = [ ]
+            lib_dirs = [ ]
+            pkg_dirs = [ ]
+            set_kernel_dir = None
+            set_ksource_dir = None
+            for d in dep_dirs:
+                inc_dir = os.path.join(d, "include")
+                if (os.path.exists(inc_dir) and os.path.isdir(inc_dir)):
+                    inc_dirs.append(inc_dir)
+
+                lib_dir = os.path.join(d, "lib")
+                if (os.path.exists(lib_dir) and os.path.isdir(lib_dir)):
+                    lib_dirs.append(lib_dir)
+
+                pkg_dir = os.path.join(d, "lib/pkgconfig")
+                if (os.path.exists(pkg_dir) and os.path.isdir(pkg_dir)):
+                    pkg_dirs.append(pkg_dir)
+
+                # Yes, I know, but some debian packages do ..
+                pkg_dir = os.path.join(d, "share/pkgconfig")
+                if (os.path.exists(pkg_dir) and os.path.isdir(pkg_dir)):
+                    pkg_dirs.append(pkg_dir)
+
+                kernel_dir = os.path.join(d, "kerneldir")
+                if (os.path.exists(kernel_dir) and os.path.isdir(kernel_dir)):
+                    set_kernel_dir = kernel_dir
+
+                ksource_dir = os.path.join(d, "kernelsource")
+                if (os.path.exists(ksource_dir) and os.path.isdir(ksource_dir)):
+                    set_ksource_dir = ksource_dir
+
+            store.set("MUDDLE_INCLUDE_DIRS",
+                      " ".join(map(lambda x:utils.maybe_shell_quote(x, True),
+                                   inc_dirs)))
+            store.set("MUDDLE_LIB_DIRS",
+                      " ".join(map(lambda x:utils.maybe_shell_quote(x, True),
+                                   lib_dirs)))
+            store.set("MUDDLE_LD_LIBRARY_PATH",
+                      ":".join(lib_dirs))
+            # pkg-config takes ':' separated paths and wraps single quotes around
+            # each element thereof. Therefore we must not quote the individual path
+            # elements (or the quoted string will be wrapped in single quotes, and
+            # all will go wrong when pkg-config tries to open something like
+            # '"/somewhere/lib"'). Of course, this will cause difficulty if any of
+            # the directories contain a colon in their name...
+            store.set("MUDDLE_PKGCONFIG_DIRS",
+                      ":".join(pkg_dirs))
+            store.set("MUDDLE_PKGCONFIG_DIRS_AS_PATH",
+                      ":".join(pkg_dirs))
+
+            #print "> pkg_dirs = %s"%(" ".join(pkg_dirs))
+
+            if set_kernel_dir is not None:
+                store.set("MUDDLE_KERNEL_DIR",
+                          set_kernel_dir)
+
+            if set_ksource_dir is not None:
+                store.set("MUDDLE_KERNEL_SOURCE_DIR",
+                          set_ksource_dir)
+
+            store.set("MUDDLE_INSTALL", self.package_install_path(label))
+            # It turns out that muddle instruct and muddle uninstruct are the same thing..
+            store.set("MUDDLE_INSTRUCT", "%s instruct %s{%s} "%(
+                    self.muddle_binary, label.name,
+                    label.role))
+
+            store.set("MUDDLE_UNINSTRUCT", "%s instruct %s{%s} "%(
+                    self.muddle_binary, label.name,
+                    label.role))
+
+        elif (label.type == LabelType.Deployment):
+            store.set("MUDDLE_DEPLOY_FROM", self.role_install_path(label.role))
+            store.set("MUDDLE_DEPLOY_TO", self.deploy_path(label))
+
+        if self.release_spec.name is None:
+            store.set("MUDDLE_RELEASE_NAME", "(unset)")
+        else:
+            store.set("MUDDLE_RELEASE_NAME", self.release_spec.name)
+
+        if self.release_spec.version is None:
+            store.set("MUDDLE_RELEASE_VERSION", "(unset)")
+        else:
+            store.set("MUDDLE_RELEASE_VERSION", self.release_spec.version)
+
+        if self.release_spec.hash is None:
+            store.set("MUDDLE_RELEASE_HASH", "(unset)")
+        else:
+            store.set("MUDDLE_RELEASE_HASH", self.release_spec.hash)
+
+
+    def kill_label(self, label, useTags = True, useMatch = True):
+        """
+        Kill everything that matches the given label and all its consequents.
+        """
+
+        # First, find all the labels that match this one.
+        all_rules = self.ruleset.rules_for_target(label, useTags = useTags,
+                                                             useMatch = True)
+
+        for r in all_rules:
+            # Find all our depends.
+            all_required = depend.required_by(self.ruleset, r.target,
+                                              useMatch = False)
+            all_required = list(all_required)
+            all_required.sort()
+
+            print "Clearing tags for %s"%(str(r.target))
+            for l in all_required:
+                print '  %s'%l
+
+            # Kill r.targt
+            self.db.clear_tag(r.target)
+
+            for r in all_required:
+                self.db.clear_tag(r)
+
+
+    def _build_label_env(self, label, env_store):
+        """
+        Amend the environment, ready for building a label.
+
+        'r' is the rule for how to build the label.
+
+        'env_store' is the environment store holding (most of) the environment
+        we want to use.
+
+        It is the caller's responsibility to put the environment BACK when
+        finished with it...
+        """
+        local_store = env_store.Store()
+
+        # Add the default environment variables for building this label
+        self.set_default_variables(label, local_store)
+        local_store.apply(os.environ)
+
+        # Add anything the rest of the system has put in.
+        self.setup_environment(label, os.environ)
+
+    def build_label(self, label, silent=False):
+        """
+        The fundamental operation of a builder - build this label.
+        """
+
+        # In actual use, this was never called as anything other than
+        # 'build_label(label)', so I've made it do *just* that, for
+        # simplicity of understanding...
+        #
+        # build_label_with_options() is retained as the original code
+        rule_list = depend.needed_to_build(self.ruleset, label,
+                                           useTags=True, useMatch=True)
+
+        if not rule_list:
+            print "There is no rule to build label %s"%label
+            return
+
+        for r in rule_list:
+            if self.db.is_tag(r.target):
+                # Don't build stuff that's already built ..
+                pass
+            else:
+                if not silent:
+                    print "> Building %s"%(r.target)
+
+                # Set up the environment for building this label
+                old_env = os.environ.copy()
+                try:
+                    self._build_label_env(r.target, env_store)
+
+                    if r.action is not None:
+                        r.action.build_label(self, r.target)
+                finally:
+                    os.environ = old_env
+
+                self.db.set_tag(r.target)
+
+    def build_label_with_options(self, label, useDepends = True, useTags = True, silent = False):
+        """
+        The fundamental operation of a builder - build this label.
+
+        * useDepends - Use dependencies?
+        """
+
+        if useDepends:
+            rule_list = depend.needed_to_build(self.ruleset, label, useTags = useTags,
+                                               useMatch = True)
+        else:
+            rule_list = self.ruleset.rules_for_target(label, useTags = useTags,
+                                                                 useMatch = True)
+
+        if not rule_list:
+            print "There is no rule to build label %s"%label
+            return
+
+        for r in rule_list:
+            # Build it.
+            if (not self.db.is_tag(r.target)):
+                # Don't build stuff that's already built ..
+                if (not silent):
+                    print "> Building %s"%(r.target)
+
+                # Set up the environment for building this label
+                old_env = os.environ.copy()
+                try:
+                    self._build_label_env(r.target, env_store)
+
+                    if (r.action is not None):
+                        r.action.build_label(self, r.target)
+                finally:
+                    os.environ = old_env
+
+                self.db.set_tag(r.target)
+
+    @property
+    def build_name(self):
+        """
+        The build name is meant to be a short description of the purpose of a
+        build. It might thus be something like "ProjectBlue_intel_STB" or
+        "XWing-minimal".
+
+        The name may only contain alphanumerics, underlines and hyphens - this
+        is to facilitate its use in version stamp filenames. Also, it is a
+        superset of the allowed characters in a Python module name, which means
+        that the build description filename (excluding its ".py") will be a
+        legal build name (so we can use that as a default).
+        """
+        return self._build_name
+
+    @build_name.setter
+    def build_name(self, name):
+        check_build_name(name)
+        self._build_name = name
+
+    def is_release_build(self):
+        """
+        Are we a release build (i.e., a build tree created by "muddle release")?
+
+        We look to see if there is a file called .muddle/Release
+        """
+        return utils.is_release_build(self.db.root_path)
+
+    def add_to_release_build(self, thing):
+        """Add a thing to the set of entities to build for a release build.
+
+        'thing' must be:
+
+        * a Label
+        * one of the "special" names, "_all", "_default_deployments",
+          "_default_roles".
+        * a sequence of either/both
+
+        It may not be "_release" (!) or "_just_pulled".
+
+        Special names are expanded after all build descriptions have been
+        read.
+
+        The special name "_release" corresponds to this set.
+        """
+        # Surely we have a list of these somewhere else?
+        allowed_names = ('_all', '_default_deployments', '_default_roles')
+
+        if isinstance(thing, Label):
+            self.what_to_release.add(thing)
+        elif isinstance(thing, basestring):
+            if thing in allowed_names:
+                self.what_to_release.add(thing)
+            else:
+                raise GiveUp('%s is not allowed in the "things to release" list\n'
+                             'It is not a label or one of the allowed "special" names (%s)'%(
+                                 thing, ', '.join(allowed_names)))
+        else:
+            # Let's guess it's a sequence, and fall over appropriately if not
+            for item in thing:
+                self.add_to_release_build(item)
+
+    def get_all_checkout_labels_below(self, dir):
+        """
+        Get the labels of all the checkouts in or below directory 'dir'
+
+        NOTE that this will not work if you are in a subdirectory of a
+        checkout. It's not meant to. Consider using find_location_in_tree()
+        to determine that, before calling this method.
+        """
+        rv = [ ]
+        all_cos = self.all_checkout_labels(LabelTag.CheckedOut)
+
+        for co in all_cos:
+            co_dir = self.checkout_path(co)
+            # Is it below dir? If it isn't, os.path.relpath() will
+            # start with .. ..
+            rp = os.path.relpath(co_dir, dir)
+            if (rp[0:2] != ".."):
+                # It's relative
+                rv.append(co)
+
+        return rv
+
+    def find_local_package_labels(self, dir, tag):
+        """
+        This is slightly horrible because if you're in a source checkout
+        (as you normally will be), there could be several packages.
+
+        Returns a list of the package labels involved. Uses the given tag
+        for the labels.
+        """
+
+        # We want to know if we're in a domain. The simplest way to that is:
+        root_dir, current_domain = utils.find_root_and_domain(dir)
+
+        # We then try to figure out where we are in the build tree
+        # - this must be duplicating some of what we just did above,
+        # but that can be optimised another day...
+        tloc = self.find_location_in_tree(dir)
+        if tloc is None:
+            return []
+
+        what, label, domain = tloc
+
+        if what == utils.DirType.Checkout:
+            packages = set()
+            if label:
+                co_labels = [label]
+            else:
+                co_labels = self.get_all_checkout_labels_below(dir)
+
+            for co in co_labels:
+                for p in self.packages_using_checkout(co):
+                    packages.add(p.copy_with_tag(tag))
+            return list(packages)
+        elif what == utils.DirType.Object:
+            if label is None:
+                label = Label(LabelType.Package, '*', '*', tag=tag,
+                              domain=domain)
+            return [label]
+        elif what == utils.DirType.Install:
+            if label is None:
+                label = Label(LabelType.Package, '*', '*', tag=tag,
+                              domain=domain)
+            return [label]
+        else:
+            return []
+
+    def find_location_in_tree(self, dir):
+        """
+        Find the directory type and name of subdirectory in a repository.
+        This is used by the find_local_package_labels method to work out
+        which packages to rebuild
+
+        * dir - The directory to analyse
+
+        If nothing sensible can be determined, we return None.
+        Otherwise we return a tuple of the form:
+
+          (DirType, label, domain_name)
+
+        where:
+
+        * 'DirType' is a utils.DirType value,
+        * 'label' is None or a label describing our location,
+        * 'domain_name' None or the subdomain we are in and
+
+        If 'label' and 'domain_name' are both given, they will name the same
+        domain.
+        """
+
+        root_dir = self.db.root_path
+
+        # Are these necessary? normcase doesn't do anything on Posix,
+        # and anyway we should surely have done such earlier on if needed?
+        dir = os.path.normcase(os.path.normpath(dir))
+        root_dir = os.path.normcase(os.path.normpath(root_dir))
+
+        if not dir.startswith(root_dir):
+            raise GiveUp("Directory '%s' is not within muddle build tree '%s'"%(
+                dir, root_dir))
+
+        if dir == root_dir:
+            return (utils.DirType.Root, None, None)
+
+        # Are we in a subdomain?
+        domain_name, domain_dir = utils.find_domain(root_dir, dir)
+
+        if dir == domain_dir:
+            return (utils.DirType.DomainRoot, None, domain_name)
+
+        # If we're in a subdomain, then we're working with respect to that,
+        # otherwise we're working with respect to the build root
+        if domain_name:
+            our_root = domain_dir
+        else:
+            our_root = root_dir
+
+        # Dir is (hopefully) a bit like
+        # root / X , so we walk up it  ...
+        rest = []
+        while dir != our_root:
+            base, cur = os.path.split(dir)
+            rest.insert(0, cur)
+            dir = base
+
+        result = None
+
+        if rest[0] == "src":
+            checkout_locations = self.db.checkout_locations
+            if len(rest) > 1:
+                lookfor = os.path.join(utils.domain_subpath(domain_name),
+                                       'src', *rest[1:])
+                for label, locn in checkout_locations.items():
+                    if lookfor.startswith(locn) and domain_name == label.domain:
+                        # but just in case we have (for instance) checkouts
+                        # 'fred' and 'freddy'...
+                        relpath = os.path.relpath(lookfor, locn)
+                        if relpath.startswith('..'):
+                            # It's not actually the same
+                            continue
+                        else:
+                            result = (utils.DirType.Checkout, label, domain_name)
+                            break
+            if result is None:
+                # Part way down a from src/ towards a checkout
+                result = (utils.DirType.Checkout, None, domain_name)
+
+        elif rest[0] == "obj":
+            # We know it goes obj/<package>/<role>
+            if len(rest) > 2:
+                label = Label(LabelType.Package, name=rest[1],
+                              role=rest[2], domain=domain_name)
+            elif len(rest) == 2:
+                label = Label(LabelType.Package, name=rest[1],
+                              role='*', domain=domain_name)
+            else:
+                label = None
+            result = (utils.DirType.Object, label, domain_name)
+
+        elif rest[0] == "install":
+            # We know it goes install/<role>
+            if len(rest) > 1:
+                label = Label(LabelType.Package, name='*',
+                              role=rest[1], domain=domain_name)
+            else:
+                label = None
+            result = (utils.DirType.Install, label, domain_name)
+
+        elif rest[0] == "deploy":
+            # We know it goes deploy/<deployment>
+            if len(rest) > 1:
+                label = Label(LabelType.Deployment, name=rest[1],
+                              domain=domain_name)
+            else:
+                label = None
+            result = (utils.DirType.Deployed, label, domain_name)
+
+        elif rest[0] == "domains":
+            # We're inside the current domain - this is actually a root
+            result = (utils.DirType.DomainRoot, None, domain_name)
+
+        elif rest[0] == '.muddle':
+            result = (utils.DirType.MuddleDir, None, domain_name)
+
+        elif rest[0] == 'versions':
+            result = (utils.DirType.Versions, None, domain_name)
+
+        else:
+            result = (utils.DirType.Unexpected, None, domain_name)
+
+        return result
+
+    @property
+    def follow_build_desc_branch(self):
+        return self._follow_build_desc_branch
+
+    @follow_build_desc_branch.setter
+    def follow_build_desc_branch(self, follows):
+        # We *expect* our domain to be None, as this value is normally set
+        # within a build description, and all build descriptions (whilst
+        # they are being executed) are the top level build description
+        domain = self.build_desc_label.domain
+
+        if follows:
+            follows = True
+        else:
+            follows = False
+
+        self._follow_build_desc_branch = follows
+        self.invocation.db.set_domain_follows_build_desc_branch(domain, follows)
+
+    def _follows_build_desc_branch(self, value=None):
+        raise ValueError('There is no Builder value called "follows_build_desc_branch,'
+                         ' it is called "follow_build_desc_branch"')
+    follows_build_desc_branch = property(_follows_build_desc_branch,
+                                         _follows_build_desc_branch, None)
+
+    # XXX ---------------------------------------------------------------------
+    # XXX Stuff that used to be inside Invocation
 
     def note_unification(self, source, target):
         self.unifications.append( (source, target) )
@@ -112,14 +1087,14 @@ class Invocation(object):
 
     def include_domain(self, domain_builder, domain_name):
         """
-        Import the builder domain_builder into the current invocation, giving it
+        Import the builder domain_builder into the current builder, giving it
         domain_name.
 
         We first import the db, then we rename None to domain_name in
         banned_roles
         """
         self.db.include_domain(domain_builder, domain_name)
-        for r in domain_builder.invocation.banned_roles:
+        for r in domain_builder.banned_roles:
             (a,d1,b,d2) = r
             if (d1 == None):
                 d1 = domain_name
@@ -136,6 +1111,10 @@ class Invocation(object):
 
     def roles_do_not_share_libraries(self,r1, r2, domain1 = None, domain2 = None):
         """
+        Assert that roles a and b do not share libraries
+
+        Either a or b may be * to mean wildcard
+
         Add (r1,r2) to the list of role pairs that do not share their libraries.
         """
         self.banned_roles.append((r1,domain1, r2,domain2))
@@ -309,16 +1288,25 @@ class Invocation(object):
             rv.add(cur.target.name)
         return rv
 
-    def all_deployment_labels(self):
+    def all_deployment_labels(self, required_tag):
+        """Return a set of all the deployment labels in our ruleset.
+
+        If 'required_tag' is given, then the labels returned will all have
+        that tag (this, of course, may result in a smaller set of labels).
         """
-        Return a set of all the deployment labels in our rule set.
-        """
-        lbl = Label(LabelType.Deployment, "*", None, "*", domain="*")
-        all_labels = self.ruleset.rules_for_target(lbl)
-        rv = set()
-        for cur in all_labels:
-            rv.add(cur.target)
-        return rv
+        # Important not to set tag here - if there's a deployment
+        # which doesn't have the right tag, we want an error,
+        # not to silently ignore it.
+        match_lbl = Label(LabelType.Deployment, "*", None, domain="*")
+        matching = self.ruleset.rules_for_target(match_lbl)
+        return_set = set()
+        for m in matching:
+            label = m.target
+            if required_tag is None or label.tag == required_tag:
+                return_set.add(label)
+            else:
+                return_set.add(label.copy_with_tag(required_tag))
+        return return_set
 
     def all_packages_with_roles(self):
         """
@@ -461,6 +1449,17 @@ class Invocation(object):
 
         self.default_roles.append(role)
         return True
+
+    def get_labels_in_default_roles(self):
+        """
+        Return a list of the package labels in the default roles.
+        """
+        results = []
+        for role in self.default_roles:
+            label = Label(LabelType.Package, '*', role, LabelTag.PostInstalled)
+            labels = self.expand_wildcards(label)
+            results.extend(labels)
+        return results
 
     def add_default_deployment_label(self, label):
         """
@@ -691,12 +1690,6 @@ class Invocation(object):
             p = os.path.join(self.db.root_path, "deploy")
         return os.path.join(p, label.name)
 
-    def commit(self):
-        """
-        Commit persistent invocation state to disc.
-        """
-        self.db.commit()
-
     def label_from_fragment(self, fragment, default_type):
         """A variant of Label.from_fragment that understands types and wildcards
 
@@ -752,1037 +1745,232 @@ class Invocation(object):
 
         return self.ruleset.targets_match(label)
 
-class Builder(object):
-    """
-    A builder performs actions on an Invocation.
+    def diagnose_unused_labels(self, labels, arg, required_type=None, required_tag=None):
+        """Concoct a useful report on why none of 'labels' is used.
 
-    Don't construct a Builder directly, always use the 'load_builder()'
-    function, or 'minimal_build_tree()' if that is more appropriate.
+        We rely on 'labels' having been generated by our label_from_fragment()
+        method, which means that all the labels will have the same type
 
-    * self.what_to_release - a set of entities to build for a release
-      build. It may contain labels and also "special" names, such as
-      '_default_deployments' or even '_all'. You may not include '_release'
-      (did you need to ask?). "_just_pulled" is not allowed either.
-    """
-
-    def __init__(self, inv, muddle_binary, domain_params = None,
-                 default_domain = None):
+        We assume quite a lot of knowledge about how that method works.
         """
-        Muddle creates a Builder instance whenever a muddle command is
-        run, and passes it to the build description's "describe_to()"
-        function.
 
-        Arguments:
+        lines = []
+        lines.append('Argument "%s" does not match any target labels'%arg)
 
-        * 'inv' is the Invocation instance to use for this build. Muddle
-          creates this before creating the Builder instance.
+        if not labels:
+            # Not having any candidates generally means that wildcarding
+            # didn't generate anything useful - so just do the first part
+            # of what label_from_fragment() does
+            label = Label.from_fragment(arg, default_type=required_type,
+                                        default_role=None, default_domain=None)
+            labels = [label]
+            # Because we've done this, the later stages *will* need to ignore
+            # wildcards in their reporting
 
-        * 'muddle_binary' is the path of the command that will be run when
-          the user does "$(MUDDLE)" inside a muddle Makefile.
+        lines.append('  It expands to %s'%label_list_to_string(labels))
 
-        * 'domain_params' is the set of domain parameters in effect when
-          this builder is loaded. It's used to communicate values down
-          to sub-domains.
-
-          Note that you MUST NOT set domain_params null unless you are the
-          top-level domain - it MUST come from the enclosing domain's
-          invocation or modifications made by the subdomain's buidler will be
-          lost, and as this is the only way to communicate values to a parent
-          domain, this would be bad. Ugh.
-
-        * 'default_domain' is the default domain value to add to anything
-          in local_pkgs , etc - it's used to make sure that if you're cd'd into
-          a domain subdirectory, we build the right labels.
-
-        Useful internal values that you might want to access:
-
-            * 'inv' is the Invocation instance for this build, from the
-              argument of the same name.
-
-            * 'build_desc_repo' is the Repository object for the checkout
-              corresponding to the current build description (the one in
-              whose "describe_to()" function is being executed).
-
-            * 'build_desc_label' is the checkout label for the same, with
-              its tag set to '*' (so, as if it were "checkout:<name>/*").
-
-            * 'build_name' is actually a property, it may only be set to
-              a string containing alphanumerics, underscores and hyphens.
-
-              However, if the user does not set it in the build description,
-              it defaults to the name of the (main) build description file,
-              as named in "muddle init" and ".muddle/Description". This
-              default is not limited in its content, but of course is
-              typically "01", after the traditional "builds/01.py".
-
-            * 'follow_build_desc_branch' says whether other checkouts should
-              default to the same branch as the build description. This is
-              initially set to False, but can be altered in the build
-              description.
-
-              If this is true, then when muddle does VCS operations on a
-              checkout, and that checkout does not have an explicit branch
-              (or revision) specified in the build description, then the
-              current build description branch will be assumed.
-
-              .. note:: The effectiveness of this depends upon the VCS being
-                 used for each checkout. At the moment, this feature is only
-                 promised for checkouts using git.
-        """
-        self.invocation = inv
-        # The 'muddle_binary' is what will be run when the user does
-        # $(MUDDLE) inside a makefile. Obviously our caller has to
-        # decide this.
-        self.muddle_binary = muddle_binary
-        # The 'muddled_dir' is the directory of our package itself
-        # (which we need to find the resources inside this package,
-        # for instance). This is most easily taken from the location
-        # of *this* module, as we're running it.
-        self.muddled_dir = os.path.split(os.path.abspath(__file__))[0]
-
-        # XXX Check the utility of this
-        self.default_domain = default_domain
-
-        if (domain_params is None):
-            self.domain_params = { }
+        first = labels[0]
+        if first.type == LabelType.Checkout:
+            all_checkouts = self.all_checkouts()
+            names = set()
+            tags = set()
+            roles = set()
+            for l in labels:
+                if l.name != '*':
+                    names.add(l.name)
+                if l.tag != '*':
+                    tags.add(l.tag)
+                if l.role:
+                    roles.add(l.role)
+            names = sorted(names)
+            tags = sorted(tags)
+            roles = sorted(roles)
+            for n in names:
+                if n not in all_checkouts:
+                    lines.append('  Checkout name "%s" is not defined in the build description'%n)
+            if roles:
+                lines.append('  Checkout labels should not have roles: {%s}'%('}, {'.join(roles)))
+            for t in tags:
+                if t not in (LabelTag.CheckedOut, LabelTag.Pulled, LabelTag.Merged,
+                             LabelTag.ChangesCommitted, LabelTag.ChangesPushed):
+                    lines.append('  Checkout tag "/%s" is unexpected'%t)
+        elif first.type == LabelType.Package:
+            default_roles = self.default_roles
+            all_packages = self.all_packages()
+            all_roles = self.all_roles()
+            all_domains = self.all_domains()
+            names = set()
+            roles = set()
+            domains = set()
+            tags = set()
+            for l in labels:
+                if l.name != '*':
+                    names.add(l.name)
+                if l.role != '*':
+                    roles.add(l.role)
+                if l.domain != '*':
+                    if l.domain == None:
+                        domains.add('')
+                    else:
+                        domains.add(l.domain)
+                if l.tag != '*':
+                    tags.add(l.tag)
+            names = sorted(names)
+            roles = sorted(roles)
+            domains = sorted(domains)
+            tags = sorted(tags)
+            found_problem = False
+            for d in domains:
+                if d not in all_domains:
+                    lines.append('  Domain (%s) is not defined in the build description'%d)
+                    found_problem = True
+            for n in names:
+                if n not in all_packages:
+                    lines.append('  Package name "%s" is not defined in the build description'%n)
+                    found_problem = True
+            for r in roles:
+                if r not in all_roles:
+                    lines.append('  Role {%s} is not defined in the build description'%r)
+                    found_problem = True
+                elif r not in default_roles:
+                    lines.append('  Role {%s} is not a default role'%r)
+                    found_problem = True
+            if not found_problem:
+                lines.append('  There is no label matching "%s" in any of the default roles'%arg)
+                actual = []
+                for n in names:
+                    for d in domains:
+                        if d == '':
+                            d = None
+                        for r in self.all_roles():
+                            l = Label(LabelType.Package, n, r, required_tag, domain=d)
+                            if self.target_label_exists(l):
+                                actual.append(l)
+                if len(actual) == 1:
+                    lines.append('  However, label %s is a target'%actual[0])
+                elif len(actual) > 1:
+                    lines.append('  However, labels\n    %s\n  are targets'%label_list_to_string(actual,
+                        join_with='\n    '))
+            for t in tags:
+                if t not in (LabelTag.PreConfig, LabelTag.Configured, LabelTag.Built,
+                             LabelTag.Installed, LabelTag.PostInstalled,
+                             LabelTag.Clean, LabelTag.DistClean):
+                    lines.append('  Package tag "/%s" is unexpected'%t)
+        elif first.type == LabelType.Deployment:
+            all_deployments = self.all_deployments()
+            names = set()
+            tags = set()
+            roles = set()
+            for l in labels:
+                if l.name != '*':
+                    names.add(l.name)
+                if l.tag != '*':
+                    tags.add(l.tag)
+                if l.role:
+                    roles.add(l.role)
+            names = sorted(names)
+            tags = sorted(tags)
+            roles = sorted(roles)
+            for n in names:
+                if n not in all_deployments:
+                    lines.append('  Deployment name "%s" is not defined in the build description'%n)
+            if roles:
+                lines.append('  Deployment labels should not have roles: {%s}'%('}, {'.join(roles)))
+            for t in tags:
+                if t not in (LabelTag.Deployed, LabelTag.InstructionsApplied):
+                    lines.append('  Deployment tag "/%s" is unexpected'%t)
         else:
-            self.domain_params = domain_params
+            lines.append('  Unexpected label type "%s:" in label "%s"'%(first.type, first))
 
-        # Guess a default build name
-        # Whilst the build description filename should be a legal Python
-        # module name (and thus only include alphanumerics and underscores),
-        # and thus also be a legal build name, we shall be cautious and
-        # assign it directly to self._build_name (thus not checking), rather
-        # than assigning to the property self.build_name (which would check).
-        build_desc = inv.db.build_desc.get()
-        build_fname = os.path.split(build_desc)[1]
-        self._build_name = os.path.splitext(build_fname)[0]
+        return '\n'.join(lines)
 
-        # It's useful to know our build description's Repository and label
-        self.build_desc_repo = None
-        self.build_desc_label = None
-
-        # The current distribution name and target directory, as a tuple,
-        # or actually None, since we've not set it yet
-        # directory with each...
-        self.distribution = None
-
-        # By default, we have an "empty" release spec, since we're not
-        # normally a release build
-        self.release_spec = ReleaseSpec()
-
-        # The user has not specified what to build for a release build
-        self.what_to_release = set()
-
-        # Should (other) checkouts default to using the same branch as
-        # the build description? This is ignored if a checkout already
-        # (explicitly) specifies its own branch or revision.
-        self._follow_build_desc_branch = False
-        self.invocation.db.set_domain_follows_build_desc_branch(None, False)
-
-    @property
-    def follow_build_desc_branch(self):
-        return self._follow_build_desc_branch
-
-    @follow_build_desc_branch.setter
-    def follow_build_desc_branch(self, follows):
-        # We *expect* our domain to be None, as this value is normally set
-        # within a build description, and all build descriptions (whilst
-        # they are being executed) are the top level build description
-        domain = self.build_desc_label.domain
-
-        if follows:
-            follows = True
-        else:
-            follows = False
-
-        self._follow_build_desc_branch = follows
-        self.invocation.db.set_domain_follows_build_desc_branch(domain, follows)
-
-    def _follows_build_desc_branch(self, value=None):
-        raise ValueError('There is no Builder value called "follows_build_desc_branch,'
-                         ' it is called "follow_build_desc_branch"')
-    follows_build_desc_branch = property(_follows_build_desc_branch,
-                                         _follows_build_desc_branch, None)
-
-    def get_subdomain_parameters(self, domain):
-        return self.invocation.get_domain_parameters(domain)
-
-    def get_default_domain(self):
-        return self.default_domain
-
-    def get_parameter(self, name):
+    def expand_release(self):
         """
-        Returns the given domain parameter, or None if it
-        wasn't defined.
+        Expand the command line argument "_release"
         """
-        return self.domain_params.get(name)
-
-    def set_parameter(self, name, value):
-        """
-        Set a domain parameter: Danger Will Robinson! This is a
-         very odd thing to do - domain parameters are typically
-         set by their enclosing domains. Setting your own is an
-         odd idea and liable to get you into trouble. It is,
-         however, the only way of communicating values back from
-         a domain to its parent (and you shouldn't really be doing
-         that either!)
-        """
-        self.domain_params[name] = value
-
-    def set_distribution(self, name, target_dir):
-        """Set the current distribution name and target directory.
-        """
-        self.distribution = (name, target_dir)
-
-    def get_distribution(self):
-        """Retrieve the current distribution name and target directory.
-
-        Raises GiveUp if there is no current distribution set.
-        """
-        if self.distribution:
-            return self.distribution
-        else:
-            raise GiveUp('No distribution name or target directory set')
-
-    def roles_do_not_share_libraries(self, a, b):
-        """
-        Assert that roles a and b do not share libraries: either a or b may be
-        * to mean wildcard
-        """
-        self.invocation.roles_do_not_share_libraries(a,b)
-
-    def resource_file_name(self, file_name):
-        return os.path.join(self.muddled_dir, "resources", file_name)
-
-    def resource_body(self, file_name):
-        """
-        Return the body of a resource as a string.
-        """
-        rsrc_file = self.resource_file_name(file_name)
-        f = open(rsrc_file, "r")
-        result = f.read()
-        f.close()
-        return result
-
-    def instruct(self, pkg, role, instruction_file, domain=None):
-        """
-        Register the existence or non-existence of an instruction file.
-        If instruction_file is None, we unregister the instruction file.
-
-        * instruction_file - A db.InstructionFile object to save.
-        """
-        self.invocation.db.set_instructions(
-            Label(LabelType.Package, pkg, role,
-                  LabelTag.Temporary, domain=domain),
-            instruction_file)
-
-    def uninstruct_all(self):
-        self.invocation.db.clear_all_instructions()
-
-    def by_default_deploy(self, deployment):
-        """
-        Set your invocation's default label to be to build the
-        given deployment
-        """
-        label = Label(LabelType.Deployment, deployment, None, LabelTag.Deployed)
-        self.invocation.add_default_deployment_label(label)
-
-    def by_default_deploy_list(self, deployments):
-        """
-        Now we've got a list of default labels, we can just add them ..
-        """
-
-        for d in deployments:
-            dep_label = Label(LabelType.Deployment, d, None, LabelTag.Deployed)
-            self.invocation.add_default_deployment_label(dep_label)
-
-    def add_default_roles(self, roles):
-        """
-        Add the given roles to the list of default roles for this build.
-        """
-        for r in roles:
-            self.invocation.add_default_role(r)
-
-    def load_instructions(self, label):
-        """
-        Load the instructions which apply to the given label (usually a wildcard
-        on a role, from a deployment) and return a list of triples
-        (label, filename, instructionfile).
-        """
-        instr_names = self.invocation.db.scan_instructions(label)
-        return db.load_instructions(instr_names, instr.factory)
-
-    def load_build_description(self):
-        """
-        Load the build description for this builder.
-
-        This involves making sure we've checked out the build description and
-        then loading it.
-
-        Returns True on success, False on failure.
-
-        We store the build description repository as self.build_desc_repo,
-        since users may want to use it to determine other, relative,
-        repositories.
-        """
-
-        # The build description is a bit odd, but we still set it up as a
-        # normal checkout (albeit we check it out ourselves)
-
-        co_path = self.invocation.build_co_and_path()
-        if (co_path is None):
-            return False
-
-        # That gives us the checkout name (assumed the first element of the
-        # path we were given in the .muddled/Description file), and where we
-        # keep our build description therein (which we aren't interested in)
-        (build_co_name, build_desc_path) = co_path
-
-        # And we're going to want its Repository later on, to use as the basis
-        # for other (relative) checkouts
-        build_repo = self.invocation.db.repo.get()
-        vcs, base_url = split_vcs_url(build_repo)
-
-        if not vcs:
-            raise GiveUp('Build description URL must be of the form <vcs>+<url>, not'
-                         '\n  "%s"'%build_repo)
-
-        # For the moment (and always as default) we just use the simplest
-        # possible interpretation of that as a repository - i.e., build
-        # descriptions have to be simple top-level repositories at the
-        # base_url location, named by their checkout name.
-        repo = Repository(vcs, base_url, build_co_name)
-        # Remember this specifically as the "default" repository
-        self.build_desc_repo = repo
-
-        co_label = Label(LabelType.Checkout, build_co_name, None,
-                         LabelTag.CheckedOut, domain=self.default_domain)
-
-        # Remember a modified version of the same label
-        # (modified as it is used in the self.invocation.db dictionaries)
-        self.build_desc_label = normalise_checkout_label(co_label)
-
-        # And add it to our database
-        self.invocation.db.set_domain_build_desc_label(self.build_desc_label)
-
-        # But, of course, this checkout is also a perfectly normal build ..
-        checkout_from_repo(self, co_label, repo)
-
-        # Although we want to load it once we've checked it out...
-        checked_out = Label(LabelType.Checkout, build_co_name, None,
-                            LabelTag.CheckedOut, domain=self.default_domain,
-                            system=True)
-
-        loaded = checked_out.copy_with_tag(LabelTag.Loaded, system=True, transient=True)
-        loader = BuildDescriptionAction(self.invocation.db.build_desc_file_name(),
-                                        build_co_name)
-        self.invocation.ruleset.add(depend.depend_one(loader, loaded, checked_out))
-
-        # .. and load the build description.
-        try:
-            self.build_label(loaded, silent=True)
-        except ErrorInBuildDescription as e:
-            # Ah, an error in a subdomain build description
-            raise ErrorInBuildDescription('Error in build description for %s\n'
-                                          '%s'%(self.invocation.db.root_path, e))
-        except GiveUp as e:
-            # We don't normally want tracebacks for GiveUp exceptions, so
-            # just pass it on up...
-            raise
-        except Exception:
-            raise ErrorInBuildDescription('Error in build description for %s\n'
-                                          '%s'%(self.invocation.db.root_path,
-                                                traceback.format_exc()))
-            #raise ErrorInBuildDescription('Error in build description\n'
-            #                              '%s'%traceback.format_exc())
-
-        return True
-
-    def unify_labels(self, source, target):
-        """
-        Unify the 'source' label with/into the 'target' label.
-
-        Given a dependency tree containing rules to build both 'source' and
-        'target', this edits the tree such that the any occurrences of 'source'
-        are replaced by 'target', and dependencies are merged as appropriate.
-
-        Free variables (i.e. wildcards in the labels) are untouched - if you
-        need to understand that, see depend.py for quite how this works.
-
-        Why is it called "unify" rather than "replace"? Mainly because it
-        does more than replacement, as it has to merge the rules/dependencies
-        together. In retrospect, though, some variation on "merge" might have
-        been easier to remember (if also still inaccurate).
-        """
-        if not self.invocation.target_label_exists(source):
-            raise GiveUp('Cannot unify source label %s which does not exist'%source)
-        if not self.invocation.target_label_exists(target):
-            raise GiveUp('Cannot unify target label %s which does not exist'%target)
-
-        self.invocation.ruleset.unify(source, target)
-        self.invocation.unify_environments(source,target)
-        self.invocation.note_unification(source, target)
-
-
-    def get_dependent_package_dirs(self, label):
-        """
-        Find all the dependent packages for label and return a set of
-        the object directories for each. Mainly used as a helper function
-        by ``set_default_variables()``.
-        """
-        return_set = set()
-        rules = depend.needed_to_build(self.invocation.ruleset, label)
-        for r in rules:
-            # Exclude wildcards ..
-            if (r.target.type == LabelType.Package and
-                r.target.name is not None and r.target.name != "*" and
-                ((r.target.role is None) or r.target.role != "*") and
-                (self.invocation.role_combination_acceptable_for_lib(label.role, r.target.role,
-                                                                     label.domain, r.target.domain))):
-
-                # And don't depend on yourself.
-                if (not (r.target.name == label.name and r.target.role == label.role)):
-                    obj_dir = self.invocation.package_obj_path(r.target)
-                    return_set.add(obj_dir)
-
-        return return_set
-
-
-    def set_default_variables(self, label, store):
-        """
-        Muddle defines a variety of environment variables which are available
-        whilst a label is being built. The particular variables provided depend
-        on the type of label being built, or the type of build.
-
-        Package labels are associated with muddle Makefiles, so any environment
-        variable specific to a package label will be available within a muddle
-        Makefile (i.e., commands such as "muddle build" work on package labels).
-
-        All labels
-        ----------
-        ``MUDDLE``
-            The muddle executable itself. This can be used in muddle Makefiles,
-            for instance::
-
-                fred_objdir = $(shell $(MUDDLE) query objdir package:fred{base})
-
-        ``MUDDLE_ROOT``
-            The absolute path to the root of the build tree (where the
-            '.muddle' and 'src' directories are).
-
-        ``MUDDLE_LABEL``
-            The label currently being built.
-
-        ``MUDDLE_KIND``, ``MUDDLE_NAME``, ``MUDDLE_ROLE``, ``MUDDLE_TAG``, ``MUDDLE_DOMAIN``
-            Broken-down bits of the label being built. Values will not exist if
-            the label does not contain them (so if 'label' is a checkout label,
-            ``MUDDLE_ROLE`` will not be set).
-
-        ``MUDDLE_OBJ``
-            Where we should build object files for this label - the ``obj``
-            directory for packages, the ``src`` directory for checkouts, and the
-            ``deploy`` directory for deployments. See "muddle query objdir".
-
-        Package labels
-        --------------
-        For package labels, we also set:
-
-        ``MUDDLE_OBJ_OBJ``,  ``MUDDLE_OBJ_INCLUDE``,  ``MUDDLE_OBJ_LIB``, ``MUDDLE_OBJ_BIN``
-            ``$(MUDDLE_OBJ)/obj``, ``$(MUDDLE_OBJ)/include``,
-            ``$(MUDDLE_OBJ)/lib``, ``$(MUDDLE_OBJ)/bin``, respectively. Note
-            that we do not *create* these directories - it is up to the muddle
-            Makefile to do so.
-
-        ``MUDDLE_INSTALL``
-            Where we should install package files to.
-
-        ``MUDDLE_INSTRUCT``
-            A shortcut to the 'muddle instruct' command for this package.
-            Essentially "$(MUDDLE) instruct $(MUDDLE_LABEL)"
-
-        ``MUDDLE_UNINSTRUCT``
-            A shortcut to the 'muddle uninstruct' command for this package.
-            Essentially "$(MUDDLE) uninstruct $(MUDDLE_LABEL)"
-
-        ``MUDDLE_PKGCONFIG_DIRS``
-            A path suitable for passing to pkg-config to tell it to look only
-            at packages this label is declared to be dependent on. It will be
-            empty if the label doesn't have any dependencies.
-
-        ``MUDDLE_PKGCONFIG_DIRS_AS_PATH``
-            The same as ``MUDDLE_PKGCONFIG_DIRS``, for historical reasons.
-
-        ``MUDDLE_INCLUDE_DIRS``
-            A space separated list of include directories, constructed from
-            the packages that this label depends on. Names will have been
-            intelligently escaped for the shell. Only directories that actually
-            exist will be included.
-
-            Typically used in a muddle Makefile as::
-
-                CFLAGS += $(MUDDLE_INCLUDE_DIRS:%=-I%)
-
-        ``MUDDLE_LIB_DIRS``
-            A space separated list of library directories, constructed from
-            the packages that this label depends on. Names will have been
-            intelligently escaped for the shell. Only directories that actually
-            exist will be included.
-
-            Typically used in a muddle Makefile as::
-
-                LDFLAGS += $(MUDDLE_LIB_DIRS:%=-L%)
-
-        ``MUDDLE_LD_LIBRARY_PATH``
-            The same values as in ``MUDDLE_LIB_DIRS``, but with items separated
-            by colons. This is useful for passing (as LD_LIBRARY_PATH) to
-            configure scripts that try to look for libraries when linking test
-            programs.
-
-        ``MUDDLE_KERNEL_DIR``
-            If any of the packages that this label depends on has a directory
-            called ``kerneldir`` in its ``obj`` dir (so, in its own terms,
-            $(MUDDLE_OBJ)/kerneldir), then we set this value to that directory.
-            Otherwise it is not set. If there is more than one candidate, then
-            the last found is used (but the order of search is not defined, so
-            this would be confusing).
-
-            If the build tree is building a Linux kernel, it can be useful to
-            build the kernel into a directory of this name.
-
-        ``MUDDLE_KERNEL_SOURCE_DIR``
-            Like ``MUDDLE_KERNEL_DIR``, but it looks for a directory called
-            ``kernelsource``. The same comments apply.
-
-        Deployment labels
-        -----------------
-        For deployment labels we also set:
-
-        ``MUDDLE_DEPLOY_FROM``
-            Where we should deploy from (probably just ``MUDDLE_INSTALL`` with
-            the last component removed)
-
-        ``MUDDLE_DEPLOY_TO``
-            Where we should deploy to, if we're a deployment.
-
-        Release build values
-        --------------------
-        When building in a release tree (typically by use of "muddle release")
-        extra environment variables are set to allow the build to know useful
-        information about the release. In a non-release build, these will all
-        be set to "(unset)".
-
-        ``MUDDLE_RELEASE_NAME``
-            The release name.
-
-        ``MUDDLE_RELEASE_VERSION``
-            The release version.
-
-        ``MUDDLE_RELEASE_HASH``
-            The hash of the release stamp file. This acts as a useful unique
-            identifier for a particular release, as it is calculated from the
-            stamp file information describing all the release checkouts.
-
-            Two releases with the same name and version, but with different
-            checkout information, will have different release hashes.
-        """
-        store.set("MUDDLE_ROOT", self.invocation.db.root_path)
-        store.set("MUDDLE_LABEL", label.__str__())
-        store.set("MUDDLE_KIND", label.type)
-        store.set("MUDDLE_NAME", label.name)
-        store.set("MUDDLE", self.muddle_binary)
-        if (label.role is None):
-            store.erase("MUDDLE_ROLE")
-        else:
-            store.set("MUDDLE_ROLE",label.role)
-        if (label.domain is None):
-            store.erase("MUDDLE_DOMAIN")
-        else:
-            store.set("MUDDLE_DOMAIN",label.domain)
-
-        store.set("MUDDLE_TAG", label.tag)
-        if (label.type == LabelType.Checkout):
-            store.set("MUDDLE_OBJ", self.invocation.checkout_path(label))
-        elif (label.type == LabelType.Package):
-            obj_dir = self.invocation.package_obj_path(label)
-            store.set("MUDDLE_OBJ", obj_dir)
-            store.set("MUDDLE_OBJ_LIB", os.path.join(obj_dir, "lib"))
-            store.set("MUDDLE_OBJ_INCLUDE", os.path.join(obj_dir, "include"))
-            store.set("MUDDLE_OBJ_OBJ", os.path.join(obj_dir, "obj"))
-            store.set("MUDDLE_OBJ_BIN", os.path.join(obj_dir, "bin"))
-
-            # include and library dirs are slightly interesting ..
-            dep_dirs = self.get_dependent_package_dirs(label)
-            inc_dirs = [ ]
-            lib_dirs = [ ]
-            pkg_dirs = [ ]
-            set_kernel_dir = None
-            set_ksource_dir = None
-            for d in dep_dirs:
-                inc_dir = os.path.join(d, "include")
-                if (os.path.exists(inc_dir) and os.path.isdir(inc_dir)):
-                    inc_dirs.append(inc_dir)
-
-                lib_dir = os.path.join(d, "lib")
-                if (os.path.exists(lib_dir) and os.path.isdir(lib_dir)):
-                    lib_dirs.append(lib_dir)
-
-                pkg_dir = os.path.join(d, "lib/pkgconfig")
-                if (os.path.exists(pkg_dir) and os.path.isdir(pkg_dir)):
-                    pkg_dirs.append(pkg_dir)
-
-                # Yes, I know, but some debian packages do ..
-                pkg_dir = os.path.join(d, "share/pkgconfig")
-                if (os.path.exists(pkg_dir) and os.path.isdir(pkg_dir)):
-                    pkg_dirs.append(pkg_dir)
-
-                kernel_dir = os.path.join(d, "kerneldir")
-                if (os.path.exists(kernel_dir) and os.path.isdir(kernel_dir)):
-                    set_kernel_dir = kernel_dir
-
-                ksource_dir = os.path.join(d, "kernelsource")
-                if (os.path.exists(ksource_dir) and os.path.isdir(ksource_dir)):
-                    set_ksource_dir = ksource_dir
-
-            store.set("MUDDLE_INCLUDE_DIRS",
-                      " ".join(map(lambda x:utils.maybe_shell_quote(x, True),
-                                   inc_dirs)))
-            store.set("MUDDLE_LIB_DIRS",
-                      " ".join(map(lambda x:utils.maybe_shell_quote(x, True),
-                                   lib_dirs)))
-            store.set("MUDDLE_LD_LIBRARY_PATH",
-                      ":".join(lib_dirs))
-            # pkg-config takes ':' separated paths and wraps single quotes around
-            # each element thereof. Therefore we must not quote the individual path
-            # elements (or the quoted string will be wrapped in single quotes, and
-            # all will go wrong when pkg-config tries to open something like
-            # '"/somewhere/lib"'). Of course, this will cause difficulty if any of
-            # the directories contain a colon in their name...
-            store.set("MUDDLE_PKGCONFIG_DIRS",
-                      ":".join(pkg_dirs))
-            store.set("MUDDLE_PKGCONFIG_DIRS_AS_PATH",
-                      ":".join(pkg_dirs))
-
-            #print "> pkg_dirs = %s"%(" ".join(pkg_dirs))
-
-            if set_kernel_dir is not None:
-                store.set("MUDDLE_KERNEL_DIR",
-                          set_kernel_dir)
-
-            if set_ksource_dir is not None:
-                store.set("MUDDLE_KERNEL_SOURCE_DIR",
-                          set_ksource_dir)
-
-            store.set("MUDDLE_INSTALL", self.invocation.package_install_path(label))
-            # It turns out that muddle instruct and muddle uninstruct are the same thing..
-            store.set("MUDDLE_INSTRUCT", "%s instruct %s{%s} "%(
-                    self.muddle_binary, label.name,
-                    label.role))
-
-            store.set("MUDDLE_UNINSTRUCT", "%s instruct %s{%s} "%(
-                    self.muddle_binary, label.name,
-                    label.role))
-
-        elif (label.type == LabelType.Deployment):
-            store.set("MUDDLE_DEPLOY_FROM", self.invocation.role_install_path(label.role))
-            store.set("MUDDLE_DEPLOY_TO", self.invocation.deploy_path(label))
-
-        if self.release_spec.name is None:
-            store.set("MUDDLE_RELEASE_NAME", "(unset)")
-        else:
-            store.set("MUDDLE_RELEASE_NAME", self.release_spec.name)
-
-        if self.release_spec.version is None:
-            store.set("MUDDLE_RELEASE_VERSION", "(unset)")
-        else:
-            store.set("MUDDLE_RELEASE_VERSION", self.release_spec.version)
-
-        if self.release_spec.hash is None:
-            store.set("MUDDLE_RELEASE_HASH", "(unset)")
-        else:
-            store.set("MUDDLE_RELEASE_HASH", self.release_spec.hash)
-
-
-    def kill_label(self, label, useTags = True, useMatch = True):
-        """
-        Kill everything that matches the given label and all its consequents.
-        """
-
-        # First, find all the labels that match this one.
-        all_rules = self.invocation.ruleset.rules_for_target(label, useTags = useTags,
-                                                             useMatch = True)
-
-        for r in all_rules:
-            # Find all our depends.
-            all_required = depend.required_by(self.invocation.ruleset, r.target,
-                                              useMatch = False)
-            all_required = list(all_required)
-            all_required.sort()
-
-            print "Clearing tags for %s"%(str(r.target))
-            for l in all_required:
-                print '  %s'%l
-
-            # Kill r.targt
-            self.invocation.db.clear_tag(r.target)
-
-            for r in all_required:
-                self.invocation.db.clear_tag(r)
-
-
-    def _build_label_env(self, label, env_store):
-        """
-        Amend the environment, ready for building a label.
-
-        'r' is the rule for how to build the label.
-
-        'env_store' is the environment store holding (most of) the environment
-        we want to use.
-
-        It is the caller's responsibility to put the environment BACK when
-        finished with it...
-        """
-        local_store = env_store.Store()
-
-        # Add the default environment variables for building this label
-        self.set_default_variables(label, local_store)
-        local_store.apply(os.environ)
-
-        # Add anything the rest of the system has put in.
-        self.invocation.setup_environment(label, os.environ)
-
-    def build_label(self, label, silent=False):
-        """
-        The fundamental operation of a builder - build this label.
-        """
-
-        # In actual use, this was never called as anything other than
-        # 'build_label(label)', so I've made it do *just* that, for
-        # simplicity of understanding...
-        #
-        # build_label_with_options() is retained as the original code
-        rule_list = depend.needed_to_build(self.invocation.ruleset, label,
-                                           useTags=True, useMatch=True)
-
-        if not rule_list:
-            print "There is no rule to build label %s"%label
-            return
-
-        for r in rule_list:
-            if self.invocation.db.is_tag(r.target):
-                # Don't build stuff that's already built ..
-                pass
+        results = []
+        for thing in self.what_to_release:
+            if isinstance(thing, Label):
+                # It may be a wildcarded label, so try expanding it
+                labels = self.expand_wildcards(thing)
+
+                used_labels = []
+                # We're only interested in any labels that are actually used
+                for label in labels:
+                    if self.target_label_exists(label):
+                        used_labels.append(label)
+
+                # But it's an error if none of them were wanted
+                if not used_labels:
+                    raise GiveUp(self.diagnose_unused_labels(labels, str(thing)))
+
+                results.extend(used_labels)
+
+            elif thing == '_all':
+                raise GiveUp('_release may not contain _all (use _all_checkouts,'
+                             ' _all_packages or _all_deployments):\n'
+                             ' %s'%(self.what_to_release))
+            elif thing == '_release':
+                raise GiveUp('_release may not contain _release (how did that get there?):\n'
+                             ' %s'%(self.what_to_release))
+            elif thing == '_just_pulled':
+                raise GiveUp('_release may not contain _just_pulled (it varies too much):\n'
+                             '%s'%(self.what_to_release))
             else:
-                if not silent:
-                    print "> Building %s"%(r.target)
-
-                # Set up the environment for building this label
-                old_env = os.environ.copy()
                 try:
-                    self._build_label_env(r.target, env_store)
+                    results.extend(self.expand_underscore_arg(thing))
+                except GiveUp as e:
+                    raise GiveUp('_release contains "%s" (which we don\'t understand):\n'
+                                 '%s\n%s'%(thing, self.what_to_release, e))
+                except MuddleBug as e:
+                    raise MuddleBug('_release contains "%s" (which we don\'t understand):\n'
+                                    '%s\n%s'%(thing, self.what_to_release, e))
+        return results
 
-                    if r.action is not None:
-                        r.action.build_label(self, r.target)
-                finally:
-                    os.environ = old_env
-
-                self.invocation.db.set_tag(r.target)
-
-    def build_label_with_options(self, label, useDepends = True, useTags = True, silent = False):
+    def expand_underscore_arg(self, word, type_for_all=None):
         """
-        The fundamental operation of a builder - build this label.
+        Given a command line argument ('word') that starts with an underscore,
+        try to expand it to a list of labels.
 
-        * useDepends - Use dependencies?
+        If the argument is _all, then if 'type_for_all' is given, expand it
+        to all labels of that type, and otherwise reject it.
+
+        Raises a GiveUp exception if the argument is not recognised.
         """
-
-        if useDepends:
-            rule_list = depend.needed_to_build(self.invocation.ruleset, label, useTags = useTags,
-                                               useMatch = True)
-        else:
-            rule_list = self.invocation.ruleset.rules_for_target(label, useTags = useTags,
-                                                                 useMatch = True)
-
-        if not rule_list:
-            print "There is no rule to build label %s"%label
-            return
-
-        for r in rule_list:
-            # Build it.
-            if (not self.invocation.db.is_tag(r.target)):
-                # Don't build stuff that's already built ..
-                if (not silent):
-                    print "> Building %s"%(r.target)
-
-                # Set up the environment for building this label
-                old_env = os.environ.copy()
-                try:
-                    self._build_label_env(r.target, env_store)
-
-                    if (r.action is not None):
-                        r.action.build_label(self, r.target)
-                finally:
-                    os.environ = old_env
-
-                self.invocation.db.set_tag(r.target)
-
-    @property
-    def build_name(self):
-        """
-        The build name is meant to be a short description of the purpose of a
-        build. It might thus be something like "ProjectBlue_intel_STB" or
-        "XWing-minimal".
-
-        The name may only contain alphanumerics, underlines and hyphens - this
-        is to facilitate its use in version stamp filenames. Also, it is a
-        superset of the allowed characters in a Python module name, which means
-        that the build description filename (excluding its ".py") will be a
-        legal build name (so we can use that as a default).
-        """
-        return self._build_name
-
-    @build_name.setter
-    def build_name(self, name):
-        check_build_name(name)
-        self._build_name = name
-
-    def is_release_build(self):
-        """
-        Are we a release build (i.e., a build tree created by "muddle release")?
-
-        We look to see if there is a file called .muddle/Release
-        """
-        return utils.is_release_build(self.invocation.db.root_path)
-
-    def add_to_release_build(self, thing):
-        """Add a thing to the set of entities to build for a release build.
-
-        'thing' must be:
-
-        * a Label
-        * one of the "special" names, "_all", "_default_deployments",
-          "_default_roles".
-        * a sequence of either/both
-
-        It may not be "_release" (!) or "_just_pulled".
-
-        Special names are expanded after all build descriptions have been
-        read.
-
-        The special name "_release" corresponds to this set.
-        """
-        # Surely we have a list of these somewhere else?
-        allowed_names = ('_all', '_default_deployments', '_default_roles')
-
-        if isinstance(thing, Label):
-            self.what_to_release.add(thing)
-        elif isinstance(thing, basestring):
-            if thing in allowed_names:
-                self.what_to_release.add(thing)
+        if word == '_all':
+            if type_for_all == LabelType.Checkout:
+                return self.all_checkout_labels(LabelTag.CheckedOut)
+            elif type_for_all == LabelType.Package:
+                return self.all_package_labels()
+            elif type_for_all == LabelType.Deployment:
+                return self.all_deployment_labels(LabelTag.Deployed)
+            elif type_for_all is None:
+                raise GiveUp('_all is not allowed in this context, as it is'
+                             ' not clear whether checkouts, packages or'
+                             ' deployments are wanted')
             else:
-                raise GiveUp('%s is not allowed in the "things to release" list\n'
-                             'It is not a label or one of the allowed "special" names (%s)'%(
-                                 thing, ', '.join(allowed_names)))
-        else:
-            # Let's guess it's a sequence, and fall over appropriately if not
-            for item in thing:
-                self.add_to_release_build(item)
-
-    def get_all_checkout_labels_below(self, dir):
-        """
-        Get the labels of all the checkouts in or below directory 'dir'
-
-        NOTE that this will not work if you are in a subdirectory of a
-        checkout. It's not meant to. Consider using find_location_in_tree()
-        to determine that, before calling this method.
-        """
-        rv = [ ]
-        all_cos = self.invocation.all_checkout_labels(LabelTag.CheckedOut)
-
-        for co in all_cos:
-            co_dir = self.invocation.checkout_path(co)
-            # Is it below dir? If it isn't, os.path.relpath() will
-            # start with .. ..
-            rp = os.path.relpath(co_dir, dir)
-            if (rp[0:2] != ".."):
-                # It's relative
-                rv.append(co)
-
-        return rv
-
-    def find_local_package_labels(self, dir, tag):
-        """
-        This is slightly horrible because if you're in a source checkout
-        (as you normally will be), there could be several packages.
-
-        Returns a list of the package labels involved. Uses the given tag
-        for the labels.
-        """
-
-        inv = self.invocation
-
-        # We want to know if we're in a domain. The simplest way to that is:
-        root_dir, current_domain = utils.find_root_and_domain(dir)
-
-        # We then try to figure out where we are in the build tree
-        # - this must be duplicating some of what we just did above,
-        # but that can be optimised another day...
-        tloc = self.find_location_in_tree(dir)
-        if tloc is None:
-            return []
-
-        what, label, domain = tloc
-
-        if what == utils.DirType.Checkout:
-            packages = set()
-            if label:
-                co_labels = [label]
+                raise MuddleBug('It is not possible to calculate _all for'
+                                ' label type "%s"'%type_for_all)
+        elif word == '_all_checkouts':
+            return self.all_checkout_labels(LabelTag.CheckedOut)
+        elif word == '_all_packages':
+            return self.all_package_labels()
+        elif word == '_all_deployments':
+            return self.all_deployment_labels(LabelTag.Deployed)
+        elif word == '_default_roles':
+            return self.interpret_default_roles(builder)
+        elif word == '_default_deployments':
+            return self.default_deployment_labels
+        elif word == '_just_pulled':
+            return self.db.just_pulled.get()
+        elif word == '_release':
+            if self.what_to_release:
+                return self.expand_release()
             else:
-                co_labels = self.get_all_checkout_labels_below(dir)
-
-            for co in co_labels:
-                for p in inv.packages_using_checkout(co):
-                    packages.add(p.copy_with_tag(tag))
-            return list(packages)
-        elif what == utils.DirType.Object:
-            if label is None:
-                label = Label(LabelType.Package, '*', '*', tag=tag,
-                              domain=domain)
-            return [label]
-        elif what == utils.DirType.Install:
-            if label is None:
-                label = Label(LabelType.Package, '*', '*', tag=tag,
-                              domain=domain)
-            return [label]
+                return []
         else:
-            return []
-
-
-
-    def find_location_in_tree(self, dir):
-        """
-        Find the directory type and name of subdirectory in a repository.
-        This is used by the find_local_package_labels method to work out
-        which packages to rebuild
-
-        * dir - The directory to analyse
-
-        If nothing sensible can be determined, we return None.
-        Otherwise we return a tuple of the form:
-
-          (DirType, label, domain_name)
-
-        where:
-
-        * 'DirType' is a utils.DirType value,
-        * 'label' is None or a label describing our location,
-        * 'domain_name' None or the subdomain we are in and
-
-        If 'label' and 'domain_name' are both given, they will name the same
-        domain.
-        """
-
-        invocation = self.invocation
-        root_dir = invocation.db.root_path
-
-        # Are these necessary? normcase doesn't do anything on Posix,
-        # and anyway we should surely have done such earlier on if needed?
-        dir = os.path.normcase(os.path.normpath(dir))
-        root_dir = os.path.normcase(os.path.normpath(root_dir))
-
-        if not dir.startswith(root_dir):
-            raise GiveUp("Directory '%s' is not within muddle build tree '%s'"%(
-                dir, root_dir))
-
-        if dir == root_dir:
-            return (utils.DirType.Root, None, None)
-
-        # Are we in a subdomain?
-        domain_name, domain_dir = utils.find_domain(root_dir, dir)
-
-        if dir == domain_dir:
-            return (utils.DirType.DomainRoot, None, domain_name)
-
-        # If we're in a subdomain, then we're working with respect to that,
-        # otherwise we're working with respect to the build root
-        if domain_name:
-            our_root = domain_dir
-        else:
-            our_root = root_dir
-
-        # Dir is (hopefully) a bit like
-        # root / X , so we walk up it  ...
-        rest = []
-        while dir != our_root:
-            base, cur = os.path.split(dir)
-            rest.insert(0, cur)
-            dir = base
-
-        result = None
-
-        if rest[0] == "src":
-            checkout_locations = invocation.db.checkout_locations
-            if len(rest) > 1:
-                lookfor = os.path.join(utils.domain_subpath(domain_name),
-                                       'src', *rest[1:])
-                for label, locn in checkout_locations.items():
-                    if lookfor.startswith(locn) and domain_name == label.domain:
-                        # but just in case we have (for instance) checkouts
-                        # 'fred' and 'freddy'...
-                        relpath = os.path.relpath(lookfor, locn)
-                        if relpath.startswith('..'):
-                            # It's not actually the same
-                            continue
-                        else:
-                            result = (utils.DirType.Checkout, label, domain_name)
-                            break
-            if result is None:
-                # Part way down a from src/ towards a checkout
-                result = (utils.DirType.Checkout, None, domain_name)
-
-        elif rest[0] == "obj":
-            # We know it goes obj/<package>/<role>
-            if len(rest) > 2:
-                label = Label(LabelType.Package, name=rest[1],
-                              role=rest[2], domain=domain_name)
-            elif len(rest) == 2:
-                label = Label(LabelType.Package, name=rest[1],
-                              role='*', domain=domain_name)
-            else:
-                label = None
-            result = (utils.DirType.Object, label, domain_name)
-
-        elif rest[0] == "install":
-            # We know it goes install/<role>
-            if len(rest) > 1:
-                label = Label(LabelType.Package, name='*',
-                              role=rest[1], domain=domain_name)
-            else:
-                label = None
-            result = (utils.DirType.Install, label, domain_name)
-
-        elif rest[0] == "deploy":
-            # We know it goes deploy/<deployment>
-            if len(rest) > 1:
-                label = Label(LabelType.Deployment, name=rest[1],
-                              domain=domain_name)
-            else:
-                label = None
-            result = (utils.DirType.Deployed, label, domain_name)
-
-        elif rest[0] == "domains":
-            # We're inside the current domain - this is actually a root
-            result = (utils.DirType.DomainRoot, None, domain_name)
-
-        elif rest[0] == '.muddle':
-            result = (utils.DirType.MuddleDir, None, domain_name)
-
-        elif rest[0] == 'versions':
-            result = (utils.DirType.Versions, None, domain_name)
-
-        else:
-            result = (utils.DirType.Unexpected, None, domain_name)
-
-        return result
+            raise GiveUp('Argument "%s" is not recognised as a "special" name'
+                         ' that expands to give labels'%word)
 
 
 class BuildDescriptionAction(Action):
@@ -1800,14 +1988,14 @@ class BuildDescriptionAction(Action):
 
     def build_label(self, builder, label):
         """
-        Actually load the build description into the invocation.
+        Actually load the build description.
 
         Note that the Python path (sys.path) will have the build description
         checkout directory added to its start, so that the release_from()
         function itself can import things therefrom.
         """
         setup = dynamic_load_build_desc(builder)
-        checkout_dir = builder.invocation.checkout_path(builder.build_desc_label)
+        checkout_dir = builder.checkout_path(builder.build_desc_label)
 
         old_path = sys.path
         sys.path.insert(0, checkout_dir)
@@ -1815,7 +2003,7 @@ class BuildDescriptionAction(Action):
             setup.describe_to(builder)
         except Exception as a:
             traceback.print_exc()
-            filename = builder.invocation.db.build_desc_file_name()
+            filename = builder.db.build_desc_file_name()
             raise GiveUp('Cannot run "describe_to(builder)"\n'
                          '  In build description %s\n'
                          '  %s: %s'%(filename, a.__class__.__name__, a))
@@ -1839,7 +2027,7 @@ def run_release_from(builder, release_dir):
     function itself can import things therefrom.
     """
     setup = dynamic_load_build_desc(builder)
-    checkout_dir = builder.invocation.checkout_path(builder.build_desc_label)
+    checkout_dir = builder.checkout_path(builder.build_desc_label)
 
     old_path = sys.path
     sys.path.insert(0, checkout_dir)
@@ -1847,7 +2035,7 @@ def run_release_from(builder, release_dir):
         setup.release_from(builder, release_dir)
     except Exception as a:
         traceback.print_exc()
-        filename = builder.invocation.db.build_desc_file_name()
+        filename = builder.db.build_desc_file_name()
         raise GiveUp('Cannot run "release_from(builder, release_dir)"\n'
                      '  In build description %s\n'
                      '  %s: %s'%(filename, a.__class__.__name__, a))
@@ -1870,9 +2058,9 @@ def dynamic_load_build_desc(builder):
     Returns the apropriate module
     """
     # We know the name of the build description within its checkout
-    filename = builder.invocation.db.build_desc_file_name()
+    filename = builder.db.build_desc_file_name()
     # And since we know its label, we can look up its directory
-    checkout_dir = builder.invocation.checkout_path(builder.build_desc_label)
+    checkout_dir = builder.checkout_path(builder.build_desc_label)
 
     old_path = sys.path
     sys.path.insert(0, checkout_dir)
@@ -1892,8 +2080,7 @@ def load_builder(root_path, muddle_binary, params = None,
     Load a builder from the given root path.
     """
 
-    inv = Invocation(root_path)
-    builder = Builder(inv, muddle_binary, params, default_domain = default_domain)
+    builder = Builder(root_path, muddle_binary, params, default_domain = default_domain)
     can_load = builder.load_build_description()
     if not can_load:
         return None
@@ -1919,12 +2106,11 @@ def minimal_build_tree(muddle_binary, root_path, repo_location, build_desc, vers
     database.setup(repo_location, build_desc, versions_repo)
 
     # We need a minimalistic builder
-    inv = Invocation(root_path)
-    builder = Builder(inv, muddle_binary, None, None)
+    builder = Builder(root_path, muddle_binary, None, None)
     # ... remember *not* to retrieve the build description from its
     # repository, since we want to do that with the specific revision
     # given in the [CHECKOUT builds] configuration
-    inv.commit()
+    builder.db.commit()
     return builder
 
 
@@ -1988,7 +2174,7 @@ def _init_without_build_tree(muddle_binary, root_path, repo_location, build_desc
 
 
 def _new_sub_domain(root_path, muddle_binary, domain_name, domain_repo, domain_build_desc,
-                    parent_domain):
+                    parent_builder):
     """
     * 'muddle_binary' is the full path to the ``muddle`` script (for use in
       environment variables)
@@ -1999,6 +2185,7 @@ def _new_sub_domain(root_path, muddle_binary, domain_name, domain_repo, domain_b
       sub-build.
     * 'domain_build_desc' is then the path to the domain's build description,
       within that.
+    * 'parent_builder' is the parent domain's Builder
 
     Really.
     """
@@ -2013,7 +2200,7 @@ def _new_sub_domain(root_path, muddle_binary, domain_name, domain_repo, domain_b
     domain_root_path = os.path.join(root_path, 'domains', domain_name)
 
     # Extract the domain parameters ..
-    domain_params = parent_domain.invocation.get_domain_parameters(domain_name)
+    domain_params = parent_builder.get_domain_parameters(domain_name)
 
     # Did we already retrieve it, earlier on?
     # muddle itself just does::
@@ -2054,10 +2241,10 @@ def _new_sub_domain(root_path, muddle_binary, domain_name, domain_repo, domain_b
     # it anyway
     labels.append(domain_builder.build_desc_label)
 
-    for l in domain_builder.invocation.default_deployment_labels:
+    for l in domain_builder.default_deployment_labels:
         labels.append(l)
 
-    env = domain_builder.invocation.env
+    env = domain_builder.env
     for l in env.keys():
         labels.append(l)
 
@@ -2065,7 +2252,7 @@ def _new_sub_domain(root_path, muddle_binary, domain_name, domain_repo, domain_b
     # domain_builder.what_to_release, because we explicitly say that
     # what to release is only set by the top-level build.
 
-    ruleset = domain_builder.invocation.ruleset
+    ruleset = domain_builder.ruleset
 
     rules = ruleset.map.values()
 
@@ -2078,7 +2265,7 @@ def _new_sub_domain(root_path, muddle_binary, domain_name, domain_repo, domain_b
                 labels.extend(rule.action._inner_labels())
 
     # Don't forget the labels inside the "db"
-    labels.extend(domain_builder.invocation.db._inner_labels())
+    labels.extend(domain_builder.db._inner_labels())
 
     # Then, mark them all as "unchanged" (because we can't guarantee we won't
     # have the same label more than once, and it's easier to do this than to
@@ -2106,7 +2293,7 @@ def _new_sub_domain(root_path, muddle_binary, domain_name, domain_repo, domain_b
             rule.action._change_domain(domain_name)
 
     # Now mark the builder as a domain.
-    domain_builder.invocation.mark_domain(domain_name)
+    domain_builder.mark_domain(domain_name)
 
     return domain_builder
 
@@ -2130,24 +2317,24 @@ def include_domain(builder, domain_name, domain_repo, domain_desc):
     ``include_domain()`` if necessary.
     """
 
-    domain_builder = _new_sub_domain(builder.invocation.db.root_path,
+    domain_builder = _new_sub_domain(builder.db.root_path,
                                      builder.muddle_binary,
                                      domain_name,
                                      domain_repo,
                                      domain_desc,
-                                     parent_domain = builder)
+                                     parent_builder=builder)
 
     # And make sure we merge its rules into ours...
-    builder.invocation.ruleset.merge(domain_builder.invocation.ruleset)
+    builder.ruleset.merge(domain_builder.ruleset)
 
     # And its environments...
-    for key, value in domain_builder.invocation.env.items():
-        builder.invocation.env[key] = value
+    for key, value in domain_builder.env.items():
+        builder.env[key] = value
 
     # And handle the rest of the stuff we need to do.
     # Note that the _new_sub_domain() call should have handled labels
     # for us.
-    builder.invocation.include_domain(domain_builder, domain_name)
+    builder.include_domain(domain_builder, domain_name)
 
     return domain_builder
 
@@ -2170,3 +2357,4 @@ def build_co_and_path_from_str(str):
     return co_name, inner_path
 
 # End file.
+

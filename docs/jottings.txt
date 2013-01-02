@@ -165,12 +165,12 @@ following::
     checkouts.simple.relative(builder, co_name='docs')
 
     null_pkg = null_package(builder, name='meta', role='meta')
-    package_depends_on_checkout(builder.invocation.ruleset,
+    package_depends_on_checkout(builder.ruleset,
                                 pkg_name='meta', role_name='meta',
                                 co_name='docs')
 
     # And add it to our default roles
-    builder.invocation.add_default_role('meta')
+    builder.add_default_role('meta')
 
 in your build description.
 
@@ -324,7 +324,7 @@ the following:
       rule = depend.depend_one(None,
                       Label(LabelType.Checkout, 'kernel', 'base', LabelTag.Configured),
                       Label(LabelType.Package, 'u-boot', 'boot', LabelTag.Installed))
-      builder.invocation.ruleset.add(rule)
+      builder.ruleset.add(rule)
 
       # We also want to tell the kernel build what architecture and
       # configuration file it should use.
@@ -486,9 +486,9 @@ sets or list or dictionaries or whatever) must have a way of returning *all*
 of those labels. For Actions, this method is called ``_inner_labels()``.
 
 So ``_new_sub_domain()`` retrieves labels from various Well Known Places within
-the subdomain's Builder and its Invocation, and from all of the actions, and
-from the dictionaries managed for that subdomain by ``db.py``, and puts them
-into a single grand list.
+the subdomain's Builder, and from all of the actions, and from the
+dictionaries managed for that subdomain by ``db.py``, and puts them into a
+single grand list.
 
 We rely on the fact that we have *every* label - so for instance, we might
 have a list starting and ending like::
@@ -532,6 +532,6 @@ in-situ.
 
 All that then remains is for ``include_domain()`` to merge all the rules,
 dictionaries and so on into the main domain. We can then discard the old
-Builder (and its Invocation), since they're no longer of any interest.
+Builder, since they're no longer of any interest.
 
 .. vim: set filetype=rst tabstop=8 softtabstop=2 shiftwidth=2 expandtab:

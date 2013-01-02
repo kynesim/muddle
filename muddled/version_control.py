@@ -393,7 +393,7 @@ class VersionControlHandler(object):
         instantiates a muddle checkout.
         """
         # We want to be in the checkout's parent directory
-        parent_dir, rest = os.path.split(builder.invocation.checkout_path(self.checkout_label))
+        parent_dir, rest = os.path.split(builder.checkout_path(self.checkout_label))
 
         if not self.repo.pull:
             raise utils.GiveUp('Failure checking out %s in %s:\n'
@@ -498,7 +498,7 @@ class VersionControlHandler(object):
         In a centralised VCS, like subverson, this does not do anything, as
         there is no *local* repository.
         """
-        with utils.Directory(builder.invocation.checkout_path(self.checkout_label)):
+        with utils.Directory(builder.checkout_path(self.checkout_label)):
             try:
                 self.vcs_handler.commit(self.repo, self.options, verbose)
             except utils.MuddleBug as err:
@@ -525,7 +525,7 @@ class VersionControlHandler(object):
                                '  %s does not allow "push"'%(self.checkout_label,
                                self.src_rel_dir(), self.repo))
 
-        with utils.Directory(builder.invocation.checkout_path(self.checkout_label)):
+        with utils.Directory(builder.checkout_path(self.checkout_label)):
             try:
                 self.vcs_handler.push(self.repo, self.options,
                                       upstream=upstream, verbose=verbose)
@@ -559,7 +559,7 @@ class VersionControlHandler(object):
         """
         if verbose:
             print '>>', self.checkout_label
-        with utils.Directory(builder.invocation.checkout_path(self.checkout_label), show_pushd=False):
+        with utils.Directory(builder.checkout_path(self.checkout_label), show_pushd=False):
             try:
                 status_text = self.vcs_handler.status(self.repo, self.options)
                 if status_text:
@@ -590,7 +590,7 @@ class VersionControlHandler(object):
         If 'force' is true, it does this regardless. If 'force' is false, then
         it only does it if the checkout is actually not so associated.
         """
-        actual_dir = builder.invocation.checkout_path(self.checkout_label)
+        actual_dir = builder.checkout_path(self.checkout_label)
         with utils.Directory(actual_dir):
             self.vcs_handler.reparent(actual_dir, # or self.checkout_leaf
                                       self.repo, self.options, force, verbose)
@@ -633,7 +633,7 @@ class VersionControlHandler(object):
         implementation will raise a GiveUp unless 'force' is true, in which
         case it will return the string '0'.
         """
-        with utils.Directory(builder.invocation.checkout_path(self.checkout_label), show_pushd=show_pushd):
+        with utils.Directory(builder.checkout_path(self.checkout_label), show_pushd=show_pushd):
             return self.vcs_handler.revision_to_checkout(self.repo,
                                                          self.checkout_leaf,
                                                          self.options,
@@ -705,6 +705,50 @@ class VersionControlHandler(object):
             except (utils.GiveUp, utils.Unsupported) as err:
                 raise utils.GiveUp('Failure checking existence of branch %s for %s in %s:\n%s'%(branch,
                                    self.checkout_label, self.src_rel_dir(), err))
+
+    def maybe_sync_with_build_desc_branch(self, builder):
+        """
+        If the build description wants us to follow its branch, do so.
+        """
+        our_domain = self.checkout_label.domain
+        print 'Synchronising for', self.checkout_label
+        print '  Domain is', our_domain
+        if builder.invocation.db.get_domain_follows_build_desc_branch(our_domain):
+            print '  Following build desc'
+
+            if self.repo.branch is not None:
+                print 'Build description for %s explicitly states branch "%s",' \
+                      ' so not following build description'%(self.checkout_label, self.repo.branch)
+                print '  Going to it...'
+                self.goto_branch(builder, self.repo.branch)
+                return
+
+            # We are meant to be following our build description's branch
+            # XXX If we're going to do this often, we probably want to cache
+            # XXX the branch information...
+            build_desc_label = builder.invocation.db.get_domain_build_desc_label(our_domain)
+            build_desc_label = build_desc_label.copy_with_tag(utils.LabelTag.CheckedOut)
+            print '  Build desc is', build_desc_label
+            rule = builder.invocation.ruleset.rule_for_target(build_desc_label)
+            try:
+                vcs = rule.action.vcs
+            except AttributeError:
+                raise GiveUp("Rule for label '%s' has no VCS - cannot find its id"%build_desc_label)
+
+            build_desc_branch = vcs.get_current_branch(builder, show_pushd=False)
+            print '  Build desc branch is', build_desc_branch
+            # And so follow it...
+            print '%s following build description onto branch "%s"'%(self.checkout_label, build_desc_branch)
+            self.goto_branch(builder, build_desc_branch)
+        else:
+            print '  NOT Following build desc'
+            print '  Our branch is', self.repo.branch
+            print '  Going to it...'
+            # We are meant to keep to our own branch, whatever that is
+            if self.repo.branch is None:
+                self.goto_branch(builder, 'master')
+            else:
+                self.goto_branch(builder, self.repo.branch)
 
     def must_pull_before_commit(self):
         return self.vcs_handler.must_pull_before_commit(self.options)
@@ -827,7 +871,7 @@ def get_vcs_handler_from_string(repo_str):
 
 def vcs_handler_for(builder, co_label, co_leaf, repo, co_dir=None):
     """
-    Create a VCS handler for the given url, invocation and checkout name.
+    Create a VCS handler for the given url, checkout name, etc.
 
     Which VCS is determined by interpreting the initial part of the URI's
     protocol.
@@ -835,7 +879,6 @@ def vcs_handler_for(builder, co_label, co_leaf, repo, co_dir=None):
     We then create a handler that will call the appropriate VCS-specific
     mechanisms for any VCS operations on this checkout.
 
-    * inv - The invocation for which we're trying to build a handler.
     * co_label - The label for this checkout. This includes the name and domain
       (if any) for the checkout
     * co_leaf - The 'leaf' directory for this checkout. This is the final
@@ -911,11 +954,11 @@ def checkout_from_repo(builder, co_label, repo, co_dir=None, co_leaf=None):
         else:
             co_path = co_label.name
 
-    builder.invocation.db.set_checkout_path(co_label, co_path)
-    builder.invocation.db.set_checkout_repo(co_label, repo)
+    builder.db.set_checkout_path(co_label, co_path)
+    builder.db.set_checkout_repo(co_label, repo)
 
     vcs_handler = vcs_action_for(builder, co_label, repo, co_dir=co_dir, co_leaf=co_leaf)
-    pkg.add_checkout_rules(builder.invocation.ruleset, co_label, vcs_handler)
+    pkg.add_checkout_rules(builder.ruleset, co_label, vcs_handler)
 
 def conventional_repo_url(repo, rel, co_dir = None):
     """

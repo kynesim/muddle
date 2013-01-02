@@ -146,21 +146,21 @@ def mechanics_unit_test():
     Check mechanics.
     """
 
-    inv = mechanics.Invocation("/tmp")
+    builder = mechanics.Builder("/tmp", None)
     lbl = Label(utils.LabelType.Checkout, "bob", None, "*")
-    s1 = inv.get_environment_for(lbl)
+    s1 = builder.get_environment_for(lbl)
     s1.set_type("PATH", env_store.EnvType.Path)
     s1.append("PATH", "a")
     s1.set("FISH", "42")
 
     lbl = Label(utils.LabelType.Checkout, "bob", None, "a")
-    s2 = inv.get_environment_for(lbl)
+    s2 = builder.get_environment_for(lbl)
     s2.set_type("PATH", env_store.EnvType.Path)
     s2.append("PATH", "b")
     s2.set("FISH", "shark")
 
     in_env = { "FISH" : "x" , "PATH" :  "p" }
-    inv.setup_environment(lbl, in_env)
+    builder.setup_environment(lbl, in_env)
     assert in_env["PATH"] == "p:a:b"
     assert in_env["FISH"] == "shark"
 

@@ -1,0 +1,498 @@
+================================
+Simple project lifecycle support
+================================
+
+  **This is a work-in-progress, and this document will change as I find out
+  what it should actually have said all along...**
+
+What is this about?
+===================
+Let us assume that we have been developing a build tree, and we reach the
+point of releasing version 1 of the product that it builds. We can do the
+normal steps of generating stamp files (``muddle stamp``), perhaps producing
+source releases (``muddle distribute``), and quite likely producing an actual
+release tarball (``muddle release``), but then we want to continue development
+towards the next version of the product.
+
+The problem is that we almost certainly also want to be able to go back and
+produce later "bugfix" releases based on version 1, and ideally we would like
+muddle to make this easy for us.
+
+One rather cumbersome way to do this would be make a branch of our build
+description describing, explicitly, what is in release 1. So we could look at
+the stamp file we produced for our release (of course we made a stamp file),
+and for each checkout, explicitly specify its revision in the build
+description. If we committed that (on its branch), then we could later build
+our tree again, making sure we're using the branch of the build description.
+If we needed to fix a bug in a particular package, we could then branch that
+package, determine the new revision, update the build description, and so on.
+
+This would be rather tedious, and definitely error prone.
+
+A slightly (but only slightly) better approach would still specify all of the
+revisions "by hand", but when a package was changed for a bugfix, we would
+perofrm the change on an appropriate branch, and amend the build description
+for that package to specify this new branch instead of the revision.
+
+Which is really not that much better.
+
+So instead we provide a mechanism to branch all checkouts in a build tree,
+and to use the same branch (i.e., branch name) for the build description and
+the checkouts.
+
+.. note:: This assumes that all the checkouts support this mechanism. At time
+   of writing, muddle supports this for git. If most checkouts use git, and a
+   few use a VCS that is not supported for this purpose, then one of the
+   "solutions" above may be adopted for the less able VCS checkouts.
+
+How we do it
+============
+This means we would:
+
+1. Decide we're going to make release 1. If our build is called
+   "WidgetFactory", we might thus decide to use a branch called
+   "WidgetFactory-v1".
+
+     (It seems sensible to put the name of our build tree into the branch
+     name as a way of avoiding clashes with any previous branches in the
+     individual checkouts. It is quite likely that some checkout of source
+     code from elsewhere might have already have a branch called "v1.0", for
+     instance. Whilst muddle can warn if this is the case, it is ultimately
+     up to the user to choose an appropriate branch name.)
+
+2. We then use::
+
+      muddle branch-tree -check WidgetFactory-v1
+
+   to make sure that no checkouts are already using a branch of that name.
+
+3. Assuming that this is indeed a new branch name, we can use::
+
+      muddle branch-tree WidgetFactory-v1
+
+   to actually branch all the checkouts.
+
+4. We then edit the build description (which is now on the new branch) and
+   add a line to the ``describe_to()`` function::
+
+      builder.follow_build_desc_branch = True
+
+   This tells muddle that checkouts should use the same branch as the build
+   description. Of course, if the build description explicitly specifies a
+   revision or branch for a checkout, then that takes precedence, so please
+   remember to check.
+
+5. We can then do::
+
+     muddle push _all
+
+   to push the build description and all the branched checkouts.
+
+If anyone does a ``muddle init`` of the build tree, they will still get the
+normal ("master") branch, which we have not altered, and can ``muddle
+checkout`` and continue mainstream development just as normal.
+
+However, if we want to do a bugfix on version 1, we can do ``muddle init``,
+as normal, and then::
+
+    cd src/builds
+    git branch WidgetFactory-v1
+    muddle checkout _all
+
+*This* branch of the build description is the one we altered, and *it* says
+to follow the branch of the build description. So the ``muddle checkout _all``
+command will checkout the WidgetFacttory-v1 branch of all the checkouts. And
+now our developer can make bugfixes in whichever checkouts are necessary, and
+commit/push in the normal manner, but safely on the version 1 branch.
+
+Other useful things
+===================
+
+``muddle query build-desc-branch``
+
+
+Details of how ``muddle push`` and other commands work
+======================================================
+
+... the various muddle help commands
+
+... forcing use of an existing branch (and why one might do that)
+
+... ``muddle push``
+
+... ``muddle pull``
+
+... ``muddle merge``
+
+... ``muddle reparent``
+
+How do I tell a checkout to go (back) to the branch implicitly specified by
+this mechanism?
+
+... an example of a build with git and bzr checkouts in it, and how to cope
+(as mentioned in the introduction)
+
+What happens if there are sub-domains
+=====================================
+To be written
+
+Thinking aloud
+==============
+This is where I'm working things out...
+
+This next bot needs integrating into the text following it:
+
+  | On the other hand, if I've been developing on a branch, and do a
+  | muddle pull, is it better if muddle refuses to pull (because I'm
+  | not on the branch it expects), or forces me to the branch it wants
+  | (which may be a shock, particularly if I manage not to notice and
+  | wonder why things have changed more than I expected).
+  |
+  | If we think the latter is bad, and it should refuse, then (a)
+  | should it *just* refuse, or (b) should it pull to the branch
+  | that the build description wants, and leave me on the branch
+  | I want to be on (and warn me of such)? (ok, that's not really
+  | "refusing" any more).
+  |
+  |   (Point for not having "muddle pull" change us to the branch
+  |   specified in the build description (at least without having
+  |   follow_build_desc_branch set True) is that it would be a change
+  |   in how "muddle pull" has worked in the past, and thus a big
+  |   surprise. Now once we've asked to follow the build description,
+  |   then that's a new thing, so we *can* have new behaviour.)
+  |
+  | And what command *should* I use to go to the branch specified
+  | by the build description (explicitly or implicitly)? I don't
+  | particularly like using "muddle parent" for this, as it's
+  | really a bit beyond its original remit (and essentially
+  | unguessable).
+
+  | For the moment, let's introduce a command 'sync' and use that, and I
+  | can figure out the "correct" solution later on...
+
+
+So, things I intend to test:
+
+1. DONE That we can make some changes and push them
+
+2. DONE That we can add a build description that uses the revision id B
+   found above for checkout checkout
+
+3. DONE That I can "muddle init" a build using that new, revision specific
+   build tree
+
+4. That doing so does not natter on about detached HEAD (and preferably
+   does not *have* a detached head)
+
+      Actually, leave the "nattering" for now, as it is meaningful.
+
+5. DONE That if I do a "muddle pull" and am already at the specified
+   revision it tells me that I can't do it because I am already at the
+   specififed revision
+
+      Although ideally it would only say that if there was somewhere
+      "beyond" that revision that one *might* have pulled to.
+
+   Also, made "muddle status" give more information when one is in
+   detached HEAD state.
+
+6. That if I do change the revision id in the build description to A
+   and do a "muddle pull" it tells me I'm trying to go backwards in
+   time. I *think* the correct thing to happen then is that either
+   "muddle pull" reverts to the earlier revision (which is confusing),
+   or I use "muddle reparent" to go to the correct revision (in which
+   case the message from "muddle pull" should tell me this is what to
+   do). I suspect this is the better solution, as "muddle reparent" means
+   "sort out our VCS situation to make sense".
+
+      DONE, but by blessing "muddle pull" as taking one (back) to the
+      revision in the build description. In the end, it seems confusing
+      for "muddle reparent" to do that. Note that the documentation of
+      "muddle pull" will need attention (and also, of course, what
+      "muddle merge" does in this circumstance).
+
+7. DONE That I can do a sequence something like:
+
+       * git checkout -b newbranch
+       * edit the build description to reflect the branch (and not the
+         revision id any more)
+       * muddle push
+
+8. That I can set the build description to revision C (and not the
+   branch) and do (muddle reparent or whatever) and go to revision C.
+
+      DONE, but as I said above, by using "muddle pull" to adjust.
+
+9. DONE That I can use git itself to go to branch A, and then "muddle
+   pull", and it *will* take me to revision C
+
+10. That I can start with a different (new) build, and edit the build
+    description to request that branch, and then a "muddle pull" and/or
+    "muddle reparent" will take me to that branch.
+
+Thus, subsidiary tests of that, only applying to git for the moment:
+
+a) If any of the previous tests is repeated, but with the build
+   description branched, then there is no extra special effect.
+
+b) If BUILD_DESC is used, with "builder.follow_build_desc_branch = True"
+   (or whatever I end up calling it) appended to the build description,
+   and the build description is branched, then muddle will want to use
+   a branch of the same name for the checkout as well.
+
+c) If BUILD_DESC_WITH_REVISION is used, with
+   "builder.follow_build_desc_branch = True" appended, and the build
+   description is branched, the specified revision "wins" for the
+   checkout, on the principle that we should obey what the build
+   description says. Maybe "muddle status" should mention this.
+
+d) If BUILD_DESC_WITH_BRANCH is used, and ditto, the specified branch
+   "wins" for the checkout. Again, maybe "muddle status" should mention
+   this.
+
+e) We should add a command to branch all the "free" checkouts (including
+   the build description) - perhaps "muddle branch-tree <branch-name>".
+   This will go into each checkout (starting with the build description),
+   create the new branch if necessary, and check it out. It will list
+   any checkouts that it did not do this for because a specific revision
+   or branch was already specified in the build description (i.e.,
+   non-"free" checkouts).
+
+   It should probably mention the use of
+   "builder.follow_build_desc_branch = True" to make this work "properly".
+
+f) Check that "muddle stamp" will save (and restore) the branch of the
+   build description.
+
+g) Add a '-branch <branch-name' switch to "muddle init", to save the
+   user having to do a "muddle init" and then branch the tree explicitly.
+
+This needs all of the VCS commands that "do something" to check whether
+the checkout being acted on has a specified revision or branch, and if
+it does not, check whether it should be using the build description's
+branch.
+
+There's a question about whether we should supply a plain "muddle branch"
+command, to allow branching of individual checkouts. My feeling is that
+we probably shouldn't, as the aim is to allow branching of an entire
+tree for such things as choosing a legacy version maintenance branch.
+However, "muddle branch-tree" *should* be usable freely on a tree that
+has already been branched, and should be quick and quiet in such a case
+(i.e., it should only comment when it (i) branches a checkout that was
+not previously branched, or (ii) finds a non-free checkout).
+
+Oh, and that I can't "muddle push" if I'm at or behind the specified
+revision, and that I can't "muddle push" if I'm not on the specified
+branch, and so on.
+
+-------------------------------------------------------------------------
+
+NB: For the moment I am ignoring subdomains, which means (in effect) that
+the top-level build description branch is the one that will dominate all
+sub-domains. It is not entirely clear if this is correct in a build with
+sub-domains - should each domain choose whether it is to follow the
+build description branch, and if so, should it be the top-level build
+description or the domain-local build description? And should "muddle
+branch-tree" affect all the sub-domains as well? (again, for the moment
+I shall assume that it shall).
+
+However, I *could* see a case for having the top-level build frozen at
+branch "v1.0-maintenance", but a sub-domain frozen at "v2.0-maintenance"
+(presumably by specifying an explicit branch to the "include_domain" call
+in the top-level build description). And in that case, presumably the
+checkouts in that sub-domain would count as non-free, as having already
+had their branch specified for them - which, given the way that
+sub-domain inclusion works, makes some sort of sense.
+
+  (Note that if we allow that, then label unification across domains
+  is unlikely to turn out well - but I can't see any perfect solution
+  for that.)
+
+Which leaves "muddle branch-tree" as an uncomfortable sort of command,
+as it might or might not propagate down into sub-domains. Presumably
+some sort of default, and a switch to decide the opposite, would be
+appropriate.
+
+Hmm, the more I think on it, the more I prefer a checkout to look to its
+"local" build description for its behaviour, since sub-domains are meant
+to behave consistently wherever they are included.
+
+=========================================================================
+
+Don't forget to alter version stamping so that it stores the current
+branch of a checkout, as well as the current revision. See
+version_stamp.py, method from_builder(), particularly around line 410
+or so - we need to look up the revision AND branch, and use
+vcs.repo.copy_with_changed_branch() to store them both. And think on
+the implications of always storing the branch name (is that a good thing?
+does it pass the tests?)
+
+=========================================================================
+
+I then want a way to be able to do this for the build description as
+well. This requires doing something about issue 145. My current thinking
+is that we should support .muddle/Description and .muddle/RootRepository
+as they are as legacy, but either:
+
+1. If they start with a name in square brackets, treat them as "INI"
+   style files, containing information similar to that held for stamp
+   files. The Description would contain the co_dir and co_name for the
+   build description, and the RootRepository would contain all the
+   Repository class information.
+
+or (and I prefer this second option):
+
+2. In new build trees, have a single file, .muddle/BuildDescription,
+   which is identical in form to the [CHECKOUT] clause from a stamp
+   file, but 'repo_revision' would not be specified unless the user
+   actually specified a revision "by hand" for the builds checkout
+   (stamp files, of course, always specify a revision).
+
+   So, for example:
+
+     [CHECKOUT builds]
+     co_label = checkout:builds/checked_out
+     co_leaf = builds
+     repo_vcs = git
+     repo_from_url_string = None
+     repo_base_url = file:///Users/tibs/sw/m3/tests/transient/repos
+     repo_name = builds
+     repo_prefix_as_is = False
+
+"muddle init" would then allow the current way of specifying things,
+corresponding to:
+
+   muddle init <vcs>+<repository_url>  <co_name>/<build_desc>
+
+(which gets turned into Repository(<vcs>, <repository_url>, <co_name>))
+but we would also allow a different form of command line which allows
+closer control of the Repository created, and allows the "local" co_dir
+and co_name to be specified independently (so like a call of
+
+  muddled.version_control.checkout_from_repo(builder, co_label, repo, co_dir, co_leaf)
+
+So parts we might want to specify are:
+
+* vcs
+
+* co_name (in the above call, co_label.name - we don't need to worry
+  about domains because by definition we're working at the top level)
+* co_dir
+* co_leaf
+* either:
+
+  * repo_from_url_string - i.e., a single URL indicating all of the
+    repository location in one go
+
+* or:
+
+  * repo_base_url
+  * repo_name
+  * repo_prefix
+  * repo_prefix_as_is (!)
+  * repo_suffix
+  * repo_inner_path
+  * repo_handler      (?)
+  * repo_revision
+  * repo_branch
+
+NB: whilst the <vcs> and <repository_url> are inherited as defaults by
+other checkouts, I don't think any build description branch or revision
+should be. If the user *does* want to do that, I think they need to do
+it "by hand" in the build description, by interrogating the build
+descriptions Repository instance.
+
+I *think* we should say that we always retain the current command line
+as the default, and it corresponds (in fact) to:
+
+   muddle init <vcs>+<repo_base_url> [<co_dir>/]<co_leaf>/<build_desc>
+
+and that:
+
+* the third argument specifies where the build description is under
+  'src/', in the build tree as checked out, which is what the user
+  expects
+
+and that:
+
+* <co_name> defaults to <co_leaf>, use '-co_name <name>' to change it
+  if necessary
+* <repo_name> defaults to <co_name>, use '-repo_name <name>' to change
+  it if necessary (nb: I think it should default to <co_name>, not to
+  <co_leaf>)
+* <repo_prefix> defaults to <co_dir>, if that is given
+
+and so on.
+
+I think we also need to allow switches to come freely anywhere in the
+command line after "muddle init".
+
+It's not entirely clear to me how the user would specify a
+repo_from_string_url on the command line - perhaps just a free standing
+switch of that name, which causes the <url> in <vcs>+<url> to be treated
+differently.
+
+Similar changes (as appropriate) would be needed to "muddle bootstrap".
+
+
+After some discussion with Richard:
+
+1. The .muddle/BuildDescription file should *not* store the revision id
+   or branch for the build description. As Richard says, the original
+   two files *aren't* describing the build description (as such), they're
+   remembering the defaults that were set up for use in other checkouts,
+   which are established relative to the "muddle init".
+
+2. However, it might be useful to have -branch and -revision arguments
+   to "muddle init" so that one doesn't have to:
+
+      * muddle init
+      * cd src/builds
+      * git checkout <branch-name>
+
+   if one does want a particular branch/revision id of the build
+   description.
+
+3. Richard also suggests that it would be useful to use the branch
+   of the build description ("live", taken from the .git/ setup, not
+   from a file in .muddle) as the default branch for *all* checkouts.
+   This would help with a situation where one wants to move *all* of a
+   build to a particular branch - for instance, v1.0-maintenance.
+
+   So one might do::
+
+      muddle init <vcs>+<repo> <desc> -branch v1.0-maintenance
+
+   and that would check out that branch of everything.
+
+4. To make it easier to *create* a new branch like that in everything,
+   then, it may also help to have a "muddle branch" command, so one
+   can do::
+
+      $ muddle branch <branch-name> _all
+
+   Perhaps it should act like "git checkout -b" and move to the right
+   branch as well. (Should it be a variant of "muddle checkout" then?
+   - no, that's probably confusing and too git specific). Except that
+   we're saying that the branch of the build description wins. But it's
+   a pain to have to "cd src/builds; git checkout <branch-name>". So it
+   probably should do the checkout as well, assuming the common usage is
+   for _all.
+
+5. All muddle VCS operations should thus check whether they are
+   consistent with the current state, and if not (in a bad way)
+   complain helpfully and stop.
+
+6. Richard would like to keep "muddle merge" for at least simple
+   (fast forward) merging of many checkouts - using muddle pull
+   for this is less than obvious, and he asserts people would not
+   guess. I think *full* merging would be a bad thing for it to do.
+   Maybe it should write things it was not willing to merge to a
+   .muddle/_need_merging file (or some other better name), and say
+   it has done so.
+
+7. I should look up "git sparse checkout", but that's for other reasons.
+
+
+
+.. vim: set filetype=rst tabstop=8 softtabstop=2 shiftwidth=2 expandtab:

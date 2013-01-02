@@ -1,10 +1,11 @@
 """
-Collect deployment.
+A SquashFS deployment.
 
-Principally depending on other deployments, this
-deployment is used to collect elements built by
-other parts of the system into a directory -
-usually to be processed by some external tool.
+This deployment uses mksquashfs to generate a squashfs image.
+
+We are modelled after the RomFS deployment, but are sufficiently different
+from it (in e.g. the format of device special pseudofiles) that we don't
+use the same code.
 """
 
 import os
@@ -13,15 +14,14 @@ import muddled.depend as depend
 import muddled.utils as utils
 import muddled.filespec as filespec
 import muddled.deployment as deployment
+import tempfile
 
 from muddled.depend import Action, Label
 
-class CollectInstructionImplementor(object):
+class SquashFSInstructionImplementor(object):
     def prepare(self, builder, instruction, role, path):
         """
-        Prepares for rsync. This means fixing up the destination file
-        (e.g. removing it if it may have changed uid by a previous deploy)
-        so we will be able to rsync it.
+        Prepare for rsync
         """
         pass
     def apply(self, builder, instruction, role, path):
@@ -36,20 +36,7 @@ class AssemblyDescriptor(object):
                  usingRSync = False,
                  obeyInstructions = True):
         """
-        Construct an assembly descriptor.
-
-        We copy from the directory from_rel in from_label
-        (package, deployment, checkout) to the name to_name under
-        the deployment.
-
-        Give a package of '*' to copy from the install directory
-        for a given role.
-
-        If recursive is True, we'll copy recursively.
-
-        * failOnAbsentSource - If True, we'll fail if the source doesn't exist.
-        * copyExactly        - If True, keeps links. If false, copies the file
-          they point to.
+        Assembly descriptor constructor
         """
         self.from_label = from_label
         self.from_rel = from_rel
@@ -60,33 +47,39 @@ class AssemblyDescriptor(object):
         self.copy_exactly = copyExactly
         self.obeyInstructions = obeyInstructions
 
-
     def get_source_dir(self, builder):
         if (self.from_label.type == utils.LabelType.Checkout):
             return builder.checkout_path(self.from_label)
         elif (self.from_label.type == utils.LabelType.Package):
             if ((self.from_label.name is None) or
-                self.from_label.name == "*"):
+                (self.from_label.name == "*")):
                 return builder.role_install_path(self.from_label.role,
-                                                            domain=self.from_label.domain)
+                                                            domain = self.from_label.domain)
             else:
                 return builder.package_obj_path(self.from_label)
         elif (self.from_label.type == utils.LabelType.Deployment):
             return builder.deploy_path(self.from_label)
         else:
-            raise utils.GiveUp("Label %s for collection action has unknown kind."%(self.from_label))
+            raise utils.GiveUp("Label %s for romfs action has unknown kind."%(self.from_label))
 
-class CollectDeploymentBuilder(Action):
+class SquashFSDeploymentBuilder(Action):
     """
-    Builds the specified collect deployment.
+    Builds the specified romfs deployment
     """
 
-    def __init__(self):
+    def __init__(self, targetName,
+                 mkSquashFS = None):
         self.assemblies = [ ]
+        self.target_name = targetName
+        self.my_tmp = None
+        if (mkSquashFS is None):
+            self.mksquashfs = "mksquashfs"
+        else:
+            self.mksquashfs = mkSquashFS
 
     def add_assembly(self, assembly_descriptor):
         self.assemblies.append(assembly_descriptor)
-
+    
     def _inner_labels(self):
         """
         Return any "inner" labels, so their domains may be altered.
@@ -96,126 +89,103 @@ class CollectDeploymentBuilder(Action):
             labels.append(assembly.from_label)
         return labels
 
-    def build_label(self, builder, label):
+    def do_mksquashfs(self, builder, label, my_tmp):
         """
-        Actually do the copies ..
+        mksquashfs everything up into a SquashFS image.
         """
-
+        if (self.target_name is None):
+            tgt = "rom.squashfs"
+        else:
+            tgt = self.target_name
+            
         utils.ensure_dir(builder.deploy_path(label))
 
+        final_tgt = os.path.join(builder.deploy_path(label), 
+                                 tgt)
+        cmd = "%s \"%s\" \"%s\" -all-root -info -comp xz"%(self.mksquashfs, my_tmp, final_tgt)
+        utils.run_cmd(cmd)
+        
+
+    def build_label(self, builder, label):
+        """
+        Copy everything to a temporary directory and then genromfs it.
+        """
+
+        if (self.my_tmp is None):
+            self.my_tmp = tempfile.mkdtemp();
+            
+        print "Deploying to %s .. \n"%self.my_tmp
+    
         if (label.tag == utils.LabelTag.Deployed):
-            self.apply_instructions(builder, label, True)
-            self.deploy(builder, label)
-        elif (label.tag == utils.LabelTag.InstructionsApplied):
-            self.apply_instructions(builder, label, False)
+            self.apply_instructions(builder, label, True, self.my_tmp)
+            self.deploy(builder, label, self.my_tmp)
+            self.do_mksquashfs(builder, label, self.my_tmp)
+            utils.recursively_remove(self.my_tmp)
         else:
             raise utils.GiveUp("Attempt to build a deployment with an unexpected tag in label %s"%(label))
 
-    def deploy(self, builder, label):
+    def deploy(self, builder, label, my_tmp):
         for asm in self.assemblies:
             src = os.path.join(asm.get_source_dir(builder), asm.from_rel)
-            dst = os.path.join(builder.deploy_path(label),
-                               asm.to_name)
-
+            dst = os.path.join(my_tmp, asm.to_name)
+            
             if (not os.path.exists(src)):
                 if (asm.fail_on_absent_source):
-                    raise utils.GiveUp("Deployment %s: source object %s does not exist."%(label.name, src))
-                # Else no one cares :-)
+                    raise utils.GiveUp("Deployment %s: source object %s does not exist"%
+                                       (label.name, src))
             else:
                 if (asm.using_rsync):
-                    # Use rsync for speed
+                    # Rsync for great speed!
                     try:
                         os.makedirs(dst)
                     except OSError:
                         pass
-
+                    
                     xdst = dst
-                    if xdst[-1] != "/":
-                        xdst = xdst + "/"
-
+                    if (xdst[-1] != '/'):
+                        xdst = xdst + '/'
+                        
                     utils.run_cmd("rsync -avz \"%s/.\" \"%s\""%(src,xdst))
                 elif (asm.recursive):
                     utils.recursively_copy(src, dst, object_exactly = asm.copy_exactly)
                 else:
                     utils.copy_file(src, dst, object_exactly = asm.copy_exactly)
 
-        # Sort out and run the instructions. This may need root.
-        need_root = False
-        for asm in self.assemblies:
-            # there's a from label - does it have instructions?
-
-            # If we're not supposed to obey them anyway, give up.
-            if not asm.obeyInstructions:
-                continue
-
-            lbl = Label(utils.LabelType.Package, '*', asm.from_label.role,
-                        '*', domain=asm.from_label.domain)
-            install_dir = builder.role_install_path(lbl.role, label.domain)
-            instr_list = builder.load_instructions(lbl)
-            app_dict = get_instruction_dict()
-
-            for (lbl, fn, instr_file) in instr_list:
-                # Obey this instruction?
-                for instr in instr_file:
-                    iname = instr.outer_elem_name()
-                    if (iname in app_dict):
-                        if (app_dict[iname].needs_privilege(builder, instr, lbl.role, install_dir)):
-                            need_root = True
-                    # Deliberately do not break - we want to check everything for
-                    # validity before acquiring privilege.
-                    else:
-                        raise utils.GiveUp("Collect deployments don't know about " +
-                                            "instruction %s"%iname +
-                                            " found in label %s (filename %s)"%(lbl, fn))
-
-
-        print "Rerunning muddle to apply instructions .. "
-
-        permissions_label = Label(utils.LabelType.Deployment,
-                                  label.name, None, # XXX label.role,
-                                  utils.LabelTag.InstructionsApplied,
-                                  domain = label.domain)
-
-        if need_root:
-            print "I need root to do this - sorry! - running sudo .."
-            utils.run_cmd("sudo %s buildlabel '%s'"%(builder.muddle_binary,
-                                                     permissions_label))
-        else:
-            utils.run_cmd("%s buildlabel '%s'"%(builder.muddle_binary,
-                                                permissions_label))
-
-    def apply_instructions(self, builder, label, prepare):
+    def apply_instructions(self, builder, label, prepare, my_tmp):
         app_dict = get_instruction_dict()
+
+        deploy_path = my_tmp
 
         for asm in self.assemblies:
             lbl = Label(utils.LabelType.Package, '*', asm.from_label.role,
                         '*', domain = asm.from_label.domain)
-
+            
             if not asm.obeyInstructions:
                 continue
 
-            deploy_dir = builder.deploy_path(label)
-
             instr_list = builder.load_instructions(lbl)
             for (lbl, fn, instrs) in instr_list:
-                print "Collect deployment: Applying instructions for role %s, label %s .. "%(lbl.role, lbl)
+                print "SquashFS: Applying instructions for Role=%s, Label=%s"%(lbl.role, lbl)
+                
                 for instr in instrs:
-                    # Obey this instruction.
                     iname = instr.outer_elem_name()
-                    print 'Instruction:', iname
+                    print 'Instruction: ', iname
                     if (iname in app_dict):
                         if prepare:
-                            app_dict[iname].prepare(builder, instr, lbl.role, deploy_dir)
+                            app_dict[iname].prepare(builder, instr, lbl.role, deploy_path)
                         else:
-                            app_dict[iname].apply(builder, instr, lbl.role, deploy_dir)
+                            app_dict[iname].apply(builder, instr, lbl.role, deploy_path)
                     else:
-                        raise utils.GiveUp("Collect deployments don't know about instruction %s"%iname +
-                                            " found in label %s (filename %s)"%(lbl, fn))
+                        raise utils.GiveUp("SquashFS deployments don't know about instruction %s"%iname +
+                                           " found in label %s (filename %s)"%(lbl, fn))
 
 
-def deploy(builder, name):
+
+def deploy(builder, name, 
+           targetName = None,
+           mkSquashFS = None):
     """
-    Create a collection deployment builder.
+    Create a SquashFS deployment builder.
 
     This adds a new rule linking the label ``deployment:<name>/deployed``
     to the collection deployment builder.
@@ -224,20 +194,19 @@ def deploy(builder, name):
     this module.
 
     Dependencies get registered when you add an assembly descriptor.
-    """
-    the_action = CollectDeploymentBuilder()
 
+    targetName is the name of the ROM file to generate
+    volumeLabel is the volume label
+    alignment is the object alignment.
+    """
+    the_action = SquashFSDeploymentBuilder(targetName, mkSquashFS)
     dep_label = Label(utils.LabelType.Deployment,
                       name, None, utils.LabelTag.Deployed)
-
     deployment_rule = depend.Rule(dep_label, the_action)
 
-    # We need to clean it as well, annoyingly ..
     deployment.register_cleanup(builder, name)
-
     builder.ruleset.add(deployment_rule)
 
-    # InstructionsApplied is a standalone rule, invoked by the deployment
     iapp_label = Label(utils.LabelType.Deployment, name, None,
                        utils.LabelTag.InstructionsApplied,
                        transient = True)
@@ -245,22 +214,20 @@ def deploy(builder, name):
     builder.ruleset.add(iapp_rule)
 
 
-def copy_from_checkout(builder, name, checkout, rel, dest,
+def copy_from_checkout(builder, name, checkout, rel, dest, 
                        recursive = True,
                        failOnAbsentSource = False,
                        copyExactly = True,
                        domain = None,
                        usingRSync = False):
-    rule = deployment.deployment_rule_from_name(builder, name)
-
+    rule = deploymnet.deployment_rule_from_name(builder, name)
     dep_label = Label(utils.LabelType.Checkout,
                       checkout, None, utils.LabelTag.CheckedOut, domain=domain)
-
     asm = AssemblyDescriptor(dep_label, rel, dest, recursive = recursive,
                              failOnAbsentSource = failOnAbsentSource,
                              copyExactly = copyExactly,
                              usingRSync = usingRSync)
-    rule.add(dep_label)
+    rule.app(dep_label)
     rule.action.add_assembly(asm)
 
 def copy_from_package_obj(builder, name, pkg_name, pkg_role, rel,dest,
@@ -368,27 +335,22 @@ def copy_from_deployment(builder, name, dep_name, rel, dest,
     rule.add(dep_label)
     rule.action.add_assembly(asm)
 
-# And the instruction implementations:
-class CollectApplyChmod(CollectInstructionImplementor):
+
+class SquashFSApplyChmod(SquashFSInstructionImplementor):
     def prepare(self, builder, instr, role, path):
         return True
 
     def apply(self, builder, instr, role, path):
-
         dp = filespec.FSFileSpecDataProvider(path)
-
-        files = dp.abs_match(instr.filespec)
-        # @todo We _really_ need to use xargs here ..
+        files = dp.abs_match(instr.filespect)
         for f in files:
             utils.run_cmd("chmod %s \"%s\""%(instr.new_mode, f))
         return True
 
     def needs_privilege(self, builder, instr, role, path):
-        # You don't, in general, need root to change permissions.
-        # Except, you do in order to chmod setuid after a chown ...
-        return True
-
-class CollectApplyChown(CollectInstructionImplementor):
+        return False
+    
+class SquashFSApplyChown(SquashFSInstructionImplementor):
     def prepare(self, builder, instr, role, path):
         return self._prep_or_apply(builder, instr, role, path, True)
 
@@ -396,7 +358,6 @@ class CollectApplyChown(CollectInstructionImplementor):
         return self._prep_or_apply(builder, instr, role, path, False)
 
     def _prep_or_apply(self, builder, instr, role, path, is_prepare):
-
         # NB: take care to apply a chown command to the file named,
         # even if it is a symbolic link (the default is --reference,
         # which would only apply the chown to the file the symbolic
@@ -426,15 +387,23 @@ class CollectApplyChown(CollectInstructionImplementor):
     def needs_privilege(self, builder, instr, role, path):
         return True
 
+class SquashFSApplyMknod(SquashFSInstructionImplementor):
+    def prepare(self, builder, instr, role, path):
+        return True
+
+    def apply(self, builder, instr, role, path):
+        print "Warning: Attempt to apply a mknod() instruction in a squashfs FS - ignored."
+        return True
+
 
 def get_instruction_dict():
-    """
-    Return a dictionary mapping the names of instructions to the
-    classes that implement them.
+    """ 
+    Return the instruction dictionary 
     """
     app_dict = { }
-    app_dict["chown"] = CollectApplyChown()
-    app_dict["chmod"] = CollectApplyChmod()
+    app_dict["chown"] = SquashFSApplyChown()
+    app_dict["chmod"] = SquashFSApplyChmod()
+    app_dict["mknod"] = SquashFSApplyMknod()
     return app_dict
 
 # End file.

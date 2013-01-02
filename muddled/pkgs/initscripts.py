@@ -42,7 +42,7 @@ class InitScriptBuilder(pkg.PackageBuilder):
 
         if (label.tag == utils.LabelTag.Installed):
             tmp = Label(utils.LabelType.Package, self.name, self.role, domain=label.domain)
-            inst_dir = builder.invocation.package_install_path(tmp)
+            inst_dir = builder.package_install_path(tmp)
 
             tgt_dir = os.path.join(inst_dir, "bin")
             src_file = builder.resource_file_name("initscript.sh")
@@ -67,7 +67,7 @@ class InitScriptBuilder(pkg.PackageBuilder):
                                    None,
                                    utils.LabelTag.Deployed,
                                    domain = label.domain)
-                effective_env.merge(builder.invocation.get_environment_for(
+                effective_env.merge(builder.get_environment_for(
                         lbl))
 
             if (self.write_setvars_sh):
@@ -105,7 +105,7 @@ def simple(builder, name, role, script_name, deployments = [ ],
                                 deployments,
                                 writeSetvarsSh = writeSetvarsSh,
                                 writeSetvarsPy = writeSetvarsPy)
-    pkg.add_package_rules(builder.invocation.ruleset,
+    pkg.add_package_rules(builder.ruleset,
                           name, role, the_pkg)
     setup_default_env(builder, get_env(builder, name, role))
 
@@ -122,7 +122,7 @@ def medium(builder, name, roles, script_name, deployments = [ ],
                                     deployments,
                                     writeSetvarsSh = writeSetvarsSh,
                                     writeSetvarsPy = writeSetvarsPy)
-        pkg.add_package_rules(builder.invocation.ruleset,
+        pkg.add_package_rules(builder.ruleset,
                               name, role, the_pkg)
         setup_default_env(builder, get_env(builder, name, role))
 
@@ -139,7 +139,7 @@ def get_effective_env(builder, name, role, domain = None):
     Retrieve the effective runtime environment for this initscripts
     package. Note that setting variables here will have no effect.
     """
-    return builder.invocation.effective_environment_for(
+    return builder.effective_environment_for(
                 depend.Label(
                     utils.LabelType.Package,
                     name, role,
@@ -155,7 +155,7 @@ def get_env(builder, name, role, domain = None):
     used will have extra values inserted from wildcarded environments -
     see get_effective_env() above.
     """
-    return builder.invocation.get_environment_for(
+    return builder.get_environment_for(
         depend.Label(
             utils.LabelType.Package,
             name, role,

@@ -6274,9 +6274,10 @@ class BranchTree(Command):
 
        a) the checkout is using a VCS which does not support this operation
           (which probably means it is not using git), or
-       b) the checkout already has a branch of the requested name, or
+       b) the build description explicitly specifies a particular revision, or
        c) it is a shallow checkout, in which case there is little point
           branching it as it cannot be pushed.
+       d) the checkout already has a branch of the requested name, or
 
        If any checkouts report problems, then the command will be aborted, and
        muddle will exit with status 1.
@@ -6304,23 +6305,62 @@ class BranchTree(Command):
     Use the appropriate VCS commands to do that (possibly in combination with
     'muddle runin').
 
-    *The following needs checking and rewriting*
+    Normal usage
+    ------------
+    1. Choose a branch name that incorporates the build name and reason for
+       branching. For instance, "acme_stb_alpha_v1.0_maintenance".
 
-    Note that the branch of the build description will "stick", but using
-    'muddle pull', 'push' or 'merge' on a checkout
+    2. Perform the branch::
 
-    .. note:: The exact list of such commands is yet to be finalised, so that
-       may be wrong in detail...
+          muddle branch-tree acme_stb_alpha_v1.0_maintenance
 
-    will first revert to the branch described for that checkout in the build
-    description. If you want the whole build tree (or, at least, those
-    checkouts using a VCS that support this) to follow the branch of the
-    build description, add::
+    3. Edit the (newly branched) build description, and add::
 
-        builder.follow_build_desc_branch = True
+          builder.follow_build_desc_branch = True
 
-    to the build description. Note that this will *not* override any
-    branches that are explicitly selected in the build description, though.
+       to it, so that muddle knows the build tree has been branched as
+       an entity.
+
+    4. Commit all the new branches with an appropriate message.
+       At the moment, there is no convenient single line way to do this
+       with muddle, but the somewhat inconvenient muddle runin command can be
+       used, for instance::
+
+           muddle runin _all_checkouts git commit -a -m 'Branch for v1.0 maintenance'
+
+       (this, of course, relies upon the fact that muddle only supports
+       tree branching with git at the moment).
+
+    5. Possibly do a "muddle push _all" at this point, or perhaps do some
+       editing, some more committing, and then push.
+
+    Dealing with problems
+    ---------------------
+    If a checkout does not support lightweight branching, then the solution
+    is to '-force' the tree branch, and then "branch" the offending checkout
+    by hand. The branched version of the build description will then need
+    to be edited to indicate (in whatever manner is appropriate) the new
+    "branch" to be used.
+
+    If the build description explicitly specifies a particular revision for
+    a checkout, then this can be left as-is if you are never ever going to
+    amend that checkout, but it is probably better to remove the explicit
+    revision before tree branching, and allow muddle to generate a new
+    branch with the new name.
+
+    If a checkout is marked as shallow, then the solution is to edit the
+    branched build description and specify the required revision id explicitly,
+    to guarantee that you keep on getting the particular shallow checkout
+    that is needed (since the main build will continue to track HEAD).
+
+    If a checkout already has a branch of the name you wanted to use, then
+    either use it, or change the branch name you ask for - this can only be
+    decided by yourself, because you know what the name *means*.
+
+    Note that the check for a clashing branch name is done last. That means
+    that if you change the build description so any of the previous checks
+    no longer fail, you still need to re-run the "check" phase to re-check
+    for clashing branch names.
     """
 
     allowed_switches = {'-f': 'force',
@@ -6387,6 +6427,10 @@ class BranchTree(Command):
                 problems.append('%s uses %s, which does not support'
                                 ' lightweight branching'%(co, vcs.short_name))
 
+            elif vcs.repo.revision is not None:
+                problems.append('%s explicitly specifies revision "%s" in'
+                                ' the build description'%(co, vcs.repo.revision))
+
             # Shallow checkouts are not terribly well integrated - we do this
             # very much by hand...
             elif 'shallow_checkout' in vcs.options:
@@ -6411,6 +6455,7 @@ class BranchTree(Command):
         selected = 0
         unsupported = []
         shallow = []
+        explicit = []
         already_exists_in = []
         for co in all_checkouts:
             vcs = builder.db.get_checkout_vcs(builder, co)
@@ -6419,6 +6464,12 @@ class BranchTree(Command):
                 print '%s uses %s, which does not support' \
                       ' lightweight branching'%(co, vcs.short_name)
                 unsupported.append(co)
+                continue
+
+            if vcs.repo.revision is not None:
+                print '%s explicitly specifies revision "%s" in' \
+                      ' the build description'%(co, vcs.repo.revision)
+                explicit.append(co)
                 continue
 
             # Shallow checkouts are not terribly well integrated - we do this
@@ -6445,6 +6496,10 @@ class BranchTree(Command):
             print
             print 'Branch %s already existed in:\n  %s'%(branch,
                          label_list_to_string(already_exists_in, join_with='\n  '))
+        if explicit:
+            print
+            print 'The following checkouts specified explicit revisions in the build description:' \
+                    '\n  %s'%(label_list_to_string(explicit, join_with='\n  '))
         if shallow:
             print
             print 'Unable to branch the following shallow checkouts:' \

@@ -1575,7 +1575,7 @@ def _domain_from_parts(parts):
 def _build_desc_label_in_domain(builder, domain, label_tag):
     """Return the label for the build description checkout in this domain.
     """
-    co_label = builder.invocation.db.get_domain_build_desc_label(domain)
+    co_label = builder.db.get_domain_build_desc_label(domain)
     if co_label.tag == label_tag:
         return co_label
     else:

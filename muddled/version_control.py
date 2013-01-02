@@ -356,17 +356,17 @@ class VersionControlHandler(object):
             # This next is going to be *way* too slow to do for every time this
             # method is called - once per label - so should really be cached.
             # Probably as
-            # builder.invocation.db.get_domain_build_desc_branch([builder],domain)
+            # builder.db.get_domain_build_desc_branch([builder],domain)
             #
             # But for now let's just try to get it working
             #
             # ...following "muddle query build-desc-branch":
             # First, find the build description for our checkout
             domain = self.checkout_label.domain
-            build_desc_label = builder.invocation.db.get_domain_build_desc_label(domain)
+            build_desc_label = builder.db.get_domain_build_desc_label(domain)
             # Figure out its VCS
             build_desc_label = build_desc_label.copy_with_tag(utils.LabelTag.CheckedOut)
-            rule = builder.invocation.ruleset.rule_for_target(build_desc_label)
+            rule = builder.ruleset.rule_for_target(build_desc_label)
             try:
                 vcs = rule.action.vcs
             except AttributeError:
@@ -445,7 +445,7 @@ class VersionControlHandler(object):
             self.repo.branch = specific_branch
             print 'Specific branch %s in %s'%(specific_branch, self.checkout_label)
 
-        with utils.Directory(builder.invocation.checkout_path(self.checkout_label)):
+        with utils.Directory(builder.checkout_path(self.checkout_label)):
             try:
                 return self.vcs_handler.pull(self.repo, self.options,
                                              upstream=upstream, verbose=verbose)
@@ -478,7 +478,7 @@ class VersionControlHandler(object):
             # - so let's remember it on the Repository
             self.repo.branch = specific_branch
 
-        with utils.Directory(builder.invocation.checkout_path(self.checkout_label)):
+        with utils.Directory(builder.checkout_path(self.checkout_label)):
             try:
                 return self.vcs_handler.merge(self.repo, self.options, verbose)
             except utils.MuddleBug as err:
@@ -648,7 +648,7 @@ class VersionControlHandler(object):
         If 'show_pushd' is false, then we won't report as we "pushd" into the
         checkout directory.
         """
-        with utils.Directory(builder.invocation.checkout_path(self.checkout_label), show_pushd=show_pushd):
+        with utils.Directory(builder.checkout_path(self.checkout_label), show_pushd=show_pushd):
             try:
                 return self.vcs_handler.get_current_branch()
             except (utils.GiveUp, utils.Unsupported) as err:
@@ -664,7 +664,7 @@ class VersionControlHandler(object):
         If 'show_pushd' is false, then we won't report as we "pushd" into the
         checkout directory.
         """
-        with utils.Directory(builder.invocation.checkout_path(self.checkout_label), show_pushd=show_pushd):
+        with utils.Directory(builder.checkout_path(self.checkout_label), show_pushd=show_pushd):
             try:
                 return self.vcs_handler.create_branch(branch)
             except (utils.GiveUp, utils.Unsupported) as err:
@@ -680,7 +680,7 @@ class VersionControlHandler(object):
         If 'show_pushd' is false, then we won't report as we "pushd" into the
         checkout directory.
         """
-        with utils.Directory(builder.invocation.checkout_path(self.checkout_label), show_pushd=show_pushd):
+        with utils.Directory(builder.checkout_path(self.checkout_label), show_pushd=show_pushd):
             try:
                 return self.vcs_handler.goto_branch(branch)
             except (utils.GiveUp, utils.Unsupported) as err:
@@ -699,7 +699,7 @@ class VersionControlHandler(object):
         If 'show_pushd' is false, then we won't report as we "pushd" into the
         checkout directory.
         """
-        with utils.Directory(builder.invocation.checkout_path(self.checkout_label), show_pushd=show_pushd):
+        with utils.Directory(builder.checkout_path(self.checkout_label), show_pushd=show_pushd):
             try:
                 return self.vcs_handler.branch_exists(branch)
             except (utils.GiveUp, utils.Unsupported) as err:
@@ -713,7 +713,7 @@ class VersionControlHandler(object):
         our_domain = self.checkout_label.domain
         print 'Synchronising for', self.checkout_label
         print '  Domain is', our_domain
-        if builder.invocation.db.get_domain_follows_build_desc_branch(our_domain):
+        if builder.db.get_domain_follows_build_desc_branch(our_domain):
             print '  Following build desc'
 
             if self.repo.branch is not None:
@@ -726,10 +726,10 @@ class VersionControlHandler(object):
             # We are meant to be following our build description's branch
             # XXX If we're going to do this often, we probably want to cache
             # XXX the branch information...
-            build_desc_label = builder.invocation.db.get_domain_build_desc_label(our_domain)
+            build_desc_label = builder.db.get_domain_build_desc_label(our_domain)
             build_desc_label = build_desc_label.copy_with_tag(utils.LabelTag.CheckedOut)
             print '  Build desc is', build_desc_label
-            rule = builder.invocation.ruleset.rule_for_target(build_desc_label)
+            rule = builder.ruleset.rule_for_target(build_desc_label)
             try:
                 vcs = rule.action.vcs
             except AttributeError:

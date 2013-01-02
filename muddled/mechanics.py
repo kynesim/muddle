@@ -1047,7 +1047,7 @@ class Builder(object):
             follows = False
 
         self._follow_build_desc_branch = follows
-        self.invocation.db.set_domain_follows_build_desc_branch(domain, follows)
+        self.db.set_domain_follows_build_desc_branch(domain, follows)
 
     def _follows_build_desc_branch(self, value=None):
         raise ValueError('There is no Builder value called "follows_build_desc_branch,'

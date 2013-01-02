@@ -2435,13 +2435,7 @@ class QueryCheckoutId(QueryCommand):
                 label = checkouts[0]
 
         # Figure out its VCS
-        label = label.copy_with_tag(LabelTag.CheckedOut)
-        rule = builder.ruleset.rule_for_target(label)
-
-        try:
-            vcs = rule.action.vcs
-        except AttributeError:
-            raise GiveUp("Rule for label '%s' has no VCS - cannot find its id"%label)
+        vcs = builder.db.get_checkout_vcs(builder, label)
 
         print vcs.revision_to_checkout(builder, show_pushd=False)
 
@@ -4474,9 +4468,8 @@ class UnStamp(Command):
                     changed_checkouts.append(str(label))
                 else:
                     l = label.copy_with_tag(LabelTag.CheckedOut)
-                    rule = builder.ruleset.rule_for_target(l)
                     try:
-                        vcs = rule.action.vcs
+                        vcs = builder.db.get_checkout_vcs(builder, l)
                     except AttributeError:
                         raise GiveUp("Rule for label '%s' has no VCS - cannot find its id"%l)
                     old_revision = vcs.revision_to_checkout(builder, show_pushd=False)
@@ -5629,10 +5622,9 @@ class Status(CheckoutCommand):
         something_needs_doing = 0
         something = []
         for co in labels:
-            rule = builder.ruleset.rule_for_target(co)
             try:
-                vcs = rule.action.vcs
-            except AttributeError:
+                vcs = builder.db.get_checkout_vcs(builder, co)
+            except GiveUp:
                 print "Rule for label '%s' has no VCS - cannot find its status"%co
                 continue
             text = vcs.status(builder, verbose)
@@ -5705,10 +5697,9 @@ class Reparent(CheckoutCommand):
             force = False
 
         for co in labels:
-            rule = builder.ruleset.rule_for_target(co)
             try:
-                vcs = rule.action.vcs
-            except AttributeError:
+                vcs = builder.db.get_checkout_vcs(builder, co)
+            except GiveUp:
                 print "Rule for label '%s' has no VCS - cannot reparent, ignored"%co
                 continue
             vcs.reparent(builder, force=force, verbose=True)

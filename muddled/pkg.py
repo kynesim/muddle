@@ -226,16 +226,12 @@ def add_checkout_rules(ruleset, co_label, action):
     rule = depend.Rule(pulled_label, action)
     rule.add(co_label)
     ruleset.add(rule)
-    #rule = ruleset.rule_for_target(pulled_label, createIfNotPresent=True)
-    #rule.add(co_label)
 
     # Merged is very similar, and also depends on the checkout existing
     merged_label = co_label.copy_with_tag(utils.LabelTag.Merged, transient=True)
     rule = depend.Rule(merged_label, action)
     rule.add(co_label)
     ruleset.add(rule)
-    #rule = ruleset.rule_for_target(merged_label, createIfNotPresent=True)
-    #rule.add(co_label)
 
     ## We used to say that UpToDate depended on Pulled.
     ## Our nearest equivalent would be Merged depending on Pulled.

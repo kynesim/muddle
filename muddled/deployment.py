@@ -95,8 +95,7 @@ def deployment_depends_on_roles(builder, deployment, roles, domain=None):
                        deployment,
                        None,
                        utils.LabelTag.Deployed)
-    rule = builder.ruleset.rule_for_target(tgt,
-                                                      createIfNotPresent = True)
+    rule = builder.ruleset.rule_for_target(tgt, createIfNotPresent = True)
     for r in roles:
         lbl = depend.Label(utils.LabelType.Package,
                            "*",
@@ -114,8 +113,7 @@ def deployment_depends_on_deployment(builder, what, depends_on, domain=None):
                        what,
                        None,
                        utils.LabelTag.Deployed)
-    rule = builder.ruleset.rule_for_target(tgt,
-                                                      createIfNotPresent = True)
+    rule = builder.ruleset.rule_for_target(tgt, createIfNotPresent = True)
     rule.add(depend.Label(utils.LabelType.Deployment,
                           depends_on,
                           None,

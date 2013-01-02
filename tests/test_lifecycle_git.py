@@ -425,7 +425,7 @@ def test_git_lifecycle(root_d):
         # description's branch
         muddle(['sync', 'checkout'])
         check_branch('src/builds', 'test-v0.1')
-        check_branch('src/checkout', 'test-v0.1')      # XXX WORKING ON THIS
+        check_branch('src/checkout', 'test-v0.1')
 
         # ...also want to check what happens if we explicitly select
         # branch master of checkout, by name, in the build description

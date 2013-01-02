@@ -2435,13 +2435,7 @@ class QueryCheckoutId(QueryCommand):
                 label = checkouts[0]
 
         # Figure out its VCS
-        label = label.copy_with_tag(LabelTag.CheckedOut)
-        rule = builder.ruleset.rule_for_target(label)
-
-        try:
-            vcs = rule.action.vcs
-        except AttributeError:
-            raise GiveUp("Rule for label '%s' has no VCS - cannot find its id"%label)
+        vcs = builder.db.get_checkout_vcs(builder, label)
 
         print vcs.revision_to_checkout(builder, show_pushd=False)
 
@@ -2469,11 +2463,11 @@ class QueryBuildDescBranch(QueryCommand):
 
     def with_build_tree(self, builder, current_dir, args):
 
-        #builder.invocation.db.dump_domain_build_desc_labels()
-        #builder.invocation.db.dump_domain_follows_build_desc_branch()
+        #builder.db.dump_domain_build_desc_labels()
+        #builder.db.dump_domain_follows_build_desc_branch()
 
         if len(args) == 1 and args[0] == '_all':
-            domains = builder.invocation.all_domains()
+            domains = builder.all_domains()
         elif args:
             label = self.get_label_from_fragment(builder, args,
                                                  default_type=LabelType.Checkout)
@@ -2484,21 +2478,15 @@ class QueryBuildDescBranch(QueryCommand):
 
         for domain in sorted(domains):
             # Get the build description checkout label for that domain
-            label = builder.invocation.db.get_domain_build_desc_label(domain)
+            label = builder.db.get_domain_build_desc_label(domain)
 
             # Figure out its VCS
-            label = label.copy_with_tag(LabelTag.CheckedOut)
-            rule = builder.invocation.ruleset.rule_for_target(label)
-
-            try:
-                vcs = rule.action.vcs
-            except AttributeError:
-                raise GiveUp("Rule for label '%s' has no VCS - cannot find its id"%label)
+            vcs = builder.db.get_checkout_vcs(builder, label)
 
             # and presto
             print 'Build description %s is on branch %s'%(label,
                     vcs.get_current_branch(builder, show_pushd=False))
-            if builder.invocation.db.get_domain_follows_build_desc_branch(domain):
+            if builder.db.get_domain_follows_build_desc_branch(domain):
                 print '  This WILL be used as the default branch for other checkouts in that domain'
             else:
                 print '  This will NOT be used as the default branch for other checkouts in that domain'
@@ -4533,9 +4521,8 @@ class UnStamp(Command):
                     changed_checkouts.append(str(label))
                 else:
                     l = label.copy_with_tag(LabelTag.CheckedOut)
-                    rule = builder.ruleset.rule_for_target(l)
                     try:
-                        vcs = rule.action.vcs
+                        vcs = builder.db.get_checkout_vcs(builder, l)
                     except AttributeError:
                         raise GiveUp("Rule for label '%s' has no VCS - cannot find its id"%l)
                     old_revision = vcs.revision_to_checkout(builder, show_pushd=False)
@@ -5688,10 +5675,9 @@ class Status(CheckoutCommand):
         something_needs_doing = 0
         something = []
         for co in labels:
-            rule = builder.ruleset.rule_for_target(co)
             try:
-                vcs = rule.action.vcs
-            except AttributeError:
+                vcs = builder.db.get_checkout_vcs(builder, co)
+            except GiveUp:
                 print "Rule for label '%s' has no VCS - cannot find its status"%co
                 continue
             text = vcs.status(builder, verbose)
@@ -5764,10 +5750,9 @@ class Reparent(CheckoutCommand):
             force = False
 
         for co in labels:
-            rule = builder.ruleset.rule_for_target(co)
             try:
-                vcs = rule.action.vcs
-            except AttributeError:
+                vcs = builder.db.get_checkout_vcs(builder, co)
+            except GiveUp:
                 print "Rule for label '%s' has no VCS - cannot reparent, ignored"%co
                 continue
             vcs.reparent(builder, force=force, verbose=True)
@@ -5924,9 +5909,8 @@ class Sync(CheckoutCommand):
 
     def build_these_labels(self, builder, labels):
         for co in labels:
-            rule = builder.invocation.ruleset.rule_for_target(co)
             try:
-                vcs = rule.action.vcs
+                vcs = builder.db.get_checkout_vcs(builder, co)
             except AttributeError:
                 print "Rule for label '%s' has no VCS - cannot find its status"%co
                 continue
@@ -6324,11 +6308,33 @@ class BranchTree(Command):
 
         builder.follow_build_desc_branch = True
 
-    to the build desscription. Note that this will *not* override any
+    to the build description. Note that this will *not* override any
     branches that are explicitly selected in the build description, though.
 
     It is recommended that <branch> include the build name (as specified
     using ``builder.build_name = <name>`` in the build description).
+
+    Alternative usage proposal
+    --------------------------
+    As follows:
+
+    1. First inspect each checkout, and report if:
+
+       (a) a branch of the requested name already exists, or
+       (b) that checkout does not support this operation (which probably means
+           it is not using git), or
+       (c) it is a shallow checkout, in which case there is little point
+           branching it as it cannot be pushed.
+
+       If any checkouts report anything, then give up.
+
+    2. Branch all checkouts as requested, and change to that branch.
+
+    3. Remind the user to add "builder.follow_build_desc_branch = True"
+       to the build description.
+
+    If the user specifies "-f" or "-force", omit step 1.
+    If the user specifies "-c" or "-check", omit steps 2 and 3.
     """
 
     allowed_switches = {'-f': 'force',
@@ -6361,15 +6367,14 @@ class BranchTree(Command):
                 print 'Asked to create branch "%s" in all checkouts'%branch
             return
 
-        all_checkouts = builder.invocation.all_checkout_labels(LabelTag.CheckedOut)
+        all_checkouts = builder.all_checkout_labels(LabelTag.CheckedOut)
         co_vcs = []
         for co in sorted(all_checkouts):
-            rule = builder.invocation.ruleset.rule_for_target(co)
             try:
-                vcs = rule.action.vcs
+                vcs = builder.db.get_checkout_vcs(builder, co)
                 co_vcs.append((co, vcs))
-            except AttributeError:
-                raise GiveUp("Rule for label '%s' has no VCS - cannot find its branch"%co)
+            except GiveUp as e:
+                raise GiveUp("%s - cannot find its branch"%str(e))
 
         if check:
             self.check_branch_name(builder, co_vcs, branch, verbose)

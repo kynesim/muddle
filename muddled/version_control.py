@@ -366,10 +366,9 @@ class VersionControlHandler(object):
             build_desc_label = builder.db.get_domain_build_desc_label(domain)
             # Figure out its VCS
             build_desc_label = build_desc_label.copy_with_tag(utils.LabelTag.CheckedOut)
-            rule = builder.ruleset.rule_for_target(build_desc_label)
             try:
-                vcs = rule.action.vcs
-            except AttributeError:
+                vcs = builder.db.get_checkout_vcs(builder, build_desc_label)
+            except GiveUp:
                 raise GiveUp("Rule for build description label '%s' has no VCS"
                              " - cannot find its branch"%build_desc_label)
             build_desc_branch = vcs.get_current_branch(builder, show_pushd=False)
@@ -724,16 +723,14 @@ class VersionControlHandler(object):
                 return
 
             # We are meant to be following our build description's branch
-            # XXX If we're going to do this often, we probably want to cache
-            # XXX the branch information...
             build_desc_label = builder.db.get_domain_build_desc_label(our_domain)
             build_desc_label = build_desc_label.copy_with_tag(utils.LabelTag.CheckedOut)
             print '  Build desc is', build_desc_label
-            rule = builder.ruleset.rule_for_target(build_desc_label)
             try:
-                vcs = rule.action.vcs
-            except AttributeError:
-                raise GiveUp("Rule for label '%s' has no VCS - cannot find its id"%build_desc_label)
+                vcs = builder.db.get_checkout_vcs(builder, build_desc_label)
+            except GiveUp:
+                raise GiveUp("Rule for build description label '%s' has no VCS"
+                             " - cannot find its branch"%build_desc_label)
 
             build_desc_branch = vcs.get_current_branch(builder, show_pushd=False)
             print '  Build desc branch is', build_desc_branch

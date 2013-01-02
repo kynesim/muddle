@@ -1700,20 +1700,20 @@ def rule_target_str(rule):
     """
     return str(rule.target)
 
-def normalise_checkout_label(label):
+def normalise_checkout_label(label, tag='*'):
     """
     Given a checkout label with random "other" fields, normalise it.
 
     Returns a normalised checkout label, with the role unset and the
-    tag set to '*'. This may be the same label (if it was already
-    normalised), or it may be a new label. No guarantee is given of
+    tag set to 'tag' (normally, "*"). This may be the same label (if it was
+    already normalised), or it may be a new label. No guarantee is given of
     either.
 
     Raise a MuddleBug exception if the label is not a checkout label.
 
     A normalised checkout label:
 
-        1. Has tag '*'
+        1. Has the given tag (normally '*', sometimes LabelTag.CheckedOut)
         2. Does not have a role (checkout labels do not use the role)
         3. Does not have the system or transient flags set
         4. Has the same name and (if present) domain
@@ -1724,11 +1724,11 @@ def normalise_checkout_label(label):
         raise MuddleBug('Cannot "normalise" a non-checkout label: %s'%label)
 
     # Can we just use the same label?
-    if label.tag == '*' and label.role is None and \
+    if label.tag == tag and label.role is None and \
             not label.system and not label.transient:
         return label
     else:
-        new = label.copy_with_tag('*')
+        new = label.copy_with_tag(tag)
         new._role = None    # a bit naughty, but the simplest way
         return new
 

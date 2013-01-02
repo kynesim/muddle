@@ -76,6 +76,9 @@ class Database(object):
         checkout:builds/*               -> Repository('git', 'http://.../main', 'builds')
         checkout:(subdomain1)first_co/* -> Repository('git', 'http://.../subdomain1', 'first_co')
 
+    * checkout_vcs - This is a cache remembering the VCS for a checkout. It
+      is not intended for direct access.
+
     * checkout_licenses - This maps a checkout label to a License instance,
       representing the source code license under which this checkout's source
       code is being used. For instance::
@@ -181,6 +184,7 @@ class Database(object):
 
         self.checkout_locations = {}
         self.checkout_repositories = {}
+        self.checkout_vcs = {}
         self.checkout_licenses = {}
         self.checkout_license_files = {}
         self.license_not_affected_by = {}
@@ -963,6 +967,35 @@ class Database(object):
                                ', '.join(sorted(upstream_dict[upstream_repo])))
         except KeyError:
             print '  Has no upstream repositories'
+
+    def get_checkout_vcs(self, builder, checkout_label):
+        """
+        'checkout_label' is a "checkout:" Label.
+
+        Returns the VCS for the given checkout, cacheing it.
+
+        Raises GiveUp (containing an explanatory message) if we cannot find
+        that checkout label in the rules (i.e., nothing in the dependency tree
+        uses it).
+
+        Raise MuddleBug if it is not a checkout label, or we find its rule, but
+        no VCS on its action.
+        """
+        key = normalise_checkout_label(checkout_label, tag=utils.LabelTag.CheckedOut)
+        if key in self.checkout_vcs:
+            return self.checkout_vcs[key]
+        else:
+            rule = builder.ruleset.rule_for_target(key)
+            if rule is None:
+                raise utils.GiveUp('There is no rule registered for label %s,'
+                                   ' and thus no VCS'%key)
+            try:
+                vcs = rule.action.vcs
+            except AttributeError:
+                raise utils.MuddleBug("The rule for label '%s' has no VCS"%key)
+
+            self.checkout_vcs[key] = vcs
+            return vcs
 
     def build_desc_file_name(self):
         """

@@ -5890,8 +5890,18 @@ class Sync(CheckoutCommand):
     """
     :Syntax: muddle sync [ <checkout> ... ]
 
-    Synchronise the specified checkouts with the build description branch,
-    if that wishes it so.
+    For each checkout, attempt to go to the branch indicated by the build
+    description.
+
+    XXX Is the following an accurate description of what we do?
+
+    1. If the checkout's VCS does not support lightweight branching, then
+       nothing will be done for it.
+    2. If the build description specifies a branch or revision, then go to
+       that branch or revision.
+    3. If the build description has "builder.follow_build_desc_branch = True",
+       then go to the same branch as the build description.
+    4. Otherwise, go to "master".
 
     <checkout> should be a label fragment specifying a checkout, or one of
     _all and friends, as for any checkout command. The <type> defaults to
@@ -5900,8 +5910,6 @@ class Sync(CheckoutCommand):
 
     If no checkouts are named, what we do depends on where we are in the
     build tree. See "muddle help labels".
-
-    WARNING: this is an experimental command, and may go away again.
     """
 
     # XXX Is this correct?
@@ -6275,9 +6283,10 @@ class BranchTree(Command):
        a) the checkout is using a VCS which does not support this operation
           (which probably means it is not using git), or
        b) the build description explicitly specifies a particular revision, or
-       c) it is a shallow checkout, in which case there is little point
+       c) the build description explicitly specifies a particular branch, or
+       d) it is a shallow checkout, in which case there is little point
           branching it as it cannot be pushed, or
-       d) the checkout already has a branch of the requested name.
+       e) the checkout already has a branch of the requested name.
 
        If any checkouts report problems, then the command will be aborted, and
        muddle will exit with status 1.
@@ -6342,11 +6351,15 @@ class BranchTree(Command):
     to be edited to indicate (in whatever manner is appropriate) the new
     "branch" to be used.
 
-    If the build description explicitly specifies a particular revision for
-    a checkout, then this can be left as-is if you are never ever going to
-    amend that checkout, but it is probably better to remove the explicit
-    revision before tree branching, and allow muddle to generate a new
-    branch with the new name.
+    If the build description explicitly specifies a particular branch or
+    revision for a checkout, then check the build out as normal, then branch
+    the build description and remove the explicit branch or revision, and
+    then use branch-tree to branch the checkout.
+
+      (If you can promise absolutely that it will never be necessary to
+      edit the offending checkout, then it would also be OK to leave the
+      explicit branch or revision, but experience proves this is often a
+      mistake.)
 
     If a checkout is marked as shallow, then the solution is to edit the
     branched build description and specify the required revision id explicitly,
@@ -6435,6 +6448,10 @@ class BranchTree(Command):
                 problems.append('%s explicitly specifies revision "%s" in'
                                 ' the build description'%(co, vcs.repo.revision))
 
+            elif vcs.repo.branch is not None:
+                problems.append('%s explicitly specifies branch "%s" in'
+                                ' the build description'%(co, vcs.repo.branch))
+
             # Shallow checkouts are not terribly well integrated - we do this
             # very much by hand...
             elif 'shallow_checkout' in vcs.options:
@@ -6457,9 +6474,7 @@ class BranchTree(Command):
         """
         created = 0
         selected = 0
-        unsupported = []
-        shallow = []
-        explicit = []
+        problems = []
         already_exists_in = []
         for co in all_checkouts:
             vcs = builder.db.get_checkout_vcs(builder, co)
@@ -6467,20 +6482,26 @@ class BranchTree(Command):
             if not vcs.vcs_handler.supports_branching():
                 print '%s uses %s, which does not support' \
                       ' lightweight branching'%(co, vcs.short_name)
-                unsupported.append(co)
+                problems.append((co, "VCS %s not supported"))
                 continue
 
             if vcs.repo.revision is not None:
                 print '%s explicitly specifies revision "%s" in' \
                       ' the build description'%(co, vcs.repo.revision)
-                explicit.append(co)
+                problems.append((co, "specific revision %s"%vcs.repo.revision))
+                continue
+
+            if vcs.repo.branch is not None:
+                print '%s explicitly specifies branch "%s" in' \
+                      ' the build description'%(co, vcs.repo.branch)
+                problems.append((co, "specific branch %s"%vcs.repo.branch))
                 continue
 
             # Shallow checkouts are not terribly well integrated - we do this
             # very much by hand...
             if 'shallow_checkout' in vcs.options:
                 print '%s is shallow, so cannot be branched'%co
-                shallow.append(co)
+                problems.append((co, "shallow checkout"))
                 continue
 
             if vcs.branch_exists(builder, branch, show_pushd=verbose):
@@ -6500,18 +6521,18 @@ class BranchTree(Command):
             print
             print 'Branch %s already existed in:\n  %s'%(branch,
                          label_list_to_string(already_exists_in, join_with='\n  '))
-        if explicit:
-            print
-            print 'The following checkouts specified explicit revisions in the build description:' \
-                    '\n  %s'%(label_list_to_string(explicit, join_with='\n  '))
-        if shallow:
-            print
-            print 'Unable to branch the following shallow checkouts:' \
-                    '\n  %s'%(label_list_to_string(shallow, join_with='\n  '))
-        if unsupported:
-            print
-            print 'Unable to branch the following checkouts which do not support it:' \
-                    '\n  %s'%(label_list_to_string(unsupported, join_with='\n  '))
+        if problems:
+            # Make our reporting of problems relatively terse, as we should
+            # only need to report them if the user specified -force, and thus
+            # may be assumed to have expected them.
+            maxlen = 0
+            for co, text in problems:
+                length = len(str(co))
+                if length > maxlen:
+                    maxlen = length
+            print 'Unable to branch the following:'
+            for co, text in problems:
+                print '  %.*s (%s)'%(maxlen, co, text)
 
         return selected
 

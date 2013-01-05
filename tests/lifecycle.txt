@@ -500,5 +500,101 @@ After some discussion with Richard:
 7. I should look up "git sparse checkout", but that's for other reasons.
 
 
+Axes of testing
+===============
+Branch tree
+-----------
+Checkouts:
+
+* OK
+* whose VCS doesn't support lightweight branching
+* with an existing branch of that name
+* with an explicit revision in the build description
+* with an explicit branch in the build description
+* shallow
+* remote repositories (I've been ignoring this)
+* subdomains - think on it.
+
+With a build description that already has "follow build description" set in
+it.
+
+Check using -force in all cases.
+
+Check that the "Dealing with problems" solutions (in "help branch-tree")
+all work as described, and refine the solutions as necessary.
+
+Synchronising
+-------------
+Does the right thing for:
+
+* normal checkouts
+* a checkout that, for some reason, doesn't have the necessary branch
+* whose VCS doesn't support lightweight branching
+* with an explicit revision in the build description
+* with an explicit branch in the build description
+* shallow
+* remote repositories
+* subdomains
+
+Does the right thing if the build description is on master.
+
+Does the right thing (complains and does nothing?) if the build description
+does not have "follow me" set.
+
+Pull, push, merge
+-----------------
+Do they care if the build description is to be followed? (I think not, for
+backwards compatibility - they just go with the current state of the
+particular checkout).
+
+Do they require a sync before they do anything? (I'm fairly sure the answer is
+definitely not, again not least for backwards compatibility)
+
+Checkout
+--------
+When a new checkout is made into a "follow the build description" world, and
+there is no explicit revision in the build description (and it's not shallow,
+etc.) - what happens? Does muddle immediately go to the build description
+branch, or does one need a sync operation to do it?
+
+What about import?
+
+Other operations
+----------------
+Should reparent and sync be merged?
+
+Check how pull-upstream and push-upstream work.
+
+Should status report if the checkout is not on the expected branch? (I'd like
+to think it should.)
+
+We should probably add a ``-b[ranch]`` switch to init, so we can go straight
+to a branched build description, before doing the checkouts - for instance::
+
+  muddle init -b widget-v1-maintenance <repo> builds/01.py
+  muddle checkout _all
+
+which further reinforces that checkout should Do The Right Thing - it wouldn't
+be as neat if the user had to remember an explicit::
+
+  muddle sync _all
+
+and it would definitely be too easy for forget.
+
+Note that if the build has subdomains then presumably the branch would
+propagate down into the init of each subdomain as well.
+
+Note that stamping a maintenance branched build tree and then unstamping it
+elsewhere should already just do the right thing, since unstamping checks
+revisions our according to the stamp file, and then checks they match the
+build description afterwards.
+
+Both release and distribute should state categorically how they behave with
+respect to build trees where the user has changed branch in (some of) the
+checkouts. At the moment, I believe they just ignore the issue, although since
+release is mediated by a stamp file, it should actually be "clean" with
+respect to the checkouts matching the build description. For distribute, I
+think ignoring the issue is probably the correct response - if the user does
+something odd, that's their responsibility?
 
 .. vim: set filetype=rst tabstop=8 softtabstop=2 shiftwidth=2 expandtab:

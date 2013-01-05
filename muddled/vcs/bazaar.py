@@ -392,6 +392,25 @@ class Bazaar(VersionControlSystem):
                     else:
                         fd.write(orig_line)
 
+    def goto_revision(self, revision, branch=None):
+        """
+        Make the specified revision current.
+
+        Note that this may leave the working data (the actual checkout
+        directory) in an odd state, in which it is not sensible to
+        commit, depending on the VCS and the revision.
+
+        Will be called in the actual checkout's directory.
+
+        Raises GiveUp if there is no such revision, or if a branch is given.
+        """
+        if branch:
+            raise utils.GiveUp("Bazaar does not support branch (in the muddle sense), branch=%s"%branch)
+
+        # Luckily, our pull method does more-or-less what we want
+        repo = self.repo.copy_with_changed_revision(revision)
+        self.pull(repo, None, verbose=verbose)
+
     def _all_checked_in(self, env):
         """
         Do we have anything that is not yet checked in?

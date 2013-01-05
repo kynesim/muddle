@@ -178,6 +178,25 @@ class VersionControlSystem(object):
         raise utils.Unsupported("VCS '%s' cannot goto a different branch"
                                 " of a checkout"%self.long_name)
 
+    def goto_revision(self, revision, branch=None):
+        """
+        Make the specified revision current.
+
+        Note that this may leave the working data (the actual checkout
+        directory) in an odd state, in which it is not sensible to
+        commit, depending on the VCS and the revision.
+
+        Will be called in the actual checkout's directory.
+
+        If the VCS supports it, may also take a branch name.
+
+        Raises Unsupported if the VCS does not support this operation.
+
+        Raises GiveUp if there is no such revision.
+        """
+        raise utils.Unsupported("VCS '%s' cannot goto a different revision"
+                                " of a checkout"%self.long_name)
+
     def branch_exists(self, branch):
         """
         Returns True if a branch of that name exists.
@@ -686,6 +705,28 @@ class VersionControlHandler(object):
                 raise utils.GiveUp('Failure changing to branch %s for %s in %s:\n%s'%(branch,
                                    self.checkout_label, self.src_rel_dir(), err))
 
+    def goto_revision(self, builder, revision, branch=None, verbose=False, show_pushd=False):
+        """
+        Go to the specified revision.
+
+        If branch is given, this may alter the behaviour.
+
+        Will be called in the actual checkout's directory.
+
+        If 'show_pushd' is false, then we won't report as we "pushd" into the
+        checkout directory.
+        """
+        with utils.Directory(builder.checkout_path(self.checkout_label), show_pushd=show_pushd):
+            try:
+                return self.vcs_handler.goto_revision(revision, branch)
+            except (utils.GiveUp, utils.Unsupported) as err:
+                if branch:
+                    raise utils.GiveUp('Failure changing to revision %s, branch %s, for %s in %s:\n%s'%(revision, branch,
+                                       self.checkout_label, self.src_rel_dir(), err))
+                else:
+                    raise utils.GiveUp('Failure changing to revision %s for %s in %s:\n%s'%(revision,
+                                       self.checkout_label, self.src_rel_dir(), err))
+
     def branch_exists(self, builder, branch, verbose=False, show_pushd=False):
         """
         Returns True if a branch of that name exists.
@@ -705,23 +746,44 @@ class VersionControlHandler(object):
                 raise utils.GiveUp('Failure checking existence of branch %s for %s in %s:\n%s'%(branch,
                                    self.checkout_label, self.src_rel_dir(), err))
 
-    def maybe_sync_with_build_desc_branch(self, builder):
+    def sync(self, builder):
         """
-        If the build description wants us to follow its branch, do so.
+        Attempt to go to the branch indicated by the build description.
+
+        Do the first applicable of the following
+
+        * If the build description specifies a revision for this checkout,
+          go to that revision.
+        * If the build description specifies a branch for this checkout,
+          and the checkout VCS supports going to a specific branch, go to
+          that branch
+        * If the build description specifies that this checkout is shallow,
+          then give up.
+        * If the checkout's VCS does not support lightweight branching, then
+          give up (the following choices require this).
+        * If the build description has "builder.follow_build_desc_branch = True",
+          then go to the same branch as the build description.
+        * Otherwise, go to "master".
         """
-        our_domain = self.checkout_label.domain
         print 'Synchronising for', self.checkout_label
-        print '  Domain is', our_domain
-        if builder.db.get_domain_follows_build_desc_branch(our_domain):
+        if self.repo.branch or self.repo.revision:
+            print '  Build description has specific branch/revision'
+            follow = False
+        elif not self.vcs_handler.supports_branching():
+            print '  Changing branch is not supported for this VCS'
+            follow = False
+        # Shallow checkouts are not terribly well integrated - we do this
+        # very much by hand...
+        elif 'shallow_checkout' in self.options:
+            print '  This is a shallow checkout'
+            follow = False
+        else:
+            our_domain = self.checkout_label.domain
+            print '  Domain is', our_domain
+            follow = builder.db.get_domain_follows_build_desc_branch(our_domain)
+
+        if follow:
             print '  Following build desc'
-
-            if self.repo.branch is not None:
-                print 'Build description for %s explicitly states branch "%s",' \
-                      ' so not following build description'%(self.checkout_label, self.repo.branch)
-                print '  Going to it...'
-                self.goto_branch(builder, self.repo.branch)
-                return
-
             # We are meant to be following our build description's branch
             build_desc_label = builder.db.get_domain_build_desc_label(our_domain)
             build_desc_label = build_desc_label.copy_with_tag(utils.LabelTag.CheckedOut)
@@ -739,13 +801,20 @@ class VersionControlHandler(object):
             self.goto_branch(builder, build_desc_branch)
         else:
             print '  NOT Following build desc'
-            print '  Our branch is', self.repo.branch
-            print '  Going to it...'
-            # We are meant to keep to our own branch, whatever that is
-            if self.repo.branch is None:
-                self.goto_branch(builder, 'master')
-            else:
+            # We are meant to keep to our own revision or branch, whatever that is
+            if self.repo.revision is not None:
+                if self.repo.branch:
+                    print '  Selecting revision %s, branch %s'%(self.repo.revision, self.repo.branch)
+                else:
+                    print '  Selecting revision %s'%self.repo.revision
+                self.goto_revision(builder, self.repo.revision, self.repo.branch)
+            elif self.repo.branch is not None:
+                print '  Selecting branch %s'%self.repo.branch
                 self.goto_branch(builder, self.repo.branch)
+            else:
+                print '  Selecting branch master'
+                self.goto_branch(builder, 'master')
+
 
     def must_pull_before_commit(self):
         return self.vcs_handler.must_pull_before_commit(self.options)

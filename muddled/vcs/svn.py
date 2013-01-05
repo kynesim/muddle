@@ -163,6 +163,25 @@ class Subversion(VersionControlSystem):
         else:
             return None
 
+    def goto_revision(self, revision, branch=None):
+        """
+        Make the specified revision current.
+
+        Note that this may leave the working data (the actual checkout
+        directory) in an odd state, in which it is not sensible to
+        commit, depending on the VCS and the revision.
+
+        Will be called in the actual checkout's directory.
+
+        Raises GiveUp if there is no such revision, or if branch is given.
+        """
+        if branch:
+            raise utils.GiveUp("Subversion does not support branch (in the muddle sense), branch=%s"%branch)
+
+        # Luckily, our pull method does more-or-less what we want
+        repo = self.repo.copy_with_changed_revision(revision)
+        self.pull(repo, None, verbose=verbose)
+
     def reparent(self, co_dir, remote_repo, options, force=False, verbose=True):
         """
         Re-associate the local repository with its original remote repository,

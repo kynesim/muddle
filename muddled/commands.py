@@ -5893,15 +5893,20 @@ class Sync(CheckoutCommand):
     For each checkout, attempt to go to the branch indicated by the build
     description.
 
-    XXX Is the following an accurate description of what we do?
+    For each checkout, do the first applicable of the following
 
-    1. If the checkout's VCS does not support lightweight branching, then
-       nothing will be done for it.
-    2. If the build description specifies a branch or revision, then go to
-       that branch or revision.
-    3. If the build description has "builder.follow_build_desc_branch = True",
-       then go to the same branch as the build description.
-    4. Otherwise, go to "master".
+    * If the build description specifies a revision for this checkout,
+      go to that revision.
+    * If the build description specifies a branch for this checkout,
+      and the checkout VCS supports going to a specific branch, go to
+      that branch
+    * If the build description specifies that this checkout is shallow,
+      then give up.
+    * If the checkout's VCS does not support lightweight branching, then
+      give up (the following choices require this).
+    * If the build description has "builder.follow_build_desc_branch = True",
+      then go to the same branch as the build description.
+    * Otherwise, go to "master".
 
     <checkout> should be a label fragment specifying a checkout, or one of
     _all and friends, as for any checkout command. The <type> defaults to
@@ -5923,7 +5928,7 @@ class Sync(CheckoutCommand):
                 print "Rule for label '%s' has no VCS - cannot find its status"%co
                 continue
         try:
-            vcs.maybe_sync_with_build_desc_branch(builder)
+            vcs.sync(builder)
         except GiveUp as e:
             print e
 

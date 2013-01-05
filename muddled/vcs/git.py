@@ -577,6 +577,24 @@ class Git(VersionControlSystem):
         if retcode:
             raise utils.GiveUp('Error going to branch "%s": %s'%(branch, out))
 
+    def goto_revision(self, revision, branch=None):
+        """
+        Make the specified revision current.
+
+        Note that this may leave the working data (the actual checkout
+        directory) in an odd state, in which it is not sensible to
+        commit, depending on the VCS and the revision.
+
+        Will be called in the actual checkout's directory.
+
+        If a branch name is given, it will be ignored.
+
+        Raises GiveUp if there is no such revision, or no such branch.
+        """
+        retcode, out, err = utils.run_cmd_for_output(['git', 'checkout', revision], fold_stderr=True)
+        if retcode:
+            raise utils.GiveUp('Error going to revision "%s": %s'%(revision, out))
+
     def branch_exists(self, branch):
         """
         Is there a branch of this name?

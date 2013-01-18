@@ -387,8 +387,9 @@ class CPDCommand(Command):
 
                 # But it's an error if none of them were wanted
                 if not used_labels:
-                    raise GiveUp(builder.diagnose_unused_labels(builder, labels, word,
-                        self.required_type, self.required_tag))
+                    raise GiveUp(builder.diagnose_unused_labels(labels, word,
+                                                                self.required_type,
+                                                                self.required_tag))
 
                 # Don't forget to remember those we do want!
                 initial_list.extend(used_labels)

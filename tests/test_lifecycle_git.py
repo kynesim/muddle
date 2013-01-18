@@ -427,6 +427,15 @@ def test_git_lifecycle(root_d):
         check_branch('src/builds', 'test-v0.1')
         check_branch('src/checkout', 'test-v0.1')
 
+        # Let's commit and push...
+        with Directory('src'):
+            with Directory('builds'):
+                git('commit -a -m "Branched"')
+                muddle(['push'])
+            with Directory('checkout'):
+                # We hadn't changed any files in our checkout
+                muddle(['push'])
+
         # ...also want to check what happens if we explicitly select
         # branch master of checkout, by name, in the build description
         # - we should revert to master again.
@@ -435,6 +444,13 @@ def test_git_lifecycle(root_d):
     # XXX See lifecycle.txt for what we're trying to test.
     # XXX But note that text higher up may alter conclusions reached therein.
     # XXX Oh well.
+
+
+
+    # We should be able to checkout a build description by branch
+    with NewDirectory(root_d.join('build10')) as d:
+        muddle(['init', '-b', 'test-v0.1', repo_url, 'builds/01.py'])
+        muddle(['checkout', '_all'])
 
 
 def main(args):

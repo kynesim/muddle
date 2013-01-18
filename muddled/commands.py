@@ -1472,6 +1472,7 @@ the parentheses. So, for instance, use:
 class Init(Command):
     """
     :Syntax: muddle init <repository> <build_description>
+    :or:     muddle init -b[ranch] <branch_name> <repository> <build_description>
 
     Initialise a new build tree with a given repository and build description.
     We check out the build description but don't actually build anything.
@@ -1497,6 +1498,11 @@ class Init(Command):
     "builds/01.py" means repository "git+file:///somewhere/else/examples/d/builds"
     and file "01.py" therein.
 
+    If the -branch switch is given, then the named branch of the build
+    description will be checked out. It thus an error if either the muddle
+    support for the build description VCS does not support this (at the moment,
+    that probably means "not git"), or if there is no such branch.
+
     Note: if you find yourself trying to "muddle init" a subdomain, don't.
     Instead, add the subdomain to the current build description (using a call
     of 'include_domain()'), and it will automatically get checked out during
@@ -1514,8 +1520,21 @@ class Init(Command):
         """
         Initialise a build tree.
         """
-        if len(args) != 2:
+
+        # The Commands class switch mechanism doesn't handle switches with
+        # arguments, which is a pity, as it means we have to do our -branch
+        # switch by hand...
+        branch_name = None
+
+        if len(args) != 2 and len(args) != 4:
             raise GiveUp(self.__doc__)
+
+        if len(args) == 4:
+            if args[0] not in ('-b', '-branch'):
+                raise GiveUp(self.__doc__)
+            else:
+                branch_name = args[1]
+                args = args[2:]
 
         repo = args[0]
         build = args[1]
@@ -1523,6 +1542,9 @@ class Init(Command):
         print "Initialising build tree in %s "%current_dir
         print "Repository: %s"%repo
         print "Build description: %s"%build
+
+        if branch_name:
+            print "Build description branch: %s"%branch_name
 
         if self.no_op():
             return
@@ -1532,7 +1554,7 @@ class Init(Command):
 
         print
         print "Checking out build description .. \n"
-        mechanics.load_builder(current_dir, muddle_binary)
+        mechanics.load_builder(current_dir, muddle_binary) ###, branch=branch_name)
 
         print "Done.\n"
 

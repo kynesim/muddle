@@ -366,9 +366,10 @@ class VersionControlHandler(object):
 
         Otherwise we return None.
         """
+        DEBUG = False # to allow normal tests to succeed, which don't expect these messages...
         if self.repo.revision or self.repo.branch:
-            print 'Revision already set to %s'%self.repo.revision
-            print 'Branch already set to %s'%self.repo.branch
+            if DEBUG: print 'Revision already set to %s'%self.repo.revision
+            if DEBUG: print 'Branch already set to %s'%self.repo.branch
             return None         # we're happy with that we've got
         elif builder.follow_build_desc_branch:
             # XXX TODO XXX
@@ -399,7 +400,7 @@ class VersionControlHandler(object):
                                    " but VCS '%s' does not support branching"%(
                                        build_desc_branch, self.long_name))
         else:
-            print 'Not following build description'
+            if DEBUG: print 'Not following build description'
             return None
 
     def checkout(self, builder, verbose=True):
@@ -765,29 +766,30 @@ class VersionControlHandler(object):
           then go to the same branch as the build description.
         * Otherwise, go to "master".
         """
-        print 'Synchronising for', self.checkout_label
+        DEBUG = False # to allow normal tests to succeed, which don't expect these messages...
+        if DEBUG: print 'Synchronising for', self.checkout_label
         if self.repo.branch or self.repo.revision:
-            print '  Build description has specific branch/revision'
+            if DEBUG: print '  Build description has specific branch/revision'
             follow = False
         elif not self.vcs_handler.supports_branching():
-            print '  Changing branch is not supported for this VCS'
+            if DEBUG: print '  Changing branch is not supported for this VCS'
             follow = False
         # Shallow checkouts are not terribly well integrated - we do this
         # very much by hand...
         elif 'shallow_checkout' in self.options:
-            print '  This is a shallow checkout'
+            if DEBUG: print '  This is a shallow checkout'
             follow = False
         else:
             our_domain = self.checkout_label.domain
-            print '  Domain is', our_domain
+            if DEBUG: print '  Domain is', our_domain
             follow = builder.db.get_domain_follows_build_desc_branch(our_domain)
 
         if follow:
-            print '  Following build desc'
+            if DEBUG: print '  Following build desc'
             # We are meant to be following our build description's branch
             build_desc_label = builder.db.get_domain_build_desc_label(our_domain)
             build_desc_label = build_desc_label.copy_with_tag(utils.LabelTag.CheckedOut)
-            print '  Build desc is', build_desc_label
+            if DEBUG: print '  Build desc is', build_desc_label
             try:
                 vcs = builder.db.get_checkout_vcs(builder, build_desc_label)
             except GiveUp:
@@ -795,24 +797,24 @@ class VersionControlHandler(object):
                              " - cannot find its branch"%build_desc_label)
 
             build_desc_branch = vcs.get_current_branch(builder, show_pushd=False)
-            print '  Build desc branch is', build_desc_branch
+            if DEBUG: print '  Build desc branch is', build_desc_branch
             # And so follow it...
-            print '%s following build description onto branch "%s"'%(self.checkout_label, build_desc_branch)
+            if DEBUG: print '%s following build description onto branch "%s"'%(self.checkout_label, build_desc_branch)
             self.goto_branch(builder, build_desc_branch)
         else:
-            print '  NOT Following build desc'
+            if DEBUG: print '  NOT Following build desc'
             # We are meant to keep to our own revision or branch, whatever that is
             if self.repo.revision is not None:
                 if self.repo.branch:
-                    print '  Selecting revision %s, branch %s'%(self.repo.revision, self.repo.branch)
+                    if DEBUG: print '  Selecting revision %s, branch %s'%(self.repo.revision, self.repo.branch)
                 else:
-                    print '  Selecting revision %s'%self.repo.revision
+                    if DEBUG: print '  Selecting revision %s'%self.repo.revision
                 self.goto_revision(builder, self.repo.revision, self.repo.branch)
             elif self.repo.branch is not None:
-                print '  Selecting branch %s'%self.repo.branch
+                if DEBUG: print '  Selecting branch %s'%self.repo.branch
                 self.goto_branch(builder, self.repo.branch)
             else:
-                print '  Selecting branch master'
+                if DEBUG: print '  Selecting branch master'
                 self.goto_branch(builder, 'master')
 
 

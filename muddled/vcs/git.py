@@ -327,6 +327,9 @@ class Git(VersionControlSystem):
     def push(self, repo, options, upstream=None, verbose=True):
         """
         Will be called in the actual checkout's directory.
+
+        XXX Should we grumble if the 'effective' branch is not the same as
+        XXX the branch that is currently checked out?
         """
         self._shallow_not_allowed(options)
 
@@ -553,6 +556,8 @@ class Git(VersionControlSystem):
 
         Will be called in the actual checkout's directory.
 
+        Also sets up the equivalent remote.
+
         It is an error if the branch already exists, in which case a GiveUp
         exception will be raised.
         """
@@ -563,6 +568,9 @@ class Git(VersionControlSystem):
         retcode, out, err = utils.run_cmd_for_output(['git', 'branch', branch], fold_stderr=True)
         if retcode:
             raise utils.GiveUp('Error creating branch "%s": %s'%(branch, out))
+
+        # Add this branch to the 'origin' remote for this checkout
+        utils.run_cmd("git remote set-branches --add origin %s"%branch)
 
     def goto_branch(self, branch):
         """

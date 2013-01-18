@@ -138,6 +138,14 @@ class Database(object):
       key, if it in turn has upstream repositories (whether this is strictly
       necessary is unclear - XXX still to decide whether to support this).
 
+       XXX *Note that if a checkout is branched because it is following the
+       build description branch, the checkout Repository in checkot_repositories
+       will get a new .branch value, at which point it will not necessarily
+       compare equal to the Repository we're using as a key. This uncertainty
+       MAY be a problem, and it may be better if add_upstream_repo() takes a
+       copy of the Repository object before using it as a key, to force the
+       issue.*
+
     * domain_build_desc_label is a dictionary of the form:
 
         { domain : build-desc-label }
@@ -973,6 +981,15 @@ class Database(object):
         'checkout_label' is a "checkout:" Label.
 
         Returns the VCS for the given checkout, cacheing it.
+
+          Note that we don't attempt to do anything with this cache when
+          a subdomain is incorporated into a parent domain (for other
+          dictionaries, we convert the labels used as keys, and then fold
+          in the dictionary). This is partly laziness, and partly because
+          it *is* a cache, and so values will get recalculated if necessary.
+
+          Similarly, we don't give any way of prepopulating the cache,
+          which we could conceivably do for the build description, for one.
 
         Raises GiveUp (containing an explanatory message) if we cannot find
         that checkout label in the rules (i.e., nothing in the dependency tree

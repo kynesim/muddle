@@ -142,6 +142,52 @@ What happens if there are sub-domains
 =====================================
 To be written
 
+What happens with upstream repositories?
+========================================
+Upstream repositories are remembered using a dictionary that is keyed by the
+"normal" Repository for a checkout, and holds the upstream Repository
+instances as the value for that key.
+
+Now, at the moment, the checkout repository is used directly as the key.
+This should be the same Repository object as in db.checkout_repositories.
+
+But when we make our checkout follow the build description branch, we want to
+change the .branch in the Repository (so the VCS stuff will "just work").
+
+Which will also *maybe* change the .branch in the Repository being used as a
+key, above. Which may or may not be what we want.
+
+I suspect not, as we don't know that the branch here maps to an upstream
+branch. In which case, add_upstream_repository should *probably* be taking a
+copy of each Repository (probably both keys and values) before inserting them
+into its dictionary.
+
+Does this apply elsewhere as well?
+
+...Probably want to add a .copy() method to Repository, to save using
+copy.deepcopy() explicitly ourselves.
+
+Aside
+~~~~~
+At the moment, the vcs.repo tells us what the build description said
+the branch should be, which will normally be None.
+
+When doing a VCS operation, we want to pass the actually required branch down
+in the repo being passed down. Ideally we'd set that on
+db.checkout_repositories[<checkout-label>], and magic would happen.
+
+But that's two different repository objects, and we really need to rethink
+this so we don't get confused.
+
+One possibility: finally move everything into db, and don't store the
+repository on the vcs object. Then maybe remember the repo that the build
+description asked for, and the effective repo we're actually using for the
+checkout, as separate things. The only time they'd be different is after
+a tree branch, though...
+
+OR just take a local copy_with_branch of the repository from the build
+descriotion in version_control.py as necessary and pass that down...
+
 Thinking aloud
 ==============
 This is where I'm working things out...

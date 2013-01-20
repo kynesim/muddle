@@ -20,7 +20,8 @@ class VersionControlSystem(object):
     This is a super-class, acting as a template for the actual classes.
 
     The intent is  that implementors of this interface do not need to know
-    anything at all about muddle.
+    much about muddle, although they will have to have some understanding
+    of the contents of a Repository object.
     """
 
     def __init__(self):
@@ -167,7 +168,7 @@ class VersionControlHandler(object):
     """
     Handle all version control operations for a checkout.
 
-    * self.vcs_handler is an instance of the class that knows how to handle
+    * self.vcs is an instance of the class that knows how to handle
       operations for the VCS used for this checkout
     * self.checkout_label is the label for this checkout
     * self.checkout_leaf is the name of the checkout (normally the directory under
@@ -179,10 +180,10 @@ class VersionControlHandler(object):
     * self.repo is the Repository we're interested in.
     """
 
-    def __init__(self, vcs_handler, co_label, co_leaf, repo,
+    def __init__(self, vcs, co_label, co_leaf, repo,
                  co_dir=None, options=None):
         """
-        * 'vcs_handler' knows how to do VCS operations for this checkout
+        * 'vcs' knows how to do VCS operations for this checkout
         * 'co_label' is the checkout's label
         * 'co_leaf' is the name of the directory for the checkout;
           this is the *final* directory name, so if the checkout is in
@@ -202,7 +203,7 @@ class VersionControlHandler(object):
         particular VCS. Option values are restricted to boolean, integer or
         string.
         """
-        self.vcs_handler = vcs_handler
+        self.vcs = vcs
         self.checkout_label = co_label
         self.repo = repo
 
@@ -228,10 +229,10 @@ class VersionControlHandler(object):
         return ' '.join(words)
 
     def short_name(self):
-        return self.vcs_handler.short_name
+        return self.vcs.short_name
 
     def long_name(self):
-        return self.vcs_handler.long_name
+        return self.vcs.long_name
 
     def get_original_revision(self):
         """Return the revision id the user originally asked for.
@@ -281,7 +282,7 @@ class VersionControlHandler(object):
 
         with utils.Directory(parent_dir):
             try:
-                self.vcs_handler.checkout(self.repo, self.checkout_leaf,
+                self.vcs.checkout(self.repo, self.checkout_leaf,
                                           self.options, verbose)
             except utils.MuddleBug as err:
                 raise utils.MuddleBug('Error checking out %s in %s:\n%s'%(self.checkout_label,
@@ -309,7 +310,7 @@ class VersionControlHandler(object):
 
         with utils.Directory(builder.checkout_path(self.checkout_label)):
             try:
-                return self.vcs_handler.pull(self.repo, self.options,
+                return self.vcs.pull(self.repo, self.options,
                                              upstream=upstream, verbose=verbose)
             except utils.MuddleBug as err:
                 raise utils.MuddleBug('Error pulling %s in %s:\n%s'%(self.checkout_label,
@@ -336,7 +337,7 @@ class VersionControlHandler(object):
 
         with utils.Directory(builder.checkout_path(self.checkout_label)):
             try:
-                return self.vcs_handler.merge(self.repo, self.options, verbose)
+                return self.vcs.merge(self.repo, self.options, verbose)
             except utils.MuddleBug as err:
                 raise utils.MuddleBug('Error merging %s in %s:\n%s'%(self.checkout_label,
                                   self.src_rel_dir(), err))
@@ -356,7 +357,7 @@ class VersionControlHandler(object):
         """
         with utils.Directory(builder.checkout_path(self.checkout_label)):
             try:
-                self.vcs_handler.commit(self.repo, self.options, verbose)
+                self.vcs.commit(self.repo, self.options, verbose)
             except utils.MuddleBug as err:
                 raise utils.MuddleBug('Error commiting %s in %s:\n%s'%(self.checkout_label,
                                   self.src_rel_dir(), err))
@@ -383,7 +384,7 @@ class VersionControlHandler(object):
 
         with utils.Directory(builder.checkout_path(self.checkout_label)):
             try:
-                self.vcs_handler.push(self.repo, self.options,
+                self.vcs.push(self.repo, self.options,
                                       upstream=upstream, verbose=verbose)
             except utils.MuddleBug as err:
                 raise utils.MuddleBug('Error pushing %s in %s:\n%s'%(self.checkout_label,
@@ -417,7 +418,7 @@ class VersionControlHandler(object):
             print '>>', self.checkout_label
         with utils.Directory(builder.checkout_path(self.checkout_label), show_pushd=False):
             try:
-                status_text = self.vcs_handler.status(self.repo, self.options)
+                status_text = self.vcs.status(self.repo, self.options)
                 if status_text:
                     full_text = '%s status for %s in %s:\n%s'%(self.short_name(),
                                                  self.checkout_label,
@@ -448,7 +449,7 @@ class VersionControlHandler(object):
         """
         actual_dir = builder.checkout_path(self.checkout_label)
         with utils.Directory(actual_dir):
-            self.vcs_handler.reparent(actual_dir, # or self.checkout_leaf
+            self.vcs.reparent(actual_dir, # or self.checkout_leaf
                                       self.repo, self.options, force, verbose)
 
     def revision_to_checkout(self, builder, force=False, before=None, verbose=False, show_pushd=True):
@@ -490,13 +491,13 @@ class VersionControlHandler(object):
         case it will return the string '0'.
         """
         with utils.Directory(builder.checkout_path(self.checkout_label), show_pushd=show_pushd):
-            return self.vcs_handler.revision_to_checkout(self.repo,
+            return self.vcs.revision_to_checkout(self.repo,
                                                          self.checkout_leaf,
                                                          self.options,
                                                          force, before, verbose)
 
     def must_pull_before_commit(self):
-        return self.vcs_handler.must_pull_before_commit(self.options)
+        return self.vcs.must_pull_before_commit(self.options)
 
     def get_vcs_special_files(self):
         """
@@ -507,13 +508,13 @@ class VersionControlHandler(object):
 
         Returns an empty list if there is no such concept.
         """
-        return self.vcs_handler.get_vcs_special_files()
+        return self.vcs.get_vcs_special_files()
 
     def get_file_content(self, url, verbose=True):
         """
         Retrieve a file's content via a VCS.
         """
-        return self.vcs_handler.get_file_content(url, self.options, verbose)
+        return self.vcs.get_file_content(url, self.options, verbose)
 
     def add_options(self, optsdict):
         """
@@ -529,9 +530,9 @@ class VersionControlHandler(object):
 
         for key, value in optsdict.items():
 
-            if option_not_allowed(self.vcs_handler.short_name, key):
+            if option_not_allowed(self.vcs.short_name, key):
                 raise utils.GiveUp("Option '%s' is not allowed for VCS %s'"%(key,
-                                   self.vcs_handler.short_name))
+                                   self.vcs.short_name))
 
             if not (isinstance(value, bool) or isinstance(value, int) or
                     isinstance(value, str)):
@@ -639,19 +640,6 @@ def vcs_handler_for(builder, co_label, co_leaf, repo, co_dir=None):
 
     return VersionControlHandler(vcs_handler, co_label, co_leaf, repo, co_dir)
 
-def vcs_action_for(builder, co_label, repo, co_dir = None, co_leaf = None):
-    """
-    Create a VCS action for the given co_leaf, repo, etc.
-    """
-    if co_leaf is None:
-        co_leaf = co_label.name
-
-    handler = vcs_handler_for(builder, co_label, co_leaf, repo, co_dir)
-    if handler is None:
-        raise utils.GiveUp("Cannot build a VCS handler for %s"%repo)
-
-    return pkg.VcsCheckoutBuilder(co_label.name, handler)
-
 def split_vcs_url(url):
     """
     Split a URL into a vcs and a repository URL. If there's no VCS
@@ -702,8 +690,18 @@ def checkout_from_repo(builder, co_label, repo, co_dir=None, co_leaf=None):
     builder.db.set_checkout_path(co_label, co_path)
     builder.db.set_checkout_repo(co_label, repo)
 
-    vcs_handler = vcs_action_for(builder, co_label, repo, co_dir=co_dir, co_leaf=co_leaf)
-    pkg.add_checkout_rules(builder.ruleset, co_label, vcs_handler)
+    # So we need an action to do the checkout of this checkout label to its
+    # source directory
+    if co_leaf is None:
+        co_leaf = co_label.name
+
+    handler = vcs_handler_for(builder, co_label, co_leaf, repo, co_dir)
+    if handler is None:
+        raise utils.GiveUp("Cannot build a VCS handler for %s"%repo)
+
+    action = pkg.VcsCheckoutBuilder(co_label.name, handler)
+
+    pkg.add_checkout_rules(builder.ruleset, co_label, action)
 
 def conventional_repo_url(repo, rel, co_dir = None):
     """

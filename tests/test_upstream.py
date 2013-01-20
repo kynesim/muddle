@@ -659,7 +659,7 @@ def check_push_pull_permissions():
                     checkout_from_repo, (None, fred, repo), exception=MuddleBug,
                     startswith='Checkout checkout:fred/* cannot use')
 
-    vcs = VersionControlHandler(vcs_handler=None, co_label=fred,
+    vcs = VersionControlHandler(vcs=None, co_label=fred,
                                 co_leaf='fred', repo=repo)
     check_exception('Test checkout from repo %r'%repo,
                      vcs.checkout, (dummy_builder,),
@@ -672,7 +672,7 @@ def check_push_pull_permissions():
                      endswith='does not allow "pull"')
 
     repo = Repository.from_url('git', 'http://example.com/Fred.git', push=False)
-    vcs = VersionControlHandler(vcs_handler=None, co_label=fred,
+    vcs = VersionControlHandler(vcs=None, co_label=fred,
                                 co_leaf='fred', repo=repo)
     check_exception('Test push to repo %r'%repo,
                      vcs.push, (dummy_builder,),

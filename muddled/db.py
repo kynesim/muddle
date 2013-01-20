@@ -15,6 +15,7 @@ import muddled.depend as depend
 
 from muddled.utils import domain_subpath
 from muddled.version_control import split_vcs_url
+from muddled.depend import normalise_checkout_label
 
 class Database(object):
     """

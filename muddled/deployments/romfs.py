@@ -48,7 +48,7 @@ class AssemblyDescriptor(object):
 
     def get_source_dir(self, builder):
         if (self.from_label.type == utils.LabelType.Checkout):
-            return builder.checkout_path(self.from_label)
+            return builder.db.get_checkout_path(self.from_label)
         elif (self.from_label.type == utils.LabelType.Package):
             if ((self.from_label.name is None) or
                 (self.from_label.name == "*")):

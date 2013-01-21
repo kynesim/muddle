@@ -2692,7 +2692,7 @@ class QueryMakeEnv(QueryCommand):
             builder._build_label_env(label, env_store)
             build_action = rule.action
             tmp = Label(LabelType.Checkout, build_action.co, domain=label.domain)
-            co_path = builder.checkout_path(tmp)
+            co_path = builder.db.get_checkout_path(tmp)
             try:
                 build_action._amend_env(co_path)
             except AttributeError:
@@ -6404,7 +6404,7 @@ class RunIn(Command):
                     continue
 
                 if (lbl.type == LabelType.Checkout):
-                    dir = builder.checkout_path(lbl)
+                    dir = builder.db.get_checkout_path(lbl)
                 elif (lbl.type == LabelType.Package):
                     if (lbl.role == "*"):
                         continue

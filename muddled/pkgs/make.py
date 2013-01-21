@@ -69,17 +69,16 @@ class MakeBuilder(PackageBuilder):
         Make sure all the relevant directories exist.
         """
 
-        inv = builder
         co_label = Label(utils.LabelType.Checkout, self.co, domain=label.domain)
-        if not os.path.exists(inv.checkout_path(co_label)):
+        if not os.path.exists(builder.db.get_checkout_path(co_label)):
             raise utils.GiveUp("Missing source directory\n"
                                "  %s depends on %s\n"
                                "  Directory %s does not exist"%(label, co_label,
-                                   inv.checkout_path(co_label)))
+                                   builder.db.get_checkout_path(co_label)))
 
         co_label = Label(utils.LabelType.Package, self.name, self.role, domain=label.domain)
-        utils.ensure_dir(inv.package_obj_path(co_label))
-        utils.ensure_dir(inv.package_install_path(co_label))
+        utils.ensure_dir(builder.package_obj_path(co_label))
+        utils.ensure_dir(builder.package_install_path(co_label))
 
     def _amend_env(self, co_path):
         """Amend the environment before building a label
@@ -111,7 +110,7 @@ class MakeBuilder(PackageBuilder):
         # XXX (from the label we're building) so for the moment we won't even
         # XXX try...
         tmp = Label(utils.LabelType.Checkout, self.co, domain=label.domain)
-        co_path =  builder.checkout_path(tmp)
+        co_path =  builder.db.get_checkout_path(tmp)
         with utils.Directory(co_path):
             self._amend_env(co_path)
 
@@ -341,7 +340,7 @@ def attach_env(builder, name, role, checkout, domain=None):
         depend.Label(utils.LabelType.Package,
                      name, role, "*"))
     tmp = Label(utils.LabelType.Checkout, checkout, domain=domain)
-    env.set("MUDDLE_SRC", builder.checkout_path(tmp))
+    env.set("MUDDLE_SRC", builder.db.get_checkout_path(tmp))
 
 # Useful extensions
 
@@ -373,20 +372,18 @@ class ExpandingMakeBuilder(MakeBuilder):
         # have one
         self.ensure_dirs(builder, label)
 
-        inv = builder
-
         try:
             # muddle 2
-            checkout_dir = inv.checkout_path(self.co, domain=label.domain)
-            obj_dir = inv.package_obj_path(self.name, self.role, domain=label.domain)
+            checkout_dir = builder.db.get_checkout_path(self.co, domain=label.domain)
+            obj_dir = builder.package_obj_path(self.name, self.role, domain=label.domain)
         except TypeError:
             # muddle 3
             checkout_label = Label(utils.LabelType.Checkout, self.co,
                                    domain=label.domain)
-            checkout_dir = inv.checkout_path(checkout_label)
+            checkout_dir = builder.db.get_checkout_path(checkout_label)
             package_label = Label(utils.LabelType.Package, self.name, self.role,
                                   domain=label.domain)
-            obj_dir = inv.package_obj_path(package_label)
+            obj_dir = builder.package_obj_path(package_label)
 
         archive_path = os.path.join(checkout_dir, self.archive_file)
 

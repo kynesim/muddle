@@ -538,7 +538,7 @@ class Builder(object):
 
         store.set("MUDDLE_TAG", label.tag)
         if (label.type == LabelType.Checkout):
-            store.set("MUDDLE_OBJ", self.checkout_path(label))
+            store.set("MUDDLE_OBJ", self.db.get_checkout_path(label))
         elif (label.type == LabelType.Package):
             obj_dir = self.package_obj_path(label)
             store.set("MUDDLE_OBJ", obj_dir)
@@ -835,7 +835,7 @@ class Builder(object):
         all_cos = self.all_checkout_labels(LabelTag.CheckedOut)
 
         for co in all_cos:
-            co_dir = self.checkout_path(co)
+            co_dir = self.db.get_checkout_path(co)
             # Is it below dir? If it isn't, os.path.relpath() will
             # start with .. ..
             rp = os.path.relpath(co_dir, dir)
@@ -1522,14 +1522,14 @@ class Builder(object):
 
         return build_co_and_path_from_str(build_desc)
 
-    def dump_checkout_paths(self):
-        return self.db.dump_checkout_paths()
-
     def checkout_path(self, label):
         """
         Return the path in which the given checkout resides.
+
+        This is a simple wrapper around builder.db.get_checkout_path(),
+        provided for use in scripts and build descriptions, since it
+        "matches" builder.package_obj_path, builder.deploy_path, and so on.
         """
-        assert label.type == LabelType.Checkout
         return self.db.get_checkout_path(label)
 
     def packages_using_checkout(self, co_label):
@@ -1957,7 +1957,7 @@ class BuildDescriptionAction(Action):
         function itself can import things therefrom.
         """
         setup = dynamic_load_build_desc(builder)
-        checkout_dir = builder.checkout_path(builder.build_desc_label)
+        checkout_dir = builder.db.get_checkout_path(builder.build_desc_label)
 
         old_path = sys.path
         sys.path.insert(0, checkout_dir)
@@ -1989,7 +1989,7 @@ def run_release_from(builder, release_dir):
     function itself can import things therefrom.
     """
     setup = dynamic_load_build_desc(builder)
-    checkout_dir = builder.checkout_path(builder.build_desc_label)
+    checkout_dir = builder.db.get_checkout_path(builder.build_desc_label)
 
     old_path = sys.path
     sys.path.insert(0, checkout_dir)
@@ -2022,7 +2022,7 @@ def dynamic_load_build_desc(builder):
     # We know the name of the build description within its checkout
     filename = builder.db.build_desc_file_name()
     # And since we know its label, we can look up its directory
-    checkout_dir = builder.checkout_path(builder.build_desc_label)
+    checkout_dir = builder.db.get_checkout_path(builder.build_desc_label)
 
     old_path = sys.path
     sys.path.insert(0, checkout_dir)

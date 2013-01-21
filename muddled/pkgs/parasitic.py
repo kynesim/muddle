@@ -77,8 +77,8 @@ class ParasiticBuilder(PackageBuilder):
         basically just means the install directory
         """
         co_label = Label(utils.LabelType.Package, self.name, self.role, domain=label.domain)
-        utils.ensure_dir(inv.package_install_path(co_label))
-        utils.ensure_dir(inv.package_obj_path(co_label))
+        utils.ensure_dir(builder.package_install_path(co_label))
+        utils.ensure_dir(builder.package_obj_path(co_label))
 
     def _amend_env(self, co_path, label):
         """Amend the environment before building a label
@@ -98,8 +98,8 @@ class ParasiticBuilder(PackageBuilder):
         
         # Set MUDDLE_ORIG_OBJ to the original object directory.
         orig_label = Label(utils.LabelType.Package, self.name, self.source_role, domain=label.domain)
-        os.environ["MUDDLE_ORIG_OBJ"] = inv.package_obj_path(orig_label)
-        os.environ["MUDDLE_ORIG_INSTALL"] = inv.package_install_path(orig_label)
+        os.environ["MUDDLE_ORIG_OBJ"] = builder.package_obj_path(orig_label)
+        os.environ["MUDDLE_ORIG_INSTALL"] = builder.package_install_path(orig_label)
         os.environ["MUDDLE_ORIG_ROLE"] = self.source_role;
             
     def build_label(self,builder,label):
@@ -110,7 +110,7 @@ class ParasiticBuilder(PackageBuilder):
 
         self.ensure_dirs(builder, label)
         tmp = Label(utils.LabelType.Checkout, self.co, domain=label.domain)
-        co_path = builder.checkout_path(tmp)
+        co_path = builder.db.get_checkout_path(tmp)
         with utils.Directory(co_path):
             self._amend_env(co_path)
             makefile_name = self.guess_makefile_name()

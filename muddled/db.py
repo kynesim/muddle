@@ -66,6 +66,10 @@ class Database(object):
         checkout:builds/*               -> src/builds
         checkout:(subdomain1)first_co/* -> domains/subdomain1/src/first_co
 
+    * checkout_dir_and_leaf - This maps the same information, but as co_dir
+      and co_leaf as originally given to muddle. This is primarily of use in
+      version stamping.
+
     * checkout_repositories - This maps a checkout label to a Repository
       instance, representing where it is checked out from. So examples might
       be (eliding the actual URL)::
@@ -75,6 +79,15 @@ class Database(object):
 
     * checkout_vcs - This maps a checkout label to a VCS handler, which knows
       how to do version control operations for this checkout.
+
+    * checkout_vcs_options - This maps a checkout label to any specialised
+      optons needed by its handler. At the moment, the only option available
+      is whether the checkout is shallow or not.
+
+      This is a dictionary of checkout label to dictionary of options, for
+      instance::
+
+          checkout:first_co/*       -> {'shallow':True}
 
     * checkout_licenses - This maps a checkout label to a License instance,
       representing the source code license under which this checkout's source
@@ -151,8 +164,10 @@ class Database(object):
                                           '_just_pulled'))
 
         self.checkout_locations = {}
+        self.checkout_dir_and_leaf = {}
         self.checkout_repositories = {}
         self.checkout_vcs = {}
+        self.checkout_vcs_options = {}
         self.checkout_licenses = {}
         self.checkout_license_files = {}
         self.license_not_affected_by = {}
@@ -220,8 +235,10 @@ class Database(object):
         """
         labels = []
         labels.extend(self.checkout_locations.keys())
+        labels.extend(self.checkout_dir_and_leaf.keys())
         labels.extend(self.checkout_repositories.keys())
         labels.extend(self.checkout_vcs.keys())
+        labels.extend(self.checkout_vcs_options.keys())
         labels.extend(self.checkout_licenses.keys())
         labels.extend(self.checkout_license_files.keys())
         labels.extend(self.license_not_affected_by.keys())
@@ -254,8 +271,13 @@ class Database(object):
             new_dir = os.path.join(utils.domain_subpath(other_domain_name), co_dir)
             self.checkout_locations[co_label] = new_dir
 
+        # co_dir and co_leaf are always with respect to the local domain,
+        # so we don't need to alter them
+        self.checkout_dir_and_leaf.update(other_db.checkout_dir_and_leaf)
+
         self.checkout_repositories.update(other_db.checkout_repositories)
         self.checkout_vcs.update(other_db.checkout_vcs)
+        self.checkout_vcs_options.update(other_db.checkout_vcs_options)
 
         self.checkout_licenses.update(other_db.checkout_licenses)
         self.checkout_license_files.update(other_db.checkout_license_files)
@@ -449,6 +471,18 @@ class Database(object):
         except KeyError:
             raise utils.GiveUp('There is no checkout path registered for label %s'%checkout_label)
 
+    def set_checkout_dir_and_leaf(self, checkout_label, co_dir, co_leaf):
+        key = normalise_checkout_label(checkout_label)
+
+        self.checkout_dir_and_leaf[key] = (co_dir, co_leaf)
+
+    def get_checkout_dir_and_leaf(self, checkout_label):
+        key = normalise_checkout_label(checkout_label)
+        try:
+            return self.checkout_dir_and_leaf[key]
+        except KeyError:
+            raise utils.GiveUp('There is no checkout path registered for label %s'%checkout_label)
+
     def set_checkout_repo(self, checkout_label, repo):
         key = normalise_checkout_label(checkout_label)
         self.checkout_repositories[key] = repo
@@ -492,7 +526,8 @@ class Database(object):
 
     def dump_checkout_vcs(self):
         """
-        Report on the version control systems associated with our checkouts.
+        Report on the version control systems associated with our checkouts,
+        and any VCS options.
         """
         print "> Checkout version control systems .."
         keys = self.checkout_vcs.keys()
@@ -503,9 +538,13 @@ class Database(object):
                 max = length
         keys.sort()
         for label in keys:
-            print "%-*s -> %s"%(max, label, self.checkout_vcs[label])
+            options = self.checkout_vcs_options(label)
+            if options:
+                print "%-*s -> %s %s"%(max, label, self.checkout_vcs[label], options)
+            else:
+                print "%-*s -> %s"%(max, label, self.checkout_vcs[label])
 
-    def get_checkout_vcs(self, builder, checkout_label):
+    def get_checkout_vcs(self, checkout_label):
         """
         'checkout_label' is a "checkout:" Label.
 
@@ -519,6 +558,37 @@ class Database(object):
             return self.checkout_vcs[key]
         except KeyError:
             raise utils.GiveUp('There is no VCS registered for label %s'%key)
+
+    def set_checkout_vcs_option(self, checkout_label, opt_key, opt_value):
+        """
+        Add/replace the named VCS option 'opt_key'.
+
+        Generally, call this via the version control handler's add_options()
+        method, as that understands the restrictions placed on a particular
+        VCS as to allowed keys and values.
+        """
+        key = normalise_checkout_label(checkout_label, tag=utils.LabelTag.CheckedOut)
+        if key in self.checkout_vcs_options:
+            optdict = self.checkout_vcs_options[key]
+            optdict[opt_key] = opt_value
+        else:
+            self.checkout_vcs_options[key] = {opt_key: opt_value}
+
+    def get_checkout_vcs_options(self, checkout_label):
+        """
+        'checkout_label' is a "checkout:" Label.
+
+        Returns the options for the given checkout, as a (possibly empty) list.
+
+        Since most checkouts will not have options, and will thus have no entry
+        for such, cannot return an error if there is no such checkout in the
+        build.
+        """
+        key = normalise_checkout_label(checkout_label, tag=utils.LabelTag.CheckedOut)
+        if key in self.checkout_vcs_options:
+            return self.checkout_vcs_options[key]
+        else:
+            return {}
 
     def set_checkout_license(self, checkout_label, license):
         key = normalise_checkout_label(checkout_label)

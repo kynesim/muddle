@@ -23,6 +23,7 @@ from muddled.repository import Repository
 from muddled.utils import Directory, NewDirectory, TransientDirectory, \
         GiveUp, MuddleBug, normalise_dir, LabelType, LabelTag
 from muddled.version_control import VersionControlHandler, checkout_from_repo
+from muddled.db import Database
 
 MUDDLE_MAKEFILE = """\
 # Trivial muddle makefile
@@ -649,33 +650,38 @@ def check_push_pull_permissions():
             return ''
 
     dummy_builder = DummyBuilder()
+    dummy_builder.db = Database(',')
 
     banner('CHECK PUSH/PULL PERMISSIONS')
 
     fred = Label.from_string('checkout:fred/*')
+    vcs = VersionControlHandler(vcs=None)
     repo = Repository.from_url('git', 'http://example.com/Fred.git', pull=False)
+
+    # We can't use version_control.py::checkout_from_repo() directly, because
+    # it already checks the "pull" value for us...
+    dummy_builder.db.set_checkout_repo(fred, repo)
+    dummy_builder.db.set_checkout_path(fred, 'fred')
+    dummy_builder.db.set_checkout_vcs(fred, vcs)
 
     check_exception('Test checkout_from_repo with %r'%repo,
                     checkout_from_repo, (None, fred, repo), exception=MuddleBug,
                     startswith='Checkout checkout:fred/* cannot use')
 
-    vcs = VersionControlHandler(vcs=None, co_label=fred,
-                                co_leaf='fred', repo=repo)
     check_exception('Test checkout from repo %r'%repo,
-                     vcs.checkout, (dummy_builder,),
+                     vcs.checkout, (dummy_builder, fred),
                      endswith='does not allow "pull"')
     check_exception('Test pull from repo %r'%repo,
-                     vcs.pull, (dummy_builder,),
+                     vcs.pull, (dummy_builder, fred),
                      endswith='does not allow "pull"')
     check_exception('Test merge from repo %r'%repo,
-                     vcs.merge, (dummy_builder,),
+                     vcs.merge, (dummy_builder, fred),
                      endswith='does not allow "pull"')
 
     repo = Repository.from_url('git', 'http://example.com/Fred.git', push=False)
-    vcs = VersionControlHandler(vcs=None, co_label=fred,
-                                co_leaf='fred', repo=repo)
+    dummy_builder.db.set_checkout_repo(fred, repo)
     check_exception('Test push to repo %r'%repo,
-                     vcs.push, (dummy_builder,),
+                     vcs.push, (dummy_builder, fred),
                      endswith='does not allow "push"')
 
 def main(args):

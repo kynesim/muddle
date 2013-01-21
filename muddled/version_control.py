@@ -168,65 +168,25 @@ class VersionControlHandler(object):
     """
     Handle all version control operations for a checkout.
 
-    * self.vcs is an instance of the class that knows how to handle
-      operations for the VCS used for this checkout
-    * self.checkout_label is the label for this checkout
-    * self.checkout_leaf is the name of the checkout (normally the directory under
-      ``/src/``) that we're responsible for. This may not be the same as the label
-      name for multilevel checkouts
+    The VersionControlSystem class knows how to do individual VCS operations,
+    but is not required to know anything muddle-specific beyond how a
+    Repository object works (or, at least, that is the aim).
 
-      TODO: Explain this rather better
+    This class acts as a translator between muddle actions on a checkout label
+    and the underlying VCS actions.
 
-    * self.repo is the Repository we're interested in.
+    Each underlying VCS (git, bzr, etc.) is used via an instance of this class.
     """
 
-    def __init__(self, vcs, co_label, co_leaf, repo,
-                 co_dir=None, options=None):
+    def __init__(self, vcs):
         """
-        * 'vcs' knows how to do VCS operations for this checkout
-        * 'co_label' is the checkout's label
-        * 'co_leaf' is the name of the directory for the checkout;
-          this is the *final* directory name, so if the checkout is in
-          'src/fred/jim/wombat', then the checkout leaf name is 'wombat'
-        * 'repo' is the Repository instance describing where this checkout
-          comes from
-        * 'co_dir' is the location of the 'co_leaf' directory (within 'src'),
-          so if the checkout is in 'src/fred/jim/wombat', then the checkout
-          directory is 'fred/jim'. If the 'co_leaf' directory is at the "top
-          level" within 'src', then this should be None or ''.
-
-        'options' may be a dictionary of additional VCS options, as
-        {option_name : option_value}. This is specific to the particular VCS
-        - see "muddle help vcs <vcs_name>" for details.
-
-        Option names (the keys) are restricted for names registered for that
-        particular VCS. Option values are restricted to boolean, integer or
-        string.
+        * 'vcs' is the class corresponding to the particular version control
+          system - e.g., Git.
         """
         self.vcs = vcs
-        self.checkout_label = co_label
-        self.repo = repo
-
-        self.checkout_dir = co_dir          # should we get this from the db?
-        self.checkout_leaf = co_leaf        # should we calculate this as needed?
-
-        self.options = {}
-        self.add_options(options)
-
-    def _inner_labels(self):
-        """
-        Return any "inner" labels, so their domains may be altered.
-        """
-        labels = [self.checkout_label]
-        return labels
 
     def __str__(self):
-        words = ['VCS %s for %s'%(self.short_name(), self.checkout_label)]
-        if self.checkout_dir:
-            words.append('dir=%s'%self.checkout_dir)
-        words.append('leaf=%s'%self.checkout_leaf)
-        words.append('repo=%s'%self.repo)
-        return ' '.join(words)
+        return 'VCS %s'%self.short_name
 
     def short_name(self):
         return self.vcs.short_name
@@ -234,33 +194,15 @@ class VersionControlHandler(object):
     def long_name(self):
         return self.vcs.long_name
 
-    def get_original_revision(self):
-        """Return the revision id the user originally asked for.
-
-        This may be None.
-        """
-        return self.repo.revision
-
-    def src_rel_dir(self):
+    def _src_rel_dir(self, builder, co_label):
         """For exceptions, we want the directory relative to the root
 
         (but if we have subdomains, we probably had better mean the root of the
         topmost build)
         """
-        if self.checkout_label.domain:
-            domain_part = utils.domain_subpath(self.checkout_label.domain)
-        else:
-            domain_part = ''
+        return builder.db.get_checkout_location(co_label)
 
-        if self.checkout_dir:
-            src_rel_dir = os.path.join(domain_part, 'src', self.checkout_dir,
-                                       self.checkout_leaf)
-        else:
-            src_rel_dir = os.path.join(domain_part, 'src', self.checkout_leaf)
-
-        return src_rel_dir
-
-    def checkout(self, builder, verbose=True):
+    def checkout(self, builder, co_label, verbose=True):
         """
         Check this checkout out of version control.
 
@@ -269,60 +211,65 @@ class VersionControlHandler(object):
         instantiates a muddle checkout.
         """
         # We want to be in the checkout's parent directory
-        parent_dir, rest = os.path.split(builder.checkout_path(self.checkout_label))
+        parent_dir, co_leaf = os.path.split(builder.db.get_checkout_path(co_label))
 
-        if not self.repo.pull:
+        repo = builder.db.get_checkout_repo(co_label)
+        if not repo.pull:
             raise utils.GiveUp('Failure checking out %s in %s:\n'
-                               '  %s does not allow "pull"'%(self.checkout_label,
-                               parent_dir, self.repo))
+                               '  %s does not allow "pull"'%(co_label,
+                               parent_dir, repo))
 
         # Be careful - if the parent is 'src/', then it may well exist by now
         if not os.path.exists(parent_dir):
             os.makedirs(parent_dir)
 
+        options = builder.db.get_checkout_vcs_options(co_label)
         with utils.Directory(parent_dir):
             try:
-                self.vcs.checkout(self.repo, self.checkout_leaf,
-                                          self.options, verbose)
+                self.vcs.checkout(repo, co_leaf, options, verbose)
             except utils.MuddleBug as err:
-                raise utils.MuddleBug('Error checking out %s in %s:\n%s'%(self.checkout_label,
+                raise utils.MuddleBug('Error checking out %s in %s:\n%s'%(co_label,
                                       parent_dir, err))
             except utils.GiveUp as err:
-                raise utils.GiveUp('Failure checking out %s in %s:\n%s'%(self.checkout_label,
+                raise utils.GiveUp('Failure checking out %s in %s:\n%s'%(co_label,
                                    parent_dir, err))
 
-    def pull(self, builder, upstream=None, verbose=True):
+    def pull(self, builder, co_label, upstream=None, repo=None, verbose=True):
         """
         Retrieve changes from the remote repository, and apply them to
         the local working copy, but not if a merge operation would be
         required, in which case an exception shall be raised.
 
-        If 'upstream' is true, then it is the name of the repository as an
-        upstream.
+        If 'upstream' and 'repo' are given, then they specify the upstream
+        repository we should pull from, instead of using the 'normal'
+        repository from the build description.
 
         Returns True if it changes its checkout (changes the files visible
         to the user), False otherwise.
         """
-        if not self.repo.pull:
+        if not (upstream and repo):
+            repo = builder.db.get_checkout_repo(co_label)
+
+        if not repo.pull:
             raise utils.GiveUp('Failure pulling %s in %s:\n'
-                               '  %s does not allow "pull"'%(self.checkout_label,
-                               self.src_rel_dir(), self.repo))
+                               '  %s does not allow "pull"'%(co_label,
+                               self._src_rel_dir(builder, co_label), repo))
 
-        with utils.Directory(builder.checkout_path(self.checkout_label)):
+        options = builder.db.get_checkout_vcs_options(co_label)
+        with utils.Directory(builder.db.get_checkout_path(co_label)):
             try:
-                return self.vcs.pull(self.repo, self.options,
-                                             upstream=upstream, verbose=verbose)
+                return self.vcs.pull(repo, options, upstream=upstream, verbose=verbose)
             except utils.MuddleBug as err:
-                raise utils.MuddleBug('Error pulling %s in %s:\n%s'%(self.checkout_label,
-                                  self.src_rel_dir(), err))
+                raise utils.MuddleBug('Error pulling %s in %s:\n%s'%(co_label,
+                                      self._src_rel_dir(builder, co_label), err))
             except utils.Unsupported as err:
-                raise utils.Unsupported('Not pulling %s in %s:\n%s'%(self.checkout_label,
-                                     self.src_rel_dir(), err))
+                raise utils.Unsupported('Not pulling %s in %s:\n%s'%(co_label,
+                                        self._src_rel_dir(builder, co_label), err))
             except utils.GiveUp as err:
-                raise utils.GiveUp('Failure pulling %s in %s:\n%s'%(self.checkout_label,
-                                    self.src_rel_dir(), err))
+                raise utils.GiveUp('Failure pulling %s in %s:\n%s'%(co_label,
+                                   self._src_rel_dir(builder, co_label), err))
 
-    def merge(self, builder, verbose=True):
+    def merge(self, builder, co_label, verbose=True):
         """
         Retrieve changes from the remote repository, and apply them to
         the local working copy, performing a merge operation if necessary.
@@ -330,70 +277,78 @@ class VersionControlHandler(object):
         Returns True if it changes its checkout (changes the files visible
         to the user), False otherwise.
         """
-        if not self.repo.pull:
+        repo = builder.db.get_checkout_repo(co_label)
+        if not repo.pull:
             raise utils.GiveUp('Failure merging %s in %s:\n'
-                               '  %s does not allow "pull"'%(self.checkout_label,
-                               self.src_rel_dir(), self.repo))
+                               '  %s does not allow "pull"'%(co_label,
+                               self._src_rel_dir(builder, co_label), repo))
 
-        with utils.Directory(builder.checkout_path(self.checkout_label)):
+        options = builder.db.get_checkout_vcs_options(co_label)
+        with utils.Directory(builder.db.get_checkout_path(co_label)):
             try:
-                return self.vcs.merge(self.repo, self.options, verbose)
+                return self.vcs.merge(repo, options, verbose)
             except utils.MuddleBug as err:
-                raise utils.MuddleBug('Error merging %s in %s:\n%s'%(self.checkout_label,
-                                  self.src_rel_dir(), err))
+                raise utils.MuddleBug('Error merging %s in %s:\n%s'%(co_label,
+                                      self._src_rel_dir(builder, co_label), err))
             except utils.Unsupported as err:
-                raise utils.Unsupported('Not merging %s in %s:\n%s'%(self.checkout_label,
-                                      self.src_rel_dir(), err))
+                raise utils.Unsupported('Not merging %s in %s:\n%s'%(co_label,
+                                        self._src_rel_dir(builder, co_label), err))
             except utils.GiveUp as err:
-                raise utils.GiveUp('Failure merging %s in %s:\n%s'%(self.checkout_label,
-                                    self.src_rel_dir(), err))
+                raise utils.GiveUp('Failure merging %s in %s:\n%s'%(co_label,
+                                   self._src_rel_dir(builder, co_label), err))
 
-    def commit(self, builder, verbose=True):
+    def commit(self, builder, co_label, verbose=True):
         """
         Commit any changes in the local working copy to the local repository.
 
         In a centralised VCS, like subverson, this does not do anything, as
         there is no *local* repository.
         """
-        with utils.Directory(builder.checkout_path(self.checkout_label)):
+        repo = builder.db.get_checkout_repo(co_label)
+        options = builder.db.get_checkout_vcs_options(co_label)
+        with utils.Directory(builder.db.get_checkout_path(co_label)):
             try:
-                self.vcs.commit(self.repo, self.options, verbose)
+                self.vcs.commit(repo, options, verbose)
             except utils.MuddleBug as err:
-                raise utils.MuddleBug('Error commiting %s in %s:\n%s'%(self.checkout_label,
-                                  self.src_rel_dir(), err))
+                raise utils.MuddleBug('Error commiting %s in %s:\n%s'%(co_label,
+                                      self._src_rel_dir(builder, co_label), err))
             except (utils.GiveUp, utils.Unsupported) as err:
-                raise utils.GiveUp('Failure commiting %s in %s:\n%s'%(self.checkout_label,
-                                    self.src_rel_dir(), err))
+                raise utils.GiveUp('Failure commiting %s in %s:\n%s'%(co_label,
+                                   self._src_rel_dir(builder, co_label), err))
 
-    def push(self, builder, upstream=None, verbose=True):
+    def push(self, builder, co_label, upstream=None, repo=None, verbose=True):
         """
         Push changes in the local repository to the remote repository.
 
-        If 'upstream' is true, then it is the name of the repository as an
-        upstream.
+        If 'upstream' and 'repo' are given, then they specify the upstream
+        repository we should pull from, instead of using the 'normal'
+        repository from the build description.
 
         Note that in a centralised VCS, like subversion, this is typically
         called "commit", since there is no local repository.
 
         This operaton does not do a 'commit'.
         """
-        if not self.repo.push:
+        if not (upstream and repo):
+            repo = builder.db.get_checkout_repo(co_label)
+
+        if not repo.push:
             raise utils.GiveUp('Failure pushing %s in %s:\n'
-                               '  %s does not allow "push"'%(self.checkout_label,
-                               self.src_rel_dir(), self.repo))
+                               '  %s does not allow "push"'%(co_label,
+                               self._src_rel_dir(builder, co_label), repo))
 
-        with utils.Directory(builder.checkout_path(self.checkout_label)):
+        options = builder.db.get_checkout_vcs_options(co_label)
+        with utils.Directory(builder.db.get_checkout_path(co_label)):
             try:
-                self.vcs.push(self.repo, self.options,
-                                      upstream=upstream, verbose=verbose)
+                self.vcs.push(repo, options, upstream=upstream, verbose=verbose)
             except utils.MuddleBug as err:
-                raise utils.MuddleBug('Error pushing %s in %s:\n%s'%(self.checkout_label,
-                                  self.src_rel_dir(), err))
+                raise utils.MuddleBug('Error pushing %s in %s:\n%s'%(co_label,
+                                      self._src_rel_dir(builder, co_label), err))
             except (utils.GiveUp, utils.Unsupported) as err:
-                raise utils.GiveUp('Failure pushing %s in %s:\n%s'%(self.checkout_label,
-                                    self.src_rel_dir(), err))
+                raise utils.GiveUp('Failure pushing %s in %s:\n%s'%(co_label,
+                                   self._src_rel_dir(builder, co_label), err))
 
-    def status(self, builder, verbose=False):
+    def status(self, builder, co_label, verbose=False):
         """
         Report on the status of the checkout, in a VCS-appropriate manner
 
@@ -415,26 +370,28 @@ class VersionControlHandler(object):
         the remote repository into it.
         """
         if verbose:
-            print '>>', self.checkout_label
-        with utils.Directory(builder.checkout_path(self.checkout_label), show_pushd=False):
+            print '>>', co_label
+        repo = builder.db.get_checkout_repo(co_label)
+        options = builder.db.get_checkout_vcs_options(co_label)
+        with utils.Directory(builder.db.get_checkout_path(co_label), show_pushd=False):
             try:
-                status_text = self.vcs.status(self.repo, self.options)
+                status_text = self.vcs.status(repo, options)
                 if status_text:
                     full_text = '%s status for %s in %s:\n%s'%(self.short_name(),
-                                                 self.checkout_label,
-                                                 self.src_rel_dir(),
+                                                 co_label,
+                                                 self._src_rel_dir(builder, co_label),
                                                  status_text)
                     return full_text
                 else:
                     return None
             except utils.MuddleBug as err:
-                raise utils.MuddleBug('Error finding status for %s in %s:\n%s'%(self.checkout_label,
-                                  self.src_rel_dir(), err))
+                raise utils.MuddleBug('Error finding status for %s in %s:\n%s'%(co_label,
+                                      self._src_rel_dir(builder, co_label), err))
             except utils.GiveUp as err:
-                raise utils.GiveUp('Failure finding status for %s in %s:\n%s'%(self.checkout_label,
-                                    self.src_rel_dir(), err))
+                raise utils.GiveUp('Failure finding status for %s in %s:\n%s'%(co_label,
+                                   self._src_rel_dir(builder, co_label), err))
 
-    def reparent(self, builder, force=False, verbose=True):
+    def reparent(self, builder, co_label, force=False, verbose=True):
         """
         Re-associate the local repository with its original remote repository,
 
@@ -447,12 +404,13 @@ class VersionControlHandler(object):
         If 'force' is true, it does this regardless. If 'force' is false, then
         it only does it if the checkout is actually not so associated.
         """
-        actual_dir = builder.checkout_path(self.checkout_label)
+        actual_dir = builder.db.get_checkout_path(co_label)
+        repo = builder.db.get_checkout_repo(co_label)
+        options = builder.db.get_checkout_vcs_options(co_label)
         with utils.Directory(actual_dir):
-            self.vcs.reparent(actual_dir, # or self.checkout_leaf
-                                      self.repo, self.options, force, verbose)
+            self.vcs.reparent(actual_dir, repo, options, force, verbose)
 
-    def revision_to_checkout(self, builder, force=False, before=None, verbose=False, show_pushd=True):
+    def revision_to_checkout(self, builder, co_label, force=False, before=None, verbose=False, show_pushd=True):
         """
         Determine a revision id for this checkout, usable to check it out again.
 
@@ -490,14 +448,21 @@ class VersionControlHandler(object):
         implementation will raise a GiveUp unless 'force' is true, in which
         case it will return the string '0'.
         """
-        with utils.Directory(builder.checkout_path(self.checkout_label), show_pushd=show_pushd):
-            return self.vcs.revision_to_checkout(self.repo,
-                                                         self.checkout_leaf,
-                                                         self.options,
-                                                         force, before, verbose)
+        co_dir = builder.db.get_checkout_path(co_label)
+        parent_dir, co_leaf = os.path.split(co_dir)
+        repo = builder.db.get_checkout_repo(co_label)
+        options = builder.db.get_checkout_vcs_options(co_label)
+        with utils.Directory(co_dir, show_pushd=show_pushd):
+            return self.vcs.revision_to_checkout(repo, co_leaf, options,
+                                                 force, before, verbose)
 
-    def must_pull_before_commit(self):
-        return self.vcs.must_pull_before_commit(self.options)
+    def must_pull_before_commit(self, builder, co_label):
+        """Do we need to pull before we can commit?
+
+        This may depend on the options chosen for this checkout.
+        """
+        options = builder.db.get_checkout_vcs_options(co_label)
+        return self.vcs.must_pull_before_commit(options)
 
     def get_vcs_special_files(self):
         """
@@ -516,7 +481,7 @@ class VersionControlHandler(object):
         """
         return self.vcs.get_file_content(url, self.options, verbose)
 
-    def add_options(self, optsdict):
+    def add_options(self, builder, co_label, optsdict):
         """
         Add the options the user has requested, and checks them.
 
@@ -538,7 +503,8 @@ class VersionControlHandler(object):
                     isinstance(value, str)):
                 raise utils.GiveUp("Additional options to VCS must be bool, int or"
                                    " string. '%s' is %s"%(value, type(value)))
-            self.options[key] = value
+
+            builder.db.set_checkout_vcs_option(co_label, key, value)
 
 # This dictionary holds the global list of registered VCS handler
 # factories.
@@ -615,11 +581,12 @@ def get_vcs_handler_from_string(repo_str):
 
     return vcs_handler, url_rest
 
-def vcs_handler_for(builder, co_label, co_leaf, repo, co_dir=None):
+def vcs_handler_for(builder, co_label):
     """
-    Create a VCS handler for the given url, checkout name, etc.
+    Create a VCS handler for the given checkout label.
 
-    Which VCS is determined by interpreting the initial part of the URI's
+    We look up the repository for this label, and which VCS to use is
+    determined by interpreting the initial part of the repository URI's
     protocol.
 
     We then create a handler that will call the appropriate VCS-specific
@@ -627,18 +594,12 @@ def vcs_handler_for(builder, co_label, co_leaf, repo, co_dir=None):
 
     * co_label - The label for this checkout. This includes the name and domain
       (if any) for the checkout
-    * co_leaf - The 'leaf' directory for this checkout. This is the final
-      element of the checkout's directory name. In many/most cases it will be
-      the same as the checkout name (in the label), but particularly in
-      multilevel checkouts it may be different.
-    * repo - the Repository instance
-    * co_dir - Directory relative to the 'src/' directory in which the
-      checkout 'leaf' directory resides. Thus None or '' for simple checkouts.
     """
 
-    vcs_handler = get_vcs_handler(repo.vcs)
+    repo = builder.db.get_checkout_repo(co_label)
+    vcs = get_vcs_handler(repo.vcs)
 
-    return VersionControlHandler(vcs_handler, co_label, co_leaf, repo, co_dir)
+    return VersionControlHandler(vcs)
 
 def split_vcs_url(url):
     """
@@ -676,93 +637,30 @@ def checkout_from_repo(builder, co_label, repo, co_dir=None, co_leaf=None):
         raise utils.MuddleBug('Checkout %s cannot use %r\n'
                               '  as its main repository, as "pull" is not allowed'%(co_label, repo))
 
+    if not co_leaf:
+        co_leaf = co_label.name
+
     if co_dir:
-        if co_leaf:
-            co_path = os.path.join(co_dir, co_leaf)
-        else:
-            co_path = os.path.join(co_dir, co_label.name)
+        co_path = os.path.join(co_dir, co_leaf)
     else:
-        if co_leaf:
-            co_path = co_leaf
-        else:
-            co_path = co_label.name
+        co_path = co_leaf
+
+    builder.db.set_checkout_dir_and_leaf(co_label, co_dir, co_leaf)
 
     builder.db.set_checkout_path(co_label, co_path)
     builder.db.set_checkout_repo(co_label, repo)
 
-    if co_leaf is None:
-        co_leaf = co_label.name
-    handler = vcs_handler_for(builder, co_label, co_leaf, repo, co_dir)
-    if handler is None:
-        raise utils.GiveUp("Cannot build a VCS handler for %s"%repo)
-    builder.db.set_checkout_vcs(co_label, handler)
+    handler = vcs_handler_for(builder, co_label)
+    try:
+        builder.db.set_checkout_vcs(co_label, handler)
+    except Exception as e:
+        raise MuddleBug('Cannot determine VCS for checkout %s:\n%s'%(co_label, e))
 
     # And we need an action to do the checkout of this checkout label to its
-    # source directory
-    action = pkg.VcsCheckoutBuilder(co_label.name, handler)
-    pkg.add_checkout_rules(builder.ruleset, co_label, action)
-
-def conventional_repo_url(repo, rel, co_dir = None):
-    """
-    Many VCSs adopt the convention that the first element of the relative
-    string is the name of the repository.
-
-    This routine resolves repo - a full repository URL including VCS specifier -
-    and rel into the name of a repository and the path within that repository and
-    returns them as a tuple (repo url, name_in_repo). The returned repo url
-    lacks the VCS specifier.
-
-    If an invalid URL is given, we will return None.
-
-    XXX This function is deprecated, as we do not use it any more. It will
-    be removed in a later version of muddle.
-    """
-    split = split_vcs_url(repo)
-    if (split is None):
-        return None
-
-    (vcs_spec, repo_rest) = split
-
-    # Now, depending on whether we have a co_dir or not, either the
-    # first or the first and second elements of rel are the repository
-    # name.
-    #
-    # If rel is None, there is no repository name - it's all in repo.
-
-    if (rel is None):
-        return (repo_rest, None)
-
-    if (co_dir is None):
-        dir_components = 1
-    else:
-        dir_components = 2
-
-    components = rel.split("/", dir_components)
-    if (len(components) == 1):
-        out_repo = os.path.join(repo_rest, rel)
-        out_rel = None
-    elif (len(components) == 2):
-        if (co_dir is None):
-            out_repo = os.path.join(repo_rest, components[0])
-            out_rel = components[1]
-        else:
-            # The second component is part of the repo, not the relative
-            # path. Need to be a bit careful to do this test right else
-            # otherwise we'll end up misinterpreting things like
-            # 'builds/01.py'
-            out_repo = os.path.join(repo_rest, components[0], components[1])
-            out_rel = None
-    else:
-        out_repo = os.path.join(repo_rest, components[0], components[1])
-        out_rel = components[2]
-
-    #if (co_dir is not None):
-    #    print "rel = %s"%rel
-    #    print "components = [%s]"%(" ".join(components))
-    #    print "out_repo = %s out_rel = %s"%(out_repo, out_rel)
-    #    raise utils.GiveUp("Help!")
-
-    return (out_repo, out_rel)
+    # source directory. Since the VCS of a checkout is not expected to change.
+    # we feel safe wrapping that into the action.
+    action = pkg.VcsCheckoutBuilder(handler)
+    pkg.add_checkout_rules(builder, co_label, action)
 
 def vcs_get_file_data(url):
     """

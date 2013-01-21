@@ -318,24 +318,6 @@ def vcs_unit_test():
     assert vcs == "cvs"
     assert url == "pserver://Foo.example.com/usr/cvs/foo"
 
-    (repo, file) = version_control.conventional_repo_url(
-        "bzr+http://bzr.example.com/my/repo/base",
-        "builds/dev/01.py")
-
-    assert repo == "http://bzr.example.com/my/repo/base/builds"
-    assert file == "dev/01.py"
-
-    (repo, file) = version_control.conventional_repo_url(
-        "git+ssh://git.example.com/a/repo",
-        "foo")
-
-    assert repo == "ssh://git.example.com/a/repo/foo"
-    assert file == None
-
-
-
-
-
 # End file.
 
 

@@ -596,15 +596,18 @@ class VersionStamp(object):
                         print 'Forcing head'
                     rev = "HEAD"
                 else:
-                    rev = vcs.revision_to_checkout(builder, force=force,
+                    rev = vcs.revision_to_checkout(builder, label, force=force,
                                                    before=before, verbose=True)
 
-                repo = vcs.repo.copy_with_changed_revision(rev)
+                repo = builder.db.get_checkout_repo(label)
+                repo = repo.copy_with_changed_revision(rev)
 
-                stamp.checkouts[label] = (vcs.checkout_dir, vcs.checkout_leaf, repo)
+                co_dir, co_leaf = builder.db.get_checkout_dir_and_leaf(label)
+                stamp.checkouts[label] = (co_dir, co_leaf, repo)
 
-                if vcs.options:
-                    stamp.options[label] = vcs.options
+                options = builder.db.get_checkout_vcs_options(label)
+                if options:
+                    stamp.options[label] = options
             except GiveUp as exc:
                 print exc
                 stamp.problems.append(str(exc))

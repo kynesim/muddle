@@ -194,14 +194,6 @@ class VersionControlHandler(object):
     def long_name(self):
         return self.vcs.long_name
 
-    def _src_rel_dir(self, builder, co_label):
-        """For exceptions, we want the directory relative to the root
-
-        (but if we have subdomains, we probably had better mean the root of the
-        topmost build)
-        """
-        return builder.db.get_checkout_location(co_label)
-
     def checkout(self, builder, co_label, verbose=True):
         """
         Check this checkout out of version control.
@@ -253,7 +245,7 @@ class VersionControlHandler(object):
         if not repo.pull:
             raise utils.GiveUp('Failure pulling %s in %s:\n'
                                '  %s does not allow "pull"'%(co_label,
-                               self._src_rel_dir(builder, co_label), repo))
+                               builder.db.get_checkout_location(co_label), repo))
 
         options = builder.db.get_checkout_vcs_options(co_label)
         with utils.Directory(builder.db.get_checkout_path(co_label)):
@@ -261,13 +253,13 @@ class VersionControlHandler(object):
                 return self.vcs.pull(repo, options, upstream=upstream, verbose=verbose)
             except utils.MuddleBug as err:
                 raise utils.MuddleBug('Error pulling %s in %s:\n%s'%(co_label,
-                                      self._src_rel_dir(builder, co_label), err))
+                                      builder.db.get_checkout_location(co_label), err))
             except utils.Unsupported as err:
                 raise utils.Unsupported('Not pulling %s in %s:\n%s'%(co_label,
-                                        self._src_rel_dir(builder, co_label), err))
+                                        builder.db.get_checkout_location(co_label), err))
             except utils.GiveUp as err:
                 raise utils.GiveUp('Failure pulling %s in %s:\n%s'%(co_label,
-                                   self._src_rel_dir(builder, co_label), err))
+                                   builder.db.get_checkout_location(co_label), err))
 
     def merge(self, builder, co_label, verbose=True):
         """
@@ -281,7 +273,7 @@ class VersionControlHandler(object):
         if not repo.pull:
             raise utils.GiveUp('Failure merging %s in %s:\n'
                                '  %s does not allow "pull"'%(co_label,
-                               self._src_rel_dir(builder, co_label), repo))
+                               builder.db.get_checkout_location(co_label), repo))
 
         options = builder.db.get_checkout_vcs_options(co_label)
         with utils.Directory(builder.db.get_checkout_path(co_label)):
@@ -289,13 +281,13 @@ class VersionControlHandler(object):
                 return self.vcs.merge(repo, options, verbose)
             except utils.MuddleBug as err:
                 raise utils.MuddleBug('Error merging %s in %s:\n%s'%(co_label,
-                                      self._src_rel_dir(builder, co_label), err))
+                                      builder.db.get_checkout_location(co_label), err))
             except utils.Unsupported as err:
                 raise utils.Unsupported('Not merging %s in %s:\n%s'%(co_label,
-                                        self._src_rel_dir(builder, co_label), err))
+                                        builder.db.get_checkout_location(co_label), err))
             except utils.GiveUp as err:
                 raise utils.GiveUp('Failure merging %s in %s:\n%s'%(co_label,
-                                   self._src_rel_dir(builder, co_label), err))
+                                   builder.db.get_checkout_location(co_label), err))
 
     def commit(self, builder, co_label, verbose=True):
         """
@@ -311,10 +303,10 @@ class VersionControlHandler(object):
                 self.vcs.commit(repo, options, verbose)
             except utils.MuddleBug as err:
                 raise utils.MuddleBug('Error commiting %s in %s:\n%s'%(co_label,
-                                      self._src_rel_dir(builder, co_label), err))
+                                      builder.db.get_checkout_location(co_label), err))
             except (utils.GiveUp, utils.Unsupported) as err:
                 raise utils.GiveUp('Failure commiting %s in %s:\n%s'%(co_label,
-                                   self._src_rel_dir(builder, co_label), err))
+                                   builder.db.get_checkout_location(co_label), err))
 
     def push(self, builder, co_label, upstream=None, repo=None, verbose=True):
         """
@@ -335,7 +327,7 @@ class VersionControlHandler(object):
         if not repo.push:
             raise utils.GiveUp('Failure pushing %s in %s:\n'
                                '  %s does not allow "push"'%(co_label,
-                               self._src_rel_dir(builder, co_label), repo))
+                               builder.db.get_checkout_location(co_label), repo))
 
         options = builder.db.get_checkout_vcs_options(co_label)
         with utils.Directory(builder.db.get_checkout_path(co_label)):
@@ -343,10 +335,10 @@ class VersionControlHandler(object):
                 self.vcs.push(repo, options, upstream=upstream, verbose=verbose)
             except utils.MuddleBug as err:
                 raise utils.MuddleBug('Error pushing %s in %s:\n%s'%(co_label,
-                                      self._src_rel_dir(builder, co_label), err))
+                                      builder.db.get_checkout_location(co_label), err))
             except (utils.GiveUp, utils.Unsupported) as err:
                 raise utils.GiveUp('Failure pushing %s in %s:\n%s'%(co_label,
-                                   self._src_rel_dir(builder, co_label), err))
+                                   builder.db.get_checkout_location(co_label), err))
 
     def status(self, builder, co_label, verbose=False):
         """
@@ -379,17 +371,17 @@ class VersionControlHandler(object):
                 if status_text:
                     full_text = '%s status for %s in %s:\n%s'%(self.short_name(),
                                                  co_label,
-                                                 self._src_rel_dir(builder, co_label),
+                                                 builder.db.get_checkout_location(co_label),
                                                  status_text)
                     return full_text
                 else:
                     return None
             except utils.MuddleBug as err:
                 raise utils.MuddleBug('Error finding status for %s in %s:\n%s'%(co_label,
-                                      self._src_rel_dir(builder, co_label), err))
+                                      builder.db.get_checkout_location(co_label), err))
             except utils.GiveUp as err:
                 raise utils.GiveUp('Failure finding status for %s in %s:\n%s'%(co_label,
-                                   self._src_rel_dir(builder, co_label), err))
+                                   builder.db.get_checkout_location(co_label), err))
 
     def reparent(self, builder, co_label, force=False, verbose=True):
         """

@@ -5904,7 +5904,6 @@ class UpstreamCommand(CheckoutCommand):
     def build_these_labels(self, builder, labels, upstream_names, no_op):
         get_checkout_repo = builder.db.get_checkout_repo
         get_upstream_repos = builder.db.get_upstream_repos
-        get_checkout_location = builder.db.get_checkout_location
         for co in labels:
             orig_repo = get_checkout_repo(co)
             upstreams = get_upstream_repos(orig_repo, upstream_names)

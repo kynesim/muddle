@@ -1971,6 +1971,17 @@ class QueryCheckoutRepos(QueryCommand):
         just_url = ('url' in self.switches)
         builder.db.dump_checkout_repos(just_url=just_url)
 
+@subcommand('query', 'checkout-vcs', CAT_QUERY)
+class QueryCheckoutVcs(QueryCommand):
+    """
+    :Syntax: muddle query checkout-vcs
+
+    Print the known checkouts and their version control systems
+    """
+
+    def with_build_tree(self, builder, current_dir, args):
+        builder.db.dump_checkout_vcs()
+
 @subcommand('query', 'checkout-licenses', CAT_QUERY)
 class QueryCheckoutLicenses(QueryCommand):
     """

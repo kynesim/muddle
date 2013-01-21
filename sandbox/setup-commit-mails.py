@@ -45,6 +45,7 @@ except ImportError:
 
 from muddled.utils import run_cmd
 from muddled.cmdline import find_and_load
+from muddled.depend import normalise_checkout_label
 
 ##########################################################
 
@@ -383,7 +384,7 @@ def _do_cmdline(args):
     rules = builder.all_checkout_rules()
     dirs = []
     for r in rules:
-        key = builder.db.normalise_checkout_label(r.target)
+        key = normalise_checkout_label(r.target)
         # Unfortunately, we do not currently support subdomains
         if key.domain:
             continue

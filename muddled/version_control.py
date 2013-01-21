@@ -690,17 +690,16 @@ def checkout_from_repo(builder, co_label, repo, co_dir=None, co_leaf=None):
     builder.db.set_checkout_path(co_label, co_path)
     builder.db.set_checkout_repo(co_label, repo)
 
-    # So we need an action to do the checkout of this checkout label to its
-    # source directory
     if co_leaf is None:
         co_leaf = co_label.name
-
     handler = vcs_handler_for(builder, co_label, co_leaf, repo, co_dir)
     if handler is None:
         raise utils.GiveUp("Cannot build a VCS handler for %s"%repo)
+    builder.db.set_checkout_vcs(co_label, handler)
 
+    # And we need an action to do the checkout of this checkout label to its
+    # source directory
     action = pkg.VcsCheckoutBuilder(co_label.name, handler)
-
     pkg.add_checkout_rules(builder.ruleset, co_label, action)
 
 def conventional_repo_url(repo, rel, co_dir = None):

@@ -14,15 +14,12 @@ import muddled.utils as utils
 import muddled.env_store as env_store
 import muddled.instr as instr
 
-from muddled.depend import Label, Action, label_list_to_string
+from muddled.depend import Label, Action, label_list_to_string, \
+        normalise_checkout_label
 from muddled.utils import domain_subpath, GiveUp, MuddleBug, LabelType, LabelTag
 from muddled.repository import Repository
 from muddled.version_control import split_vcs_url, checkout_from_repo
 from muddled.version_stamp import ReleaseSpec
-
-# Temporarily - in a later version of muddle we will be getting this from
-# muddled.depend
-from muddled.licenses import _normalise_checkout_label as normalise_checkout_label
 
 class ErrorInBuildDescription(GiveUp):
     """We want to be able to distinguish this exception *in this module*

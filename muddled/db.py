@@ -66,15 +66,15 @@ class Database(object):
         checkout:builds/*               -> src/builds
         checkout:(subdomain1)first_co/* -> domains/subdomain1/src/first_co
 
-    * checkout_repositories - This maps a checkout_label to a Repository
+    * checkout_repositories - This maps a checkout label to a Repository
       instance, representing where it is checked out from. So examples might
       be (eliding the actual URL)::
 
         checkout:builds/*               -> Repository('git', 'http://.../main', 'builds')
         checkout:(subdomain1)first_co/* -> Repository('git', 'http://.../subdomain1', 'first_co')
 
-    * checkout_vcs - This is a cache remembering the VCS for a checkout. It
-      is not intended for direct access.
+    * checkout_vcs - This maps a checkout label to a VCS handler, which knows
+      how to do version control operations for this checkout.
 
     * checkout_licenses - This maps a checkout label to a License instance,
       representing the source code license under which this checkout's source
@@ -214,12 +214,14 @@ class Database(object):
         included as a subdomain...
 
         Note that we DO NOT CARE if identical labels (those that compare the
-        same with "is" are added to the list. But we DO want *all*
-        non-identical labels.
+        same with "is") are added to the list, as each label instance will
+        only be updated once, regardless of how many times it occurs. But we DO
+        want to make sure we have *all* non-identical labels.
         """
         labels = []
         labels.extend(self.checkout_locations.keys())
         labels.extend(self.checkout_repositories.keys())
+        labels.extend(self.checkout_vcs.keys())
         labels.extend(self.checkout_licenses.keys())
         labels.extend(self.checkout_license_files.keys())
         labels.extend(self.license_not_affected_by.keys())
@@ -253,6 +255,7 @@ class Database(object):
             self.checkout_locations[co_label] = new_dir
 
         self.checkout_repositories.update(other_db.checkout_repositories)
+        self.checkout_vcs.update(other_db.checkout_vcs)
 
         self.checkout_licenses.update(other_db.checkout_licenses)
         self.checkout_license_files.update(other_db.checkout_license_files)
@@ -380,40 +383,8 @@ class Database(object):
         """
         utils.mark_as_domain(self.root_path, domain_name)
 
-    def normalise_checkout_label(self, label):
-        """
-        Given a checkout label with random "other" fields, normalise it.
-
-        Returns a normalised checkout label, with the role unset and the
-        tag set to '*'. This may be the same label (if it was already
-        normalised), or it may be a new label. No guarantee is given of
-        either.
-
-        Raise a MuddleBug exception if the label is not a checkout label.
-
-        A normalised checkout label:
-
-            1. Has tag '*'
-            2. Does not have a role (checkout labels do not use the role)
-            3. Does not have the system or transient flags set
-            4. Has the same name and (if present) domain
-        """
-        if label.type != utils.LabelType.Checkout:
-            # The user probably needs an exception to spot why this is
-            # happening
-            raise MuddleBug('Cannot "normalise" a non-checkout label: %s'%label)
-
-        # Can we just use the same label?
-        if label.tag == '*' and label.role is None and \
-                not label.system and not label.transient:
-            return label
-        else:
-            new = label.copy_with_tag('*')
-            new._role = None    # a bit naughty, but the simplest way
-            return new
-
     def set_checkout_path(self, checkout_label, dir):
-        key = self.normalise_checkout_label(checkout_label)
+        key = normalise_checkout_label(checkout_label)
 
 	#print '### set_checkout_path for %s'%checkout_label
 	#print '... dir',dir
@@ -449,7 +420,7 @@ class Database(object):
 
         root = self.root_path
 
-        key = self.normalise_checkout_label(checkout_label)
+        key = normalise_checkout_label(checkout_label)
         try:
             rel_dir = self.checkout_locations[key]
         except KeyError:
@@ -472,14 +443,14 @@ class Database(object):
         if checkout_label is None:
             return 'src'
 
-        key = self.normalise_checkout_label(checkout_label)
+        key = normalise_checkout_label(checkout_label)
         try:
             return self.checkout_locations[key]
         except KeyError:
             raise utils.GiveUp('There is no checkout path registered for label %s'%checkout_label)
 
     def set_checkout_repo(self, checkout_label, repo):
-        key = self.normalise_checkout_label(checkout_label)
+        key = normalise_checkout_label(checkout_label)
         self.checkout_repositories[key] = repo
 
     def dump_checkout_repos(self, just_url=False):
@@ -509,14 +480,48 @@ class Database(object):
         """
         Returns the Repository instance for this checkout label
         """
-        key = self.normalise_checkout_label(checkout_label)
+        key = normalise_checkout_label(checkout_label)
         try:
             return self.checkout_repositories[key]
         except KeyError:
             raise utils.GiveUp('There is no repository registered for label %s'%checkout_label)
 
+    def set_checkout_vcs(self, checkout_label, vcs):
+        key = normalise_checkout_label(checkout_label, tag=utils.LabelTag.CheckedOut)
+        self.checkout_vcs[key] = vcs
+
+    def dump_checkout_vcs(self):
+        """
+        Report on the version control systems associated with our checkouts.
+        """
+        print "> Checkout version control systems .."
+        keys = self.checkout_vcs.keys()
+        max = 0
+        for label in keys:
+            length = len(str(label))
+            if length > max:
+                max = length
+        keys.sort()
+        for label in keys:
+            print "%-*s -> %s"%(max, label, self.checkout_vcs[label])
+
+    def get_checkout_vcs(self, builder, checkout_label):
+        """
+        'checkout_label' is a "checkout:" Label.
+
+        Returns the VCS for the given checkout.
+
+        Raises GiveUp (containing an explanatory message) if we cannot find
+        that checkout label.
+        """
+        key = normalise_checkout_label(checkout_label, tag=utils.LabelTag.CheckedOut)
+        try:
+            return self.checkout_vcs[key]
+        except KeyError:
+            raise utils.GiveUp('There is no VCS registered for label %s'%key)
+
     def set_checkout_license(self, checkout_label, license):
-        key = self.normalise_checkout_label(checkout_label)
+        key = normalise_checkout_label(checkout_label)
         self.checkout_licenses[key] = license
 
     def dump_checkout_licenses(self, just_name=False):
@@ -550,7 +555,7 @@ class Database(object):
         an entry in the licenses dictionary, None will be returned. Otherwise,
         an appropriate GiveUp exception will be raised.
         """
-        key = self.normalise_checkout_label(checkout_label)
+        key = normalise_checkout_label(checkout_label)
         try:
             return self.checkout_licenses[key]
         except KeyError:
@@ -563,13 +568,13 @@ class Database(object):
         """
         Return True if the named checkout has a license registered
         """
-        key = self.normalise_checkout_label(checkout_label)
+        key = normalise_checkout_label(checkout_label)
         return key in self.checkout_licenses
 
     def set_checkout_license_file(self, checkout_label, license_file):
         """Set the license file for this checkout.
         """
-        key = self.normalise_checkout_label(checkout_label)
+        key = normalise_checkout_label(checkout_label)
         self.checkout_license_files[key] = license_file
 
     def get_checkout_license_file(self, checkout_label, absent_is_None=False):
@@ -580,7 +585,7 @@ class Database(object):
         an entry in the license files dictionary, None will be returned.
         Otherwise, an appropriate GiveUp exception will be raised.
         """
-        key = self.normalise_checkout_label(checkout_label)
+        key = normalise_checkout_label(checkout_label)
         try:
             return self.checkout_license_files[key]
         except KeyError:
@@ -630,7 +635,7 @@ class Database(object):
         else:
             key = this_label.copy_with_tag('*')
 
-        value = self.normalise_checkout_label(co_label)
+        value = normalise_checkout_label(co_label)
 
         if key in self.license_not_affected_by:
             self.license_not_affected_by[key].add(value)
@@ -661,13 +666,13 @@ class Database(object):
 
         ...or, at least, not in a way to cause GPL license "propagation".
         """
-        label = self.normalise_checkout_label(co_label)
+        label = normalise_checkout_label(co_label)
         self.nothing_builds_against.add(label)
 
     def get_nothing_builds_against(self, co_label):
         """Return True if this label is in the "not linked against" set.
         """
-        label = self.normalise_checkout_label(co_label)
+        label = normalise_checkout_label(co_label)
         return label in self.nothing_builds_against
 
     upstream_name_re = re.compile(r'[A-Za-z0-9_-]+')
@@ -820,35 +825,6 @@ class Database(object):
                                ', '.join(sorted(upstream_dict[upstream_repo])))
         except KeyError:
             print '  Has no upstream repositories'
-
-    def get_checkout_vcs(self, builder, checkout_label):
-        """
-        'checkout_label' is a "checkout:" Label.
-
-        Returns the VCS for the given checkout, cacheing it.
-
-        Raises GiveUp (containing an explanatory message) if we cannot find
-        that checkout label in the rules (i.e., nothing in the dependency tree
-        uses it).
-
-        Raise MuddleBug if it is not a checkout label, or we find its rule, but
-        no VCS on its action.
-        """
-        key = normalise_checkout_label(checkout_label, tag=utils.LabelTag.CheckedOut)
-        if key in self.checkout_vcs:
-            return self.checkout_vcs[key]
-        else:
-            rule = builder.ruleset.rule_for_target(key)
-            if rule is None:
-                raise utils.GiveUp('There is no rule registered for label %s,'
-                                   ' and thus no VCS'%key)
-            try:
-                vcs = rule.action.vcs
-            except AttributeError:
-                raise utils.MuddleBug("The rule for label '%s' has no VCS"%key)
-
-            self.checkout_vcs[key] = vcs
-            return vcs
 
     def build_desc_file_name(self):
         """

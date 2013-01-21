@@ -9,9 +9,9 @@ import muddled.pkg as pkg
 import muddled.utils as utils
 
 from muddled.depend import Label
-from repository import Repository
-
-branch_and_revision_re = re.compile("([^:]*):(.*)$")
+from muddled.repository import Repository
+from muddled.utils import split_vcs_url
+from muddled.db import CheckoutData
 
 class VersionControlSystem(object):
     """
@@ -496,23 +496,24 @@ class VersionControlHandler(object):
                 raise utils.GiveUp("Additional options to VCS must be bool, int or"
                                    " string. '%s' is %s"%(value, type(value)))
 
-            builder.db.set_checkout_vcs_option(co_label, key, value)
+            co_data = builder.db.get_checkout_data(co_label)
+            co_data.set_option(key, value)
 
-# This dictionary holds the global list of registered VCS handler
-# factories.
+# This dictionary holds the global list of registered VCS instances
 vcs_dict = {}
 # And this one the documentation for each VCS
 vcs_docs = {}
 # And this one for (a list of) allowable options for each VCS
 vcs_options = {}
 
-def register_vcs_handler(scheme, factory, docs=None, options=None):
+def register_vcs(scheme, vcs_instance, docs=None, options=None):
     """
-    Register a VCS handler factory with a VCS scheme prefix.
+    Register a VCS instance with a VCS scheme prefix.
 
-    Also, preferably, register the VCS documentation on how muddle handles it.
+    Also, preferably, register the VCS documentation on how muddle handles it,
+    and maybe also any allowed options.
     """
-    vcs_dict[scheme] = factory
+    vcs_dict[scheme] = vcs_instance
     vcs_docs[scheme] = docs
     vcs_options[scheme] = options
 
@@ -539,8 +540,8 @@ def list_registered(indent=''):
 
     return "".join(str_list)
 
-def get_vcs_handler(vcs):
-    """Given a VCS short name, return a VCS handler.
+def get_vcs_instance(vcs):
+    """Given a VCS short name, return a VCS instance.
     """
     try:
         return vcs_dict[vcs]
@@ -561,17 +562,17 @@ def option_not_allowed(vcs, option):
     else:
         return True
 
-def get_vcs_handler_from_string(repo_str):
-    """Given a <vcs>+<url> string, return a VCS handler and <url>.
+def get_vcs_instance_from_string(repo_str):
+    """Given a <vcs>+<url> string, return a VCS instance and <url>.
     """
     vcs, url_rest = split_vcs_url(repo_str)
     if not vcs:
         raise utils.MuddleBug("Improperly formatted repository spec %s,"
                               " should be <vcs>+<url>"%repo_str)
 
-    vcs_handler = get_vcs_handler(vcs)
+    vcs_instance = get_vcs_instance(vcs)
 
-    return vcs_handler, url_rest
+    return vcs_instance, url_rest
 
 def vcs_handler_for(builder, co_label):
     """
@@ -589,23 +590,9 @@ def vcs_handler_for(builder, co_label):
     """
 
     repo = builder.db.get_checkout_repo(co_label)
-    vcs = get_vcs_handler(repo.vcs)
+    vcs = get_vcs_instance(repo.vcs)
 
     return VersionControlHandler(vcs)
-
-def split_vcs_url(url):
-    """
-    Split a URL into a vcs and a repository URL. If there's no VCS
-    specifier, return (None, None).
-    """
-
-    the_re = re.compile("^([A-Za-z]+)\+([A-Za-z+]+):(.*)$")
-
-    m = the_re.match(url)
-    if (m is None):
-        return (None, None)
-
-    return (m.group(1).lower(), "%s:%s"%(m.group(2),m.group(3)))
 
 def checkout_from_repo(builder, co_label, repo, co_dir=None, co_leaf=None):
     """Declare that the checkout for 'co_label' comes from Repository 'repo'
@@ -629,29 +616,24 @@ def checkout_from_repo(builder, co_label, repo, co_dir=None, co_leaf=None):
         raise utils.MuddleBug('Checkout %s cannot use %r\n'
                               '  as its main repository, as "pull" is not allowed'%(co_label, repo))
 
+    try:
+        vcs = get_vcs_instance(repo.vcs)
+    except Exception as e:
+        raise MuddleBug('Cannot determine VCS for checkout %s:\n%s'%(co_label, e))
+
+    vcs_instance = VersionControlHandler(vcs)
+
     if not co_leaf:
         co_leaf = co_label.name
 
-    if co_dir:
-        co_path = os.path.join(co_dir, co_leaf)
-    else:
-        co_path = co_leaf
+    co_object = CheckoutData(vcs_instance, repo, co_dir, co_leaf)
 
-    builder.db.set_checkout_dir_and_leaf(co_label, co_dir, co_leaf)
-
-    builder.db.set_checkout_path(co_label, co_path)
-    builder.db.set_checkout_repo(co_label, repo)
-
-    handler = vcs_handler_for(builder, co_label)
-    try:
-        builder.db.set_checkout_vcs(co_label, handler)
-    except Exception as e:
-        raise MuddleBug('Cannot determine VCS for checkout %s:\n%s'%(co_label, e))
+    builder.db.set_checkout_data(co_label, co_object)
 
     # And we need an action to do the checkout of this checkout label to its
     # source directory. Since the VCS of a checkout is not expected to change.
     # we feel safe wrapping that into the action.
-    action = pkg.VcsCheckoutBuilder(handler)
+    action = pkg.VcsCheckoutBuilder(vcs_instance)
     pkg.add_checkout_rules(builder, co_label, action)
 
 def vcs_get_file_data(url):
@@ -666,8 +648,8 @@ def vcs_get_file_data(url):
     Raises KeyError if the scheme is not one we have a registered file getter
     for.
     """
-    vcs_handler, plain_url = get_vcs_handler_from_string(url)
-    return vcs_handler.get_file_content(plain_url)
+    vcs_instance, plain_url = get_vcs_instance_from_string(url)
+    return vcs_instance.get_file_content(plain_url)
 
 def vcs_get_directory(url, directory=None):
     """
@@ -681,9 +663,9 @@ def vcs_get_directory(url, directory=None):
     Raises KeyError if the scheme is not one for which we have a registered
     handler.
     """
-    vcs_handler, plain_url = get_vcs_handler_from_string(url)
-    repo = Repository.from_url(vcs_handler.short_name, plain_url)
-    return vcs_handler.checkout(repo, directory, {})
+    vcs_instance, plain_url = get_vcs_instance_from_string(url)
+    repo = Repository.from_url(vcs_instance.short_name, plain_url)
+    return vcs_instance.checkout(repo, directory, {})
 
 def vcs_push_directory(url):
     """
@@ -695,9 +677,9 @@ def vcs_push_directory(url):
     Raises KeyError if the scheme is not one for which we have a registered
     handler.
     """
-    vcs_handler, plain_url = get_vcs_handler_from_string(url)
-    repo = Repository.from_url(vcs_handler.short_name, plain_url)
-    vcs_handler.push(repo, {})
+    vcs_instance, plain_url = get_vcs_instance_from_string(url)
+    repo = Repository.from_url(vcs_instance.short_name, plain_url)
+    vcs_instance.push(repo, {})
 
 def vcs_pull_directory(url):
     """
@@ -709,9 +691,9 @@ def vcs_pull_directory(url):
     Raises KeyError if the scheme is not one for which we have a registered
     handler.
     """
-    vcs_handler, plain_url = get_vcs_handler_from_string(url)
-    repo = Repository.from_url(vcs_handler.short_name, plain_url)
-    vcs_handler.pull(repo, {})
+    vcs_instance, plain_url = get_vcs_instance_from_string(url)
+    repo = Repository.from_url(vcs_instance.short_name, plain_url)
+    vcs_instance.pull(repo, {})
 
 def vcs_init_directory(scheme, files=None):
     """
@@ -723,11 +705,11 @@ def vcs_init_directory(scheme, files=None):
     Raises KeyError if the scheme is not one for which we have a registered
     handler.
     """
-    vcs_handler = vcs_dict.get(scheme, None)
-    if not vcs_handler:
+    vcs_instance = vcs_dict.get(scheme, None)
+    if not vcs_instance:
         raise utils.MuddleBug("No VCS handler registered for VCS type %s"%scheme)
-    vcs_handler.init_directory()
-    vcs_handler.add_files(files)
+    vcs_instance.init_directory()
+    vcs_instance.add_files(files)
 
 def vcs_special_files(url):
     """
@@ -736,7 +718,7 @@ def vcs_special_files(url):
     For instance, if 'url' starts with "git+" then we might return
     [".git", ".gitignore", ".gitmodules"]
     """
-    vcs_handler, plain_url = get_vcs_handler_from_string(url)
-    return vcs_handler.get_vcs_special_files()
+    vcs_instance, plain_url = get_vcs_instance_from_string(url)
+    return vcs_instance.get_vcs_special_files()
 
 # End file.

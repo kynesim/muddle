@@ -45,7 +45,8 @@ from muddled.db import Database, InstructionFile
 from muddled.depend import Label, label_list_to_string
 from muddled.utils import GiveUp, MuddleBug, Unsupported, \
         DirType, LabelTag, LabelType, find_label_dir
-from muddled.version_control import split_vcs_url, checkout_from_repo
+from muddled.utils import split_vcs_url
+from muddled.version_control import checkout_from_repo
 from muddled.repository import Repository
 from muddled.version_stamp import VersionStamp, ReleaseStamp, ReleaseSpec
 from muddled.licenses import print_standard_licenses, get_gpl_checkouts, \

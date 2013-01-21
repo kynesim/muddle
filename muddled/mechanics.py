@@ -18,7 +18,8 @@ from muddled.depend import Label, Action, label_list_to_string, \
         normalise_checkout_label
 from muddled.utils import domain_subpath, GiveUp, MuddleBug, LabelType, LabelTag
 from muddled.repository import Repository
-from muddled.version_control import split_vcs_url, checkout_from_repo
+from muddled.utils import split_vcs_url
+from muddled.version_control import checkout_from_repo
 from muddled.version_stamp import ReleaseSpec
 
 class ErrorInBuildDescription(GiveUp):

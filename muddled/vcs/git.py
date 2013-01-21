@@ -66,7 +66,7 @@ Available git specific options are:
 import os
 import re
 
-from muddled.version_control import register_vcs_handler, VersionControlSystem
+from muddled.version_control import register_vcs, VersionControlSystem
 import muddled.utils as utils
 
 g_supports_ff_only = None
@@ -569,6 +569,6 @@ class Git(VersionControlSystem):
     # reinvestigating periodically
 
 # Tell the version control handler about us..
-register_vcs_handler("git", Git(), __doc__, ["shallow_checkout"])
+register_vcs("git", Git(), __doc__, ["shallow_checkout"])
 
 # End file.

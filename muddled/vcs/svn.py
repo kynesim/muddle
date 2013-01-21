@@ -4,7 +4,7 @@ Muddle support for Subversion
 .. to be documented ..
 """
 
-from muddled.version_control import register_vcs_handler, VersionControlSystem
+from muddled.version_control import register_vcs, VersionControlSystem
 import muddled.utils as utils
 
 class Subversion(VersionControlSystem):
@@ -215,6 +215,6 @@ class Subversion(VersionControlSystem):
         return True
 
 # Tell the version control handler about us..
-register_vcs_handler("svn", Subversion(), __doc__)
+register_vcs("svn", Subversion(), __doc__)
 
 # End file.

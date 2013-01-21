@@ -7,7 +7,7 @@ Muddle support for naive file copying.
 import os
 import urlparse
 
-from muddled.version_control import register_vcs_handler, VersionControlSystem
+from muddled.version_control import register_vcs, VersionControlSystem
 import muddled.utils as utils
 
 class File(VersionControlSystem):
@@ -146,6 +146,6 @@ def _decode_file_url(url):
     return result.path
 
 # Tell the version control handler about us..
-register_vcs_handler("file", File(), __doc__)
+register_vcs("file", File(), __doc__)
 
 # End file.

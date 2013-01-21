@@ -469,6 +469,20 @@ def pad_to(str, val, pad_with = " "):
 
     return "".join(arr)
 
+def split_vcs_url(url):
+    """
+    Split a URL into a vcs and a repository URL. If there's no VCS
+    specifier, return (None, None).
+    """
+
+    the_re = re.compile("^([A-Za-z]+)\+([A-Za-z+]+):(.*)$")
+
+    m = the_re.match(url)
+    if (m is None):
+        return (None, None)
+
+    return (m.group(1).lower(), "%s:%s"%(m.group(2),m.group(3)))
+
 
 def unix_time():
     """

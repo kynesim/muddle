@@ -7,7 +7,7 @@ Muddle support for Bazaar.
 import os
 import re
 
-from muddled.version_control import register_vcs_handler, VersionControlSystem
+from muddled.version_control import register_vcs, VersionControlSystem
 import muddled.utils as utils
 
 class Bazaar(VersionControlSystem):
@@ -554,6 +554,6 @@ class Bazaar(VersionControlSystem):
         return ['.bzr', '.bzrignore']
 
 # Tell the version control handler about us..
-register_vcs_handler("bzr", Bazaar(), __doc__)
+register_vcs("bzr", Bazaar(), __doc__)
 
 # End file.

@@ -34,7 +34,7 @@ from muddled.depend import Action, Rule, Label, needed_to_build, label_list_to_s
 from muddled.utils import GiveUp, MuddleBug, LabelTag, LabelType, \
         copy_without, normalise_dir, find_local_relative_root, \
         copy_file, domain_subpath
-from muddled.version_control import get_vcs_handler, vcs_special_files
+from muddled.version_control import get_vcs_instance, vcs_special_files
 from muddled.mechanics import build_co_and_path_from_str
 from muddled.pkgs.make import MakeBuilder, deduce_makefile_name
 from muddled.licenses import get_gpl_checkouts, get_implicit_gpl_checkouts, \
@@ -906,8 +906,8 @@ def _actually_distribute_checkout(builder, label, target_dir, copy_vcs):
         without = []
     else:
         repo = builder.db.get_checkout_repo(label)
-        vcs_handler = get_vcs_handler(repo.vcs)
-        without = vcs_handler.get_vcs_special_files()
+        vcs_instance = get_vcs_instance(repo.vcs)
+        without = vcs_instance.get_vcs_special_files()
 
     # So we can now copy our source directory, ignoring the VCS files if
     # necessary. Note that this can create the target directory for us.
@@ -939,8 +939,8 @@ def _actually_distribute_normal_build_desc(builder, label, co_src_dir, target_di
         files_to_ignore = []
     else:
         repo = builder.db.get_checkout_repo(label)
-        vcs_handler = get_vcs_handler(repo.vcs)
-        files_to_ignore = vcs_handler.get_vcs_special_files()
+        vcs_instance = get_vcs_instance(repo.vcs)
+        files_to_ignore = vcs_instance.get_vcs_special_files()
 
     co_tgt_dir = os.path.join(normalise_dir(target_dir), co_src_dir)
     if DEBUG:

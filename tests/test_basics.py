@@ -309,12 +309,12 @@ def vcs_unit_test():
     Perform VCS unit tests.
     """
     repo = "http://www.google.com/"
-    (x,y) = version_control.split_vcs_url(repo)
+    (x,y) = utils.split_vcs_url(repo)
 
-    assert version_control.split_vcs_url(repo) == (None, None)
+    assert utils.split_vcs_url(repo) == (None, None)
 
     repo = "cVs+pserver://Foo.example.com/usr/cvs/foo"
-    (vcs,url) = version_control.split_vcs_url(repo)
+    (vcs,url) = utils.split_vcs_url(repo)
     assert vcs == "cvs"
     assert url == "pserver://Foo.example.com/usr/cvs/foo"
 

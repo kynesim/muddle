@@ -202,8 +202,7 @@ from StringIO import StringIO
 from muddled.depend import Label
 from muddled.repository import Repository
 from muddled.utils import MuddleSortedDict, MuddleOrderedDict, \
-        HashFile, GiveUp, truncate, LabelType, LabelTag
-from muddled.version_control import split_vcs_url
+        HashFile, GiveUp, truncate, LabelType, LabelTag, split_vcs_url
 
 CheckoutTupleV1 = namedtuple('CheckoutTupleV1', 'name repo rev rel dir domain co_leaf branch')
 

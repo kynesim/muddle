@@ -660,9 +660,7 @@ def check_push_pull_permissions():
 
     # We can't use version_control.py::checkout_from_repo() directly, because
     # it already checks the "pull" value for us...
-    dummy_builder.db.set_checkout_repo(fred, repo)
-    dummy_builder.db.set_checkout_path(fred, 'fred')
-    dummy_builder.db.set_checkout_vcs(fred, vcs)
+    dummy_builder.db.set_checkout_data(vcs, repo, None, 'fred')
 
     check_exception('Test checkout_from_repo with %r'%repo,
                     checkout_from_repo, (None, fred, repo), exception=MuddleBug,

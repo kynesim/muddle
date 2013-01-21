@@ -13,9 +13,82 @@ import traceback
 import muddled.utils as utils
 import muddled.depend as depend
 
-from muddled.utils import domain_subpath
-from muddled.version_control import split_vcs_url
+from muddled.utils import domain_subpath, split_vcs_url
 from muddled.depend import normalise_checkout_label
+
+
+class CheckoutData(object):
+    """
+    * location - The directory the checkout is in, relative to the root of the
+      build tree. For instance::
+
+        src/builds
+        domains/subdomain1/src/first_co
+
+    * dir and leaf - The same information, as it was originally specified in
+      the build description. This is primarily of use in version stamping.
+      The dir may be None, and the leaf defaults to the checkout labels name.
+
+      We expect to take the repository described in 'repo' and check it out
+      into:
+
+      * src/<co_leaf> or
+      * src/<co_dir>/<co_leaf>
+
+      depending on whether <co_dir> is None.
+
+    * repo - A Repository instance, representing where the checkout is checked
+      out from. For example (eliding the actual URL)::
+
+        Repository('git', 'http://.../main', 'builds')
+        Repository('git', 'http://.../subdomain1', 'first_co')
+
+    * vcs_handler - A VCS handler, which knows how to do version control
+      operations for this checkout.
+
+    * options - Any specialised optons needed by the VCS handler. At the
+      moment, the only option available is whether a git checkout is shallow or
+      not. This is a dictionary.
+    """
+
+    def __init__(self, vcs_handler, repo, co_dir, co_leaf):
+        self.vcs_handler = vcs_handler
+        self.repo  = repo
+
+        self.dir = co_dir
+        self.leaf = co_leaf
+
+        if co_dir:
+            self.location = os.path.join('src', co_dir, co_leaf)
+        else:
+            self.location = os.path.join('src', co_leaf)
+
+        self.options = {}
+
+    def __repr__(self):
+        parts = []
+        parts.append(self.vcs_handler)
+        parts.append(self.repo)
+        parts.append(self.co_dir)
+        parts.append(self.co_leaf)
+        return 'CheckoutData(' + ', '.join(parts) + ')'
+
+    def move_to_subdomain(self, other_domain_name):
+        # Note that our 'dir' and 'leaf' are always with respect to the local
+        # domain, so we do not need to change them
+
+        self.location = os.path.join(utils.domain_subpath(other_domain_name), self.location)
+
+    def set_option(self, key, value):
+        """
+        Add/replace the named VCS option 'key'.
+
+        Generally, call this via the version control handler's add_options()
+        method, as that understands the restrictions placed on a particular
+        VCS as to allowed keys and values.
+        """
+        self.options[key] = value
+
 
 class Database(object):
     """
@@ -59,35 +132,8 @@ class Database(object):
 
     The dictionaries we use are:
 
-    * checkout_locations - This maps a checkout label to the directory the
-      checkout is in, relative to the root of the build tree. So examples
-      might be::
-
-        checkout:builds/*               -> src/builds
-        checkout:(subdomain1)first_co/* -> domains/subdomain1/src/first_co
-
-    * checkout_dir_and_leaf - This maps the same information, but as co_dir
-      and co_leaf as originally given to muddle. This is primarily of use in
-      version stamping.
-
-    * checkout_repositories - This maps a checkout label to a Repository
-      instance, representing where it is checked out from. So examples might
-      be (eliding the actual URL)::
-
-        checkout:builds/*               -> Repository('git', 'http://.../main', 'builds')
-        checkout:(subdomain1)first_co/* -> Repository('git', 'http://.../subdomain1', 'first_co')
-
-    * checkout_vcs - This maps a checkout label to a VCS handler, which knows
-      how to do version control operations for this checkout.
-
-    * checkout_vcs_options - This maps a checkout label to any specialised
-      optons needed by its handler. At the moment, the only option available
-      is whether the checkout is shallow or not.
-
-      This is a dictionary of checkout label to dictionary of options, for
-      instance::
-
-          checkout:first_co/*       -> {'shallow':True}
+    * checkout_data - This maps checkout labels to the information we need
+      to do checkout actions.
 
     * checkout_licenses - This maps a checkout label to a License instance,
       representing the source code license under which this checkout's source
@@ -163,11 +209,8 @@ class Database(object):
                                           '.muddle',
                                           '_just_pulled'))
 
-        self.checkout_locations = {}
-        self.checkout_dir_and_leaf = {}
-        self.checkout_repositories = {}
-        self.checkout_vcs = {}
-        self.checkout_vcs_options = {}
+        self.checkout_data = {}
+
         self.checkout_licenses = {}
         self.checkout_license_files = {}
         self.license_not_affected_by = {}
@@ -234,11 +277,7 @@ class Database(object):
         want to make sure we have *all* non-identical labels.
         """
         labels = []
-        labels.extend(self.checkout_locations.keys())
-        labels.extend(self.checkout_dir_and_leaf.keys())
-        labels.extend(self.checkout_repositories.keys())
-        labels.extend(self.checkout_vcs.keys())
-        labels.extend(self.checkout_vcs_options.keys())
+        labels.extend(self.checkout_data.keys())
         labels.extend(self.checkout_licenses.keys())
         labels.extend(self.checkout_license_files.keys())
         labels.extend(self.license_not_affected_by.keys())
@@ -267,17 +306,8 @@ class Database(object):
     def _merge_subdomain_labels(self, other_domain_name, other_db):
         """Merge things from the subdomain that contain labels.
         """
-        for co_label, co_dir in other_db.checkout_locations.items():
-            new_dir = os.path.join(utils.domain_subpath(other_domain_name), co_dir)
-            self.checkout_locations[co_label] = new_dir
-
-        # co_dir and co_leaf are always with respect to the local domain,
-        # so we don't need to alter them
-        self.checkout_dir_and_leaf.update(other_db.checkout_dir_and_leaf)
-
-        self.checkout_repositories.update(other_db.checkout_repositories)
-        self.checkout_vcs.update(other_db.checkout_vcs)
-        self.checkout_vcs_options.update(other_db.checkout_vcs_options)
+        for co_obj in other_db.checkout_data.values():
+            co_obj.move_to_subdomain(other_domain_name)
 
         self.checkout_licenses.update(other_db.checkout_licenses)
         self.checkout_license_files.update(other_db.checkout_license_files)
@@ -293,6 +323,11 @@ class Database(object):
     def _merge_subdomain_upstreams(self, other_domain_name, other_db):
         """Merge things from the subdomain that contain upstream repositories.
         """
+        # We're likely to want to know what repositories we've already got
+        already_got = set()
+        for co_obj in self.checkout_data:
+            already_got.add(co_obj.repo)
+
         for orig_repo, that_upstream_dict in other_db.upstream_repositories.items():
             ##print 'Looking at %r'%orig_repo
             if orig_repo in self.upstream_repositories:
@@ -326,14 +361,14 @@ class Database(object):
                 # for that.
                 #
                 # The obvious case is a repository that is being used by a
-                # checkout, and we *do* have a dictionary for that.
+                # checkout. Which we calculated earlier.
                 #
                 # So we can tell if this is a repository (associated with a
                 # checkout) that we already know about, or if it is a
                 # repository we have no idea about (and which we therefore
                 # hope is being remembered for some good reason - but ours
                 # is not to reason why).
-                if orig_repo in self.checkout_repositories.values():
+                if orig_repo in already_got:
                     # So, we've got a checkout using it, *without* upstreams,
                     # and this is therefore the same as the case where we
                     # were adding (new) upstreams to a repository that already
@@ -405,17 +440,21 @@ class Database(object):
         """
         utils.mark_as_domain(self.root_path, domain_name)
 
-    def set_checkout_path(self, checkout_label, dir):
+    def set_checkout_data(self, checkout_label, co_data):
         key = normalise_checkout_label(checkout_label)
 
-	#print '### set_checkout_path for %s'%checkout_label
-	#print '... dir',dir
+        self.checkout_data[key] = co_data
 
-        self.checkout_locations[key] = os.path.join('src', dir)
+    def get_checkout_data(self, checkout_label):
+        key = normalise_checkout_label(checkout_label)
+        try:
+            return self.checkout_data[key]
+        except KeyError:
+            raise utils.GiveUp('There is no checkout data registered for label %s'%checkout_label)
 
     def dump_checkout_paths(self):
         print "> Checkout paths .."
-        keys = self.checkout_locations.keys()
+        keys = self.checkout_data.keys()
         max = 0
         for label in keys:
             length = len(str(label))
@@ -423,7 +462,7 @@ class Database(object):
                 max = length
         keys.sort()
         for label in keys:
-            print "%-*s -> %s"%(max, label, self.checkout_locations[label])
+            print "%-*s -> %s"%(max, label, self.checkout_data[label].location)
 
     def get_checkout_path(self, checkout_label):
         """
@@ -444,9 +483,9 @@ class Database(object):
 
         key = normalise_checkout_label(checkout_label)
         try:
-            rel_dir = self.checkout_locations[key]
+            rel_dir = self.checkout_data[key].location
         except KeyError:
-            raise utils.GiveUp('There is no checkout path registered for label %s'%checkout_label)
+            raise utils.GiveUp('There is no checkout data registered for label %s'%checkout_label)
 
         return os.path.join(root, rel_dir)
 
@@ -467,25 +506,17 @@ class Database(object):
 
         key = normalise_checkout_label(checkout_label)
         try:
-            return self.checkout_locations[key]
+            return self.checkout_data[key].location
         except KeyError:
-            raise utils.GiveUp('There is no checkout path registered for label %s'%checkout_label)
-
-    def set_checkout_dir_and_leaf(self, checkout_label, co_dir, co_leaf):
-        key = normalise_checkout_label(checkout_label)
-
-        self.checkout_dir_and_leaf[key] = (co_dir, co_leaf)
+            raise utils.GiveUp('There is no checkout data registered for label %s'%checkout_label)
 
     def get_checkout_dir_and_leaf(self, checkout_label):
         key = normalise_checkout_label(checkout_label)
         try:
-            return self.checkout_dir_and_leaf[key]
+            co_data = self.checkout_data[key]
+            return co_data.dir, co_data.leaf
         except KeyError:
-            raise utils.GiveUp('There is no checkout path registered for label %s'%checkout_label)
-
-    def set_checkout_repo(self, checkout_label, repo):
-        key = normalise_checkout_label(checkout_label)
-        self.checkout_repositories[key] = repo
+            raise utils.GiveUp('There is no checkout data registered for label %s'%checkout_label)
 
     def dump_checkout_repos(self, just_url=False):
         """
@@ -496,7 +527,7 @@ class Database(object):
         as well).
         """
         print "> Checkout repositories .."
-        keys = self.checkout_repositories.keys()
+        keys = self.checkout_data.keys()
         max = 0
         for label in keys:
             length = len(str(label))
@@ -505,10 +536,10 @@ class Database(object):
         keys.sort()
         if just_url:
             for label in keys:
-                print "%-*s -> %s"%(max, label, self.checkout_repositories[label])
+                print "%-*s -> %s"%(max, label, self.checkout_data[label].repo)
         else:
             for label in keys:
-                print "%-*s -> %r"%(max, label, self.checkout_repositories[label])
+                print "%-*s -> %r"%(max, label, self.checkout_data[label].repo)
 
     def get_checkout_repo(self, checkout_label):
         """
@@ -516,13 +547,9 @@ class Database(object):
         """
         key = normalise_checkout_label(checkout_label)
         try:
-            return self.checkout_repositories[key]
+            return self.checkout_data[key].repo
         except KeyError:
             raise utils.GiveUp('There is no repository registered for label %s'%checkout_label)
-
-    def set_checkout_vcs(self, checkout_label, vcs):
-        key = normalise_checkout_label(checkout_label, tag=utils.LabelTag.CheckedOut)
-        self.checkout_vcs[key] = vcs
 
     def dump_checkout_vcs(self):
         """
@@ -530,7 +557,7 @@ class Database(object):
         and any VCS options.
         """
         print "> Checkout version control systems .."
-        keys = self.checkout_vcs.keys()
+        keys = self.checkout_data.keys()
         max = 0
         for label in keys:
             length = len(str(label))
@@ -538,57 +565,42 @@ class Database(object):
                 max = length
         keys.sort()
         for label in keys:
-            options = self.checkout_vcs_options(label)
+            options = self.checkout_data[label].options
             if options:
-                print "%-*s -> %s %s"%(max, label, self.checkout_vcs[label], options)
+                print "%-*s -> %s %s"%(max, label, self.checkout_data[label].vcs_handler, options)
             else:
-                print "%-*s -> %s"%(max, label, self.checkout_vcs[label])
+                print "%-*s -> %s"%(max, label, self.checkout_data[label].vcs_handler)
 
     def get_checkout_vcs(self, checkout_label):
         """
         'checkout_label' is a "checkout:" Label.
 
-        Returns the VCS for the given checkout.
+        Returns the VCS handler for the given checkout.
 
         Raises GiveUp (containing an explanatory message) if we cannot find
         that checkout label.
         """
-        key = normalise_checkout_label(checkout_label, tag=utils.LabelTag.CheckedOut)
+        key = normalise_checkout_label(checkout_label)
         try:
-            return self.checkout_vcs[key]
+            return self.checkout_data[key].vcs_handler
         except KeyError:
             raise utils.GiveUp('There is no VCS registered for label %s'%key)
-
-    def set_checkout_vcs_option(self, checkout_label, opt_key, opt_value):
-        """
-        Add/replace the named VCS option 'opt_key'.
-
-        Generally, call this via the version control handler's add_options()
-        method, as that understands the restrictions placed on a particular
-        VCS as to allowed keys and values.
-        """
-        key = normalise_checkout_label(checkout_label, tag=utils.LabelTag.CheckedOut)
-        if key in self.checkout_vcs_options:
-            optdict = self.checkout_vcs_options[key]
-            optdict[opt_key] = opt_value
-        else:
-            self.checkout_vcs_options[key] = {opt_key: opt_value}
 
     def get_checkout_vcs_options(self, checkout_label):
         """
         'checkout_label' is a "checkout:" Label.
 
-        Returns the options for the given checkout, as a (possibly empty) list.
+        Returns the options for the given checkout, as a (possibly empty) dictionary.
 
         Since most checkouts will not have options, and will thus have no entry
         for such, cannot return an error if there is no such checkout in the
         build.
         """
-        key = normalise_checkout_label(checkout_label, tag=utils.LabelTag.CheckedOut)
-        if key in self.checkout_vcs_options:
-            return self.checkout_vcs_options[key]
-        else:
-            return {}
+        key = normalise_checkout_label(checkout_label)
+        try:
+            return self.checkout_data[key].options
+        except KeyError:
+            raise utils.GiveUp('There is no checkout data registered for label %s'%checkout_label)
 
     def set_checkout_license(self, checkout_label, license):
         key = normalise_checkout_label(checkout_label)

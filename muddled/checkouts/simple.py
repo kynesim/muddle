@@ -10,7 +10,8 @@ import muddled.utils as utils
 
 from muddled.depend import Label
 from muddled.repository import Repository
-from muddled.version_control import split_vcs_url, checkout_from_repo
+from muddled.utils import split_vcs_url
+from muddled.version_control import checkout_from_repo
 
 def relative(builder, co_name, repo_relative=None, rev=None, branch=None):
     """

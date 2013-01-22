@@ -308,6 +308,7 @@ class Database(object):
         """
         for co_obj in other_db.checkout_data.values():
             co_obj.move_to_subdomain(other_domain_name)
+        self.checkout_data.update(other_db.checkout_data)
 
         self.checkout_licenses.update(other_db.checkout_licenses)
         self.checkout_license_files.update(other_db.checkout_license_files)
@@ -325,7 +326,7 @@ class Database(object):
         """
         # We're likely to want to know what repositories we've already got
         already_got = set()
-        for co_obj in self.checkout_data:
+        for co_obj in self.checkout_data.values():
             already_got.add(co_obj.repo)
 
         for orig_repo, that_upstream_dict in other_db.upstream_repositories.items():
@@ -442,7 +443,6 @@ class Database(object):
 
     def set_checkout_data(self, checkout_label, co_data):
         key = normalise_checkout_label(checkout_label)
-
         self.checkout_data[key] = co_data
 
     def get_checkout_data(self, checkout_label):
@@ -485,8 +485,7 @@ class Database(object):
         try:
             rel_dir = self.checkout_data[key].location
         except KeyError:
-            raise utils.GiveUp('There is no checkout data registered for label %s'%checkout_label)
-
+            raise utils.GiveUp('There is no checkout data (path) registered for label %s'%checkout_label)
         return os.path.join(root, rel_dir)
 
     def get_checkout_location(self, checkout_label):
@@ -508,7 +507,7 @@ class Database(object):
         try:
             return self.checkout_data[key].location
         except KeyError:
-            raise utils.GiveUp('There is no checkout data registered for label %s'%checkout_label)
+            raise utils.GiveUp('There is no checkout data (location) registered for label %s'%checkout_label)
 
     def get_checkout_dir_and_leaf(self, checkout_label):
         key = normalise_checkout_label(checkout_label)
@@ -516,7 +515,7 @@ class Database(object):
             co_data = self.checkout_data[key]
             return co_data.dir, co_data.leaf
         except KeyError:
-            raise utils.GiveUp('There is no checkout data registered for label %s'%checkout_label)
+            raise utils.GiveUp('There is no checkout data (dir & leaf) registered for label %s'%checkout_label)
 
     def dump_checkout_repos(self, just_url=False):
         """
@@ -549,7 +548,7 @@ class Database(object):
         try:
             return self.checkout_data[key].repo
         except KeyError:
-            raise utils.GiveUp('There is no repository registered for label %s'%checkout_label)
+            raise utils.GiveUp('There is no checkout data (repository) registered for label %s'%checkout_label)
 
     def dump_checkout_vcs(self):
         """
@@ -584,7 +583,7 @@ class Database(object):
         try:
             return self.checkout_data[key].vcs_handler
         except KeyError:
-            raise utils.GiveUp('There is no VCS registered for label %s'%key)
+            raise utils.GiveUp('There is no checkout data (VCS) registered for label %s'%checkout_label)
 
     def get_checkout_vcs_options(self, checkout_label):
         """
@@ -600,7 +599,7 @@ class Database(object):
         try:
             return self.checkout_data[key].options
         except KeyError:
-            raise utils.GiveUp('There is no checkout data registered for label %s'%checkout_label)
+            raise utils.GiveUp('There is no checkout data (VCS options) registered for label %s'%checkout_label)
 
     def set_checkout_license(self, checkout_label, license):
         key = normalise_checkout_label(checkout_label)
@@ -848,10 +847,9 @@ class Database(object):
         Returns a (possibly empty) set of checkout labels.
         """
         results = set()
-        if repo in self.checkout_repositories.values():
-            for co_label, co_repo in self.checkout_repositories.items():
-                if co_repo == repo:
-                    results.add(co_label)
+        for co_label, co_data in self.checkout_data.items():
+            if co_data.repo == repo:
+                results.add(co_label)
         return results
 
     def dump_upstream_repos(self, just_url=False):

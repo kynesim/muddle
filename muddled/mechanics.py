@@ -954,11 +954,11 @@ class Builder(object):
         result = None
 
         if rest[0] == "src":
-            checkout_locations = self.db.checkout_locations
             if len(rest) > 1:
                 lookfor = os.path.join(utils.domain_subpath(domain_name),
                                        'src', *rest[1:])
-                for label, locn in checkout_locations.items():
+                for label, data in self.db.checkout_data.items():
+                    locn = data.location
                     if lookfor.startswith(locn) and domain_name == label.domain:
                         # but just in case we have (for instance) checkouts
                         # 'fred' and 'freddy'...

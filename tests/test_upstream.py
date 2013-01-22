@@ -23,7 +23,7 @@ from muddled.repository import Repository
 from muddled.utils import Directory, NewDirectory, TransientDirectory, \
         GiveUp, MuddleBug, normalise_dir, LabelType, LabelTag
 from muddled.version_control import VersionControlHandler, checkout_from_repo
-from muddled.db import Database
+from muddled.db import Database, CheckoutData
 
 MUDDLE_MAKEFILE = """\
 # Trivial muddle makefile
@@ -660,7 +660,8 @@ def check_push_pull_permissions():
 
     # We can't use version_control.py::checkout_from_repo() directly, because
     # it already checks the "pull" value for us...
-    dummy_builder.db.set_checkout_data(vcs, repo, None, 'fred')
+    co_data = CheckoutData(vcs, repo, None, 'fred')
+    dummy_builder.db.set_checkout_data(fred, co_data)
 
     check_exception('Test checkout_from_repo with %r'%repo,
                     checkout_from_repo, (None, fred, repo), exception=MuddleBug,
@@ -676,8 +677,7 @@ def check_push_pull_permissions():
                      vcs.merge, (dummy_builder, fred),
                      endswith='does not allow "pull"')
 
-    repo = Repository.from_url('git', 'http://example.com/Fred.git', push=False)
-    dummy_builder.db.set_checkout_repo(fred, repo)
+    co_data.repo = Repository.from_url('git', 'http://example.com/Fred.git', push=False)
     check_exception('Test push to repo %r'%repo,
                      vcs.push, (dummy_builder, fred),
                      endswith='does not allow "push"')
@@ -722,7 +722,7 @@ def main(args):
         banner('CHECK USING UPSTREAMS')
         with Directory('build') as d:
             err, text = captured_muddle2(['query', 'upstream-repos', 'co_label1'])
-            check_text(text, "\nThere is no repository registered for label checkout:co_label1/checked_out\n")
+            check_text(text, "\nThere is no checkout data (repository) registered for label checkout:co_label1/checked_out\n")
             assert err == 1
             text = captured_muddle(['query', 'upstream-repos', 'co_repo1'])
             check_text(text, """\

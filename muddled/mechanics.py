@@ -718,7 +718,7 @@ class Builder(object):
                 try:
                     self._build_label_env(r.target, env_store)
 
-                    if r.action is not None:
+                    if r.action:
                         r.action.build_label(self, r.target)
                 finally:
                     os.environ = old_env
@@ -755,7 +755,7 @@ class Builder(object):
                 try:
                     self._build_label_env(r.target, env_store)
 
-                    if (r.action is not None):
+                    if r.action:
                         r.action.build_label(self, r.target)
                 finally:
                     os.environ = old_env
@@ -2218,7 +2218,7 @@ def _new_sub_domain(root_path, muddle_binary, domain_name, domain_repo, domain_b
         labels.append(rule.target)
         for l in rule.deps:
             labels.append(l)
-        if rule.action is not None:
+        if rule.action:
             if hasattr(rule.action, '_inner_labels'):
                 labels.extend(rule.action._inner_labels())
 
@@ -2243,11 +2243,11 @@ def _new_sub_domain(root_path, muddle_binary, domain_name, domain_repo, domain_b
     # (we'll assume that they do if they appear to have the appropriate magic
     # method names)
     for rule in rules:
-        if rule.action is not None and hasattr(rule.action, '_mark_unswept'):
+        if rule.action and hasattr(rule.action, '_mark_unswept'):
             rule.action._mark_unswept()
 
     for rule in rules:
-        if rule.action is not None and hasattr(rule.action, '_change_domain'):
+        if rule.action and hasattr(rule.action, '_change_domain'):
             rule.action._change_domain(domain_name)
 
     # Now mark the builder as a domain.

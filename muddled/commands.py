@@ -46,7 +46,7 @@ from muddled.depend import Label, label_list_to_string
 from muddled.utils import GiveUp, MuddleBug, Unsupported, \
         DirType, LabelTag, LabelType, find_label_dir
 from muddled.utils import split_vcs_url
-from muddled.version_control import checkout_from_repo
+from muddled.version_control import checkout_from_repo, get_build_desc_branch
 from muddled.repository import Repository
 from muddled.version_stamp import VersionStamp, ReleaseStamp, ReleaseSpec
 from muddled.licenses import print_standard_licenses, get_gpl_checkouts, \
@@ -2514,15 +2514,8 @@ class QueryBuildDescBranch(QueryCommand):
             domains = [domain]
 
         for domain in sorted(domains):
-            # Get the build description checkout label for that domain
-            label = builder.db.get_domain_build_desc_label(domain)
-
-            # Figure out its VCS
-            vcs = builder.db.get_checkout_vcs(builder, label)
-
-            # and presto
-            print 'Build description %s is on branch %s'%(label,
-                    vcs.get_current_branch(builder, show_pushd=False))
+            build_desc_branch = get_build_desc_branch(builder, domain)
+            print 'Build description %s is on branch %s'%(label, build_desc_branch)
             if builder.db.get_domain_follows_build_desc_branch(domain):
                 print '  This WILL be used as the default branch for other checkouts in that domain'
             else:

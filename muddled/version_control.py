@@ -105,10 +105,6 @@ class VersionControlSystem(object):
 
     def reparent(self, co_leaf, remote_repo, options, force=False, verbose=True):
         """
-        TODO: Is 'co_leaf' (used for reporting problems) the best thing to
-        pass down? It shouldn't be too long, so the entire directory path
-        is not appropriate...
-
         Will be called in the actual checkout's directory.
         """
         if verbose:
@@ -117,10 +113,6 @@ class VersionControlSystem(object):
 
     def revision_to_checkout(self, repo, co_leaf, options, force=False, before=None, verbose=True):
         """
-        TODO: Is 'co_leaf' (used for reporting problems) the best thing to
-        pass down? It shouldn't be too long, so the entire directory path
-        is not appropriate...
-
         Will be called in the actual checkout's directory.
         """
         raise GiveUp("VCS '%s' cannot calculate a checkout revision"%self.long_name)
@@ -270,6 +262,10 @@ class VersionControlHandler(object):
         * 'vcs' is the class corresponding to the particular version control
           system - e.g., Git.
         """
+
+        # Do we really want to be storing this here as well as on
+        # db.checkout_data[co_label]? It's convenient, and *should*
+        # always be in sync, but...
         self.vcs = vcs
 
     def __str__(self):
@@ -281,7 +277,6 @@ class VersionControlHandler(object):
     def long_name(self):
         return self.vcs.long_name
 
-    # XXX BROKEN FOLLOWING MERGE
     def branch_to_follow(self, builder, co_label):
         """Determine what branch is *actually* wanted.
 
@@ -303,38 +298,22 @@ class VersionControlHandler(object):
         Otherwise we return None.
         """
         DEBUG = False # to allow normal tests to succeed, which don't expect these messages...
-        if self.repo.revision or self.repo.branch:
-            if DEBUG: print 'Revision already set to %s'%self.repo.revision
-            if DEBUG: print 'Branch already set to %s'%self.repo.branch
+        co_data = builder.db.get_checkout_data(co_label)
+        repo = co_data.repo
+        if repo.revision or repo.branch:
+            if DEBUG: print 'Revision already set to %s'%repo.revision
+            if DEBUG: print 'Branch already set to %s'%repo.branch
             return None         # we're happy with that we've got
         elif builder.follow_build_desc_branch:
-            # XXX TODO XXX
-            # This next is going to be *way* too slow to do for every time this
-            # method is called - once per label - so should really be cached.
-            # Probably as
-            # builder.db.get_domain_build_desc_branch([builder],domain)
-            #
-            # But for now let's just try to get it working
-            #
-            # ...following "muddle query build-desc-branch":
             # First, find the build description for our checkout
-            domain = self.checkout_label.domain
-            build_desc_label = builder.db.get_domain_build_desc_label(domain)
-            # Figure out its VCS
-            build_desc_label = build_desc_label.copy_with_tag(utils.LabelTag.CheckedOut)
-            try:
-                vcs = builder.db.get_checkout_vcs(builder, build_desc_label)
-            except GiveUp:
-                raise GiveUp("Rule for build description label '%s' has no VCS"
-                             " - cannot find its branch"%build_desc_label)
-            build_desc_branch = vcs.get_current_branch(builder, show_pushd=False)
+            build_desc_branch = get_build_desc_branch(builder, co_label.domain, DEBUG=DEBUG)
 
-            if self.vcs_handler.supports_branching():
+            if self.vcs.supports_branching():
                 return build_desc_branch
             else:
                 raise utils.GiveUp("Build description requests branch '%s',"
                                    " but VCS '%s' does not support branching"%(
-                                       build_desc_branch, self.long_name))
+                                   build_desc_branch, self.long_name))
         else:
             if DEBUG: print 'Not following build description'
             return None
@@ -376,7 +355,6 @@ class VersionControlHandler(object):
                 raise GiveUp('Failure checking out %s in %s:\n%s'%(co_label,
                              parent_dir, err))
 
-    # XXX BROKEN FOLLOWING MERGE
     def pull(self, builder, co_label, upstream=None, repo=None, verbose=True):
         """
         Retrieve changes from the remote repository, and apply them to
@@ -403,7 +381,7 @@ class VersionControlHandler(object):
             # The build description told us to follow it, onto this branch
             # - so let's remember it on the Repository
             repo.branch = specific_branch
-            print 'Specific branch %s in %s'%(specific_branch, self.checkout_label)
+            print 'Specific branch %s in %s'%(specific_branch, co_label)
 
         options = builder.db.get_checkout_vcs_options(co_label)
         with utils.Directory(builder.db.get_checkout_path(co_label)):
@@ -419,7 +397,6 @@ class VersionControlHandler(object):
                 raise GiveUp('Failure pulling %s in %s:\n%s'%(co_label,
                              builder.db.get_checkout_location(co_label), err))
 
-    # XXX BROKEN FOLLOWING MERGE
     def merge(self, builder, co_label, verbose=True):
         """
         Retrieve changes from the remote repository, and apply them to
@@ -439,6 +416,7 @@ class VersionControlHandler(object):
             # The build description told us to follow it, onto this branch
             # - so let's remember it on the Repository
             repo.branch = specific_branch
+            print 'Specific branch %s in %s'%(specific_branch, co_label)
 
         options = builder.db.get_checkout_vcs_options(co_label)
         with utils.Directory(builder.db.get_checkout_path(co_label)):
@@ -624,7 +602,7 @@ class VersionControlHandler(object):
         """
         with utils.Directory(builder.db.get_checkout_path(co_label), show_pushd=show_pushd):
             try:
-                return self.vcs_handler.get_current_branch()    # XXX BROKEN
+                return self.vcs.get_current_branch()
             except (GiveUp, Unsupported) as err:
                 raise GiveUp('Failure getting current branch for %s in %s:\n%s'%(co_label,
                              builder.db.get_checkout_location(co_label), err))
@@ -640,10 +618,10 @@ class VersionControlHandler(object):
         """
         with utils.Directory(builder.db.get_checkout_path(co_label), show_pushd=show_pushd):
             try:
-                return self.vcs_handler.create_branch(branch)   # XXX BROKEN
+                return self.vcs.create_branch(branch)
             except (GiveUp, Unsupported) as err:
                 raise GiveUp('Failure creating branch %s for %s in %s:\n%s'%(branch,
-                             self.checkout_label, self.src_rel_dir(), err))
+                             co_label, builder.db.get_checkout_location(co_label), err))
 
     def goto_branch(self, builder, co_label, branch, verbose=False, show_pushd=False):
         """
@@ -656,7 +634,7 @@ class VersionControlHandler(object):
         """
         with utils.Directory(builder.db.get_checkout_path(co_label), show_pushd=show_pushd):
             try:
-                return self.vcs_handler.goto_branch(branch)     # XXX BROKEN
+                return self.vcs.goto_branch(branch)
             except (GiveUp, Unsupported) as err:
                 raise GiveUp('Failure changing to branch %s for %s in %s:\n%s'%(branch,
                              co_label, builder.db.get_checkout_location(co_label), err))
@@ -674,7 +652,7 @@ class VersionControlHandler(object):
         """
         with utils.Directory(builder.db.get_checkout_path(co_label), show_pushd=show_pushd):
             try:
-                return self.vcs_handler.goto_revision(revision, branch) # XXX BROKEN
+                return self.vcs.goto_revision(revision, branch)
             except (GiveUp, Unsupported) as err:
                 if branch:
                     raise GiveUp('Failure changing to revision %s, branch %s, for %s in %s:\n%s'%(revision, branch,
@@ -697,7 +675,7 @@ class VersionControlHandler(object):
         """
         with utils.Directory(builder.db.get_checkout_path(co_label), show_pushd=show_pushd):
             try:
-                return self.vcs_handler.branch_exists(branch)       # XXX BROKEN
+                return self.vcs.branch_exists(branch)
             except (GiveUp, Unsupported) as err:
                 raise GiveUp('Failure checking existence of branch %s for %s in %s:\n%s'%(branch,
                              co_label, builder.db.get_checkout_location(co_label), err))
@@ -721,58 +699,49 @@ class VersionControlHandler(object):
           then go to the same branch as the build description.
         * Otherwise, go to "master".
         """
-        # XXX BROKEN, REWRITE TO FIT
         DEBUG = False # to allow normal tests to succeed, which don't expect these messages...
-        if DEBUG: print 'Synchronising for', self.checkout_label
-        if self.repo.branch or self.repo.revision:
+        if DEBUG: print 'Synchronising for', co_label
+        co_data = builder.db.get_checkout_data(co_label)
+        repo = co_data.repo
+        if repo.branch or repo.revision:
             if DEBUG: print '  Build description has specific branch/revision'
             follow = False
-        elif not self.vcs_handler.supports_branching():
+        elif not self.vcs.supports_branching():
             if DEBUG: print '  Changing branch is not supported for this VCS'
             follow = False
         # Shallow checkouts are not terribly well integrated - we do this
         # very much by hand...
-        elif 'shallow_checkout' in self.options:
+        elif 'shallow_checkout' in co_data.options:
             if DEBUG: print '  This is a shallow checkout'
             follow = False
         else:
-            our_domain = self.checkout_label.domain
+            our_domain = co_label.domain
             if DEBUG: print '  Domain is', our_domain
             follow = builder.db.get_domain_follows_build_desc_branch(our_domain)
 
         if follow:
-            if DEBUG: print '  Following build desc'
             # We are meant to be following our build description's branch
-            build_desc_label = builder.db.get_domain_build_desc_label(our_domain)
-            build_desc_label = build_desc_label.copy_with_tag(utils.LabelTag.CheckedOut)
-            if DEBUG: print '  Build desc is', build_desc_label
-            try:
-                vcs = builder.db.get_checkout_vcs(builder, build_desc_label)
-            except GiveUp:
-                raise GiveUp("Rule for build description label '%s' has no VCS"
-                             " - cannot find its branch"%build_desc_label)
-
-            build_desc_branch = vcs.get_current_branch(builder, show_pushd=False)
+            if DEBUG: print '  Following build desc'
+            build_desc_branch = get_build_desc_branch(builder, our_domain, DEBUG=DEBUG)
             if DEBUG: print '  Build desc branch is', build_desc_branch
             # And so follow it...
-            if DEBUG: print '%s following build description onto branch "%s"'%(self.checkout_label, build_desc_branch)
-            self.goto_branch(builder, build_desc_branch)
+            if DEBUG: print '%s following build description onto branch "%s"'%(co_label, build_desc_branch)
+            self.goto_branch(builder, co_label, build_desc_branch)
         else:
             if DEBUG: print '  NOT Following build desc'
             # We are meant to keep to our own revision or branch, whatever that is
-            if self.repo.revision is not None:
-                if self.repo.branch:
-                    if DEBUG: print '  Selecting revision %s, branch %s'%(self.repo.revision, self.repo.branch)
+            if repo.revision is not None:
+                if repo.branch:
+                    if DEBUG: print '  Selecting revision %s, branch %s'%(repo.revision, repo.branch)
                 else:
-                    if DEBUG: print '  Selecting revision %s'%self.repo.revision
-                self.goto_revision(builder, self.repo.revision, self.repo.branch)
-            elif self.repo.branch is not None:
-                if DEBUG: print '  Selecting branch %s'%self.repo.branch
-                self.goto_branch(builder, self.repo.branch)
+                    if DEBUG: print '  Selecting revision %s'%repo.revision
+                self.goto_revision(builder, co_label, repo.revision, repo.branch)
+            elif repo.branch is not None:
+                if DEBUG: print '  Selecting branch %s'%repo.branch
+                self.goto_branch(builder, co_label, repo.branch)
             else:
                 if DEBUG: print '  Selecting branch master'
-                self.goto_branch(builder, 'master')
-
+                self.goto_branch(builder, co_label, 'master')
 
     def must_pull_before_commit(self, builder, co_label):
         """Do we need to pull before we can commit?
@@ -824,6 +793,27 @@ class VersionControlHandler(object):
 
             co_data = builder.db.get_checkout_data(co_label)
             co_data.set_option(key, value)
+
+# This probably wants to go somewhere else
+def get_build_desc_branch(builder, domain, DEBUG=False):
+    """Return the current branch of the build description for 'domain'.
+    """
+    # This is going to be *way* too slow to do for every time this
+    # is likely to be called, so should really be cached.
+    #
+    # Probably as: builder.db.get_domain_build_desc_branch(domain)
+    #
+    # ...following "muddle query build-desc-branch":
+    #
+    build_desc_label = builder.db.get_domain_build_desc_label(domain)
+    if DEBUG: print '  Build desc is', build_desc_label
+    try:
+        vcs = builder.db.get_checkout_vcs(build_desc_label)
+    except GiveUp:
+        raise GiveUp("Rule for build description label '%s' has no VCS"
+                     " - cannot find its branch"%build_desc_label)
+
+    return vcs.get_current_branch(builder, build_desc_label, show_pushd=False)
 
 # This dictionary holds the global list of registered VCS instances
 vcs_dict = {}

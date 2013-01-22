@@ -90,7 +90,6 @@ class CheckoutData(object):
         """
         self.options[key] = value
 
->>>>>>> checkout-object
 
 class Database(object):
     """
@@ -1090,44 +1089,6 @@ class Database(object):
                                ', '.join(sorted(upstream_dict[upstream_repo])))
         except KeyError:
             print '  Has no upstream repositories'
-
-    def get_checkout_vcs(self, builder, checkout_label):
-        """
-        'checkout_label' is a "checkout:" Label.
-
-        Returns the VCS for the given checkout, cacheing it.
-
-          Note that we don't attempt to do anything with this cache when
-          a subdomain is incorporated into a parent domain (for other
-          dictionaries, we convert the labels used as keys, and then fold
-          in the dictionary). This is partly laziness, and partly because
-          it *is* a cache, and so values will get recalculated if necessary.
-
-          Similarly, we don't give any way of prepopulating the cache,
-          which we could conceivably do for the build description, for one.
-
-        Raises GiveUp (containing an explanatory message) if we cannot find
-        that checkout label in the rules (i.e., nothing in the dependency tree
-        uses it).
-
-        Raise MuddleBug if it is not a checkout label, or we find its rule, but
-        no VCS on its action.
-        """
-        key = normalise_checkout_label(checkout_label, tag=utils.LabelTag.CheckedOut)
-        if key in self.checkout_vcs:
-            return self.checkout_vcs[key]
-        else:
-            rule = builder.ruleset.rule_for_target(key)
-            if rule is None:
-                raise utils.GiveUp('There is no rule registered for label %s,'
-                                   ' and thus no VCS'%key)
-            try:
-                vcs = rule.action.vcs
-            except AttributeError:
-                raise utils.MuddleBug("The rule for label '%s' has no VCS"%key)
-
-            self.checkout_vcs[key] = vcs
-            return vcs
 
     def build_desc_file_name(self):
         """

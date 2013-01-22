@@ -1013,6 +1013,7 @@ def _actually_distribute_replacement_build_desc(builder, label, co_src_dir, targ
     if not os.path.exists(tgt_desc_dir):
         os.makedirs(tgt_desc_dir)
 
+    print 'XXX COPY',src_desc_file,tgt_desc_file
     copy_file(src_desc_file, tgt_desc_file, preserve=True)
 
 
@@ -1024,10 +1025,12 @@ def _actually_distribute_build_desc(builder, label, target_dir, copy_vcs,
     co_src_dir = builder.db.get_checkout_location(label)
 
     if replacement_build_desc:
+        print 'XXX replacement'
         _actually_distribute_replacement_build_desc(builder, label,
                                                     co_src_dir, target_dir,
                                                     replacement_build_desc)
     else:
+        print 'XXX actual'
         _actually_distribute_normal_build_desc(builder, label,
                                                co_src_dir, target_dir,
                                                copy_vcs, private_files)

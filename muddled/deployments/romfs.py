@@ -224,13 +224,13 @@ def deploy(builder, name,
     builder.ruleset.add(iapp_rule)
 
 
-def copy_from_checkout(builder, name, checkout, rel, dest, 
+def copy_from_checkout(builder, name, checkout, rel, dest,
                        recursive = True,
                        failOnAbsentSource = False,
                        copyExactly = True,
                        domain = None,
                        usingRSync = False):
-    rule = deploymnet.deployment_rule_from_name(builder, name)
+    rule = deployment.deployment_rule_from_name(builder, name)
     dep_label = Label(utils.LabelType.Checkout,
                       checkout, None, utils.LabelTag.CheckedOut, domain=domain)
     asm = AssemblyDescriptor(dep_label, rel, dest, recursive = recursive,

@@ -83,11 +83,11 @@ def find_and_load(specified_root, muddle_binary):
         else:
             builder = None
         return builder
-    except utils.GiveUp:
-        print "Failure trying to load build tree"
-        raise
     except utils.MuddleBug:
         print "Error trying to find build tree"
+        raise
+    except utils.GiveUp:
+        print "Failure trying to load build tree"
         raise
 
 def lookup_command(command_name, args, cmd_dict, subcmd_dict):

@@ -226,6 +226,7 @@ def do_glibc_build(config, src_dir,install_baremetal,host_tools, \
     # just reuse what's already there.csdac
     glibc_src_dir = os.path.join(glibc_src_base, variant)
     glibc_build_dir = os.path.join(glibc_build_base, variant)
+    host_arch = config.query_string("/toolchain/host-arch");
 
     target = config.query_string("/toolchain/bare-metal-target")
 
@@ -441,34 +442,6 @@ def do_localedef(build_dir, test_dir, src, charset, dest):
                     (test_dir+"/%s"%dest))
     if rv:
         raise GiveUp, "Cannot run command %d"%rv
-
-
-def build_newlib(config, build_stage, spec_stage):
-    """
-    Build a toolchain with newlib
-    """
-
-
-    tmp_dir = "/tmp/muddle-toolchain-tmp"
-    tmp_host_dir = os.path.join(tmp_dir, "host")
-    gcc_final_dir = os.path.join( tmp_host_dir, "gcc-final")
-    src_dir = config.query_string("/toolchain/src-dir")
-    unpacked_gcc = os.path.join(tmp_host_dir, query_dir(config, "gcc"))
-    bare_metal_target = config.query_string("/toolchain/bare-metal-target")
-    pkgversion =  config.query_string("/toolchain/version")
-    bugurl = config.query_string("/toolchain/bugurl")
-
-    dest_dir = config.query_string("/toolchain/dest-dir")
-    patch_dir = config.query_string("/toolchain/patch-dir")
-    host_tools = os.path.join(dest_dir, "host-tools")
-    host_obj = os.path.join(tmp_dir, "host-obj")
-    install_baremetal = os.path.join(host_tools, \
-                                       bare_metal_target)
-
-    default_arch = config.query_string("/toolchain/arch")
-    default_opts = config.query_string("/toolchain/opts")
-
-
 
 
 def build_glibc(config, build_stage, stage):
@@ -1022,15 +995,15 @@ def build_none(config, build_stage, stage):
 
     patch_dir = config.query_string("/toolchain/patch-dir")
     host_tools = os.path.join(dest_dir, "host-tools")
+    support_tools = os.path.join(dest_dir, "support-tools")
     host_obj = os.path.join(tmp_dir, "host-obj")
     if (bare_metal_target is not None):
         install_baremetal = os.path.join(host_tools, \
                                              bare_metal_target)
 
-
-
     default_arch = config.query_string("/toolchain/arch")
     default_opts = config.query_string("/toolchain/opts")
+    host_arch = config.query_string("/toolchain/host-arch");
 
     tools_install_options = \
         ("prefix=%s exec_prefix=%s libdir=%s" +\
@@ -1116,6 +1089,7 @@ def build_newlib(config, build_stage, stage):
     default_arch = config.query_string("/toolchain/arch")
     default_opts = config.query_string("/toolchain/opts")
     support_tools = os.path.join(dest_dir, "support-tools")
+    host_arch = config.query_string("/toolchain/host-arch");
 
     tools_install_options = \
         ("prefix=%s exec_prefix=%s libdir=%s" +\

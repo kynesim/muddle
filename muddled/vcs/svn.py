@@ -199,7 +199,7 @@ class Subversion(VersionControlSystem):
     def get_vcs_special_files(self):
         return ['.svn']
 
-    def get_file_content(self, url, options, verbose=True):
+    def get_file_content(self, url, verbose=True):
         """
         Retrieve a file's content via Subversion.
         """

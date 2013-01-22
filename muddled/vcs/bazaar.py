@@ -178,8 +178,8 @@ class Bazaar(VersionControlSystem):
             retcode, text, ignore = self._pruned_cmd_data("bzr uncommit --force --quiet %s"%rspec,
                                                     env=env, verbose=verbose)
             if retcode:
-                raise GiveUp('Error uncommiting to revision %s (we already tried'
-                             ' pull)\nReturn code  %d\n%s'%(rspec, retcode, text))
+                raise utils.GiveUp('Error uncommiting to revision %s (we already tried'
+                                   ' pull)\nReturn code  %d\n%s'%(rspec, retcode, text))
             print text
             # Then we need to 'revert' to undo any changes (since uncommit
             # doesn't change our working set). The --no-backup stops us
@@ -188,8 +188,8 @@ class Bazaar(VersionControlSystem):
             retcode, text, ignore = self._pruned_cmd_data("bzr revert --no-backup %s"%rspec,
                                                     env=env, verbose=verbose)
             if retcode:
-                raise GiveUp('Error reverting to revision %s (we already'
-                             ' uncommitted)\nReturn code %d\n%s'%(rspec, retcode, text))
+                raise utils.GiveUp('Error reverting to revision %s (we already'
+                                   ' uncommitted)\nReturn code %d\n%s'%(rspec, retcode, text))
             print text
 
         ending_revno = self._just_revno()
@@ -409,8 +409,7 @@ class Bazaar(VersionControlSystem):
         cmd = "bzr log -l 1 -r '%s' --long --show-ids"%revspec
         retcode, text, ignore = self._pruned_cmd_data(cmd, env=env, fail_nonzero=False)
         if retcode != 0:
-            raise utils.GiveUp("%s: '%s' failed with return code %d\n%s"%(co_leaf,
-                                                                cmd, retcode, text))
+            raise utils.GiveUp("'%s' failed with return code %d\n%s"%(cmd, retcode, text))
         # Let's look for the revision-id field therein
         lines = text.split('\n')
         for line in lines:
@@ -419,8 +418,8 @@ class Bazaar(VersionControlSystem):
             if parts[0] == 'revision-id':
                 revision = ':'.join(parts[1:]) # although I hope there aren't internal colons!
                 return revision.strip()
-        raise utils.GiveUp("%s: '%s' did not return text contining 'revision-id:'"
-                           "\n%s"%(co_leaf, cmd, text))
+        raise utils.GiveUp("'%s' did not return text containing 'revision-id:'"
+                           "\n%s"%(cmd, text))
 
     def revision_to_checkout(self, repo, co_leaf, options, force=False, before=None, verbose=True):
         """
@@ -476,7 +475,10 @@ class Bazaar(VersionControlSystem):
         if before:
             # XXX For now, we're going to short-circuit everything else if we
             # XXX are asked for 'before'.
-            return self._revision_id(env, 'before:date:%s'%before)
+            try:
+                return self._revision_id(env, 'before:date:%s'%before)
+            except utils.GiveUp as e:
+                raise utils.GiveUp('%s: %s'%(co_leaf, e))
 
         if repo.revision:
             orig_revision = repo.revision
@@ -491,7 +493,7 @@ class Bazaar(VersionControlSystem):
                         " (ignoring it)"%(cmd, co_leaf)
             else:
                 raise utils.GiveUp("%s: '%s' reports"
-                        " checkout has uncommitted data"%(cmd, co_leaf))
+                                   " checkout has uncommitted data"%(cmd, co_leaf))
 
         # So, is our current revision (on this local branch) also present
         # in the remote branch (our push/pull location)?
@@ -530,7 +532,10 @@ class Bazaar(VersionControlSystem):
                                     utils.indent(missing,'    ')))
 
         # So let's go with the revision id for the last commit of this local branch
-        return self._revision_id(env, 'revno:-1')
+        try:
+            return self._revision_id(env, 'revno:-1')
+        except utils.GiveUp as e:
+            raise utils.GiveUp('%s: %s'%(co_leaf, e))
 
     def _just_revno(self):
         """
@@ -542,12 +547,12 @@ class Bazaar(VersionControlSystem):
     def allows_relative_in_repo(self):
         return False
 
-    def get_file_content(self, url, options, verbose=True):
+    def get_file_content(self, url, verbose=True):
         """
         Retrieve a file's content via BZR.
         """
         retcode, text, ignore = self._pruned_cmd_data('bzr cat %s'%self._normalised_repo(url),
-                                                    fold_stderr=False, verbose=verbose)
+                                                      fold_stderr=False, verbose=verbose)
         return text
 
     def get_vcs_special_files(self):

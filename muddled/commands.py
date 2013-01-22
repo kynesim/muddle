@@ -2444,7 +2444,7 @@ class QueryCheckoutId(QueryCommand):
             if len(checkouts) < 1:
                 raise GiveUp('No checkouts associated with %s'%label)
             elif len(checkouts) > 1:
-                raise Giveup('More than one checkout associated with %s'%label)
+                raise GiveUp('More than one checkout associated with %s'%label)
             else:
                 label = checkouts[0]
 
@@ -5901,6 +5901,11 @@ class UpstreamCommand(CheckoutCommand):
             # And fall through for our method to tell us more
 
         self.build_these_labels(builder, labels, upstream_names, no_op)
+
+    def do_our_verb(self, builder, co_label, vcs_handler, upstream, repo):
+        """Each subclass needs to implement this.
+        """
+        raise MuddleBug('No "do_our_verb" method provided for command "%s"'%self.cmd_name)
 
     def build_these_labels(self, builder, labels, upstream_names, no_op):
         get_checkout_repo = builder.db.get_checkout_repo

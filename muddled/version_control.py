@@ -10,7 +10,7 @@ import muddled.utils as utils
 
 from muddled.depend import Label
 from muddled.repository import Repository
-from muddled.utils import split_vcs_url
+from muddled.utils import split_vcs_url, GiveUp, MuddleBug, Unsupported
 from muddled.db import CheckoutData
 
 class VersionControlSystem(object):
@@ -123,7 +123,7 @@ class VersionControlSystem(object):
 
         Will be called in the actual checkout's directory.
         """
-        raise utils.GiveUp("VCS '%s' cannot calculate a checkout revision"%self.long_name)
+        raise GiveUp("VCS '%s' cannot calculate a checkout revision"%self.long_name)
 
     def allows_relative_in_repo(self):
         """
@@ -133,11 +133,11 @@ class VersionControlSystem(object):
         """
         return False
 
-    def get_file_content(self, url, options, verbose=True):
+    def get_file_content(self, url, verbose=True):
         """
         Retrieve a file's content via a VCS.
         """
-        raise utils.GiveUp("Do not know how to get file content from '%s'"%url)
+        raise GiveUp("Do not know how to get file content from '%s'"%url)
 
     def must_pull_before_commit(self, options):
         """
@@ -207,9 +207,8 @@ class VersionControlHandler(object):
 
         repo = builder.db.get_checkout_repo(co_label)
         if not repo.pull:
-            raise utils.GiveUp('Failure checking out %s in %s:\n'
-                               '  %s does not allow "pull"'%(co_label,
-                               parent_dir, repo))
+            raise GiveUp('Failure checking out %s in %s:\n'
+                         '  %s does not allow "pull"'%(co_label, parent_dir, repo))
 
         # Be careful - if the parent is 'src/', then it may well exist by now
         if not os.path.exists(parent_dir):
@@ -219,12 +218,12 @@ class VersionControlHandler(object):
         with utils.Directory(parent_dir):
             try:
                 self.vcs.checkout(repo, co_leaf, options, verbose)
-            except utils.MuddleBug as err:
-                raise utils.MuddleBug('Error checking out %s in %s:\n%s'%(co_label,
-                                      parent_dir, err))
-            except utils.GiveUp as err:
-                raise utils.GiveUp('Failure checking out %s in %s:\n%s'%(co_label,
-                                   parent_dir, err))
+            except MuddleBug as err:
+                raise MuddleBug('Error checking out %s in %s:\n%s'%(co_label,
+                                parent_dir, err))
+            except GiveUp as err:
+                raise GiveUp('Failure checking out %s in %s:\n%s'%(co_label,
+                             parent_dir, err))
 
     def pull(self, builder, co_label, upstream=None, repo=None, verbose=True):
         """
@@ -243,23 +242,23 @@ class VersionControlHandler(object):
             repo = builder.db.get_checkout_repo(co_label)
 
         if not repo.pull:
-            raise utils.GiveUp('Failure pulling %s in %s:\n'
-                               '  %s does not allow "pull"'%(co_label,
-                               builder.db.get_checkout_location(co_label), repo))
+            raise GiveUp('Failure pulling %s in %s:\n'
+                         '  %s does not allow "pull"'%(co_label,
+                         builder.db.get_checkout_location(co_label), repo))
 
         options = builder.db.get_checkout_vcs_options(co_label)
         with utils.Directory(builder.db.get_checkout_path(co_label)):
             try:
                 return self.vcs.pull(repo, options, upstream=upstream, verbose=verbose)
-            except utils.MuddleBug as err:
-                raise utils.MuddleBug('Error pulling %s in %s:\n%s'%(co_label,
-                                      builder.db.get_checkout_location(co_label), err))
-            except utils.Unsupported as err:
-                raise utils.Unsupported('Not pulling %s in %s:\n%s'%(co_label,
-                                        builder.db.get_checkout_location(co_label), err))
-            except utils.GiveUp as err:
-                raise utils.GiveUp('Failure pulling %s in %s:\n%s'%(co_label,
-                                   builder.db.get_checkout_location(co_label), err))
+            except MuddleBug as err:
+                raise MuddleBug('Error pulling %s in %s:\n%s'%(co_label,
+                                builder.db.get_checkout_location(co_label), err))
+            except Unsupported as err:
+                raise Unsupported('Not pulling %s in %s:\n%s'%(co_label,
+                                  builder.db.get_checkout_location(co_label), err))
+            except GiveUp as err:
+                raise GiveUp('Failure pulling %s in %s:\n%s'%(co_label,
+                             builder.db.get_checkout_location(co_label), err))
 
     def merge(self, builder, co_label, verbose=True):
         """
@@ -271,23 +270,23 @@ class VersionControlHandler(object):
         """
         repo = builder.db.get_checkout_repo(co_label)
         if not repo.pull:
-            raise utils.GiveUp('Failure merging %s in %s:\n'
-                               '  %s does not allow "pull"'%(co_label,
-                               builder.db.get_checkout_location(co_label), repo))
+            raise GiveUp('Failure merging %s in %s:\n'
+                         '  %s does not allow "pull"'%(co_label,
+                         builder.db.get_checkout_location(co_label), repo))
 
         options = builder.db.get_checkout_vcs_options(co_label)
         with utils.Directory(builder.db.get_checkout_path(co_label)):
             try:
                 return self.vcs.merge(repo, options, verbose)
-            except utils.MuddleBug as err:
-                raise utils.MuddleBug('Error merging %s in %s:\n%s'%(co_label,
-                                      builder.db.get_checkout_location(co_label), err))
-            except utils.Unsupported as err:
-                raise utils.Unsupported('Not merging %s in %s:\n%s'%(co_label,
-                                        builder.db.get_checkout_location(co_label), err))
-            except utils.GiveUp as err:
-                raise utils.GiveUp('Failure merging %s in %s:\n%s'%(co_label,
-                                   builder.db.get_checkout_location(co_label), err))
+            except MuddleBug as err:
+                raise MuddleBug('Error merging %s in %s:\n%s'%(co_label,
+                                builder.db.get_checkout_location(co_label), err))
+            except Unsupported as err:
+                raise Unsupported('Not merging %s in %s:\n%s'%(co_label,
+                                  builder.db.get_checkout_location(co_label), err))
+            except GiveUp as err:
+                raise GiveUp('Failure merging %s in %s:\n%s'%(co_label,
+                             builder.db.get_checkout_location(co_label), err))
 
     def commit(self, builder, co_label, verbose=True):
         """
@@ -301,12 +300,12 @@ class VersionControlHandler(object):
         with utils.Directory(builder.db.get_checkout_path(co_label)):
             try:
                 self.vcs.commit(repo, options, verbose)
-            except utils.MuddleBug as err:
-                raise utils.MuddleBug('Error commiting %s in %s:\n%s'%(co_label,
-                                      builder.db.get_checkout_location(co_label), err))
-            except (utils.GiveUp, utils.Unsupported) as err:
-                raise utils.GiveUp('Failure commiting %s in %s:\n%s'%(co_label,
-                                   builder.db.get_checkout_location(co_label), err))
+            except MuddleBug as err:
+                raise MuddleBug('Error commiting %s in %s:\n%s'%(co_label,
+                                builder.db.get_checkout_location(co_label), err))
+            except (GiveUp, Unsupported) as err:
+                raise GiveUp('Failure commiting %s in %s:\n%s'%(co_label,
+                             builder.db.get_checkout_location(co_label), err))
 
     def push(self, builder, co_label, upstream=None, repo=None, verbose=True):
         """
@@ -325,20 +324,20 @@ class VersionControlHandler(object):
             repo = builder.db.get_checkout_repo(co_label)
 
         if not repo.push:
-            raise utils.GiveUp('Failure pushing %s in %s:\n'
-                               '  %s does not allow "push"'%(co_label,
-                               builder.db.get_checkout_location(co_label), repo))
+            raise GiveUp('Failure pushing %s in %s:\n'
+                         '  %s does not allow "push"'%(co_label,
+                         builder.db.get_checkout_location(co_label), repo))
 
         options = builder.db.get_checkout_vcs_options(co_label)
         with utils.Directory(builder.db.get_checkout_path(co_label)):
             try:
                 self.vcs.push(repo, options, upstream=upstream, verbose=verbose)
-            except utils.MuddleBug as err:
-                raise utils.MuddleBug('Error pushing %s in %s:\n%s'%(co_label,
-                                      builder.db.get_checkout_location(co_label), err))
-            except (utils.GiveUp, utils.Unsupported) as err:
-                raise utils.GiveUp('Failure pushing %s in %s:\n%s'%(co_label,
-                                   builder.db.get_checkout_location(co_label), err))
+            except MuddleBug as err:
+                raise MuddleBug('Error pushing %s in %s:\n%s'%(co_label,
+                                builder.db.get_checkout_location(co_label), err))
+            except (GiveUp, Unsupported) as err:
+                raise GiveUp('Failure pushing %s in %s:\n%s'%(co_label,
+                             builder.db.get_checkout_location(co_label), err))
 
     def status(self, builder, co_label, verbose=False):
         """
@@ -376,12 +375,12 @@ class VersionControlHandler(object):
                     return full_text
                 else:
                     return None
-            except utils.MuddleBug as err:
-                raise utils.MuddleBug('Error finding status for %s in %s:\n%s'%(co_label,
-                                      builder.db.get_checkout_location(co_label), err))
-            except utils.GiveUp as err:
-                raise utils.GiveUp('Failure finding status for %s in %s:\n%s'%(co_label,
-                                   builder.db.get_checkout_location(co_label), err))
+            except MuddleBug as err:
+                raise MuddleBug('Error finding status for %s in %s:\n%s'%(co_label,
+                                builder.db.get_checkout_location(co_label), err))
+            except GiveUp as err:
+                raise GiveUp('Failure finding status for %s in %s:\n%s'%(co_label,
+                             builder.db.get_checkout_location(co_label), err))
 
     def reparent(self, builder, co_label, force=False, verbose=True):
         """
@@ -412,7 +411,7 @@ class VersionControlHandler(object):
         If the local working set/repository/whatever appears to have been
         altered from the remove repository, or otherwise does not yield a
         satisfactory revision id (this is something only the subclass can
-        tell), then the method should raise utils.GiveUp, with as clear an
+        tell), then the method should raise GiveUp, with as clear an
         explanation of the problem as possible.
 
         If 'force' is true, then if the revision cannot be determined, return
@@ -471,7 +470,7 @@ class VersionControlHandler(object):
         """
         Retrieve a file's content via a VCS.
         """
-        return self.vcs.get_file_content(url, self.options, verbose)
+        return self.vcs.get_file_content(url, verbose)
 
     def add_options(self, builder, co_label, optsdict):
         """
@@ -488,13 +487,13 @@ class VersionControlHandler(object):
         for key, value in optsdict.items():
 
             if option_not_allowed(self.vcs.short_name, key):
-                raise utils.GiveUp("Option '%s' is not allowed for VCS %s'"%(key,
-                                   self.vcs.short_name))
+                raise GiveUp("Option '%s' is not allowed for VCS %s'"%(key,
+                             self.vcs.short_name))
 
             if not (isinstance(value, bool) or isinstance(value, int) or
                     isinstance(value, str)):
-                raise utils.GiveUp("Additional options to VCS must be bool, int or"
-                                   " string. '%s' is %s"%(value, type(value)))
+                raise GiveUp("Additional options to VCS must be bool, int or"
+                             " string. '%s' is %s"%(value, type(value)))
 
             co_data = builder.db.get_checkout_data(co_label)
             co_data.set_option(key, value)
@@ -546,7 +545,7 @@ def get_vcs_instance(vcs):
     try:
         return vcs_dict[vcs]
     except KeyError:
-        raise utils.MuddleBug("No VCS handler registered for VCS type %s"%vcs)
+        raise MuddleBug("No VCS handler registered for VCS type %s"%vcs)
 
 def get_vcs_docs(vcs):
     """Given a VCS short name, return the docs for how muddle handles it
@@ -554,7 +553,7 @@ def get_vcs_docs(vcs):
     try:
         return vcs_docs[vcs]
     except KeyError:
-        raise utils.GiveUp("No VCS handler registered for VCS type %s"%vcs)
+        raise GiveUp("No VCS handler registered for VCS type %s"%vcs)
 
 def option_not_allowed(vcs, option):
     if vcs in vcs_options and option in vcs_options[vcs]:
@@ -567,8 +566,8 @@ def get_vcs_instance_from_string(repo_str):
     """
     vcs, url_rest = split_vcs_url(repo_str)
     if not vcs:
-        raise utils.MuddleBug("Improperly formatted repository spec %s,"
-                              " should be <vcs>+<url>"%repo_str)
+        raise MuddleBug("Improperly formatted repository spec %s,"
+                        " should be <vcs>+<url>"%repo_str)
 
     vcs_instance = get_vcs_instance(vcs)
 
@@ -613,8 +612,8 @@ def checkout_from_repo(builder, co_label, repo, co_dir=None, co_leaf=None):
     if not repo.pull:
         # Use a MuddleBug, because the user probably wants a traceback to see
         # where this is actually coming from
-        raise utils.MuddleBug('Checkout %s cannot use %r\n'
-                              '  as its main repository, as "pull" is not allowed'%(co_label, repo))
+        raise MuddleBug('Checkout %s cannot use %r\n'
+                        '  as its main repository, as "pull" is not allowed'%(co_label, repo))
 
     try:
         vcs = get_vcs_instance(repo.vcs)
@@ -707,7 +706,7 @@ def vcs_init_directory(scheme, files=None):
     """
     vcs_instance = vcs_dict.get(scheme, None)
     if not vcs_instance:
-        raise utils.MuddleBug("No VCS handler registered for VCS type %s"%scheme)
+        raise MuddleBug("No VCS handler registered for VCS type %s"%scheme)
     vcs_instance.init_directory()
     vcs_instance.add_files(files)
 

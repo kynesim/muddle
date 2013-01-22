@@ -13,6 +13,7 @@ import traceback
 import muddled.utils as utils
 import muddled.depend as depend
 
+from muddled.utils import GiveUp, MuddleBug
 from muddled.utils import domain_subpath, split_vcs_url
 from muddled.depend import normalise_checkout_label
 
@@ -67,10 +68,10 @@ class CheckoutData(object):
 
     def __repr__(self):
         parts = []
-        parts.append(self.vcs_handler)
-        parts.append(self.repo)
-        parts.append(self.co_dir)
-        parts.append(self.co_leaf)
+        parts.append(repr(self.vcs_handler))
+        parts.append(repr(self.repo))
+        parts.append(repr(self.dir))
+        parts.append(repr(self.leaf))
         return 'CheckoutData(' + ', '.join(parts) + ')'
 
     def move_to_subdomain(self, other_domain_name):
@@ -430,7 +431,7 @@ class Database(object):
             details.append('    %r  %s'%(upstream_repo,
                            ', '.join(sorted(that_upstream[upstream_repo]))))
 
-        raise utils.GiveUp('\n'.join(details))
+        raise GiveUp('\n'.join(details))
 
     def set_domain_marker(self, domain_name):
         """
@@ -450,7 +451,7 @@ class Database(object):
         try:
             return self.checkout_data[key]
         except KeyError:
-            raise utils.GiveUp('There is no checkout data registered for label %s'%checkout_label)
+            raise GiveUp('There is no checkout data registered for label %s'%checkout_label)
 
     def dump_checkout_paths(self):
         print "> Checkout paths .."
@@ -485,7 +486,7 @@ class Database(object):
         try:
             rel_dir = self.checkout_data[key].location
         except KeyError:
-            raise utils.GiveUp('There is no checkout data (path) registered for label %s'%checkout_label)
+            raise GiveUp('There is no checkout data (path) registered for label %s'%checkout_label)
         return os.path.join(root, rel_dir)
 
     def get_checkout_location(self, checkout_label):
@@ -507,7 +508,7 @@ class Database(object):
         try:
             return self.checkout_data[key].location
         except KeyError:
-            raise utils.GiveUp('There is no checkout data (location) registered for label %s'%checkout_label)
+            raise GiveUp('There is no checkout data (location) registered for label %s'%checkout_label)
 
     def get_checkout_dir_and_leaf(self, checkout_label):
         key = normalise_checkout_label(checkout_label)
@@ -515,7 +516,7 @@ class Database(object):
             co_data = self.checkout_data[key]
             return co_data.dir, co_data.leaf
         except KeyError:
-            raise utils.GiveUp('There is no checkout data (dir & leaf) registered for label %s'%checkout_label)
+            raise GiveUp('There is no checkout data (dir & leaf) registered for label %s'%checkout_label)
 
     def dump_checkout_repos(self, just_url=False):
         """
@@ -548,7 +549,7 @@ class Database(object):
         try:
             return self.checkout_data[key].repo
         except KeyError:
-            raise utils.GiveUp('There is no checkout data (repository) registered for label %s'%checkout_label)
+            raise GiveUp('There is no checkout data (repository) registered for label %s'%checkout_label)
 
     def dump_checkout_vcs(self):
         """
@@ -583,7 +584,7 @@ class Database(object):
         try:
             return self.checkout_data[key].vcs_handler
         except KeyError:
-            raise utils.GiveUp('There is no checkout data (VCS) registered for label %s'%checkout_label)
+            raise GiveUp('There is no checkout data (VCS) registered for label %s'%checkout_label)
 
     def get_checkout_vcs_options(self, checkout_label):
         """
@@ -599,7 +600,7 @@ class Database(object):
         try:
             return self.checkout_data[key].options
         except KeyError:
-            raise utils.GiveUp('There is no checkout data (VCS options) registered for label %s'%checkout_label)
+            raise GiveUp('There is no checkout data (VCS options) registered for label %s'%checkout_label)
 
     def set_checkout_license(self, checkout_label, license):
         key = normalise_checkout_label(checkout_label)
@@ -643,7 +644,7 @@ class Database(object):
             if absent_is_None:
                 return None
             else:
-                raise utils.GiveUp('There is no license registered for label %s'%checkout_label)
+                raise GiveUp('There is no license registered for label %s'%checkout_label)
 
     def checkout_has_license(self, checkout_label):
         """
@@ -673,7 +674,7 @@ class Database(object):
             if absent_is_None:
                 return None
             else:
-                raise utils.GiveUp('There is no license file registered for label %s'%checkout_label)
+                raise GiveUp('There is no license file registered for label %s'%checkout_label)
 
     def set_license_not_affected_by(self, this_label, co_label):
         """Asserts that the license for 'co_label' does not affect 'pkg_label'
@@ -705,11 +706,11 @@ class Database(object):
         license (or, indeed, that it exists or is depended upon by 'pkg_label').
         """
         if this_label.type not in (utils.LabelType.Package, utils.LabelType.Checkout):
-            raise utils.GiveUp('First label in set_license_not_affected_by() is %s, which is not'
-                               ' a package or checkout'%pkg_label)
+            raise GiveUp('First label in set_license_not_affected_by() is %s, which is not'
+                         ' a package or checkout'%this_label)
         if co_label.type != utils.LabelType.Checkout:
-            raise utils.GiveUp('Second label in set_license_not_affected_by() is %s, which is not'
-                               ' a checkout'%co_label)
+            raise GiveUp('Second label in set_license_not_affected_by() is %s, which is not'
+                         ' a checkout'%co_label)
 
         if this_label.tag == '*':
             key = this_label
@@ -781,13 +782,12 @@ class Database(object):
         for name in names:
             m = Database.upstream_name_re.match(name)
             if m is None or m.end() != len(name):
-                raise utils.GiveUp("Upstream repository name '%s' is not allowed"%(name))
+                raise GiveUp("Upstream repository name '%s' is not allowed"%(name))
 
         if orig_repo in self.upstream_repositories:
             upstream_dict = self.upstream_repositories[orig_repo]
             if upstream_repo in upstream_dict:
-                raise utils.GiveUp('Repository %r is already upstream'
-                                   ' of %r'%(upstream_repo, orig_repo))
+                raise GiveUp('Repository %r is already upstream of %r'%(upstream_repo, orig_repo))
         else:
             upstream_dict = {}
 
@@ -1001,8 +1001,8 @@ class Database(object):
         package and role, what would it be?
         """
         if (label.type != utils.LabelType.Package):
-            raise utils.MuddleBug("Attempt to retrieve instruction file "
-                              "name for non-package tag %s"%(str(label)))
+            raise MuddleBug("Attempt to retrieve instruction file "
+                            "name for non-package tag %s"%(str(label)))
 
         # Otherwise ..
         if label.role is None:
@@ -1144,10 +1144,9 @@ class PathFile(object):
                 val = val[:-1]
 
         except IndexError as i:
-            raise utils.GiveUp("Contents of db file %s are empty - %s\n"%(self.file_name, i))
+            raise GiveUp("Contents of db file %s are empty - %s\n"%(self.file_name, i))
         except IOError as e:
-            raise utils.GiveUp("Error retrieving value from %s\n"
-                                "    %s"%(self.file_name, str(e)))
+            raise GiveUp("Error retrieving value from %s\n    %s"%(self.file_name, str(e)))
 
         self.value = val
         self.value_valid = True
@@ -1185,14 +1184,14 @@ class Instruction(object):
         """
         Given an XML document, return a node which represents this instruction
         """
-        raise utils.MuddleBug("Cannot convert Instruction base class to XML")
+        raise MuddleBug("Cannot convert Instruction base class to XML")
 
     def clone_from_xml(self, xmlNode):
         """
         Given an XML node, create a clone of yourself, initialised from that
         XML or raise an error.
         """
-        raise utils.MuddleBug("Cannot convert XML to Instruction base class")
+        raise MuddleBug("Cannot convert XML to Instruction base class")
 
     def outer_elem_name(self):
         """
@@ -1302,8 +1301,8 @@ class InstructionFile(object):
             doc = top.documentElement
 
             if (doc.nodeName != "instructions"):
-                raise utils.MuddleBug("Instruction file %s does not have <instructions> as its document element.",
-                                  self.file_name)
+                raise MuddleBug("Instruction file %s does not have <instructions> as its document element.",
+                                 self.file_name)
 
             # See if we have a priority attribute.
             prio = doc.getAttribute("priority")
@@ -1318,16 +1317,16 @@ class InstructionFile(object):
                     # Try to build an instruction from it ..
                     instr = self.factory.from_xml(i)
                     if (instr is None):
-                        raise utils.MuddleBug("Could not manufacture an instruction "
-                                          "from node %s in file %s."%(i.nodeName, self.file_name))
+                        raise MuddleBug("Could not manufacture an instruction "
+                                        "from node %s in file %s."%(i.nodeName, self.file_name))
                     self.values.append(instr)
 
 
-        except utils.MuddleBug, e:
+        except MuddleBug, e:
             raise e
         except Exception, x:
             traceback.print_exc()
-            raise utils.MuddleBug("Cannot read instruction XML from %s - %s"%(self.file_name,x))
+            raise MuddleBug("Cannot read instruction XML from %s - %s"%(self.file_name,x))
 
 
     def commit(self, file_name):
@@ -1344,7 +1343,7 @@ class InstructionFile(object):
             f.write(self.get_xml())
             f.close()
         except Exception, e:
-            raise utils.MuddleBug("Could not write instruction file %s - %s"%(file_name,e ))
+            raise MuddleBug("Could not write instruction file %s - %s"%(file_name,e ))
 
     def get_xml(self):
         """
@@ -1365,7 +1364,7 @@ class InstructionFile(object):
             return top.toxml()
         except Exception,e:
             traceback.print_exc()
-            raise utils.MuddleBug("Could not render instruction list - %s"%e)
+            raise MuddleBug("Could not render instruction list - %s"%e)
 
     def __str__(self):
         """
@@ -1491,7 +1490,7 @@ class TagFile(object):
             f.write(top.toxml())
             f.close()
         except:
-            raise utils.MuddleBug("Could not write tagfile %s"%self.file_name)
+            raise MuddleBug("Could not write tagfile %s"%self.file_name)
 
 
 def load_instruction_helper(x,y):
@@ -1564,9 +1563,9 @@ class JustPulledFile(object):
                         continue
                     try:
                         label = depend.Label.from_string(line)
-                    except utils.GiveUp as e:
-                        raise utils.GiveUp('Error reading line %d of %s:\n%s'%(
-                                           line_no, self.file_name, e))
+                    except GiveUp as e:
+                        raise GiveUp('Error reading line %d of %s:\n%s'%(line_no,
+                            self.file_name, e))
                     self._just_pulled.add(label)
 
             return sorted(self._just_pulled)

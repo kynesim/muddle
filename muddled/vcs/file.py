@@ -125,7 +125,7 @@ class File(VersionControlSystem):
     def allows_relative_in_repo(self):
         return True         # Strangely enough
 
-    def get_file_content(self, url, options, verbose=True):
+    def get_file_content(self, url, verbose=True):
         """
         Retrieve a file's content via Subversion.
         """

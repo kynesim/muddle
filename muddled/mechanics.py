@@ -1882,12 +1882,12 @@ class Builder(object):
             else:
                 try:
                     results.extend(self.expand_underscore_arg(thing))
-                except GiveUp as e:
-                    raise GiveUp('_release contains "%s" (which we don\'t understand):\n'
-                                 '%s\n%s'%(thing, self.what_to_release, e))
                 except MuddleBug as e:
                     raise MuddleBug('_release contains "%s" (which we don\'t understand):\n'
                                     '%s\n%s'%(thing, self.what_to_release, e))
+                except GiveUp as e:
+                    raise GiveUp('_release contains "%s" (which we don\'t understand):\n'
+                                 '%s\n%s'%(thing, self.what_to_release, e))
         return results
 
     def expand_underscore_arg(self, word, type_for_all=None):
@@ -1921,7 +1921,7 @@ class Builder(object):
         elif word == '_all_deployments':
             return self.all_deployment_labels(LabelTag.Deployed)
         elif word == '_default_roles':
-            return self.interpret_default_roles(builder)
+            return self.get_labels_in_default_roles()
         elif word == '_default_deployments':
             return self.default_deployment_labels
         elif word == '_just_pulled':

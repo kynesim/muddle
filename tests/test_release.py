@@ -15,16 +15,13 @@ try:
     import muddled.cmdline
 except ImportError:
     # Try one level up
-    sys.path.insert(0, get_parent_file(__file__))
+    sys.path.insert(0, get_parent_dir(__file__))
     import muddled.cmdline
 
 from muddled.utils import GiveUp, normalise_dir, LabelType, LabelTag
 from muddled.utils import Directory, NewDirectory, TransientDirectory
 from muddled.depend import Label, label_list_to_string
 from muddled.version_stamp import VersionStamp, ReleaseStamp, ReleaseSpec
-
-from test_stamps import make_repos_with_subdomain, \
-        capture_revisions, revisions_differ
 
 MUDDLE_MAKEFILE = """\
 # Trivial muddle makefile

@@ -370,10 +370,10 @@ def find_builder(current_dir):
         return muddled.mechanics.load_builder(build_root,
                                               muddle_binary=__file__,
                                               default_domain=build_domain)
-    except muddled.utils.GiveUp as f:
-        raise LocalError("Error trying to load build tree: %s"%f)
     except muddled.utils.MuddleBug as e:
         raise LocalError("Cannot find build tree - %s"%e)
+    except muddled.utils.GiveUp as f:
+        raise LocalError("Error trying to load build tree: %s"%f)
 
 def determine_our_stamp(current_dir, quiet=False):
     if not quiet:

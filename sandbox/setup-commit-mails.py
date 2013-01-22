@@ -384,12 +384,12 @@ def _do_cmdline(args):
     rules = builder.all_checkout_rules()
     dirs = []
     for r in rules:
-        key = normalise_checkout_label(r.target)
+        key = r.target
         # Unfortunately, we do not currently support subdomains
         if key.domain:
             continue
-        rel_dir = builder.db.checkout_locations.get(key, r.target.name)
-        if rel_dir.startswith("src/"):
+        rel_dir = builder.db.get_checkout_location(key)
+        if rel_dir.startswith("src/"):  # as it should
             rel_dir = rel_dir[4:]
         dirs.append(rel_dir)
     # in testing, use dirs[0:2] (or something similarly small) in place of dirs.

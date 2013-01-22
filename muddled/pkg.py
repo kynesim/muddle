@@ -503,6 +503,6 @@ def set_checkout_vcs_option(builder, co_label, **kwargs):
     version control systems).
     """
     vcs = builder.db.get_checkout_vcs(co_label)
-    vcs.add_options(builder, co_label, kwards)
+    vcs.add_options(builder, co_label, kwargs)
 
 # End file.

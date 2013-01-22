@@ -44,55 +44,55 @@ class NoAction(Action):
 
 class VcsCheckoutBuilder(Action):
     """
-    This class represents a checkout, which knows where it's checked out from.
+    This class represents the actions available on a checkout.
+
+    'self.vcs' is the VCS handler which knows how to do version control
+    operations on a checkout.
     """
-    def __init__(self, name, vcs):
-        self.name = name
+    def __init__(self, vcs):
         self.vcs = vcs
 
-    def _inner_labels(self):
-        return self.vcs._inner_labels()
-
-    def _checkout_is_checked_out(self, builder, label):
+    def _checkout_is_checked_out(self, builder, co_label):
         """
         Return True if this checkout has indeed been checked out
         """
-        label = label.copy_with_tag(utils.LabelTag.CheckedOut, transient=False)
-        return builder.db.is_tag(label)
+        co_label = co_label.copy_with_tag(utils.LabelTag.CheckedOut, transient=False)
+        return builder.db.is_tag(co_label)
 
-    def must_pull_before_commit(self):
+    def must_pull_before_commit(self, builder, co_label):
         """
         Must we update in order to commit? Only the VCS handler knows ..
         """
-        return self.vcs.must_pull_before_commit()
+        return self.vcs.must_pull_before_commit(builder, co_label)
 
-    def build_label(self, builder, label):
+    def build_label(self, builder, co_label):
 
-        # XXX Shouldn't we be checking that 'label' matches 'vcs.label'???
+        # Note that we don't in fact check that self.name matches (part of)
+        # the checkout label we're building.
 
-        target_tag = label.tag
+        target_tag = co_label.tag
 
         if (target_tag == utils.LabelTag.CheckedOut):
-            self.vcs.checkout(builder)
+            self.vcs.checkout(builder, co_label)
         elif (target_tag == utils.LabelTag.Pulled):
-            if self.vcs.pull(builder):
-                builder.db.just_pulled.add(label)
+            if self.vcs.pull(builder, co_label):
+                builder.db.just_pulled.add(co_label)
         elif (target_tag == utils.LabelTag.Merged):
-            if self.vcs.merge(builder):
-                builder.db.just_pulled.add(label)
+            if self.vcs.merge(builder, co_label):
+                builder.db.just_pulled.add(co_label)
         elif (target_tag == utils.LabelTag.ChangesCommitted):
-            if self._checkout_is_checked_out(builder, label):
-                self.vcs.commit(builder)
+            if self._checkout_is_checked_out(builder, co_label):
+                self.vcs.commit(builder, co_label)
             else:
-                print "Checkout %s has not been checked out - not commiting"%label.name
+                print "Checkout %s has not been checked out - not commiting"%co_label
         elif (target_tag == utils.LabelTag.ChangesPushed):
-            if self._checkout_is_checked_out(builder, label):
-                self.vcs.push(builder)
+            if self._checkout_is_checked_out(builder, co_label):
+                self.vcs.push(builder, co_label)
             else:
-                print "Checkout %s has not been checked out - not pushing"%label.name
+                print "Checkout %s has not been checked out - not pushing"%co_label.name
         else:
             raise utils.MuddleBug("Attempt to build unknown tag %s "%target_tag +
-                              "in checkout %s."%self.name)
+                                  "in checkout %s."%co_label)
 
         return True
 
@@ -198,12 +198,14 @@ class Profile(object):
     def use(self, builder):
         pass
 
-def add_checkout_rules(ruleset, co_label, action):
+def add_checkout_rules(builder, co_label, action):
     """
     Add the standard checkout rules to a ruleset for a checkout
     with name co_label. 'action' should be an instance of VcsCheckoutBuilder,
     which knows how to build a checkout: label, depending on its tag.
     """
+
+    ruleset = builder.ruleset
 
     # All of the VCS tags are transient (well, with the obvious exception
     # of "checked_out" itself). So we need to be a little bit careful.
@@ -254,7 +256,7 @@ def add_checkout_rules(ruleset, co_label, action):
 
     # Centralised VCSs, in general, want us to do a 'pull' (update) before
     # doing a 'commit', so we should try to honour that, if necessary
-    if (action.must_pull_before_commit()):
+    if (action.must_pull_before_commit(builder, co_label)):
         rule.add(pulled_label)
 
 def package_depends_on_checkout(ruleset, pkg_name, role_name, co_name, action=None):
@@ -276,8 +278,8 @@ def package_depends_on_checkout(ruleset, pkg_name, role_name, co_name, action=No
                             utils.LabelTag.CheckedOut)
 
     preconfig = depend.Label(utils.LabelType.Package,
-		             pkg_name, role_name,
-			     utils.LabelTag.PreConfig)
+                             pkg_name, role_name,
+                             utils.LabelTag.PreConfig)
 
     new_rule = depend.Rule(preconfig, action)
     new_rule.add(checkout)
@@ -285,9 +287,9 @@ def package_depends_on_checkout(ruleset, pkg_name, role_name, co_name, action=No
 
     # We can't distclean a package until we've checked out its checkout
     distclean = depend.Label(utils.LabelType.Package,
-		             pkg_name, role_name,
-			     utils.LabelTag.DistClean,
-			     transient = True)
+                             pkg_name, role_name,
+                             utils.LabelTag.DistClean,
+                             transient = True)
     ruleset.add(depend.depend_one(action, distclean, checkout))
 
 def package_depends_on_packages(ruleset, pkg_name, role, tag_name, deps):
@@ -481,25 +483,26 @@ def set_env_for_package(builder, pkg_name, pkg_roles,
         env = builder.get_environment_for(lbl)
         env.set(name, value)
 
-def set_checkout_vcs_option(builder, label, **kwargs):
+def set_checkout_vcs_option(builder, co_label, **kwargs):
     """
     Sets extra VCS options for a checkout (identified by its label).
-    These are set in the relevant VersionControlHandler and passed on
-    to the underlying vcs handler.
 
-    For example:
-      pkg.set_checkout_vcs_option(builder, depend.Label('checkout', 'kernel-source'), shallow_checkout=True)
+    For reasons mostly to do with how stamping/unstamping works, we require
+    option values to be either boolean, integer or string.
 
-    Note that options are strictly set per-checkout.
+    For example::
+
+      pkg.set_checkout_vcs_option(builder,
+                                  depend.Label('checkout', 'kernel-source'),
+                                  shallow_checkout=True)
+
     Defaults are set by version_control.default_vcs_options_dict.
+
+    "muddle help vcs <name>" should document the available options for the
+    version control system <name> (see "muddle help vcs" for the supported
+    version control systems).
     """
-    if label.type is not utils.LabelType.Checkout:
-        raise utils.GiveUp('set_checkout_vcs_option called on non-checkout %s'%label)
-    for rule in builder.ruleset.rules_for_target(label):
-        if rule.action is not None:
-            if not isinstance(rule.action, VcsCheckoutBuilder):
-                raise utils.MuddleBug('rule for checkout %s had a non-builder'
-                        ' object of type %s'%(label, rule.action.__class__.__name__))
-            rule.action.vcs.add_options(kwargs)
+    vcs = builder.db.get_checkout_vcs(co_label)
+    vcs.add_options(builder, co_label, kwargs)
 
 # End file.

@@ -202,8 +202,7 @@ from StringIO import StringIO
 from muddled.depend import Label
 from muddled.repository import Repository
 from muddled.utils import MuddleSortedDict, MuddleOrderedDict, \
-        HashFile, GiveUp, truncate, LabelType, LabelTag
-from muddled.version_control import split_vcs_url
+        HashFile, GiveUp, truncate, LabelType, LabelTag, split_vcs_url
 
 CheckoutTupleV1 = namedtuple('CheckoutTupleV1', 'name repo rev rel dir domain co_leaf branch')
 
@@ -596,15 +595,18 @@ class VersionStamp(object):
                         print 'Forcing head'
                     rev = "HEAD"
                 else:
-                    rev = vcs.revision_to_checkout(builder, force=force,
+                    rev = vcs.revision_to_checkout(builder, label, force=force,
                                                    before=before, verbose=True)
 
-                repo = vcs.repo.copy_with_changed_revision(rev)
+                repo = builder.db.get_checkout_repo(label)
+                repo = repo.copy_with_changed_revision(rev)
 
-                stamp.checkouts[label] = (vcs.checkout_dir, vcs.checkout_leaf, repo)
+                co_dir, co_leaf = builder.db.get_checkout_dir_and_leaf(label)
+                stamp.checkouts[label] = (co_dir, co_leaf, repo)
 
-                if vcs.options:
-                    stamp.options[label] = vcs.options
+                options = builder.db.get_checkout_vcs_options(label)
+                if options:
+                    stamp.options[label] = options
             except GiveUp as exc:
                 print exc
                 stamp.problems.append(str(exc))
@@ -686,22 +688,26 @@ class VersionStamp(object):
 
         Extract the STAMP (if any) and ROOT sections. After they've been
         used, they will be removed from the configuration.
+
+        Returns the apparent version of the stamp file.
         """
 
         if config.has_section("STAMP"):
             # It is at least a version 2 stamp file
             version_str = config.get("STAMP", "version")
             try:
-                stamp.version = int(version_str)
+                stamp_version = int(version_str)
             except Exception as e:
                 raise GiveUp("Unexpected version %r - expecting an integer,"
                              " and particularly 1 or 2"%version_str)
 
-            if stamp.version != 2:
+            if stamp_version == 1:
+                raise GiveUp("Version 1 stamp files should not have STAMP sections")
+            elif stamp_version != 2:
                 raise GiveUp("This version of muddle does not know how to"
-                             " parse a version %d stamp file"%stamp.version)
+                             " parse a version %d stamp file"%stamp_version)
         else:
-            stamp.version = 1
+            stamp_version = 1
 
         stamp.repository = config.get("ROOT", "repository")
         stamp.description = config.get("ROOT", "description")
@@ -710,9 +716,10 @@ class VersionStamp(object):
         if config.has_section("STAMP"):
             config.remove_section("STAMP")
         config.remove_section("ROOT")
+        return stamp_version
 
     @staticmethod
-    def _extract_config_body(stamp, config):
+    def _extract_config_body(stamp, stamp_version, config):
         """Part 2 of the internal mechanisms of the 'from_file' static method.
 
         Extract the DOMAIN, CHECKOUT and PROBLEM sections.
@@ -732,7 +739,7 @@ class VersionStamp(object):
                 # find the exact same checkout definition more than once
                 # - we'll just keep it twice. So let's hope that doesn't
                 # happen.
-                if stamp.version == 1:
+                if stamp_version == 1:
                     co_label, co_leaf, co_dir, repo, options = _read_v1_checkout(section, config)
                 else:
                     co_label, co_leaf, co_dir, repo, options = _read_v2_checkout(section, config,
@@ -766,8 +773,8 @@ class VersionStamp(object):
         config = make_RawConfigParser()
         config.readfp(fd)
 
-        VersionStamp._extract_config_header(stamp, config)
-        VersionStamp._extract_config_body(stamp, config)
+        stamp_version = VersionStamp._extract_config_header(stamp, config)
+        VersionStamp._extract_config_body(stamp, stamp_version, config)
 
         print 'File has SHA1 hash %s'%fd.hash()
         return stamp
@@ -967,12 +974,12 @@ class ReleaseSpec(object):
 
     def __str__(self):
         parts = []
-        parts.append(repr(name))
-        parts.append(repr(version))
-        parts.append(repr(archive))
-        parts.append(repr(compression))
+        parts.append(repr(self.name))
+        parts.append(repr(self.version))
+        parts.append(repr(self.archive))
+        parts.append(repr(self.compression))
         if self.hash:
-            parts.append(repr(hash))
+            parts.append(repr(self.hash))
         return 'ReleaseSpec(%s)'%(', '.join(parts))
 
     @property
@@ -1124,9 +1131,9 @@ class ReleaseStamp(VersionStamp):
         config.readfp(fd)
 
         # Extract the stamp file header from the configuration
-        VersionStamp._extract_config_header(stamp, config)
+        stamp_version = VersionStamp._extract_config_header(stamp, config)
 
-        if stamp.version < 2:
+        if stamp_version < 2:
             raise GiveUp('Release stamp files must be version 2 stamp files or later')
 
         # and then read whatever other configuration values we want to read
@@ -1141,7 +1148,7 @@ class ReleaseStamp(VersionStamp):
                                          archive=archive, compression=compression)
 
         # And extract the rest of the data from the configuration
-        VersionStamp._extract_config_body(stamp, config)
+        VersionStamp._extract_config_body(stamp, stamp_version, config)
 
         hash = fd.hash()
         print 'File has SHA1 hash %s'%hash

@@ -66,7 +66,7 @@ class LinuxKernel(PackageBuilder):
         Make sure the relevant directories exist
         """
         tmp = Label(utils.LabelType.Checkout, self.co, domain=label.domain)
-        co_path = builder.checkout_path(tmp)
+        co_path = builder.db.get_checkout_path(tmp)
         build_path = builder.package_obj_path(label)
         inst_path = builder.package_install_path(label)
         utils.ensure_dir(co_path)
@@ -83,7 +83,7 @@ class LinuxKernel(PackageBuilder):
         self.ensure_dirs(builder, label)
 
         tmp = Label(utils.LabelType.Checkout, self.co, domain=label.domain)
-        co_path = builder.checkout_path(tmp)
+        co_path = builder.db.get_checkout_path(tmp)
         build_path = builder.package_obj_path(label)
 
         make_cmd = "make"

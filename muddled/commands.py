@@ -45,7 +45,8 @@ from muddled.db import Database, InstructionFile
 from muddled.depend import Label, label_list_to_string
 from muddled.utils import GiveUp, MuddleBug, Unsupported, \
         DirType, LabelTag, LabelType, find_label_dir
-from muddled.version_control import split_vcs_url, checkout_from_repo
+from muddled.utils import split_vcs_url
+from muddled.version_control import checkout_from_repo
 from muddled.repository import Repository
 from muddled.version_stamp import VersionStamp, ReleaseStamp, ReleaseSpec
 from muddled.licenses import print_standard_licenses, get_gpl_checkouts, \
@@ -1381,6 +1382,7 @@ the parentheses. So, for instance, use:
             str_list = [ ]
             str_list.append("Available version control systems:\n\n")
             str_list.append(version_control.list_registered(indent='  '))
+            str_list.append('\nUse "help vcs <name>" for more information on VCS <name>')
             return "".join(str_list)
 
     def help_environment(self, args):
@@ -1994,6 +1996,18 @@ class QueryCheckoutRepos(QueryCommand):
         just_url = ('url' in self.switches)
         builder.db.dump_checkout_repos(just_url=just_url)
 
+@subcommand('query', 'checkout-vcs', CAT_QUERY)
+class QueryCheckoutVcs(QueryCommand):
+    """
+    :Syntax: muddle query checkout-vcs
+
+    Print the known checkouts and their version control systems. Also prints
+    the VCS options for the checkout, if there are any.
+    """
+
+    def with_build_tree(self, builder, current_dir, args):
+        builder.db.dump_checkout_vcs()
+
 @subcommand('query', 'checkout-licenses', CAT_QUERY)
 class QueryCheckoutLicenses(QueryCommand):
     """
@@ -2453,14 +2467,14 @@ class QueryCheckoutId(QueryCommand):
             if len(checkouts) < 1:
                 raise GiveUp('No checkouts associated with %s'%label)
             elif len(checkouts) > 1:
-                raise Giveup('More than one checkout associated with %s'%label)
+                raise GiveUp('More than one checkout associated with %s'%label)
             else:
                 label = checkouts[0]
 
         # Figure out its VCS
-        vcs = builder.db.get_checkout_vcs(builder, label)
+        vcs = builder.db.get_checkout_vcs(label)
 
-        print vcs.revision_to_checkout(builder, show_pushd=False)
+        print vcs.revision_to_checkout(builder, label, show_pushd=False)
 
 @subcommand('query', 'build-desc-branch', CAT_QUERY)
 class QueryBuildDescBranch(QueryCommand):
@@ -2755,7 +2769,7 @@ class QueryMakeEnv(QueryCommand):
             builder._build_label_env(label, env_store)
             build_action = rule.action
             tmp = Label(LabelType.Checkout, build_action.co, domain=label.domain)
-            co_path = builder.checkout_path(tmp)
+            co_path = builder.db.get_checkout_path(tmp)
             try:
                 build_action._amend_env(co_path)
             except AttributeError:
@@ -4545,10 +4559,10 @@ class UnStamp(Command):
                 else:
                     l = label.copy_with_tag(LabelTag.CheckedOut)
                     try:
-                        vcs = builder.db.get_checkout_vcs(builder, l)
+                        vcs = builder.db.get_checkout_vcs(l)
                     except AttributeError:
                         raise GiveUp("Rule for label '%s' has no VCS - cannot find its id"%l)
-                    old_revision = vcs.revision_to_checkout(builder, show_pushd=False)
+                    old_revision = vcs.revision_to_checkout(builder, l, show_pushd=False)
                     new_revision = repo.revision
                     if old_revision != new_revision:
                         print '.. revisions do not match'
@@ -5699,11 +5713,11 @@ class Status(CheckoutCommand):
         something = []
         for co in labels:
             try:
-                vcs = builder.db.get_checkout_vcs(builder, co)
+                vcs = builder.db.get_checkout_vcs(co)
             except GiveUp:
                 print "Rule for label '%s' has no VCS - cannot find its status"%co
                 continue
-            text = vcs.status(builder, verbose)
+            text = vcs.status(builder, co, verbose)
             if text:
                 print
                 print text.strip()
@@ -5774,11 +5788,11 @@ class Reparent(CheckoutCommand):
 
         for co in labels:
             try:
-                vcs = builder.db.get_checkout_vcs(builder, co)
+                vcs = builder.db.get_checkout_vcs(co)
             except GiveUp:
                 print "Rule for label '%s' has no VCS - cannot reparent, ignored"%co
                 continue
-            vcs.reparent(builder, force=force, verbose=True)
+            vcs.reparent(builder, co, force=force, verbose=True)
 
 @command('uncheckout', CAT_CHECKOUT)
 class UnCheckout(CheckoutCommand):
@@ -6011,10 +6025,14 @@ class UpstreamCommand(CheckoutCommand):
 
         self.build_these_labels(builder, labels, upstream_names, no_op)
 
+    def do_our_verb(self, builder, co_label, vcs_handler, upstream, repo):
+        """Each subclass needs to implement this.
+        """
+        raise MuddleBug('No "do_our_verb" method provided for command "%s"'%self.cmd_name)
+
     def build_these_labels(self, builder, labels, upstream_names, no_op):
         get_checkout_repo = builder.db.get_checkout_repo
         get_upstream_repos = builder.db.get_upstream_repos
-        get_checkout_location = builder.db.get_checkout_location
         for co in labels:
             orig_repo = get_checkout_repo(co)
             upstreams = get_upstream_repos(orig_repo, upstream_names)
@@ -6032,31 +6050,20 @@ class UpstreamCommand(CheckoutCommand):
                         print
                         print '%s %s %s %s (%s)'%(self.verbing,
                                 co, self.direction, repo, ', '.join(names))
-                        co_locn = get_checkout_location(co)
                         # Arbitrarily use the first of those names as the
                         # name that the VCS (might) remember for this upstream.
                         # Note that get_upstream_repos() tells us the names
                         # will be given to us in sorted order.
-                        self.handle_label(builder, co, repo, co_locn, names[0])
+                        self.handle_label(builder, co, names[0], repo)
 
             else:
                 if not no_op:
                     print
                 print 'Nowhere to %s %s %s'%(self.verb, co, self.direction)
 
-    def handle_label(self, builder, co_label, repo, co_locn, upstream_name):
-        src_dir, rest = utils.split_path_left(co_locn)
-        if src_dir != 'src':
-            raise MuddleBug('Splitting location for %s, but %s does not'
-                            ' start "src"'%(co_label, co_locn))
-        co_dir, co_leaf = os.path.split(rest)
-
-        # And from *that*, we can build the handler we actually want
-        vcs_handler = version_control.vcs_handler_for(builder, co_label,
-                                                      co_leaf, repo, co_dir)
-
-        # And do whatever we need to do
-        self.do_our_verb(builder, vcs_handler, upstream_name)
+    def handle_label(self, builder, co_label, upstream_name, repo):
+        vcs_handler = version_control.vcs_handler_for(builder, co_label)
+        self.do_our_verb(builder, co_label, vcs_handler, upstream_name, repo)
 
 @command('push-upstream', CAT_CHECKOUT)
 class PushUpstream(UpstreamCommand):
@@ -6105,10 +6112,10 @@ class PushUpstream(UpstreamCommand):
     verbing = 'Pushing'
     direction = 'to'
 
-    def do_our_verb(self, builder, vcs_handler, upstream=None):
+    def do_our_verb(self, builder, co_label, vcs_handler, upstream, repo):
         # And we can then use that to do the push
         # (in the happy knowledge that *it* will grumble if we're not allowed to)
-        vcs_handler.push(builder, upstream=upstream)
+        vcs_handler.push(builder, co_label, upstream=upstream, repo=repo)
 
 @command('pull-upstream', CAT_CHECKOUT)
 class PullUpstream(UpstreamCommand):
@@ -6162,10 +6169,10 @@ class PullUpstream(UpstreamCommand):
     verbing = 'Pulling'
     direction = 'from'
 
-    def do_our_verb(self, builder, vcs_handler, upstream=None):
+    def do_our_verb(self, builder, co_label, vcs_handler, upstream, repo):
         # And we can then use that to do the pull
         # (in the happy knowledge that *it* will grumble if we're not allowed to)
-        vcs_handler.pull(builder, upstream=upstream)
+        vcs_handler.pull(builder, co_label, upstream=upstream, repo=repo)
 
 # -----------------------------------------------------------------------------
 # AnyLabel commands
@@ -6794,7 +6801,7 @@ class RunIn(Command):
                     continue
 
                 if (lbl.type == LabelType.Checkout):
-                    dir = builder.checkout_path(lbl)
+                    dir = builder.db.get_checkout_path(lbl)
                 elif (lbl.type == LabelType.Package):
                     if (lbl.role == "*"):
                         continue

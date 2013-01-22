@@ -9,7 +9,7 @@ sense are more like inner paths of a Repository. At the moment muddle does
 not provide any special support for Subversion branches.
 """
 
-from muddled.version_control import register_vcs_handler, VersionControlSystem
+from muddled.version_control import register_vcs, VersionControlSystem
 import muddled.utils as utils
 
 class Subversion(VersionControlSystem):
@@ -223,7 +223,7 @@ class Subversion(VersionControlSystem):
     def get_vcs_special_files(self):
         return ['.svn']
 
-    def get_file_content(self, url, options, verbose=True):
+    def get_file_content(self, url, verbose=True):
         """
         Retrieve a file's content via Subversion.
         """
@@ -239,6 +239,6 @@ class Subversion(VersionControlSystem):
         return True
 
 # Tell the version control handler about us..
-register_vcs_handler("svn", Subversion(), __doc__)
+register_vcs("svn", Subversion(), __doc__)
 
 # End file.

@@ -13,9 +13,84 @@ import traceback
 import muddled.utils as utils
 import muddled.depend as depend
 
-from muddled.utils import domain_subpath
-from muddled.version_control import split_vcs_url
+from muddled.utils import GiveUp, MuddleBug
+from muddled.utils import domain_subpath, split_vcs_url
 from muddled.depend import normalise_checkout_label
+
+
+class CheckoutData(object):
+    """
+    * location - The directory the checkout is in, relative to the root of the
+      build tree. For instance::
+
+        src/builds
+        domains/subdomain1/src/first_co
+
+    * dir and leaf - The same information, as it was originally specified in
+      the build description. This is primarily of use in version stamping.
+      The dir may be None, and the leaf defaults to the checkout labels name.
+
+      We expect to take the repository described in 'repo' and check it out
+      into:
+
+      * src/<co_leaf> or
+      * src/<co_dir>/<co_leaf>
+
+      depending on whether <co_dir> is None.
+
+    * repo - A Repository instance, representing where the checkout is checked
+      out from. For example (eliding the actual URL)::
+
+        Repository('git', 'http://.../main', 'builds')
+        Repository('git', 'http://.../subdomain1', 'first_co')
+
+    * vcs_handler - A VCS handler, which knows how to do version control
+      operations for this checkout.
+
+    * options - Any specialised optons needed by the VCS handler. At the
+      moment, the only option available is whether a git checkout is shallow or
+      not. This is a dictionary.
+    """
+
+    def __init__(self, vcs_handler, repo, co_dir, co_leaf):
+        self.vcs_handler = vcs_handler
+        self.repo  = repo
+
+        self.dir = co_dir
+        self.leaf = co_leaf
+
+        if co_dir:
+            self.location = os.path.join('src', co_dir, co_leaf)
+        else:
+            self.location = os.path.join('src', co_leaf)
+
+        self.options = {}
+
+    def __repr__(self):
+        parts = []
+        parts.append(repr(self.vcs_handler))
+        parts.append(repr(self.repo))
+        parts.append(repr(self.dir))
+        parts.append(repr(self.leaf))
+        return 'CheckoutData(' + ', '.join(parts) + ')'
+
+    def move_to_subdomain(self, other_domain_name):
+        # Note that our 'dir' and 'leaf' are always with respect to the local
+        # domain, so we do not need to change them
+
+        self.location = os.path.join(utils.domain_subpath(other_domain_name), self.location)
+
+    def set_option(self, key, value):
+        """
+        Add/replace the named VCS option 'key'.
+
+        Generally, call this via the version control handler's add_options()
+        method, as that understands the restrictions placed on a particular
+        VCS as to allowed keys and values.
+        """
+        self.options[key] = value
+
+>>>>>>> checkout-object
 
 class Database(object):
     """
@@ -62,19 +137,8 @@ class Database(object):
 
     The dictionaries we use are:
 
-    * checkout_locations - This maps a checkout label to the directory the
-      checkout is in, relative to the root of the build tree. So examples
-      might be::
-
-        checkout:builds/*               -> src/builds
-        checkout:(subdomain1)first_co/* -> domains/subdomain1/src/first_co
-
-    * checkout_repositories - This maps a checkout_label to a Repository
-      instance, representing where it is checked out from. So examples might
-      be (eliding the actual URL)::
-
-        checkout:builds/*               -> Repository('git', 'http://.../main', 'builds')
-        checkout:(subdomain1)first_co/* -> Repository('git', 'http://.../subdomain1', 'first_co')
+    * checkout_data - This maps checkout labels to the information we need
+      to do checkout actions.
 
     * checkout_vcs - This is a cache remembering the VCS for a checkout. It
       is not intended for direct access.
@@ -190,9 +254,8 @@ class Database(object):
                                           '.muddle',
                                           '_just_pulled'))
 
-        self.checkout_locations = {}
-        self.checkout_repositories = {}
-        self.checkout_vcs = {}
+        self.checkout_data = {}
+
         self.checkout_licenses = {}
         self.checkout_license_files = {}
         self.license_not_affected_by = {}
@@ -260,12 +323,12 @@ class Database(object):
         included as a subdomain...
 
         Note that we DO NOT CARE if identical labels (those that compare the
-        same with "is" are added to the list. But we DO want *all*
-        non-identical labels.
+        same with "is") are added to the list, as each label instance will
+        only be updated once, regardless of how many times it occurs. But we DO
+        want to make sure we have *all* non-identical labels.
         """
         labels = []
-        labels.extend(self.checkout_locations.keys())
-        labels.extend(self.checkout_repositories.keys())
+        labels.extend(self.checkout_data.keys())
         labels.extend(self.checkout_licenses.keys())
         labels.extend(self.checkout_license_files.keys())
         labels.extend(self.license_not_affected_by.keys())
@@ -299,11 +362,9 @@ class Database(object):
     def _merge_subdomain_labels(self, other_domain_name, other_db):
         """Merge things from the subdomain that contain labels.
         """
-        for co_label, co_dir in other_db.checkout_locations.items():
-            new_dir = os.path.join(utils.domain_subpath(other_domain_name), co_dir)
-            self.checkout_locations[co_label] = new_dir
-
-        self.checkout_repositories.update(other_db.checkout_repositories)
+        for co_obj in other_db.checkout_data.values():
+            co_obj.move_to_subdomain(other_domain_name)
+        self.checkout_data.update(other_db.checkout_data)
 
         self.checkout_licenses.update(other_db.checkout_licenses)
         self.checkout_license_files.update(other_db.checkout_license_files)
@@ -319,6 +380,11 @@ class Database(object):
     def _merge_subdomain_upstreams(self, other_domain_name, other_db):
         """Merge things from the subdomain that contain upstream repositories.
         """
+        # We're likely to want to know what repositories we've already got
+        already_got = set()
+        for co_obj in self.checkout_data.values():
+            already_got.add(co_obj.repo)
+
         for orig_repo, that_upstream_dict in other_db.upstream_repositories.items():
             ##print 'Looking at %r'%orig_repo
             if orig_repo in self.upstream_repositories:
@@ -352,14 +418,14 @@ class Database(object):
                 # for that.
                 #
                 # The obvious case is a repository that is being used by a
-                # checkout, and we *do* have a dictionary for that.
+                # checkout. Which we calculated earlier.
                 #
                 # So we can tell if this is a repository (associated with a
                 # checkout) that we already know about, or if it is a
                 # repository we have no idea about (and which we therefore
                 # hope is being remembered for some good reason - but ours
                 # is not to reason why).
-                if orig_repo in self.checkout_repositories.values():
+                if orig_repo in already_got:
                     # So, we've got a checkout using it, *without* upstreams,
                     # and this is therefore the same as the case where we
                     # were adding (new) upstreams to a repository that already
@@ -458,7 +524,7 @@ class Database(object):
             details.append('    %r  %s'%(upstream_repo,
                            ', '.join(sorted(that_upstream[upstream_repo]))))
 
-        raise utils.GiveUp('\n'.join(details))
+        raise GiveUp('\n'.join(details))
 
     def set_domain_marker(self, domain_name):
         """
@@ -466,24 +532,23 @@ class Database(object):
 
         In a (sub)domain, we have a file called ``.muddle/am_subdomain``,
         which acts as a useful flag that we *are* a (sub)domain.
-
-        This should only be called by muddle itself.
         """
         utils.mark_as_domain(self.root_path, domain_name)
 
-    def set_checkout_path(self, checkout_label, dir):
-        """This should only be called by muddle itself.
-        """
+    def set_checkout_data(self, checkout_label, co_data):
         key = normalise_checkout_label(checkout_label)
+        self.checkout_data[key] = co_data
 
-	#print '### set_checkout_path for %s'%checkout_label
-	#print '... dir',dir
-
-        self.checkout_locations[key] = os.path.join('src', dir)
+    def get_checkout_data(self, checkout_label):
+        key = normalise_checkout_label(checkout_label)
+        try:
+            return self.checkout_data[key]
+        except KeyError:
+            raise GiveUp('There is no checkout data registered for label %s'%checkout_label)
 
     def dump_checkout_paths(self):
         print "> Checkout paths .."
-        keys = self.checkout_locations.keys()
+        keys = self.checkout_data.keys()
         max = 0
         for label in keys:
             length = len(str(label))
@@ -491,7 +556,7 @@ class Database(object):
                 max = length
         keys.sort()
         for label in keys:
-            print "%-*s -> %s"%(max, label, self.checkout_locations[label])
+            print "%-*s -> %s"%(max, label, self.checkout_data[label].location)
 
     def get_checkout_path(self, checkout_label):
         """
@@ -512,10 +577,9 @@ class Database(object):
 
         key = normalise_checkout_label(checkout_label)
         try:
-            rel_dir = self.checkout_locations[key]
+            rel_dir = self.checkout_data[key].location
         except KeyError:
-            raise utils.GiveUp('There is no checkout path registered for label %s'%checkout_label)
-
+            raise GiveUp('There is no checkout data (path) registered for label %s'%checkout_label)
         return os.path.join(root, rel_dir)
 
     def get_checkout_location(self, checkout_label):
@@ -535,15 +599,17 @@ class Database(object):
 
         key = normalise_checkout_label(checkout_label)
         try:
-            return self.checkout_locations[key]
+            return self.checkout_data[key].location
         except KeyError:
-            raise utils.GiveUp('There is no checkout path registered for label %s'%checkout_label)
+            raise GiveUp('There is no checkout data (location) registered for label %s'%checkout_label)
 
-    def set_checkout_repo(self, checkout_label, repo):
-        """This should only be called by muddle itself.
-        """
+    def get_checkout_dir_and_leaf(self, checkout_label):
         key = normalise_checkout_label(checkout_label)
-        self.checkout_repositories[key] = repo
+        try:
+            co_data = self.checkout_data[key]
+            return co_data.dir, co_data.leaf
+        except KeyError:
+            raise GiveUp('There is no checkout data (dir & leaf) registered for label %s'%checkout_label)
 
     def dump_checkout_repos(self, just_url=False):
         """
@@ -554,7 +620,7 @@ class Database(object):
         as well).
         """
         print "> Checkout repositories .."
-        keys = self.checkout_repositories.keys()
+        keys = self.checkout_data.keys()
         max = 0
         for label in keys:
             length = len(str(label))
@@ -563,10 +629,10 @@ class Database(object):
         keys.sort()
         if just_url:
             for label in keys:
-                print "%-*s -> %s"%(max, label, self.checkout_repositories[label])
+                print "%-*s -> %s"%(max, label, self.checkout_data[label].repo)
         else:
             for label in keys:
-                print "%-*s -> %r"%(max, label, self.checkout_repositories[label])
+                print "%-*s -> %r"%(max, label, self.checkout_data[label].repo)
 
     def get_checkout_repo(self, checkout_label):
         """
@@ -574,9 +640,60 @@ class Database(object):
         """
         key = normalise_checkout_label(checkout_label)
         try:
-            return self.checkout_repositories[key]
+            return self.checkout_data[key].repo
         except KeyError:
-            raise utils.GiveUp('There is no repository registered for label %s'%checkout_label)
+            raise GiveUp('There is no checkout data (repository) registered for label %s'%checkout_label)
+
+    def dump_checkout_vcs(self):
+        """
+        Report on the version control systems associated with our checkouts,
+        and any VCS options.
+        """
+        print "> Checkout version control systems .."
+        keys = self.checkout_data.keys()
+        max = 0
+        for label in keys:
+            length = len(str(label))
+            if length > max:
+                max = length
+        keys.sort()
+        for label in keys:
+            options = self.checkout_data[label].options
+            if options:
+                print "%-*s -> %s %s"%(max, label, self.checkout_data[label].vcs_handler, options)
+            else:
+                print "%-*s -> %s"%(max, label, self.checkout_data[label].vcs_handler)
+
+    def get_checkout_vcs(self, checkout_label):
+        """
+        'checkout_label' is a "checkout:" Label.
+
+        Returns the VCS handler for the given checkout.
+
+        Raises GiveUp (containing an explanatory message) if we cannot find
+        that checkout label.
+        """
+        key = normalise_checkout_label(checkout_label)
+        try:
+            return self.checkout_data[key].vcs_handler
+        except KeyError:
+            raise GiveUp('There is no checkout data (VCS) registered for label %s'%checkout_label)
+
+    def get_checkout_vcs_options(self, checkout_label):
+        """
+        'checkout_label' is a "checkout:" Label.
+
+        Returns the options for the given checkout, as a (possibly empty) dictionary.
+
+        Since most checkouts will not have options, and will thus have no entry
+        for such, cannot return an error if there is no such checkout in the
+        build.
+        """
+        key = normalise_checkout_label(checkout_label)
+        try:
+            return self.checkout_data[key].options
+        except KeyError:
+            raise GiveUp('There is no checkout data (VCS options) registered for label %s'%checkout_label)
 
     def set_domain_build_desc_label(self, checkout_label):
         """This should only be called by muddle itself.
@@ -712,7 +829,7 @@ class Database(object):
             if absent_is_None:
                 return None
             else:
-                raise utils.GiveUp('There is no license registered for label %s'%checkout_label)
+                raise GiveUp('There is no license registered for label %s'%checkout_label)
 
     def checkout_has_license(self, checkout_label):
         """
@@ -742,7 +859,7 @@ class Database(object):
             if absent_is_None:
                 return None
             else:
-                raise utils.GiveUp('There is no license file registered for label %s'%checkout_label)
+                raise GiveUp('There is no license file registered for label %s'%checkout_label)
 
     def set_license_not_affected_by(self, this_label, co_label):
         """Asserts that the license for 'co_label' does not affect 'pkg_label'
@@ -774,11 +891,11 @@ class Database(object):
         license (or, indeed, that it exists or is depended upon by 'pkg_label').
         """
         if this_label.type not in (utils.LabelType.Package, utils.LabelType.Checkout):
-            raise utils.GiveUp('First label in set_license_not_affected_by() is %s, which is not'
-                               ' a package or checkout'%pkg_label)
+            raise GiveUp('First label in set_license_not_affected_by() is %s, which is not'
+                         ' a package or checkout'%this_label)
         if co_label.type != utils.LabelType.Checkout:
-            raise utils.GiveUp('Second label in set_license_not_affected_by() is %s, which is not'
-                               ' a checkout'%co_label)
+            raise GiveUp('Second label in set_license_not_affected_by() is %s, which is not'
+                         ' a checkout'%co_label)
 
         if this_label.tag == '*':
             key = this_label
@@ -850,13 +967,12 @@ class Database(object):
         for name in names:
             m = Database.upstream_name_re.match(name)
             if m is None or m.end() != len(name):
-                raise utils.GiveUp("Upstream repository name '%s' is not allowed"%(name))
+                raise GiveUp("Upstream repository name '%s' is not allowed"%(name))
 
         if orig_repo in self.upstream_repositories:
             upstream_dict = self.upstream_repositories[orig_repo]
             if upstream_repo in upstream_dict:
-                raise utils.GiveUp('Repository %r is already upstream'
-                                   ' of %r'%(upstream_repo, orig_repo))
+                raise GiveUp('Repository %r is already upstream of %r'%(upstream_repo, orig_repo))
         else:
             upstream_dict = {}
 
@@ -916,10 +1032,9 @@ class Database(object):
         Returns a (possibly empty) set of checkout labels.
         """
         results = set()
-        if repo in self.checkout_repositories.values():
-            for co_label, co_repo in self.checkout_repositories.items():
-                if co_repo == repo:
-                    results.add(co_label)
+        for co_label, co_data in self.checkout_data.items():
+            if co_data.repo == repo:
+                results.add(co_label)
         return results
 
     def dump_upstream_repos(self, just_url=False):
@@ -1109,8 +1224,8 @@ class Database(object):
         package and role, what would it be?
         """
         if (label.type != utils.LabelType.Package):
-            raise utils.MuddleBug("Attempt to retrieve instruction file "
-                              "name for non-package tag %s"%(str(label)))
+            raise MuddleBug("Attempt to retrieve instruction file "
+                            "name for non-package tag %s"%(str(label)))
 
         # Otherwise ..
         if label.role is None:
@@ -1252,10 +1367,9 @@ class PathFile(object):
                 val = val[:-1]
 
         except IndexError as i:
-            raise utils.GiveUp("Contents of db file %s are empty - %s\n"%(self.file_name, i))
+            raise GiveUp("Contents of db file %s are empty - %s\n"%(self.file_name, i))
         except IOError as e:
-            raise utils.GiveUp("Error retrieving value from %s\n"
-                                "    %s"%(self.file_name, str(e)))
+            raise GiveUp("Error retrieving value from %s\n    %s"%(self.file_name, str(e)))
 
         self.value = val
         self.value_valid = True
@@ -1293,14 +1407,14 @@ class Instruction(object):
         """
         Given an XML document, return a node which represents this instruction
         """
-        raise utils.MuddleBug("Cannot convert Instruction base class to XML")
+        raise MuddleBug("Cannot convert Instruction base class to XML")
 
     def clone_from_xml(self, xmlNode):
         """
         Given an XML node, create a clone of yourself, initialised from that
         XML or raise an error.
         """
-        raise utils.MuddleBug("Cannot convert XML to Instruction base class")
+        raise MuddleBug("Cannot convert XML to Instruction base class")
 
     def outer_elem_name(self):
         """
@@ -1410,8 +1524,8 @@ class InstructionFile(object):
             doc = top.documentElement
 
             if (doc.nodeName != "instructions"):
-                raise utils.MuddleBug("Instruction file %s does not have <instructions> as its document element.",
-                                  self.file_name)
+                raise MuddleBug("Instruction file %s does not have <instructions> as its document element.",
+                                 self.file_name)
 
             # See if we have a priority attribute.
             prio = doc.getAttribute("priority")
@@ -1426,16 +1540,16 @@ class InstructionFile(object):
                     # Try to build an instruction from it ..
                     instr = self.factory.from_xml(i)
                     if (instr is None):
-                        raise utils.MuddleBug("Could not manufacture an instruction "
-                                          "from node %s in file %s."%(i.nodeName, self.file_name))
+                        raise MuddleBug("Could not manufacture an instruction "
+                                        "from node %s in file %s."%(i.nodeName, self.file_name))
                     self.values.append(instr)
 
 
-        except utils.MuddleBug, e:
+        except MuddleBug, e:
             raise e
         except Exception, x:
             traceback.print_exc()
-            raise utils.MuddleBug("Cannot read instruction XML from %s - %s"%(self.file_name,x))
+            raise MuddleBug("Cannot read instruction XML from %s - %s"%(self.file_name,x))
 
 
     def commit(self, file_name):
@@ -1452,7 +1566,7 @@ class InstructionFile(object):
             f.write(self.get_xml())
             f.close()
         except Exception, e:
-            raise utils.MuddleBug("Could not write instruction file %s - %s"%(file_name,e ))
+            raise MuddleBug("Could not write instruction file %s - %s"%(file_name,e ))
 
     def get_xml(self):
         """
@@ -1473,7 +1587,7 @@ class InstructionFile(object):
             return top.toxml()
         except Exception,e:
             traceback.print_exc()
-            raise utils.MuddleBug("Could not render instruction list - %s"%e)
+            raise MuddleBug("Could not render instruction list - %s"%e)
 
     def __str__(self):
         """
@@ -1599,7 +1713,7 @@ class TagFile(object):
             f.write(top.toxml())
             f.close()
         except:
-            raise utils.MuddleBug("Could not write tagfile %s"%self.file_name)
+            raise MuddleBug("Could not write tagfile %s"%self.file_name)
 
 
 def load_instruction_helper(x,y):
@@ -1672,9 +1786,9 @@ class JustPulledFile(object):
                         continue
                     try:
                         label = depend.Label.from_string(line)
-                    except utils.GiveUp as e:
-                        raise utils.GiveUp('Error reading line %d of %s:\n%s'%(
-                                           line_no, self.file_name, e))
+                    except GiveUp as e:
+                        raise GiveUp('Error reading line %d of %s:\n%s'%(line_no,
+                            self.file_name, e))
                     self._just_pulled.add(label)
 
             return sorted(self._just_pulled)

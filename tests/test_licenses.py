@@ -27,7 +27,7 @@ try:
     import muddled.cmdline
 except ImportError:
     # Try one level up
-    sys.path.insert(0, get_parent_file(__file__))
+    sys.path.insert(0, get_parent_dir(__file__))
     import muddled.cmdline
 
 from muddled.utils import GiveUp, normalise_dir, LabelType, LabelTag
@@ -134,7 +134,7 @@ def describe_to(builder):
     add_package(builder, 'not_licensed5', 'x86')
 
     builder.db.set_license_not_affected_by(package('private2', 'x86'),
-                                                      checkout('gpl2plus'))
+                                                   checkout('gpl2plus'))
 
     collect.deploy(builder, deployment)
     collect.copy_from_role_install(builder, deployment,
@@ -674,7 +674,7 @@ The following are "implicitly" GPL licensed for the given reasons:
 def test_build_with_clashes(root_dir):
     with NewDirectory('build_with_clashes') as d:
         banner('CHECK REPOSITORIES OUT, WITH CLASHES')
-        muddle(['init', 'git+file://{repo}/main'.format(repo=root.join('repo')),
+        muddle(['init', 'git+file://{repo}/main'.format(repo=os.path.join(root_dir, 'repo')),
                 'builds_multilicense_with_clashes/01.py'])
         muddle(['checkout', '_all'])
         banner('BUILD')
@@ -1145,7 +1145,7 @@ def subsequent_tests(root_dir, d):
     with Directory(os.path.join('domains', 'subdomain', 'src', 'builds')):
         with NewDirectory('_distribution'):
             touch('_for_gpl.py', buckaroo_banzai_quote)
-    target_dir = os.path.join(root_dir, '_for_gpl')
+    target_dir = os.path.join(root_dir, '_for_gpl2')
     muddle(['distribute', '_for_gpl', target_dir])
     dt = DirTree(d.where, fold_dirs=['.git'])
     dt.assert_same(target_dir, onedown=True,
@@ -1211,11 +1211,11 @@ def main(args):
         banner('MAKE REPOSITORIES')
         make_repos(root_dir)
 
-        ###test_build_with_clashes(root_dir)
+        test_build_with_clashes(root_dir)
 
         with NewDirectory('build') as d:
             banner('CHECK REPOSITORIES OUT, WITHOUT CLASHES')
-            muddle(['init', 'git+file://{repo}/main'.format(repo=root.join('repo')),
+            muddle(['init', 'git+file://{repo}/main'.format(repo=os.path.join(root_dir, 'repo')),
                     'builds_multilicense/01.py'])
             muddle(['checkout', '_all'])
             banner('BUILD')
@@ -1226,8 +1226,7 @@ def main(args):
 
         with Directory('build') as d:
             # And we can try distributing some things
-            ###main_tests(root_dir, d)
-            pass
+            main_tests(root_dir, d)
 
         with Directory('build') as d:
             # WARNING ---------------------------------------------------------

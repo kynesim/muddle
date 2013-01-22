@@ -4,6 +4,7 @@
 
 import doctest
 import os
+import sys
 
 import support_for_tests
 from muddled.utils import Directory

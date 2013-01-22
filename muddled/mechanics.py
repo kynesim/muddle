@@ -17,7 +17,8 @@ import muddled.instr as instr
 from muddled.depend import Label, Action, normalise_checkout_label, label_list_to_string
 from muddled.utils import domain_subpath, GiveUp, MuddleBug, LabelType, LabelTag
 from muddled.repository import Repository
-from muddled.version_control import split_vcs_url, checkout_from_repo
+from muddled.utils import split_vcs_url
+from muddled.version_control import checkout_from_repo
 from muddled.version_stamp import ReleaseSpec
 
 class ErrorInBuildDescription(GiveUp):
@@ -553,7 +554,7 @@ class Builder(object):
 
         store.set("MUDDLE_TAG", label.tag)
         if (label.type == LabelType.Checkout):
-            store.set("MUDDLE_OBJ", self.checkout_path(label))
+            store.set("MUDDLE_OBJ", self.db.get_checkout_path(label))
         elif (label.type == LabelType.Package):
             obj_dir = self.package_obj_path(label)
             store.set("MUDDLE_OBJ", obj_dir)
@@ -732,7 +733,7 @@ class Builder(object):
                 try:
                     self._build_label_env(r.target, env_store)
 
-                    if r.action is not None:
+                    if r.action:
                         r.action.build_label(self, r.target)
                 finally:
                     os.environ = old_env
@@ -769,7 +770,7 @@ class Builder(object):
                 try:
                     self._build_label_env(r.target, env_store)
 
-                    if (r.action is not None):
+                    if r.action:
                         r.action.build_label(self, r.target)
                 finally:
                     os.environ = old_env
@@ -850,7 +851,7 @@ class Builder(object):
         all_cos = self.all_checkout_labels(LabelTag.CheckedOut)
 
         for co in all_cos:
-            co_dir = self.checkout_path(co)
+            co_dir = self.db.get_checkout_path(co)
             # Is it below dir? If it isn't, os.path.relpath() will
             # start with .. ..
             rp = os.path.relpath(co_dir, dir)
@@ -966,11 +967,11 @@ class Builder(object):
         result = None
 
         if rest[0] == "src":
-            checkout_locations = self.db.checkout_locations
             if len(rest) > 1:
                 lookfor = os.path.join(utils.domain_subpath(domain_name),
                                        'src', *rest[1:])
-                for label, locn in checkout_locations.items():
+                for label, data in self.db.checkout_data.items():
+                    locn = data.location
                     if lookfor.startswith(locn) and domain_name == label.domain:
                         # but just in case we have (for instance) checkouts
                         # 'fred' and 'freddy'...
@@ -1560,14 +1561,14 @@ class Builder(object):
 
         return build_co_and_path_from_str(build_desc)
 
-    def dump_checkout_paths(self):
-        return self.db.dump_checkout_paths()
-
     def checkout_path(self, label):
         """
         Return the path in which the given checkout resides.
+
+        This is a simple wrapper around builder.db.get_checkout_path(),
+        provided for use in scripts and build descriptions, since it
+        "matches" builder.package_obj_path, builder.deploy_path, and so on.
         """
-        assert label.type == LabelType.Checkout
         return self.db.get_checkout_path(label)
 
     def packages_using_checkout(self, co_label):
@@ -1919,12 +1920,12 @@ class Builder(object):
             else:
                 try:
                     results.extend(self.expand_underscore_arg(thing))
-                except GiveUp as e:
-                    raise GiveUp('_release contains "%s" (which we don\'t understand):\n'
-                                 '%s\n%s'%(thing, self.what_to_release, e))
                 except MuddleBug as e:
                     raise MuddleBug('_release contains "%s" (which we don\'t understand):\n'
                                     '%s\n%s'%(thing, self.what_to_release, e))
+                except GiveUp as e:
+                    raise GiveUp('_release contains "%s" (which we don\'t understand):\n'
+                                 '%s\n%s'%(thing, self.what_to_release, e))
         return results
 
     def expand_underscore_arg(self, word, type_for_all=None):
@@ -1958,7 +1959,7 @@ class Builder(object):
         elif word == '_all_deployments':
             return self.all_deployment_labels(LabelTag.Deployed)
         elif word == '_default_roles':
-            return self.interpret_default_roles(builder)
+            return self.get_labels_in_default_roles()
         elif word == '_default_deployments':
             return self.default_deployment_labels
         elif word == '_just_pulled':
@@ -1995,7 +1996,7 @@ class BuildDescriptionAction(Action):
         function itself can import things therefrom.
         """
         setup = dynamic_load_build_desc(builder)
-        checkout_dir = builder.checkout_path(builder.build_desc_label)
+        checkout_dir = builder.db.get_checkout_path(builder.build_desc_label)
 
         old_path = sys.path
         sys.path.insert(0, checkout_dir)
@@ -2027,7 +2028,7 @@ def run_release_from(builder, release_dir):
     function itself can import things therefrom.
     """
     setup = dynamic_load_build_desc(builder)
-    checkout_dir = builder.checkout_path(builder.build_desc_label)
+    checkout_dir = builder.db.get_checkout_path(builder.build_desc_label)
 
     old_path = sys.path
     sys.path.insert(0, checkout_dir)
@@ -2060,7 +2061,7 @@ def dynamic_load_build_desc(builder):
     # We know the name of the build description within its checkout
     filename = builder.db.build_desc_file_name()
     # And since we know its label, we can look up its directory
-    checkout_dir = builder.checkout_path(builder.build_desc_label)
+    checkout_dir = builder.db.get_checkout_path(builder.build_desc_label)
 
     old_path = sys.path
     sys.path.insert(0, checkout_dir)
@@ -2260,7 +2261,7 @@ def _new_sub_domain(root_path, muddle_binary, domain_name, domain_repo, domain_b
         labels.append(rule.target)
         for l in rule.deps:
             labels.append(l)
-        if rule.action is not None:
+        if rule.action:
             if hasattr(rule.action, '_inner_labels'):
                 labels.extend(rule.action._inner_labels())
 
@@ -2285,11 +2286,11 @@ def _new_sub_domain(root_path, muddle_binary, domain_name, domain_repo, domain_b
     # (we'll assume that they do if they appear to have the appropriate magic
     # method names)
     for rule in rules:
-        if rule.action is not None and hasattr(rule.action, '_mark_unswept'):
+        if rule.action and hasattr(rule.action, '_mark_unswept'):
             rule.action._mark_unswept()
 
     for rule in rules:
-        if rule.action is not None and hasattr(rule.action, '_change_domain'):
+        if rule.action and hasattr(rule.action, '_change_domain'):
             rule.action._change_domain(domain_name)
 
     # Now mark the builder as a domain.

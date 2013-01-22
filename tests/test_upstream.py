@@ -18,7 +18,7 @@ try:
     import muddled.cmdline
 except ImportError:
     # Try one level up
-    sys.path.insert(0, get_parent_file(__file__))
+    sys.path.insert(0, get_parent_dir(__file__))
     import muddled.cmdline
 
 from muddled.depend import Label
@@ -27,6 +27,7 @@ from muddled.repository import Repository
 from muddled.utils import Directory, NewDirectory, TransientDirectory, \
         GiveUp, MuddleBug, normalise_dir, LabelType, LabelTag
 from muddled.version_control import VersionControlHandler, checkout_from_repo
+from muddled.db import Database, CheckoutData
 
 MUDDLE_MAKEFILE = """\
 # Trivial muddle makefile
@@ -653,33 +654,36 @@ def check_push_pull_permissions():
             return ''
 
     dummy_builder = DummyBuilder()
+    dummy_builder.db = Database(',')
 
     banner('CHECK PUSH/PULL PERMISSIONS')
 
     fred = Label.from_string('checkout:fred/*')
+    vcs = VersionControlHandler(vcs=None)
     repo = Repository.from_url('git', 'http://example.com/Fred.git', pull=False)
+
+    # We can't use version_control.py::checkout_from_repo() directly, because
+    # it already checks the "pull" value for us...
+    co_data = CheckoutData(vcs, repo, None, 'fred')
+    dummy_builder.db.set_checkout_data(fred, co_data)
 
     check_exception('Test checkout_from_repo with %r'%repo,
                     checkout_from_repo, (None, fred, repo), exception=MuddleBug,
                     startswith='Checkout checkout:fred/* cannot use')
 
-    vcs = VersionControlHandler(vcs_handler=None, co_label=fred,
-                                co_leaf='fred', repo=repo)
     check_exception('Test checkout from repo %r'%repo,
-                     vcs.checkout, (dummy_builder,),
+                     vcs.checkout, (dummy_builder, fred),
                      endswith='does not allow "pull"')
     check_exception('Test pull from repo %r'%repo,
-                     vcs.pull, (dummy_builder,),
+                     vcs.pull, (dummy_builder, fred),
                      endswith='does not allow "pull"')
     check_exception('Test merge from repo %r'%repo,
-                     vcs.merge, (dummy_builder,),
+                     vcs.merge, (dummy_builder, fred),
                      endswith='does not allow "pull"')
 
-    repo = Repository.from_url('git', 'http://example.com/Fred.git', push=False)
-    vcs = VersionControlHandler(vcs_handler=None, co_label=fred,
-                                co_leaf='fred', repo=repo)
+    co_data.repo = Repository.from_url('git', 'http://example.com/Fred.git', push=False)
     check_exception('Test push to repo %r'%repo,
-                     vcs.push, (dummy_builder,),
+                     vcs.push, (dummy_builder, fred),
                      endswith='does not allow "push"')
 
 def main(args):
@@ -726,7 +730,7 @@ def main(args):
         banner('CHECK USING UPSTREAMS')
         with Directory('build') as d:
             err, text = captured_muddle2(['query', 'upstream-repos', 'co_label1'])
-            check_text(text, "\nThere is no repository registered for label checkout:co_label1/checked_out\n")
+            check_text(text, "\nThere is no checkout data (repository) registered for label checkout:co_label1/checked_out\n")
             assert err == 1
             text = captured_muddle(['query', 'upstream-repos', 'co_repo1'])
             check_text(text, """\

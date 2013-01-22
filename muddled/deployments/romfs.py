@@ -48,7 +48,7 @@ class AssemblyDescriptor(object):
 
     def get_source_dir(self, builder):
         if (self.from_label.type == utils.LabelType.Checkout):
-            return builder.checkout_path(self.from_label)
+            return builder.db.get_checkout_path(self.from_label)
         elif (self.from_label.type == utils.LabelType.Package):
             if ((self.from_label.name is None) or
                 (self.from_label.name == "*")):
@@ -224,13 +224,13 @@ def deploy(builder, name,
     builder.ruleset.add(iapp_rule)
 
 
-def copy_from_checkout(builder, name, checkout, rel, dest, 
+def copy_from_checkout(builder, name, checkout, rel, dest,
                        recursive = True,
                        failOnAbsentSource = False,
                        copyExactly = True,
                        domain = None,
                        usingRSync = False):
-    rule = deploymnet.deployment_rule_from_name(builder, name)
+    rule = deployment.deployment_rule_from_name(builder, name)
     dep_label = Label(utils.LabelType.Checkout,
                       checkout, None, utils.LabelTag.CheckedOut, domain=domain)
     asm = AssemblyDescriptor(dep_label, rel, dest, recursive = recursive,

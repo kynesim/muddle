@@ -44,6 +44,8 @@ class CheckoutData(object):
         Repository('git', 'http://.../main', 'builds')
         Repository('git', 'http://.../subdomain1', 'first_co')
 
+      This the Repository as defined in the build description.
+
     * vcs_handler - A VCS handler, which knows how to do version control
       operations for this checkout.
 

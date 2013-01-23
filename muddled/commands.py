@@ -2472,9 +2472,9 @@ class QueryCheckoutId(QueryCommand):
                 label = checkouts[0]
 
         # Figure out its VCS
-        vcs = builder.db.get_checkout_vcs(label)
+        vcs_handler = builder.db.get_checkout_vcs(label)
 
-        print vcs.revision_to_checkout(builder, label, show_pushd=False)
+        print vcs_handler.revision_to_checkout(builder, label, show_pushd=False)
 
 @subcommand('query', 'build-desc-branch', CAT_QUERY)
 class QueryBuildDescBranch(QueryCommand):
@@ -4552,10 +4552,10 @@ class UnStamp(Command):
                 else:
                     l = label.copy_with_tag(LabelTag.CheckedOut)
                     try:
-                        vcs = builder.db.get_checkout_vcs(l)
+                        vcs_handler = builder.db.get_checkout_vcs(l)
                     except AttributeError:
                         raise GiveUp("Rule for label '%s' has no VCS - cannot find its id"%l)
-                    old_revision = vcs.revision_to_checkout(builder, l, show_pushd=False)
+                    old_revision = vcs_handler.revision_to_checkout(builder, l, show_pushd=False)
                     new_revision = repo.revision
                     if old_revision != new_revision:
                         print '.. revisions do not match'
@@ -5706,11 +5706,11 @@ class Status(CheckoutCommand):
         something = []
         for co in labels:
             try:
-                vcs = builder.db.get_checkout_vcs(co)
+                vcs_handler = builder.db.get_checkout_vcs(co)
             except GiveUp:
                 print "Rule for label '%s' has no VCS - cannot find its status"%co
                 continue
-            text = vcs.status(builder, co, verbose)
+            text = vcs_handler.status(builder, co, verbose)
             if text:
                 print
                 print text.strip()
@@ -5781,11 +5781,11 @@ class Reparent(CheckoutCommand):
 
         for co in labels:
             try:
-                vcs = builder.db.get_checkout_vcs(co)
+                vcs_handler = builder.db.get_checkout_vcs(co)
             except GiveUp:
                 print "Rule for label '%s' has no VCS - cannot reparent, ignored"%co
                 continue
-            vcs.reparent(builder, co, force=force, verbose=True)
+            vcs_handler.reparent(builder, co, force=force, verbose=True)
 
 @command('uncheckout', CAT_CHECKOUT)
 class UnCheckout(CheckoutCommand):
@@ -5953,12 +5953,12 @@ class Sync(CheckoutCommand):
     def build_these_labels(self, builder, labels):
         for co in labels:
             try:
-                vcs = builder.db.get_checkout_vcs(builder, co)
+                vcs_handler = builder.db.get_checkout_vcs(co)
             except AttributeError:
                 print "Rule for label '%s' has no VCS - cannot find its status"%co
                 continue
         try:
-            vcs.sync(builder)
+            vcs_handler.sync(builder, co)
         except GiveUp as e:
             print e
 
@@ -6466,26 +6466,28 @@ class BranchTree(Command):
         """
         problems = []
         for co in checkouts:
-            vcs = builder.db.get_checkout_vcs(builder, co)
+            co_data = builder.db.get_checkout_data(co)
+            vcs_handler = co_data.vcs_handler
+            repo = co_data.repo
 
-            if not vcs.vcs_handler.supports_branching():
+            if not vcs_handler.vcs.supports_branching():
                 problems.append('%s uses %s, which does not support'
-                                ' lightweight branching'%(co, vcs.short_name))
+                                ' lightweight branching'%(co, vcs_handler.vcs.short_name))
 
-            elif vcs.repo.revision is not None:
+            elif repo.revision is not None:
                 problems.append('%s explicitly specifies revision "%s" in'
-                                ' the build description'%(co, vcs.repo.revision))
+                                ' the build description'%(co, repo.revision))
 
-            elif vcs.repo.branch is not None:
+            elif repo.branch is not None:
                 problems.append('%s explicitly specifies branch "%s" in'
-                                ' the build description'%(co, vcs.repo.branch))
+                                ' the build description'%(co, repo.branch))
 
             # Shallow checkouts are not terribly well integrated - we do this
             # very much by hand...
-            elif 'shallow_checkout' in vcs.options:
+            elif 'shallow_checkout' in co_data.options:
                 problems.append('%s is shallow, so cannot be branched'%co)
 
-            elif vcs.branch_exists(builder, branch, show_pushd=verbose):
+            elif vcs_handler.branch_exists(builder, co, branch, show_pushd=verbose):
                 problems.append('%s already has a branch called %s'%(co, branch))
 
         return problems
@@ -6505,40 +6507,42 @@ class BranchTree(Command):
         problems = []
         already_exists_in = []
         for co in all_checkouts:
-            vcs = builder.db.get_checkout_vcs(builder, co)
+            co_data = builder.db.get_checkout_data(co)
+            vcs_handler = co_data.vcs_handler
+            repo = co_data.repo
 
-            if not vcs.vcs_handler.supports_branching():
+            if not vcs_handler.vcs.supports_branching():
                 print '%s uses %s, which does not support' \
-                      ' lightweight branching'%(co, vcs.short_name)
+                      ' lightweight branching'%(co, vcs_handler.vcs.short_name)
                 problems.append((co, "VCS %s not supported"))
                 continue
 
-            if vcs.repo.revision is not None:
+            if repo.revision is not None:
                 print '%s explicitly specifies revision "%s" in' \
-                      ' the build description'%(co, vcs.repo.revision)
-                problems.append((co, "specific revision %s"%vcs.repo.revision))
+                      ' the build description'%(co, repo.revision)
+                problems.append((co, "specific revision %s"%repo.revision))
                 continue
 
-            if vcs.repo.branch is not None:
+            if repo.branch is not None:
                 print '%s explicitly specifies branch "%s" in' \
-                      ' the build description'%(co, vcs.repo.branch)
-                problems.append((co, "specific branch %s"%vcs.repo.branch))
+                      ' the build description'%(co, repo.branch)
+                problems.append((co, "specific branch %s"%repo.branch))
                 continue
 
             # Shallow checkouts are not terribly well integrated - we do this
             # very much by hand...
-            if 'shallow_checkout' in vcs.options:
+            if 'shallow_checkout' in co_data.options:
                 print '%s is shallow, so cannot be branched'%co
                 problems.append((co, "shallow checkout"))
                 continue
 
-            if vcs.branch_exists(builder, branch, show_pushd=verbose):
+            if vcs_handler.branch_exists(builder, co, branch, show_pushd=verbose):
                 already_exists_in.append(co)
             else:
-                vcs.create_branch(builder, branch, show_pushd=False)
+                vcs_handler.create_branch(builder, co, branch, show_pushd=False)
                 created += 1
 
-            vcs.goto_branch(builder, branch, show_pushd=False)
+            vcs_handler.goto_branch(builder, co, branch, show_pushd=False)
             selected += 1
 
         print 'Successfully created  branch %s in %d out of %d checkout%s'%(branch,

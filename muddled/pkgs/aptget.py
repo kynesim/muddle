@@ -21,24 +21,37 @@ class AptGetBuilder(pkg.PackageBuilder):
     def already_installed(self, pkg):
         """
         Decide if the quoted debian package is already installed.
+
+        We use dpkg-query::
+
+            $ dpkg-query -W -f='${db:Status-Abbrev} ${Package}\n' libreadline-dev
+            ii  libreadline-dev
+
+        That second 'i' means installed. Contrast with a package that is
+        either not recognised or has not been downloaded at all::
+
+            $ dpkg-query -W -f='${db:Status-Abbrev} ${Package}\n' a0d
+            dpkg-query: no packages found matching a0d
+
+        So we do some fairly simple processing of the output...
         """
-        process = subprocess.Popen([ "dpkg-query", "-l", pkg ],
+        process = subprocess.Popen([ "dpkg-query",
+                                     "-W",
+                                     "-f='${db:Status-Abbrev} ${Package}\\n'",
+                                     pkg ],
                                    stdout = subprocess.PIPE,
                                    stderr = subprocess.PIPE)
         (stdout_data, stderr_data) = process.communicate()
         process.wait()
-        # Now split the output into lines ..
         lines = stdout_data.splitlines()
         for l in lines:
             fields = l.split()
-            if (len(fields) >= 3 and fields[1] == pkg):
+            if len(fields) == 2:
                 status = fields[0]
-                if (status[1] == 'i'):
-                    # Done.
+                name = fields[1]
+                if name == pkg and status[1] == 'i':
                     return True
-
         return False
-
 
 
     def build_label(self, builder, label):

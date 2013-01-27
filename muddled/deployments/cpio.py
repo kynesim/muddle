@@ -127,8 +127,8 @@ class CpioDeploymentBuilder(Action):
         if label.type == LabelType.Deployment:
             deploy_dir = builder.deploy_path(label)
         else:
-            deploy_dir = builder.package_obj_path(label)
-            # XXX Would it be better to use package_install_path(label) ???
+            # XXX Would it be better to use package_obj_path(label) ???
+            deploy_dir = builder.package_install_path(label)
 
         deploy_file = os.path.join(deploy_dir, self.target_file)
         utils.ensure_dir(os.path.dirname(deploy_file))

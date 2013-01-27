@@ -64,7 +64,8 @@ def describe_to(builder):
     muddled.pkgs.make.medium(builder, "first_pkg", [role], "first_co")
     muddled.pkgs.make.medium(builder, "second_pkg", [role], "second_co")
 
-    # This should implicitly create the package 'firmware' in role 'x86'
+    # This should implicitly create the specified package label in our
+    # dependency tree
     fw = cpio.create(builder, 'fred/firmware.cpio', package('firmware', cpio_role))
     fw.copy_from_role(role, '', '/')
     fw.done()
@@ -327,11 +328,10 @@ def make_new_build_tree():
 
         # Magically, we have package output with no corresponding checkout.
 
-        with Directory('obj'):
-            with Directory('firmware'):
-                with Directory('x86-cpiofile'):
-                    with Directory('fred'):
-                        check_cpio_archive('firmware.cpio')
+        with Directory('install'):
+            with Directory('x86-cpiofile'):
+                with Directory('fred'):
+                    check_cpio_archive('firmware.cpio')
 
         # Which begs the question how that is meant to get into an install
         # directory, but presumably another package can depend on it and do

@@ -22,8 +22,8 @@ from muddled.utils import GiveUp, normalise_dir, LabelType, DirTypeDict
 from muddled.utils import Directory, NewDirectory, TransientDirectory
 from muddled.depend import Label, label_list_to_string
 
-TOPLEVEL_BUILD_DESC = """ \
-# A simple build description
+DEPLOYMENT_BUILD_DESC = """ \
+# A simple build description using deployment of a CPIO file
 
 import muddled
 import muddled.pkgs.make
@@ -44,6 +44,31 @@ def describe_to(builder):
     fw.done()
 
     builder.by_default_deploy(deployment)
+"""
+
+PACKAGE_BUILD_DESC = """ \
+# A simple build description using a package with a CPIO file in it
+
+import muddled
+import muddled.pkgs.make
+import muddled.deployments.cpio
+import muddled.checkouts.simple
+import muddled.deployments.cpio as cpio
+from muddled.depend import package
+
+def describe_to(builder):
+    role = 'x86'
+
+    # Checkout ..
+    muddled.pkgs.make.medium(builder, "first_pkg", [role], "first_co")
+    muddled.pkgs.make.medium(builder, "second_pkg", [role], "second_co")
+
+    # This should implicitly create the package 'firmware' in role 'x86'
+    fw = cpio.create(builder, 'firmware.cpio', package('firmware', role))
+    fw.copy_from_role(role, '', '/')
+    fw.done()
+
+    builder.add_default_role(role)
 """
 
 MUDDLE_MAKEFILE1 = """\
@@ -237,13 +262,15 @@ def make_standard_checkout(co_dir, progname, desc):
     git('commit -a -m "Commit {desc} checkout {progname}"'.format(desc=desc,
         progname=progname))
 
-def make_build_tree():
-    with NewDirectory('build') as d:
+def make_old_build_tree():
+    """Make a build tree that deploys a CPIO file, and use/test it
+    """
+    with NewDirectory('build.old') as d:
         muddle(['bootstrap', 'git+file:///nowhere', 'cpio-test-build'])
 
         with Directory('src'):
             with Directory('builds'):
-                touch('01.py', TOPLEVEL_BUILD_DESC)
+                touch('01.py', DEPLOYMENT_BUILD_DESC)
 
             with NewDirectory('first_co'):
                 git('init')
@@ -268,6 +295,49 @@ def make_build_tree():
             with Directory('everything'):
                 check_cpio_archive('firmware.cpio')
 
+def make_new_build_tree():
+    """Make a build tree that creates a CPIO file in a package, and use/test it
+    """
+    with NewDirectory('build.new') as d:
+        muddle(['bootstrap', 'git+file:///nowhere', 'cpio-test-build'])
+
+        with Directory('src'):
+            with Directory('builds'):
+                touch('01.py', PACKAGE_BUILD_DESC)
+
+            with NewDirectory('first_co'):
+                git('init')
+                touch('Makefile.muddle', MUDDLE_MAKEFILE1.format(progname='program1'))
+                touch('program1.c', MAIN_C_SRC.format(progname='program1'))
+                touch('instructions.xml', INSTRUCTIONS)
+                git('add Makefile.muddle program1.c instructions.xml')
+                git('commit -m "A commit"')
+                muddle(['import'])
+
+            with NewDirectory('second_co'):
+                git('init')
+                touch('Makefile.muddle', MUDDLE_MAKEFILE2.format(progname='program2'))
+                touch('program2.c', MAIN_C_SRC.format(progname='program2'))
+                git('add Makefile.muddle program2.c')
+                git('commit -m "A commit"')
+                muddle(['import'])
+
+        muddle([])
+
+        # Magically, we have package output with no corresponding checkout.
+
+        with Directory('obj'):
+            with Directory('firmware'):
+                with Directory('x86'):
+                    check_cpio_archive('firmware.cpio')
+
+        # Which begs the question how that is meant to get into an install
+        # directory, but presumably another package can depend on it and do
+        # the approriate thing.
+
+        # Also, what happens if we have an explicit package of the same name
+        # as our implicit package?
+
 
 def main(args):
 
@@ -279,8 +349,11 @@ def main(args):
 
     #with TransientDirectory(root_dir, keep_on_error=True):
     with NewDirectory(root_dir):
-        banner('MAKE BUILD TREE')
-        make_build_tree()
+        banner('MAKE OLD BUILD TREE')
+        make_old_build_tree()
+
+        banner('MAKE NEW BUILD TREE')
+        make_new_build_tree()
 
 
 

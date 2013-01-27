@@ -544,15 +544,6 @@ def create(builder, target_file, name, compressionMethod = None,
 
     if label.type == LabelType.Deployment:
         deployment.register_cleanup(builder, name)
-    else:
-        # Whatever we need to do for a package
-        # Do we need a null package? We're assuming the user won't have
-        # specified anything about the package label we're concocting so
-        # that we can put the CPIO archive into it...
-        # Note that this does not support specifying a domain.
-        ##from muddled.pkg import null_package
-        ##pkg = null_package(builder, label.name, label.role)
-        pass
 
     return CpioWrapper(builder, the_action, label)
 

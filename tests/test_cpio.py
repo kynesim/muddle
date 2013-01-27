@@ -58,17 +58,18 @@ from muddled.depend import package
 
 def describe_to(builder):
     role = 'x86'
+    cpio_role = 'x86-cpiofile'
 
     # Checkout ..
     muddled.pkgs.make.medium(builder, "first_pkg", [role], "first_co")
     muddled.pkgs.make.medium(builder, "second_pkg", [role], "second_co")
 
     # This should implicitly create the package 'firmware' in role 'x86'
-    fw = cpio.create(builder, 'firmware.cpio', package('firmware', role))
+    fw = cpio.create(builder, 'firmware.cpio', package('firmware', cpio_role))
     fw.copy_from_role(role, '', '/')
     fw.done()
 
-    builder.add_default_role(role)
+    builder.add_default_role(cpio_role)
 """
 
 MUDDLE_MAKEFILE1 = """\
@@ -328,7 +329,7 @@ def make_new_build_tree():
 
         with Directory('obj'):
             with Directory('firmware'):
-                with Directory('x86'):
+                with Directory('x86-cpiofile'):
                     check_cpio_archive('firmware.cpio')
 
         # Which begs the question how that is meant to get into an install

@@ -8,6 +8,7 @@ import string
 import subprocess
 import sys
 import traceback
+from itertools import izip, count
 
 from support_for_tests import *
 try:
@@ -45,7 +46,7 @@ def describe_to(builder):
     builder.by_default_deploy(deployment)
 """
 
-MUDDLE_MAKEFILE = """\
+MUDDLE_MAKEFILE1 = """\
 # Trivial muddle makefile
 all:
 \t@echo Make all for '$(MUDDLE_LABEL)'
@@ -56,10 +57,35 @@ config:
 
 install:
 \t@echo Make install for '$(MUDDLE_LABEL)'
-\tcp $(MUDDLE_OBJ)/{progname} $(MUDDLE_INSTALL)
-\tif [ -e $(MUDDLE_SRC)/instructions.xml ]; then \
-\t  $(MUDDLE_INSTRUCT)  $(MUDDLE_SRC)/instructions.xml; \
-\tfi
+\tmkdir -p $(MUDDLE_INSTALL)/bin
+\tcp $(MUDDLE_OBJ)/{progname} $(MUDDLE_INSTALL)/bin
+\t$(MUDDLE_INSTRUCT)  $(MUDDLE_SRC)/instructions.xml; \
+\tmkdir -p $(MUDDLE_INSTALL)/dev
+\tmkdir -p $(MUDDLE_INSTALL)/etc/init.d
+\ttouch $(MUDDLE_INSTALL)/etc/init.d/rcS
+
+clean:
+\t@echo Make clean for '$(MUDDLE_LABEL)'
+
+distclean:
+\t@echo Make distclean for '$(MUDDLE_LABEL)'
+
+.PHONY: all config install clean distclean
+"""
+
+MUDDLE_MAKEFILE2 = """\
+# Trivial muddle makefile
+all:
+\t@echo Make all for '$(MUDDLE_LABEL)'
+\t$(CC) $(MUDDLE_SRC)/{progname}.c -o $(MUDDLE_OBJ)/{progname}
+
+config:
+\t@echo Make configure for '$(MUDDLE_LABEL)'
+
+install:
+\t@echo Make install for '$(MUDDLE_LABEL)'
+\tmkdir -p $(MUDDLE_INSTALL)/bin
+\tcp $(MUDDLE_OBJ)/{progname} $(MUDDLE_INSTALL)/bin
 
 clean:
 \t@echo Make clean for '$(MUDDLE_LABEL)'
@@ -82,7 +108,7 @@ INSTRUCTIONS = """\
        it involves changing *all* files -->
   <chown>
     <filespec>
-      <root>/rootfs</root>
+      <root>/</root>
       <spec>.*</spec>
       <all-under />
     </filespec>
@@ -93,7 +119,7 @@ INSTRUCTIONS = """\
   <!-- Certain things *must* be set executable -->
   <chmod>
     <filespec>
-    <root>/rootfs/etc/init.d</root>
+    <root>/etc/init.d</root>
       <spec>rcS</spec>
     </filespec>
     <mode>0755</mode>
@@ -101,7 +127,7 @@ INSTRUCTIONS = """\
 
   <!-- Traditionally, this is the only device node we *need* -->
   <mknod>
-    <name>rootfs/dev/console</name>
+    <name>dev/console</name>
     <uid>0</uid>
     <gid>0</gid>
     <type>char</type>
@@ -128,11 +154,66 @@ int main(int argc, char **argv)
 }}
 """
 
-# List content of CPIO archive:
-#
-#       cpio -it -F <cpio-file>
-#       cpio -itv -F <cpio-file>
+def check_cpio_archive(archive):
+    text = get_stdout("cpio -itv -F '%s'"%archive)
 
+    # The output should look something like:
+    #
+    # drwxr-xr-x   5 tibs     staff           0 Jan 27 15:48 /
+    # drwxr-xr-x   3 root     wheel           0 Jan 27 15:48 /etc
+    # drwxr-xr-x   3 root     wheel           0 Jan 27 15:48 /etc/init.d
+    # -rwxr-xr-x   1 root     wheel           0 Jan 27 15:48 /etc/init.d/rcS
+    # drwxr-xr-x   4 root     wheel           0 Jan 27 15:48 /bin
+    # -rwxr-xr-x   1 root     wheel        8696 Jan 27 15:48 /bin/program1
+    # -rwxr-xr-x   1 root     wheel        8696 Jan 27 15:48 /bin/program2
+    # drwxr-xr-x   2 root     wheel           0 Jan 27 15:48 /dev
+    # crw-------   1 root     wheel         5,1 Jan 27 15:48 /dev/console
+    #
+    # but we don't expect the username (tibs) or the group names (staff/wheel)
+    # or the date/time to be the same.
+    #
+    # So we're basically checking that the first, third and last columns match.
+    # And we don't need to store the third column, as we can determine it
+    expected = [ ('drwxr-xr-x', '/'),
+                 ('drwxr-xr-x', '/etc'),
+                 ('drwxr-xr-x', '/etc/init.d'),
+                 ('-rwxr-xr-x', '/etc/init.d/rcS'),
+                 ('drwxr-xr-x', '/bin'),
+                 ('-rwxr-xr-x', '/bin/program1'),
+                 ('-rwxr-xr-x', '/bin/program2'),
+                 ('drwxr-xr-x', '/dev'),
+                 ('crw-------', '/dev/console'),
+               ]
+    lines = text.splitlines()
+    if len(lines) != len(expected):
+        print '---------------------------- EXPECTED'
+        print '\n'.join(expected)
+        print '---------------------------- GOT'
+        print '\n'.join(lines)
+        print '----------------------------'
+        raise GiveUp('Expected %d lines, got %d lines of CPIO data'%(len(expected), len(lines)))
+
+    for n, got, expect in izip(count(), lines, expected):
+        parts = got.split()
+        prot = parts[0]
+        owner = parts[2]
+        file = parts[-1]
+
+        if prot != expect[0]:
+            raise GiveUp('Protection %d does not match: got %s, wanted %s'%(n, prot, expect[0]))
+
+        if n==0:
+            wanted_owner = os.getlogin()
+        else:
+            wanted_owner = 'root'
+        if owner != wanted_owner:
+            raise GiveUp('Owner %d does not match: got %s, wanted %s'%(n, owner, wanted_owner))
+
+        if file != expect[1]:
+            raise GiveUp('Filename %d does not match: got %s, wanted %s'%(n, file, expect[1]))
+
+    print
+    print 'CPIO archive %s appears to have the correct contents'%archive
 
 def make_build_desc(co_dir, file_content):
     """Take some of the repetition out of making build descriptions.
@@ -156,8 +237,6 @@ def make_standard_checkout(co_dir, progname, desc):
     git('commit -a -m "Commit {desc} checkout {progname}"'.format(desc=desc,
         progname=progname))
 
-
-
 def make_build_tree():
     with NewDirectory('build') as d:
         muddle(['bootstrap', 'git+file:///nowhere', 'cpio-test-build'])
@@ -168,7 +247,7 @@ def make_build_tree():
 
             with NewDirectory('first_co'):
                 git('init')
-                touch('Makefile.muddle', MUDDLE_MAKEFILE.format(progname='program1'))
+                touch('Makefile.muddle', MUDDLE_MAKEFILE1.format(progname='program1'))
                 touch('program1.c', MAIN_C_SRC.format(progname='program1'))
                 touch('instructions.xml', INSTRUCTIONS)
                 git('add Makefile.muddle program1.c instructions.xml')
@@ -177,13 +256,17 @@ def make_build_tree():
 
             with NewDirectory('second_co'):
                 git('init')
-                touch('Makefile.muddle', MUDDLE_MAKEFILE.format(progname='program2'))
+                touch('Makefile.muddle', MUDDLE_MAKEFILE2.format(progname='program2'))
                 touch('program2.c', MAIN_C_SRC.format(progname='program2'))
                 git('add Makefile.muddle program2.c')
                 git('commit -m "A commit"')
                 muddle(['import'])
 
         muddle([])
+
+        with Directory('deploy'):
+            with Directory('everything'):
+                check_cpio_archive('firmware.cpio')
 
 
 def main(args):
@@ -194,7 +277,8 @@ def main(args):
 
     root_dir = normalise_dir(os.path.join(os.getcwd(), 'transient'))
 
-    with TransientDirectory(root_dir, keep_on_error=True):
+    #with TransientDirectory(root_dir, keep_on_error=True):
+    with NewDirectory(root_dir):
         banner('MAKE BUILD TREE')
         make_build_tree()
 

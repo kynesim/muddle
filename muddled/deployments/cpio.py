@@ -22,6 +22,7 @@ import muddled.deployment as deployment
 import muddled.cpiofile as cpiofile
 
 from muddled.depend import Action
+from muddled.utils import GiveUp, LabelType, LabelTag
 
 class CpioInstructionImplementor(object):
     def as_string(self, instr):
@@ -35,13 +36,11 @@ class CpioDeploymentBuilder(Action):
     Builds the specified CPIO deployment.
     """
 
-    def __init__(self, target_file, target_base,
-                 compressionMethod = None,
-                 pruneFunc = None):
+    def __init__(self, target_file, target_base, compressionMethod=None, pruneFunc=None):
         """
         * 'target_file' is the CPIO file to construct.
         * 'target_base' is an array of pairs mapping labels to target locations, or
-            (label, src) -> location
+          (label, src) -> location
         * 'compressionMethod' is the compression method to use, if any - gzip -> gzip,
           bzip2 -> bzip2.
         * if 'pruneFunc' is not None, it is a function to be called like
@@ -99,10 +98,7 @@ class CpioDeploymentBuilder(Action):
             else:
                 target_loc = bl
 
-            lbl = depend.Label(utils.LabelType.Package,
-                               "*",
-                               l.role,
-                               "*",
+            lbl = depend.Label(LabelType.Package, "*", l.role, "*",
                                domain = l.domain)
             env = builder.get_environment_for(lbl)
 
@@ -116,102 +112,105 @@ class CpioDeploymentBuilder(Action):
         Actually cpio everything up, following instructions appropriately.
         """
 
-        if (label.tag == utils.LabelTag.Deployed):
-            # Collect all the relevant files ..
+        if label.type not in (LabelType.Deployment, LabelType.Package):
+            raise GiveUp("Attempt to build a CPIO deployment with a label"
+                         " of type %s"%(label.type))
+
+        if label.type == LabelType.Deployment and label.tag != LabelTag.Deployed:
+            raise GiveUp("Attempt to build a CPIO deployment with a"
+                         " deployment label of type %s"%(label.tag))
+        elif label.type == LabelType.Package and label.tag != LabelTag.PostInstalled:
+            raise GiveUp("Attempt to build a CPIO deployment with a"
+                         " package label of type %s"%(label.tag))
+
+        # Collect all the relevant files ..
+        if label.type == LabelType.Deployment:
             deploy_dir = builder.deploy_path(label)
-            deploy_file = os.path.join(deploy_dir,
-                                       self.target_file)
-
-            utils.ensure_dir(os.path.dirname(deploy_file))
-
-
-            the_hierarchy = cpiofile.Hierarchy({ }, { })
-
-
-
-            for (l,bt) in self.target_base:
-                if (type ( bt ) == types.TupleType ):
-                    real_source_path = os.path.join(builder.role_install_path(l.role,
-                                                                                         l.domain),
-                                                    bt[0])
-                    # This is bt[1] - the actual destination. base is computed differently
-                    # (bt[2]) for applying instructions.
-                    base = bt[1]
-                else:
-                    base = bt
-                    real_source_path = os.path.join(builder.role_install_path(l.role,
-                                                                                         l.domain))
-
-
-                print "Collecting %s  for deployment to %s .. "%(l,base)
-                if (len(base) > 0 and base[0] != '/'):
-                    base = "/%s"%(base)
-
-                m = cpiofile.hierarchy_from_fs(real_source_path,
-                                               base)
-                the_hierarchy.merge(m)
-
-            # Normalise the hierarchy ..
-            the_hierarchy.normalise()
-            print "Filesystem hierarchy is:\n%s"%the_hierarchy.as_str(builder.db.root_path)
-
-            if (self.prune_function is not None):
-                self.prune_function(the_hierarchy)
-
-            app_dict = get_instruction_dict()
-
-            # Apply instructions. We actually need an intermediate list here,
-            # because you might have the same role with several different
-            # sources and possibly different bases.
-            to_apply = { }
-            for (src, bt) in self.target_base:
-                if (type(bt) == types.TupleType):
-                    base = bt[2]
-                else:
-                    base = bt
-                to_apply[ ( src, base) ] = (src, bt)
-
-            # Now they are unique .. 
-            for (src,bt) in to_apply.values(): 
-                if (type (bt) == types.TupleType ):
-                    base = bt[2]
-                else:
-                    base = bt
-
-                print "base = %s"%(base)
-                lbl = depend.Label(utils.LabelType.Package, "*", src.role, "*",
-                                   domain = src.domain)
-                print "Scanning instructions for role %s, domain %s .. "%(src.role, src.domain)
-                instr_list = builder.load_instructions(lbl)
-                for (lbl, fn, instrs) in instr_list:
-                    print "CPIO deployment: Applying instructions for role %s, label %s .. "%(src.role, lbl)
-                    for instr in instrs:
-                        iname = instr.outer_elem_name()
-                        #print 'Instruction:', iname
-                        if (iname in app_dict):
-                            print 'Instruction:', app_dict[iname].as_string(instr)
-                            app_dict[iname].apply(builder, instr, lbl.role,
-                                                  base,
-                                                  the_hierarchy)
-                        else:
-                            print 'Instruction:', iname
-                            raise utils.GiveUp("CPIO deployments don't know about "
-                                                "the instruction %s (lbl %s, file %s)"%(iname, lbl, fn))
-            # .. and write the file.
-            print "> Writing %s .. "%deploy_file
-            the_hierarchy.render(deploy_file, True)
-
-            if (self.compression_method is not None):
-                if (self.compression_method == "gzip"):
-                    utils.run_cmd("gzip -f %s"%deploy_file)
-                elif (self.compression_method == "bzip2"):
-                    utils.run_cmd("bzip2 -f %s"%deploy_file)
-                else:
-                    raise utils.GiveUp("Invalid compression method %s"%self.compression_method +
-                                        "specified for cpio deployment. Pick gzip or bzip2.")
-
         else:
-            raise utils.GiveUp("Attempt to build a cpio deployment with unknown label %s"%(lbl))
+            # XXX Would it be better to use package_obj_path(label) ???
+            deploy_dir = builder.package_install_path(label)
+
+        deploy_file = os.path.join(deploy_dir, self.target_file)
+        utils.ensure_dir(os.path.dirname(deploy_file))
+
+        the_hierarchy = cpiofile.Hierarchy({ }, { })
+
+        for l ,bt in self.target_base:
+            if type( bt ) == types.TupleType:
+                real_source_path = os.path.join(builder.role_install_path(l.role, l.domain),
+                                                bt[0])
+                # This is bt[1] - the actual destination. base is computed differently
+                # (bt[2]) for applying instructions.
+                base = bt[1]
+            else:
+                base = bt
+                real_source_path = os.path.join(builder.role_install_path(l.role, l.domain))
+
+            print "Collecting %s  for deployment to %s .. "%(l,base)
+            if (len(base) > 0 and base[0] != '/'):
+                base = "/%s"%(base)
+
+            m = cpiofile.hierarchy_from_fs(real_source_path, base)
+            the_hierarchy.merge(m)
+
+        # Normalise the hierarchy ..
+        the_hierarchy.normalise()
+        print "Filesystem hierarchy is:\n%s"%the_hierarchy.as_str(builder.db.root_path)
+
+        if self.prune_function:
+            self.prune_function(the_hierarchy)
+
+        app_dict = _get_instruction_dict()
+
+        # Apply instructions. We actually need an intermediate list here,
+        # because you might have the same role with several different
+        # sources and possibly different bases.
+        to_apply = {}
+        for src, bt in self.target_base:
+            if type(bt) == types.TupleType:
+                base = bt[2]
+            else:
+                base = bt
+            to_apply[ (src, base) ] = (src, bt)
+
+        # Now they are unique .. 
+        for src, bt in to_apply.values():
+            if type(bt) == types.TupleType:
+                base = bt[2]
+            else:
+                base = bt
+
+            print "base = %s"%(base)
+            lbl = depend.Label(LabelType.Package, "*", src.role, "*",
+                               domain = src.domain)
+            print "Scanning instructions for role %s, domain %s .. "%(src.role, src.domain)
+            instr_list = builder.load_instructions(lbl)
+            for lbl, fn, instrs in instr_list:
+                print "CPIO deployment: Applying instructions for role %s, label %s .. "%(src.role, lbl)
+                for instr in instrs:
+                    iname = instr.outer_elem_name()
+                    #print 'Instruction:', iname
+                    if iname in app_dict:
+                        print 'Instruction:', app_dict[iname].as_string(instr)
+                        app_dict[iname].apply(builder, instr, lbl.role, base,
+                                              the_hierarchy)
+                    else:
+                        print 'Instruction:', iname
+                        raise GiveUp("CPIO deployments don't know about "
+                                     "the instruction %s (lbl %s, file %s)"%(iname, lbl, fn))
+        # .. and write the file.
+        print "> Writing %s .. "%deploy_file
+        the_hierarchy.render(deploy_file, True)
+
+        if (self.compression_method is not None):
+            if (self.compression_method == "gzip"):
+                utils.run_cmd("gzip -f %s"%deploy_file)
+            elif (self.compression_method == "bzip2"):
+                utils.run_cmd("bzip2 -f %s"%deploy_file)
+            else:
+                raise GiveUp("Invalid compression method %s"%self.compression_method +
+                             "specified for cpio deployment. Pick gzip or bzip2.")
+
 
 class CIApplyChmod(CpioInstructionImplementor):
     def as_string(self, instr):
@@ -289,7 +288,7 @@ class CIApplyMknod(CpioInstructionImplementor):
         hierarchy.put_target_file(real_path, cpio_file)
 
 
-def get_instruction_dict():
+def _get_instruction_dict():
     """
     Return a dictionary mapping the names of instructions to the
     classes that implement them.
@@ -300,6 +299,8 @@ def get_instruction_dict():
     app_dict["mknod"] = CIApplyMknod()
     return app_dict
 
+
+# XXX Can I remove this now, please?
 def deploy_labels(builder, target_file, target_base, name,
            compressionMethod = None,
            pruneFunc = None, target_labels_order = None):
@@ -350,9 +351,9 @@ def deploy_labels(builder, target_file, target_base, name,
                                            out_target_base, compressionMethod,
                                            pruneFunc = pruneFunc)
 
-    dep_label = depend.Label(utils.LabelType.Deployment,
+    dep_label = depend.Label(LabelType.Deployment,
                              name, None,
-                             utils.LabelTag.Deployed,
+                             LabelTag.Deployed,
                              domain = builder.default_domain)
 
     deployment_rule = depend.Rule(dep_label, the_action)
@@ -364,10 +365,10 @@ def deploy_labels(builder, target_file, target_base, name,
         else:
             real_lbl = ltuple
 
-        role_label = depend.Label(utils.LabelType.Package,
+        role_label = depend.Label(LabelType.Package,
                                   "*",
                                   real_lbl.role,
-                                  utils.LabelTag.PostInstalled,
+                                  LabelTag.PostInstalled,
                                   domain = real_lbl.domain)
         deployment_rule.add(role_label)
 
@@ -383,7 +384,7 @@ def deploy_labels(builder, target_file, target_base, name,
     return the_action
 
 
-
+# XXX Can I remove this now, please?
 def deploy(builder, target_file, target_base, name, target_roles_order,
            compressionMethod = None,
            pruneFunc = None):
@@ -399,7 +400,7 @@ def deploy(builder, target_file, target_base, name, target_roles_order,
     """
     proper_target_base = { }
     for (r,base) in target_base.items():
-        lbl = depend.Label(utils.LabelType.Package,
+        lbl = depend.Label(LabelType.Package,
                            "*",
                            r,
                            "*",
@@ -409,7 +410,7 @@ def deploy(builder, target_file, target_base, name, target_roles_order,
 
     label_order = [ ]
     for r in target_roles_order:
-        lbl = depend.Label(utils.LabelType.Package,
+        lbl = depend.Label(LabelType.Package,
                            "*",
                            r,
                            "*",
@@ -426,30 +427,39 @@ class CpioWrapper(object):
         self.label = label
         self.builder = builder
 
-
-    def copy_from_role(self, from_role, from_fragment, to_fragment, 
-                       with_base = None):
+    def copy_from_role(self, from_role, from_fragment, to_fragment, with_base=None):
         """
         Copy the relative path from_fragment in from_role to to_fragment in the CPIO
-        deployment given by 'action'
+        package or deployment given by 'action'
 
         Use 'with_base' to change the base offset we apply when executing instructions;
         this is useful when using repeated copy_from_role() invocations to copy
-        a subset of one role to a deployment.
+        a subset of one role to a package/deployment.
         """
 
-        if (with_base is None):
+        if self.label.type == LabelType.Package and from_role == self.label.role:
+            raise GiveUp("Cannot deploy from the same role (%s) as that of the"
+                         " target CPIO deployment package label (%s), as it"
+                         " would give a circular dependency in the rules"%(from_role, self.label))
+            # Why not? Because we use package:*{<from_role>} in our rule for what
+            # self.label depends on, and if that can be the same role as self.label,
+            # then we will immediately get a circular dependency.
+            # We *could* add every package label in <from_role> explicitly to
+            # the rules, but then we'd require the user to have already specified
+            # them all before calling us, and that's not good either.
+
+        if with_base is None:
             with_base = to_fragment
 
-        role_label = depend.Label(utils.LabelType.Package,
+        role_label = depend.Label(LabelType.Package,
                                   "*",
                                   from_role,
-                                  utils.LabelTag.PostInstalled,
+                                  LabelTag.PostInstalled,
                                   domain = self.builder.default_domain)
         r = self.builder.ruleset.rule_for_target(self.label, createIfNotPresent = False)
         if (r is None):
-            raise utils.GiveUp("Cannot copy from a deployment (%s) "%self.label +
-                               " which has not yet been created.")
+            raise GiveUp("Cannot copy from a package/deployment (%s) "%self.label +
+                         " which has not yet been created.")
 
         r.add(role_label)
         self.action.target_base.append( ( role_label, ( from_fragment, to_fragment, with_base ) ) )
@@ -462,34 +472,78 @@ class CpioWrapper(object):
         self.action.attach_env(self.builder)
 
 
-
 def create(builder, target_file, name, compressionMethod = None,
            pruneFunc = None):
     """
-    Create a CPIO deployment with the given name and return it.
+    Create a CPIO deployment and return it.
+
+    * 'builder' is the muddle builder that is driving us
+
+    * 'target_file' is the name of the CPIO file we want to create.
+      Note that this may include a sub-path (for instance, "fred/file.cpio"
+      or even "/fred/file.cpio").
+
+    * 'name' is either:
+
+        1. The name of the deployment that will contain this CPIO file
+           (in the builder's default domain), or
+        2. A deployment or package label, ditto
+
+    * 'comporessionMethod' is the compression method to use:
+
+        * None means no compression
+        * 'gzip' means gzip
+        * 'bzip2' means bzip2
+
+    * if 'pruneFunc' is not None, it is a function to be called like
+      pruneFunc(Hierarchy) to prune the hierarchy prior to packing. Usually
+      something like deb.deb_prune, it's intended to remove spurious stuff like
+      manpages from initrds and the like.
+
+    Normal usage is thus something like::
+
+        fw = cpio.create(builder, 'firmware.cpio', deployment)
+        fw.copy_from_role(role1, '', '/')
+        fw.copy_from_role(role2, 'bin', '/bin')
+        fw.done()
+
+    or::
+
+        fw = cpio.create(builder, 'firmware.cpio', package('firmware', role))
+        fw.copy_from_role(role, '', '/')
+        fw.done()
+
     """
 
-    the_action = CpioDeploymentBuilder(target_file,
-                                           [ ],
-                                           compressionMethod,
-                                           pruneFunc)
-
-    dep_label = depend.Label(utils.LabelType.Deployment, name, None,
-                             utils.LabelTag.Deployed,
+    if isinstance(name, basestring):
+        label = depend.Label(LabelType.Deployment, name, None,
+                             LabelTag.Deployed,
                              domain = builder.default_domain)
+    elif isinstance(name, depend.Label):
+        label = name
+        if label.type not in (LabelType.Deployment, LabelType.Package):
+            raise GiveUp("Third argument to muddled.deployments.cpio.create()"
+                         " should be a string or a deployment/package label,"
+                         " not a %s label"%label.type)
 
-    deployment_rule = depend.Rule(dep_label, the_action)
+        if label.type == LabelType.Deployment and label.tag != LabelTag.Deployed:
+            label = label.copy_with_tag(LabelTag.Deployed)
+        elif label.type == LabelType.Package and label.tag != LabelTag.PostInstalled:
+            label = label.copy_with_tag(LabelTag.PostInstalled)
 
-    builder.ruleset.add(deployment_rule)
-    deployment.register_cleanup(builder, name)
+    else:
+        raise GiveUp("Third argument to muddled.deployments.cpio.create()"
+                     " should be a string or a package/deployment label,"
+                     " not %s"%type(name))
 
-    return CpioWrapper(builder, the_action, dep_label)
+    the_action = CpioDeploymentBuilder(target_file, [], compressionMethod, pruneFunc)
 
+    the_rule = depend.Rule(label, the_action)
 
+    builder.ruleset.add(the_rule)
 
+    if label.type == LabelType.Deployment:
+        deployment.register_cleanup(builder, name)
 
-
-# End file.
-
-
+    return CpioWrapper(builder, the_action, label)
 

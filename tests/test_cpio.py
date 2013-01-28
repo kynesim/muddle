@@ -7,6 +7,7 @@ import shutil
 import string
 import subprocess
 import sys
+import getpass
 import traceback
 from itertools import izip, count
 
@@ -230,7 +231,7 @@ def check_cpio_archive(archive):
             raise GiveUp('Protection %d does not match: got %s, wanted %s'%(n, prot, expect[0]))
 
         if n==0:
-            wanted_owner = os.getlogin()
+            wanted_owner = getpass.getuser()
         else:
             wanted_owner = 'root'
         if owner != wanted_owner:

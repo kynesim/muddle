@@ -102,7 +102,9 @@ class SquashFSDeploymentBuilder(Action):
 
         final_tgt = os.path.join(builder.deploy_path(label), 
                                  tgt)
-        cmd = "%s \"%s\" \"%s\" -all-root -info -comp xz"%(self.mksquashfs, my_tmp, final_tgt)
+        # mksquashfs will, by default, append rather than replacing, so..
+        os.remove(final_tgt)
+        cmd = "%s \"%s\" \"%s\" -noappend -all-root -info -comp xz"%(self.mksquashfs, my_tmp, final_tgt)
         utils.run_cmd(cmd)
         
 

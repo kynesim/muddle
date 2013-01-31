@@ -563,6 +563,14 @@ class DirTree(object):
         this_lines = self.as_lines(onedown, unwanted_files)
         that_lines = other.as_lines(onedown)
 
+        self._same_as(this_lines, that_lines, other.path,
+                      unwanted_files=None, unwanted_extensions=None)
+
+
+    def _same_as(self, this_lines, that_lines, that_path,
+                 unwanted_files=None, unwanted_extensions=None):
+        """ The internals of our comparison. See 'same_as()' for details.
+        """
         if unwanted_files:
             unwanted_text = 'Unwanted files:\n  %s\n'%('\n  '.join(unwanted_files))
         else:
@@ -584,7 +592,7 @@ class DirTree(object):
                              '@@@ line {index}\n'
                              '{context}'
                              '-{this}\n'
-                             '+{that}'.format(us=self.path, them=other.path,
+                             '+{that}'.format(us=self.path, them=that_path,
                                      unwanted=unwanted_text, context=context,
                                      index=index, this=this, that=that))
 
@@ -609,7 +617,7 @@ class DirTree(object):
             else:
                 difference = len_that - len_this
                 context_lines.append('...and then %d more line%s in %s'%(difference,
-                    '' if difference==1 else 's', other.path))
+                    '' if difference==1 else 's', that_path))
                 for count in range(min(3, difference)):
                     context_lines.append('-%s'%(that_lines[len_this+count]))
                 if difference > 4:
@@ -624,10 +632,25 @@ class DirTree(object):
                          '--- {us}\n'
                          '+++ {them}\n'
                          'Different number of lines ({uslen} versus {themlen})\n'
-                         '{context}'.format(us=self.path, them=other.path,
+                         '{context}'.format(us=self.path, them=that_path,
                              unwanted=unwanted_text,
                              uslen=len(this_lines), themlen=len(that_lines),
                              context=context))
+
+    def assert_same_as_list(self, path_list, other_path, onedown=False,
+                            unwanted_files=None, unwanted_extensions=None):
+        """Compare this DirTree and the list of paths in 'path_list'.
+
+        Thus 'path_list' should be what the 'as_lines()' method for a DirTree
+        for such a directory would return.
+
+        'other_path' is the string to report as the path of the "other" lines.
+        """
+
+        this_lines = self.as_lines(onedown, unwanted_files)
+
+        self._same_as(this_lines, path_list, other_path,
+                      unwanted_files=None, unwanted_extensions=None)
 
 if __name__ == '__main__':
     # Pretend to be muddle the command line program

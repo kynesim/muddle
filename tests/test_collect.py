@@ -23,8 +23,9 @@ from muddled.utils import GiveUp, normalise_dir, LabelType, DirTypeDict
 from muddled.utils import Directory, NewDirectory, TransientDirectory
 from muddled.depend import Label, label_list_to_string
 
-DEPLOYMENT_BUILD_DESC = """ \
+DEPLOYMENT_BUILD_DESC_12 = """ \
 # A simple build description using collecting deployment
+# Taking binaries from role1 and then role2
 
 import muddled
 import muddled.pkgs.make
@@ -55,6 +56,45 @@ def describe_to(builder):
                                   'bin',
                                   'bin')
     collect.copy_from_role_install(builder, deployment, role2,
+                                  'bin',
+                                  'bin')
+
+    builder.by_default_deploy(deployment)
+"""
+
+DEPLOYMENT_BUILD_DESC_21 = """ \
+# A simple build description using collecting deployment
+# Taking binaries from role2 and then role1
+
+import muddled
+import muddled.pkgs.make
+import muddled.deployments.collect as collect
+import muddled.checkouts.simple
+
+def describe_to(builder):
+    role1 = 'role1'
+    role2 = 'role2'
+    deployment = 'everything'
+
+    # Checkout ..
+    muddled.pkgs.make.medium(builder, "first_pkg", [role1], "first_co")
+    muddled.pkgs.make.medium(builder, "second_pkg", [role2], "second_co")
+
+    collect.deploy(builder, deployment)
+
+    collect.copy_from_checkout(builder, deployment, 'first_co',
+                              'etc/init.d',
+                              'etc/init.d')
+
+    collect.copy_from_package_obj(builder, deployment, 'first_pkg', role1,
+                                 '',
+                                 'objfiles')
+
+    # These last will also default to obeying any instructions
+    collect.copy_from_role_install(builder, deployment, role2,
+                                  'bin',
+                                  'bin')
+    collect.copy_from_role_install(builder, deployment, role1,
                                   'bin',
                                   'bin')
 
@@ -207,7 +247,7 @@ def make_old_build_tree():
 
         with Directory('src'):
             with Directory('builds'):
-                touch('01.py', DEPLOYMENT_BUILD_DESC)
+                touch('01.py', DEPLOYMENT_BUILD_DESC_12)
 
             with NewDirectory('first_co'):
                 git('init')
@@ -256,6 +296,34 @@ def make_old_build_tree():
                     if text != 'Program program2\n':
                         raise GiveUp('Wrong output from bin/program2: %s'%text)
                 with Directory('objfiles'):
+                    text = get_stdout('./program1')
+                    if text != 'Program program1\n':
+                        raise GiveUp('Expected objfiles/the program1 from role1, but it output %s'%text)
+
+        # Now let's try requesting the roles in the other order
+        with Directory('src'):
+            with Directory('builds'):
+                touch('01.py', DEPLOYMENT_BUILD_DESC_21)
+                # Then remove the .pyc file, because Python probably won't
+                # realise that this new 01.py is later than the previous
+                # version
+                os.remove('01.pyc')
+
+        muddle(['veryclean'])
+        muddle([])
+
+        with Directory('deploy'):
+            with Directory('everything'):
+                with Directory('bin'):
+                    text = get_stdout('./program1')
+                    if text != 'Program program1\n':
+                        raise GiveUp('Expected the bin/program1 from role1, but it output %s'%text)
+                    text = get_stdout('./program2')
+                    if text != 'Program program2\n':
+                        raise GiveUp('Wrong output from bin/program2: %s'%text)
+                with Directory('objfiles'):
+                    # The file from the obj directory should, of course, behave
+                    # just as it did before
                     text = get_stdout('./program1')
                     if text != 'Program program1\n':
                         raise GiveUp('Expected objfiles/the program1 from role1, but it output %s'%text)

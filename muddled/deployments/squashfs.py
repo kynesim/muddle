@@ -9,6 +9,7 @@ use the same code.
 """
 
 import os
+import errno
 
 import muddled.depend as depend
 import muddled.utils as utils
@@ -103,7 +104,11 @@ class SquashFSDeploymentBuilder(Action):
         final_tgt = os.path.join(builder.deploy_path(label), 
                                  tgt)
         # mksquashfs will, by default, append rather than replacing, so..
-        os.remove(final_tgt)
+        try:
+            os.remove(final_tgt)
+        except OSError as e:
+            if e.errno != errno.ENOENT: # Only re-raise if it wasn't file missing
+                raise
         cmd = "%s \"%s\" \"%s\" -noappend -all-root -info -comp xz"%(self.mksquashfs, my_tmp, final_tgt)
         utils.run_cmd(cmd)
         
@@ -229,7 +234,7 @@ def copy_from_checkout(builder, name, checkout, rel, dest,
                              failOnAbsentSource = failOnAbsentSource,
                              copyExactly = copyExactly,
                              usingRSync = usingRSync)
-    rule.app(dep_label)
+    rule.add(dep_label)
     rule.action.add_assembly(asm)
 
 def copy_from_package_obj(builder, name, pkg_name, pkg_role, rel,dest,

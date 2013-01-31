@@ -237,7 +237,7 @@ def copy_from_checkout(builder, name, checkout, rel, dest,
                              failOnAbsentSource = failOnAbsentSource,
                              copyExactly = copyExactly,
                              usingRSync = usingRSync)
-    rule.app(dep_label)
+    rule.add(dep_label)
     rule.action.add_assembly(asm)
 
 def copy_from_package_obj(builder, name, pkg_name, pkg_role, rel,dest,

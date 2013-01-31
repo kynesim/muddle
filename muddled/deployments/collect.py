@@ -140,7 +140,7 @@ class CollectDeploymentBuilder(Action):
                     utils.copy_file(src, dst, object_exactly = asm.copy_exactly)
 
         # Sort out and run the instructions. This may need root.
-        need_root = False
+        need_root_for = set()
         for asm in self.assemblies:
             # there's a from label - does it have instructions?
 
@@ -160,7 +160,7 @@ class CollectDeploymentBuilder(Action):
                     iname = instr.outer_elem_name()
                     if (iname in app_dict):
                         if (app_dict[iname].needs_privilege(builder, instr, lbl.role, install_dir)):
-                            need_root = True
+                            need_root_for.add(iname)
                     # Deliberately do not break - we want to check everything for
                     # validity before acquiring privilege.
                     else:
@@ -176,8 +176,8 @@ class CollectDeploymentBuilder(Action):
                                   utils.LabelTag.InstructionsApplied,
                                   domain = label.domain)
 
-        if need_root:
-            print "I need root to do this - sorry! - running sudo .."
+        if need_root_for:
+            print "I need root to do %s - sorry! - running sudo .."%(', '.join(sorted(need_root_for)))
             utils.run_cmd("sudo %s buildlabel '%s'"%(builder.muddle_binary,
                                                      permissions_label))
         else:

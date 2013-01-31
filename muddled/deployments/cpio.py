@@ -25,8 +25,6 @@ from muddled.depend import Action
 from muddled.utils import GiveUp, LabelType, LabelTag
 
 class CpioInstructionImplementor(object):
-    def as_string(self, instr):
-        return '%s'%(instr)
 
     def apply(self, builder, instruction, role, path):
         pass
@@ -191,7 +189,7 @@ class CpioDeploymentBuilder(Action):
                     iname = instr.outer_elem_name()
                     #print 'Instruction:', iname
                     if iname in app_dict:
-                        print 'Instruction:', app_dict[iname].as_string(instr)
+                        print 'Instruction:', str(instr)
                         app_dict[iname].apply(builder, instr, lbl.role, base,
                                               the_hierarchy)
                     else:
@@ -213,9 +211,6 @@ class CpioDeploymentBuilder(Action):
 
 
 class CIApplyChmod(CpioInstructionImplementor):
-    def as_string(self, instr):
-        return '%s: %s %s (%s)'%(instr.outer_elem_name(),
-                            instr.new_mode, instr.filespec.root, instr.filespec.spec)
 
     def apply(self, builder, instr, role, target_base, hierarchy):
         dp = cpiofile.CpioFileDataProvider(hierarchy)
@@ -237,10 +232,6 @@ class CIApplyChmod(CpioInstructionImplementor):
             f.mode = f.mode | bits
 
 class CIApplyChown(CpioInstructionImplementor):
-    def as_string(self, instr):
-        return '%s: %s %s %s (%s)'%(instr.outer_elem_name(),
-                               instr.new_user, instr.new_group,
-                               instr.filespec.root, instr.filespec.spec)
 
     def apply(self, builder, instr, role, target_base, hierarchy):
         dp = cpiofile.CpioFileDataProvider(hierarchy)
@@ -256,10 +247,6 @@ class CIApplyChown(CpioInstructionImplementor):
                 f.gid = gid
 
 class CIApplyMknod(CpioInstructionImplementor):
-    def as_string(self, instr):
-        return '%s: %s %s %s %s %s %s %s'%(instr.outer_elem_name(),
-                            instr.mode, instr.uid, instr.gid, instr.type,
-                            instr.major, instr.minor, instr.file_name)
 
     def apply(self, builder, instr, role, target_base, hierarchy):
         # Find or create the relevant file

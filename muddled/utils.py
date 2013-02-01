@@ -1542,6 +1542,10 @@ class Directory(object):
         with Directory('fred') as d:
             print 'In directory', d.where
 
+    'where' is the directory to change to. The value 'self.where' will be
+    set to a normalised version of 'where'. It is an error if the directory
+    does not exist, in which case a MuddleBug exception will be raised.
+
     If 'stay_on_error' is true, then the directory will not be left ("popd"
     will not be done) if an exception occurs in its 'with' clause.
 
@@ -1569,7 +1573,7 @@ class Directory(object):
         try:
             os.chdir(self.where)
         except OSError as e:
-            raise GiveUp('Cannot change to directory %s: %s\n'%(where, e))
+            raise MuddleBug('Cannot change to directory %s: %s\n'%(where, e))
 
         if set_PWD:
             if 'PWD' in os.environ:
@@ -1622,11 +1626,15 @@ class Directory(object):
 class NewDirectory(Directory):
     """A pushd/popd directory that gets created first.
 
-    It is an error if the directory already exists, and a MuddleBug exception
-    will be raised.
+    If 'where' is given, then it is the directory to change to. In this case it
+    is an error if the directory already exists, in which case a MuddleBug
+    exception will be raised.
 
-    If 'where' is None, then tempfile.mkdtemp() will be used to create the
-    directory, and 'self.where' will be set to its path.
+    If 'where' is None, then tempfile.mkdtemp() will be used to create a
+    directory, and that will be used.
+
+    In either case the value 'self.where' will be set to a normalised version
+    of 'where'.
 
     If 'stay_on_error' is True, then the directory will not be left ("popd"
     will not be done) if an exception occurs in its 'with' clause.
@@ -1647,7 +1655,7 @@ class NewDirectory(Directory):
     If 'show_dirops' is true, then a message will be printed out showing the
     'mkdir' command used to create the new directory.
     """
-    def __init__(self, where, stay_on_error=False, show_pushd=True,
+    def __init__(self, where=None, stay_on_error=False, show_pushd=True,
                  show_popd=False, set_PWD=True, show_dirops=True):
         self.show_dirops = show_dirops
         if where is None:
@@ -1669,11 +1677,15 @@ class NewDirectory(Directory):
 class TransientDirectory(NewDirectory):
     """A pushd/popd directory that gets created first and deleted afterwards
 
-    It is an error if the directory already exists, and a MuddleBug exception
-    will be raised.
+    If 'where' is given, then it is the directory to change to. In this case it
+    is an error if the directory already exists, in which case a MuddleBug
+    exception will be raised.
 
-    If 'where' is None, then tempfile.mkdtemp() will be used to create the
-    directory, and 'self.where' will be set to its path.
+    If 'where' is None, then tempfile.mkdtemp() will be used to create a
+    directory, and that will be used.
+
+    In either case the value 'self.where' will be set to a normalised version
+    of 'where'.
 
     If 'stay_on_error' is True, then the directory will not be left ("popd"
     will not be done) if an exception occurs in its 'with' clause.

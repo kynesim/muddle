@@ -172,6 +172,11 @@ def test_init_with_branch(root_d):
     """
 
     EMPTY_BUILD_DESC = '# Nothing here\ndef describe_to(builder):\n  pass\n'
+    EMPTY_README_TEXT = 'An empty README file.\n'
+    EMPTY_C_FILE = '// Nothing to see here\n'
+
+    SIMPLE_BUILD_DESC = BUILD_DESC.format(build_name='test-build')
+    FOLLOW_BUILD_DESC = SIMPLE_BUILD_DESC + '\n    builder.follow_build_desc_branch = True\n'
 
     with NewBuildDirectory('init.branch.repo') as d:
         muddle(['bootstrap', 'git+file:///nowhere', 'test-build'])
@@ -180,23 +185,58 @@ def test_init_with_branch(root_d):
                 touch('01.py', EMPTY_BUILD_DESC)
                 git('commit -a -m "Empty-ish build description"')
                 git('checkout -b branch1')
-                touch('01.py', BUILD_DESC.format(build_name='test-build'))
+                touch('01.py', SIMPLE_BUILD_DESC)
                 git('commit -a -m "More interesting build description"')
+                git('checkout -b branch.follow')
+                touch('01.py', FOLLOW_BUILD_DESC)
+                git('commit -a -m "A following build description"')
+            with NewDirectory('checkout'):
+                touch('Makefile.muddle', MUDDLE_MAKEFILE)
+                git('init')
+                git('add Makefile.muddle')
+                git('commit Makefile.muddle -m "A checkout needs a makefile"')
+                git('checkout -b branch1')
+                touch('README.txt', EMPTY_README_TEXT)
+                git('add README.txt')
+                git('commit -m "And a README"')
+                git('checkout -b branch.follow')
+                touch('program1.c', EMPTY_C_FILE)
+                git('add program1.c')
+                git('commit -m "And a program"')
         repo = src.where
 
-    with NewBuildDirectory('init.branch.implicit'):
+    with NewBuildDirectory('init.implicit.master'):
         muddle(['init', 'git+file://' + repo, 'builds/01.py'])
+        muddle(['checkout', '_all'])
         with Directory('src'):
             with Directory('builds'):
-                if not same_content('01.py', EMPTY_BUILD_DESC):
-                    raise GiveUp('01.py does not have the expected content')
+                check_file_v_text('01.py', EMPTY_BUILD_DESC)
+            if os.path.isdir('checkout'):
+                raise GiveUp('Unexpectedly found "checkout" directory')
 
-    with NewBuildDirectory('init.branch.implicit'):
+    with NewBuildDirectory('init.explicit.branch1'):
         muddle(['init', '-branch', 'branch1', 'git+file://' + repo, 'builds/01.py'])
+        muddle(['checkout', '_all'])
         with Directory('src'):
             with Directory('builds'):
-                if not same_content('01.py', BUILD_DESC.format(build_name='test-build')):
-                    raise GiveUp('01.py does not have the expected content')
+                check_file_v_text('01.py', SIMPLE_BUILD_DESC)
+            with Directory('checkout'):
+                # The build description did not ask us to follow it
+                check_specific_files_in_this_dir(['.git', 'Makefile.muddle'])
+                check_file_v_text('Makefile.muddle', MUDDLE_MAKEFILE)
+
+    with NewBuildDirectory('init.branch.explicit.branch.follow'):
+        muddle(['init', '-branch', 'branch.follow', 'git+file://' + repo, 'builds/01.py'])
+        muddle(['checkout', '_all'])
+        with Directory('src'):
+            with Directory('builds'):
+                check_file_v_text('01.py', FOLLOW_BUILD_DESC)
+            with Directory('checkout'):
+                # The build description asked us to follow it
+                check_specific_files_in_this_dir(['.git', 'Makefile.muddle', 'README.txt', 'program1.c'])
+                check_file_v_text('Makefile.muddle', MUDDLE_MAKEFILE)
+                check_file_v_text('README.txt', EMPTY_README_TEXT)
+                check_file_v_text('program1.c', EMPTY_C_FILE)
 
 def test_git_lifecycle(root_d):
     """A linear sequence of plausible actions...

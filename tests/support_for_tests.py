@@ -11,8 +11,9 @@ import subprocess
 import sys
 import traceback
 import stat
+import string
 
-from difflib import unified_diff
+from difflib import unified_diff, ndiff
 from fnmatch import fnmatchcase
 from StringIO import StringIO
 
@@ -306,6 +307,28 @@ def banner(text, level=1):
     print delim
     print '%s %s %s'%(endpoint_char, text, endpoint_char)
     print delim
+
+def check_file_v_text(filename, expected_text):
+    """Check the content of the file against the expected text.
+
+    The expected text should either be a string, or a list of strings which
+    have been split into lines.
+    """
+    if isinstance(expected_text, basestring):
+        lines = expected_text.splitlines()
+        # But we do want newlines thereon
+        expected_text = []
+        for line in lines:
+            expected_text.append('%s\n'%line)
+
+    with open(filename) as fd:
+        content = fd.readlines()
+
+    diffs = unified_diff(content, expected_text, filename, 'Expected text')
+    difflines = list(diffs)
+    if difflines:
+        raise GiveUp('Expected text does not match content of %s:\n%s'%(filename,
+                     ''.join(difflines)))
 
 def check_text_lines_v_lines(actual_lines, wanted_lines):
     """Check two pieces of text are the same.

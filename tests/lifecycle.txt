@@ -13,7 +13,7 @@ Stuff
 
     muddle init [-b[ranch] <branch-name>] <vcs>+<repo> <build-description>
 
-   ...in progress.
+   ...seems to work.
 
 
 

@@ -265,7 +265,7 @@ class Builder(object):
         instr_names = self.db.scan_instructions(label)
         return db.load_instructions(instr_names, instr.factory)
 
-    def load_build_description(self):
+    def _load_build_description(self, branch=None):
         """
         Load the build description for this builder.
 
@@ -293,18 +293,18 @@ class Builder(object):
 
         # And we're going to want its Repository later on, to use as the basis
         # for other (relative) checkouts
-        build_repo = self.db.repo.get()
-        vcs, base_url = split_vcs_url(build_repo)
+        build_repo_str = self.db.repo.get()
+        vcs, base_url = split_vcs_url(build_repo_str)
 
         if not vcs:
             raise GiveUp('Build description URL must be of the form <vcs>+<url>, not'
-                         '\n  "%s"'%build_repo)
+                         '\n  "%s"'%build_repo_str)
 
         # For the moment (and always as default) we just use the simplest
         # possible interpretation of that as a repository - i.e., build
         # descriptions have to be simple top-level repositories at the
         # base_url location, named by their checkout name.
-        repo = Repository(vcs, base_url, build_co_name)
+        repo = Repository(vcs, base_url, build_co_name, branch=branch)
         # Remember this specifically as the "default" repository
         self.build_desc_repo = repo
 
@@ -346,9 +346,6 @@ class Builder(object):
             raise ErrorInBuildDescription('Error in build description for %s\n'
                                           '%s'%(self.db.root_path,
                                                 traceback.format_exc()))
-            #raise ErrorInBuildDescription('Error in build description\n'
-            #                              '%s'%traceback.format_exc())
-
         return True
 
     def unify_labels(self, source, target):
@@ -2075,14 +2072,29 @@ def dynamic_load_build_desc(builder):
         sys.path = old_path
 
 
-def load_builder(root_path, muddle_binary, params = None,
-                 default_domain = None):
+def load_builder(root_path, muddle_binary, params=None, default_domain=None,
+                 branch=None):
     """
     Load a builder from the given root path.
+
+    This should only ever be called internally within muddle itself.
+
+    * 'root_path' is the path to the root of our build tree
+    * 'muddle_binary' is the path to our muddle binary. This is used when
+      doing $(MUDDLE) in muddle Makefiles, and is not needed otherwise.
+    * If given, 'params' specifies the domain parameters to pass down to the
+      new Builder instance we're creating - it maps domain names to
+      dictionaries of parameters so that other domains can retrieve them.
+      This is used within the calltree of include_domain().
+    * If given, 'default_domain' is the default domain name for this
+      (sub) build tree. This is used by the "muddle unstamp" command,
+      and the muddle_patch.py script.
+    * If given, 'branch' is the name of the branch of our build description
+      to check out. This is used by the "muddle init" command.
     """
 
-    builder = Builder(root_path, muddle_binary, params, default_domain = default_domain)
-    can_load = builder.load_build_description()
+    builder = Builder(root_path, muddle_binary, params, default_domain=default_domain)
+    can_load = builder._load_build_description(branch=branch)
     if not can_load:
         return None
 

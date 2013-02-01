@@ -1557,7 +1557,7 @@ class Init(Command):
 
         print
         print "Checking out build description .. \n"
-        mechanics.load_builder(current_dir, muddle_binary) ###, branch=branch_name)
+        mechanics.load_builder(current_dir, muddle_binary, branch=branch_name)
 
         print "Done.\n"
 

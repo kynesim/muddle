@@ -5,6 +5,18 @@ Simple project lifecycle support
   **This is a work-in-progress, and this document will change as I find out
   what it should actually have said all along...**
 
+
+Stuff
+=====
+
+1. Ability to initialise a build from a branch::
+
+    muddle init [-b[ranch] <branch-name>] <vcs>+<repo> <build-description>
+
+   ...in progress.
+
+
+
 What is this about?
 ===================
 Let us assume that we have been developing a build tree, and we reach the

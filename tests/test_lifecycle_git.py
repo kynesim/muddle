@@ -154,6 +154,50 @@ def is_detached_head():
     else:
         raise GiveUp('Error running "git symbolic-ref -q HEAD" to detect detached HEAD')
 
+
+class NewBuildDirectory(NewDirectory):
+    """A version of NewDirectory that prefixes a count to its directory names.
+    """
+
+    build_count = 0
+
+    def __init__(self, name):
+        NewBuildDirectory.build_count += 1
+        name = '%02d.%s'%(NewBuildDirectory.build_count, name)
+        super(NewBuildDirectory, self).__init__(name)
+
+
+def test_init_with_branch(root_d):
+    """Test doing a muddle init with a specified branch name.
+    """
+
+    EMPTY_BUILD_DESC = '# Nothing here\ndef describe_to(builder):\n  pass\n'
+
+    with NewBuildDirectory('init.branch.repo') as d:
+        muddle(['bootstrap', 'git+file:///nowhere', 'test-build'])
+        with Directory('src') as src:
+            with Directory('builds') as builds:
+                touch('01.py', EMPTY_BUILD_DESC)
+                git('commit -a -m "Empty-ish build description"')
+                git('checkout -b branch1')
+                touch('01.py', BUILD_DESC.format(build_name='test-build'))
+                git('commit -a -m "More interesting build description"')
+        repo = src.where
+
+    with NewBuildDirectory('init.branch.implicit'):
+        muddle(['init', 'git+file://' + repo, 'builds/01.py'])
+        with Directory('src'):
+            with Directory('builds'):
+                if not same_content('01.py', EMPTY_BUILD_DESC):
+                    raise GiveUp('01.py does not have the expected content')
+
+    with NewBuildDirectory('init.branch.implicit'):
+        muddle(['init', '-branch', 'branch1', 'git+file://' + repo, 'builds/01.py'])
+        with Directory('src'):
+            with Directory('builds'):
+                if not same_content('01.py', BUILD_DESC.format(build_name='test-build')):
+                    raise GiveUp('01.py does not have the expected content')
+
 def test_git_lifecycle(root_d):
     """A linear sequence of plausible actions...
     """
@@ -448,9 +492,9 @@ def test_git_lifecycle(root_d):
 
 
     # We should be able to checkout a build description by branch
-    with NewDirectory(root_d.join('build10')) as d:
-        muddle(['init', '-b', 'test-v0.1', repo_url, 'builds/01.py'])
-        muddle(['checkout', '_all'])
+    #with NewDirectory(root_d.join('build10')) as d:
+    #    muddle(['init', '-b', 'test-v0.1', repo_url, 'builds/01.py'])
+    #    muddle(['checkout', '_all'])
 
 
 def main(args):
@@ -468,6 +512,10 @@ def main(args):
     root_dir = normalise_dir(os.path.join(os.getcwd(), 'transient'))
 
     with TransientDirectory(root_dir, keep_on_error=True, keep_anyway=keep) as root_d:
+        banner('TEST INIT WITH BRANCH')
+        test_init_with_branch(root_d)
+
+
         banner('TEST LIFECYCLE (GIT)')
         test_git_lifecycle(root_d)
 

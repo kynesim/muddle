@@ -19,8 +19,9 @@ import muddled.filespec as filespec
 import muddled.deployment as deployment
 
 from muddled.depend import Action, Label
+from muddled.utils import GiveUp
 
-class CollectInstructionImplementor(object):
+class InstructionImplementor(object):
     def prepare(self, builder, instruction, role, path):
         """
         Prepares for rsync. This means fixing up the destination file
@@ -34,11 +35,13 @@ class CollectInstructionImplementor(object):
         pass
 
 class AssemblyDescriptor(object):
-    def __init__(self, from_label, from_rel, to_name, recursive = True,
-                 failOnAbsentSource = False,
-                 copyExactly = True,
-                 usingRSync = False,
-                 obeyInstructions = True):
+    def __init__(self, from_label, from_rel, to_name,
+                 forWhat='collect',
+                 recursive=True,
+                 failOnAbsentSource=False,
+                 copyExactly=True,
+                 usingRSync=False,
+                 obeyInstructions=True):
         """
         Construct an assembly descriptor.
 
@@ -58,27 +61,32 @@ class AssemblyDescriptor(object):
         self.from_label = from_label
         self.from_rel = from_rel
         self.to_name = to_name
+        self.for_what = forWhat
         self.recursive = recursive
         self.using_rsync = usingRSync
         self.fail_on_absent_source = failOnAbsentSource
         self.copy_exactly = copyExactly
         self.obeyInstructions = obeyInstructions
 
+        self.app_dict = {"chown" : CollectApplyChown(),
+                         "chmod" : CollectApplyChmod(),
+                        }
 
     def get_source_dir(self, builder):
-        if (self.from_label.type == utils.LabelType.Checkout):
+        if self.from_label.type == utils.LabelType.Checkout:
             return builder.db.get_checkout_path(self.from_label)
-        elif (self.from_label.type == utils.LabelType.Package):
-            if ((self.from_label.name is None) or
-                self.from_label.name == "*"):
+        elif self.from_label.type == utils.LabelType.Package:
+            if self.from_label.name is None or
+                self.from_label.name == "*":
                 return builder.role_install_path(self.from_label.role,
                                                             domain=self.from_label.domain)
             else:
                 return builder.package_obj_path(self.from_label)
-        elif (self.from_label.type == utils.LabelType.Deployment):
+        elif self.from_label.type == utils.LabelType.Deployment:
             return builder.deploy_path(self.from_label)
         else:
-            raise utils.GiveUp("Label %s for collection action has unknown kind."%(self.from_label))
+            raise GiveUp("Label %s for %s action has unknown kind"%(self.from_label,
+                                                                    self.for_what))
 
 class CollectDeploymentBuilder(Action):
     """
@@ -86,7 +94,7 @@ class CollectDeploymentBuilder(Action):
     """
 
     def __init__(self):
-        self.assemblies = [ ]
+        self.assemblies = []
 
     def add_assembly(self, assembly_descriptor):
         self.assemblies.append(assembly_descriptor)
@@ -113,7 +121,8 @@ class CollectDeploymentBuilder(Action):
         elif (label.tag == utils.LabelTag.InstructionsApplied):
             self.apply_instructions(builder, label, False)
         else:
-            raise utils.GiveUp("Attempt to build a deployment with an unexpected tag in label %s"%(label))
+            raise GiveUp("Attempt to build a deployment with an unexpected tag"
+                         " in label %s"%(label))
 
     def deploy(self, builder, label):
         for asm in self.assemblies:
@@ -123,7 +132,8 @@ class CollectDeploymentBuilder(Action):
 
             if (not os.path.exists(src)):
                 if (asm.fail_on_absent_source):
-                    raise utils.GiveUp("Deployment %s: source object %s does not exist."%(label.name, src))
+                    raise GiveUp("Deployment %s: source object %s does not"
+                                 " exist."%(label.name, src))
                 # Else no one cares :-)
             else:
                 if (asm.using_rsync):
@@ -156,21 +166,20 @@ class CollectDeploymentBuilder(Action):
                         '*', domain=asm.from_label.domain)
             install_dir = builder.role_install_path(lbl.role, label.domain)
             instr_list = builder.load_instructions(lbl)
-            app_dict = get_instruction_dict()
 
             for (lbl, fn, instr_file) in instr_list:
                 # Obey this instruction?
                 for instr in instr_file:
                     iname = instr.outer_elem_name()
-                    if (iname in app_dict):
-                        if (app_dict[iname].needs_privilege(builder, instr, lbl.role, install_dir)):
+                    if iname in self.app_dict:
+                        if self.app_dict[iname].needs_privilege(builder, instr, lbl.role, install_dir):
                             need_root_for.add(iname)
                     # Deliberately do not break - we want to check everything for
                     # validity before acquiring privilege.
                     else:
-                        raise utils.GiveUp("Collect deployments don't know about " +
-                                            "instruction %s"%iname +
-                                            " found in label %s (filename %s)"%(lbl, fn))
+                        raise GiveUp("Collect deployments don't know about " +
+                                     "instruction %s"%iname +
+                                     " found in label %s (filename %s)"%(lbl, fn))
 
 
         print "Rerunning muddle to apply instructions .. "
@@ -189,7 +198,6 @@ class CollectDeploymentBuilder(Action):
                                                 permissions_label))
 
     def apply_instructions(self, builder, label, prepare):
-        app_dict = get_instruction_dict()
 
         for asm in self.assemblies:
             lbl = Label(utils.LabelType.Package, '*', asm.from_label.role,
@@ -207,14 +215,14 @@ class CollectDeploymentBuilder(Action):
                     # Obey this instruction.
                     iname = instr.outer_elem_name()
                     print 'Instruction:', iname
-                    if (iname in app_dict):
+                    if iname in self.app_dict:
                         if prepare:
-                            app_dict[iname].prepare(builder, instr, lbl.role, deploy_dir)
+                            self.app_dict[iname].prepare(builder, instr, lbl.role, deploy_dir)
                         else:
-                            app_dict[iname].apply(builder, instr, lbl.role, deploy_dir)
+                            self.app_dict[iname].apply(builder, instr, lbl.role, deploy_dir)
                     else:
-                        raise utils.GiveUp("Collect deployments don't know about instruction %s"%iname +
-                                            " found in label %s (filename %s)"%(lbl, fn))
+                        raise GiveUp("Collect deployments don't know about instruction %s"%iname +
+                                     " found in label %s (filename %s)"%(lbl, fn))
 
 
 def deploy(builder, name):
@@ -373,7 +381,7 @@ def copy_from_deployment(builder, name, dep_name, rel, dest,
     rule.action.add_assembly(asm)
 
 # And the instruction implementations:
-class CollectApplyChmod(CollectInstructionImplementor):
+class CollectApplyChmod(InstructionImplementor):
     def prepare(self, builder, instr, role, path):
         return True
 
@@ -392,7 +400,7 @@ class CollectApplyChmod(CollectInstructionImplementor):
         # Except, you do in order to chmod setuid after a chown ...
         return True
 
-class CollectApplyChown(CollectInstructionImplementor):
+class CollectApplyChown(InstructionImplementor):
     def prepare(self, builder, instr, role, path):
         return self._prep_or_apply(builder, instr, role, path, True)
 
@@ -429,16 +437,5 @@ class CollectApplyChown(CollectInstructionImplementor):
 
     def needs_privilege(self, builder, instr, role, path):
         return True
-
-
-def get_instruction_dict():
-    """
-    Return a dictionary mapping the names of instructions to the
-    classes that implement them.
-    """
-    app_dict = { }
-    app_dict["chown"] = CollectApplyChown()
-    app_dict["chmod"] = CollectApplyChmod()
-    return app_dict
 
 # End file.

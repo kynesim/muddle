@@ -35,31 +35,43 @@ import muddled.checkouts.simple
 def describe_to(builder):
     role1 = 'role1'
     role2 = 'role2'
-    deployment = 'everything'
+    deployment1 = 'everything'
+    deployment2 = 'everything-else'
 
     # Checkout ..
     muddled.pkgs.make.medium(builder, "first_pkg", [role1], "first_co")
     muddled.pkgs.make.medium(builder, "second_pkg", [role2], "second_co")
 
-    collect.deploy(builder, deployment)
+    # Deployment 1
+    collect.deploy(builder, deployment1)
 
-    collect.copy_from_checkout(builder, deployment, 'first_co',
+    collect.copy_from_checkout(builder, deployment1, 'first_co',
                               'etc/init.d',
                               'etc/init.d')
 
-    collect.copy_from_package_obj(builder, deployment, 'first_pkg', role1,
+    collect.copy_from_package_obj(builder, deployment1, 'first_pkg', role1,
                                  '',
                                  'objfiles')
 
     # These last will also default to obeying any instructions
-    collect.copy_from_role_install(builder, deployment, role1,
+    collect.copy_from_role_install(builder, deployment1, role1,
                                   'bin',
                                   'bin')
-    collect.copy_from_role_install(builder, deployment, role2,
+    collect.copy_from_role_install(builder, deployment1, role2,
                                   'bin',
                                   'bin')
 
-    builder.by_default_deploy(deployment)
+    collect.copy_from_deployment(builder, deployment1, deployment2,
+                                 'fred',
+                                 'fred')
+
+    # Deployment 2
+    collect.deploy(builder, deployment2)
+    collect.copy_from_role_install(builder, deployment2, role1,
+                                  'bin',
+                                  'fred')
+
+    builder.by_default_deploy(deployment1)
 """
 
 DEPLOYMENT_BUILD_DESC_21 = """ \
@@ -282,7 +294,12 @@ def make_old_build_tree():
                                 '    etc/',
                                 '      init.d/',
                                 '        rcS',
+                                '    fred/',
+                                '      program1*',
                                 '    objfiles/',
+                                '      program1*',
+                                '  everything-else/',
+                                '    fred/',
                                 '      program1*',
                                 ], "expected",
                                 onedown=True)

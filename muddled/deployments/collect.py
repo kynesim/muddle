@@ -1,10 +1,14 @@
 """
 Collect deployment.
 
-Principally depending on other deployments, this
-deployment is used to collect elements built by
-other parts of the system into a directory -
-usually to be processed by some external tool.
+This deployment is used to collect elements from:
+
+    * checkout directories
+    * package 'obj' directories
+    * package role 'install' directories
+    * other deployments
+
+into deployment directories, usually to be processed by some external tool.
 """
 
 import os

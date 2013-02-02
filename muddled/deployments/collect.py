@@ -76,8 +76,7 @@ class AssemblyDescriptor(object):
         if self.from_label.type == utils.LabelType.Checkout:
             return builder.db.get_checkout_path(self.from_label)
         elif self.from_label.type == utils.LabelType.Package:
-            if self.from_label.name is None or
-                self.from_label.name == "*":
+            if self.from_label.name is None or self.from_label.name == "*":
                 return builder.role_install_path(self.from_label.role,
                                                             domain=self.from_label.domain)
             else:
@@ -118,6 +117,7 @@ class CollectDeploymentBuilder(Action):
         if (label.tag == utils.LabelTag.Deployed):
             self.apply_instructions(builder, label, True)
             self.deploy(builder, label)
+            self.sort_out_and_run_instructions(builder, label)
         elif (label.tag == utils.LabelTag.InstructionsApplied):
             self.apply_instructions(builder, label, False)
         else:
@@ -127,17 +127,15 @@ class CollectDeploymentBuilder(Action):
     def deploy(self, builder, label):
         for asm in self.assemblies:
             src = os.path.join(asm.get_source_dir(builder), asm.from_rel)
-            dst = os.path.join(builder.deploy_path(label),
-                               asm.to_name)
+            dst = os.path.join(builder.deploy_path(label), asm.to_name)
 
-            if (not os.path.exists(src)):
-                if (asm.fail_on_absent_source):
+            if not os.path.exists(src):
+                if asm.fail_on_absent_source:
                     raise GiveUp("Deployment %s: source object %s does not"
                                  " exist."%(label.name, src))
                 # Else no one cares :-)
             else:
-                if (asm.using_rsync):
-                    # Use rsync for speed
+                if asm.using_rsync: # Use rsync for speed
                     try:
                         os.makedirs(dst)
                     except OSError:
@@ -148,11 +146,12 @@ class CollectDeploymentBuilder(Action):
                         xdst = xdst + "/"
 
                     utils.run_cmd("rsync -avz \"%s/.\" \"%s\""%(src,xdst))
-                elif (asm.recursive):
-                    utils.recursively_copy(src, dst, object_exactly = asm.copy_exactly)
+                elif asm.recursive:
+                    utils.recursively_copy(src, dst, object_exactly=asm.copy_exactly)
                 else:
-                    utils.copy_file(src, dst, object_exactly = asm.copy_exactly)
+                    utils.copy_file(src, dst, object_exactly=asm.copy_exactly)
 
+    def sort_out_and_run_instructions(self, builder, label):
         # Sort out and run the instructions. This may need root.
         need_root_for = set()
         for asm in self.assemblies:

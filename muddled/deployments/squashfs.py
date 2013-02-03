@@ -86,7 +86,7 @@ class SquashFSDeploymentBuilder(CollectDeploymentBuilder):
         Copy everything to a temporary directory and then mksquashfs it.
         """
 
-        if (self.my_tmp is None):
+        if self.my_tmp is None:
             self.my_tmp = tempfile.mkdtemp();
 
         print "Deploying to %s .. \n"%self.my_tmp

@@ -29,10 +29,12 @@ class InstructionImplementor(object):
         so we will be able to rsync it.
         """
         pass
+
     def apply(self, builder, instruction, role, path):
         pass
+
     def needs_privilege(self, builder, instr, role, path):
-        pass
+        False
 
 
 class CollectApplyChmod(InstructionImplementor):

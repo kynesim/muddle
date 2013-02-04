@@ -24,34 +24,34 @@ class AptGetBuilder(pkg.PackageBuilder):
 
         We use dpkg-query::
 
-            $ dpkg-query -W -f='${db:Status-Abbrev} ${Package}\n' libreadline-dev
-            ii  libreadline-dev
+            $ dpkg-query -W -f=\${Status}\\n libreadline-dev
+            install ok installed
 
-        That second 'i' means installed. Contrast with a package that is
-        either not recognised or has not been downloaded at all::
+        That third word means what it says (installed). Contrast with a package
+        that is either not recognised or has not been downloaded at all::
 
-            $ dpkg-query -W -f='${db:Status-Abbrev} ${Package}\n' a0d
+            $ dpkg-query -W -f=\${Status}\\n a0d
             dpkg-query: no packages found matching a0d
 
         So we do some fairly simple processing of the output...
         """
-        process = subprocess.Popen([ "dpkg-query",
-                                     "-W",
-                                     "-f='${db:Status-Abbrev} ${Package}\\n'",
-                                     pkg ],
-                                   stdout = subprocess.PIPE,
-                                   stderr = subprocess.PIPE)
-        (stdout_data, stderr_data) = process.communicate()
-        process.wait()
-        lines = stdout_data.splitlines()
-        for l in lines:
-            fields = l.split()
-            if len(fields) == 2:
-                status = fields[0]
-                name = fields[1]
-                if name == pkg and status[1] == 'i':
-                    return True
-        return False
+        retval, stdout, stderr = utils.run_cmd_for_output([ "dpkg-query", "-W",
+                                                            "-f=\${Status}\\n'",
+                                                            pkg ],
+                                                          verbose=False)
+        if retval:
+            # Assume it's not installed
+            return False
+
+        lines = stdout.splitlines()
+        if len(lines) == 0:
+            return False
+
+        words = lines[0].split()
+        if len(words) == 3 and words[2] == 'installed':
+            return True
+        else:
+            return False
 
 
     def build_label(self, builder, label):

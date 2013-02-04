@@ -524,6 +524,105 @@ def test_ReleaseStamp_basics(d):
     check_release_file_starts('r2.release', 'project99', '1.2.3',
                               'tar', 'bzip2', '', '', '')
 
+def test_guess_version_number(d, repo):
+    banner('TEST GUESS VERSION NUMBER')
+    banner('Check out build tree, and stamp it as a release', 2)
+    with NewDirectory('build.version-number') as build1:
+        r = 'git+file://{repo}/main'.format(repo=repo)
+        d = 'builds/01.py'
+        v = '{root}/versions'.format(root=r)
+        muddle(['init', r, d])
+        muddle(['checkout', '_all'])
+        muddle(['stamp', 'release', 'simple', '-next'])
+        with Directory('versions'):
+            check_specific_files_in_this_dir(['.git', 'simple_v0.0.release'])
+
+        touch('versions/simple_v0.01.release', '')
+        muddle(['stamp', 'release', 'simple', '-next'])
+        with Directory('versions'):
+            check_specific_files_in_this_dir(['.git',
+                                             'simple_v0.0.release',
+                                             'simple_v0.01.release',
+                                             'simple_v0.2.release',
+                                             ])
+
+        touch('versions/Simple_v0.3.release', '')
+        muddle(['stamp', 'release', 'simple', '-next'])
+        with Directory('versions'):
+            check_specific_files_in_this_dir(['.git',
+                                             'simple_v0.0.release',
+                                             'simple_v0.01.release',
+                                             'simple_v0.2.release',
+                                             'Simple_v0.3.release',
+                                             'simple_v0.3.release',
+                                             ])
+
+        # Whilst 0.03 and 0.3 are "the same" version, that doesn't matter
+        # as they already exist - we only care about the next version
+        touch('versions/simple_v0.03.release', '')
+        muddle(['stamp', 'release', 'simple', '-next'])
+        with Directory('versions'):
+            check_specific_files_in_this_dir(['.git',
+                                             'simple_v0.0.release',
+                                             'simple_v0.01.release',
+                                             'simple_v0.2.release',
+                                             'Simple_v0.3.release',
+                                             'simple_v0.3.release',
+                                             'simple_v0.03.release',
+                                             'simple_v0.4.release',
+                                             ])
+
+        # We require major.minor, not any other variation
+        touch('versions/simple_v3.release', '')
+        muddle(['stamp', 'release', 'simple', '-next'])
+        with Directory('versions'):
+            check_specific_files_in_this_dir(['.git',
+                                             'simple_v0.0.release',
+                                             'simple_v0.01.release',
+                                             'simple_v0.2.release',
+                                             'Simple_v0.3.release',
+                                             'simple_v0.3.release',
+                                             'simple_v0.03.release',
+                                             'simple_v0.4.release',
+                                             'simple_v0.5.release',
+                                             'simple_v3.release',
+                                             ])
+        touch('versions/simple_v3.1.1.release', '')
+        muddle(['stamp', 'release', 'simple', '-next'])
+        with Directory('versions'):
+            check_specific_files_in_this_dir(['.git',
+                                             'simple_v0.0.release',
+                                             'simple_v0.01.release',
+                                             'simple_v0.2.release',
+                                             'Simple_v0.3.release',
+                                             'simple_v0.3.release',
+                                             'simple_v0.03.release',
+                                             'simple_v0.4.release',
+                                             'simple_v0.5.release',
+                                             'simple_v0.6.release',
+                                             'simple_v3.release',
+                                             'simple_v3.1.1.release',
+                                             ])
+
+        touch('versions/simple_v1.999999999.release', '')
+        muddle(['stamp', 'release', 'simple', '-next'])
+        with Directory('versions'):
+            check_specific_files_in_this_dir(['.git',
+                                             'simple_v0.0.release',
+                                             'simple_v0.01.release',
+                                             'simple_v0.2.release',
+                                             'Simple_v0.3.release',
+                                             'simple_v0.3.release',
+                                             'simple_v0.03.release',
+                                             'simple_v0.4.release',
+                                             'simple_v0.5.release',
+                                             'simple_v0.6.release',
+                                             'simple_v3.release',
+                                             'simple_v3.1.1.release',
+                                             'simple_v1.999999999.release',
+                                             'simple_v1.1000000000.release',
+                                             ])
+
 def test_simple_release(d, repo):
     banner('TEST SIMPLE RELEASE')
     banner('Check out build tree, and stamp it as a release', 2)
@@ -763,6 +862,7 @@ def main(args):
 
         test_simple_release(root_d, repo)
         test_test_release(root_d, repo)
+        test_guess_version_number(root_d, repo)
 
 
 if __name__ == '__main__':

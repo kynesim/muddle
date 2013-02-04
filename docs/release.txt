@@ -59,7 +59,7 @@ Muddle releases are defined in release files, which are muddle stamp files
 (specifically, a stamp version files) with extra fields (at the start)::
 
     [RELEASE]
-    version = 1.2.3
+    version = 1.2
     name = simple
     archive = tar
     compression = gzip
@@ -67,28 +67,77 @@ Muddle releases are defined in release files, which are muddle stamp files
 See the DESCRIPTION section of ``muddle doc version_stamp`` for details on
 the content of stamp files.
 
-Release files are created using ``muddle release``.  The command::
+Release files are created using ``muddle release``, and put into the
+"versions/" directory. ``muddle stamp release`` will automatically add them to
+the version control system in that directory, just as ``muddle stamp version``
+does for its stamp files. They can then be committed, and then pushed with
+``muddle stamp push``.
 
-    $ muddle stamp release Project99 1.2.3
+Explicit version numbering
+~~~~~~~~~~~~~~~~~~~~~~~~~~
+The command::
+
+    $ muddle stamp release Project99 1.2
 
 creates a release stamp file called::
 
-    versions/Project99_1.2.3.release
+    versions/Project99_1.2.release
 
 which looks like a normal version 2 stamp file with an extra section after
 the ``[STAMP]`` section::
 
     [RELEASE]
     name = Project99
-    version = 1.2.3
+    version = 1.2
     archive = tar
     compression = gzip
 
+Guessing the next version number
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+Since release files are named consistently, and are version controlled
+in the "versions/" directory, muddle should be able to make a sensible guess
+at the next version number to use.
+
+Thus::
+
+  $ muddle stamp release Project99 -next
+
+will look through the "versions/" directory for ``Project99`` release files,
+which are called::
+
+  Project99_v<major>.<minor>.release
+
+where ``<major>`` and ``<minor>`` are release numbers.
+
+.. note:: Leading zeroes are ignored, so ``1.01`` is the same as ``1.1``,
+   and indeed ``001.001`` is also the same as ``1.1``.
+
+   The current "guessing" mechanism only supports two-part version numbers.
+
+So if the "versions/" directory contains::
+
+  Project88.v28.1.release
+  Project99_v1.1.release
+  Project99_v13.2.release
+  Project99_v22.3.release
+  Project99_v27.1.release
+  Project99_v28.release
+
+then the next version for ``Project99`` will be ``27.2``.
+
+The ``Project88`` file will be ignored, as it has the wrong name, and the
+``Project99_v28.release`` file is ignored because its release number is not of
+the form ``<major>.<minor>``.
+
+Archive and compression switches
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 You can use the ``-archive`` and ``-compression`` switches to specify the
 release archive mechanism and release compression - for instance::
 
     $ muddle stamp release Project99 1.2.3 -archive tar -compression bzip2
 
+Template release files
+~~~~~~~~~~~~~~~~~~~~~~
 It is also possible to create a "template" release file, with unspecified
 release name and version::
 
@@ -121,11 +170,8 @@ files where these fields have not been edited.
    The release compression must currently be one of "gzip" or "bzip2". The
    default is "gzip".
 
-Since release files go in the ``versions/`` directory, ``muddle stamp release``
-will automatically add them to the version control system in that directory,
-just as ``muddle stamp version`` does for its stamp files. They can then be
-committed, and then pushed with ``muddle stamp push``.
-
+More information
+~~~~~~~~~~~~~~~~
 See ``muddle help stamp release`` and ``muddle help stamp push`` for more
 information.
 
@@ -250,7 +296,7 @@ The ``muddle release`` command actually makes a release.
 
 For example::
 
-  $ muddle release project99-1.2.3.release
+  $ muddle release project99-1.2.release
 
 This:
 

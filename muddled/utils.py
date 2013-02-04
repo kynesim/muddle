@@ -1517,39 +1517,43 @@ class HashFile(object):
             return text
 
 class VersionNumber(object):
-    """Simple support for "semantic version" numbers.
+    """Simple support for two part "semantic version" numbers.
 
-    Version numbers are of the form <major>.<minor>.<patch>
+    Such version numbers are of the form <major>.<minor>
     """
 
-    def __init__(self, major=0, minor=0, patch=0):
-        if (not isinstance(major, int) or
-            not isinstance(minor, int) or
-            not isinstance(patch, int)):
+    def __init__(self, major=0, minor=0):
+        if not isinstance(major, int) or not isinstance(minor, int):
             raise GiveUp('VersionNumber arguments must be integers,'
-                         ' not %s, %s, %s'%(repr(major), repr(minor), repr(patch)))
+                         ' not %s, %s'%(repr(major), repr(minor)))
+
+        if major < 0 or minor < 0:
+            raise GiveUp('VersionNumber arguments may not be negative,'
+                         ' as in %s, %s'%(major, minor))
 
         self.major = major
         self.minor = minor
-        self.patch = patch
 
     def __str__(self):
-        return '%d.%d.%d'%(self.major, self.minor, self.patch)
+        if self.major < 0:
+            return '<unset>'
+        else:
+            return '%d.%d'%(self.major, self.minor)
 
     def __repr__(self):
-        return 'VersionNumber(%s, %s, %s)'%(self.major, self.minor, self.patch)
+        if self.major < 0:
+            return 'VersionNumber.unset()'
+        else:
+            return 'VersionNumber(%d, %d)'%(self.major, self.minor)
 
     def __eq__(self, other):
         return (self.major == other.major and
-                self.minor == other.minor and
-                self.patch == other.patch)
+                self.minor == other.minor)
 
     def __lt__(self, other):
         if self.major < other.major:
             return True
         if self.minor < other.minor:
-            return True
-        if self.patch < other.patch:
             return True
         return False
 
@@ -1557,21 +1561,38 @@ class VersionNumber(object):
     __le__ = lambda self, other: self < other or self == other
     __ge__ = lambda self, other: not self < other
 
+    def next(self):
+        """Return the next (minor) version number.
+        """
+        if self.major < 0:
+            return VersionNumber(0, 0)
+        else:
+            return VersionNumber(self.major, self.minor+1)
+
+    @staticmethod
+    def unset():
+        """Return an unset version number.
+
+        Unset version numbers compare less than proper ones.
+        """
+        v = VersionNumber()
+        v.major = -1
+        v.minor = -1
+        return v
+
     @staticmethod
     def from_string(s):
         parts = s.split('.')
         num_parts = len(parts)
         try:
             if num_parts == 0:
-                raise GiveUp('VersionNumber must be <major>[.<minor>[.<patch>]], not "%s"'%s)
+                raise GiveUp('VersionNumber must be <major>[.<minor>], not "%s"'%s)
             elif num_parts == 1:
                 return VersionNumber(int(parts[0], 10))
             elif num_parts == 2:
                 return VersionNumber(int(parts[0], 10), int(parts[1], 10))
-            elif num_parts == 3:
-                return VersionNumber(int(parts[0], 10), int(parts[1], 10), int(parts[2], 10))
             else:
-                raise GiveUp('VersionNumber must be at most 3 parts, <major>.<minor>.<patch>, not "%s"'%s)
+                raise GiveUp('VersionNumber must be at most 2 parts, <major>.<minor>, not "%s"'%s)
         except ValueError as e:
             raise GiveUp('VersionNumber parts must be integers, not %s:\n%s'%(s, e))
 

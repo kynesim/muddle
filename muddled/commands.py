@@ -3530,6 +3530,7 @@ class StampVersion(Command):
 class StampRelease(Command):
     """
     :Syntax: muddle stamp release [<switches>] <release-name> <release-version>
+    :Syntax: muddle stamp release [<switches>] <release-name> -next
     :or:     muddle stamp release [<switches>] -template
 
     This is similar to "stamp version", but saves a release stamp file - a
@@ -3549,6 +3550,20 @@ class StampRelease(Command):
       the file will be added to the local working set in that directory.
       For subversion, the file adding will be done, but no attempt will be
       made to initialise the directory.
+
+    If the ``-next`` option is used, then the version number will be guessed.
+    Muddle will look in the "versions/" directory for all the ".release" files
+    whose names start with ``<release_name>_v``, and will work out the last
+    version number (as <major>.minor>) present (not that 1.01 is the same as
+    1.1). It will then use 0.0 if it didn't find anything, or will use the next
+    <minor> value. So if the user asked for ``muddle stamp release Fred -next``
+    and the files in "versions/" were::
+
+        Fred_v1.1.release
+        Fred_v3.02.release
+        Graham_v9.9.release
+
+    then the next version number would be guessed as v3.3.
 
     If the ``-template`` option is used, then the file created will be called::
 
@@ -3591,11 +3606,14 @@ class StampRelease(Command):
         archive = None
         compression = None
         is_template = False
+        guess_version = False
 
         while args:
             word = args.pop(0)
             if word == '-template':
                 is_template = True
+            elif word == '-next':
+                guess_version = True
             elif word == '-archive':
                 archive = args.pop(0)
             elif word == '-compression':
@@ -3611,8 +3629,10 @@ class StampRelease(Command):
 
         if is_template and (name or version):
             raise GiveUp('Cannot specify -template and release name or version')
-        if not is_template and (name is None or version is None):
-            raise GiveUp('Must specify either -template or both a release name and version')
+        if is_template and guess_version:
+            raise GiveUp('Cannot specify -template and -next')
+        if not is_template and (name is None or not (version or guess_version)):
+            raise GiveUp('Must specify one of -template, or a release name and version, or -next')
 
         if self.no_op():
             return
@@ -3630,6 +3650,16 @@ class StampRelease(Command):
         if not os.path.exists(version_dir):
             print 'Creating directory %s'%version_dir
             os.mkdir(version_dir)
+
+        if guess_version:
+            vnum = self.guess_next_version_number(version_dir, name)
+            version = 'v%s'%vnum
+            print "Pretending you said 'muddle stamp",
+            if archive:
+                print "-archive %s"%archive,
+            if compression:
+                print "-compression %s"%compression,
+            print "release %s %s'"%(name, version)
 
         working_filename = os.path.join(version_dir, '_temporary.stamp')
         print 'Writing to',working_filename
@@ -3655,6 +3685,30 @@ class StampRelease(Command):
                     print 'Adding release stamp file to VCS'
                     version_control.vcs_init_directory(vcs_name, [version_filename])
 
+    def guess_next_version_number(self, version_dir, name):
+        """Return our best guess as to the next (minor) version number.
+        """
+        print
+        print 'Looking in versions directory for previous releases of "%s"'%name
+        max_vnum = utils.VersionNumber.unset()
+        files = os.listdir(version_dir)
+        for filename in sorted(files):
+            base, ext = os.path.splitext(filename)
+            if ext != '.release':
+                continue
+            if not base.startswith(name+'_v'):
+                print 'Ignoring release file %s (wrong release name)'%filename
+                continue
+            print 'Found release file %s'%filename
+            version = base[len(name)+2:]
+            try:
+                vnum = utils.VersionNumber.from_string(version)
+            except GiveUp as e:
+                print 'Ignoring release file %s (cannot parse version number: %s'%(filename, e)
+                continue
+            if vnum > max_vnum:
+                max_vnum = vnum
+        return max_vnum.next()
 
 @subcommand('stamp', 'diff', CAT_EXPORT)
 class StampDiff(Command):

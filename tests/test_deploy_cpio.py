@@ -339,11 +339,28 @@ def make_old_build_tree():
                 check_cpio_archive('firmware.cpio')
 
                 # Check we got the correct version of program1
-                shell('tar -f firmware.cpio -x -v /bin/program1')
+                extract_file('firmware.cpio', '/bin/program1')
                 text = get_stdout('bin/program1')
                 if text != 'Program program2\n':
                     raise GiveUp('Expected the program1 from role2, but it output %s'%text)
                 print 'That looks like the correct program1'
+
+def extract_file(cpio_archive, filepath):
+    """Extract a single file from our CPIO archive.
+    """
+    # GNU cpio has --no-absolute-pathname, but BSD cpio does not
+    # BSD tar can read from CPIO archives, but GNU tar cannot
+    try:
+        # Try for GNU cpio
+        if filepath[0] == '/':
+            path = filepath[1:]
+        else:
+            path = filepath
+        shell('cpio -idvm --no-absolute-filenames -F %s %s'%(cpio_archive, path))
+        return
+    except ShellError as e:
+        # Otherwise, try for BSD tar
+        shell('tar -f %s -x -v %s'%(cpio_archive, filepath))
 
 def make_new_build_tree():
     """Make a build tree that creates a CPIO file in a package, and use/test it
@@ -385,7 +402,8 @@ def make_new_build_tree():
                     check_cpio_archive('firmware.cpio')
 
                     # Check we got the correct version of program1
-                    shell('tar -f firmware.cpio -x -v /bin/program1')
+                    extract_file('firmware.cpio', '/bin/program1')
+
                     text = get_stdout('bin/program1')
                     if text != 'Program program2\n':
                         raise GiveUp('Expected the program1 from role2, but it output %s'%text)
@@ -409,7 +427,7 @@ def make_new_build_tree():
                     check_cpio_archive('firmware.cpio')
 
                     # Check we got the other version of program1
-                    shell('tar -f firmware.cpio -x -v /bin/program1')
+                    extract_file('firmware.cpio', '/bin/program1')
                     text = get_stdout('bin/program1')
                     if text != 'Program program1\n':
                         raise GiveUp('Expected the program1 from role1, but it output %s'%text)

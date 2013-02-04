@@ -146,6 +146,15 @@ def describe_to(builder):
     add_package(builder, 'package', 'x86', co_name='co4', branch='branch1', revision='fred')
 """
 
+EMPTY_BUILD_DESC = '# Nothing here\ndef describe_to(builder):\n  pass\n'
+EMPTY_README_TEXT = 'An empty README file.\n'
+EMPTY_C_FILE = '// Nothing to see here\n'
+
+BUILD_NAME = 'test-build'
+
+NONFOLLOW_BUILD_DESC = MULTIPLEX_BUILD_DESC.format(build_name=BUILD_NAME)
+FOLLOW_BUILD_DESC = NONFOLLOW_BUILD_DESC + '\n    builder.follow_build_desc_branch = True\n'
+
 def create_multiplex_repo(build_name):
     """Creates repositories for checkouts 'builds', 'co1' .. 'co4'
 
@@ -154,12 +163,6 @@ def create_multiplex_repo(build_name):
     Returns the path to the 'src' directory, which is the repo_root to use.
     """
 
-    EMPTY_BUILD_DESC = '# Nothing here\ndef describe_to(builder):\n  pass\n'
-    EMPTY_README_TEXT = 'An empty README file.\n'
-    EMPTY_C_FILE = '// Nothing to see here\n'
-
-    SIMPLE_BUILD_DESC = BUILD_DESC.format(build_name='test-build')
-    FOLLOW_BUILD_DESC = SIMPLE_BUILD_DESC + '\n    builder.follow_build_desc_branch = True\n'
 
     muddle(['bootstrap', 'git+file:///nowhere', 'test-build'])
     with Directory('src') as src:
@@ -168,7 +171,7 @@ def create_multiplex_repo(build_name):
             git('commit -a -m "Empty-ish build description"')
             # ---- branch1
             git('checkout -b branch1')
-            touch('01.py', SIMPLE_BUILD_DESC)
+            touch('01.py', NONFOLLOW_BUILD_DESC)
             git('commit -a -m "More interesting build description"')
             # ---- branch.follow
             git('checkout -b branch.follow')
@@ -297,13 +300,6 @@ def test_init_with_branch(root_d):
     """Test doing a muddle init with a specified branch name.
     """
 
-    EMPTY_BUILD_DESC = '# Nothing here\ndef describe_to(builder):\n  pass\n'
-    EMPTY_README_TEXT = 'An empty README file.\n'
-    EMPTY_C_FILE = '// Nothing to see here\n'
-
-    SIMPLE_BUILD_DESC = BUILD_DESC.format(build_name='test-build')
-    FOLLOW_BUILD_DESC = SIMPLE_BUILD_DESC + '\n    builder.follow_build_desc_branch = True\n'
-
     with NewBuildDirectory('init.branch.repo') as d:
         repo = create_multiplex_repo('test-build')
 
@@ -313,19 +309,41 @@ def test_init_with_branch(root_d):
         with Directory('src'):
             with Directory('builds'):
                 check_file_v_text('01.py', EMPTY_BUILD_DESC)
-            if os.path.isdir('co1'):
-                raise GiveUp('Unexpectedly found "co1" directory')
+            # And our empty build description should not have checked any
+            # of our checkouts out
+            for name in ('co1', 'co2', 'co3', 'co4'):
+                if os.path.isdir(name):
+                    raise GiveUp('Unexpectedly found "%s" directory'%name)
 
     with NewBuildDirectory('init.explicit.branch1'):
         muddle(['init', '-branch', 'branch1', 'git+file://' + repo, 'builds/01.py'])
         muddle(['checkout', '_all'])
         with Directory('src'):
             with Directory('builds'):
-                check_file_v_text('01.py', SIMPLE_BUILD_DESC)
+                check_file_v_text('01.py', NONFOLLOW_BUILD_DESC)
+            # The build description did not ask us to follow it
             with Directory('co1'):
-                # The build description did not ask us to follow it
+                # -- root
                 check_specific_files_in_this_dir(['.git', 'Makefile.muddle'])
                 check_file_v_text('Makefile.muddle', MUDDLE_MAKEFILE)
+            with Directory('co2'):
+                # -- branch1
+                check_specific_files_in_this_dir(['.git', 'Makefile.muddle', 'README.txt'])
+                check_file_v_text('Makefile.muddle', MUDDLE_MAKEFILE)
+                check_file_v_text('README.txt', EMPTY_README_TEXT)
+            with Directory('co3'):
+                # Revision 'fred' == tag on branch 'branch.follow'
+                check_specific_files_in_this_dir(['.git', 'Makefile.muddle', 'README.txt', 'program3.c'])
+                check_file_v_text('Makefile.muddle', MUDDLE_MAKEFILE)
+                check_file_v_text('README.txt', EMPTY_README_TEXT)
+                check_file_v_text('program3.c', EMPTY_C_FILE)
+            with Directory('co4'):
+                # Revision 'fred' and branch 'branch1' - the revision wins
+                # -- fred
+                check_specific_files_in_this_dir(['.git', 'Makefile.muddle', 'README.txt', 'program4.c'])
+                check_file_v_text('Makefile.muddle', MUDDLE_MAKEFILE)
+                check_file_v_text('README.txt', EMPTY_README_TEXT)
+                check_file_v_text('program4.c', EMPTY_C_FILE)
 
     with NewBuildDirectory('init.branch.explicit.branch.follow'):
         muddle(['init', '-branch', 'branch.follow', 'git+file://' + repo, 'builds/01.py'])

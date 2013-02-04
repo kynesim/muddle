@@ -12,7 +12,8 @@ The normal pattern of usage is expected to be:
 
 1. Produce a build that needs releasing to the customer.
 
-2. Define what is to be released, in the build description.
+2. Define what is to be released, in the build description (write a
+   ``release_from()`` method).
 
 3. Verify the build tree is up-to-date and builds the entities to be released::
 
@@ -40,7 +41,7 @@ The normal pattern of usage is expected to be:
    If that shows problems, repeat from an earlier stage.
 
 5. In order to produce an actual release, create a clean working directory and
-   prepare the release using there::
+   prepare the release there, using the same release file::
 
         $ cd ..
         $ mkdir release-dir

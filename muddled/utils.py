@@ -1516,6 +1516,66 @@ class HashFile(object):
         else:
             return text
 
+class VersionNumber(object):
+    """Simple support for "semantic version" numbers.
+
+    Version numbers are of the form <major>.<minor>.<patch>
+    """
+
+    def __init__(self, major=0, minor=0, patch=0):
+        if (not isinstance(major, int) or
+            not isinstance(minor, int) or
+            not isinstance(patch, int)):
+            raise GiveUp('VersionNumber arguments must be integers,'
+                         ' not %s, %s, %s'%(repr(major), repr(minor), repr(patch)))
+
+        self.major = major
+        self.minor = minor
+        self.patch = patch
+
+    def __str__(self):
+        return '%d.%d.%d'%(self.major, self.minor, self.patch)
+
+    def __repr__(self):
+        return 'VersionNumber(%s, %s, %s)'%(self.major, self.minor, self.patch)
+
+    def __eq__(self, other):
+        return (self.major == other.major and
+                self.minor == other.minor and
+                self.patch == other.patch)
+
+    def __lt__(self, other):
+        if self.major < other.major:
+            return True
+        if self.minor < other.minor:
+            return True
+        if self.patch < other.patch:
+            return True
+        return False
+
+    __gt__ = lambda self, other: not (self < other or self == other)
+    __le__ = lambda self, other: self < other or self == other
+    __ge__ = lambda self, other: not self < other
+
+    @staticmethod
+    def from_string(s):
+        parts = s.split('.')
+        num_parts = len(parts)
+        try:
+            if num_parts == 0:
+                raise GiveUp('VersionNumber must be <major>[.<minor>[.<patch>]], not "%s"'%s)
+            elif num_parts == 1:
+                return VersionNumber(int(parts[0], 10))
+            elif num_parts == 2:
+                return VersionNumber(int(parts[0], 10), int(parts[1], 10))
+            elif num_parts == 3:
+                return VersionNumber(int(parts[0], 10), int(parts[1], 10), int(parts[2], 10))
+            else:
+                raise GiveUp('VersionNumber must be at most 3 parts, <major>.<minor>.<patch>, not "%s"'%s)
+        except ValueError as e:
+            raise GiveUp('VersionNumber parts must be integers, not %s:\n%s'%(s, e))
+
+
 def normalise_dir(dir):
     dir = os.path.expanduser(dir)
     dir = os.path.abspath(dir)

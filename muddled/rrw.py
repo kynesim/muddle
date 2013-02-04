@@ -42,6 +42,7 @@ def apt_get_install(builder,
     """
     aptget.medium(builder, pkg_name, role, pkg_list, required_by)
 
+# XXX Do we support this anymore?
 def setup_tools(builder, roles_that_use_tools = [ "*" ],
                 tools_roles = [ "tools" ] , tools_dep = "tools",
                 tools_path_env = "TOOLS_PATH",

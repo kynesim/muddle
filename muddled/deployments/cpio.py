@@ -25,8 +25,6 @@ from muddled.depend import Action
 from muddled.utils import GiveUp, LabelType, LabelTag
 
 class CpioInstructionImplementor(object):
-    def as_string(self, instr):
-        return '%s'%(instr)
 
     def apply(self, builder, instruction, role, path):
         pass
@@ -191,7 +189,7 @@ class CpioDeploymentBuilder(Action):
                     iname = instr.outer_elem_name()
                     #print 'Instruction:', iname
                     if iname in app_dict:
-                        print 'Instruction:', app_dict[iname].as_string(instr)
+                        print 'Instruction:', str(instr)
                         app_dict[iname].apply(builder, instr, lbl.role, base,
                                               the_hierarchy)
                     else:
@@ -213,9 +211,6 @@ class CpioDeploymentBuilder(Action):
 
 
 class CIApplyChmod(CpioInstructionImplementor):
-    def as_string(self, instr):
-        return '%s: %s %s (%s)'%(instr.outer_elem_name(),
-                            instr.new_mode, instr.filespec.root, instr.filespec.spec)
 
     def apply(self, builder, instr, role, target_base, hierarchy):
         dp = cpiofile.CpioFileDataProvider(hierarchy)
@@ -237,10 +232,6 @@ class CIApplyChmod(CpioInstructionImplementor):
             f.mode = f.mode | bits
 
 class CIApplyChown(CpioInstructionImplementor):
-    def as_string(self, instr):
-        return '%s: %s %s %s (%s)'%(instr.outer_elem_name(),
-                               instr.new_user, instr.new_group,
-                               instr.filespec.root, instr.filespec.spec)
 
     def apply(self, builder, instr, role, target_base, hierarchy):
         dp = cpiofile.CpioFileDataProvider(hierarchy)
@@ -256,10 +247,6 @@ class CIApplyChown(CpioInstructionImplementor):
                 f.gid = gid
 
 class CIApplyMknod(CpioInstructionImplementor):
-    def as_string(self, instr):
-        return '%s: %s %s %s %s %s %s %s'%(instr.outer_elem_name(),
-                            instr.mode, instr.uid, instr.gid, instr.type,
-                            instr.major, instr.minor, instr.file_name)
 
     def apply(self, builder, instr, role, target_base, hierarchy):
         # Find or create the relevant file
@@ -298,127 +285,6 @@ def _get_instruction_dict():
     app_dict["chmod"] = CIApplyChmod()
     app_dict["mknod"] = CIApplyMknod()
     return app_dict
-
-
-# XXX Can I remove this now, please?
-def deploy_labels(builder, target_file, target_base, name,
-           compressionMethod = None,
-           pruneFunc = None, target_labels_order = None):
-    """
-    Set up a cpio deployment
-
-    @todo  This is (probably) fatally broken - we won't deploy packages
-             correctly at all, but I have no time to fix it properly -
-             rrw 2010-01-27
-
-
-    * target_file - Where, relative to the deployment directory, should the
-      build cpio file end up? Note that compression will add a suitable '.gz'
-      or '.bz2' suffix.
-    * target_base - Where should we expect to unpack the CPIO file to - this
-      is a dictionary mapping labels to target locations. If the target location
-      is a tuple (s,d), it maps a source to a destination.
-    * compressionMethod - The compression method to use, if any - gzip -> gzip,
-      bzip2 -> bzip2.
-    * pruneFunc - If not None, this a function to be called like
-      pruneFunc(Hierarchy) to prune the hierarchy prior to packing. Usually
-      something like deb.deb_prune, it's intended to remove spurious stuff like
-      manpages from initrds and the like.
-    * target_labels_order - Order in which labels should be merged. Labels not
-       mentioned get merged in any old order.
-    """
-
-    out_target_base = [ ]
-    strike_out = { }
-    if (target_labels_order is not None):
-        for t in target_labels_order:
-            if (t in strike_out):
-                raise utils.MuddleBug("Duplicate label %s in attempt to order cpio deployment"%t)
-
-            if (t in target_base):
-                out_target_base.append( (t, target_base[t]) )
-                strike_out[t] = target_base[t]
-
-    # Now add everything not specified in the target_order
-    for (k,v) in target_base.items():
-        if (k not in strike_out):
-            # Wasn't in the order - append it.
-            out_target_base.append( (k,v) )
-
-
-
-    the_action = CpioDeploymentBuilder(target_file,
-                                           out_target_base, compressionMethod,
-                                           pruneFunc = pruneFunc)
-
-    dep_label = depend.Label(LabelType.Deployment,
-                             name, None,
-                             LabelTag.Deployed,
-                             domain = builder.default_domain)
-
-    deployment_rule = depend.Rule(dep_label, the_action)
-
-    # Now do the dependency thing ..
-    for ( ltuple, base )  in out_target_base:
-        if (type ( ltuple ) == types.TupleType ):
-            real_lbl = ltuple[0]
-        else:
-            real_lbl = ltuple
-
-        role_label = depend.Label(LabelType.Package,
-                                  "*",
-                                  real_lbl.role,
-                                  LabelTag.PostInstalled,
-                                  domain = real_lbl.domain)
-        deployment_rule.add(role_label)
-
-
-    #print "Add to deployment %s .. "%(deployment_rule)
-    builder.ruleset.add(deployment_rule)
-
-    the_action.attach_env(builder)
-
-    # Cleanup is generic
-    deployment.register_cleanup(builder, name)
-
-    return the_action
-
-
-# XXX Can I remove this now, please?
-def deploy(builder, target_file, target_base, name, target_roles_order,
-           compressionMethod = None,
-           pruneFunc = None):
-    """
-    Legacy entry point for cpio: target_order is a list of roles in order they are to be copied,
-    target_base the list of role -> path mappings
-
-    If target_order's target is a pair (src, dst) only that (src,dst) will be copied, so
-    ( "foo", ("/a/b", "/c/d") )
-
-    Copies install/foo/a/b to deploy/XXX/c/d .
-
-    """
-    proper_target_base = { }
-    for (r,base) in target_base.items():
-        lbl = depend.Label(LabelType.Package,
-                           "*",
-                           r,
-                           "*",
-                           domain = builder.default_domain)
-        proper_target_base[lbl] = base
-
-
-    label_order = [ ]
-    for r in target_roles_order:
-        lbl = depend.Label(LabelType.Package,
-                           "*",
-                           r,
-                           "*",
-                           domain = builder.default_domain)
-        label_order.append(lbl)
-
-    return deploy_labels(builder, target_file, proper_target_base, name,
-                         compressionMethod, pruneFunc, label_order)
 
 
 class CpioWrapper(object):

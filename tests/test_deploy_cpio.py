@@ -7,6 +7,7 @@ import shutil
 import string
 import subprocess
 import sys
+import getpass
 import traceback
 from itertools import izip, count
 
@@ -32,22 +33,25 @@ import muddled.checkouts.simple
 import muddled.deployments.cpio as cpio
 
 def describe_to(builder):
-    role = 'x86'
+    role1 = 'role1'
+    role2 = 'role2'
     deployment = 'everything'
 
     # Checkout ..
-    muddled.pkgs.make.medium(builder, "first_pkg", [role], "first_co")
-    muddled.pkgs.make.medium(builder, "second_pkg", [role], "second_co")
+    muddled.pkgs.make.medium(builder, "first_pkg", [role1], "first_co")
+    muddled.pkgs.make.medium(builder, "second_pkg", [role2], "second_co")
 
     fw = cpio.create(builder, 'firmware.cpio', deployment)
-    fw.copy_from_role(role, '', '/')
+    fw.copy_from_role(role1, '', '/')
+    fw.copy_from_role(role2, '', '/')
     fw.done()
 
     builder.by_default_deploy(deployment)
 """
 
-PACKAGE_BUILD_DESC = """ \
+PACKAGE_BUILD_DESC_12 = """ \
 # A simple build description using a package with a CPIO file in it
+# It copies from role1, then from role2
 
 import muddled
 import muddled.pkgs.make
@@ -57,17 +61,49 @@ import muddled.deployments.cpio as cpio
 from muddled.depend import package
 
 def describe_to(builder):
-    role = 'x86'
+    role1 = 'role1'
+    role2 = 'role2'
     cpio_role = 'x86-cpiofile'
 
     # Checkout ..
-    muddled.pkgs.make.medium(builder, "first_pkg", [role], "first_co")
-    muddled.pkgs.make.medium(builder, "second_pkg", [role], "second_co")
+    muddled.pkgs.make.medium(builder, "first_pkg", [role1], "first_co")
+    muddled.pkgs.make.medium(builder, "second_pkg", [role2], "second_co")
 
     # This should implicitly create the specified package label in our
     # dependency tree
     fw = cpio.create(builder, 'fred/firmware.cpio', package('firmware', cpio_role))
-    fw.copy_from_role(role, '', '/')
+    fw.copy_from_role(role1, '', '/')
+    fw.copy_from_role(role2, '', '/')
+    fw.done()
+
+    builder.add_default_role(cpio_role)
+"""
+
+PACKAGE_BUILD_DESC_21 = """ \
+# A simple build description using a package with a CPIO file in it
+# It copies from role2, then from role1
+
+import muddled
+import muddled.pkgs.make
+import muddled.deployments.cpio
+import muddled.checkouts.simple
+import muddled.deployments.cpio as cpio
+from muddled.depend import package
+
+def describe_to(builder):
+    role1 = 'role1'
+    role2 = 'role2'
+    cpio_role = 'x86-cpiofile'
+
+    # Checkout ..
+    muddled.pkgs.make.medium(builder, "first_pkg", [role1], "first_co")
+    muddled.pkgs.make.medium(builder, "second_pkg", [role2], "second_co")
+
+    # This should implicitly create the specified package label in our
+    # dependency tree
+    fw = cpio.create(builder, 'fred/firmware.cpio', package('firmware', cpio_role))
+    fw.copy_from_role(role2, '', '/')
+    fw.copy_from_role(role1, '', '/')
     fw.done()
 
     builder.add_default_role(cpio_role)
@@ -104,7 +140,8 @@ MUDDLE_MAKEFILE2 = """\
 # Trivial muddle makefile
 all:
 \t@echo Make all for '$(MUDDLE_LABEL)'
-\t$(CC) $(MUDDLE_SRC)/{progname}.c -o $(MUDDLE_OBJ)/{progname}
+\t$(CC) $(MUDDLE_SRC)/{progname1}.c -o $(MUDDLE_OBJ)/{progname1}
+\t$(CC) $(MUDDLE_SRC)/{progname2}.c -o $(MUDDLE_OBJ)/{progname2}
 
 config:
 \t@echo Make configure for '$(MUDDLE_LABEL)'
@@ -112,7 +149,8 @@ config:
 install:
 \t@echo Make install for '$(MUDDLE_LABEL)'
 \tmkdir -p $(MUDDLE_INSTALL)/bin
-\tcp $(MUDDLE_OBJ)/{progname} $(MUDDLE_INSTALL)/bin
+\tcp $(MUDDLE_OBJ)/{progname1} $(MUDDLE_INSTALL)/bin
+\tcp $(MUDDLE_OBJ)/{progname2} $(MUDDLE_INSTALL)/bin
 
 clean:
 \t@echo Make clean for '$(MUDDLE_LABEL)'
@@ -230,7 +268,7 @@ def check_cpio_archive(archive):
             raise GiveUp('Protection %d does not match: got %s, wanted %s'%(n, prot, expect[0]))
 
         if n==0:
-            wanted_owner = os.getlogin()
+            wanted_owner = getpass.getuser()
         else:
             wanted_owner = 'root'
         if owner != wanted_owner:
@@ -285,8 +323,11 @@ def make_old_build_tree():
 
             with NewDirectory('second_co'):
                 git('init')
-                touch('Makefile.muddle', MUDDLE_MAKEFILE2.format(progname='program2'))
+                touch('Makefile.muddle', MUDDLE_MAKEFILE2.format(progname1='program1',
+                                                                 progname2='program2'))
                 touch('program2.c', MAIN_C_SRC.format(progname='program2'))
+                # A version of program1 that announces itself as program2
+                touch('program1.c', MAIN_C_SRC.format(progname='program2'))
                 git('add Makefile.muddle program2.c')
                 git('commit -m "A commit"')
                 muddle(['import'])
@@ -297,6 +338,30 @@ def make_old_build_tree():
             with Directory('everything'):
                 check_cpio_archive('firmware.cpio')
 
+                # Check we got the correct version of program1
+                extract_file('firmware.cpio', '/bin/program1')
+                text = get_stdout('bin/program1')
+                if text != 'Program program2\n':
+                    raise GiveUp('Expected the program1 from role2, but it output %s'%text)
+                print 'That looks like the correct program1'
+
+def extract_file(cpio_archive, filepath):
+    """Extract a single file from our CPIO archive.
+    """
+    # GNU cpio has --no-absolute-pathname, but BSD cpio does not
+    # BSD tar can read from CPIO archives, but GNU tar cannot
+    try:
+        # Try for GNU cpio
+        if filepath[0] == '/':
+            path = filepath[1:]
+        else:
+            path = filepath
+        shell('cpio -idvm --no-absolute-filenames -F %s %s'%(cpio_archive, path))
+        return
+    except ShellError as e:
+        # Otherwise, try for BSD tar
+        shell('tar -f %s -x -v %s'%(cpio_archive, filepath))
+
 def make_new_build_tree():
     """Make a build tree that creates a CPIO file in a package, and use/test it
     """
@@ -305,7 +370,7 @@ def make_new_build_tree():
 
         with Directory('src'):
             with Directory('builds'):
-                touch('01.py', PACKAGE_BUILD_DESC)
+                touch('01.py', PACKAGE_BUILD_DESC_12)
 
             with NewDirectory('first_co'):
                 git('init')
@@ -318,8 +383,11 @@ def make_new_build_tree():
 
             with NewDirectory('second_co'):
                 git('init')
-                touch('Makefile.muddle', MUDDLE_MAKEFILE2.format(progname='program2'))
+                touch('Makefile.muddle', MUDDLE_MAKEFILE2.format(progname1='program1',
+                                                                 progname2='program2'))
                 touch('program2.c', MAIN_C_SRC.format(progname='program2'))
+                # A version of program1 that announces itself as program2
+                touch('program1.c', MAIN_C_SRC.format(progname='program2'))
                 git('add Makefile.muddle program2.c')
                 git('commit -m "A commit"')
                 muddle(['import'])
@@ -333,13 +401,37 @@ def make_new_build_tree():
                 with Directory('fred'):
                     check_cpio_archive('firmware.cpio')
 
-        # Which begs the question how that is meant to get into an install
-        # directory, but presumably another package can depend on it and do
-        # the approriate thing.
+                    # Check we got the correct version of program1
+                    extract_file('firmware.cpio', '/bin/program1')
 
-        # Also, what happens if we have an explicit package of the same name
-        # as our implicit package?
+                    text = get_stdout('bin/program1')
+                    if text != 'Program program2\n':
+                        raise GiveUp('Expected the program1 from role2, but it output %s'%text)
+                    print 'That looks like the correct program1'
 
+        # Now let's try requesting the roles in the other order
+        with Directory('src'):
+            with Directory('builds'):
+                touch('01.py', PACKAGE_BUILD_DESC_21)
+                # Then remove the .pyc file, because Python probably won't
+                # realise that this new 01.py is later than the previous
+                # version
+                os.remove('01.pyc')
+
+        muddle(['veryclean'])
+        muddle([])
+
+        with Directory('install'):
+            with Directory('x86-cpiofile'):
+                with Directory('fred'):
+                    check_cpio_archive('firmware.cpio')
+
+                    # Check we got the other version of program1
+                    extract_file('firmware.cpio', '/bin/program1')
+                    text = get_stdout('bin/program1')
+                    if text != 'Program program1\n':
+                        raise GiveUp('Expected the program1 from role1, but it output %s'%text)
+                    print 'That looks like the correct program1'
 
 def main(args):
 

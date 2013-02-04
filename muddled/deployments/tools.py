@@ -5,6 +5,8 @@ directories to everything in another list of deployments.
 
 Instructions are ignored - there's no reason to follow them
 (yet) and it's simpler not to.
+
+XXX Do we support this anymore?
 """
 
 import os

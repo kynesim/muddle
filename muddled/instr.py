@@ -19,6 +19,9 @@ class ChangeUserInstruction(db.Instruction):
         self.new_group = new_group
         self.name = name
 
+    def __str__(self):
+        return '%s: %s %s %s (%s)'%(self.name, self.new_user, self.new_group,
+                                    self.filespec.root, self.filespec.spec)
 
     def to_xml(self, doc):
         elem = doc.createElement(self.name)
@@ -91,6 +94,10 @@ class ChangeModeInstruction(db.Instruction):
         self.filespec = filespec
         self.new_mode = new_mode
         self.name = name
+
+    def __str__(self):
+        return '%s: %s %s (%s)'%(self.name, self.new_mode,
+                                 self.filespec.root, self.filespec.spec)
 
     def to_xml(self, doc):
         elem = doc.createElement(self.name)
@@ -173,6 +180,10 @@ class MakeDeviceInstruction(db.Instruction):
         self.major = None
         self.minor = None
         self.mode = None
+
+    def __str__(self):
+        return 'mknod: %s %s %s %s %s %s %s'%(self.mode, self.uid, self.gid, self.type,
+                                              self.major, self.minor, self.file_name)
 
     def to_xml(self, doc):
         elem = doc.createElement("mknod")

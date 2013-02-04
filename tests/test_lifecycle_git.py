@@ -116,6 +116,132 @@ def describe_to(builder):
     add_package(builder, 'package', 'x86', co_name='co1')
 """
 
+MULTIPLEX_BUILD_DESC = """\
+# A simple build description with a variety of checkouts
+import os
+
+import muddled.pkgs.make
+
+from muddled.depend import checkout
+from muddled.version_control import checkout_from_repo
+
+def add_package(builder, pkg_name, role, co_name=None, branch=None, revision=None):
+    base_repo = builder.build_desc_repo
+    if co_name is None:
+        co_name = pkg_name
+    if branch is None:
+        branch = base_repo.branch
+    if revision is None:
+        revision = base_repo.revision
+    repo = base_repo.copy_with_changes(co_name, branch=branch, revision=revision)
+    checkout_from_repo(builder, checkout(co_name), repo)
+    muddled.pkgs.make.simple(builder, pkg_name, role, co_name)
+
+def describe_to(builder):
+    builder.build_name = '{build_name}'
+    add_package(builder, 'package', 'x86', co_name='co1')
+    add_package(builder, 'package', 'x86', co_name='co2', branch='branch1')
+    add_package(builder, 'package', 'x86', co_name='co3', revision='fred')
+    # This is a confusing case - we do whatever we do
+    add_package(builder, 'package', 'x86', co_name='co4', branch='branch1', revision='fred')
+"""
+
+def create_multiplex_repo(build_name):
+    """Creates repositories for checkouts 'builds', 'co1' .. 'co4'
+
+    Assumes that we are already in an appropriate directory.
+
+    Returns the path to the 'src' directory, which is the repo_root to use.
+    """
+
+    EMPTY_BUILD_DESC = '# Nothing here\ndef describe_to(builder):\n  pass\n'
+    EMPTY_README_TEXT = 'An empty README file.\n'
+    EMPTY_C_FILE = '// Nothing to see here\n'
+
+    SIMPLE_BUILD_DESC = BUILD_DESC.format(build_name='test-build')
+    FOLLOW_BUILD_DESC = SIMPLE_BUILD_DESC + '\n    builder.follow_build_desc_branch = True\n'
+
+    muddle(['bootstrap', 'git+file:///nowhere', 'test-build'])
+    with Directory('src') as src:
+        with Directory('builds') as builds:
+            touch('01.py', EMPTY_BUILD_DESC)
+            git('commit -a -m "Empty-ish build description"')
+            # ---- branch1
+            git('checkout -b branch1')
+            touch('01.py', SIMPLE_BUILD_DESC)
+            git('commit -a -m "More interesting build description"')
+            # ---- branch.follow
+            git('checkout -b branch.follow')
+            touch('01.py', FOLLOW_BUILD_DESC)
+            git('commit -a -m "A following build description"')
+        with NewDirectory('co1'):
+            touch('Makefile.muddle', MUDDLE_MAKEFILE)
+            git('init')
+            git('add Makefile.muddle')
+            git('commit Makefile.muddle -m "A checkout needs a makefile"')
+            # ---- branch1
+            git('checkout -b branch1')
+            touch('README.txt', EMPTY_README_TEXT)
+            git('add README.txt')
+            git('commit -m "And a README"')
+            # ---- branch.follow
+            git('checkout -b branch.follow')
+            touch('program1.c', EMPTY_C_FILE)
+            git('add program1.c')
+            git('commit -m "And a program"')
+        with NewDirectory('co2'):
+            touch('Makefile.muddle', MUDDLE_MAKEFILE)
+            git('init')
+            git('add Makefile.muddle')
+            git('commit Makefile.muddle -m "A checkout needs a makefile"')
+            # ---- branch1
+            git('checkout -b branch1')
+            touch('README.txt', EMPTY_README_TEXT)
+            git('add README.txt')
+            git('commit -m "And a README"')
+            # ---- branch.follow
+            git('checkout -b branch.follow')
+            touch('program2.c', EMPTY_C_FILE)
+            git('add program2.c')
+            git('commit -m "And a program"')
+        with NewDirectory('co3'):
+            touch('Makefile.muddle', MUDDLE_MAKEFILE)
+            git('init')
+            git('add Makefile.muddle')
+            git('commit Makefile.muddle -m "A checkout needs a makefile"')
+            # ---- branch1
+            git('checkout -b branch1')
+            touch('README.txt', EMPTY_README_TEXT)
+            git('add README.txt')
+            git('commit -m "And a README"')
+            # ---- branch.follow
+            git('checkout -b branch.follow')
+            touch('program3.c', EMPTY_C_FILE)
+            git('add program3.c')
+            git('commit -m "And a program"')
+            # --- tag fred
+            git('tag fred')
+        with NewDirectory('co4'):
+            touch('Makefile.muddle', MUDDLE_MAKEFILE)
+            git('init')
+            git('add Makefile.muddle')
+            git('commit Makefile.muddle -m "A checkout needs a makefile"')
+            # ---- branch1
+            git('checkout -b branch1')
+            touch('README.txt', EMPTY_README_TEXT)
+            git('add README.txt')
+            git('commit -m "And a README"')
+            # ---- branch.follow
+            git('checkout -b branch.follow')
+            touch('program4.c', EMPTY_C_FILE)
+            git('add program4.c')
+            git('commit -m "And a program"')
+            # --- tag fred
+            git('tag fred')
+    repo = src.where
+    return repo
+
+
 def check_revision(checkout, revision_wanted):
     actual_revision = captured_muddle(['query', 'checkout-id', checkout]).strip()
     if actual_revision != revision_wanted:
@@ -179,31 +305,7 @@ def test_init_with_branch(root_d):
     FOLLOW_BUILD_DESC = SIMPLE_BUILD_DESC + '\n    builder.follow_build_desc_branch = True\n'
 
     with NewBuildDirectory('init.branch.repo') as d:
-        muddle(['bootstrap', 'git+file:///nowhere', 'test-build'])
-        with Directory('src') as src:
-            with Directory('builds') as builds:
-                touch('01.py', EMPTY_BUILD_DESC)
-                git('commit -a -m "Empty-ish build description"')
-                git('checkout -b branch1')
-                touch('01.py', SIMPLE_BUILD_DESC)
-                git('commit -a -m "More interesting build description"')
-                git('checkout -b branch.follow')
-                touch('01.py', FOLLOW_BUILD_DESC)
-                git('commit -a -m "A following build description"')
-            with NewDirectory('co1'):
-                touch('Makefile.muddle', MUDDLE_MAKEFILE)
-                git('init')
-                git('add Makefile.muddle')
-                git('commit Makefile.muddle -m "A checkout needs a makefile"')
-                git('checkout -b branch1')
-                touch('README.txt', EMPTY_README_TEXT)
-                git('add README.txt')
-                git('commit -m "And a README"')
-                git('checkout -b branch.follow')
-                touch('program1.c', EMPTY_C_FILE)
-                git('add program1.c')
-                git('commit -m "And a program"')
-        repo = src.where
+        repo = create_multiplex_repo('test-build')
 
     with NewBuildDirectory('init.implicit.master'):
         muddle(['init', 'git+file://' + repo, 'builds/01.py'])

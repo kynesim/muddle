@@ -28,10 +28,19 @@ The normal pattern of usage is expected to be:
         $ git commit simple_v1.0.release -m 'Release file for simple v1.0'
         $ muddle stamp push
 
-   (a more detailed commit message would doubtless be a go0d thing.)
+   (a more detailed commit message would doubtless be a good thing.)
 
-5. Create a clean working directory and prepare the release using that
-   release file::
+5. Test the release mechanism in the current build tree (this doesn't
+   *prove* the build works, because it doesn't check the whole tree out anew
+   and try building it from scratch, so it mustn't be used as the final
+   release)::
+
+        $ muddle release -test versions/simple_v1.0.release
+
+   If that shows problems, repeat from an earlier stage.
+
+5. In order to produce an actual release, create a clean working directory and
+   prepare the release using there::
 
         $ cd ..
         $ mkdir release-dir
@@ -254,7 +263,7 @@ This:
 2. Does ``muddle unstamp <release-file>``,
 
 3. Copies the release file to ``.muddle/Release``, and the release
-   specification to ``.muddle/ReleaseSpec``. The existence of the latter
+   specification to ``.muddle/ReleaseSpec``. The existence of the former
    indicates that this is a release build tree, and "normal" muddle will
    refuse to build in it.
 
@@ -295,6 +304,17 @@ This:
 
    (Of course, the user can delete the file, but if they do then that's their
    responsibility.)
+
+The ``-test`` variant (``muddle release -test``) omits the first two stages,
+and may thus be done in the working build tree. It still copies the
+``Release`` and ``ReleaseSpec`` files into the ``.muddle`` directory, and thus
+marks the build as a release build - this can be undone by deleting
+``.muddle/Release``.
+
+.. warning:: Do not release a test release. Always prepare a *proper* release
+   created in an empty directory. Test releases cannot be trusted as the
+   build tree may still contain artefacts from earlier development, and a
+   clean build may or may not work.
 
 Other useful commands
 ---------------------

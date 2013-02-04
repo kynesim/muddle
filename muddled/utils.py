@@ -440,9 +440,9 @@ def is_release_build(dir):
     ``.muddle`` directory (the "top" of the build).
 
     The build is assumed to be a release build if there is a file called
-    ``.muddle/ReleaseSpec``.
+    ``.muddle/Release``.
     """
-    file_name = os.path.join(dir, '.muddle', "ReleaseSpec")
+    file_name = os.path.join(dir, '.muddle', "Release")
     return os.path.exists(file_name)
 
 def ensure_dir(dir, verbose=True):

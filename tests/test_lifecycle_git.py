@@ -67,7 +67,7 @@ def add_package(builder, pkg_name, role, co_name=None):
 def describe_to(builder):
     builder.build_name = '{build_name}'
     # A single checkout
-    add_package(builder, 'package', 'x86', co_name='checkout')
+    add_package(builder, 'package', 'x86', co_name='co1')
 """
 
 BUILD_DESC_WITH_REVISION = """\
@@ -90,11 +90,11 @@ def add_package(builder, pkg_name, role, co_name=None):
 def describe_to(builder):
     builder.build_name = '{build_name}'
     # A single checkout
-    add_package(builder, 'package', 'x86', co_name='checkout')
+    add_package(builder, 'package', 'x86', co_name='co1')
 """
 
 BUILD_DESC_WITH_BRANCH = """\
-# A very simple build description, with a checkout pinned to a revision
+# A very simple build description, with a checkout pinned to a branch
 import os
 
 import muddled.pkgs.make
@@ -113,13 +113,13 @@ def add_package(builder, pkg_name, role, co_name=None):
 def describe_to(builder):
     builder.build_name = '{build_name}'
     # A single checkout
-    add_package(builder, 'package', 'x86', co_name='checkout')
+    add_package(builder, 'package', 'x86', co_name='co1')
 """
 
 def check_revision(checkout, revision_wanted):
     actual_revision = captured_muddle(['query', 'checkout-id', checkout]).strip()
     if actual_revision != revision_wanted:
-        raise GiveUp('Checkout checkout has revision %s, expected %s'%(
+        raise GiveUp('Checkout co1 has revision %s, expected %s'%(
             actual_revision, revision_wanted))
 
 def get_branch(dir):
@@ -190,7 +190,7 @@ def test_init_with_branch(root_d):
                 git('checkout -b branch.follow')
                 touch('01.py', FOLLOW_BUILD_DESC)
                 git('commit -a -m "A following build description"')
-            with NewDirectory('checkout'):
+            with NewDirectory('co1'):
                 touch('Makefile.muddle', MUDDLE_MAKEFILE)
                 git('init')
                 git('add Makefile.muddle')
@@ -211,8 +211,8 @@ def test_init_with_branch(root_d):
         with Directory('src'):
             with Directory('builds'):
                 check_file_v_text('01.py', EMPTY_BUILD_DESC)
-            if os.path.isdir('checkout'):
-                raise GiveUp('Unexpectedly found "checkout" directory')
+            if os.path.isdir('co1'):
+                raise GiveUp('Unexpectedly found "co1" directory')
 
     with NewBuildDirectory('init.explicit.branch1'):
         muddle(['init', '-branch', 'branch1', 'git+file://' + repo, 'builds/01.py'])
@@ -220,7 +220,7 @@ def test_init_with_branch(root_d):
         with Directory('src'):
             with Directory('builds'):
                 check_file_v_text('01.py', SIMPLE_BUILD_DESC)
-            with Directory('checkout'):
+            with Directory('co1'):
                 # The build description did not ask us to follow it
                 check_specific_files_in_this_dir(['.git', 'Makefile.muddle'])
                 check_file_v_text('Makefile.muddle', MUDDLE_MAKEFILE)
@@ -231,12 +231,13 @@ def test_init_with_branch(root_d):
         with Directory('src'):
             with Directory('builds'):
                 check_file_v_text('01.py', FOLLOW_BUILD_DESC)
-            with Directory('checkout'):
+            with Directory('co1'):
                 # The build description asked us to follow it
                 check_specific_files_in_this_dir(['.git', 'Makefile.muddle', 'README.txt', 'program1.c'])
                 check_file_v_text('Makefile.muddle', MUDDLE_MAKEFILE)
                 check_file_v_text('README.txt', EMPTY_README_TEXT)
                 check_file_v_text('program1.c', EMPTY_C_FILE)
+
 
 def test_git_lifecycle(root_d):
     """A linear sequence of plausible actions...
@@ -246,7 +247,7 @@ def test_git_lifecycle(root_d):
     with NewDirectory(root_d.join('repos')) as d:
         with NewDirectory(d.join('builds')):
             git('init --bare')
-        with NewDirectory(d.join('checkout')):
+        with NewDirectory(d.join('co1')):
             git('init --bare')
         with NewDirectory(d.join('versions')):
             git('init --bare')
@@ -265,7 +266,7 @@ def test_git_lifecycle(root_d):
                 git('add 01.py')  # Because we changed it since the last 'git add'
                 git('commit -m "First commit of build description"')
                 muddle(['push'])
-            with NewDirectory('checkout'):
+            with NewDirectory('co1'):
                 touch('Makefile.muddle', MUDDLE_MAKEFILE)
                 git('init')
                 git('add Makefile.muddle')
@@ -280,7 +281,7 @@ def test_git_lifecycle(root_d):
             muddle(['stamp', 'push'])
 
         builds_rev_1 = captured_muddle(['query', 'checkout-id', 'builds']).strip()
-        checkout_rev_1 = captured_muddle(['query', 'checkout-id', 'checkout']).strip()
+        checkout_rev_1 = captured_muddle(['query', 'checkout-id', 'co1']).strip()
 
         # Add some more revisions, so we have something to work with
         with Directory('src'):
@@ -293,7 +294,7 @@ def test_git_lifecycle(root_d):
                 git('commit -a -m "Add comment number 2"')
                 builds_rev_3 = captured_muddle(['query', 'checkout-id']).strip()
                 muddle(['push'])
-            with Directory('checkout'):
+            with Directory('co1'):
                 append('Makefile.muddle', '# Additional comment number 1\n')
                 git('add Makefile.muddle')
                 git('commit -m "Add comment number 1"')
@@ -307,7 +308,7 @@ def test_git_lifecycle(root_d):
     print '  ',builds_rev_1
     print '  ',builds_rev_2
     print '  ',builds_rev_3
-    print 'checkout/'
+    print 'co1/'
     print '  ',checkout_rev_1
     print '  ',checkout_rev_2
     print '  ',checkout_rev_3
@@ -326,16 +327,16 @@ def test_git_lifecycle(root_d):
             os.remove(d.join('src', 'builds', '01.pyc'))
         muddle(['checkout', '_all'])
 
-        check_revision('checkout', checkout_rev_2)
+        check_revision('co1', checkout_rev_2)
 
         # If we attempt to pull in the checkout, that should fail because
         # we are already at the requested revision
-        text = captured_muddle(['pull', 'checkout'], error_fails=False).strip()
+        text = captured_muddle(['pull', 'co1'], error_fails=False).strip()
         if not text.endswith('checkout past the specified revision.'):
             raise GiveUp('Expected muddle pull to fail trying to go "past" revision:\n%s'%text)
 
         # Merging should behave just the same
-        text = captured_muddle(['merge', 'checkout'], error_fails=False).strip()
+        text = captured_muddle(['merge', 'co1'], error_fails=False).strip()
         if not text.endswith('checkout past the specified revision.'):
             raise GiveUp('Expected muddle pull to fail trying to go "past" revision:\n%s'%text)
 
@@ -344,18 +345,18 @@ def test_git_lifecycle(root_d):
         # itself).
         # All muddle can really do is go to the revision specified in the
         # build description...
-        with Directory(d.join('src', 'checkout')):
+        with Directory(d.join('src', 'co1')):
             git('checkout %s'%checkout_rev_1)
             muddle(['pull'])
-            check_revision('checkout', checkout_rev_2)
+            check_revision('co1', checkout_rev_2)
 
             git('checkout %s'%checkout_rev_1)
             muddle(['merge'])
-            check_revision('checkout', checkout_rev_2)
+            check_revision('co1', checkout_rev_2)
 
         # What if we try to do work on that specified revision
         # (and, in git terms, at a detached HEAD)
-        with Directory(d.join('src', 'checkout')):
+        with Directory(d.join('src', 'co1')):
             append('Makefile.muddle', '# Additional comment number 3\n')
             git('commit -a -m "Add comment number 3"')
             checkout_rev_4 = captured_muddle(['query', 'checkout-id']).strip()
@@ -372,7 +373,7 @@ def test_git_lifecycle(root_d):
             if 'This checkout is in "detached HEAD" state' not in text:
                 raise GiveUp('Expected to be told checkout is in detached'
                              ' HEAD state, instead got:\n%s'%text)
-        print 'checkout/'
+        print 'co1/'
         print '  ',checkout_rev_1
         print '  ',checkout_rev_2
         print '  ',checkout_rev_3
@@ -388,12 +389,12 @@ def test_git_lifecycle(root_d):
                 # Then remove the .pyc file, because Python probably won't realise
                 # that this new 01.py is later than the previous version
                 os.remove(d.join('src', 'builds', '01.pyc'))
-            with Directory('checkout'):
+            with Directory('co1'):
                 git('checkout -b %s'%checkout_branch)
                 muddle(['status'])
                 muddle(['push'])
 
-        check_revision('checkout', checkout_rev_4)
+        check_revision('co1', checkout_rev_4)
 
         # What happens if we specify a revision on a branch?
         # First, choose the revision before the branch
@@ -405,12 +406,12 @@ def test_git_lifecycle(root_d):
                 # Then remove the .pyc file, because Python probably won't realise
                 # that this new 01.py is later than the previous version
                 os.remove(d.join('src', 'builds', '01.pyc'))
-            with Directory('checkout'):
+            with Directory('co1'):
                 muddle(['status'])
                 # Doing 'muddle pull' is the obvious way to get us back to
                 # the right revision
                 muddle(['pull'])
-                check_revision('checkout', checkout_rev_3)
+                check_revision('co1', checkout_rev_3)
                 # Because we specified an exact revision, we should be detached
                 if not is_detached_head():
                     raise GiveUp('Expected to have a detached HEAD')
@@ -424,9 +425,9 @@ def test_git_lifecycle(root_d):
                 # Then remove the .pyc file, because Python probably won't realise
                 # that this new 01.py is later than the previous version
                 os.remove(d.join('src', 'builds', '01.pyc'))
-            with Directory('checkout'):
+            with Directory('co1'):
                 # We're still on the old revision, and detached
-                check_revision('checkout', checkout_rev_3)
+                check_revision('co1', checkout_rev_3)
                 # Because we specified an exact revision, we should be detached
                 if not is_detached_head():
                     raise GiveUp('Expected to have a detached HEAD')
@@ -438,7 +439,7 @@ def test_git_lifecycle(root_d):
                 # Doing 'muddle pull' is the obvious way to get us back to
                 # the right revision
                 muddle(['pull'])
-                check_revision('checkout', checkout_rev_4)
+                check_revision('co1', checkout_rev_4)
                 # Because we specified an exact revision, we should be detached
                 if not is_detached_head():
                     raise GiveUp('Expected to have a detached HEAD')
@@ -447,7 +448,7 @@ def test_git_lifecycle(root_d):
                 git('checkout %s'%checkout_branch)
                 muddle(['status'])
                 # We're still at the requested revision
-                check_revision('checkout', checkout_rev_4)
+                check_revision('co1', checkout_rev_4)
                 # But we're no longer a detached HEAD
                 if is_detached_head():
                     raise GiveUp('Surprised to have a detached HEAD')
@@ -463,7 +464,7 @@ def test_git_lifecycle(root_d):
 
         # Check the branches of our checkouts
         check_branch('src/builds', 'master')
-        check_branch('src/checkout', 'master')
+        check_branch('src/co1', 'master')
 
         # And change it
         muddle(['branch-tree', 'test-v0.1'])
@@ -471,7 +472,7 @@ def test_git_lifecycle(root_d):
         # Check the branches of our checkouts - since this isn't using muddle,
         # it should still show both at the new branch
         check_branch('src/builds', 'test-v0.1')
-        check_branch('src/checkout', 'test-v0.1')
+        check_branch('src/co1', 'test-v0.1')
 
         # XXX And what command *should* I use to go to the branch specified
         # XXX by the build description (explicitly or implicitly)? I don't
@@ -481,9 +482,9 @@ def test_git_lifecycle(root_d):
         # Doing a "mudddle sync" on the checkout should put it back to the
         # master branch, as that's what is (implicitly) asked for in the
         # build description. It shouldn't affect the build description.
-        muddle(['sync', 'checkout'])
+        muddle(['sync', 'co1'])
         check_branch('src/builds', 'test-v0.1')
-        check_branch('src/checkout', 'master')
+        check_branch('src/co1', 'master')
 
         # XXX We have various things to mix and match:
         # XXX
@@ -507,21 +508,21 @@ def test_git_lifecycle(root_d):
                 os.remove('01.pyc')
         # and sync again, our checkout should now follow the build
         # description's branch
-        muddle(['sync', 'checkout'])
+        muddle(['sync', 'co1'])
         check_branch('src/builds', 'test-v0.1')
-        check_branch('src/checkout', 'test-v0.1')
+        check_branch('src/co1', 'test-v0.1')
 
         # Let's commit and push...
         with Directory('src'):
             with Directory('builds'):
                 git('commit -a -m "Branched"')
                 muddle(['push'])
-            with Directory('checkout'):
+            with Directory('co1'):
                 # We hadn't changed any files in our checkout
                 muddle(['push'])
 
         # ...also want to check what happens if we explicitly select
-        # branch master of checkout, by name, in the build description
+        # branch master of co1, by name, in the build description
         # - we should revert to master again.
 
 
@@ -530,11 +531,6 @@ def test_git_lifecycle(root_d):
     # XXX Oh well.
 
 
-
-    # We should be able to checkout a build description by branch
-    #with NewDirectory(root_d.join('build10')) as d:
-    #    muddle(['init', '-b', 'test-v0.1', repo_url, 'builds/01.py'])
-    #    muddle(['checkout', '_all'])
 
 
 def main(args):

@@ -12,6 +12,8 @@ import muddled.depend as depend
 import muddled.rewrite as rewrite
 
 from muddled.depend import Label
+from muddled.withdir import Directory
+
 import os
 
 DEFAULT_MAKEFILE_NAME = "Makefile.muddle"
@@ -111,7 +113,7 @@ class MakeBuilder(PackageBuilder):
         # XXX try...
         tmp = Label(utils.LabelType.Checkout, self.co, domain=label.domain)
         co_path =  builder.db.get_checkout_path(tmp)
-        with utils.Directory(co_path):
+        with Directory(co_path):
             self._amend_env(co_path)
 
             makefile_name = deduce_makefile_name(self.makefile_name,

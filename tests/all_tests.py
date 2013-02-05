@@ -58,7 +58,7 @@ def run_tests(args):
 
     # This branch of muddle does not have a working lifecycle test yet,
     # so ignore it for now
-    ignore.add('test_lifecycle_git.py')
+    ignore.add('test_lifecycle.py')
 
     unrecognised = ignore.difference(files)
 

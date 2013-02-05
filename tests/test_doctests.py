@@ -7,7 +7,7 @@ import os
 import sys
 
 import support_for_tests
-from muddled.utils import Directory
+from muddled.withdir import Directory
 
 def main():
     total_tests = 0

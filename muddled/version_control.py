@@ -12,6 +12,7 @@ from muddled.depend import Label
 from muddled.repository import Repository
 from muddled.utils import split_vcs_url, GiveUp, MuddleBug, Unsupported
 from muddled.db import CheckoutData
+from muddled.withdir import Directory
 
 class VersionControlSystem(object):
     """
@@ -345,7 +346,7 @@ class VersionControlHandler(object):
             repo.branch = specific_branch
 
         options = builder.db.get_checkout_vcs_options(co_label)
-        with utils.Directory(parent_dir):
+        with Directory(parent_dir):
             try:
                 self.vcs.checkout(repo, co_leaf, options, verbose)
             except MuddleBug as err:
@@ -384,7 +385,7 @@ class VersionControlHandler(object):
             print 'Specific branch %s in %s'%(specific_branch, co_label)
 
         options = builder.db.get_checkout_vcs_options(co_label)
-        with utils.Directory(builder.db.get_checkout_path(co_label)):
+        with Directory(builder.db.get_checkout_path(co_label)):
             try:
                 return self.vcs.pull(repo, options, upstream=upstream, verbose=verbose)
             except MuddleBug as err:
@@ -419,7 +420,7 @@ class VersionControlHandler(object):
             print 'Specific branch %s in %s'%(specific_branch, co_label)
 
         options = builder.db.get_checkout_vcs_options(co_label)
-        with utils.Directory(builder.db.get_checkout_path(co_label)):
+        with Directory(builder.db.get_checkout_path(co_label)):
             try:
                 return self.vcs.merge(repo, options, verbose)
             except MuddleBug as err:
@@ -441,7 +442,7 @@ class VersionControlHandler(object):
         """
         repo = builder.db.get_checkout_repo(co_label)
         options = builder.db.get_checkout_vcs_options(co_label)
-        with utils.Directory(builder.db.get_checkout_path(co_label)):
+        with Directory(builder.db.get_checkout_path(co_label)):
             try:
                 self.vcs.commit(repo, options, verbose)
             except MuddleBug as err:
@@ -473,7 +474,7 @@ class VersionControlHandler(object):
                          builder.db.get_checkout_location(co_label), repo))
 
         options = builder.db.get_checkout_vcs_options(co_label)
-        with utils.Directory(builder.db.get_checkout_path(co_label)):
+        with Directory(builder.db.get_checkout_path(co_label)):
             try:
                 self.vcs.push(repo, options, upstream=upstream, verbose=verbose)
             except MuddleBug as err:
@@ -508,7 +509,7 @@ class VersionControlHandler(object):
             print '>>', co_label
         repo = builder.db.get_checkout_repo(co_label)
         options = builder.db.get_checkout_vcs_options(co_label)
-        with utils.Directory(builder.db.get_checkout_path(co_label), show_pushd=False):
+        with Directory(builder.db.get_checkout_path(co_label), show_pushd=False):
             try:
                 status_text = self.vcs.status(repo, options)
                 if status_text:
@@ -542,7 +543,7 @@ class VersionControlHandler(object):
         actual_dir = builder.db.get_checkout_path(co_label)
         repo = builder.db.get_checkout_repo(co_label)
         options = builder.db.get_checkout_vcs_options(co_label)
-        with utils.Directory(actual_dir):
+        with Directory(actual_dir):
             self.vcs.reparent(actual_dir, repo, options, force, verbose)
 
     def revision_to_checkout(self, builder, co_label, force=False, before=None, verbose=False, show_pushd=True):
@@ -587,7 +588,7 @@ class VersionControlHandler(object):
         parent_dir, co_leaf = os.path.split(co_dir)
         repo = builder.db.get_checkout_repo(co_label)
         options = builder.db.get_checkout_vcs_options(co_label)
-        with utils.Directory(co_dir, show_pushd=show_pushd):
+        with Directory(co_dir, show_pushd=show_pushd):
             return self.vcs.revision_to_checkout(repo, co_leaf, options,
                                                  force, before, verbose)
 
@@ -600,7 +601,7 @@ class VersionControlHandler(object):
         If 'show_pushd' is false, then we won't report as we "pushd" into the
         checkout directory.
         """
-        with utils.Directory(builder.db.get_checkout_path(co_label), show_pushd=show_pushd):
+        with Directory(builder.db.get_checkout_path(co_label), show_pushd=show_pushd):
             try:
                 return self.vcs.get_current_branch()
             except (GiveUp, Unsupported) as err:
@@ -616,7 +617,7 @@ class VersionControlHandler(object):
         If 'show_pushd' is false, then we won't report as we "pushd" into the
         checkout directory.
         """
-        with utils.Directory(builder.db.get_checkout_path(co_label), show_pushd=show_pushd):
+        with Directory(builder.db.get_checkout_path(co_label), show_pushd=show_pushd):
             try:
                 return self.vcs.create_branch(branch)
             except (GiveUp, Unsupported) as err:
@@ -632,7 +633,7 @@ class VersionControlHandler(object):
         If 'show_pushd' is false, then we won't report as we "pushd" into the
         checkout directory.
         """
-        with utils.Directory(builder.db.get_checkout_path(co_label), show_pushd=show_pushd):
+        with Directory(builder.db.get_checkout_path(co_label), show_pushd=show_pushd):
             try:
                 return self.vcs.goto_branch(branch)
             except (GiveUp, Unsupported) as err:
@@ -650,7 +651,7 @@ class VersionControlHandler(object):
         If 'show_pushd' is false, then we won't report as we "pushd" into the
         checkout directory.
         """
-        with utils.Directory(builder.db.get_checkout_path(co_label), show_pushd=show_pushd):
+        with Directory(builder.db.get_checkout_path(co_label), show_pushd=show_pushd):
             try:
                 return self.vcs.goto_revision(revision, branch)
             except (GiveUp, Unsupported) as err:
@@ -673,7 +674,7 @@ class VersionControlHandler(object):
         If 'show_pushd' is false, then we won't report as we "pushd" into the
         checkout directory.
         """
-        with utils.Directory(builder.db.get_checkout_path(co_label), show_pushd=show_pushd):
+        with Directory(builder.db.get_checkout_path(co_label), show_pushd=show_pushd):
             try:
                 return self.vcs.branch_exists(branch)
             except (GiveUp, Unsupported) as err:

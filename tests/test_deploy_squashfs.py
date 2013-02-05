@@ -20,7 +20,7 @@ except ImportError:
     import muddled.cmdline
 
 from muddled.utils import GiveUp, normalise_dir, LabelType, DirTypeDict
-from muddled.utils import Directory, NewDirectory, TransientDirectory
+from muddled.withdir import Directory, NewDirectory, TransientDirectory
 from muddled.depend import Label, label_list_to_string
 
 DEPLOYMENT_BUILD_DESC_12 = """ \

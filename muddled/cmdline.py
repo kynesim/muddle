@@ -17,7 +17,8 @@ import muddled.utils as utils
 import muddled.mechanics as mechanics
 
 from muddled.depend import Label
-from muddled.utils import LabelType, LabelTag, DirType, Directory
+from muddled.utils import LabelType, LabelTag, DirType
+from muddled.withdir import Directory
 
 def our_cmd(cmd_list, error_ok=True):
     """Command processing for calculating muddle version

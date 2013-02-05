@@ -31,7 +31,7 @@ except ImportError:
     import muddled.cmdline
 
 from muddled.utils import GiveUp, normalise_dir
-from muddled.utils import Directory, NewDirectory, TransientDirectory
+from muddled.withdir import Directory, NewDirectory, TransientDirectory
 
 # -----------------------------------------------------------------------------
 SIMPLE_IN_1 = """\

@@ -54,6 +54,7 @@ from muddled.licenses import print_standard_licenses, get_gpl_checkouts, \
         get_license_clashes, licenses_in_role, get_license_clashes_in_role
 from muddled.distribute import distribute, the_distributions, \
         get_distribution_names, get_used_distribution_names
+from muddled.withdir import Directory, NewDirectory
 
 # Following Richard's naming conventions...
 # A dictionary of <command name> : <command class>
@@ -1685,7 +1686,7 @@ class Bootstrap(Command):
                              def release_from(builder, release_dir):
                                  pass
                              '''.format(name=build_name)
-        with utils.NewDirectory(build_dir):
+        with NewDirectory(build_dir):
             with open(build_desc_filename, "w") as fd:
                 fd.write(textwrap.dedent(build_desc_text))
 
@@ -1706,7 +1707,7 @@ class Bootstrap(Command):
         db.set_tag(Label.from_string('checkout:builds/checked_out'))
 
         print 'Setting up versions directory'
-        with utils.NewDirectory("versions"):
+        with NewDirectory("versions"):
             # We shan't try to do anything more (than create the directory) for
             # subversion, firstly because the versions repository is not (yet)
             # defined (because we're using SVN), and secondly because it may
@@ -3588,7 +3589,7 @@ class StampVersion(Command):
         db = builder.db
         versions_url = db.versions_repo.from_disc()
         if versions_url:
-            with utils.Directory(version_dir):
+            with Directory(version_dir):
                 vcs_name, just_url = version_control.split_vcs_url(versions_url)
                 if vcs_name:
                     print 'Adding version stamp file to VCS'
@@ -3717,7 +3718,7 @@ class StampRelease(Command):
         db = builder.db
         versions_url = db.versions_repo.from_disc()
         if versions_url:
-            with utils.Directory(version_dir):
+            with Directory(version_dir):
                 vcs_name, just_url = version_control.split_vcs_url(versions_url)
                 if vcs_name:
                     print 'Adding release stamp file to VCS'
@@ -4069,7 +4070,7 @@ class StampPush(Command):
             print 'Push versions directory to', versions_url
             return
 
-        with utils.Directory(versions_dir):
+        with Directory(versions_dir):
             version_control.vcs_push_directory(versions_url)
 
         if args:
@@ -4135,11 +4136,11 @@ class StampPull(Command):
             return
 
         if os.path.exists(versions_dir):
-            with utils.Directory(versions_dir):
+            with Directory(versions_dir):
                 version_control.vcs_pull_directory(versions_url)
         else:
             print "'versions/' directory does not exist - cloning instead"
-            with utils.Directory(db.root_path):
+            with Directory(db.root_path):
                 # Make sure we always clone to a directory of the right name...
                 version_control.vcs_get_directory(versions_url, "versions")
 
@@ -6634,7 +6635,7 @@ class VeryClean(Command):
                         print '...giving up on %s'%name
 
         def tidy_domain(path):
-            with utils.Directory(path):
+            with Directory(path):
                 for directory in ('obj', 'install', 'deploy'):
                     delete_directory(directory)
 
@@ -6821,7 +6822,7 @@ class RunIn(Command):
                     # Add anything the rest of the system has put in.
                     builder.setup_environment(lbl, env)
 
-                    with utils.Directory(dir):
+                    with Directory(dir):
                         subprocess.call(command, shell=True, env=env,
                                         stdout=sys.stdout, stderr=subprocess.STDOUT)
                 else:

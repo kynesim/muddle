@@ -31,7 +31,7 @@ except ImportError:
     import muddled.cmdline
 
 from muddled.utils import GiveUp, normalise_dir, LabelType, LabelTag
-from muddled.utils import Directory, NewDirectory, TransientDirectory
+from muddled.withdir import Directory, NewDirectory, TransientDirectory
 #from muddled.depend import Label, label_list_to_string
 from muddled.licenses import standard_licenses
 

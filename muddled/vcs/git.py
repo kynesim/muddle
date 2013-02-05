@@ -70,8 +70,9 @@ Available git specific options are:
 import os
 import re
 
-from muddled.version_control import register_vcs, VersionControlSystem
 import muddled.utils as utils
+from muddled.version_control import register_vcs, VersionControlSystem
+from muddled.withdir import Directory
 
 g_supports_ff_only = None
 
@@ -143,7 +144,7 @@ class Git(VersionControlSystem):
         utils.run_cmd("git clone %s %s %s"%(args, repo.url, co_leaf), verbose=verbose)
 
         if repo.revision:
-            with utils.Directory(co_leaf):
+            with Directory(co_leaf):
                 # XXX Arguably, should use '--quiet', to suppress the warning
                 # XXX that we are ending up in 'detached HEAD' state, since
                 # XXX that is rather what we asked for...

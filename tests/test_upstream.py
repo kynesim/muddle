@@ -24,8 +24,8 @@ except ImportError:
 from muddled.depend import Label
 from muddled.licenses import standard_licenses
 from muddled.repository import Repository
-from muddled.utils import Directory, NewDirectory, TransientDirectory, \
-        GiveUp, MuddleBug, normalise_dir, LabelType, LabelTag
+from muddled.withdir import Directory, NewDirectory, TransientDirectory
+from muddled.utils import GiveUp, MuddleBug, normalise_dir, LabelType, LabelTag
 from muddled.version_control import VersionControlHandler, checkout_from_repo
 from muddled.db import Database, CheckoutData
 

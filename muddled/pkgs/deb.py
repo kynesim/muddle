@@ -27,6 +27,7 @@ import muddled.rewrite as rewrite
 import muddled.utils as utils
 from muddled.depend import Label
 from muddled.pkg import PackageBuilder
+from muddled.withdir import Directory
 
 import os
 import stat
@@ -176,7 +177,7 @@ class DebDevAction(PackageBuilder):
                 inv = builder
                 tmp = Label(utils.LabelType.Checkout, self.co_name, domain=label.domain)
                 co_path = inv.checkout_path(tmp)
-                with utils.Directory(co_path):
+                with Directory(co_path):
                     utils.run_cmd("make -f %s %s-postinstall"%(self.post_install_makefile,
                                                                label.name))
 
@@ -285,7 +286,7 @@ class DebAction(PackageBuilder):
                 inv = builder
                 tmp = Label(utils.LabelType.Checkout, self.co_name, domain=label.domain)
                 co_path = inv.checkout_path(tmp)
-                with utils.Directory(co_path):
+                with Directory(co_path):
                     utils.run_cmd("make -f %s %s-postinstall"%(self.post_install_makefile,
                                                                label.name))
         elif (tag == utils.LabelTag.Clean or tag == utils.LabelTag.DistClean):#

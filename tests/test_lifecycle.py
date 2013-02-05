@@ -1,9 +1,10 @@
 #! /usr/bin/env python
-"""Test simple project lifecycle in git
+"""Test simple project lifecycle
 
     $ ./test_lifecycle_git.py  [-keep]
 
-Git must be installed.
+Git and bzr must be installed.
+
 If '-keep' is specified, then the 'transient/' directory will not be deleted.
 """
 
@@ -23,7 +24,7 @@ except ImportError:
     import muddled.cmdline
 
 from muddled.utils import GiveUp, normalise_dir
-from muddled.utils import Directory, NewDirectory, TransientDirectory
+from muddled.withdir import Directory, NewDirectory, TransientDirectory
 
 MUDDLE_MAKEFILE = """\
 # Trivial muddle makefile
@@ -124,6 +125,7 @@ import muddled.pkgs.make
 
 from muddled.depend import checkout
 from muddled.version_control import checkout_from_repo
+from muddled.repository import Repository
 
 def add_package(builder, pkg_name, role, co_name=None, branch=None, revision=None):
     base_repo = builder.build_desc_repo
@@ -137,13 +139,24 @@ def add_package(builder, pkg_name, role, co_name=None, branch=None, revision=Non
     checkout_from_repo(builder, checkout(co_name), repo)
     muddled.pkgs.make.simple(builder, pkg_name, role, co_name)
 
+def add_bzr_package(builder, pkg_name, role, co_name=None):
+    base_repo = builder.build_desc_repo
+    if co_name is None:
+        co_name = pkg_name
+    repo = Repository('bzr', base_repo.base_url, co_name)
+    checkout_from_repo(builder, checkout(co_name), repo)
+    muddled.pkgs.make.simple(builder, pkg_name, role, co_name)
+
 def describe_to(builder):
     builder.build_name = '{build_name}'
-    add_package(builder, 'package', 'x86', co_name='co1')
-    add_package(builder, 'package', 'x86', co_name='co2', branch='branch1')
-    add_package(builder, 'package', 'x86', co_name='co3', revision='fred')
-    # This is a confusing case - we do whatever we do
-    add_package(builder, 'package', 'x86', co_name='co4', branch='branch1', revision='fred')
+    add_package(builder, 'package1', 'x86', co_name='co1')
+    add_package(builder, 'package2', 'x86', co_name='co2', branch='branch1')
+    add_package(builder, 'package3', 'x86', co_name='co3', revision='fred')
+    # This is naughty - the branch and revision are incompatible
+    # Current muddle will choose to believe the revision
+    add_package(builder, 'package4', 'x86', co_name='co4', branch='branch1', revision='fred')
+    # Bazaar does not support our idea of branching
+    add_bzr_package(builder, 'package5', 'x86', co_name='co5')
 """
 
 EMPTY_BUILD_DESC = '# Nothing here\ndef describe_to(builder):\n  pass\n'
@@ -241,6 +254,17 @@ def create_multiplex_repo(build_name):
             git('commit -m "And a program"')
             # --- tag fred
             git('tag fred')
+        with NewDirectory('co5'):
+            touch('Makefile.muddle', MUDDLE_MAKEFILE)
+            bzr('init')
+            bzr('add Makefile.muddle')
+            bzr('commit Makefile.muddle -m "A checkout needs a makefile"')
+            touch('README.txt', EMPTY_README_TEXT)
+            bzr('add README.txt')
+            bzr('commit README.txt -m "And a README"')
+            touch('program5.c', EMPTY_C_FILE)
+            bzr('add program5.c')
+            bzr('commit program5.c -m "And a program"')
     repo = src.where
     return repo
 
@@ -344,6 +368,12 @@ def test_init_with_branch(root_d):
                 check_file_v_text('Makefile.muddle', MUDDLE_MAKEFILE)
                 check_file_v_text('README.txt', EMPTY_README_TEXT)
                 check_file_v_text('program4.c', EMPTY_C_FILE)
+            with Directory('co5'):
+                # Since this is using bzr, we always get HEAD
+                check_specific_files_in_this_dir(['.bzr', 'Makefile.muddle', 'README.txt', 'program5.c'])
+                check_file_v_text('Makefile.muddle', MUDDLE_MAKEFILE)
+                check_file_v_text('README.txt', EMPTY_README_TEXT)
+                check_file_v_text('program5.c', EMPTY_C_FILE)
 
     with NewBuildDirectory('init.branch.explicit.branch.follow'):
         muddle(['init', '-branch', 'branch.follow', 'git+file://' + repo, 'builds/01.py'])

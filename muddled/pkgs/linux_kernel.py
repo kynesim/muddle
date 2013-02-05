@@ -14,6 +14,8 @@ import muddled.checkouts.simple as simple_checkouts
 import muddled.checkouts.twolevel as twolevel_checkouts
 
 from muddled.depend import Label
+from muddled.withdir import Directory
+
 import os
 
 class LinuxKernel(PackageBuilder):
@@ -136,7 +138,7 @@ class LinuxKernel(PackageBuilder):
 	        linux_src_path = os.path.join(build_path, "obj", self.linux_src)
             else:
 		linux_src_path = os.path.join(co_path, self.linux_src)
-            with utils.Directory(os.path.join(linux_src_path)):
+            with Directory(os.path.join(linux_src_path)):
                 utils.run_cmd("%s bzImage"%make_cmd)
                 utils.run_cmd("%s modules"%make_cmd)
                 utils.run_cmd("%s INSTALL_HDR_PATH=\"%s\" headers_install"%(make_cmd, hdr_path))
@@ -184,13 +186,13 @@ class LinuxKernel(PackageBuilder):
 
         elif (tag == utils.LabelTag.Installed):
             if (self.make_install):
-                with utils.Directory(co_path):
+                with Directory(co_path):
                     utils.run_cmd("make install")
         elif (tag == utils.LabelTag.PostInstalled):
             # .. and postinstall
             pass
         elif (tag == utils.LabelTag.Clean):
-            with utils.Directory(os.path.join(co_path, self.linux_src)):
+            with Directory(os.path.join(co_path, self.linux_src)):
                 utils.run_cmd("%s clean"%make_cmd)
         elif (tag == utils.LabelTag.DistClean):
             self.dist_clean(builder, label)

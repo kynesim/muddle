@@ -246,6 +246,6 @@ class NewCountedDirectory(NewDirectory):
     dir_count = 0
 
     def __init__(self, name):
-        NewBuildDirectory.dir_count += 1
-        name = '%02d.%s'%(NewBuildDirectory.dir_count, name)
-        super(NewBuildDirectory, self).__init__(name)
+        NewCountedDirectory.dir_count += 1
+        name = '%02d.%s'%(NewCountedDirectory.dir_count, name)
+        super(NewCountedDirectory, self).__init__(name)

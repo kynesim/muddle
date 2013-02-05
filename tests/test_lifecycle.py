@@ -24,7 +24,8 @@ except ImportError:
     import muddled.cmdline
 
 from muddled.utils import GiveUp, normalise_dir
-from muddled.withdir import Directory, NewDirectory, TransientDirectory
+from muddled.withdir import Directory, NewDirectory, TransientDirectory, \
+        NewCountedDirectory
 
 MUDDLE_MAKEFILE = """\
 # Trivial muddle makefile
@@ -326,26 +327,18 @@ def is_detached_head():
         raise GiveUp('Error running "git symbolic-ref -q HEAD" to detect detached HEAD')
 
 
-class NewBuildDirectory(NewDirectory):
-    """A version of NewDirectory that prefixes a count to its directory names.
-    """
-
-    build_count = 0
-
-    def __init__(self, name):
-        NewBuildDirectory.build_count += 1
-        name = '%02d.%s'%(NewBuildDirectory.build_count, name)
-        super(NewBuildDirectory, self).__init__(name)
-
-
 def test_init_with_branch(root_d):
-    """Test doing a muddle init with a specified branch name.
+    """Test muddle init:
+
+    * without a branch name
+    * with a branch name, but not following the build description
+    * with a branch name, and following the build description
     """
 
-    with NewBuildDirectory('init.branch.repo') as d:
+    with NewCountedDirectory('init.branch.repo') as d:
         repo = create_multiplex_repo('test-build')
 
-    with NewBuildDirectory('init.implicit.master'):
+    with NewCountedDirectory('init.with.no.branch'):
         muddle(['init', 'git+file://' + repo, 'builds/01.py'])
         muddle(['checkout', '_all'])
         with Directory('src'):
@@ -357,7 +350,7 @@ def test_init_with_branch(root_d):
                 if os.path.isdir(name):
                     raise GiveUp('Unexpectedly found "%s" directory'%name)
 
-    with NewBuildDirectory('init.explicit.branch1'):
+    with NewCountedDirectory('init.with.branch1.no.follow'):
         muddle(['init', '-branch', 'branch1', 'git+file://' + repo, 'builds/01.py'])
         muddle(['checkout', '_all'])
         with Directory('src'):
@@ -393,7 +386,7 @@ def test_init_with_branch(root_d):
                 check_file_v_text('README.txt', EMPTY_README_TEXT)
                 check_file_v_text('program5.c', EMPTY_C_FILE)
 
-    with NewBuildDirectory('init.branch.explicit.branch.follow'):
+    with NewCountedDirectory('init.branch.with.branch1.follow'):
         muddle(['init', '-branch', 'branch.follow', 'git+file://' + repo, 'builds/01.py'])
         muddle(['checkout', '_all'])
         with Directory('src'):

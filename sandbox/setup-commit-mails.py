@@ -377,7 +377,7 @@ def _do_cmdline(args):
     if not builder:
         raise GiveUp("Cannot find a build tree.")
 
-    rootrepo = builder.db.repo.get()
+    rootrepo = builder.db.RootRepository_pathfile.get()
 
     repo = parse_repo_url(rootrepo)
 

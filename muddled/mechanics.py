@@ -142,7 +142,7 @@ class Builder(object):
         # and thus also be a legal build name, we shall be cautious and
         # assign it directly to self._build_name (thus not checking), rather
         # than assigning to the property self.build_name (which would check).
-        build_desc = self.db.build_desc.get()
+        build_desc = self.db.Description_pathfile.get()
         build_fname = os.path.split(build_desc)[1]
         self._build_name = os.path.splitext(build_fname)[0]
 
@@ -265,7 +265,7 @@ class Builder(object):
         instr_names = self.db.scan_instructions(label)
         return db.load_instructions(instr_names, instr.factory)
 
-    def _load_build_description(self, branch=None):
+    def _load_build_description(self):
         """
         Load the build description for this builder.
 
@@ -283,22 +283,24 @@ class Builder(object):
         # normal checkout (albeit we check it out ourselves)
 
         co_path = self.build_co_and_path()
-        if (co_path is None):
+        if co_path is None:
             return False
 
         # That gives us the checkout name (assumed the first element of the
         # path we were given in the .muddled/Description file), and where we
         # keep our build description therein (which we aren't interested in)
-        (build_co_name, build_desc_path) = co_path
+        build_co_name, build_desc_path = co_path
 
         # And we're going to want its Repository later on, to use as the basis
         # for other (relative) checkouts
-        build_repo_str = self.db.repo.get()
+        build_repo_str = self.db.RootRepository_pathfile.get()
         vcs, base_url = split_vcs_url(build_repo_str)
 
         if not vcs:
             raise GiveUp('Build description URL must be of the form <vcs>+<url>, not'
                          '\n  "%s"'%build_repo_str)
+
+        branch = self.db.DescriptionBranch_pathfile.get_if_it_exists()
 
         # For the moment (and always as default) we just use the simplest
         # possible interpretation of that as a repository - i.e., build
@@ -1551,7 +1553,7 @@ class Builder(object):
         """
         Return a pair (build_co, build_path).
         """
-        build_desc = self.db.build_desc.get()
+        build_desc = self.db.Description_pathfile.get()
 
         if (build_desc is None):
             return None
@@ -2072,8 +2074,7 @@ def dynamic_load_build_desc(builder):
         sys.path = old_path
 
 
-def load_builder(root_path, muddle_binary, params=None, default_domain=None,
-                 branch=None):
+def load_builder(root_path, muddle_binary, params=None, default_domain=None):
     """
     Load a builder from the given root path.
 
@@ -2089,12 +2090,10 @@ def load_builder(root_path, muddle_binary, params=None, default_domain=None,
     * If given, 'default_domain' is the default domain name for this
       (sub) build tree. This is used by the "muddle unstamp" command,
       and the muddle_patch.py script.
-    * If given, 'branch' is the name of the branch of our build description
-      to check out. This is used by the "muddle init" command.
     """
 
     builder = Builder(root_path, muddle_binary, params, default_domain=default_domain)
-    can_load = builder._load_build_description(branch=branch)
+    can_load = builder._load_build_description()
     if not can_load:
         return None
 
@@ -2106,7 +2105,8 @@ def load_builder(root_path, muddle_binary, params=None, default_domain=None,
     return builder
 
 
-def minimal_build_tree(muddle_binary, root_path, repo_location, build_desc, versions_repo=None):
+def minimal_build_tree(muddle_binary, root_path, repo_location, build_desc,
+                       desc_branch=None, versions_repo=None):
     """
     Setup the very minimum of a build tree.
 
@@ -2116,7 +2116,7 @@ def minimal_build_tree(muddle_binary, root_path, repo_location, build_desc, vers
     # The following sets up a .muddle directory, with its Description and
     # RootRepository files, and optionally a VersionsRepository file
     database = db.Database(root_path)
-    database.setup(repo_location, build_desc, versions_repo)
+    database.setup(repo_location, build_desc, versions_repo, desc_branch)
 
     # We need a minimalistic builder
     builder = Builder(root_path, muddle_binary, None, None)

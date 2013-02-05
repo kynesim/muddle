@@ -114,16 +114,24 @@ class Database(object):
     So, we remember:
 
     * root_path - The path to the root of the build tree.
-    * repo - the PathFile for the '.muddle/RootRepository' file
-    * build_desc - the PathFile for the '.muddle/Description' file
-    * versions_repo - the PathFile for the '.muddle/VersionsRepository' file
+
+    Various PathFile instances:
+
+    * RootRepository_pathfile - for the '.muddle/RootRepository' file
+    * Description_pathfile - for the '.muddle/Description' file
+    * VersionsRepository_pathfile - for the '.muddle/VersionsRepository' file
+    * DescriptionBranch_pathfile - for the '.muddle/DescriptionBranch' file
+
+    which describe what the user requested via the original "muddle init".
+
+    and:
 
     * local_labels - Transient labels which are "asserted", via
       'set_tag()', and queried via 'is_tag()'. This functionality is used
       inside the Builder's "build_label()" mechanism, and is only intended
       for use within muddle itself.
 
-    And a variety of dictionaries that take (mostly) checkout labels as keys.
+    Also, a variety of dictionaries that take (mostly) checkout labels as keys.
     Note that:
 
     1. All the keys are "normalised" to have an unset label tag.
@@ -246,10 +254,10 @@ class Database(object):
         """
         self.root_path = root_path
         utils.ensure_dir(os.path.join(self.root_path, ".muddle"))
-        self.repo = PathFile(self.db_file_name("RootRepository"))
-        self.build_desc = PathFile(self.db_file_name("Description"))
-        self.versions_repo = PathFile(self.db_file_name("VersionsRepository"))
-        self.role_env = {}      # DEPRECATED - never used - XXX REMOVE XXX
+        self.RootRepository_pathfile = PathFile(self.db_file_name("RootRepository"))
+        self.Description_pathfile = PathFile(self.db_file_name("Description"))
+        self.DescriptionBranch_pathfile = PathFile(self.db_file_name("DescriptionBranch"))
+        self.VersionsRepository_pathfile = PathFile(self.db_file_name("VersionsRepository"))
 
         self.just_pulled = JustPulledFile(os.path.join(self.root_path,
                                           '.muddle',
@@ -272,22 +280,28 @@ class Database(object):
         self.domain_build_desc_label = {}
         self.domain_follows_build_desc_branch = {}
 
-    def setup(self, repo_location, build_desc, versions_repo=None):
+    def setup(self, repo_location, build_desc, versions_repo=None, branch=None):
         """
-        Set the 'repo' and 'build_desc' on the current database.
+        Set values for the files in .muddle that describe our intial state.
 
-        If 'versions_repo' is not None, it will set the versions_repo
-        to this value. Note that "not None" means that a value of ''
-        *will* set the value to the empty string.
+        * 'repo_location' is written to .muddle/RootRepository
 
-        If 'versions_repo' is None, and 'repo_location' is not a
-        centralised VCS (i.e., subversion), then it will set the
-        versions_repo to repo_location.
+        * 'build_desc' is written to .muddle/Description
 
-        This should only be called by muddle itself.
+        * If 'versions_repo' is not None, it is written to .muddle/VersionsRepository.
+          Note that "not None" means that a value of '' *will* be written to
+          the file.
+
+          If 'versions_repo' is None, and 'repo_location' is not a centralised
+          VCS (i.e., subversion), then it will be written to
+          .muddle/VersionsRepository instead.
+
+        * If 'branch' is not None, then it will be written to .muddle/DescriptionBranch
+
+        This method should only be called by muddle itself.
         """
-        self.repo.set(repo_location)
-        self.build_desc.set(build_desc)
+        self.RootRepository_pathfile.set(repo_location)
+        self.Description_pathfile.set(build_desc)
         if versions_repo is None:
             vcs, repo = split_vcs_url(repo_location)
             ##print 'vcs',vcs
@@ -298,9 +312,11 @@ class Database(object):
             # everything in one monolithic entity)
             if vcs not in ('svn', ):
                 ##print 'setting versions repository'
-                self.versions_repo.set(os.path.join(repo_location,"versions"))
+                self.VersionsRepository_pathfile.set(os.path.join(repo_location,"versions"))
         else:
-            self.versions_repo.set(versions_repo)
+            self.VersionsRepository_pathfile.set(versions_repo)
+        if branch is not None:
+            self.DescriptionBranch_pathfile.set(branch)
         self.commit()
 
     def get_subdomain_info(self, domain_name):
@@ -1096,7 +1112,7 @@ class Database(object):
         """
         Return the filename of the build description.
         """
-        return os.path.join(self.root_path, "src", self.build_desc.get())
+        return os.path.join(self.root_path, "src", self.Description_pathfile.get())
 
     def db_file_name(self, rel):
         """
@@ -1269,9 +1285,10 @@ class Database(object):
         Remember to call this function when anything of note happens -
         don't assume you aren't about to hit an exception.
         """
-        self.repo.commit()
-        self.build_desc.commit()
-        self.versions_repo.commit()
+        self.RootRepository_pathfile.commit()
+        self.Description_pathfile.commit()
+        self.DescriptionBranch_pathfile.commit()
+        self.VersionsRepository_pathfile.commit()
 
 
     def clear_just_pulled(self):
@@ -1304,6 +1321,31 @@ class PathFile(object):
             return self.value
         else:
             return self.from_disc()
+
+    def get_if_it_exists(self):
+        """
+        Retrieve the current value of the PathFile, if it exists (on disk).
+
+        This variant does not try to cache the value.
+        """
+        try:
+            f = open(self.file_name, "r")
+            val = f.readline()
+            f.close()
+
+            # Remove the trailing '\n' if it exists.
+            if val[-1] == '\n':
+                val = val[:-1]
+
+        except IndexError as i:
+            raise GiveUp("Contents of db file %s are empty - %s\n"%(self.file_name, i))
+        except IOError as e:
+            if e.errno == errno.ENOENT:
+                return None     # but don't try to cache it
+            else:
+                raise GiveUp("Error retrieving value from %s\n    %s"%(self.file_name, e))
+
+        return val
 
     def set(self, val):
         """

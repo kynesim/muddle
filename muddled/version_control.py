@@ -704,7 +704,8 @@ class VersionControlHandler(object):
           then go to the same branch as the build description.
         * Otherwise, go to "master".
         """
-        DEBUG = False # to allow normal tests to succeed, which don't expect these messages...
+        DEBUG = True # XXX Set to False to allow normal tests to succeed,
+                     # XXX which don't expect these messages...
         if DEBUG: print 'Synchronising for', co_label
         co_data = builder.db.get_checkout_data(co_label)
         repo = co_data.repo

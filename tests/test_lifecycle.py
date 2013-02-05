@@ -181,10 +181,12 @@ FOLLOW_LINE = '\n    builder.follow_build_desc_branch = True\n'
 
 BUILD_NAME = 'test-build'
 
-NONFOLLOW_BUILD_DESC = MULTIPLEX_BUILD_DESC.format(build_name=BUILD_NAME) + \
+NO_BZR_BUILD_DESC = MULTIPLEX_BUILD_DESC.format(build_name=BUILD_NAME)
+
+NONFOLLOW_BUILD_DESC = NO_BZR_BUILD_DESC + \
                        BZR_CO5_NO_REVISION
 
-FOLLOW_BUILD_DESC = MULTIPLEX_BUILD_DESC.format(build_name=BUILD_NAME) + \
+FOLLOW_BUILD_DESC = NO_BZR_BUILD_DESC + \
                     BZR_CO5_WITH_REVISION + \
                     FOLLOW_LINE
 
@@ -202,6 +204,10 @@ def create_multiplex_repo(build_name):
         with Directory('builds') as builds:
             touch('01.py', EMPTY_BUILD_DESC)
             git('commit -a -m "Empty-ish build description"')
+            # ---- branch0
+            git('checkout -b branch0')
+            touch('01.py', NO_BZR_BUILD_DESC)
+            git('commit -a -m "More interesting build description"')
             # ---- branch1
             git('checkout -b branch1')
             touch('01.py', NONFOLLOW_BUILD_DESC)
@@ -312,6 +318,7 @@ def check_revision(checkout, revision_wanted):
 def get_branch(dir):
     with Directory(dir):
         retcode, out = get_stdout2('git symbolic-ref -q HEAD')
+        print out
         if retcode == 0:
             out = out.strip()
             if out.startswith('refs/heads'):
@@ -421,8 +428,7 @@ def test_init_with_branch(root_d):
         # description
         with Directory('src'):
             with Directory('builds'):
-                touch('01.py', MULTIPLEX_BUILD_DESC.format(build_name=BUILD_NAME) +
-                               BZR_CO5_NO_REVISION +
+                touch('01.py', NONFOLLOW_BUILD_DESC +
                                FOLLOW_LINE)
                 # Then remove the .pyc file, because Python probably won't realise
                 # that this new 01.py is later than the previous version
@@ -444,9 +450,8 @@ The build description should specify a revision for checkout co5.
         # description
         with Directory('src'):
             with Directory('builds'):
-                touch('01.py', MULTIPLEX_BUILD_DESC.format(build_name=BUILD_NAME) +
-                               CO6_WHICH_HAS_NO_BRANCH_FOLLOW +
-                               FOLLOW_LINE)
+                touch('01.py', FOLLOW_BUILD_DESC +
+                               CO6_WHICH_HAS_NO_BRANCH_FOLLOW)
                 # Then remove the .pyc file, because Python probably won't realise
                 # that this new 01.py is later than the previous version
                 os.remove('01.pyc')
@@ -465,6 +470,102 @@ Command 'git clone -b branch.follow file://{repo}/co6 co6' execution failed - 12
 """.format(where=d.where, repo=repo))
 
 
+def test_branch_tree(root_d):
+    """Test doing "muddle branch-tree".
+    """
+
+    with NewCountedDirectory('branch-tree.repo') as d:
+        repo = create_multiplex_repo('test-build')
+
+    with Directory(repo):
+        with Directory('co3'):
+            co3_revision = captured_muddle(['query', 'checkout-id']).strip()
+        with Directory('co4'):
+            co4_revision = captured_muddle(['query', 'checkout-id']).strip()
+
+    with NewCountedDirectory('branch-tree.branch'):
+        muddle(['init', '-branch', 'branch0', 'git+file://' + repo, 'builds/01.py'])
+
+
+
+        muddle(['query', 'checkout-repos'])
+        raise GiveUp('Fred')
+
+
+
+
+        muddle(['checkout', '_all'])
+
+        # Our checkouts should be as in the build description
+        check_branch('src/builds', 'branch0')
+        check_branch('src/co1', 'master')
+        check_branch('src/co2', 'branch1')
+        check_revision('co3', co3_revision)
+        check_revision('co4', co4_revision)
+        # This branch of the build description doesn't have co5
+
+        retcode, text = captured_muddle2(['branch-tree', 'test-v0.1'])
+        if retcode != 1:
+            raise GiveUp("Expected 'muddle branch-tree test-v0.1 to fail with"
+                         " retcode 1, got %d"%retcode)
+        check_text_endswith(text, """\
+Unable to branch-tree to test-v0.1, because:
+  checkout:co2/checked_out explicitly specifies branch "branch1" in the build description
+  checkout:co4/checked_out explicitly specifies revision "fred" in the build description
+  checkout:co3/checked_out explicitly specifies revision "fred" in the build description
+""")
+
+        # OK, force it
+        muddle(['branch-tree', '-f', 'test-v0.1'])
+
+        # And those checkouts without explicit branch/revision should now be
+        # branched
+        check_branch('src/builds', 'test-v0.1')
+        check_branch('src/co1', 'test-v0.1')
+        check_branch('src/co2', 'branch1')
+        check_revision('co3', co3_revision)
+        check_revision('co4', co4_revision)
+
+
+        muddle(['query', 'checkout-repos'])
+
+
+        # But if we sync...
+        muddle(['sync', '_all'])
+        # We should undo that...
+        check_branch('src/builds', 'branch0')
+        check_branch('src/co1', 'master')
+        check_branch('src/co2', 'branch1')
+        check_revision('co3', co3_revision)
+        check_revision('co4', co4_revision)
+
+        # Try again
+        muddle(['branch-tree', '-f', 'test-v0.1'])
+
+        check_branch('src/builds', 'test-v0.1')
+        check_branch('src/co1', 'test-v0.1')
+        check_branch('src/co2', 'branch1')
+        check_revision('co3', co3_revision)
+        check_revision('co4', co4_revision)
+
+        # Now amend the build description so things follow it
+        with Directory('src'):
+            with Directory('builds'):
+                touch('01.py', NO_BZR_BUILD_DESC +
+                               FOLLOW_LINE)
+                # Then remove the .pyc file, because Python probably won't realise
+                # that this new 01.py is later than the previous version
+                os.remove('01.pyc')
+
+        muddle(['sync', '_all'])
+
+        # And this time, things should follow the build description if they're
+        # allowed to
+        check_branch('src/builds', 'test-v0.1')
+        check_branch('src/co1', 'test-v0.1')
+        check_branch('src/co2', 'branch1')
+        check_revision('co3', co3_revision)
+        check_revision('co4', co4_revision)
 
 def test_git_lifecycle(root_d):
     """A linear sequence of plausible actions...
@@ -778,6 +879,8 @@ def main(args):
         banner('TEST INIT WITH BRANCH')
         test_init_with_branch(root_d)
 
+        banner('TEST BRANCH-TREE')
+        test_branch_tree(root_d)
 
         banner('TEST LIFECYCLE (GIT)')
         test_git_lifecycle(root_d)

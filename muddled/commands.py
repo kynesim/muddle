@@ -1554,11 +1554,11 @@ class Init(Command):
             return
 
         db = Database(current_dir)
-        db.setup(repo, build)
+        db.setup(repo, build, branch=branch_name)
 
         print
         print "Checking out build description .. \n"
-        mechanics.load_builder(current_dir, muddle_binary, branch=branch_name)
+        mechanics.load_builder(current_dir, muddle_binary)
 
         print "Done.\n"
 
@@ -3587,7 +3587,7 @@ class StampVersion(Command):
         os.rename(working_filename, final_name)
 
         db = builder.db
-        versions_url = db.versions_repo.from_disc()
+        versions_url = db.VersionsRepository_pathfile.from_disc()
         if versions_url:
             with Directory(version_dir):
                 vcs_name, just_url = version_control.split_vcs_url(versions_url)
@@ -3716,7 +3716,7 @@ class StampRelease(Command):
         os.rename(working_filename, final_name)
 
         db = builder.db
-        versions_url = db.versions_repo.from_disc()
+        versions_url = db.VersionsRepository_pathfile.from_disc()
         if versions_url:
             with Directory(version_dir):
                 vcs_name, just_url = version_control.split_vcs_url(versions_url)
@@ -4054,7 +4054,7 @@ class StampPush(Command):
         else:
             # Make sure we always look at the *actual* value in the
             # '.muddle/VersionsRepository file, in case someone has edited it
-            versions_url = db.versions_repo.from_disc()
+            versions_url = db.VersionsRepository_pathfile.from_disc()
 
         if not versions_url:
             raise GiveUp("Cannot push 'versions/' directory, as there is no repository specified\n"
@@ -4075,8 +4075,8 @@ class StampPush(Command):
 
         if args:
             print 'Remembering versions repository %s'%versions_url
-            db.versions_repo.set(versions_url)
-            db.versions_repo.commit()
+            db.VersionsRepository_pathfile.set(versions_url)
+            db.VersionsRepository_pathfile.commit()
 
 @subcommand('stamp', 'pull', CAT_EXPORT)
 class StampPull(Command):
@@ -4119,7 +4119,7 @@ class StampPull(Command):
         else:
             # Make sure we always look at the *actual* value in the
             # '.muddle/VersionsRepository file, in case someone has edited it
-            versions_url = db.versions_repo.from_disc()
+            versions_url = db.VersionsRepository_pathfile.from_disc()
 
         if not versions_url:
             raise GiveUp("Cannot pull 'versions/' directory, as there is no repository specified\n"
@@ -4146,8 +4146,8 @@ class StampPull(Command):
 
         if args:
             print 'Remembering versions repository %s'%versions_url
-            db.versions_repo.set(versions_url)
-            db.versions_repo.commit()
+            db.VersionsRepository_pathfile.set(versions_url)
+            db.VersionsRepository_pathfile.commit()
 
 @command('unstamp', CAT_EXPORT)
 class UnStamp(Command):
@@ -4396,6 +4396,7 @@ class UnStamp(Command):
         builder = mechanics.minimal_build_tree(muddle_binary, current_dir,
                                                stamp.repository,
                                                stamp.description,
+                                               desc_branch=stamp.description_branch,
                                                versions_repo=versions_repo)
 
         self.restore_stamp(builder, current_dir, stamp.domains, stamp.checkouts)
@@ -5937,6 +5938,9 @@ class Sync(CheckoutCommand):
       give up (the following choices require this).
     * If the build description has "builder.follow_build_desc_branch = True",
       then go to the same branch as the build description.
+    * If the checkout *is* the build description, and "muddle init -branch"
+      was originally used to choose a specific branch, then go to that
+      branch.
     * Otherwise, go to "master".
 
     <checkout> should be a label fragment specifying a checkout, or one of
@@ -5953,15 +5957,11 @@ class Sync(CheckoutCommand):
 
     def build_these_labels(self, builder, labels):
         for co in labels:
+            vcs_handler = builder.db.get_checkout_vcs(co)
             try:
-                vcs_handler = builder.db.get_checkout_vcs(co)
-            except AttributeError:
-                print "Rule for label '%s' has no VCS - cannot find its status"%co
-                continue
-        try:
-            vcs_handler.sync(builder, co)
-        except GiveUp as e:
-            print e
+                vcs_handler.sync(builder, co)
+            except GiveUp as e:
+                print e
 
 # -----------------------------------------------------------------------------
 # Checkout "upstream" commands
@@ -6452,7 +6452,7 @@ class BranchTree(Command):
                 print
                 print "If you want the tree branching to be persistent, remember to edit"
                 print "the branched build description,"
-                print "  %s"%builder.db.build_desc_file_name()
+                print "  %s"%builder.db.Description_pathfile_file_name()
                 print "and add:"
                 print
                 print "  builder.follow_build_desc_branch = True"

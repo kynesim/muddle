@@ -1594,7 +1594,7 @@ def _build_desc_inner_path(builder, label):
     if domain:
         root_repo, build_desc = builder.db.get_subdomain_info(domain)
     else:
-        build_desc = builder.db.build_desc.get()
+        build_desc = builder.db.Description_pathfile.get()
 
     co_name, inner_path = build_co_and_path_from_str(build_desc)
     return inner_path
@@ -1707,7 +1707,7 @@ def _copy_versions_dir(builder, name, target_dir, copy_vcs=False):
     if copy_vcs:
         without = []
     else:
-        versions_repo_url = builder.db.versions_repo.get()
+        versions_repo_url = builder.db.VersionsRepository_pathfile.get()
         without = vcs_special_files(versions_repo_url)
 
     if DEBUG:

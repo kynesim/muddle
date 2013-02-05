@@ -77,6 +77,15 @@ files in the ``.muddle/`` directory of the build. For instance::
   description = builds/01.py
   versions_repo = git+file:///home/tibs/temp/r/versions
 
+and, if "muddle init -branch" was originally used, also the DescriptionBranch
+file::
+
+  [ROOT]
+  repository = git+ssh://git@palmera.c//opt/kynesim/projects/001
+  description = builds/01.py
+  description_branch = test-v0.1
+  versions_repo = git+file:///home/tibs/temp/r/versions
+
 The keys ('repository', etc.) are always presented in the same order - this is
 a general principle within stamp file sections, so that stamp files themselves
 can be comparable with simple tools such as ``diff``.
@@ -97,6 +106,11 @@ domains. For instance::
 Domain sections occur in "C" sort order of the domain names. Note that there
 will not be any domain sections if there are no subdomains (i.e., if there is
 no ``domains/`` directory in the build tree).
+
+.. note:: The [DOMAIN] sections do not record a 'description_branch' for each
+   subdomain. We do not currently support specifying a particular branch for
+   the subdomain build description in the same manner as is done at the top
+   level with "muddle init -branch".
 
 Next come sections for each checkout. For instance::
 
@@ -272,6 +286,10 @@ class VersionStamp(object):
         * ``description`` is a string naming the build description (as stored
           in ``.muddle/Description``)
 
+        * ``description_branch`` is None or a string naming the branch of the
+          build description (as stored in ``.muddle/DescriptionBranch``, and
+          originally specified by "muddle init -branch")
+
         * 'versions_repo' is a string giving the versions repository (as stored
           in ``.muddle/VersionsRepository``)
 
@@ -314,6 +332,7 @@ class VersionStamp(object):
     def __init__(self):
         self.repository = ''    # content of .muddle/RootRepository
         self.description = ''   # content of .muddle/Description
+        self.description_branch = None # content of .muddle/DescriptionBranch, if any
         self.versions_repo = '' # and of .muddle/VersionsRepository
         self.domains = {}       # domain_name -> (domain_repo, domain_desc)
         self.checkouts = {}     # label -> (co_dir, co_leaf, repo)
@@ -469,6 +488,8 @@ class VersionStamp(object):
         config.add_section("ROOT")
         config.set("ROOT", "repository", self.repository)
         config.set("ROOT", "description", self.description)
+        if self.description_branch:
+            config.set("ROOT", "description_branch", self.description_branch)
         maybe_set_option(config, "ROOT", 'versions_repo', self.versions_repo)
         config.write(fd)
 
@@ -557,9 +578,10 @@ class VersionStamp(object):
     def _from_builder(stamp, builder, force=False, just_use_head=False, before=None, quiet=False):
         """The internal mechanisms of the 'from_builder' static method.
         """
-        stamp.repository = builder.db.repo.get()
-        stamp.description = builder.db.build_desc.get()
-        stamp.versions_repo = builder.db.versions_repo.get()
+        stamp.repository = builder.db.RootRepository_pathfile.get()
+        stamp.description = builder.db.Description_pathfile.get()
+        stamp.description_branch = builder.db.DescriptionBranch_pathfile.get_if_it_exists()
+        stamp.versions_repo = builder.db.VersionsRepository_pathfile.get()
 
         stamp.before = before        # remember for annotating the stamp file
 
@@ -711,6 +733,7 @@ class VersionStamp(object):
 
         stamp.repository = config.get("ROOT", "repository")
         stamp.description = config.get("ROOT", "description")
+        stamp.description_branch = maybe_get_option(config, "ROOT", "description_branch")
         stamp.versions_repo = maybe_get_option(config, "ROOT", "versions_repo")
 
         if config.has_section("STAMP"):

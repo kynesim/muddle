@@ -172,7 +172,7 @@ class VersionControlSystem(object):
         raise utils.Unsupported("VCS '%s' cannot goto a different branch"
                                 " of a checkout"%self.long_name)
 
-    def goto_revision(self, revision, branch=None):
+    def goto_revision(self, revision, branch=None, repo=None, verbose=False):
         """
         Make the specified revision current.
 
@@ -651,9 +651,10 @@ class VersionControlHandler(object):
         If 'show_pushd' is false, then we won't report as we "pushd" into the
         checkout directory.
         """
+        repo = builder.db.get_checkout_repo(co_label)
         with Directory(builder.db.get_checkout_path(co_label), show_pushd=show_pushd):
             try:
-                return self.vcs.goto_revision(revision, branch)
+                return self.vcs.goto_revision(revision, branch, repo, verbose)
             except (GiveUp, Unsupported) as err:
                 if branch:
                     raise GiveUp('Failure changing to revision %s, branch %s, for %s in %s:\n%s'%(revision, branch,

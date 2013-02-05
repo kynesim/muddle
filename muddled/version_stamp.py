@@ -974,10 +974,10 @@ class ReleaseSpec(object):
 
     def __str__(self):
         parts = []
-        parts.append(repr(self.name))
-        parts.append(repr(self.version))
-        parts.append(repr(self.archive))
-        parts.append(repr(self.compression))
+        parts.append(repr(self._name))
+        parts.append(repr(self._version))
+        parts.append(repr(self._archive))
+        parts.append(repr(self._compression))
         if self.hash:
             parts.append(repr(self.hash))
         return 'ReleaseSpec(%s)'%(', '.join(parts))
@@ -1056,10 +1056,10 @@ class ReleaseSpec(object):
         """Write a simple representation of ourself out to a file.
         """
         with open(filename, 'w') as fd:
-            fd.write('%s\n'%self.name)
-            fd.write('%s\n'%self.version)
-            fd.write('%s\n'%self.archive)
-            fd.write('%s\n'%self.compression)
+            fd.write('%s\n'%self._name)
+            fd.write('%s\n'%self._version)
+            fd.write('%s\n'%self._archive)
+            fd.write('%s\n'%self._compression)
             fd.write('%s\n'%self.hash)
 
     @staticmethod

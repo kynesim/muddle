@@ -422,19 +422,23 @@ def check_release_file_starts(filename, name, version, archive, compression,
         if line:
             newlines.append(line)
 
-    if newlines[:11] != ['[STAMP]',
-                         'version = 2',
-                         '[RELEASE]',
-                         'name = %s'%name,
-                         'version = %s'%version,
-                         'archive = %s'%archive,
-                         'compression = %s'%compression,
-                         '[ROOT]',
-                         'repository = %s'%repo,
-                         'description = %s'%desc,
-                         'versions_repo = %s'%versions_repo,
-                         ]:
-        pprint.pprint(newlines)
+    expected = ['[STAMP]',
+                'version = 2',
+                '[RELEASE]',
+                'name = %s'%name,
+                'version = %s'%version,
+                'archive = %s'%archive,
+                'compression = %s'%compression,
+                '[ROOT]',
+                'repository = %s'%repo,
+                'description = %s'%desc,
+                'versions_repo = %s'%versions_repo,
+                ]
+    if newlines[:11] != expected:
+        print '--- Expected:'
+        pprint.pprint(expected)
+        print '--- Got:'
+        pprint.pprint(newlines[:11])
         raise GiveUp('Unexpected content in release stamp file %s'%filename)
 
 def read_env_as_dict(package):

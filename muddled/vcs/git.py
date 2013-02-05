@@ -586,7 +586,7 @@ class Git(VersionControlSystem):
         if retcode:
             raise utils.GiveUp('Error going to branch "%s": %s'%(branch, out))
 
-    def goto_revision(self, revision, branch=None):
+    def goto_revision(self, revision, branch=None, repo=None, verbose=False):
         """
         Make the specified revision current.
 
@@ -600,7 +600,8 @@ class Git(VersionControlSystem):
 
         Raises GiveUp if there is no such revision, or no such branch.
         """
-        retcode, out, err = utils.run_cmd_for_output(['git', 'checkout', revision], fold_stderr=True)
+        retcode, out, err = utils.run_cmd_for_output(['git', 'checkout', revision],
+                                                     fold_stderr=True, verbose=verbose)
         if retcode:
             raise utils.GiveUp('Error going to revision "%s": %s'%(revision, out))
 

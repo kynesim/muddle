@@ -163,7 +163,7 @@ class Subversion(VersionControlSystem):
         else:
             return None
 
-    def goto_revision(self, revision, branch=None):
+    def goto_revision(self, revision, branch=None, repo=None, verbose=False):
         """
         Make the specified revision current.
 
@@ -178,8 +178,11 @@ class Subversion(VersionControlSystem):
         if branch:
             raise utils.GiveUp("Subversion does not support branch (in the muddle sense), branch=%s"%branch)
 
+        if not repo:
+            raise utils.MuddleBug("Subversion needs a Repository instance to do goto_revision()");
+
         # Luckily, our pull method does more-or-less what we want
-        repo = self.repo.copy_with_changed_revision(revision)
+        repo = repo.copy_with_changed_revision(revision)
         self.pull(repo, None, verbose=verbose)
 
     def reparent(self, co_dir, remote_repo, options, force=False, verbose=True):

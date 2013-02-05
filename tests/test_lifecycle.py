@@ -169,6 +169,10 @@ BZR_CO5_WITH_REVISION = """\
     add_bzr_package(builder, 'package5', 'x86', co_name='co5', revision='3')
 """
 
+CO6_WHICH_HAS_NO_BRANCH_FOLLOW = """\
+    add_package(builder, 'package6', 'x86', co_name='co6')
+"""
+
 EMPTY_BUILD_DESC = '# Nothing here\ndef describe_to(builder):\n  pass\n'
 EMPTY_README_TEXT = 'An empty README file.\n'
 EMPTY_C_FILE = '// Nothing to see here\n'
@@ -284,6 +288,17 @@ def create_multiplex_repo(build_name):
             touch('program5.c', EMPTY_C_FILE)
             bzr('add program5.c')
             bzr('commit program5.c -m "And a program"')
+        with NewDirectory('co6'):
+            touch('Makefile.muddle', MUDDLE_MAKEFILE)
+            git('init')
+            git('add Makefile.muddle')
+            git('commit Makefile.muddle -m "A checkout needs a makefile"')
+            # ---- branch1
+            git('checkout -b branch1')
+            touch('README.txt', EMPTY_README_TEXT)
+            git('add README.txt')
+            git('commit -m "And a README"')
+            # --- but we don't have a branch.follow
     repo = src.where
     return repo
 
@@ -399,8 +414,7 @@ def test_init_with_branch(root_d):
                 check_file_v_text('README.txt', EMPTY_README_TEXT)
                 check_file_v_text('program1.c', EMPTY_C_FILE)
 
-
-    with NewCountedDirectory('init.branch.with.branch1.follow.error'):
+    with NewCountedDirectory('init.branch.with.branch1.bzr.follow.error'):
         muddle(['init', '-branch', 'branch.follow', 'git+file://' + repo, 'builds/01.py'])
         # Now let us make the build description erroneous, by changing it so
         # that the Bazaar checkout is also required to follow the build
@@ -422,6 +436,33 @@ The build description wants checkouts to follow branch 'branch.follow',
 but checkout co5 uses VCS Bazaar for which we do not support branching.
 The build description should specify a revision for checkout co5.
 """)
+
+    with NewCountedDirectory('init.branch.with.branch1.nobranch.follow.error') as d:
+        muddle(['init', '-branch', 'branch.follow', 'git+file://' + repo, 'builds/01.py'])
+        # Now let us make the build description erroneous, by changing it so
+        # that we have co6, which does not have branch branch.follow
+        # description
+        with Directory('src'):
+            with Directory('builds'):
+                touch('01.py', MULTIPLEX_BUILD_DESC.format(build_name=BUILD_NAME) +
+                               CO6_WHICH_HAS_NO_BRANCH_FOLLOW +
+                               FOLLOW_LINE)
+                # Then remove the .pyc file, because Python probably won't realise
+                # that this new 01.py is later than the previous version
+                os.remove('01.pyc')
+        # And our checkout all should now fail...
+        retcode, text = captured_muddle2(['checkout', '_all'])
+        if retcode != 1:
+            raise GiveUp('Expected retcode 1 from "muddle checkout _all", got %d'%retcode)
+        # The error text we get isn't particularly friendly, but should do
+        check_text_endswith(text, """\
+Cloning into 'co6'...
+fatal: Remote branch branch.follow not found in upstream origin
+fatal: The remote end hung up unexpectedly
+
+Failure checking out checkout:co6/checked_out in {where}/src:
+Command 'git clone -b branch.follow file://{repo}/co6 co6' execution failed - 128
+""".format(where=d.where, repo=repo))
 
 
 

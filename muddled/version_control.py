@@ -314,7 +314,7 @@ class VersionControlHandler(object):
             if self.vcs.supports_branching():
                 return build_desc_branch
             else:
-                raise GiveUp("Build description wants checkouts to follow branch '%s',\n"
+                raise GiveUp("The build description wants checkouts to follow branch '%s',\n"
                              "but checkout %s uses VCS %s for which we do not support branching.\n"
                              "The build description should specify a revision for checkout %s."%(
                              build_desc_branch, co_label.name, self.long_name, co_label.name))

@@ -400,6 +400,31 @@ def test_init_with_branch(root_d):
                 check_file_v_text('program1.c', EMPTY_C_FILE)
 
 
+    with NewCountedDirectory('init.branch.with.branch1.follow.error'):
+        muddle(['init', '-branch', 'branch.follow', 'git+file://' + repo, 'builds/01.py'])
+        # Now let us make the build description erroneous, by changing it so
+        # that the Bazaar checkout is also required to follow the build
+        # description
+        with Directory('src'):
+            with Directory('builds'):
+                touch('01.py', MULTIPLEX_BUILD_DESC.format(build_name=BUILD_NAME) +
+                               BZR_CO5_NO_REVISION +
+                               FOLLOW_LINE)
+                # Then remove the .pyc file, because Python probably won't realise
+                # that this new 01.py is later than the previous version
+                os.remove('01.pyc')
+        # And our checkout all should now fail...
+        retcode, text = captured_muddle2(['checkout', '_all'])
+        if retcode != 1:
+            raise GiveUp('Expected retcode 1 from "muddle checkout _all", got %d'%retcode)
+        check_text_endswith(text, """\
+The build description wants checkouts to follow branch 'branch.follow',
+but checkout co5 uses VCS Bazaar for which we do not support branching.
+The build description should specify a revision for checkout co5.
+""")
+
+
+
 def test_git_lifecycle(root_d):
     """A linear sequence of plausible actions...
     """

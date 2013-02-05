@@ -139,11 +139,11 @@ def add_package(builder, pkg_name, role, co_name=None, branch=None, revision=Non
     checkout_from_repo(builder, checkout(co_name), repo)
     muddled.pkgs.make.simple(builder, pkg_name, role, co_name)
 
-def add_bzr_package(builder, pkg_name, role, co_name=None):
+def add_bzr_package(builder, pkg_name, role, co_name=None, revision=None):
     base_repo = builder.build_desc_repo
     if co_name is None:
         co_name = pkg_name
-    repo = Repository('bzr', base_repo.base_url, co_name)
+    repo = Repository('bzr', base_repo.base_url, co_name, revision=revision)
     checkout_from_repo(builder, checkout(co_name), repo)
     muddled.pkgs.make.simple(builder, pkg_name, role, co_name)
 
@@ -155,18 +155,33 @@ def describe_to(builder):
     # This is naughty - the branch and revision are incompatible
     # Current muddle will choose to believe the revision
     add_package(builder, 'package4', 'x86', co_name='co4', branch='branch1', revision='fred')
-    # Bazaar does not support our idea of branching
+"""
+
+BZR_CO5_NO_REVISION = """\
     add_bzr_package(builder, 'package5', 'x86', co_name='co5')
+"""
+
+BZR_CO5_WITH_REVISION = """\
+    # Bazaar does not support our idea of branching, so if the build
+    # description asks for us to "follow" it, we need to stop that by
+    # specifying an explicit revision
+    add_bzr_package(builder, 'package5', 'x86', co_name='co5', revision='3')
 """
 
 EMPTY_BUILD_DESC = '# Nothing here\ndef describe_to(builder):\n  pass\n'
 EMPTY_README_TEXT = 'An empty README file.\n'
 EMPTY_C_FILE = '// Nothing to see here\n'
 
+FOLLOW_LINE = '\n    builder.follow_build_desc_branch = True\n'
+
 BUILD_NAME = 'test-build'
 
-NONFOLLOW_BUILD_DESC = MULTIPLEX_BUILD_DESC.format(build_name=BUILD_NAME)
-FOLLOW_BUILD_DESC = NONFOLLOW_BUILD_DESC + '\n    builder.follow_build_desc_branch = True\n'
+NONFOLLOW_BUILD_DESC = MULTIPLEX_BUILD_DESC.format(build_name=BUILD_NAME) + \
+                       BZR_CO5_NO_REVISION
+
+FOLLOW_BUILD_DESC = MULTIPLEX_BUILD_DESC.format(build_name=BUILD_NAME) + \
+                    BZR_CO5_WITH_REVISION + \
+                    FOLLOW_LINE
 
 def create_multiplex_repo(build_name):
     """Creates repositories for checkouts 'builds', 'co1' .. 'co4'
@@ -255,13 +270,16 @@ def create_multiplex_repo(build_name):
             # --- tag fred
             git('tag fred')
         with NewDirectory('co5'):
+            # -- revision 1
             touch('Makefile.muddle', MUDDLE_MAKEFILE)
             bzr('init')
             bzr('add Makefile.muddle')
             bzr('commit Makefile.muddle -m "A checkout needs a makefile"')
+            # -- revision 2
             touch('README.txt', EMPTY_README_TEXT)
             bzr('add README.txt')
             bzr('commit README.txt -m "And a README"')
+            # -- revision 3
             touch('program5.c', EMPTY_C_FILE)
             bzr('add program5.c')
             bzr('commit program5.c -m "And a program"')

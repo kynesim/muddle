@@ -581,7 +581,7 @@ class VersionStamp(object):
                         print stamp.problems[-1]
                     continue
                 if not quiet:
-                    print "Processing %s checkout '%s'"%(vcs.short_name(),
+                    print "Processing %s checkout '%s'"%(vcs.short_name,
                                                  '(%s)%s'%(label.domain,label.name)
                                                            if label.domain
                                                            else label.name)

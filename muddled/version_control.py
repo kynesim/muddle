@@ -272,9 +272,11 @@ class VersionControlHandler(object):
     def __str__(self):
         return 'VCS %s'%self.short_name
 
+    @property
     def short_name(self):
         return self.vcs.short_name
 
+    @property
     def long_name(self):
         return self.vcs.long_name
 
@@ -312,9 +314,10 @@ class VersionControlHandler(object):
             if self.vcs.supports_branching():
                 return build_desc_branch
             else:
-                raise utils.GiveUp("Build description requests branch '%s',"
-                                   " but VCS '%s' does not support branching"%(
-                                   build_desc_branch, self.long_name))
+                raise GiveUp("Build description wants checkouts to follow branch '%s',\n"
+                             "but checkout %s uses VCS %s for which we do not support branching.\n"
+                             "The build description should specify a revision for checkout %s."%(
+                             build_desc_branch, co_label.name, self.long_name, co_label.name))
         else:
             if DEBUG: print 'Not following build description'
             return None
@@ -513,7 +516,7 @@ class VersionControlHandler(object):
             try:
                 status_text = self.vcs.status(repo, options)
                 if status_text:
-                    full_text = '%s status for %s in %s:\n%s'%(self.short_name(),
+                    full_text = '%s status for %s in %s:\n%s'%(self.vcs.short_name,
                                                  co_label,
                                                  builder.db.get_checkout_location(co_label),
                                                  status_text)

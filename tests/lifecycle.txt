@@ -5,6 +5,22 @@ Simple project lifecycle support
   **This is a work-in-progress, and this document will change as I find out
   what it should actually have said all along...**
 
+Commands
+========
+
+New or changed (I think)::
+
+  muddle init -branch <branch> <repo> <build>
+
+  muddle query build-desc-branch
+
+  muddle query checkout-id
+
+  muddle query checkout-vcs
+
+  muddle branch-tree ...
+
+  muddle sync
 
 Stuff
 =====

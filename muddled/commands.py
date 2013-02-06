@@ -358,8 +358,6 @@ class CPDCommand(Command):
             print 'Asked to %s:\n  %s'%(self.cmd_name,
                     label_list_to_string(labels, join_with='\n  '))
             return
-        ##elif not args:
-        ##    print '%s %s'%(self.cmd_name, label_list_to_string(labels))
 
         self.build_these_labels(builder, labels)
 
@@ -2480,47 +2478,25 @@ class QueryCheckoutId(QueryCommand):
 @subcommand('query', 'build-desc-branch', CAT_QUERY)
 class QueryBuildDescBranch(QueryCommand):
     """
-    :Syntax: muddle query build-desc-branch [<label>]
+    :Syntax: muddle query build-desc-branch
 
     Report the branch of the build description, and whether it is being used
     as the (default) branch for other checkouts.
 
-    <label> is a label or label fragment (see "muddle help labels"), or '_all'.
-    If it is a label, the default type is 'checkout:'.
-
-    If <label> is a label or label fragment, then the build description queried
-    will be the build description with the same domain as <label>.
-
-    If <label> is '_all', then all domains will have their build descriptions
-    queried.
-
-    If <label> is not given, then the domain being queried will be determined
-    by the current directory and its position in the build tree. See the output
-    of 'muddle where' for how this is done.
+    If there are sub-domains in the build tree, then this reports the branch
+    of the top-level build description, which is the only build description
+    that can request checkouts to "follow" its branch.
     """
 
     def with_build_tree(self, builder, current_dir, args):
 
-        #builder.db.dump_domain_build_desc_labels()
-        #builder.db.dump_domain_follows_build_desc_branch()
-
-        if len(args) == 1 and args[0] == '_all':
-            domains = builder.all_domains()
-        elif args:
-            label = self.get_label_from_fragment(builder, args,
-                                                 default_type=LabelType.Checkout)
-            domains = [label.domain]
+        build_desc_branch = get_build_desc_branch(builder)
+        print 'Build description %s is on branch %s'%(builder.build_desc_label,
+                                                      build_desc_branch)
+        if builder.follow_build_desc_branch:
+            print '  This WILL be used as the default branch for other checkouts'
         else:
-            what, label, domain = builder.find_location_in_tree(current_dir)
-            domains = [domain]
-
-        for domain in sorted(domains):
-            build_desc_branch = get_build_desc_branch(builder, domain)
-            print 'Build description %s is on branch %s'%(label, build_desc_branch)
-            if builder.db.get_domain_follows_build_desc_branch(domain):
-                print '  This WILL be used as the default branch for other checkouts in that domain'
-            else:
-                print '  This will NOT be used as the default branch for other checkouts in that domain'
+            print '  This will NOT be used as the default branch for other checkouts'
 
 
 @subcommand('query', 'dir', CAT_QUERY)
@@ -5921,11 +5897,23 @@ class Checkout(CheckoutCommand):
 class Sync(CheckoutCommand):
     """
     :Syntax: muddle sync [ <checkout> ... ]
+    :or:     muddle sync [-v[erbose]] [ <checkout> ... ]
+    :or:     muddle sync [-show] [ <checkout> ...]
 
-    For each checkout, attempt to go to the branch indicated by the build
-    description.
+    "Synchronise" each checkout onto the branch it should be on...
 
-    For each checkout, do the first applicable of the following
+    Less succinctly, for each checkout, do the first applicable of the
+    following:
+
+    * If this is the top-level build description, then:
+
+      - if it has "builder.follow_build_desc_branch = True", then nothing
+        needs to be done, as we're already there.
+      - if it does not have "builder.follow_build_desc_branch = True", but
+        a branch was specified for it (i.e., via "muddle init -branch"),
+        then go to that branch.
+      - if it does not have "builder.follow_build_desc_branch = True", and
+        no branch was specified (at "muddle init"), then go to "master".
 
     * If the build description specifies a revision for this checkout,
       go to that revision.
@@ -5938,10 +5926,13 @@ class Sync(CheckoutCommand):
       give up (the following choices require this).
     * If the build description has "builder.follow_build_desc_branch = True",
       then go to the same branch as the build description.
-    * If the checkout *is* the build description, and "muddle init -branch"
-      was originally used to choose a specific branch, then go to that
-      branch.
     * Otherwise, go to "master".
+
+    With '-v' or '-verbose', report in detail on what the "sync" operation
+    is doing, and why.
+
+    With '-show', report on its decision making process, but don't actually
+    do anything.
 
     <checkout> should be a label fragment specifying a checkout, or one of
     _all and friends, as for any checkout command. The <type> defaults to
@@ -5955,13 +5946,22 @@ class Sync(CheckoutCommand):
     # XXX Is this correct?
     required_tag = LabelTag.ChangesCommitted
 
+    allowed_switches = {'-v': 'verbose',
+                        '-verbose': 'verbose',
+                        '-show': 'show'
+                       }
+
     def build_these_labels(self, builder, labels):
+
+        sync = 'show' not in self.switches
+        if sync:
+            verbose = 'verbose' in self.switches
+        else:
+            verbose = True
+
         for co in labels:
             vcs_handler = builder.db.get_checkout_vcs(co)
-            try:
-                vcs_handler.sync(builder, co)
-            except GiveUp as e:
-                print e
+            vcs_handler.sync(builder, co, verbose=verbose, sync=sync)
 
 # -----------------------------------------------------------------------------
 # Checkout "upstream" commands
@@ -6441,7 +6441,7 @@ class BranchTree(Command):
             problems = self.check_checkouts(builder, all_checkouts, branch, verbose)
             if problems:
                 raise GiveUp('Unable to branch-tree to %s, because:\n  %s'%(branch,
-                             '\n  '.join(problems)))
+                             '\n  '.join(sorted(problems))))
 
             if check:
                 print 'No problems expected for "branch-tree %s"'%branch
@@ -6452,7 +6452,7 @@ class BranchTree(Command):
                 print
                 print "If you want the tree branching to be persistent, remember to edit"
                 print "the branched build description,"
-                print "  %s"%builder.db.Description_pathfile_file_name()
+                print "  %s"%builder.db.build_desc_file_name()
                 print "and add:"
                 print
                 print "  builder.follow_build_desc_branch = True"
@@ -6480,8 +6480,13 @@ class BranchTree(Command):
                                 ' the build description'%(co, repo.revision))
 
             elif repo.branch is not None:
-                problems.append('%s explicitly specifies branch "%s" in'
-                                ' the build description'%(co, repo.branch))
+                if co.match_without_tag(builder.build_desc_label):
+                    # It's our build description that has a branch, presumably
+                    # because we did "muddle init -branch". So we ignore it...
+                    pass
+                else:
+                    problems.append('%s explicitly specifies branch "%s" in'
+                                    ' the build description'%(co, repo.branch))
 
             # Shallow checkouts are not terribly well integrated - we do this
             # very much by hand...
@@ -6525,10 +6530,17 @@ class BranchTree(Command):
                 continue
 
             if repo.branch is not None:
-                print '%s explicitly specifies branch "%s" in' \
-                      ' the build description'%(co, repo.branch)
-                problems.append((co, "specific branch %s"%repo.branch))
-                continue
+                if co.match_without_tag(builder.build_desc_label):
+                    # It's our build description that has a branch, presumably
+                    # because we did "muddle init -branch". So we don't believe
+                    # that this is a problem, and can carry on and branch it
+                    # to what was requested.
+                    pass
+                else:
+                    print '%s explicitly specifies branch "%s" in' \
+                          ' the build description'%(co, repo.branch)
+                    problems.append((co, "specific branch %s"%repo.branch))
+                    continue
 
             # Shallow checkouts are not terribly well integrated - we do this
             # very much by hand...
@@ -6547,9 +6559,9 @@ class BranchTree(Command):
             selected += 1
 
         print 'Successfully created  branch %s in %d out of %d checkout%s'%(branch,
-                created, len(all_checkouts), '' if created==1 else 's')
+                created, len(all_checkouts), '' if len(all_checkouts)==1 else 's')
         print 'Successfully selected branch %s in %d out of %d checkout%s'%(branch,
-                selected, len(all_checkouts), '' if selected==1 else 's')
+                selected, len(all_checkouts), '' if len(all_checkouts)==1 else 's')
         if already_exists_in:
             print
             print 'Branch %s already existed in:\n  %s'%(branch,

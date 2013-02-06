@@ -309,9 +309,14 @@ class VersionControlHandler(object):
             return None         # we're happy with that we've got
         elif builder.follow_build_desc_branch:
             # First, find the build description for our checkout
-            build_desc_branch = get_build_desc_branch(builder, co_label.domain, DEBUG=DEBUG)
+            build_desc_branch = get_build_desc_branch(builder, verbose=DEBUG)
 
-            if self.vcs.supports_branching():
+            if 'shallow_checkout' in co_data.options:
+                raise GiveUp("The build description wants checkouts to follow branch '%s',\n"
+                             "but checkout %s is a shallow checkout, so we cannot branch it.\n"
+                             "The build description should specify a revision for checkout %s."%(
+                             build_desc_branch, co_label.name, co_label.name))
+            elif self.vcs.supports_branching():
                 return build_desc_branch
             else:
                 raise GiveUp("The build description wants checkouts to follow branch '%s',\n"
@@ -685,11 +690,28 @@ class VersionControlHandler(object):
                 raise GiveUp('Failure checking existence of branch %s for %s in %s:\n%s'%(branch,
                              co_label, builder.db.get_checkout_location(co_label), err))
 
-    def sync(self, builder, co_label):
+    def sync(self, builder, co_label, verbose=False, sync=True):
         """
         Attempt to go to the branch indicated by the build description.
 
+        * 'co_label' is the label for which to sync
+        * if 'verbose' is True, then report extra information about what
+          is being done and why
+        * if 'sync' is False, don't actually do the sync - this is expected
+          to be used with "verbose=True" to report on what we would do and
+          why.
+
         Do the first applicable of the following
+
+        * If this is the top-level build description, then:
+
+          - if it has "builder.follow_build_desc_branch = True", then nothing
+            needs to be done, as we're already there.
+          - if it does not have "builder.follow_build_desc_branch = True", but
+            a branch was specified for it (i.e., via "muddle init -branch"),
+            then go to that branch.
+          - if it does not have "builder.follow_build_desc_branch = True", and
+            no branch was specified (at "muddle init"), then go to "master".
 
         * If the build description specifies a revision for this checkout,
           go to that revision.
@@ -704,50 +726,78 @@ class VersionControlHandler(object):
           then go to the same branch as the build description.
         * Otherwise, go to "master".
         """
-        DEBUG = True # XXX Set to False to allow normal tests to succeed,
-                     # XXX which don't expect these messages...
-        if DEBUG: print 'Synchronising for', co_label
+        if verbose: print 'Synchronising for', co_label
+
         co_data = builder.db.get_checkout_data(co_label)
         repo = co_data.repo
-        if repo.branch or repo.revision:
-            if DEBUG: print '  Build description has specific branch/revision'
-            follow = False
-        elif not self.vcs.supports_branching():
-            if DEBUG: print '  Changing branch is not supported for this VCS'
-            follow = False
-        # Shallow checkouts are not terribly well integrated - we do this
-        # very much by hand...
-        elif 'shallow_checkout' in co_data.options:
-            if DEBUG: print '  This is a shallow checkout'
-            follow = False
+
+        if builder.build_desc_label.match_without_tag(co_label):
+            if verbose: print '  This is the build description'
+            follow = builder.follow_build_desc_branch
+            if verbose: print '  The build description %s "follow" set'%('has' if follow
+                    else 'does not have')
+            if follow:
+                # By definition, we're already AT the build description branch
+                # so we have nothing further to do...
+                if verbose: print "  Following ourselves - so we're already there"
+                return
         else:
-            our_domain = co_label.domain
-            if DEBUG: print '  Domain is', our_domain
-            follow = builder.db.get_domain_follows_build_desc_branch(our_domain)
+            if repo.revision:
+                if verbose: print '  We have a specific revision in the build' \
+                                  ' description, "%s"'%repo.revision
+                follow = False
+            elif repo.branch:
+                if verbose: print '  We have a specific branch in the build' \
+                                  ' description, "%s"'%repo.branch
+                follow = False
+            elif not self.vcs.supports_branching():
+                if verbose: print '  Changing branch is not supported for this' \
+                                  ' VCS, %s'%self.vcs.short_name
+                follow = False
+            # Shallow checkouts are not terribly well integrated - we do this
+            # very much by hand...
+            elif 'shallow_checkout' in co_data.options:
+                if verbose: print '  This is a shallow checkout'
+                follow = False
+            else:
+                follow = builder.follow_build_desc_branch
+                if verbose: print '  The build description %s "follow" set'%('has' if follow
+                        else 'does not have')
 
         if follow:
             # We are meant to be following our build description's branch
-            if DEBUG: print '  Following build desc'
-            build_desc_branch = get_build_desc_branch(builder, our_domain, DEBUG=DEBUG)
-            if DEBUG: print '  Build desc branch is', build_desc_branch
+            build_desc_branch = get_build_desc_branch(builder, verbose=verbose)
             # And so follow it...
-            if DEBUG: print '%s following build description onto branch "%s"'%(co_label, build_desc_branch)
-            self.goto_branch(builder, co_label, build_desc_branch)
+            if verbose: print '  We want to follow the build description onto branch' \
+                              ' "%s"'%build_desc_branch
+            branch = build_desc_branch
+            revision = None
         else:
-            if DEBUG: print '  NOT Following build desc'
+            if verbose: print '  We do NOT want to follow the build description'
             # We are meant to keep to our own revision or branch, whatever that is
             if repo.revision is not None:
                 if repo.branch:
-                    if DEBUG: print '  Selecting revision %s, branch %s'%(repo.revision, repo.branch)
+                    if verbose: print '  We want revision "%s", branch' \
+                                      ' "%s"'%(repo.revision, repo.branch)
                 else:
-                    if DEBUG: print '  Selecting revision %s'%repo.revision
-                self.goto_revision(builder, co_label, repo.revision, repo.branch)
+                    if verbose: print '  We want revision "%s"'%repo.revision
+                branch = repo.branch
+                revision = repo.revision
             elif repo.branch is not None:
-                if DEBUG: print '  Selecting branch %s'%repo.branch
-                self.goto_branch(builder, co_label, repo.branch)
+                if verbose: print '  We want branch "%s"'%repo.branch
+                branch = repo.branch
+                revision = None
             else:
-                if DEBUG: print '  Selecting branch master'
-                self.goto_branch(builder, co_label, 'master')
+                if verbose: print '  We want branch "master"'
+                branch = 'master'
+                revision = None
+
+        if sync:
+            if revision is None:
+                self.goto_branch(builder, co_label, branch)
+            else:
+                self.goto_revision(builder, co_label, revision, branch)
+
 
     def must_pull_before_commit(self, builder, co_label):
         """Do we need to pull before we can commit?
@@ -801,18 +851,11 @@ class VersionControlHandler(object):
             co_data.set_option(key, value)
 
 # This probably wants to go somewhere else
-def get_build_desc_branch(builder, domain, DEBUG=False):
-    """Return the current branch of the build description for 'domain'.
+def get_build_desc_branch(builder, verbose=False):
+    """Return the current branch of the top-level build description.
     """
-    # This is going to be *way* too slow to do for every time this
-    # is likely to be called, so should really be cached.
-    #
-    # Probably as: builder.db.get_domain_build_desc_branch(domain)
-    #
-    # ...following "muddle query build-desc-branch":
-    #
-    build_desc_label = builder.db.get_domain_build_desc_label(domain)
-    if DEBUG: print '  Build desc is', build_desc_label
+    build_desc_label = builder.build_desc_label
+    if verbose: print '  The build description is', build_desc_label
     try:
         vcs = builder.db.get_checkout_vcs(build_desc_label)
     except GiveUp:

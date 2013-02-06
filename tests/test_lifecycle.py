@@ -132,10 +132,7 @@ def add_package(builder, pkg_name, role, co_name=None, branch=None, revision=Non
     base_repo = builder.build_desc_repo
     if co_name is None:
         co_name = pkg_name
-    if branch is None:
-        branch = base_repo.branch
-    if revision is None:
-        revision = base_repo.revision
+    # Don't follow the branch/revision of the build description
     repo = base_repo.copy_with_changes(co_name, branch=branch, revision=revision)
     checkout_from_repo(builder, checkout(co_name), repo)
     muddled.pkgs.make.simple(builder, pkg_name, role, co_name)
@@ -485,15 +482,6 @@ def test_branch_tree(root_d):
 
     with NewCountedDirectory('branch-tree.branch'):
         muddle(['init', '-branch', 'branch0', 'git+file://' + repo, 'builds/01.py'])
-
-
-
-        muddle(['query', 'checkout-repos'])
-        raise GiveUp('Fred')
-
-
-
-
         muddle(['checkout', '_all'])
 
         # Our checkouts should be as in the build description
@@ -511,8 +499,8 @@ def test_branch_tree(root_d):
         check_text_endswith(text, """\
 Unable to branch-tree to test-v0.1, because:
   checkout:co2/checked_out explicitly specifies branch "branch1" in the build description
-  checkout:co4/checked_out explicitly specifies revision "fred" in the build description
   checkout:co3/checked_out explicitly specifies revision "fred" in the build description
+  checkout:co4/checked_out explicitly specifies revision "fred" in the build description
 """)
 
         # OK, force it
@@ -525,10 +513,6 @@ Unable to branch-tree to test-v0.1, because:
         check_branch('src/co2', 'branch1')
         check_revision('co3', co3_revision)
         check_revision('co4', co4_revision)
-
-
-        muddle(['query', 'checkout-repos'])
-
 
         # But if we sync...
         muddle(['sync', '_all'])
@@ -557,7 +541,7 @@ Unable to branch-tree to test-v0.1, because:
                 # that this new 01.py is later than the previous version
                 os.remove('01.pyc')
 
-        muddle(['sync', '_all'])
+        muddle(['sync', '-v', '_all'])
 
         # And this time, things should follow the build description if they're
         # allowed to

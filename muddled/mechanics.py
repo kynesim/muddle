@@ -165,7 +165,6 @@ class Builder(object):
         # the build description? This is ignored if a checkout already
         # (explicitly) specifies its own branch or revision.
         self._follow_build_desc_branch = False
-        self.db.set_domain_follows_build_desc_branch(None, False)
 
     @property
     def build_desc_repo(self):
@@ -1048,18 +1047,12 @@ class Builder(object):
 
     @follow_build_desc_branch.setter
     def follow_build_desc_branch(self, follows):
-        # We *expect* our domain to be None, as this value is normally set
-        # within a build description, and all build descriptions (whilst
-        # they are being executed) are the top level build description
-        domain = self.build_desc_label.domain
-
         if follows:
             follows = True
         else:
             follows = False
 
         self._follow_build_desc_branch = follows
-        self.db.set_domain_follows_build_desc_branch(domain, follows)
 
     def _follows_build_desc_branch(self, value=None):
         raise ValueError('There is no Builder value called "follows_build_desc_branch,'

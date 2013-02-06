@@ -2,10 +2,11 @@
 
 import os
 import sys
+import imp
 import pydoc
 
 from inspect import getmembers, isfunction, isclass, ismethod, ismodule
-from inspect import getargspec, formatargspec, getmro
+from inspect import isgenerator, getargspec, formatargspec, getmro, getdoc
 
 class HashThing(object):
 
@@ -44,9 +45,9 @@ class HashThing(object):
 
 DEBUG = False
 
-def dissect(module_name, module, hash):
-    for name, value in getmembers(module):
-        this_name = '%s.%s'%(module_name, name)
+def dissect(thing_name, thing, hash):
+    for name, value in getmembers(thing):
+        this_name = '%s.%s'%(thing_name, name)
         if name.startswith('__') and name.endswith('__'):
             continue
         elif isfunction(value):
@@ -55,10 +56,55 @@ def dissect(module_name, module, hash):
         elif ismethod(value):
             if DEBUG: print '   .. method', this_name
             hash.add(this_name, value)
+        elif isgenerator(value):
+            if DEBUG: print '   .. generator', this_name
+            hash.add(this_name, value)
         elif isclass(value):
             if DEBUG: print '   .. class', this_name
             hash.add(this_name, value)
             dissect(this_name, value, hash)
+
+def describe_contents(thing_name, thing):
+    contents = []
+    for name, value in getmembers(thing):
+        this_name = '%s.%s'%(thing_name, name)
+        if name.startswith('__') and name.endswith('__'):
+            continue
+        elif isfunction(value):
+            contents.append('  Function  %s'%this_name)
+        elif ismethod(value):
+            contents.append('  Method    %s'%this_name)
+        elif isclass(value):
+            contents.append('  Class     %s'%this_name)
+        elif isgenerator(value):
+            contents.append('  Generator %s'%this_name)
+        elif isinstance(value, property):
+            contents.append('  Property  %s'%this_name)
+        elif ismodule(value):
+            continue
+        else:
+            contents.append('            %s = <%s>'%(this_name, type(value).__name__))
+    if len(contents):
+        contents = sorted(contents)
+        print 'Contents:'
+        print '\n'.join(contents)
+
+def describe_function_contents(thing_name, thing):
+    contents = []
+    for name, value in getmembers(thing):
+        this_name = '%s.%s'%(thing_name, name)
+        if name.startswith('__') and name.endswith('__'):
+            continue
+        elif isfunction(value):
+            contents.append('  Function  %s'%this_name)
+        elif isclass(value):
+            contents.append('  Class     %s'%this_name)
+        elif isgenerator(value):
+            contents.append('  Generator %s'%this_name)
+    if len(contents):
+        contents = sorted(contents)
+        print 'Contents:'
+        print '\n'.join(contents)
 
 def determine():
 
@@ -74,7 +120,8 @@ def determine():
                 module_name = '.'.join(parts) + '.' + dirname
                 module_path = os.path.join(dirpath, dirname)
                 if DEBUG: print '---', module_name, 'from', module_path
-                module = pydoc.safeimport(module_path)
+                # This works, but relies on module_name being in our path...
+                module = pydoc.locate(module_name, forceload=1)
                 if DEBUG: print '   ', module_name, ':', module
                 hash.add(module_name, module)
                 dissect(module_name, module, hash)
@@ -131,30 +178,59 @@ if __name__ == '__main__':
         if len(results) == 1:
             results = list(results)
             name, value = results[0]
+
+            if value is None:
+                # This relies on pydoc being able to (reimport) 'name'
+                print
+                print pydoc.render_doc(name, 'Documentation for %s')
+                continue
+
             print
             print '%s -> %s, %s'%(arg, name, value)
             print
             if isfunction(value):
                 print 'Function %s%s'%(name, formatargspec(*getargspec(value)))
-                print value.__doc__
+                print
+                print getdoc(value)
+                print
+                describe_function_contents(name, value)
             elif ismethod(value):
                 print 'Method %s%s'%(name, formatargspec(*getargspec(value)))
-                print value.__doc__
+                print
+                print getdoc(value)
+                print
+                describe_function_contents(name, value)
+            elif isgenerator(value):
+                print 'Generator %s%s'%(name, formatargspec(*getargspec(value)))
+                print
+                print getdoc(value)
+                print
+                describe_function_contents(name, value)
             elif isclass(value):
                 mro = getmro(value)
                 supers = []
                 for c in mro[1:]:
                     supers.append(c.__name__)
                 print 'Class %s(%s)'%(name, ', '.join(supers))
-                print value.__doc__
+                print
+                print getdoc(value)
+                print
                 print 'Method %s.__init__%s'%(name, formatargspec(*getargspec(value.__init__)))
-                print value.__init__.__doc__
+                print
+                print getdoc(value.__init__)
+                print
+                describe_contents(name, value)
             elif ismodule(value):
                 print 'Module %s'%name
-                print value.__doc__
+                print
+                print getdoc(value)
+                print
+                describe_contents(name, value)
             else:
                 print 'Something else: %s'%name
                 print value
+                print
+                describe_contents(name, value)
         else:
             print '"%s" has more than one possibility:'%arg
             for name, value in sorted(results):

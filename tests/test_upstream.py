@@ -487,11 +487,19 @@ def make_repos(root_dir):
                                                            subdomain2='subdomain2',
                                                            subdomain3='subdomain3'))
 
+            with NewDirectory('repo1') as d:
+                make_standard_checkout(d.where, 'program1', 'first program')
+
             # Several very similar repositories
-            new_repo('program1', 'repo1')
-            new_repo('program1', 'repo1.1')
-            new_repo('program1', 'repo1.2')
-            new_repo('program1', 'repo1.3')
+            other_repo_names = ('repo1.1', 'repo1.2', 'repo1.3')
+            for repo_name in other_repo_names:
+                with NewDirectory(repo_name):
+                    git('init --bare')
+
+                repo_url = os.path.join(repo, 'main', repo_name)
+                with Directory('repo1'):
+                    git('remote add %s %s'%(repo_name, repo_url))
+                    git('push %s master'%repo_name)
 
         with NewDirectory('subdomain1'):
             with NewDirectory('builds') as d:

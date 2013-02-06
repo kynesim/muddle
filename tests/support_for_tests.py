@@ -348,12 +348,8 @@ def check_text_lines_v_lines(actual_lines, wanted_lines):
                          fromfile='Missing lines', tofile='Extra lines', lineterm='')
     difflines = list(diffs)
     if difflines:
-        print
-        print 'Text did not match'
-        for line in difflines:
-            sys.stdout.write('%s\n'%line)
-        print
-        raise GiveUp('Text did not match')
+        lines = ['Text did not match'] + list(difflines)
+        raise GiveUp('\n'.join(lines))
 
 def check_text_v_lines(actual, wanted_lines):
     """Check two pieces of text are the same.

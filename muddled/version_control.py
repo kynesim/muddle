@@ -305,6 +305,9 @@ class VersionControlHandler(object):
         repo = co_data.repo
 
         # The build description is awkward
+        if builder.build_desc_label is None:
+            # This can happen when we're unstamping
+            return None
         if builder.build_desc_label.match_without_tag(co_label):
             if DEBUG: print 'We are the build description'
             if builder.follow_build_desc_branch:

@@ -5482,6 +5482,10 @@ class Push(CheckoutCommand):
     If '-s' or '-stop' is given, then we'll stop at the first problem,
     otherwise an attempt will be made to process all the checkouts, and any
     problems will be re-reported at the end.
+
+    "muddle push" will refuse to push if the checkout is not on the expected
+    branch, either an explicit branch from the build description, or the
+    build description branch if we are "following" it, or "master".
     """
 
     required_tag = LabelTag.ChangesPushed

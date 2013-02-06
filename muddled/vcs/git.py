@@ -32,6 +32,10 @@ TODO: The following needs rewriting after work for issue 225
   push`` of the current branch. If the branch does not exist at the far end,
   it will be created.
 
+  Both commands will refuse to push if the checkout is not on the expected
+  branch, either an explicit branch from the build description, or the
+  build description branch if we are "following" it, or "master".
+
 * muddle merge
 
   This is essentially identical to "muddle pull", except that it does a simple

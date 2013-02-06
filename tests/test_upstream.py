@@ -785,7 +785,7 @@ Nowhere to push checkout:builds/checked_out to
 
 Pushing checkout:co_repo1/checked_out to file://{root_dir}/repo/main/repo1.1 (rhubarb, wombat)
 ++ pushd to {root_dir}/build/src/co_repo1
-> git push rhubarb master
+> git push rhubarb HEAD
 Everything up-to-date
 
 Pushing checkout:co_repo1/checked_out to file://{root_dir}/repo/main/repo1.2 (wombat)

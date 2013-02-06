@@ -1995,6 +1995,52 @@ class QueryCheckoutRepos(QueryCommand):
         just_url = ('url' in self.switches)
         builder.db.dump_checkout_repos(just_url=just_url)
 
+@subcommand('query', 'checkout-branches', CAT_QUERY)
+class QueryCheckoutBraches(QueryCommand):
+    """
+    :Syntax: muddle query checkout-branches
+
+    Print the known checkouts and their branches.
+
+    Reports on the current branch for each checkout, and the branch implied
+    (or explicitly requested) by the build description.
+    """
+
+    def with_build_tree(self, builder, current_dir, args):
+        labels = sorted(builder.all_checkout_labels())
+        maxlen = 0
+        for co_label in labels:
+            if len(str(co_label)) > maxlen:
+                maxlen = len(str(co_label))
+
+        format = '%-*s  %-20s  %-20s  %s'
+        line = format%(maxlen, maxlen*'-', 20*'-', 20*'-', 20*'-')
+        print line
+        print '%-*s  %-20s  %-20s  %s'%(maxlen, 'Checkout', 'Current branch',
+                                                'Original branch', 'Branch to follow')
+        print line
+        for co_label in labels:
+            co_data = builder.db.get_checkout_data(co_label)
+            repo = co_data.repo
+            vcs_handler = co_data.vcs_handler
+            if not vcs_handler.vcs.supports_branching():
+                print format%(maxlen, co_label, '<not supported>', '...', '...')
+                continue
+            original_branch = repo.branch
+            if original_branch is None:
+                original_branch = 'master'
+            actual_branch = vcs_handler.get_current_branch(builder, co_label)
+            if actual_branch is None:
+                actual_branch = 'master'
+            follow_branch = vcs_handler.branch_to_follow(builder, co_label)
+            if follow_branch is None:
+                follow_branch = '<not following>'
+            if builder.build_desc_label.match_without_tag(co_label):
+                print format%(maxlen, co_label, actual_branch, original_branch, "<it's own>")
+            else:
+                print format%(maxlen, co_label, actual_branch, original_branch, follow_branch)
+
+
 @subcommand('query', 'checkout-vcs', CAT_QUERY)
 class QueryCheckoutVcs(QueryCommand):
     """

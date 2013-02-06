@@ -18,6 +18,8 @@ New or changed (I think)::
 
   muddle query checkout-vcs
 
+  muddle query checkout-branches
+
   muddle branch-tree ...
 
   muddle sync

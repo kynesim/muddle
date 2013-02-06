@@ -364,7 +364,7 @@ class VersionControlHandler(object):
         if specific_branch:
             # The build description told us to follow it, onto this branch
             # - so let's remember it on the Repository
-            repo.branch = specific_branch
+            repo = repo.copy_with_changed_branch(specific_branch)
 
         options = builder.db.get_checkout_vcs_options(co_label)
         with Directory(parent_dir):
@@ -402,7 +402,7 @@ class VersionControlHandler(object):
         if specific_branch:
             # The build description told us to follow it, onto this branch
             # - so let's remember it on the Repository
-            repo.branch = specific_branch
+            repo = repo.copy_with_changed_branch(specific_branch)
             print 'Specific branch %s in %s'%(specific_branch, co_label)
 
         options = builder.db.get_checkout_vcs_options(co_label)
@@ -437,7 +437,7 @@ class VersionControlHandler(object):
         if specific_branch:
             # The build description told us to follow it, onto this branch
             # - so let's remember it on the Repository
-            repo.branch = specific_branch
+            repo = repo.copy_with_changed_branch(specific_branch)
             print 'Specific branch %s in %s'%(specific_branch, co_label)
 
         options = builder.db.get_checkout_vcs_options(co_label)

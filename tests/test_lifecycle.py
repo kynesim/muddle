@@ -584,6 +584,29 @@ Unable to branch-tree to test-v0.1, because:
                     text = fd.read()
                 check_text_endswith(text, '# This should make no difference\n')
 
+    # And another variation
+    with NewCountedDirectory('branch-tree.cloned'):
+        muddle(['init', '-branch', 'branch.follow', 'git+file://' + repo, 'builds/01.py'])
+        muddle(['checkout', '_all'])
+
+        check_branch('src/builds', 'branch.follow')
+        check_branch('src/co1', 'branch.follow')
+        check_branch('src/co2', 'branch1')
+        check_revision('co3', co3_revision)
+        check_revision('co4', co4_revision)
+
+        muddle(['branch-tree', '-f', 'test-v0.1'])
+
+        with Directory('src'):
+            with Directory('builds'):
+                with open('01.py') as fd:
+                    text = fd.read()
+                check_text_endswith(text, '# This should make no difference\n')
+            with Directory('co1'):
+                with open('Makefile.muddle') as fd:
+                    text = fd.read()
+                check_text_endswith(text, '# This should make no difference\n')
+
 def test_git_lifecycle(root_d):
     """A linear sequence of plausible actions...
     """

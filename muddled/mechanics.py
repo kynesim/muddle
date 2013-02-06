@@ -146,8 +146,7 @@ class Builder(object):
         build_fname = os.path.split(build_desc)[1]
         self._build_name = os.path.splitext(build_fname)[0]
 
-        # It's useful to know our build description's Repository and label
-        self.build_desc_repo = None
+        # It's useful to know our build description's label
         self.build_desc_label = None
 
         # The current distribution name and target directory, as a tuple,
@@ -167,6 +166,21 @@ class Builder(object):
         # (explicitly) specifies its own branch or revision.
         self._follow_build_desc_branch = False
         self.db.set_domain_follows_build_desc_branch(None, False)
+
+    @property
+    def build_desc_repo(self):
+        """The Repository for our build description.
+
+        This used to be a simple value, but is now a shim around looking
+        it up in builder.db.checkout_data - so that we only have the
+        information stored in one place.
+
+        Returns None if there is no Repository registered yet
+        """
+        try:
+            return self.db.get_checkout_repo(self.build_desc_label)
+        except Exception:
+            return None
 
     def get_default_domain(self):
         return self.default_domain
@@ -307,8 +321,6 @@ class Builder(object):
         # descriptions have to be simple top-level repositories at the
         # base_url location, named by their checkout name.
         repo = Repository(vcs, base_url, build_co_name, branch=branch)
-        # Remember this specifically as the "default" repository
-        self.build_desc_repo = repo
 
         co_label = Label(LabelType.Checkout, build_co_name, None,
                          LabelTag.CheckedOut, domain=self.default_domain)

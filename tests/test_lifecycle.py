@@ -551,6 +551,39 @@ Unable to branch-tree to test-v0.1, because:
         check_revision('co3', co3_revision)
         check_revision('co4', co4_revision)
 
+        # If we make amendments to the checkouts that are "following", can
+        # we push them?
+        with Directory('src'):
+            with Directory('builds'):
+                append('01.py', '# This should make no difference\n')
+                git('commit -a -m "Add a comment at the end"')
+                muddle(['push'])
+            with Directory('co1'):
+                append('Makefile.muddle', '# This should make no difference\n')
+                git('commit -a -m "Add a comment at the end"')
+                muddle(['push'])
+
+    # Let's see if that took
+    with NewCountedDirectory('branch-tree.cloned'):
+        muddle(['init', '-branch', 'test-v0.1', 'git+file://' + repo, 'builds/01.py'])
+        muddle(['checkout', '_all'])
+
+        check_branch('src/builds', 'test-v0.1')
+        check_branch('src/co1', 'test-v0.1')
+        check_branch('src/co2', 'branch1')
+        check_revision('co3', co3_revision)
+        check_revision('co4', co4_revision)
+
+        with Directory('src'):
+            with Directory('builds'):
+                with open('01.py') as fd:
+                    text = fd.read()
+                check_text_endswith(text, '# This should make no difference\n')
+            with Directory('co1'):
+                with open('Makefile.muddle') as fd:
+                    text = fd.read()
+                check_text_endswith(text, '# This should make no difference\n')
+
 def test_git_lifecycle(root_d):
     """A linear sequence of plausible actions...
     """

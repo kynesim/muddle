@@ -303,12 +303,22 @@ class VersionControlHandler(object):
         DEBUG = False # to allow normal tests to succeed, which don't expect these messages...
         co_data = builder.db.get_checkout_data(co_label)
         repo = co_data.repo
+
+        # The build description is awkward
+        if builder.build_desc_label.match_without_tag(co_label):
+            if DEBUG: print 'We are the build description'
+            if builder.follow_build_desc_branch:
+                if DEBUG: print 'Build desc following itself'
+                return get_build_desc_branch(builder, verbose=DEBUG)
+            else:
+                if DEBUG: print 'Not following build description'
+                return None     # consonant with the below
+
         if repo.revision or repo.branch:
             if DEBUG: print 'Revision already set to %s'%repo.revision
             if DEBUG: print 'Branch already set to %s'%repo.branch
             return None         # we're happy with that we've got
         elif builder.follow_build_desc_branch:
-            # First, find the build description for our checkout
             build_desc_branch = get_build_desc_branch(builder, verbose=DEBUG)
 
             if 'shallow_checkout' in co_data.options:
@@ -465,7 +475,7 @@ class VersionControlHandler(object):
         Push changes in the local repository to the remote repository.
 
         If 'upstream' and 'repo' are given, then they specify the upstream
-        repository we should pull from, instead of using the 'normal'
+        repository we should push to, instead of using the 'normal'
         repository from the build description.
 
         Note that in a centralised VCS, like subversion, this is typically
@@ -480,6 +490,22 @@ class VersionControlHandler(object):
             raise GiveUp('Failure pushing %s in %s:\n'
                          '  %s does not allow "push"'%(co_label,
                          builder.db.get_checkout_location(co_label), repo))
+
+        # XXX ---- experimental
+        expected_branch = self.branch_to_follow(builder, co_label)
+        if expected_branch is None:
+            expected_branch = repo.branch
+        if expected_branch is not None:
+            actual_branch = self.get_current_branch(builder, co_label)
+            if expected_branch != actual_branch:
+                raise GiveUp('Checkout %s in directory %s\n'
+                             'is on branch %s, but should be on branch %s.\n'
+                             'Use "muddle query checkout-branches" for more information.\n'
+                             'Refusing to push. Use %s directly if that is what you'
+                             ' really meant'%(co_label.name,
+                                 builder.db.get_checkout_location(co_label),
+                                 actual_branch, expected_branch, self.vcs.short_name))
+        # XXX ----
 
         options = builder.db.get_checkout_vcs_options(co_label)
         with Directory(builder.db.get_checkout_path(co_label)):

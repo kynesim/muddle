@@ -9,7 +9,7 @@ TODO: The following needs rewriting after work for issue 225
   branch (with ``-b <branch>``, defaulting to "master"), and a requested
   revision.
 
-* muddle pull, muddle push-upstream
+* muddle pull, muddle pull-upstream
 
   This does a ``git fetch`` followed by a fast-forwards ``git merge``.
 
@@ -28,8 +28,9 @@ TODO: The following needs rewriting after work for issue 225
 
   If the checkout is marked as "shallow', this will give up.
 
-  The command checkts that the remote is configured as such, then does ``git
-  push``, honouring any branch.
+  The command checks that the remote is configured as such, then does ``git
+  push`` of the current branch. If the branch does not exist at the far end,
+  it will be created.
 
 * muddle merge
 
@@ -340,14 +341,18 @@ class Git(VersionControlSystem):
                          'If you really want to push, first choose a branch,\n'
                          'e.g., "git checkout -b <new-branch-name>"')
 
-        if repo.branch:
-            effective_branch = repo.branch
-        else:
-            # Explicitly push master if nothing else is specified.
-            # This is so that the user sees what we're doing, instead of
-            # being potentially confused by git's config hiding non-default
-            # behaviour.
-            effective_branch = "master"
+        #if repo.branch:
+        #    effective_branch = repo.branch
+        #else:
+        #    # Explicitly push master if nothing else is specified.
+        #    # This is so that the user sees what we're doing, instead of
+        #    # being potentially confused by git's config hiding non-default
+        #    # behaviour.
+        #    effective_branch = "master"
+
+        # Push this branch to the branch of the same name, whether it exists
+        # yet or not
+        effective_branch = 'HEAD'
 
         if not upstream:
             # If we're not given an upstream repository name, assume we're

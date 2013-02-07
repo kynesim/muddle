@@ -1,0 +1,54 @@
+Changes since muddle v2.4.4
+
+* Lifecycle support. I've been working on this for a while. Basically, it
+  allows branching a whole build tree for maintenance support.
+
+  New commands are::
+
+    muddle init -branch <branch> <repo> <build-desc>
+    muddle branch-tree <new-branch>
+    muddle query checkout-branches
+    muddle query checkout-id
+    muddle sync
+
+  See the new lifecycle documentation (a new chapter in the normal muddle
+  documentation), and also "muddle help" for each of the above.
+
+* New squashfs and romfs deployments. Also, the underlying code for the
+  "muddled.deployments" modules has been rewritten, and CPIO deployments can
+  now be made to a package (specifically, to a package install directory),
+  removing one of the causes of packages depending on deployments.
+
+* A rewritten and more powerful "muddle doc" command. See "muddle help doc",
+  and try::
+
+     muddle doc Label
+     muddle doc Label -pydoc
+     muddle doc -contains Directory
+
+* Minor tweaks in the release mechanism, based on experience of using it.
+  These include adding a "-test" switch to "muddle release", and allowing
+  "muddle stamp release" to "guess" the next version number to use for a
+  release stamp.
+
+   See "muddle help release" and "muddle help stamp release".
+
+* A new "quickstart" section at the beginning of the documentation, for those
+  who've just been given a build using muddle for the first time.
+
+* The Invocation class is no more, it has been folded into Builder. Thus
+  ``builder.invocation.XXX`` is now identical to ``builder.XXX`` in all cases.
+  This basically makes build descriptions a bit simpler, and removes the
+  problem of how to remember whether a particular method had ``.invocation``
+  in front of its name or not.
+
+* There has been an internal rewrite of the version control handler support
+  and much of the "memory" of how checkouts work has been moved from there to
+  the Database class and db.py. This was a prequisite of the lifecycle work.
+
+* There have been various minor fixes in license support, including not
+  propagating GPL licenses to/through GPL licenses.
+
+* And a variety of other tidyings and bugfixes.
+
+.. vim: set filetype=rst tabstop=8 softtabstop=2 shiftwidth=2 expandtab:

@@ -2,8 +2,102 @@
 Simple project lifecycle support
 ================================
 
-  **This is a work-in-progress, and this document will change as I find out
-  what it should actually have said all along...**
+Summary
+=======
+The project lifecycle commands allow for creating a set of maintenance
+branches on every checkout in a build tree.
+
+Let us assume that we have a build tree with build name "Widget", and that
+release version 1.0 of the Widget product has just been delivered. We want to
+continue working towards version 2 of the product in the "normal" build tree,
+but we may also need to make maintenance releases based on version 1.0 of the
+code.
+
+Muddle allows us to branch all of the checkouts in the build tree, so that we
+can do the v1.0 maintenance work on its own branch. Thus::
+
+  $ muddle branch-tree Widget-v1.0-maintenance
+
+will perform various checks, and then create a new branch called
+``Widget-v1.0-maintenance`` in each checkout.
+
+.. note:: It is worth naming maintenance branches carefully so that they are
+   unlikely to clash with any existing branchs in any of the checkouts. Using
+   the build name, the version number, and some additional descriptive text
+   (here, just "maintenance") seems sensible.
+
+We then need to tell the (branched) build description that all its checkouts
+should "follow" its branch (we'll see why furhter below). So we add the line::
+
+  $ builder.follow_build_desc_branch = True
+
+to the build description (normally in ``src/builds/01.py``).
+
+We now need to commit and push all of these changes. Unfortunately, we don't
+yet have a way of doing a "muddle commit" that specifies a commit message, so
+the best we can do (assuming everything is using git) is::
+
+  $ muddle runin _all_checkouts 'git commit -a -m "Create maintenance branch"'
+
+and then::
+
+  $ muddle push _all
+
+Since the checkouts are on the branch requested by the build description
+(because we set the "follow" flag), this will push the new branch to the
+remote repositories, even though it didn't exist before.
+
+At which stage, our remotes all have the branch, and our checkouts are still
+on it.
+
+We can now change to a new, empty directory, and make a new copy of our
+maintenance build tree::
+
+  $ cd ..
+  $ mkdir Widget-v1.0-maintenance
+  $ cd Widget-v1.0-maintenance
+
+  $ muddle init -branch Widget-v1.0-maintenance <repo> builds/01.py
+
+(where ``<repo>`` is the remote repository).
+
+This gets the build description on the named branch. If we look in the
+``.muddle/`` directory, we can see that there is a new file::
+
+  .muddled/DescriptionBranch
+
+which contains the name of the branch used at "muddle init" (it will only be
+present if "-branch" was used, and it is never altered by muddle itself).
+
+We can now do::
+
+  $ muddle checkout _all
+
+and, because the build description has "follow_build_desc_branch" set, all
+the checkouts will also be checked out with that branch.
+
+You can use::
+
+  $ muddle query checkout-branches
+
+to see the details of the branches being used, and why. For instance::
+
+  $ m3 query checkout-branches
+  --------  -----------------------  -----------------------  -----------------------
+  Checkout  Current branch           Original branch          Branch to follow       
+  --------  -----------------------  -----------------------  -----------------------
+  builds    Widget-v0.1-maintenance  Widget-v0.1-maintenance  <it's own>             
+  co1       Widget-v0.1-maintenance  master                   Widget-v0.1-maintenance
+
+"Original branch" is the branch as requested by the build description.
+Normally that will be "master" - i.e., the default branch - but sometimes a
+build description specifies a particular branch for a checkout.
+
+If a build description *does* specify a particular branch (or revision) for a
+checkout, or if a checkout is not using git, then ``muddle branch-tree`` will
+not be able to branch it for you, and you will have to decide what to do about
+that checkout in this context, a maintenance tree.
+
 
 Commands
 ========

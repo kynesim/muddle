@@ -125,8 +125,6 @@ def describe_contents(thing_name, thing):
             contents.append('  Class     %s'%this_name)
         elif isgenerator(value):
             contents.append('  Generator %s'%this_name)
-        elif isinstance(value, property):
-            contents.append('  Property  %s'%this_name)
         elif ismodule(value):
             continue
         else:

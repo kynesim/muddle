@@ -3313,10 +3313,6 @@ class Doc(Command):
 
     If you're not sure of a name, then "-contains" can be used to look for all
     the (full names - i.e., starting with "muddled.") that contain that string.
-
-    Note: at the moment properties will be reported in the contents of a class,
-    but "muddle doc" does not gather any information for them, so trying to
-    do "muddle doc <property-name>" will not report anything useful.
     """
 
     def requires_build_tree(self):

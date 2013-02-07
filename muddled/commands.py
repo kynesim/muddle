@@ -3267,10 +3267,72 @@ class Whereami(Command):
         else:
             print "You are here. Here is not in a muddle build tree."
 
+
+import muddled.report
+
 @command('doc', CAT_QUERY)
 class Doc(Command):
     """
-    :Syntax: muddle doc [-d] <name>
+    To get documentation on modules, classes, methods or functions in muddle,
+    use::
+
+        muddle doc [<switch>] [<what>]
+
+    specifically, for normal use::
+
+        muddle doc <name>               for help on <name>
+        muddle doc -contains <what>     to list all names that contain <what>
+
+    and probably only occasionally (since they all produce long output)::
+
+        muddle doc -duplicates     to list all duplicate (partial) names
+        muddle doc -list           to list all the "full" names we know
+        muddle doc -dump           to dump the internal map of names/values
+
+    <switch> may be::
+
+        -p[ager] <pager>    to specify a pager through which the text will be
+                            piped. The default is $PAGER (if set) or else
+                            'more'.
+        -nop[ager]          don't use a pager, just print the text out.
+        -pydoc              Use pydoc's rendering to output the text about the
+                            item. This tends to produce more information.
+
+    The plain "muddle doc <name>" can be used to find out about any muddle
+    module, class, method or function. Leading parts of the name can be
+    omitted, provided that doesn't make <name> ambiguous, and if it does, you
+    will be given a list of the possible alternatives. So, for instance::
+
+        muddle doc Builder
+
+    will report on muddled.mechanics.Builder, but::
+
+        muddle doc simple
+
+    will give a list of all the names that contain 'simple'.
+
+    If you're not sure of a name, then "-contains" can be used to look for all
+    the (full names - i.e., starting with "muddled.") that contain that string.
+
+    Note: at the moment properties will be reported in the contents of a class,
+    but "muddle doc" does not gather any information for them, so trying to
+    do "muddle doc <property-name>" will not report anything useful.
+    """
+
+    def requires_build_tree(self):
+        return False
+
+    def with_build_tree(self, builder, current_dir, args):
+        muddled.report.report(args)
+
+    def without_build_tree(self, muddle_binary, current_dir, args):
+        muddled.report.report(args)
+
+
+@command('doc.old', CAT_QUERY)
+class DocOld(Command):
+    """
+    :Syntax: muddle doc.old [-d] <name>
 
     Looks up the documentation string for ``muddled.<name>`` and presents
     it, using the pydoc Python help mechanisms. Doesn't put "muddled." on
@@ -3278,7 +3340,7 @@ class Doc(Command):
 
     For instance:
 
-        muddle doc depend.Label
+        muddle doc.old depend.Label
 
     With -d, just presents the symbols in <name>, omitting anything that starts
     with an underscore.
@@ -3297,6 +3359,7 @@ class Doc(Command):
         self.doc_for(args)
 
     def doc_for(self, args):
+
         just_dir = False
         if len(args) == 1:
             what = args[0]

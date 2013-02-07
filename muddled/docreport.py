@@ -230,17 +230,17 @@ def report_on_item(what, name, value, use_render_doc):
 
     return lines
 
-def report_on_multiple(what, results):
+def report_on_multiple_results(what, results):
     lines = ['"%s" has more than one possibility:'%what]
     for name, value in sorted(results):
         if isfunction(value):
-            lines.append('  Function', name)
+            lines.append('  Function %s'%name)
         elif ismethod(value):
-            lines.append('  Method  ', name)
+            lines.append('  Method  %s'%name)
         elif isclass(value):
-            lines.append('  Class   ', name)
+            lines.append('  Class   %s'%name)
         elif ismodule(value):
-            lines.append('  Module  ', name)
+            lines.append('  Module  %s'%name)
         else:
             lines.append('  %s -> %s'%(name, value))
     return lines

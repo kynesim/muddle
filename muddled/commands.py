@@ -40,6 +40,7 @@ import muddled.pkg as pkg
 import muddled.subst as subst
 import muddled.utils as utils
 import muddled.version_control as version_control
+import muddled.docreport
 
 from muddled.db import Database, InstructionFile
 from muddled.depend import Label, label_list_to_string
@@ -3268,8 +3269,6 @@ class Whereami(Command):
             print "You are here. Here is not in a muddle build tree."
 
 
-import muddled.report
-
 @command('doc', CAT_QUERY)
 class Doc(Command):
     """
@@ -3321,10 +3320,10 @@ class Doc(Command):
         return False
 
     def with_build_tree(self, builder, current_dir, args):
-        muddled.report.report(args)
+        muddled.docreport.report(args)
 
     def without_build_tree(self, muddle_binary, current_dir, args):
-        muddled.report.report(args)
+        muddled.docreport.report(args)
 
 # -----------------------------------------------------------------------------
 # Stamp commands

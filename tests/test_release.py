@@ -532,6 +532,105 @@ def test_ReleaseStamp_basics(d):
     check_release_file_starts('r2.release', 'project99', '1.2.3',
                               'tar', 'bzip2', '', '', '')
 
+def test_guess_version_number(d, repo):
+    banner('TEST GUESS VERSION NUMBER')
+    banner('Check out build tree, and stamp it as a release', 2)
+    with NewDirectory('build.version-number') as build1:
+        r = 'git+file://{repo}/main'.format(repo=repo)
+        d = 'builds/01.py'
+        v = '{root}/versions'.format(root=r)
+        muddle(['init', r, d])
+        muddle(['checkout', '_all'])
+        muddle(['stamp', 'release', 'simple', '-next'])
+        with Directory('versions'):
+            check_specific_files_in_this_dir(['.git', 'simple_v0.0.release'])
+
+        touch('versions/simple_v0.01.release', '')
+        muddle(['stamp', 'release', 'simple', '-next'])
+        with Directory('versions'):
+            check_specific_files_in_this_dir(['.git',
+                                             'simple_v0.0.release',
+                                             'simple_v0.01.release',
+                                             'simple_v0.2.release',
+                                             ])
+
+        touch('versions/Simple_v0.3.release', '')
+        muddle(['stamp', 'release', 'simple', '-next'])
+        with Directory('versions'):
+            check_specific_files_in_this_dir(['.git',
+                                             'simple_v0.0.release',
+                                             'simple_v0.01.release',
+                                             'simple_v0.2.release',
+                                             'Simple_v0.3.release',
+                                             'simple_v0.3.release',
+                                             ])
+
+        # Whilst 0.03 and 0.3 are "the same" version, that doesn't matter
+        # as they already exist - we only care about the next version
+        touch('versions/simple_v0.03.release', '')
+        muddle(['stamp', 'release', 'simple', '-next'])
+        with Directory('versions'):
+            check_specific_files_in_this_dir(['.git',
+                                             'simple_v0.0.release',
+                                             'simple_v0.01.release',
+                                             'simple_v0.2.release',
+                                             'Simple_v0.3.release',
+                                             'simple_v0.3.release',
+                                             'simple_v0.03.release',
+                                             'simple_v0.4.release',
+                                             ])
+
+        # We require major.minor, not any other variation
+        touch('versions/simple_v3.release', '')
+        muddle(['stamp', 'release', 'simple', '-next'])
+        with Directory('versions'):
+            check_specific_files_in_this_dir(['.git',
+                                             'simple_v0.0.release',
+                                             'simple_v0.01.release',
+                                             'simple_v0.2.release',
+                                             'Simple_v0.3.release',
+                                             'simple_v0.3.release',
+                                             'simple_v0.03.release',
+                                             'simple_v0.4.release',
+                                             'simple_v0.5.release',
+                                             'simple_v3.release',
+                                             ])
+        touch('versions/simple_v3.1.1.release', '')
+        muddle(['stamp', 'release', 'simple', '-next'])
+        with Directory('versions'):
+            check_specific_files_in_this_dir(['.git',
+                                             'simple_v0.0.release',
+                                             'simple_v0.01.release',
+                                             'simple_v0.2.release',
+                                             'Simple_v0.3.release',
+                                             'simple_v0.3.release',
+                                             'simple_v0.03.release',
+                                             'simple_v0.4.release',
+                                             'simple_v0.5.release',
+                                             'simple_v0.6.release',
+                                             'simple_v3.release',
+                                             'simple_v3.1.1.release',
+                                             ])
+
+        touch('versions/simple_v1.999999999.release', '')
+        muddle(['stamp', 'release', 'simple', '-next'])
+        with Directory('versions'):
+            check_specific_files_in_this_dir(['.git',
+                                             'simple_v0.0.release',
+                                             'simple_v0.01.release',
+                                             'simple_v0.2.release',
+                                             'Simple_v0.3.release',
+                                             'simple_v0.3.release',
+                                             'simple_v0.03.release',
+                                             'simple_v0.4.release',
+                                             'simple_v0.5.release',
+                                             'simple_v0.6.release',
+                                             'simple_v3.release',
+                                             'simple_v3.1.1.release',
+                                             'simple_v1.999999999.release',
+                                             'simple_v1.1000000000.release',
+                                             ])
+
 def test_simple_release(d, repo):
     banner('TEST SIMPLE RELEASE')
     banner('Check out build tree, and stamp it as a release', 2)
@@ -560,162 +659,193 @@ def test_simple_release(d, repo):
     banner('Try "muddle release" using that stamp', 2)
     with NewDirectory('build2') as build2:
         muddle(['release', rfile])
+        check_release_directory(build2)
 
-        if not os.path.exists(os.path.join('.muddle', 'Release')):
-            raise GiveUp('Cannot see .muddle/Release')
-        if not os.path.exists(os.path.join('.muddle', 'ReleaseSpec')):
-            raise GiveUp('Cannot see .muddle/ReleaseSpec')
+def test_test_release(d, repo):
+    banner('TEST TEST RELEASE')
+    banner('Check out build tree, and stamp it as a release', 2)
+    with NewDirectory('build-test') as test_build:
+        r = 'git+file://{repo}/main'.format(repo=repo)
+        d = 'builds/01.py'
+        v = '{root}/versions'.format(root=r)
+        muddle(['init', r, d])
+        muddle(['checkout', '_all'])
+        muddle(['stamp', 'release', 'simple', 'v1.0'])
 
-        rspec = ReleaseSpec.from_file(os.path.join('.muddle', 'ReleaseSpec'))
-        if not (rspec.name == 'simple' and rspec.version == 'v1.0' and
-                rspec.archive == 'tar' and rspec.compression == 'gzip'):
-            raise GiveUp('Unexpected values in %r'%rspec)
+        rfile = os.path.join(test_build.where, 'versions', 'simple_v1.0.release')
+        check_release_file_starts(rfile, 'simple', 'v1.0', 'tar', 'gzip',
+                                  r, d, v)
 
-        banner('"muddle pull _all" should fail', 3)
-        # Try a command that we don't think should be allowed, because this
-        # is a release build
-        try:
-            text = captured_muddle(['pull', '_all'])
-            print text
-            raise GiveUp('"muddle pull _all" did not fail')
-        except subprocess.CalledProcessError as e:
-            if 'Command pull is not allowed in a release build' not in e.output:
-                raise GiveUp('Unexpected error text in "muddle pull _all":'
-                             ' %d, %s'%(e.returncode, e.output.strip()))
-            else:
-                # Just so the user knows this, correctly, didn't work
-                print e.output
-        except Exception as e:
-            raise GiveUp('Unexpected error in "muddle pull _all":'
-                         ' %s %s'%(e.__class__.__name__, e))
-
-        banner('muddle environment should be set appropriately', 3)
+        UNSET = '(unset)'
         muddle_env = read_env_as_dict('first_pkg{x86}')
-        if not (muddle_env['MUDDLE_RELEASE_NAME'] == 'simple' and
-                muddle_env['MUDDLE_RELEASE_VERSION'] == 'v1.0' and
-                muddle_env['MUDDLE_RELEASE_HASH'] == rspec.hash):
+        if not (muddle_env['MUDDLE_RELEASE_NAME'] == UNSET and
+                muddle_env['MUDDLE_RELEASE_VERSION'] == UNSET and
+                muddle_env['MUDDLE_RELEASE_HASH'] == UNSET):
             print 'MUDDLE_RELEASE_NAME=%s'%muddle_env['MUDDLE_RELEASE_NAME']
             print 'MUDDLE_RELEASE_VERSION=%s'%muddle_env['MUDDLE_RELEASE_VERSION']
             print 'MUDDLE_RELEASE_HASH=%s'%muddle_env['MUDDLE_RELEASE_HASH']
-            raise GiveUp('Expected the MUDDLE_RELEASE_ values to be %s, %s, %s'%(
-                'simple', 'v1.0', rspec.hash))
+            raise GiveUp('Expected the MUDDLE_RELEASE_ values to be all (unset)')
 
-        banner('"muddle query release -labels" should report correctly', 3)
+        banner('Try "muddle release -test" using that stamp, in the same directory', 2)
+        muddle(['release', '-test', rfile])
+        check_release_directory(test_build)
+
+def check_release_directory(release_dir):
+    """Check the contents of our release directory, and the release.
+    """
+    if not os.path.exists(os.path.join('.muddle', 'Release')):
+        raise GiveUp('Cannot see .muddle/Release')
+    if not os.path.exists(os.path.join('.muddle', 'ReleaseSpec')):
+        raise GiveUp('Cannot see .muddle/ReleaseSpec')
+
+    rspec = ReleaseSpec.from_file(os.path.join('.muddle', 'ReleaseSpec'))
+    if not (rspec.name == 'simple' and rspec.version == 'v1.0' and
+            rspec.archive == 'tar' and rspec.compression == 'gzip'):
+        raise GiveUp('Unexpected values in %r'%rspec)
+
+    banner('"muddle pull _all" should fail', 3)
+    # Try a command that we don't think should be allowed, because this
+    # is a release build
+    try:
+        text = captured_muddle(['pull', '_all'])
+        print text
+        raise GiveUp('"muddle pull _all" did not fail')
+    except subprocess.CalledProcessError as e:
+        if 'Command pull is not allowed in a release build' not in e.output:
+            raise GiveUp('Unexpected error text in "muddle pull _all":'
+                         ' %d, %s'%(e.returncode, e.output.strip()))
+        else:
+            # Just so the user knows this, correctly, didn't work
+            print e.output
+    except Exception as e:
+        raise GiveUp('Unexpected error in "muddle pull _all":'
+                     ' %s %s'%(e.__class__.__name__, e))
+
+    banner('muddle environment should be set appropriately', 3)
+    muddle_env = read_env_as_dict('first_pkg{x86}')
+    if not (muddle_env['MUDDLE_RELEASE_NAME'] == 'simple' and
+            muddle_env['MUDDLE_RELEASE_VERSION'] == 'v1.0' and
+            muddle_env['MUDDLE_RELEASE_HASH'] == rspec.hash):
+        print 'MUDDLE_RELEASE_NAME=%s'%muddle_env['MUDDLE_RELEASE_NAME']
+        print 'MUDDLE_RELEASE_VERSION=%s'%muddle_env['MUDDLE_RELEASE_VERSION']
+        print 'MUDDLE_RELEASE_HASH=%s'%muddle_env['MUDDLE_RELEASE_HASH']
+        raise GiveUp('Expected the MUDDLE_RELEASE_ values to be %s, %s, %s'%(
+            'simple', 'v1.0', rspec.hash))
+
+    banner('"muddle query release -labels" should report correctly', 3)
+    text = captured_muddle(['query', 'release', '-labels'])
+    check_text_v_lines(text,[
+                             'package:(subdomain1)second_pkg{*}/*',
+                             'package:(subdomain2)second_pkg{x86}/*',
+                             'package:first_pkg{x86}/*',
+                             'package:main_pkg{x86}/*',
+                            ])
+
+    banner('"muddle -n build _release" should name the correct labels', 3)
+    text = captured_muddle(['-n', 'build', '_release'])
+    check_text_v_lines(text,['Asked to build:',
+                             '  package:first_pkg{x86}/postinstalled',
+                             '  package:main_pkg{x86}/postinstalled',
+                             '  package:(subdomain1)second_pkg{x86}/postinstalled',
+                             '  package:(subdomain2)second_pkg{x86}/postinstalled',
+                            ])
+
+    # Down in our subdomains
+    banner('Checking variants in the subdomains', 3)
+    with Directory('domains/subdomain1'):
+        # Temporarily, stop it being a subdomain(!)
+        os.remove('.muddle/am_subdomain')
         text = captured_muddle(['query', 'release', '-labels'])
         check_text_v_lines(text,[
-                                 'package:(subdomain1)second_pkg{*}/*',
-                                 'package:(subdomain2)second_pkg{x86}/*',
-                                 'package:first_pkg{x86}/*',
+                                 'package:(subdomain3)main_pkg{x86}/*',
+                                 'package:fred{arm}/*',
                                  'package:main_pkg{x86}/*',
                                 ])
 
-        banner('"muddle -n build _release" should name the correct labels', 3)
+        # This is where we should catch specifying a non-existant label
+        try:
+            text = captured_muddle(['-n', 'build', '_release'])
+            raise GiveUp('"muddle -n build _release" should have failed')
+        except subprocess.CalledProcessError as e:
+            check_text_v_lines(e.output,[
+                '',
+                'Argument "package:fred{arm}/*" does not match any target labels',
+                '  It expands to package:fred{arm}/*',
+                '  Package name "fred" is not defined in the build description',
+                '  Role {arm} is not defined in the build description',
+                ])
+        # Muddle should, in fact, put that back for us again later on,
+        # next time we do something from higher up, which realises (again)
+        # that this is a subdomain.
+
+    with Directory('domains/subdomain2'):
+        # Temporarily, stop it being a subdomain(!)
+        os.remove('.muddle/am_subdomain')
+        text = captured_muddle(['query', 'release', '-labels'])
+        check_text_v_lines(text,['_default_deployments',
+                                 'package:main_pkg{x86}/*',
+                                ])
+
+        # Here, we should see the "muddle" command expands "_release" all
+        # the way down to specific labels, including that "_default_deployments"
+        banner('"muddle -n build _release" should name the correct labels')
         text = captured_muddle(['-n', 'build', '_release'])
         check_text_v_lines(text,['Asked to build:',
                                  '  package:first_pkg{x86}/postinstalled',
                                  '  package:main_pkg{x86}/postinstalled',
-                                 '  package:(subdomain1)second_pkg{x86}/postinstalled',
-                                 '  package:(subdomain2)second_pkg{x86}/postinstalled',
+                                 '  package:second_pkg{x86}/postinstalled',
                                 ])
+        # Ditto
 
-        # Down in our subdomains
-        banner('Checking variants in the subdomains', 3)
-        with Directory('domains/subdomain1'):
-            # Temporarily, stop it being a subdomain(!)
-            os.remove('.muddle/am_subdomain')
-            text = captured_muddle(['query', 'release', '-labels'])
-            check_text_v_lines(text,[
-                                     'package:(subdomain3)main_pkg{x86}/*',
-                                     'package:fred{arm}/*',
-                                     'package:main_pkg{x86}/*',
-                                    ])
-
-            # This is where we should catch specifying a non-existant label
-            try:
-                text = captured_muddle(['-n', 'build', '_release'])
-                raise GiveUp('"muddle -n build _release" should have failed')
-            except subprocess.CalledProcessError as e:
-                check_text_v_lines(e.output,[
-                    '',
-                    'Argument "package:fred{arm}/*" does not match any target labels',
-                    '  It expands to package:fred{arm}/*',
-                    '  Package name "fred" is not defined in the build description',
-                    '  Role {arm} is not defined in the build description',
-                    ])
-            # Muddle should, in fact, put that back for us again later on,
-            # next time we do something from higher up, which realises (again)
-            # that this is a subdomain.
-
-        with Directory('domains/subdomain2'):
-            # Temporarily, stop it being a subdomain(!)
-            os.remove('.muddle/am_subdomain')
-            text = captured_muddle(['query', 'release', '-labels'])
-            check_text_v_lines(text,['_default_deployments',
-                                     'package:main_pkg{x86}/*',
-                                    ])
-
-            # Here, we should see the "muddle" command expands "_release" all
-            # the way down to specific labels, including that "_default_deployments"
-            banner('"muddle -n build _release" should name the correct labels')
-            text = captured_muddle(['-n', 'build', '_release'])
-            check_text_v_lines(text,['Asked to build:',
-                                     '  package:first_pkg{x86}/postinstalled',
-                                     '  package:main_pkg{x86}/postinstalled',
-                                     '  package:second_pkg{x86}/postinstalled',
-                                    ])
-            # Ditto
-
-        banner('"muddle build _release" should have produced (only) the expected files', 3)
-        check_program(build2, ['install', 'x86'], 'first')
-        check_program(build2, ['install', 'x86'], 'main0')
-        check_program(build2, ['domains', 'subdomain1', 'install', 'x86'], 'second')
-        check_program(build2, ['domains', 'subdomain2', 'install', 'x86'], 'second')
-        # And those should be all we've built
-        with Directory(build2.join('install', 'x86')):
-            check_specific_files_in_this_dir(['first', 'main0'])
-        with Directory(build2.join('domains', 'subdomain1')) as d:
-            with Directory(d.join('install', 'x86')):
-                check_specific_files_in_this_dir(['second'])
-            with Directory(d.join('domains', 'subdomain3')):
-                # We shouldn't have built anything in subdomain3
-                check_specific_files_in_this_dir(['.muddle', 'src'])
-        with Directory(build2.join('domains', 'subdomain2', 'install', 'x86')):
+    banner('"muddle build _release" should have produced (only) the expected files', 3)
+    check_program(release_dir, ['install', 'x86'], 'first')
+    check_program(release_dir, ['install', 'x86'], 'main0')
+    check_program(release_dir, ['domains', 'subdomain1', 'install', 'x86'], 'second')
+    check_program(release_dir, ['domains', 'subdomain2', 'install', 'x86'], 'second')
+    # And those should be all we've built
+    with Directory(release_dir.join('install', 'x86')):
+        check_specific_files_in_this_dir(['first', 'main0'])
+    with Directory(release_dir.join('domains', 'subdomain1')) as d:
+        with Directory(d.join('install', 'x86')):
             check_specific_files_in_this_dir(['second'])
+        with Directory(d.join('domains', 'subdomain3')):
+            # We shouldn't have built anything in subdomain3
+            check_specific_files_in_this_dir(['.muddle', 'src'])
+    with Directory(release_dir.join('domains', 'subdomain2', 'install', 'x86')):
+        check_specific_files_in_this_dir(['second'])
 
-        # The version.h file should have the correct content
-        banner('Checking generated version.h', 3)
-        same_content(build2.join('obj', 'main_pkg', 'x86', 'include', 'version.h'),
-                textwrap.dedent("""\
-                                #ifndef PROJECT99_VERSION_FILE
-                                #define PROJECT99_VERSION_FILE
-                                #define BUILD_VERSION "simple: v1.0"
-                                #endif
-                                """))
+    # The version.h file should have the correct content
+    banner('Checking generated version.h', 3)
+    same_content(release_dir.join('obj', 'main_pkg', 'x86', 'include', 'version.h'),
+            textwrap.dedent("""\
+                            #ifndef PROJECT99_VERSION_FILE
+                            #define PROJECT99_VERSION_FILE
+                            #define BUILD_VERSION "simple: v1.0"
+                            #endif
+                            """))
 
-        # The release should have created a tarball directory, with a copy
-        # of the release stamp file therein
-        tarball_dir = 'simple_v1.0_%s'%rspec.hash
+    # The release should have created a tarball directory, with a copy
+    # of the release stamp file therein
+    tarball_dir = 'simple_v1.0_%s'%rspec.hash
 
-        with Directory(build2.join(tarball_dir)) as td:
-            banner('tarball directory should have a release file in it', 3)
-            if not os.path.exists('simple_v1.0.release'):
-                raise GiveUp('Cannot see tarball directory or release file therein')
+    with Directory(release_dir.join(tarball_dir)) as td:
+        banner('tarball directory should have a release file in it', 3)
+        if not os.path.exists('simple_v1.0.release'):
+            raise GiveUp('Cannot see tarball directory or release file therein')
 
-            banner('tarball directory should have required programs in it', 3)
-            check_program(td, [], 'first')
-            check_program(td, [], 'main0')
-            check_program(td, [], 'second1', 'second')
-            check_program(td, [], 'second2', 'second')
+        banner('tarball directory should have required programs in it', 3)
+        check_program(td, [], 'first')
+        check_program(td, [], 'main0')
+        check_program(td, [], 'second1', 'second')
+        check_program(td, [], 'second2', 'second')
 
-            banner('tarball directory should have nothing else in it', 3)
-            check_specific_files_in_this_dir(['simple_v1.0.release',
-                                              'first',
-                                              'main0',
-                                              'second1',
-                                              'second2',
-                                             ])
-
-
+        banner('tarball directory should have nothing else in it', 3)
+        check_specific_files_in_this_dir(['simple_v1.0.release',
+                                          'first',
+                                          'main0',
+                                          'second1',
+                                          'second2',
+                                         ])
 
 def main(args):
 
@@ -739,6 +869,8 @@ def main(args):
         make_repos_with_subdomain(repo)
 
         test_simple_release(root_d, repo)
+        test_test_release(root_d, repo)
+        test_guess_version_number(root_d, repo)
 
 
 if __name__ == '__main__':

@@ -3611,6 +3611,7 @@ class StampVersion(Command):
 class StampRelease(Command):
     """
     :Syntax: muddle stamp release [<switches>] <release-name> <release-version>
+    :Syntax: muddle stamp release [<switches>] <release-name> -next
     :or:     muddle stamp release [<switches>] -template
 
     This is similar to "stamp version", but saves a release stamp file - a
@@ -3630,6 +3631,20 @@ class StampRelease(Command):
       the file will be added to the local working set in that directory.
       For subversion, the file adding will be done, but no attempt will be
       made to initialise the directory.
+
+    If the ``-next`` option is used, then the version number will be guessed.
+    Muddle will look in the "versions/" directory for all the ".release" files
+    whose names start with ``<release_name>_v``, and will work out the last
+    version number (as <major>.minor>) present (not that 1.01 is the same as
+    1.1). It will then use 0.0 if it didn't find anything, or will use the next
+    <minor> value. So if the user asked for ``muddle stamp release Fred -next``
+    and the files in "versions/" were::
+
+        Fred_v1.1.release
+        Fred_v3.02.release
+        Graham_v9.9.release
+
+    then the next version number would be guessed as v3.3.
 
     If the ``-template`` option is used, then the file created will be called::
 
@@ -3672,11 +3687,14 @@ class StampRelease(Command):
         archive = None
         compression = None
         is_template = False
+        guess_version = False
 
         while args:
             word = args.pop(0)
             if word == '-template':
                 is_template = True
+            elif word == '-next':
+                guess_version = True
             elif word == '-archive':
                 archive = args.pop(0)
             elif word == '-compression':
@@ -3692,8 +3710,10 @@ class StampRelease(Command):
 
         if is_template and (name or version):
             raise GiveUp('Cannot specify -template and release name or version')
-        if not is_template and (name is None or version is None):
-            raise GiveUp('Must specify either -template or both a release name and version')
+        if is_template and guess_version:
+            raise GiveUp('Cannot specify -template and -next')
+        if not is_template and (name is None or not (version or guess_version)):
+            raise GiveUp('Must specify one of -template, or a release name and version, or -next')
 
         if self.no_op():
             return
@@ -3711,6 +3731,16 @@ class StampRelease(Command):
         if not os.path.exists(version_dir):
             print 'Creating directory %s'%version_dir
             os.mkdir(version_dir)
+
+        if guess_version:
+            vnum = self.guess_next_version_number(version_dir, name)
+            version = 'v%s'%vnum
+            print "Pretending you said 'muddle stamp",
+            if archive:
+                print "-archive %s"%archive,
+            if compression:
+                print "-compression %s"%compression,
+            print "release %s %s'"%(name, version)
 
         working_filename = os.path.join(version_dir, '_temporary.stamp')
         print 'Writing to',working_filename
@@ -3736,6 +3766,30 @@ class StampRelease(Command):
                     print 'Adding release stamp file to VCS'
                     version_control.vcs_init_directory(vcs_name, [version_filename])
 
+    def guess_next_version_number(self, version_dir, name):
+        """Return our best guess as to the next (minor) version number.
+        """
+        print
+        print 'Looking in versions directory for previous releases of "%s"'%name
+        max_vnum = utils.VersionNumber.unset()
+        files = os.listdir(version_dir)
+        for filename in sorted(files):
+            base, ext = os.path.splitext(filename)
+            if ext != '.release':
+                continue
+            if not base.startswith(name+'_v'):
+                print 'Ignoring release file %s (wrong release name)'%filename
+                continue
+            print 'Found release file %s'%filename
+            version = base[len(name)+2:]
+            try:
+                vnum = utils.VersionNumber.from_string(version)
+            except GiveUp as e:
+                print 'Ignoring release file %s (cannot parse version number: %s'%(filename, e)
+                continue
+            if vnum > max_vnum:
+                max_vnum = vnum
+        return max_vnum.next()
 
 @subcommand('stamp', 'diff', CAT_EXPORT)
 class StampDiff(Command):
@@ -4902,6 +4956,7 @@ class Release(Command):
     Produce a customer release from a release stamp file.
 
     :Syntax: muddle release <release-file>
+    :or:     muddle release -test <release-file>
 
     For example::
 
@@ -4918,12 +4973,14 @@ class Release(Command):
 
     2. Does ``muddle unstamp <release-file>``,
 
-    3. Copies the release file to ``.muddle/Release``, and the release
-       specification to ``.muddle/ReleaseSpec``. The existence of the latter
-       indicates that this is a release build tree, and "normal" muddle will
-       refuse to build in it.
+    3. Copies the release file to ``.muddle/Release``.
 
-    4. Sets some extra environment variables, which can be used in the normal
+       The existence of this file indicates that this is a release build tree,
+       and "normal" muddle will refuse to build in it.
+
+    4. Copies the release specification to ``.muddle/ReleaseSpec``.
+
+    5. Sets some extra environment variables, which can be used in the normal
        manner in muddle Makefiles:
 
        * ``MUDDLE_RELEASE_NAME`` is the release name, from the release file.
@@ -4934,7 +4991,7 @@ class Release(Command):
        "Normal" muddle will also create those environment variables, but they
        will be set to ``(unset)``.
 
-    5. Does ``mudddle build _release``.
+    6. Does ``mudddle build _release``.
 
        The meaning of "_release" is defined in the build description, using
        ``builder.add_to_release_build()``. See::
@@ -4948,11 +5005,11 @@ class Release(Command):
        ``add_to_release_build()`` in the top-level build description  will be
        effective.
 
-    6. Creates the release directory, which will be called
+    7. Creates the release directory, which will be called
        ``<release-name>_<release-version>_<release-sha1>``.
        It copies the release file therein.
 
-    7. Calls the ``release_from(builder, release_dir)`` function in the build
+    8. Calls the ``release_from(builder, release_dir)`` function in the build
        description, which is responsible for copying across whatever else needs
        to be put into the release directory.
 
@@ -4962,37 +5019,72 @@ class Release(Command):
        Note that, if you have subdomains, only the ``release_from()`` function
        in the top-level build will be called.
 
-    8. Creates a compressed tarball of the release directory, using the
+    9. Creates a compressed tarball of the release directory, using the
        compression mechanism specified in the release file. It will have
        the same basename as the release directory.
+
+    If the -test switch is given, then items 1..2 are not done. This allows
+    testing a release build in the current build directory. The produce of
+    such a test *must not* be treated as a proper release, as it has not
+    involved a clean build of the build tree. Note that if you want to make
+    your build tree back into a normal muddle build tree, then you will need
+    to delete the .muddle/Release file yourself, by hand.
     """
 
+    allowed_switches = {'-test':'test'}
+
     def requires_build_tree(self):
+        # We have to say that we do allow this command in a build tree,
+        # because we do if we have the '-test' switch (and this method
+        # is called before post-command switches are interpreted)
         return False
+
+    def with_build_tree(self, builder, current_dir, args):
+        args = self.remove_switches(args)
+        if 'test' not in self.switches:
+            raise GiveUp("A real release cannot be done within a build tree.\n"
+                         "Use 'muddle release -test' if you're trying to test a release.")
+
+        if len(args) != 1:
+            print 'Syntax: muddle release [-test] <release-file>'
+            return 2
+
+        self.do_release(builder.muddle_binary, current_dir, args[0], True)
 
     def without_build_tree(self, muddle_binary, current_dir, args):
 
-        if len(args) == 1:
-            release_file = args[0]
-        else:
-            print 'Syntax: muddle release <release-file>'
+        args = self.remove_switches(args)
+
+        if 'test' in self.switches:
+            raise GiveUp("'muddle release -test' can only be done in a build tree")
+
+        if len(args) != 1:
+            print 'Syntax: muddle release [-test] <release-file>'
             return 2
 
-        # Check the current directory is empty
-        if len(os.listdir(current_dir)):
-            raise GiveUp('Cannot release into %s, it is not empty'%current_dir)
+        self.do_release(muddle_binary, current_dir, args[0], False)
+
+
+    def do_release(self, muddle_binary, current_dir, release_file, testing):
 
         # Check we can read the release file as such
         release = ReleaseStamp.from_file(release_file)
 
-        # Let the unstamp command do the unstamping for us...
-        unstamp = UnStamp()
-        unstamp.unstamp_from_stamp(muddle_binary, current_dir, release)
+        # Are we a proper release build?
+        if not testing:
+            # Check the current directory is empty
+            if len(os.listdir(current_dir)):
+                raise GiveUp('Cannot release into %s, it is not empty'%current_dir)
+
+            # Let the unstamp command do the unstamping for us...
+            unstamp = UnStamp()
+            unstamp.unstamp_from_stamp(muddle_binary, current_dir, release)
 
         # Immediately mark ourselves as a release build by copying the release
         # file into the .muddle directory. Some muddle commands will refuse to
         # work in a release build.
         shutil.copyfile(release_file, os.path.join(current_dir, '.muddle', 'Release'))
+
         # Also store our release spec in a simple format - this is hopefully
         # rather quicker to re-read (every muddle command!) than the actual
         # release stamp file
@@ -5008,6 +5100,11 @@ class Release(Command):
                                   release.release_spec.version,
                                   release.release_spec.hash)
         release_path = os.path.join(current_dir, release_dir)
+
+        # If we're doing 'muddle release -test', it is possible that that
+        # directory might already exist, from a previous attempt
+        if os.path.isdir(release_path):
+            raise GiveUp('Release directory %s already exists'%release_dir)
 
         print 'Creating %s'%release_path
         os.mkdir(release_path)
@@ -5026,6 +5123,15 @@ class Release(Command):
         tf = tarfile.open(tf_name, mode)
         tf.add(release_dir, recursive=True)
         tf.close()
+
+        if testing:
+            print
+            print '********************************************************'
+            print '* This build tree is now marked as a release tree.      *'
+            print '* This means various muddle operations are not allowed. *'
+            print '* To make it a normal build tree again, do:             *'
+            print '*   rm .muddle/Release                                  *'
+            print '********************************************************'
 
     def calc_tf_name(self, release, release_dir):
         """Work out the name and mode of the archive file we want to generate.

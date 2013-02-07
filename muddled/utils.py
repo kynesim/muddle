@@ -440,9 +440,9 @@ def is_release_build(dir):
     ``.muddle`` directory (the "top" of the build).
 
     The build is assumed to be a release build if there is a file called
-    ``.muddle/ReleaseSpec``.
+    ``.muddle/Release``.
     """
-    file_name = os.path.join(dir, '.muddle', "ReleaseSpec")
+    file_name = os.path.join(dir, '.muddle', "Release")
     return os.path.exists(file_name)
 
 def ensure_dir(dir, verbose=True):
@@ -1517,6 +1517,87 @@ class HashFile(object):
             raise StopIteration
         else:
             return text
+
+class VersionNumber(object):
+    """Simple support for two part "semantic version" numbers.
+
+    Such version numbers are of the form <major>.<minor>
+    """
+
+    def __init__(self, major=0, minor=0):
+        if not isinstance(major, int) or not isinstance(minor, int):
+            raise GiveUp('VersionNumber arguments must be integers,'
+                         ' not %s, %s'%(repr(major), repr(minor)))
+
+        if major < 0 or minor < 0:
+            raise GiveUp('VersionNumber arguments may not be negative,'
+                         ' as in %s, %s'%(major, minor))
+
+        self.major = major
+        self.minor = minor
+
+    def __str__(self):
+        if self.major < 0:
+            return '<unset>'
+        else:
+            return '%d.%d'%(self.major, self.minor)
+
+    def __repr__(self):
+        if self.major < 0:
+            return 'VersionNumber.unset()'
+        else:
+            return 'VersionNumber(%d, %d)'%(self.major, self.minor)
+
+    def __eq__(self, other):
+        return (self.major == other.major and
+                self.minor == other.minor)
+
+    def __lt__(self, other):
+        if self.major < other.major:
+            return True
+        if self.minor < other.minor:
+            return True
+        return False
+
+    __gt__ = lambda self, other: not (self < other or self == other)
+    __le__ = lambda self, other: self < other or self == other
+    __ge__ = lambda self, other: not self < other
+
+    def next(self):
+        """Return the next (minor) version number.
+        """
+        if self.major < 0:
+            return VersionNumber(0, 0)
+        else:
+            return VersionNumber(self.major, self.minor+1)
+
+    @staticmethod
+    def unset():
+        """Return an unset version number.
+
+        Unset version numbers compare less than proper ones.
+        """
+        v = VersionNumber()
+        v.major = -1
+        v.minor = -1
+        return v
+
+    @staticmethod
+    def from_string(s):
+        parts = s.split('.')
+        num_parts = len(parts)
+        try:
+            if num_parts == 0:
+                raise GiveUp('VersionNumber must be <major>[.<minor>], not "%s"'%s)
+            elif num_parts == 1:
+                return VersionNumber(int(parts[0], 10))
+            elif num_parts == 2:
+                return VersionNumber(int(parts[0], 10), int(parts[1], 10))
+            else:
+                raise GiveUp('VersionNumber must be at most 2 parts, <major>.<minor>, not "%s"'%s)
+        except ValueError as e:
+            raise GiveUp('VersionNumber parts must be integers, not %s:\n%s'%(s, e))
+
 
 def normalise_dir(dir):
     dir = os.path.expanduser(dir)

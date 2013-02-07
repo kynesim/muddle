@@ -3296,7 +3296,9 @@ class Doc(Command):
                             'more'.
         -nop[ager]          don't use a pager, just print the text out.
         -pydoc              Use pydoc's rendering to output the text about the
-                            item. This tends to produce more information.
+                            item. This tends to produce more information. It
+                            is also (more or less) the format that the older
+                            "muddle doc" command used.
 
     The plain "muddle doc <name>" can be used to find out about any muddle
     module, class, method or function. Leading parts of the name can be

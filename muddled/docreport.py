@@ -15,6 +15,7 @@ from inspect import getmembers, isfunction, isclass, ismethod, ismodule, \
         isgenerator, getargspec, formatargspec, getmro, getdoc, getmodule
 
 from muddled.utils import GiveUp, page_text
+from muddled.withdir import Directory
 
 
 class HashThing(object):
@@ -292,7 +293,14 @@ def report(args):
     For more information, see "muddle help doc".
     """
 
-    hash = determine()
+    # We want to do our investigations from the directory containing the
+    # "muddled/" directory. Luckily, we believe we know where that is...
+    this_file = os.path.abspath(__file__)
+    this_dir = os.path.split(this_file)[0]
+    parent_dir = os.path.split(this_dir)[0]
+
+    with Directory(parent_dir, show_pushd=False):
+        hash = determine()
 
     use_render_doc = False
     DUMP, DUPLICATES, CONTAINS, LIST, DOC = 'dump', 'duplicates', 'contains', 'list', 'doc'

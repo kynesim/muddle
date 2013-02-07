@@ -1,5 +1,9 @@
 #! /usr/bin/env python
 """Test collecting deployment support
+
+    $ ./test_deploy_collect.py [-keep]
+
+With -keep, do not delete the 'transient' directory used for the tests.
 """
 
 import os
@@ -347,13 +351,17 @@ def make_old_build_tree():
 
 def main(args):
 
+    keep = False
     if args:
-        print __doc__
-        raise GiveUp('Unexpected arguments %s'%' '.join(args))
+        if len(args) == 1 and args[0] == '-keep':
+            keep = True
+        else:
+            print __doc__
+            return
 
     root_dir = normalise_dir(os.path.join(os.getcwd(), 'transient'))
 
-    with TransientDirectory(root_dir, keep_on_error=True):
+    with TransientDirectory(root_dir, keep_on_error=True, keep_anyway=keep):
         banner('MAKE OLD BUILD TREE')
         make_old_build_tree()
 

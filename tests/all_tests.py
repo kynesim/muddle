@@ -56,10 +56,6 @@ def run_tests(args):
     os.chdir(this_dir)
     files = os.listdir('.')
 
-    # This branch of muddle does not have a working lifecycle test yet,
-    # so ignore it for now
-    ignore.add('test_lifecycle.py')
-
     unrecognised = ignore.difference(files)
 
     if unrecognised:
@@ -86,7 +82,8 @@ def run_tests(args):
         print
     print 'All tests succeeded'
 
-    print '(NB: ignored %s)'%(', '.join(ignore))
+    if (ignore):
+        print '(NB: ignored %s)'%(', '.join(ignore))
 
 if __name__ == '__main__':
     try:

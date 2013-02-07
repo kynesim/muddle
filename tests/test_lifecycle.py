@@ -872,6 +872,42 @@ def test_lifecycle(root_d):
                 # We hadn't changed any files in our checkout
                 muddle(['push'])
 
+    # And a variant like the documentation
+    with NewDirectory(root_d.join('build4')) as d:
+        muddle(['init', repo_url, 'builds/01.py'])
+        muddle(['checkout', '_all'])
+
+        # And change it
+        muddle(['branch-tree', 'Widget-v0.1-maintenance'])
+        with Directory('src'):
+            with Directory('builds'):
+                append('01.py', '    builder.follow_build_desc_branch = True\n')
+                # Then remove the .pyc file, because Python probably won't realise
+                # that this new 01.py is later than the previous version
+                os.remove('01.pyc')
+
+        muddle(['runin', '_all_checkouts', 'git commit -a -m "Create maintenance branch"'])
+        muddle(['push', '_all'])
+
+    with NewDirectory(root_d.join('build5')) as d:
+        muddle(['init', '-branch', 'Widget-v0.1-maintenance', repo_url, 'builds/01.py'])
+        muddle(['checkout', '_all'])
+
+        # Find out what branches we are working with
+        text = captured_muddle(['query', 'checkout-branches'])
+        # Clumsily...
+        lines = text.splitlines()
+        lines = lines[3:]       # ignore the header lines
+        newlines = []
+        for line in lines:
+            columns = line.split()
+            line = ' '.join(columns)
+            newlines.append(line)
+
+        check_text_lines_v_lines(newlines,
+                ["builds Widget-v0.1-maintenance Widget-v0.1-maintenance <it's own>",
+                 "co1 Widget-v0.1-maintenance master Widget-v0.1-maintenance"])
+
 
 def main(args):
 

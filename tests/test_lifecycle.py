@@ -607,7 +607,7 @@ Unable to branch-tree to test-v0.1, because:
                     text = fd.read()
                 check_text_endswith(text, '# This should make no difference\n')
 
-def test_git_lifecycle(root_d):
+def test_lifecycle(root_d):
     """A linear sequence of plausible actions...
     """
 
@@ -692,7 +692,7 @@ def test_git_lifecycle(root_d):
                                                   build_name=build_name))
             # Then remove the .pyc file, because Python probably won't realise
             # that this new 01.py is later than the previous version
-            os.remove(d.join('src', 'builds', '01.pyc'))
+            os.remove('01.pyc')
         muddle(['checkout', '_all'])
 
         check_revision('co1', checkout_rev_2)
@@ -756,7 +756,7 @@ def test_git_lifecycle(root_d):
                                                     build_name=build_name))
                 # Then remove the .pyc file, because Python probably won't realise
                 # that this new 01.py is later than the previous version
-                os.remove(d.join('src', 'builds', '01.pyc'))
+                os.remove('01.pyc')
             with Directory('co1'):
                 git('checkout -b %s'%checkout_branch)
                 muddle(['status'])
@@ -773,7 +773,7 @@ def test_git_lifecycle(root_d):
                                                       build_name=build_name))
                 # Then remove the .pyc file, because Python probably won't realise
                 # that this new 01.py is later than the previous version
-                os.remove(d.join('src', 'builds', '01.pyc'))
+                os.remove('01.pyc')
             with Directory('co1'):
                 muddle(['status'])
                 # Doing 'muddle pull' is the obvious way to get us back to
@@ -792,7 +792,7 @@ def test_git_lifecycle(root_d):
                                                       build_name=build_name))
                 # Then remove the .pyc file, because Python probably won't realise
                 # that this new 01.py is later than the previous version
-                os.remove(d.join('src', 'builds', '01.pyc'))
+                os.remove('01.pyc')
             with Directory('co1'):
                 # We're still on the old revision, and detached
                 check_revision('co1', checkout_rev_3)
@@ -842,29 +842,12 @@ def test_git_lifecycle(root_d):
         check_branch('src/builds', 'test-v0.1')
         check_branch('src/co1', 'test-v0.1')
 
-        # XXX And what command *should* I use to go to the branch specified
-        # XXX by the build description (explicitly or implicitly)? I don't
-        # XXX particularly like using "muddle parent" for this, as it's
-        # XXX really a bit beyond its original remit (and essentially
-        # XXX unguessable).
         # Doing a "mudddle sync" on the checkout should put it back to the
         # master branch, as that's what is (implicitly) asked for in the
         # build description. It shouldn't affect the build description.
         muddle(['sync', 'co1'])
         check_branch('src/builds', 'test-v0.1')
         check_branch('src/co1', 'master')
-
-        # XXX We have various things to mix and match:
-        # XXX
-        # XXX 1. build description says to follow itself or not
-        # XXX 2. build description is on master or not
-        # XXX
-        # XXX a. checkout has its own explicit branch
-        # XXX b. checkout does not specify an explicit branch
-        # XXX
-        # XXX i.   checkout starts on master
-        # XXX ii.  checkout starts on branch <something-else>
-        # XXX iii. checkout starts on <explicit-branch>
 
         # If we amend the build description, though:
         print 'Setting build description for "follow my branch"'
@@ -889,17 +872,6 @@ def test_git_lifecycle(root_d):
                 # We hadn't changed any files in our checkout
                 muddle(['push'])
 
-        # ...also want to check what happens if we explicitly select
-        # branch master of co1, by name, in the build description
-        # - we should revert to master again.
-
-
-    # XXX See lifecycle.txt for what we're trying to test.
-    # XXX But note that text higher up may alter conclusions reached therein.
-    # XXX Oh well.
-
-
-
 
 def main(args):
 
@@ -922,8 +894,8 @@ def main(args):
         banner('TEST BRANCH-TREE')
         test_branch_tree(root_d)
 
-        banner('TEST LIFECYCLE (GIT)')
-        test_git_lifecycle(root_d)
+        banner('TEST LIFECYCLE')
+        test_lifecycle(root_d)
 
 if __name__ == '__main__':
     args = sys.argv[1:]

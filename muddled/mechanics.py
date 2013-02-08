@@ -1060,6 +1060,20 @@ class Builder(object):
     follows_build_desc_branch = property(_follows_build_desc_branch,
                                          _follows_build_desc_branch, None)
 
+    def get_build_desc_branch(self, verbose=False):
+        """Return the current branch of the top-level build description.
+        """
+        build_desc_label = self.build_desc_label
+        if verbose:
+            print '  The build description is', build_desc_label
+        try:
+            vcs = self.db.get_checkout_vcs(build_desc_label)
+        except GiveUp:
+            raise GiveUp("Rule for build description label '%s' has no VCS"
+                         " - cannot find its branch"%build_desc_label)
+
+        return vcs.get_current_branch(self, build_desc_label, show_pushd=False)
+
     # XXX ---------------------------------------------------------------------
     # XXX Stuff that used to be inside Invocation
 

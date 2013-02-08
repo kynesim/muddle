@@ -312,7 +312,7 @@ class VersionControlHandler(object):
             if DEBUG: print 'We are the build description'
             if builder.follow_build_desc_branch:
                 if DEBUG: print 'Build desc following itself'
-                return get_build_desc_branch(builder, verbose=DEBUG)
+                return builder.get_build_desc_branch(verbose=DEBUG)
             else:
                 if DEBUG: print 'Not following build description'
                 return None     # consonant with the below
@@ -322,7 +322,7 @@ class VersionControlHandler(object):
             if DEBUG: print 'Branch already set to %s'%repo.branch
             return None         # we're happy with that we've got
         elif builder.follow_build_desc_branch:
-            build_desc_branch = get_build_desc_branch(builder, verbose=DEBUG)
+            build_desc_branch = builder.get_build_desc_branch(verbose=DEBUG)
 
             if 'shallow_checkout' in co_data.options:
                 raise GiveUp("The build description wants checkouts to follow branch '%s',\n"
@@ -795,7 +795,7 @@ class VersionControlHandler(object):
 
         if follow:
             # We are meant to be following our build description's branch
-            build_desc_branch = get_build_desc_branch(builder, verbose=verbose)
+            build_desc_branch = builder.get_build_desc_branch(verbose=verbose)
             # And so follow it...
             if verbose: print '  We want to follow the build description onto branch' \
                               ' "%s"'%build_desc_branch
@@ -878,20 +878,6 @@ class VersionControlHandler(object):
 
             co_data = builder.db.get_checkout_data(co_label)
             co_data.set_option(key, value)
-
-# This probably wants to go somewhere else
-def get_build_desc_branch(builder, verbose=False):
-    """Return the current branch of the top-level build description.
-    """
-    build_desc_label = builder.build_desc_label
-    if verbose: print '  The build description is', build_desc_label
-    try:
-        vcs = builder.db.get_checkout_vcs(build_desc_label)
-    except GiveUp:
-        raise GiveUp("Rule for build description label '%s' has no VCS"
-                     " - cannot find its branch"%build_desc_label)
-
-    return vcs.get_current_branch(builder, build_desc_label, show_pushd=False)
 
 # This dictionary holds the global list of registered VCS instances
 vcs_dict = {}

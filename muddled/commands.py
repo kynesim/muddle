@@ -47,7 +47,7 @@ from muddled.depend import Label, label_list_to_string
 from muddled.utils import GiveUp, MuddleBug, Unsupported, \
         DirType, LabelTag, LabelType, find_label_dir
 from muddled.utils import split_vcs_url
-from muddled.version_control import checkout_from_repo, get_build_desc_branch
+from muddled.version_control import checkout_from_repo
 from muddled.repository import Repository
 from muddled.version_stamp import VersionStamp, ReleaseStamp, ReleaseSpec
 from muddled.licenses import print_standard_licenses, get_gpl_checkouts, \
@@ -2549,7 +2549,7 @@ class QueryBuildDescBranch(QueryCommand):
 
     def with_build_tree(self, builder, current_dir, args):
 
-        build_desc_branch = get_build_desc_branch(builder)
+        build_desc_branch = builder.get_build_desc_branch()
         print 'Build description %s is on branch %s'%(builder.build_desc_label,
                                                       build_desc_branch)
         if builder.follow_build_desc_branch:
@@ -3503,6 +3503,11 @@ class StampVersion(Command):
 
         versions/<build_name>.stamp
 
+    or, if the build description has asked for checkouts to follow its branch
+    with ``builder.follow_build_desc_branch = True``::
+
+        versions/<build_name>.<branch_name>.stamp
+
     The "versions/" directory is at the build root (i.e., it is a sibling of
     the ".muddle/" and "src/" directories). If it does not exist, it will be
     created.
@@ -3593,7 +3598,19 @@ class StampVersion(Command):
         print 'Wrote revision data to %s'%working_filename
         print 'File has SHA1 hash %s'%hash
 
-        version_filename = "%s.stamp"%builder.build_name
+        if builder.follow_build_desc_branch:
+            # Note that we don't ask for builder.build_desc_repo.branch, as
+            # if we've only just done "muddle branch-tree" that will still be
+            # set to the *original* branch of the build description. Instead
+            # we should do what the code does that tries to follow the build
+            # description, which is to use:
+            branch = builder.get_build_desc_branch()
+            if branch is None:
+                branch = 'master'
+            version_filename = "%s.%s.stamp"%(builder.build_name, branch)
+        else:
+            version_filename = "%s.stamp"%(builder.build_name)
+
         final_name = os.path.join(version_dir, version_filename)
         print 'Renaming %s to %s'%(working_filename, final_name)
         os.rename(working_filename, final_name)

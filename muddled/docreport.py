@@ -185,7 +185,10 @@ def report__doc__(value):
         return []
 
 def wrapargs(text):
-    return utils.wrap(text, subsequent_indent='    ')
+    try:
+        return utils.wrap(text, subsequent_indent='    ')
+    except:
+        return text
 
 def report_on_item_ourselves(name, value):
     lines = []

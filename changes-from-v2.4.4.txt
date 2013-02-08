@@ -48,6 +48,9 @@ branch back into "master":
   and ``muddle stamp version`` behaves slightly differently with a branched
   build tree.
 
+  Stamping and unstampping of checkouts on other branches or revisions is
+  now more robust and consistent as well.
+
   See the new lifecycle documentation (a new chapter in the normal muddle
   documentation), and also "muddle help" for each of the above.
 

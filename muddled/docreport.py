@@ -14,6 +14,8 @@ import pydoc
 from inspect import getmembers, isfunction, isclass, ismethod, ismodule, \
         isgenerator, getargspec, formatargspec, getmro, getdoc, getmodule
 
+import utils
+
 from muddled.utils import GiveUp, page_text
 from muddled.withdir import Directory
 
@@ -182,16 +184,19 @@ def report__doc__(value):
     else:
         return []
 
+def wrapargs(text):
+    return utils.wrap(text, subsequent_indent='    ')
+
 def report_on_item_ourselves(name, value):
     lines = []
     if isfunction(value):
-        lines.append('FUNCTION %s%s'%(name, formatargspec(*getargspec(value))))
+        lines.append(wrapargs('FUNCTION %s%s'%(name, formatargspec(*getargspec(value)))))
         lines.extend(report__doc__(value))
     elif ismethod(value):
-        lines.append('METHOD %s%s'%(name, formatargspec(*getargspec(value))))
+        lines.append(wrapargs('METHOD %s%s'%(name, formatargspec(*getargspec(value)))))
         lines.extend(report__doc__(value))
     elif isgenerator(value):
-        lines.append('GENERATOR %s%s'%(name, formatargspec(*getargspec(value))))
+        lines.append(wrapargs('GENERATOR %s%s'%(name, formatargspec(*getargspec(value)))))
         lines.extend(report__doc__(value))
     elif isclass(value):
         mro = getmro(value)
@@ -201,7 +206,7 @@ def report_on_item_ourselves(name, value):
         lines.append('CLASS %s(%s)'%(name, ', '.join(supers)))
         lines.extend(report__doc__(value))
         lines.append('')
-        lines.append('METHOD %s.__init__%s'%(name, formatargspec(*getargspec(value.__init__))))
+        lines.append(wrapargs('METHOD %s.__init__%s'%(name, formatargspec(*getargspec(value.__init__)))))
         lines.extend(report__doc__(value))
         lines.append('')
         lines.extend(describe_contents(name, value))

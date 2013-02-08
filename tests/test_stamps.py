@@ -32,7 +32,7 @@ except ImportError:
     import muddled.cmdline
 
 from muddled.utils import GiveUp, normalise_dir, LabelType, LabelTag, DirTypeDict
-from muddled.withdir import Directory, NewDirectory, TransientDirectory
+from muddled.withdir import Directory, NewDirectory, TransientDirectory, NewCountedDirectory
 from muddled.depend import Label, label_list_to_string
 from muddled.version_stamp import VersionStamp
 
@@ -507,7 +507,7 @@ def test_stamp_unstamp(root_dir):
     Returns the path to the stamp file it creates
     """
     banner('TEST BASIC STAMP AND UNSTAMP')
-    with NewDirectory('build') as d:
+    with NewCountedDirectory('build') as d:
         banner('CHECK REPOSITORIES OUT', 2)
         checkout_build_descriptions(root_dir, d)
         muddle(['checkout', '_all'])
@@ -518,7 +518,7 @@ def test_stamp_unstamp(root_dir):
 
         first_stamp = os.path.join(d.where, 'versions', '01.stamp')
 
-    with NewDirectory('build2') as d2:
+    with NewCountedDirectory('build2') as d2:
         banner('UNSTAMP', 2)
         muddle(['unstamp', os.path.join(d.where, 'versions', '01.stamp')])
         check_checkout_files(d2)
@@ -528,7 +528,7 @@ def test_stamp_unstamp(root_dir):
 def test_stamp_is_current_working_set(first_stamp):
     """Check we are stamping the current working set
     """
-    with NewDirectory('build3') as d2:
+    with NewCountedDirectory('build3') as d2:
         banner('TESTING STAMP CURRENT WORKING SET')
         muddle(['unstamp', first_stamp])
         # So, we've selected specific revisions for all of our checkouts
@@ -581,7 +581,7 @@ def test_unstamp_update_identity_operation(repo, first_stamp):
     """Test the "unstamp -update" identity operation
     """
     banner('TESTING UNSTAMP -UPDATE -- TEST 1 (IDENTITY)')
-    with NewDirectory('build4') as d2:
+    with NewCountedDirectory('build4') as d2:
         muddle(['init', 'git+file://{repo}/main'.format(repo=repo), 'builds/01.py'])
         muddle(['checkout', '_all'])
         old_revisions = capture_revisions()
@@ -597,7 +597,7 @@ def test_unstamp_update_2(repo, first_stamp):
     """Test the "unstamp -update" operation a bit more
     """
     banner('TESTING UNSTAMP -UPDATE -- TEST 2')
-    with NewDirectory('build5') as d:
+    with NewCountedDirectory('build5') as d:
         muddle(['init', 'git+file://{repo}/main'.format(repo=repo), 'builds/01.py'])
         muddle(['checkout', '_all'])
         old_revisions = capture_revisions()
@@ -649,6 +649,50 @@ def test_unstamp_update_2(repo, first_stamp):
             print just_pulled
             raise GiveUp('Just pulled list does not match')
 
+def test_stamping_branches(repo):
+    """Test we cope with branches.
+    """
+
+    banner('TESTING STAMPING BRANCHES')
+    with NewCountedDirectory('build6') as d:
+        muddle(['init', 'git+file://{repo}/main'.format(repo=repo), 'builds/01.py'])
+        muddle(['checkout', '_all'])
+
+        with Directory('src'):
+            with Directory('first_co'):
+                git('checkout -b branch1')
+                muddle(['push'])
+
+        muddle(['stamp', 'save', '01.stamp'])
+
+    with NewCountedDirectory('build7'):
+        muddle(['unstamp', d.join('01.stamp')])
+
+        # We should have got the branch for first_co, even though it's not
+        # the branch in the build description
+        # Check we're working with the expected branches
+        text = captured_muddle(['query', 'checkout-branches'])
+        lines = text.splitlines()
+        lines = lines[3:]       # ignore the header lines
+        check_text_lines_v_lines(lines,
+                ["builds master <none> <not following>",
+                 "first_co branch1 <none> <not following>",
+                 "main_co master <none> <not following>",
+                 "second_co <not supported> ... ...",
+                 "(subdomain1)builds master <none> <not following>",
+                 "(subdomain1)first_co master <none> <not following>",
+                 "(subdomain1)main_co master <none> <not following>",
+                 "(subdomain1)second_co master <none> <not following>",
+                 "(subdomain1(subdomain3))builds master <none> <not following>",
+                 "(subdomain1(subdomain3))first_co master <none> <not following>",
+                 "(subdomain1(subdomain3))main_co master <none> <not following>",
+                 "(subdomain1(subdomain3))second_co master <none> <not following>",
+                 "(subdomain2)builds master <none> <not following>",
+                 "(subdomain2)first_co master <none> <not following>",
+                 "(subdomain2)main_co master <none> <not following>",
+                 "(subdomain2)second_co master <none> <not following>"],
+                fold_whitespace=True)
+
 def main(args):
 
     keep = False
@@ -680,6 +724,8 @@ def main(args):
         test_unstamp_update_identity_operation(repo, first_stamp)
 
         test_unstamp_update_2(repo, first_stamp)
+
+        test_stamping_branches(repo)
 
 
 if __name__ == '__main__':

@@ -1997,7 +1997,7 @@ class QueryCheckoutRepos(QueryCommand):
         builder.db.dump_checkout_repos(just_url=just_url)
 
 @subcommand('query', 'checkout-branches', CAT_QUERY)
-class QueryCheckoutBraches(QueryCommand):
+class QueryCheckoutBranches(QueryCommand):
     """
     :Syntax: muddle query checkout-branches
 
@@ -2061,11 +2061,24 @@ class QueryCheckoutBraches(QueryCommand):
     """
 
     def with_build_tree(self, builder, current_dir, args):
+
+        def co_name(co):
+            if co.domain:
+                return '(%s)%s'%(co.domain, co.name)
+            else:
+                return co.name
+
         labels = sorted(builder.all_checkout_labels())
         column_headers = ('Checkout', 'Current branch', 'Original branch', 'Branch to follow')
         maxlen = []
         for ii, heading in enumerate(column_headers):
             maxlen.append(len(heading))
+
+        for co_label in labels:
+            l = len(co_name(co_label))
+            if l > maxlen[0]:
+                maxlen[0] = l
+
         lines = []
         for co_label in labels:
             co_data = builder.db.get_checkout_data(co_label)
@@ -2092,7 +2105,7 @@ class QueryCheckoutBraches(QueryCommand):
                 original_branch = '...'
                 follow_branch = '...'
 
-            line = (co_label.name, actual_branch, original_branch, follow_branch)
+            line = (co_name(co_label), actual_branch, original_branch, follow_branch)
             for ii, word in enumerate(line):
                 if len(word) > maxlen[ii]:
                     maxlen[ii] = len(word)

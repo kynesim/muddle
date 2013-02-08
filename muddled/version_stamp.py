@@ -642,14 +642,13 @@ class VersionStamp(object):
                 repo = builder.db.get_checkout_repo(label)
                 if vcs_handler.vcs.supports_branching():
                     current_branch = vcs_handler.get_current_branch(builder, label)
-
                     # If the Repository doesn't ask for a particular branch,
                     # then we normally assume it means "master".
                     orig_branch = repo.branch
                     if orig_branch is None:
                         orig_branch = 'master'
 
-                    if current_branch != repo.branch:
+                    if current_branch != orig_branch:
                         branch = current_branch
 
                 if branch:

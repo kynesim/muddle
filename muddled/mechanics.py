@@ -1062,6 +1062,9 @@ class Builder(object):
 
     def get_build_desc_branch(self, verbose=False):
         """Return the current branch of the top-level build description.
+
+        (Returns None if the build description is not on a branch, or if its
+        VCS does not support this operation.)
         """
         build_desc_label = self.build_desc_label
         if verbose:

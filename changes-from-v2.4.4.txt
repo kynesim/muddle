@@ -1,30 +1,12 @@
 Changes since muddle v2.4.4
 
-* Lifecycle support. I've been working on this for a while. Basically, it
-  allows branching a whole build tree for maintenance support.
-
-  New commands are::
-
-    muddle init -branch <branch> <repo> <build-desc>
-    muddle branch-tree <new-branch>
-    muddle query checkout-branches
-    muddle query checkout-id
-    muddle sync
-
-  See the new lifecycle documentation (a new chapter in the normal muddle
-  documentation), and also "muddle help" for each of the above.
+First, changes you'll already have if you've been keeping up-to-date with the
+current version of muddle:
 
 * New squashfs and romfs deployments. Also, the underlying code for the
   "muddled.deployments" modules has been rewritten, and CPIO deployments can
   now be made to a package (specifically, to a package install directory),
   removing one of the causes of packages depending on deployments.
-
-* A rewritten and more powerful "muddle doc" command. See "muddle help doc",
-  and try::
-
-     muddle doc Label
-     muddle doc Label -pydoc
-     muddle doc -contains Directory
 
 * Minor tweaks in the release mechanism, based on experience of using it.
   These include adding a "-test" switch to "muddle release", and allowing
@@ -48,6 +30,33 @@ Changes since muddle v2.4.4
 
 * There have been various minor fixes in license support, including not
   propagating GPL licenses to/through GPL licenses.
+
+Secondly, changes that have just been introduced by merging a long development
+branch back into "master":
+
+* Lifecycle support. I've been working on this for a while. Basically, it
+  allows branching a whole build tree for maintenance support.
+
+  New commands are::
+
+    muddle init -branch <branch> <repo> <build-desc>
+    muddle branch-tree <new-branch>
+    muddle query checkout-branches
+    muddle query checkout-id
+    muddle sync
+
+  and ``muddle stamp version`` behaves slightly differently with a branched
+  build tree.
+
+  See the new lifecycle documentation (a new chapter in the normal muddle
+  documentation), and also "muddle help" for each of the above.
+
+* A rewritten and more powerful "muddle doc" command. See "muddle help doc",
+  and try::
+
+     muddle doc Label
+     muddle doc Label -pydoc
+     muddle doc -contains Directory
 
 * And a variety of other tidyings and bugfixes.
 

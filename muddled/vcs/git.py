@@ -150,12 +150,15 @@ class Git(VersionControlSystem):
 
         if repo.revision:
             with Directory(co_leaf):
-                # XXX Arguably, should use '--quiet', to suppress the warning
-                # XXX that we are ending up in 'detached HEAD' state, since
-                # XXX that is rather what we asked for...
-                # XXX Or maybe we want to leave the message, as the warning
-                # XXX it is meant to be
-                utils.run_cmd("git checkout %s"%repo.revision)
+                # Are we already at the correct revision?
+                actual_revision = self._git_rev_parse_HEAD()
+                if actual_revision != repo.revision:
+                    # XXX Arguably, should use '--quiet', to suppress the warning
+                    # XXX that we are ending up in 'detached HEAD' state, since
+                    # XXX that is rather what we asked for...
+                    # XXX Or maybe we want to leave the message, as the warning
+                    # XXX it is meant to be
+                    utils.run_cmd("git checkout %s"%repo.revision)
 
     def _is_it_safe(self):
         """
@@ -553,7 +556,7 @@ class Git(VersionControlSystem):
             if out.startswith('refs/heads'):
                 return out[11:]
             else:
-                return None
+                raise utils.GiveUp('Error running "git symbolic-ref -q HEAD" to determine current branch\n  Got back "%s" instead of "refs/heads/<something>"'%out)
         elif retcode == 1:
             # HEAD is not a symbolic reference, but a detached HEAD
             return None
@@ -605,10 +608,25 @@ class Git(VersionControlSystem):
 
         Will be called in the actual checkout's directory.
 
-        If a branch name is given, it will be ignored.
+        If a branch name is given, we will go to that branch first, and see
+        if we already got to the correct revision. Note that the check for this
+        assumes that 'revision' is a full SHA1, so is a bit simplistic. If we
+        don't appear to be at the required revision, we'll then go there as
+        normal.
 
         Raises GiveUp if there is no such revision, or no such branch.
         """
+        if branch:
+            # First, go to the branch and see if that's all we need to do
+            try:
+                self.goto_branch(branch)
+            except GiveUp as e:
+                raise utils.GiveUp('Error going to branch "%s" for'
+                                   ' revision "%s":\n%s'%(branch, revision, e))
+            new_revision = self._git_rev_parse_HEAD()
+            if new_revision == revision:    # Heh, we're already there
+                return
+
         retcode, out, err = utils.run_cmd_for_output(['git', 'checkout', revision],
                                                      fold_stderr=True, verbose=verbose)
         if retcode:

@@ -330,11 +330,15 @@ def check_file_v_text(filename, expected_text):
         raise GiveUp('Expected text does not match content of %s:\n%s'%(filename,
                      ''.join(difflines)))
 
-def check_text_lines_v_lines(actual_lines, wanted_lines):
+def check_text_lines_v_lines(actual_lines, wanted_lines, fold_whitespace=False):
     """Check two pieces of text are the same.
 
     'wanted_lines' is the lines of text we want, presented as a list,
     without any newlines.
+
+    If 'fold_whitespace' is true, first "fold" any sequences of whitespace
+    in 'wanted_lines' to a single space each. This makes it easier to compare
+    lines with data laid out using spacing.
 
     Prints out the differences (if any) and then raises a GiveUp if there
     *were* differences
@@ -344,7 +348,17 @@ def check_text_lines_v_lines(actual_lines, wanted_lines):
     #if len_wanted_lines != len_actual_lines:
     #    print 'There are %d wanted line%s'%(len_wanted_lines, '' if len_wanted_lines==1 else 's')
     #    print 'There are %d actual line%s'%(len_actual_lines, '' if len_actual_lines==1 else 's')
-    diffs = unified_diff(wanted_lines, actual_lines,
+
+    if fold_whitespace:
+        compare_lines = []
+        for line in actual_lines:
+            columns = line.split()
+            line = ' '.join(columns)
+            compare_lines.append(line)
+    else:
+        compare_lines = actual_lines
+
+    diffs = unified_diff(wanted_lines, compare_lines,
                          fromfile='Missing lines', tofile='Extra lines', lineterm='')
     difflines = list(diffs)
     if difflines:

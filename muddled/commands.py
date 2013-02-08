@@ -2005,6 +2005,59 @@ class QueryCheckoutBraches(QueryCommand):
 
     Reports on the current branch for each checkout, and the branch implied
     (or explicitly requested) by the build description.
+
+    For instance::
+
+        --------  --------------  ---------------  ----------------
+        Checkout  Current branch  Original branch  Branch to follow
+        --------  --------------  ---------------  ----------------
+        builds    master          <none>           <not following>
+        co1       master          <none>           <not following>
+
+    Both checkouts are in git (which is the only VCS for which muddle really
+    supports branches), and on master. The "original branches" are both <none>
+    - for the build description this is because "muddle init" did not specify a
+    branch, and for "co1" it is because the build description did not specify
+    an explicit branch. Since the build description does not specify
+    "builder.follow_desc_build_branch = True", all checkouts show as "not
+    following".
+
+    Here is a slightly more complicated case::
+
+        --------  --------------   ---------------  ----------------
+        Checkout  Current branch   Original branch  Branch to follow
+        --------  --------------   ---------------  ----------------
+        builds    test-v0.1        branch0          <it's own>
+        co1       test-v0.1        <none>           test-v0.1
+        co2       branch1          branch1          <none>
+        co3       <none>           <none>           <none>
+        co4       <none>           branch1          <none>
+        co5       <not supported>  ...              ...
+
+    This build tree was created using "muddle init -branch branch0", so the
+    builds checkout shows "branch0" as its original branch. We can tell that
+    the build description *does* have "builder.follow_desc_build_branch = True"
+    because there are values in the "Branch to follow" column. The build
+    description follows itself.
+
+    "co2" explicitly specifies "branch1" in the build description. It got
+    checked out on "branch1", and is still on it. Having an explicit branch
+    means it does not follow the build description.
+
+    "co3" explicitly specified a *revision" in the build description. This
+    means that it got checked out on a detached HEAD, and thus its current
+    branch is <none> - it really isn't on a branch.
+
+    "co4" explicitly specified a branch ("branch1") and a revision in the
+    build description. The revision id specified didn't correspond to HEAD
+    of the branch, so it too is on a detached HEAD. However, "branch1" still
+    shows up as its original branch.
+
+    Finally, "co5" is not using git (it was actually using bzr), and thus
+    muddle does not support branching it.
+
+    (You can use "muddle query checkout-vcs" to see which VCS is being used
+    for which checkout.)
     """
 
     def with_build_tree(self, builder, current_dir, args):
@@ -2021,10 +2074,10 @@ class QueryCheckoutBraches(QueryCommand):
             if vcs_handler.vcs.supports_branching():
                 actual_branch = vcs_handler.get_current_branch(builder, co_label)
                 if actual_branch is None:
-                    actual_branch = 'master'
+                    actual_branch = '<none>'
                 original_branch = repo.branch
                 if original_branch is None:
-                    original_branch = 'master'
+                    original_branch = '<none>'
                 if builder.follow_build_desc_branch:
                     if builder.build_desc_label.match_without_tag(co_label):
                         follow_branch = "<it's own>"
@@ -3334,7 +3387,7 @@ class StampSave(Command):
     :Syntax: muddle stamp save [<switche>] [<filename>]
 
     Go through each checkout, and save its remote repository and current
-    revision id/number to a file.
+    brach/revision id/number to a file.
 
     This is intended to be enough information to allow reconstruction of the
     entire build tree, as-is.

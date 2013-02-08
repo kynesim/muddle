@@ -147,12 +147,17 @@ and::
     repo_prefix = linux
     repo_prefix_as_is = False
     repo_revision = 965b4809b5ca93df0a4973e043a5a9af0ecf50e3
+    repo_branch = issue99-fix
 
 The values presented give the checkout label, its location in the build tree
 ('co_dir' and 'co_leaf'), and its Repository instance (the 'repo_xxx' values.
 See "muddle doc version_control.checkout_from_repo" for some information on
 how the 'co_xxx' values are used, and "muddle doc repository.Repository" for
 more information on the Repository class).
+
+.. note:: The 'repo_revision' is the current revision of the checkout, and
+   'repo_branch' is its current branch if that is not "master", and if the
+   VCS for the checkout supports setting branches.
 
 Again, these are presented in "C" sort order of the checkout name, including
 the domain component - this means that subdomain checkouts will occur before
@@ -580,8 +585,19 @@ class VersionStamp(object):
         """
         stamp.repository = builder.db.RootRepository_pathfile.get()
         stamp.description = builder.db.Description_pathfile.get()
-        stamp.description_branch = builder.db.DescriptionBranch_pathfile.get_if_it_exists()
         stamp.versions_repo = builder.db.VersionsRepository_pathfile.get()
+
+        # The build description branch is a little different
+        if builder.follow_build_desc_branch:
+            # If we're following the build description, we want an "unstamp"
+            # of our stamp file to behave as if it had done "muddle init -branch"
+            # with the appropriate branch, so:
+            stamp.description_branch = builder.get_build_desc_branch()
+        else:
+            # Otherwise, we want to reproduce whatever the current appearance
+            # was - i.e., whether this build tree had initially done
+            # "muddle init -branch"
+            stamp.description_branch = builder.db.DescriptionBranch_pathfile.get_if_it_exists()
 
         stamp.before = before        # remember for annotating the stamp file
 
@@ -596,14 +612,14 @@ class VersionStamp(object):
             try:
                 label = rule.target
                 try:
-                    vcs = rule.action.vcs
+                    vcs_handler = rule.action.vcs
                 except AttributeError:
                     stamp.problems.append("Rule for label '%s' has no VCS"%(label))
                     if not quiet:
                         print stamp.problems[-1]
                     continue
                 if not quiet:
-                    print "Processing %s checkout '%s'"%(vcs.short_name,
+                    print "Processing %s checkout '%s'"%(vcs_handler.short_name,
                                                  '(%s)%s'%(label.domain,label.name)
                                                            if label.domain
                                                            else label.name)
@@ -612,16 +628,34 @@ class VersionStamp(object):
                     domain_repo, domain_desc = builder.db.get_subdomain_info(domain_name)
                     stamp.domains[domain_name] = (domain_repo, domain_desc)
 
+                # We always want to specify the revision in the stamp file
                 if just_use_head:
                     if not quiet:
                         print 'Forcing head'
                     rev = "HEAD"
                 else:
-                    rev = vcs.revision_to_checkout(builder, label, force=force,
-                                                   before=before, verbose=True)
+                    rev = vcs_handler.revision_to_checkout(builder, label, force=force,
+                                                           before=before, verbose=True)
 
+                # We may also want to specify the branch
+                branch = None
                 repo = builder.db.get_checkout_repo(label)
-                repo = repo.copy_with_changed_revision(rev)
+                if vcs_handler.vcs.supports_branching():
+                    current_branch = vcs_handler.get_current_branch(builder, label)
+
+                    # If the Repository doesn't ask for a particular branch,
+                    # then we normally assume it means "master".
+                    orig_branch = repo.branch
+                    if orig_branch is None:
+                        orig_branch = 'master'
+
+                    if current_branch != repo.branch:
+                        branch = current_branch
+
+                if branch:
+                    repo = repo.copy_with_changed_branch(branch, rev)
+                else:
+                    repo = repo.copy_with_changed_revision(rev)
 
                 co_dir, co_leaf = builder.db.get_checkout_dir_and_leaf(label)
                 stamp.checkouts[label] = (co_dir, co_leaf, repo)

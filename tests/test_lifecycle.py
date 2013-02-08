@@ -612,20 +612,20 @@ def test_lifecycle(root_d):
     """
 
     # Repositories
-    with NewDirectory(root_d.join('repos')) as d:
-        with NewDirectory(d.join('builds')):
+    with NewCountedDirectory('repos') as d0:
+        with NewDirectory('builds'):
             git('init --bare')
-        with NewDirectory(d.join('co1')):
+        with NewDirectory('co1'):
             git('init --bare')
-        with NewDirectory(d.join('versions')):
+        with NewDirectory('versions'):
             git('init --bare')
 
-        repo_url = 'git+file://%s'%d.where
+        repo_url = 'git+file://%s'%d0.where
 
     build_name = 'TestBuild'
 
     # First build tree
-    with NewDirectory(root_d.join('build1')) as d:
+    with NewCountedDirectory('build1') as d1:
         muddle(['bootstrap', repo_url, build_name])
         with Directory('src'):
             with Directory('builds'):
@@ -644,6 +644,7 @@ def test_lifecycle(root_d):
 
         muddle(['stamp', 'version'])
         with Directory('versions'):
+            check_specific_files_in_this_dir(['.git', 'TestBuild.stamp'])
             git('add TestBuild.stamp')
             git('commit -m "First stamp"')
             muddle(['stamp', 'push'])
@@ -672,6 +673,15 @@ def test_lifecycle(root_d):
                 checkout_rev_3 = captured_muddle(['query', 'checkout-id']).strip()
                 muddle(['push'])
 
+        # Find out what branches we are working with
+        text = captured_muddle(['query', 'checkout-branches'])
+        lines = text.splitlines()
+        lines = lines[3:]       # ignore the header lines
+        check_text_lines_v_lines(lines,
+                ["builds master <none> <not following>",
+                 "co1 master <none> <not following>"],
+                fold_whitespace=True)
+
     print 'builds/'
     print '  ',builds_rev_1
     print '  ',builds_rev_2
@@ -683,10 +693,10 @@ def test_lifecycle(root_d):
 
     # Second build tree, where the build description gives a specific revision
     # for a checkout.
-    with NewDirectory(root_d.join('build2')) as d:
+    with NewCountedDirectory('build2') as d2:
         muddle(['init', repo_url, 'builds/01.py'])
         # But we want to specify the revision for our source checkout
-        with Directory(d.join('src', 'builds')):
+        with Directory(d2.join('src', 'builds')):
             touch('01.py',
                   BUILD_DESC_WITH_REVISION.format(revision=checkout_rev_2,
                                                   build_name=build_name))
@@ -713,7 +723,7 @@ def test_lifecycle(root_d):
         # itself).
         # All muddle can really do is go to the revision specified in the
         # build description...
-        with Directory(d.join('src', 'co1')):
+        with Directory(d2.join('src', 'co1')):
             git('checkout %s'%checkout_rev_1)
             muddle(['pull'])
             check_revision('co1', checkout_rev_2)
@@ -724,7 +734,7 @@ def test_lifecycle(root_d):
 
         # What if we try to do work on that specified revision
         # (and, in git terms, at a detached HEAD)
-        with Directory(d.join('src', 'co1')):
+        with Directory(d2.join('src', 'co1')):
             append('Makefile.muddle', '# Additional comment number 3\n')
             git('commit -a -m "Add comment number 3"')
             checkout_rev_4 = captured_muddle(['query', 'checkout-id']).strip()
@@ -764,6 +774,15 @@ def test_lifecycle(root_d):
 
         check_revision('co1', checkout_rev_4)
 
+        # Find out what branches we are working with
+        text = captured_muddle(['query', 'checkout-branches'])
+        lines = text.splitlines()
+        lines = lines[3:]       # ignore the header lines
+        check_text_lines_v_lines(lines,
+                ["builds master <none> <not following>",
+                 "co1 this-is-a-branch this-is-a-branch <not following>"],
+                fold_whitespace=True)
+
         # What happens if we specify a revision on a branch?
         # First, choose the revision before the branch
         with Directory('src'):
@@ -783,6 +802,15 @@ def test_lifecycle(root_d):
                 # Because we specified an exact revision, we should be detached
                 if not is_detached_head():
                     raise GiveUp('Expected to have a detached HEAD')
+
+        # Find out what branches we are working with
+        text = captured_muddle(['query', 'checkout-branches'])
+        lines = text.splitlines()
+        lines = lines[3:]       # ignore the header lines
+        check_text_lines_v_lines(lines,
+                ["builds master <none> <not following>",
+                 "co1 <none> <none> <not following>"],
+                fold_whitespace=True)
 
         # Then the revision after the branch
         with Directory('src'):
@@ -825,8 +853,17 @@ def test_lifecycle(root_d):
                 if not text.endswith('checkout past the specified revision.'):
                     raise GiveUp('Expected muddle pull to fail trying to go "past" revision:\n%s'%text)
 
+        # Find out what branches we are working with
+        text = captured_muddle(['query', 'checkout-branches'])
+        lines = text.splitlines()
+        lines = lines[3:]       # ignore the header lines
+        check_text_lines_v_lines(lines,
+                ["builds master <none> <not following>",
+                 "co1 this-is-a-branch <none> <not following>"],
+                fold_whitespace=True)
+
     # Third build tree, investigating use of "muddle branch-tree"
-    with NewDirectory(root_d.join('build3')) as d:
+    with NewCountedDirectory('build3') as d3:
         muddle(['init', repo_url, 'builds/01.py'])
         muddle(['checkout', '_all'])
 
@@ -872,8 +909,17 @@ def test_lifecycle(root_d):
                 # We hadn't changed any files in our checkout
                 muddle(['push'])
 
+        # Find out what branches we are working with
+        text = captured_muddle(['query', 'checkout-branches'])
+        lines = text.splitlines()
+        lines = lines[3:]       # ignore the header lines
+        check_text_lines_v_lines(lines,
+                ["builds test-v0.1 <none> <it's own>",
+                 "co1 test-v0.1 <none> test-v0.1"], 
+                fold_whitespace=True)
+
     # And a variant like the documentation
-    with NewDirectory(root_d.join('build4')) as d:
+    with NewCountedDirectory('build4') as d4:
         muddle(['init', repo_url, 'builds/01.py'])
         muddle(['checkout', '_all'])
 
@@ -889,24 +935,69 @@ def test_lifecycle(root_d):
         muddle(['runin', '_all_checkouts', 'git commit -a -m "Create maintenance branch"'])
         muddle(['push', '_all'])
 
-    with NewDirectory(root_d.join('build5')) as d:
+        # Find out what branches we are working with
+        text = captured_muddle(['query', 'checkout-branches'])
+        lines = text.splitlines()
+        lines = lines[3:]       # ignore the header lines
+        check_text_lines_v_lines(lines,
+                ["builds Widget-v0.1-maintenance <none> <it's own>",
+                 "co1 Widget-v0.1-maintenance <none> Widget-v0.1-maintenance"],
+                fold_whitespace=True)
+
+        muddle(['stamp', 'version'])
+        with Directory('versions'):
+            check_specific_files_in_this_dir(['.git', 'TestBuild.Widget-v0.1-maintenance.stamp'])
+
+    with NewCountedDirectory('build4a') as d4a:
+        muddle(['unstamp', d4.join('versions', 'TestBuild.Widget-v0.1-maintenance.stamp')])
+
+        # Check we're working with the expected branches
+        text = captured_muddle(['query', 'checkout-branches'])
+        lines = text.splitlines()
+        lines = lines[3:]       # ignore the header lines
+        check_text_lines_v_lines(lines,
+                ["builds Widget-v0.1-maintenance Widget-v0.1-maintenance <it's own>",
+                 "co1 Widget-v0.1-maintenance <none> Widget-v0.1-maintenance"],
+                fold_whitespace=True)
+
+        muddle(['stamp', 'version'])
+        with Directory('versions'):
+            check_specific_files_in_this_dir(['.git', 'TestBuild.Widget-v0.1-maintenance.stamp'])
+
+        # And that stamp file should be identical to the one we had before
+        # (if we ignore the first few lines with the timestamp comments)
+        with open(d4.join('versions', 'TestBuild.Widget-v0.1-maintenance.stamp')) as fd:
+            that = fd.readlines()
+        with open(os.path.join('versions', 'TestBuild.Widget-v0.1-maintenance.stamp')) as fd:
+            this = fd.readlines()
+        check_text_lines_v_lines(actual_lines=this[3:],
+                                 wanted_lines=that[3:])
+
+    with NewCountedDirectory('build5') as d5:
         muddle(['init', '-branch', 'Widget-v0.1-maintenance', repo_url, 'builds/01.py'])
         muddle(['checkout', '_all'])
 
         # Find out what branches we are working with
         text = captured_muddle(['query', 'checkout-branches'])
-        # Clumsily...
         lines = text.splitlines()
         lines = lines[3:]       # ignore the header lines
-        newlines = []
-        for line in lines:
-            columns = line.split()
-            line = ' '.join(columns)
-            newlines.append(line)
-
-        check_text_lines_v_lines(newlines,
+        check_text_lines_v_lines(lines,
                 ["builds Widget-v0.1-maintenance Widget-v0.1-maintenance <it's own>",
-                 "co1 Widget-v0.1-maintenance master Widget-v0.1-maintenance"])
+                 "co1 Widget-v0.1-maintenance <none> Widget-v0.1-maintenance"],
+                fold_whitespace=True)
+
+        muddle(['stamp', 'version'])
+        with Directory('versions'):
+            check_specific_files_in_this_dir(['.git', 'TestBuild.Widget-v0.1-maintenance.stamp'])
+
+        # And that stamp file should also be identical to the one we had before
+        # (if we ignore the first few lines with the timestamp comments)
+        with open(d4.join('versions', 'TestBuild.Widget-v0.1-maintenance.stamp')) as fd:
+            that = fd.readlines()
+        with open(os.path.join('versions', 'TestBuild.Widget-v0.1-maintenance.stamp')) as fd:
+            this = fd.readlines()
+        check_text_lines_v_lines(actual_lines=this[3:],
+                                 wanted_lines=that[3:])
 
 
 def main(args):

@@ -141,6 +141,8 @@ class VersionControlSystem(object):
         Will be called in the actual checkout's directory.
 
         Returns the name of the branch, or None if there is no current branch.
+        Note that the master branch is thus returned as "master", *not* as None.
+
         Raises Unsupported if the VCS does not support this operation.
         """
         raise utils.Unsupported("VCS '%s' cannot determine the current branch"
@@ -635,8 +637,14 @@ class VersionControlHandler(object):
 
         Will be called in the actual checkout's directory.
 
+        Return the name of the current branch (e.g., "master" or "Fred"),
+        or None if there is no current branch.
+
         If 'show_pushd' is false, then we won't report as we "pushd" into the
         checkout directory.
+
+        Raises a GiveUp exception if the VCS does not support this operation,
+        or if something goes wrong.
         """
         with Directory(builder.db.get_checkout_path(co_label), show_pushd=show_pushd):
             try:

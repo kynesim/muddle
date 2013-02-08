@@ -48,7 +48,17 @@ Since the checkouts are on the branch requested by the build description
 remote repositories, even though it didn't exist before.
 
 At which stage, our remotes all have the branch, and our checkouts are still
-on it.
+on it. That's probably a good time to record a stamp file::
+
+  $ muddle stamp version
+
+Branching the build tree doesn't branch the "versions/" directory, but because
+we have set "follow" in the build description, the stamp file created will be
+called::
+
+  versions/<build_name>.<branch_name>.stamp
+
+instead of the normal ``versions/<build_name>.stamp``.
 
 We can now change to a new, empty directory, and make a new copy of our
 maintenance build tree::

@@ -5,41 +5,59 @@ TODO: The following needs rewriting after work for issue 225
 
 * muddle checkout
 
-  Clones the appropriate checkout with ``git clone``. Honours a requested
-  branch (with ``-b <branch>``, defaulting to "master"), and a requested
-  revision.
+  Clones the appropriate checkout with ``git clone``.
+
+  If the build description (by whatever means) requires a branch, then
+  ``git clone -b <branch>`` is used. If no branch is specified, we default to
+  ``git clone -b master``.
+
+  If a shallow checkout is selected, then the ``--depth 1`` switch is added
+  to the clone command.
+
+  If a revision is requested, then ``git checkout`` is used to check it out.
+
+  If a branch *and* a revision are requested, then muddle checks to see if
+  cloning the branch gave the correct revision, and only does the ``git
+  checkout`` if it did not. This avoids unnecessary detached HEADs,
+
+  Note: the checking of the revision id is very simple, and assumes that
+  the revision is specified as a full SHA1 string (it is compared with the
+  output of ``git rev-parse HEAD``).
 
 * muddle pull, muddle pull-upstream
 
   This does a ``git fetch`` followed by a fast-forwards ``git merge``.
 
-  If a revision is specified that is not "HEAD", then this will give up, since
-  ``git merge`` always merges to "HEAD".
+  If the build description specifies a particular revision, and the checkout
+  is already at that revision, then an error will be reported, saying that.
 
-  If there are any local changes uncommitted, or untracked files, then this
-  will give up. Also, if the checkout is marked as "shallow', this will give
-  up.
+  If there are any local changes uncommitted, or untracked files, or if the
+  checkout is marked as "shallow", then appropriate error messages will also
+  be reported.
+
+  If the build description specified a branch for this repository (by whatever
+  means), then we will first go to that branch. If no branch was specified,
+  we first go to "master".
 
   The command checks that the remote is configured as such, then does ``git
-  fetch`` and then does ``git merge --ff-only`` - i.e., it will only merge in
-  the fetch if it doesn't require human interaction.
+  fetch``. If a revision was specified, it then checks out that revision,
+  otherwise it does ``git merge --ff-only``, which will merge in the fetch if
+  it doesn't require human interaction.
 
 * muddle push, muddle push-upstream
 
-  If the checkout is marked as "shallow', this will give up.
+  If the checkout is marked as "shallow', or is on a detached HEAD, then an
+  appropriate error message will be given.
 
   The command checks that the remote is configured as such, then does ``git
   push`` of the current branch. If the branch does not exist at the far end,
   it will be created.
 
-  Both commands will refuse to push if the checkout is not on the expected
-  branch, either an explicit branch from the build description, or the
-  build description branch if we are "following" it, or "master".
-
 * muddle merge
 
-  This is essentially identical to "muddle pull", except that it does a simple
-  ``git merge``, allowing human interaction if necessary.
+  This is identical to "muddle pull", except that instead of doing a
+  fast-forward merge, it does a simple ``git merge``, allowing human
+  interaction if necessary.
 
 * muddle commit
 
@@ -53,9 +71,15 @@ TODO: The following needs rewriting after work for issue 225
   presumably the remote repository is ahead of the local one), then it reports
   as much,
 
+  Note that a normal ``git status`` does not talk to the remote repository,
+  and is thus fast. If this command does talk over the network, it can be
+  rather slower.
+
 * muddle reparent
 
-  Sets the fetch URL to be the current repository URL. XXX What else?
+  Re-associates the local repository's "origin" with the remote repository
+  indicated by the build description. It tries to detect if this is necessary
+  first.
 
 Available git specific options are:
 
@@ -256,7 +280,7 @@ class Git(VersionControlSystem):
         if repo.revision:
             # If the build description specifies a particular revision, all we
             # can really do is go to that revision (we did the fetch anyway in
-            # case the user had edited the build descrtiption to refer to a
+            # case the user had edited the build description to refer to a
             # revision id we had not yet reached).
             #
             # This may also be a revision specified in an "unstamp -update"
@@ -347,15 +371,6 @@ class Git(VersionControlSystem):
                          'on any branch, and thus "muddle push" is not alllowed.\n'
                          'If you really want to push, first choose a branch,\n'
                          'e.g., "git checkout -b <new-branch-name>"')
-
-        #if repo.branch:
-        #    effective_branch = repo.branch
-        #else:
-        #    # Explicitly push master if nothing else is specified.
-        #    # This is so that the user sees what we're doing, instead of
-        #    # being potentially confused by git's config hiding non-default
-        #    # behaviour.
-        #    effective_branch = "master"
 
         # Push this branch to the branch of the same name, whether it exists
         # yet or not

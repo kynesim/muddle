@@ -3338,23 +3338,22 @@ class Whereami(Command):
 @command('doc', CAT_QUERY)
 class Doc(Command):
     """
+    :Syntax: muddle doc [<switch> ...] [<what>]
+
     To get documentation on modules, classes, methods or functions in muddle,
     use::
-
-        muddle doc [<switch>] [<what>]
-
-    specifically, for normal use::
 
         muddle doc <name>               for help on <name>
         muddle doc -contains <what>     to list all names that contain <what>
 
-    and probably only occasionally (since they all produce long output)::
+    There are also (mainly for use in debugging muddle itself - beware,
+    they all produce long output)::
 
         muddle doc -duplicates     to list all duplicate (partial) names
         muddle doc -list           to list all the "full" names we know
         muddle doc -dump           to dump the internal map of names/values
 
-    <switch> may be::
+    <switch> may also be::
 
         -p[ager] <pager>    to specify a pager through which the text will be
                             piped. The default is $PAGER (if set) or else
@@ -3367,19 +3366,46 @@ class Doc(Command):
 
     The plain "muddle doc <name>" can be used to find out about any muddle
     module, class, method or function. Leading parts of the name can be
-    omitted, provided that doesn't make <name> ambiguous, and if it does, you
-    will be given a list of the possible alternatives. So, for instance::
+    omitted ("Builder" and "mechanics.Builder" and "muddled.mechanics.Builder"
+    are all the same), provided that doesn't make <name> ambiguous, and if it
+    does, you will be given a list of the possible alternatives. So, for
+    instance::
 
-        muddle doc Builder
+        $ muddle doc Builder
 
     will report on muddled.mechanics.Builder, but::
 
-        muddle doc simple
+        $ muddle doc simple
 
     will give a list of all the names that contain 'simple'.
 
     If you're not sure of a name, then "-contains" can be used to look for all
     the (full names - i.e., starting with "muddled.") that contain that string.
+    For instance::
+
+        $ muddle doc -contains absolute
+        The following names contain "absolute":
+          muddled.checkouts.multilevel.absolute
+          muddled.checkouts.simple.absolute
+          muddled.checkouts.twolevel.absolute
+
+    and one can then safely do::
+
+        $ muddle doc simple.absolute
+
+    For a module, the module docstring is reported, and then a list of the
+    names of all the classes and functions in that module.
+
+    For a class, the classes it inherits from, its docstring and its __init__
+    method are all reported, followed by a list of the methods in that class.
+
+    For a method or function, its argument list (signature) and docstring are
+    reported.
+
+    If "-pydoc" is specified, then the layout of various things will be
+    different, and also the full documentation of internal items (methods
+    inside classes, etc.) will be reported - this can lead to substantially
+    longer output.
     """
 
     def requires_build_tree(self):

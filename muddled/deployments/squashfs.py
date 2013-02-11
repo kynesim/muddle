@@ -9,6 +9,7 @@ use the same code.
 """
 
 import os
+import errno
 
 import muddled.depend as depend
 import muddled.utils as utils
@@ -103,7 +104,11 @@ class SquashFSDeploymentBuilder(Action):
         final_tgt = os.path.join(builder.deploy_path(label), 
                                  tgt)
         # mksquashfs will, by default, append rather than replacing, so..
-        os.remove(final_tgt)
+        try:
+            os.remove(final_tgt)
+        except OSError as e:
+            if e.errno != errno.ENOENT:
+                raise
         cmd = "%s \"%s\" \"%s\" -noappend -all-root -info -comp xz"%(self.mksquashfs, my_tmp, final_tgt)
         utils.run_cmd(cmd)
         

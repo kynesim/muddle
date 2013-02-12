@@ -1557,7 +1557,27 @@ class Init(Command):
 
         print
         print "Checking out build description .. \n"
-        mechanics.load_builder(current_dir, muddle_binary)
+        builder = mechanics.load_builder(current_dir, muddle_binary)
+
+        # If our top level build description wants things to follow its
+        # branch, and there are subdomains, we need to adjust the subdomain
+        # branches. Why? Well, if the "builder.follow_build_desc_branch=True"
+        # occurs *after* any of the "include_domain" calls, then the relevant
+        # subdomain could not have known it was meant to be following the
+        # top-level build description, so we can only guarantee to sort this
+        # out after the build description is "finished".
+        if builder.follow_build_desc_branch:
+            subdomain_build_descs = []
+            for domain in sorted(builder.all_domains()):
+                if domain == "":    # Nothing to do for the top-level
+                    continue
+                build_desc = builder.db.get_domain_build_desc_label(domain)
+                subdomain_build_descs.append(build_desc)
+            if subdomain_build_descs:
+                print 'Making subdomain build descriptions "follow" top-level build description'
+                print 'for', label_list_to_string(subdomain_build_descs)
+                sync = Sync()
+                sync.with_build_tree(builder, current_dir, map(str, subdomain_build_descs))
 
         print "Done.\n"
 
@@ -2003,8 +2023,9 @@ class QueryCheckoutBranches(QueryCommand):
 
     Print the known checkouts and their branches.
 
-    Reports on the current branch for each checkout, and the branch implied
-    (or explicitly requested) by the build description.
+    For each checkout, reports its current branch, and the branch implied (or
+    explicitly requested) by the build description, and the branch it is
+    "following" (if the build description has set this).
 
     For instance::
 
@@ -2013,14 +2034,20 @@ class QueryCheckoutBranches(QueryCommand):
         --------  --------------  ---------------  ----------------
         builds    master          <none>           <not following>
         co1       master          <none>           <not following>
+        co2       <can't tell>    <none>           <not following>
 
-    Both checkouts are in git (which is the only VCS for which muddle really
-    supports branches), and on master. The "original branches" are both <none>
-    - for the build description this is because "muddle init" did not specify a
-    branch, and for "co1" it is because the build description did not specify
-    an explicit branch. Since the build description does not specify
-    "builder.follow_desc_build_branch = True", all checkouts show as "not
-    following".
+    In this example, both checkouts are in git (which is the only VCS for which
+    muddle really supports branches), and on master.
+
+    The "original branches" are both <none>. The "builds" checkout contains the
+    build description, and its original checkout is <none> because "muddle
+    init" did not specify a branch. The original checkouts for "co1" and "co2"
+    are <none> because the build description did not specify explicit branches
+    for them. We can't tell what the current branch is for co2, which normally
+    means that it has not yet been checked out.
+
+    Since the build description does not set "builder.follow_desc_build_branch
+    = True", all the checkouts show as <not following>.
 
     Here is a slightly more complicated case::
 
@@ -2038,7 +2065,11 @@ class QueryCheckoutBranches(QueryCommand):
     builds checkout shows "branch0" as its original branch. We can tell that
     the build description *does* have "builder.follow_desc_build_branch = True"
     because there are values in the "Branch to follow" column. The build
-    description follows itself.
+    description always follows itself.
+
+    "co1" doesn't specify a particular branch in the build description,
+    so its "original branch" is <none>. However, it does follow the build
+    description, so has "test-v0.1" in the "Branch to follow" column.
 
     "co2" explicitly specifies "branch1" in the build description. It got
     checked out on "branch1", and is still on it. Having an explicit branch
@@ -2085,7 +2116,10 @@ class QueryCheckoutBranches(QueryCommand):
             repo = co_data.repo
             vcs_handler = co_data.vcs_handler
             if vcs_handler.vcs.supports_branching():
-                actual_branch = vcs_handler.get_current_branch(builder, co_label)
+                try:
+                    actual_branch = vcs_handler.get_current_branch(builder, co_label)
+                except GiveUp:
+                    actual_branch = "<can't tell>"
                 if actual_branch is None:
                     actual_branch = '<none>'
                 original_branch = repo.branch

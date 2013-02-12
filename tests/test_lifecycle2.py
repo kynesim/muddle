@@ -107,14 +107,6 @@ def describe_to(builder):
                                  dep_name=deployment,   # always the same
                                  rel='', dest='sub', domain='{subdomain2}')
 
-    include_domain(builder,
-                   domain_name = '{subdomain3}',
-                   domain_repo = 'git+file://{repo}/{subdomain3}',
-                   domain_desc = 'builds/01.py')
-    collect.copy_from_deployment(builder, deployment,
-                                 dep_name=deployment,   # always the same
-                                 rel='', dest='sub', domain='{subdomain3}')
-
     builder.add_default_role(role)
     builder.by_default_deploy(deployment)
 """
@@ -183,38 +175,6 @@ def describe_to(builder):
     builder.by_default_deploy(deployment)
 """
 
-SUBDOMAIN3_BUILD_DESC = """ \
-# A subdomain build description
-
-import os
-
-import muddled.pkgs.make
-import muddled.deployments.collect as collect
-
-from muddled.depend import checkout, package
-from muddled.repository import Repository
-from muddled.version_control import checkout_from_repo
-
-def describe_to(builder):
-    role = 'x86'
-    deployment = 'everything'
-
-    # We use a repository that is an upstream repository in the main build
-    # Moreover, it's a repository that the top-level build believes it cannot
-    # pull from, whereas we obviously believe we can
-
-    repo = Repository('git', 'file://{repo}/main', 'repo1.3')
-    co_label = checkout('co_repo1.3')
-    checkout_from_repo(builder, co_label, repo)
-    muddled.pkgs.make.simple(builder, 'packageSub3', role, co_label.name)
-
-    collect.deploy(builder, deployment)
-    collect.copy_from_role_install(builder, deployment,
-                                   role=role, rel="", dest="", domain=None)
-    builder.add_default_role(role)
-    builder.by_default_deploy(deployment)
-"""
-
 GITIGNORE = """\
 *~
 *.pyc
@@ -229,6 +189,8 @@ int main(int argc, char **argv)
     return 0;
 }}
 """
+
+g_UPSTREAMS = {}
 
 def make_build_desc(co_dir, file_content):
     """Take some of the repetition out of making build descriptions.
@@ -266,8 +228,7 @@ def make_repos(root_dir):
             with NewDirectory('builds') as d:
                 make_build_desc(d.where, BUILD_DESC.format(repo=repo,
                                                            subdomain1='subdomain1',
-                                                           subdomain2='subdomain2',
-                                                           subdomain3='subdomain3'))
+                                                           subdomain2='subdomain2'))
 
             with NewDirectory('repo1') as d:
                 make_standard_checkout(d.where, 'program1', 'first program')
@@ -275,8 +236,10 @@ def make_repos(root_dir):
             # Several very similar repositories
             other_repo_names = ('repo1.1', 'repo1.2', 'repo1.3')
             for repo_name in other_repo_names:
-                with NewDirectory(repo_name):
+                with NewDirectory(repo_name) as d:
                     git('init --bare')
+                    global g_UPSTREAMS
+                    g_UPSTREAMS[repo_name] = d.where
 
                 repo_url = os.path.join(repo, 'main', repo_name)
                 with Directory('repo1'):
@@ -290,11 +253,6 @@ def make_repos(root_dir):
         with NewDirectory('subdomain2'):
             with NewDirectory('builds') as d:
                 make_build_desc(d.where, SUBDOMAIN2_BUILD_DESC.format(repo=repo))
-
-        with NewDirectory('subdomain3'):
-            with NewDirectory('builds') as d:
-                make_build_desc(d.where, SUBDOMAIN3_BUILD_DESC.format(repo=repo))
-
 
 
 def check_exception(testing, fn, args, exception=GiveUp, startswith=None, endswith=None):
@@ -416,7 +374,7 @@ def main(args):
         banner('MAKE REPOSITORIES')
         make_repos(root_dir)
 
-        with NewDirectory('build') as d:
+        with NewCountedDirectory('build') as d:
             banner('CHECK REPOSITORIES OUT')
             muddle(['init', 'git+file://{repo}/main'.format(repo=root.join('repo')),
                     'builds/01.py'])
@@ -426,9 +384,129 @@ def main(args):
             banner('STAMP VERSION')
             muddle(['stamp', 'version'])
 
-        banner('CHECK USING UPSTREAMS')
-        with Directory(d.where):
+            with Directory(g_UPSTREAMS['repo1.1']):
+                text = get_stdout('git branch -a')
+                check_text_v_lines(text, ['* master'])
+            with Directory(g_UPSTREAMS['repo1.2']):
+                text = get_stdout('git branch -a')
+                check_text_v_lines(text, ['* master'])
+            with Directory(g_UPSTREAMS['repo1.3']):
+                text = get_stdout('git branch -a')
+                check_text_v_lines(text, ['* master'])
+
+            banner('CHECK USING UPSTREAMS')
             test_using_upstreams(root_dir)
+
+            text = captured_muddle(['query', 'checkout-branches'])
+            lines = text.splitlines()
+            lines = lines[3:]       # ignore the header lines
+            check_text_lines_v_lines(lines,
+                        ["builds master <none> <not following>",
+                         "co_repo1 master <none> <not following>",
+                         "(subdomain1)builds master <none> <not following>",
+                         "(subdomain1)co_repo1 master <none> <not following>",
+                         "(subdomain2)builds master <none> <not following>",
+                         "(subdomain2)co_repo1.1 master <none> <not following>"],
+                        fold_whitespace=True)
+
+            banner('BRANCH TREE')
+            muddle(['branch-tree', 'v1-maintenance'])
+            print 'Setting build description for "follow my branch"'
+            with Directory('src'):
+                with Directory('builds'):
+                    append('01.py', '    builder.follow_build_desc_branch = True\n')
+                    # Then remove the .pyc file, because Python probably won't realise
+                    # that this new 01.py is later than the previous version
+                    os.remove('01.pyc')
+
+            text = captured_muddle(['query', 'checkout-branches'])
+            lines = text.splitlines()
+            lines = lines[3:]       # ignore the header lines
+            check_text_lines_v_lines(lines,
+                        ["builds v1-maintenance <none> <it's own>",
+                         "co_repo1 v1-maintenance <none> v1-maintenance",
+                         "(subdomain1)builds v1-maintenance <none> v1-maintenance",
+                         "(subdomain1)co_repo1 v1-maintenance <none> v1-maintenance",
+                         "(subdomain2)builds v1-maintenance <none> v1-maintenance",
+                         "(subdomain2)co_repo1.1 v1-maintenance <none> v1-maintenance"],
+                        fold_whitespace=True)
+
+            muddle(['runin', '_all_checkouts', 'git commit -a -m "Create maintenance branch"'])
+            muddle(['push', '_all'])
+
+        # The push causes "(subdomain2)co_repo1.1" to push to our "repo1.1",
+        # which it is using as its "local" repository, so we see our branch
+        # already there
+        with Directory(g_UPSTREAMS['repo1.1']):
+            text = get_stdout('git branch -a')
+            check_text_v_lines(text, ['* master',
+                                      '  v1-maintenance'])
+        with Directory(g_UPSTREAMS['repo1.2']):
+            text = get_stdout('git branch -a')
+            check_text_v_lines(text, ['* master'])
+        with Directory(g_UPSTREAMS['repo1.3']):
+            text = get_stdout('git branch -a')
+            check_text_v_lines(text, ['* master'])
+
+        with NewCountedDirectory('rebuild') as d:
+            banner('CHECK REPOSITORIES OUT BRANCHED')
+            muddle(['init', '-branch', 'v1-maintenance',
+                    'git+file://{repo}/main'.format(repo=root.join('repo')),
+                    'builds/01.py'])
+
+            # The subdomain build descriptions should be following the
+            # top level build description
+            text = captured_muddle(['query', 'checkout-branches'])
+            lines = text.splitlines()
+            lines = lines[3:]       # ignore the header lines
+            check_text_lines_v_lines(lines,
+                        ["builds v1-maintenance v1-maintenance <it's own>",
+                         "co_repo1 <can't tell> <none> v1-maintenance",
+                         "(subdomain1)builds v1-maintenance <none> v1-maintenance",
+                         "(subdomain1)co_repo1 <can't tell> <none> v1-maintenance",
+                         "(subdomain2)builds v1-maintenance <none> v1-maintenance",
+                         "(subdomain2)co_repo1.1 <can't tell> <none> v1-maintenance"],
+                        fold_whitespace=True)
+
+            muddle(['checkout', '_all'])
+            text = captured_muddle(['query', 'checkout-branches'])
+            lines = text.splitlines()
+            lines = lines[3:]       # ignore the header lines
+            check_text_lines_v_lines(lines,
+                        ["builds v1-maintenance v1-maintenance <it's own>",
+                         "co_repo1 v1-maintenance <none> v1-maintenance",
+                         "(subdomain1)builds v1-maintenance <none> v1-maintenance",
+                         "(subdomain1)co_repo1 v1-maintenance <none> v1-maintenance",
+                         "(subdomain2)builds v1-maintenance <none> v1-maintenance",
+                         "(subdomain2)co_repo1.1 v1-maintenance <none> v1-maintenance"],
+                        fold_whitespace=True)
+
+            # What happens if we push upstream?
+            muddle(['push-upstream', 'co_repo1', '-u', 'rhubarb', 'platypus'])
+            # That should succeed, as we're allowed to push to both of those
+            # And now we should see our branch on repo1.3 as well
+            with Directory(g_UPSTREAMS['repo1.1']):
+                text = get_stdout('git branch -a')
+                check_text_v_lines(text, ['* master',
+                                          '  v1-maintenance'])
+            with Directory(g_UPSTREAMS['repo1.2']):
+                text = get_stdout('git branch -a')
+                check_text_v_lines(text, ['* master'])
+            with Directory(g_UPSTREAMS['repo1.3']):
+                text = get_stdout('git branch -a')
+                check_text_v_lines(text, ['* master',
+                                          '  v1-maintenance'])
+
+            # If we try to pull upstream from wombat, we should fail
+            # as it does not have our branch
+            retcode, text = captured_muddle2(['pull-upstream', 'co_repo1', '-u', 'wombat'])
+            if not retcode:
+                raise GiveUp("Expected error trying to pull from wombat, but"
+                             " got %d:\n%s"%(retcode, text))
+            if "fatal: remotes/wombat/v1-maintenance - not something we can merge" not in text:
+                raise GiveUp("Expected error 'fatal: remotes/wombat/v1-maintenance"
+                             " - not something we can merge' trying to pull from"
+                             " wombat, but got:\n%s"%text)
 
 if __name__ == '__main__':
     args = sys.argv[1:]

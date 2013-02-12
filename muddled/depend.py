@@ -781,6 +781,7 @@ class Label(object):
 
         return Label(type, name, role=role, tag=tag, transient=transient,
                      system=system, domain=domain)
+
     @staticmethod
     def from_fragment(fragment, default_type, default_role=None, default_domain=None):
         """

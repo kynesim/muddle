@@ -301,6 +301,8 @@ class VersionControlHandler(object):
         GiveUp exception.
 
         Otherwise we return None.
+
+        BEWARE: this duplicates some of the code in sync().
         """
         DEBUG = False # to allow normal tests to succeed, which don't expect these messages...
         co_data = builder.db.get_checkout_data(co_label)
@@ -762,6 +764,8 @@ class VersionControlHandler(object):
         * If the build description has "builder.follow_build_desc_branch = True",
           then go to the same branch as the build description.
         * Otherwise, go to "master".
+
+        BEWARE: this duplicates some of the code in branch_to_follow().
         """
         if verbose: print 'Synchronising for', co_label
 

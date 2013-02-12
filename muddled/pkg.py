@@ -492,17 +492,21 @@ def set_checkout_vcs_option(builder, co_label, **kwargs):
 
     For example::
 
-      pkg.set_checkout_vcs_option(builder,
-                                  depend.Label('checkout', 'kernel-source'),
-                                  shallow_checkout=True)
+      pkg.set_checkout_vcs_option(builder, depend.checkout('kernel-source'),
+                                  shallow_checkout=True, something_else=99)
 
-    Defaults are set by version_control.default_vcs_options_dict.
+    This is a wrapper around::
+
+      builder.db.set_checkout_vcs_option(depend.checkout('kernel-source'),
+                                         'shallow', True)
+      builder.db.set_checkout_vcs_option(depend.checkout('kernel-source'),
+                                         'something_else', 99)
 
     "muddle help vcs <name>" should document the available options for the
     version control system <name> (see "muddle help vcs" for the supported
     version control systems).
     """
-    vcs = builder.db.get_checkout_vcs(co_label)
-    vcs.add_options(builder, co_label, kwargs)
+    for key, value in kwargs:
+        builder.db.set_checkout_vcs_option(co_label, key, value)
 
 # End file.

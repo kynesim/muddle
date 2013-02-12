@@ -396,11 +396,9 @@ where ``add_bzr_package`` is defined as::
       checkout_from_repo(builder, checkout(co_name), repo)
       muddled.pkgs.make.simple(builder, pkg_name, role, co_name)
       if no_follow:
-          set_checkout_vcs_option(builder, checkout(co_name), no_follow=True)
+          builder.db.set_checkout_vcs_option(checkout(co_name), 'no_follow', True)
 
-
-
-the expected results::
+We can check that branches are being handled as expected::
 
   $ muddle query checkout-branches
   ---------------  -----------------------  ---------------  -----------------------
@@ -413,9 +411,9 @@ the expected results::
   co.fred          <none>                   <none>           <none>                 
   co1              Widget-v1.0-maintenance  <none>           Widget-v1.0-maintenance
 
-We can see that our build description is on the right branch, and that so is
-our "normal" checkout, "co1". We can also see that both of those are now
-following the build description branch, as we wanted.
+The build description is on the right branch, so is our "normal" checkout,
+"co1". We can also see that both of those are now following the build
+description branch, as we wanted.
 
 As to the other checkouts:
 
@@ -428,41 +426,80 @@ As to the other checkouts:
 * "co.fred" still names (just) a specific revision, and thus it too has a
   "current" branch of ``<none>``, and is not "following".
 * "co.bzr" is using Bazaar, and muddle does not support branching it, so it
-  says that it does not support it, and is not "following".
+  says that it does not support it.
 
 We can now commit - I'm only going to commit the two checkouts we've
-actually branched::
+actually branched, not least because trying to do ``git commit`` in "co.bzr"
+will not generally end well::
 
-  $ muddle runin builds co1 'git commit -a -m "Create maintenance branch"'
+  $ muddle runin co1 'git commit -a -m "Create maintenance branch"'
   ++ pushd to /home/tibs/sw/m3/tests/transient/example/src/co1
   # On branch Widget-v1.0-maintenance
   nothing to commit (working directory clean)
+  $ muddle runin builds 'git commit -a -m "Create maintenance branch"'
   ++ pushd to /home/tibs/sw/m3/tests/transient/example/src/builds
   [Widget-v1.0-maintenance 726189c] Create maintenance branch
    1 file changed, 34 insertions(+), 2 deletions(-)
 
-and push - again, to reduce error reporting (since muddle would refuse to do
-anything with the Bazaar checkout or the checkouts in detached HEAD), I'm only
-going to push the checkouts we've successfully branched::
+(obviously I could have used ``muddle commit`` directly here, which would have
+opened an editor for me to type the commit comments).
 
-  $ m3 push builds co1
+And we can now push::
+
+  $ muddle push _all
   > Building checkout:builds/changes_pushed[T]
   ++ pushd to /home/tibs/sw/m3/tests/transient/example/src/builds
   > git push origin HEAD
   Counting objects: 5, done.
   Delta compression using up to 8 threads.
   Compressing objects: 100% (3/3), done.
-  Writing objects: 100% (3/3), 733 bytes, done.
+  Writing objects: 100% (3/3), 794 bytes, done.
   Total 3 (delta 0), reused 0 (delta 0)
   Unpacking objects: 100% (3/3), done.
   To file:///stuff/tibs/sw/m3/tests/transient/01.init.branch.repo/src/builds
    * [new branch]      HEAD -> Widget-v1.0-maintenance
+  > Building checkout:co.branch1/changes_pushed[T]
+  ++ pushd to /home/tibs/sw/m3/tests/transient/example/src/co.branch1
+  > git push origin HEAD
+  Everything up-to-date
+  > Building checkout:co.branch1.fred/changes_pushed[T]
+  Checkout co.branch1.fred in directory src/co.branch1.fred
+  is on branch None, but should be on branch branch1.
+  Use "muddle query checkout-branches" for more information.
+  Refusing to push. Use git directly if that is what you really meant
+  > Building checkout:co.bzr/changes_pushed[T]
+  ++ pushd to /home/tibs/sw/m3/tests/transient/example/src/co.bzr
+  > bzr push file:///stuff/tibs/sw/m3/tests/transient/01.init.branch.repo/src/co.bzr
+  No new revisions or tags to push.                                                                                                         
+  > Building checkout:co.fred/changes_pushed[T]
+  ++ pushd to /home/tibs/sw/m3/tests/transient/example/src/co.fred
+  Failure pushing checkout:co.fred/changes_pushed[T] in src/co.fred:
+  This checkout is in "detached HEAD" state, it is not
+  on any branch, and thus "muddle push" is not alllowed.
+  If you really want to push, first choose a branch,
+  e.g., "git checkout -b <new-branch-name>"
   > Building checkout:co1/changes_pushed[T]
   ++ pushd to /home/tibs/sw/m3/tests/transient/example/src/co1
   > git push origin HEAD
   Total 0 (delta 0), reused 0 (delta 0)
   To file:///stuff/tibs/sw/m3/tests/transient/01.init.branch.repo/src/co1
    * [new branch]      HEAD -> Widget-v1.0-maintenance
+
+  The following problems occurred:
+
+  Checkout co.branch1.fred in directory src/co.branch1.fred
+  is on branch None, but should be on branch branch1.
+  Use "muddle query checkout-branches" for more information.
+  Refusing to push. Use git directly if that is what you really meant
+
+  Failure pushing checkout:co.fred/changes_pushed[T] in src/co.fred:
+  This checkout is in "detached HEAD" state, it is not
+  on any branch, and thus "muddle push" is not alllowed.
+  If you really want to push, first choose a branch,
+  e.g., "git checkout -b <new-branch-name>"
+
+We can see the new branch being pushed to the "builds" and "co1" repositories.
+As expected, neither "co.branch1.fred" nor "co.fred" could be pushed.
 
 If we make a version stamp::
 
@@ -484,53 +521,29 @@ Now, when we do::
 
   $ muddle checkout _all
   > Building checkout:co.branch1/checked_out
-  ++ pushd to /home/tibs/sw/m3/tests/transient/example2/src
-  > git clone -b branch1 file:///stuff/tibs/sw/m3/tests/transient/01.init.branch.repo/src/co.branch1 co.branch1
-  Cloning into 'co.branch1'...
-  remote: Counting objects: 9, done.
-  remote: Compressing objects: 100% (6/6), done.
-  remote: Total 9 (delta 1), reused 0 (delta 0)
-  Receiving objects: 100% (9/9), done.
-  Resolving deltas: 100% (1/1), done.
-  > Make directory /home/tibs/sw/m3/tests/transient/example2/.muddle/tags/checkout/co.branch1
+  ...
   > Building checkout:co.branch1.fred/checked_out
+  ...
+  > Building checkout:co.bzr/checked_out
+  ...
+  > git checkout fred
+  ...
+  > Building checkout:co1/checked_out
   ++ pushd to /home/tibs/sw/m3/tests/transient/example2/src
-  > git clone -b branch1 file:///stuff/tibs/sw/m3/tests/transient/01.init.branch.repo/src/co.branch1.fred co.branch1.fred
-  Cloning into 'co.branch1.fred'...
+  > git clone -b Widget-v1.0-maintenance file:///stuff/tibs/sw/m3/tests/transient/01.init.branch.repo/src/co1 co1
+  Cloning into 'co1'...
   remote: Counting objects: 9, done.
   remote: Compressing objects: 100% (6/6), done.
   remote: Total 9 (delta 1), reused 0 (delta 0)
   Receiving objects: 100% (9/9), done.
   Resolving deltas: 100% (1/1), done.
-  ++ pushd to /stuff/tibs/sw/m3/tests/transient/example2/src/co.branch1.fred
-  > git checkout fred
-  Note: checking out 'fred'.
+  > Make directory /home/tibs/sw/m3/tests/transient/example2/.muddle/tags/checkout/co1
 
-  You are in 'detached HEAD' state. You can look around, make experimental
-  changes and commit them, and you can discard any commits you make in this
-  state without impacting any branches by performing another checkout.
+we can see that "co1" is being checked out with the correct branch (I've left
+out the text for the other checkouts, but we'd have seen "co.branch1.fred" and
+"co.fred" ending up in detached HEAD states).
 
-  If you want to create a new branch to retain commits you create, you may
-  do so (now or later) by using -b with the checkout command again. Example:
-
-    git checkout -b new_branch_name
-
-  HEAD is now at 43b17dd... And a program
-  > Make directory /home/tibs/sw/m3/tests/transient/example2/.muddle/tags/checkout/co.branch1.fred
-  > Building checkout:co.bzr/checked_out
-
-  The build description wants checkouts to follow branch 'Widget-v1.0-maintenance',
-  but checkout co.bzr uses VCS Bazaar for which we do not support branching.
-  The build description should specify a revision for checkout co.bzr.
-
-which makes it clear that we need to do something explicit about the Bazaar
-checkout, and suggests the obvious solution.
-
-.. note It seems better to make this problem explicit, rather than allowing
-   the branched build to continue to use, and possibly push to, the original
-   Bazaar repository.
-
-and we can see the results::
+Thus::
 
   $ muddle query checkout-branches
   ---------------  -----------------------  -----------------------  -----------------------
@@ -546,6 +559,17 @@ and we can see the results::
 Note that this is *nearly* identical to the output in the original build tree,
 except that now the "Original branch" for the build description is the branch
 we requested on the ``muddle init`` command line.
+
+.. note:: If we hadn't added the "no_follow" option to the Bazaar checkout,
+   we would have had errors of the form::
+
+     The build description wants checkouts to follow branch 'Widget-v1.0-maintnance',
+     but checkout co.bzr uses VCS Bazaar for which we do not support branching.
+     The build description should specify a revision for checkout co.bzr,
+     or specify the 'no_follow' option.
+
+   whenever we tried to do any checkout-related operations.
+
 
 Coping with problems in muddle branch-tree
 ==========================================

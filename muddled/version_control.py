@@ -25,6 +25,8 @@ class VersionControlSystem(object):
     of the contents of a Repository object.
     """
 
+    allowed_options = set()
+
     def __init__(self):
         self.short_name = 'NoName'
         self.long_name = 'No VCS name'
@@ -862,38 +864,10 @@ class VersionControlHandler(object):
         """
         return self.vcs.get_file_content(url, verbose)
 
-    def add_options(self, builder, co_label, optsdict):
-        """
-        Add the options the user has requested, and checks them.
-
-        For reasons mostly to do with how stamping/unstamping works,
-        we require option values to be either boolean, integer or string.
-
-        Any other choice raises an exception.
-        """
-        if not optsdict:
-            return
-
-        for key, value in optsdict.items():
-
-            if option_not_allowed(self.vcs.short_name, key):
-                raise GiveUp("Option '%s' is not allowed for VCS %s'"%(key,
-                             self.vcs.short_name))
-
-            if not (isinstance(value, bool) or isinstance(value, int) or
-                    isinstance(value, str)):
-                raise GiveUp("Additional options to VCS must be bool, int or"
-                             " string. '%s' is %s"%(value, type(value)))
-
-            co_data = builder.db.get_checkout_data(co_label)
-            co_data.set_option(key, value)
-
 # This dictionary holds the global list of registered VCS instances
 vcs_dict = {}
 # And this one the documentation for each VCS
 vcs_docs = {}
-# And this one for (a list of) allowable options for each VCS
-vcs_options = {}
 
 def register_vcs(scheme, vcs_instance, docs=None, options=None):
     """
@@ -904,7 +878,6 @@ def register_vcs(scheme, vcs_instance, docs=None, options=None):
     """
     vcs_dict[scheme] = vcs_instance
     vcs_docs[scheme] = docs
-    vcs_options[scheme] = options
 
 def list_registered(indent=''):
     """
@@ -944,12 +917,6 @@ def get_vcs_docs(vcs):
         return vcs_docs[vcs]
     except KeyError:
         raise GiveUp("No VCS handler registered for VCS type %s"%vcs)
-
-def option_not_allowed(vcs, option):
-    if vcs in vcs_options and option in vcs_options[vcs]:
-        return False
-    else:
-        return True
 
 def get_vcs_instance_from_string(repo_str):
     """Given a <vcs>+<url> string, return a VCS instance and <url>.

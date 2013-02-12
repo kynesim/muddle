@@ -82,15 +82,27 @@ class CheckoutData(object):
 
         self.location = os.path.join(utils.domain_subpath(other_domain_name), self.location)
 
-    def set_option(self, key, value):
+    def set_option(self, name, value):
         """
-        Add/replace the named VCS option 'key'.
+        Add/replace the named VCS option 'name'.
 
-        Generally, call this via the version control handler's add_options()
-        method, as that understands the restrictions placed on a particular
-        VCS as to allowed keys and values.
+        For reasons mostly to do with how stamping/unstamping works,
+        we require option values to be either boolean, integer or string.
+
+        Also, only those option names that are explicitly allowed for a
+        particular VCS may be used.
         """
-        self.options[key] = value
+        vcs = self.vcs_handler.vcs
+
+        if name not in vcs.allowed_options:
+            raise GiveUp("Option '%s' is not allowed for VCS %s'"%(name, vcs.short_name))
+
+        if not (isinstance(value, bool) or isinstance(value, int) or
+                isinstance(value, str)):
+            raise GiveUp("Options to VCS must be bool, int or string."
+                         "'%s' option %s is %s"%(name, repr(value), type(value)))
+
+        self.options[name] = value
 
 
 class Database(object):
@@ -683,6 +695,13 @@ class Database(object):
             return self.checkout_data[key].options
         except KeyError:
             raise GiveUp('There is no checkout data (VCS options) registered for label %s'%checkout_label)
+
+    def set_checkout_vcs_option(self, checkout_label, option_name, option_value):
+        """
+        'checkout_label' is a "checkout:" Label.
+        """
+        key = normalise_checkout_label(checkout_label)
+        self.checkout_data[key].set_option(option_name, option_value)
 
     def set_domain_build_desc_label(self, checkout_label):
         """This should only be called by muddle itself.

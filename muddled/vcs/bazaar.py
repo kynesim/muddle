@@ -47,6 +47,7 @@ class Bazaar(VersionControlSystem):
     def __init__(self):
         self.short_name = 'bzr'
         self.long_name = 'Bazaar'
+        self.allowed_options.add('no_follow')
 
     def _pruned_cmd_data(self, cmd, env=None, isSystem=False, fold_stderr=True,
                          verbose=False, fail_nonzero=True):
@@ -619,6 +620,6 @@ class Bazaar(VersionControlSystem):
         return ['.bzr', '.bzrignore']
 
 # Tell the version control handler about us..
-register_vcs("bzr", Bazaar(), __doc__, ['no_follow'])
+register_vcs("bzr", Bazaar(), __doc__)
 
 # End file.

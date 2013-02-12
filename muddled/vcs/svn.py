@@ -8,7 +8,7 @@ Subversion branches are handled by a different mechanism, and in a muddle
 sense are more like inner paths of a Repository. At the moment muddle does
 not provide any special support for Subversion branches.
 
-Available subversion specific options are:
+Available Subversion specific options are:
 
 * no_follow: In a build description that has set::
 
@@ -42,6 +42,7 @@ class Subversion(VersionControlSystem):
     def __init__(self):
         self.short_name = 'svn'
         self.long_name = 'Subversion'
+        self.allowed_options.add('no_follow')
 
     def init_directory(self, verbose=True):
         """
@@ -264,6 +265,6 @@ class Subversion(VersionControlSystem):
         return True
 
 # Tell the version control handler about us..
-register_vcs("svn", Subversion(), __doc__, ['no_follow'])
+register_vcs("svn", Subversion(), __doc__)
 
 # End file.

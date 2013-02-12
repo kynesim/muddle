@@ -132,6 +132,7 @@ class Git(VersionControlSystem):
     def __init__(self):
         self.short_name = 'git'
         self.long_name = 'Git'
+        self.allowed_options.add('shallow_checkout')
 
     def init_directory(self, verbose=True):
         """
@@ -782,6 +783,6 @@ class Git(VersionControlSystem):
     # reinvestigating periodically
 
 # Tell the version control handler about us..
-register_vcs("git", Git(), __doc__, ["shallow_checkout"])
+register_vcs("git", Git(), __doc__)
 
 # End file.

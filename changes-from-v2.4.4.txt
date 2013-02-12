@@ -59,6 +59,10 @@ branch back into "master":
   support. and clases with specifying Bazaar revision ids of the form
   ``"branch:<path>"`` and so on.
 
+* The "no_follow" VCS option has been added for Subversion and Bazaar, and
+  ``builder.db.set_checkout_vcs_option(co_label, name, value)`` may now be
+  used to set options.
+
 * A rewritten and more powerful "muddle doc" command. See "muddle help doc",
   and try::
 

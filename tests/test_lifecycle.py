@@ -124,7 +124,6 @@ import os
 
 import muddled.pkgs.make
 
-from muddled.pkg import set_checkout_vcs_option
 from muddled.depend import checkout
 from muddled.version_control import checkout_from_repo
 from muddled.repository import Repository
@@ -146,7 +145,7 @@ def add_bzr_package(builder, pkg_name, role, co_name=None, revision=None, no_fol
     checkout_from_repo(builder, checkout(co_name), repo)
     muddled.pkgs.make.simple(builder, pkg_name, role, co_name)
     if no_follow:
-        set_checkout_vcs_option(builder, checkout(co_name), no_follow=True)
+        builder.db.set_checkout_vcs_option(checkout(co_name), 'no_follow', True)
 
 def describe_to(builder):
     builder.build_name = '{build_name}'

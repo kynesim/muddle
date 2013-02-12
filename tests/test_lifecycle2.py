@@ -409,6 +409,49 @@ def main(args):
                          "(subdomain2)co_repo1.1 master <none> <not following>"],
                         fold_whitespace=True)
 
+            # What happens if we try to "follow" a subdomain?
+            with Directory('domains'):
+                with Directory('subdomain1'):
+                    with Directory('src'):
+                        with Directory('builds'):
+                            append('01.py', '    builder.follow_build_desc_branch = True\n')
+                            # Then remove the .pyc file, because Python probably won't realise
+                            # that this new 01.py is later than the previous version
+                            os.remove('01.pyc')
+
+            # It shouldn't make a difference - only the top-level build
+            # description gets followed
+            text = captured_muddle(['query', 'checkout-branches'])
+            lines = text.splitlines()
+            lines = lines[3:]       # ignore the header lines
+            check_text_lines_v_lines(lines,
+                        ["builds master <none> <not following>",
+                         "co_repo1 master <none> <not following>",
+                         "(subdomain1)builds master <none> <not following>",
+                         "(subdomain1)co_repo1 master <none> <not following>",
+                         "(subdomain2)builds master <none> <not following>",
+                         "(subdomain2)co_repo1.1 master <none> <not following>"],
+                        fold_whitespace=True)
+
+            # Even if we branch that build description...
+            with Directory('domains'):
+                with Directory('subdomain1'):
+                    with Directory('src'):
+                        with Directory('builds'):
+                            git('branch Fred')
+
+            text = captured_muddle(['query', 'checkout-branches'])
+            lines = text.splitlines()
+            lines = lines[3:]       # ignore the header lines
+            check_text_lines_v_lines(lines,
+                        ["builds master <none> <not following>",
+                         "co_repo1 master <none> <not following>",
+                         "(subdomain1)builds master <none> <not following>",
+                         "(subdomain1)co_repo1 master <none> <not following>",
+                         "(subdomain2)builds master <none> <not following>",
+                         "(subdomain2)co_repo1.1 master <none> <not following>"],
+                        fold_whitespace=True)
+
             banner('BRANCH TREE')
             muddle(['branch-tree', 'v1-maintenance'])
             print 'Setting build description for "follow my branch"'

@@ -1,9 +1,9 @@
-================================
-Simple project lifecycle support
-================================
-
+=============================================================
+Project lifecycle support: how to manage maintenance branches
+=============================================================
++++++++
 Summary
-=======
++++++++
 The project lifecycle commands allow for creating a set of maintenance
 branches on every checkout in a build tree.
 
@@ -31,7 +31,7 @@ will perform various checks, and then create a new branch called
    checks. See `Coping with problems in muddle branch-tree`_ below
 
 We then need to tell the (branched) build description that all its checkouts
-should "follow" its branch (we'll see why furhter below). So we add the line::
+should "follow" its branch (we'll see why further below). So we add the line::
 
   $ builder.follow_build_desc_branch = True
 
@@ -62,7 +62,9 @@ called::
 
   versions/<build_name>.<branch_name>.stamp
 
-instead of the normal ``versions/<build_name>.stamp``.
+instead of the normal ``versions/<build_name>.stamp`` - so in this case::
+
+  versions/ExampleBuild.Widget-v1.0-maintenance.stamp
 
 We can now change to a new, empty directory, and make a new copy of our
 maintenance build tree::
@@ -75,8 +77,9 @@ maintenance build tree::
 
 (where ``<repo>`` is the remote repository).
 
-This gets the build description on the named branch. If we look in the
-``.muddle/`` directory, we can see that there is a new file::
+This gets the build description and automatically checks out the requested
+branch. If we look in the ``.muddle/`` directory, we can see that there is a
+new file::
 
   .muddled/DescriptionBranch
 
@@ -89,6 +92,12 @@ We can now do::
 
 and, because the build description has "follow_build_desc_branch" set, all
 the checkouts will also be checked out with that branch.
+
+.. note:: If we had not set ``builder.follow_build_desc_branch = True``,
+   then the other checkouts would just have their "normal" branch, as
+   defined by the build description. It is perfectly legitimate to use
+   ``muddle init -branch`` to retrieve a branch of the build description
+   for other purposes, not to do with whole build tree branching.
 
 You can use::
 
@@ -112,30 +121,12 @@ checkout, or if a checkout is not using git, then ``muddle branch-tree`` will
 not be able to branch it for you, and you will have to decide what to do about
 that checkout in this context, a maintenance tree.
 
+++++++++++++++++++++
+A more detailed look
+++++++++++++++++++++
 
-Commands
-========
-
-New or changed (I think)::
-
-  muddle init -branch <branch> <repo> <build>
-
-  muddle query build-desc-branch
-
-  muddle query checkout-id
-
-  muddle query checkout-vcs
-
-  muddle query checkout-branches
-
-  muddle branch-tree ...
-
-  muddle sync
-
-
-
-What is this about?
-===================
+Why do we need this?
+====================
 Let us assume that we have been developing a build tree, and we reach the
 point of releasing version 1 of the product that it builds. We can do the
 normal steps of generating stamp files (``muddle stamp``), perhaps producing
@@ -224,7 +215,10 @@ This means we would:
 
      $ muddle runin _all_checkouts 'git commit -a -m "Create maintenance branch"'
 
-   if we are careful with the quoting.
+   if we are careful with the quoting. Of course, if any of our checkouts are
+   not using git, that's going to search up through the directories looking
+   for a ``.git`` directory, which can sometimes lead to surprising effects,
+   so be a little bit careful.
 
 5. We can then do::
 
@@ -298,9 +292,12 @@ and the build description ``01.py`` looks like::
       builder.build_name = 'ExampleBuild'
       add_package(builder, 'package1', 'x86', co_name='co1')
       # ... more normal packages ...
-      add_package(builder, 'package2', 'x86', co_name='co.branch1', branch='branch1')
-      add_package(builder, 'package3', 'x86', co_name='co.fred', revision='fred')
-      add_package(builder, 'package4', 'x86', co_name='co.branch1.fred', branch='branch1', revision='fred')
+      add_package(builder, 'package2', 'x86', co_name='co.branch1',
+                  branch='branch1')
+      add_package(builder, 'package3', 'x86', co_name='co.fred',
+                  revision='fred')
+      add_package(builder, 'package4', 'x86', co_name='co.branch1.fred',
+                  branch='branch1', revision='fred')
       add_bzr_package(builder, 'package5', 'x86', co_name='co.bzr')
 
 where ``add_package`` and ``add_bzr_package`` do appropriate things, and the
@@ -338,7 +335,8 @@ We can try branching the tree, but this will fail as follows::
 all of which make sense, if one looks at the build description.
 
 As discussed in `Coping with problems in muddle branch-tree`_ (below), our
-best option in this particular case is to force a branch::
+best option in this particular case is to force a branch, aiming to fix things
+afterwards::
 
   $ muddle branch-tree -force Widget-v1.0-maintenance
   > git remote set-branches --add origin Widget-v1.0-maintenance
@@ -374,16 +372,20 @@ So, we edit the build description, doing the following:
    (for a real project, we'd also change the repository it refers to,
    but muddle can't tell the diference, so we shall ignore that for now).
 
-So the build description now looks like::
+The build description now looks like::
 
   def describe_to(builder):
       builder.build_name = 'ExampleBuild'
       add_package(builder, 'package1', 'x86', co_name='co1')
       # ... more normal packages ...
-      add_package(builder, 'package2', 'x86', co_name='co.branch1', branch='branch1')
-      add_package(builder, 'package3', 'x86', co_name='co.fred', revision='fred')
-      add_package(builder, 'package4', 'x86', co_name='co.branch1.fred', branch='branch1', revision='fred')
-      add_bzr_package(builder, 'package5', 'x86', co_name='co.bzr', no_follow=True)
+      add_package(builder, 'package2', 'x86', co_name='co.branch1',
+                  branch='branch1')
+      add_package(builder, 'package3', 'x86', co_name='co.fred',
+                  revision='fred')
+      add_package(builder, 'package4', 'x86', co_name='co.branch1.fred',
+                  branch='branch1', revision='fred')
+      add_bzr_package(builder, 'package5', 'x86', co_name='co.bzr',
+                      no_follow=True)
       builder.follow_build_desc_branch = True
 
 where ``add_bzr_package`` is defined as::
@@ -633,25 +635,10 @@ The problems that might occur are as follows:
 
 * A checkout is shallow - that is, it does not contain all of its history.
 
-  The best solution for this is probably as follows:
-
-  1. Amend the build description so the checkout is no longer marked as
-     shallow. Note that we are *not* going to commit this version of the
-     build description, and that we have not yet done our build tree branch.
-  2. Rename the checkout directory of the shallow checkout so muddle no longer
-     "sees" it (e.g., to the same directory name with ".orig" appended).
-  3. Do ``muddle unimport <checkout-name>``.
-  4. Do ``muddle checkout <checkout-name>`` to check it out again, but this
-     time not as a shallow checkout.
-  5. Use ``muddle query checkout-ids`` and note the current revision id (SHA1)
-     for the checkout.
-  6. Return the build description to its original state (with the checkout
-     marked as "shallow"). Also delete the new (non-shallow) checkout
-     directory, and put the old (``.orig``) directory back with its original
-     name.
-  7. "Force" the ``branch-tree`` operation.
-  8. Edit the build description to set the shallow checkout to have an
-     explicit revision of the revision id you noted above.
+  The best solution for this is probably to find the current revision id
+  of the shallow checkout using ``muddle query checkout-id``, and amend
+  the build description to specify that exact revision. This can then be
+  changed to later revision ids as necessary.
 
 * A checkout already has a branch of the name you wanted to use.
 
@@ -659,6 +646,21 @@ The problems that might occur are as follows:
   branch, or it's because the tree was already branched earlier, and you are
   using ``branch-tree`` as a convenient way to move all the checkouts in a
   non-branched tree to the (already extant) branch.
+
+Can I use ``muddle branch-tree`` to go to an existing branch?
+=============================================================
+As implied by the last item above (in `Coping with problems in muddle
+branch-tree`_), this is perfectly possible - using the ``-force`` switch
+will cause it to overcome its worries that the branch already exists.
+
+However, you're probably better off doing::
+
+  $ cd src/builds  # or wherever the top-level build description is
+  $ git checkout branch.to.follow
+  $ muddle sync _all
+
+If the build description on branch "branch.to.follow" has the "follows" flag
+set, then this will produce the same result in a simpler fashion.
 
 Muddle commands in branched build trees
 =======================================
@@ -709,7 +711,8 @@ checkouts using git:
   "appropriate" branch or not.
 
 * ``muddle pull-upstream`` and ``muddle push-upstream`` both act as their
-  "normal" versions, but pull from or push to the nominated remote(s).
+  "normal" versions, but beware that the branch you are on may not exist in
+  the upstream repositories.
 
 * ``muddle sync`` sets the checkout to the "appropriate" branch. ``muddle sync
   -verbose`` tells you how it is deciding this, and ``muddle sync -show``
@@ -723,6 +726,150 @@ checkouts using git:
   the user should take care to specify a sensible version number for the
   release stamp when creating it. The ``-next`` switch is unlikely to be
   useful in this case.
+
+Using muddle sync
+=================
+Muddle build descriptions implicitly or explicitly describe a branch for each
+checkout. When branched build trees are in use, that can be even more implicit
+than normal. Particularly in a branched build tree, it is quite possible to
+have changed into another branch in one or more checkouts (perhaps to revert
+to "master" or some other maintenance branch, for comparison). It therefore
+becomes useful to have a muddle comamnd that puts the build tree back to the
+"expected" branches.
+
+That's what ``muddle sync`` is for.
+
+The rules of what it does are necessarily a little complex. They are
+summarised in ``muddle help sync``, or in the docstring for the
+``sync()`` method on the VersionControlHandler class (try ``muddle doc
+sync``).
+
+Useful query commands
+=====================
+muddle query build-desc-branch
+------------------------------
+Reports the branch of the build description, and whether it is being used as
+the (default) branch for other checkouts. For instance::
+
+  $ muddle query build-desc-branch
+  Build description checkout:builds/* is on branch v1-maintenance
+    This WILL be used as the default branch for other checkouts
+
+muddle query checkout-id
+------------------------
+Reports the VCS revision id (or equivalent) for a checkout.
+
+For instance::
+
+  $ muddle query checkout-id builds
+  4c209d3e1ed449d1a5721552671d0506fdcb3de0
+  $ muddle query checkout-id '(subdomain2)co_repo1.1'
+  bbf0d5ef5000a88c3d9e6f52283af51f71ad6d1e
+  $ muddle query checkout-id co.bzr
+  tibs@kynesim.co.uk-20130212165003-notzt8cbn2n7vi2e
+
+These are the same ids that are used in stamp files.
+
+muddle query checkout-vcs
+-------------------------
+Report on the VCS (version control system) being used for each checkout, and
+also any VCS options set thereon.
+
+For instance::
+
+  $ muddle query checkout-vcs
+  > Checkout version control systems ..
+  checkout:builds/*          -> VCS git
+  checkout:co.branch1/*      -> VCS git
+  checkout:co.branch1.fred/* -> VCS git
+  checkout:co.bzr/*          -> VCS bzr {'no_follow': True}
+  checkout:co.fred/*         -> VCS git
+  checkout:co1/*             -> VCS git
+
+muddle query checkout-branches
+------------------------------
+Report on the branches associated with each checkout:
+
+* the current branch
+* the branch that the build description requests (or, for the build
+  description itself, the branch requested at ``muddle init``)
+* the branch to follow (if the build description has requested "follow")
+
+For instance::
+
+  $ muddle query checkout-branches
+  ----------------------  --------------  ---------------  ----------------
+  Checkout                Current branch  Original branch  Branch to follow
+  ----------------------  --------------  ---------------  ----------------
+  builds                  v1-maintenance  v1-maintenance   <it's own>      
+  co_repo1                v1-maintenance  <none>           v1-maintenance  
+  (subdomain1)builds      v1-maintenance  <none>           v1-maintenance  
+  (subdomain1)co_repo1    v1-maintenance  <none>           v1-maintenance  
+  (subdomain2)builds      v1-maintenance  <none>           v1-maintenance  
+  (subdomain2)co_repo1.1  v1-maintenance  <none>           v1-maintenance
+
+The help text (``muddle help query checkout-branches``) has some more
+examples, and more explanation of the content of the columns.
+
+muddle query checkout-repos
+---------------------------
+
+For instance::
+
+  $ muddle query checkout-repos
+  > Checkout repositories ..
+  checkout:builds/*          -> Repository('git', '<repo>', 'builds', branch='branch.follow')
+  checkout:co.branch1/*      -> Repository('git', '<repo>', 'co.branch1', branch='branch1')
+  checkout:co.branch1.fred/* -> Repository('git', '<repo>', 'co.branch1.fred', revision='fred', branch='branch1')
+  checkout:co.bzr/*          -> Repository('bzr', '<repo>', 'co.bzr')
+  checkout:co.fred/*         -> Repository('git', '<repo>', 'co.fred', revision='fred')
+  checkout:co1/*             -> Repository('git', '<repo>', 'co1')
+
+(I've replaced the actual URL of the repository with ``<repo>`` to save space
+across the page), or, just showing the URL and not VCS, branch or revision::
+
+  $ muddle query checkout-repos -url
+  > Checkout repositories ..
+  checkout:builds/*          -> file:///.../repo/src/builds
+  checkout:co.branch1/*      -> file:///.../repo/src/co.branch1
+  checkout:co.branch1.fred/* -> file:///.../repo/src/co.branch1.fred
+  checkout:co.bzr/*          -> file:///.../repo/src/co.bzr
+  checkout:co.fred/*         -> file:///.../repo/src/co.fred
+  checkout:co1/*             -> file:///.../repo/src/co1
+
+(again, I've truncated the middle of the repository URLs to save space).
+
+muddle sync -show
+-----------------
+Whilst not strictly a query command, ``muddle sync -show`` can be useful for
+showing what muddle believes about a checkout and its branches::
+
+  $ muddle sync -show _all
+  Synchronising for checkout:builds/changes_committed
+    This is the build description
+    The build description has "follow" set
+    Following ourselves - so we're already there
+  Synchronising for checkout:co.branch1/changes_committed
+    We have a specific branch in the build description, "branch1"
+    We do NOT want to follow the build description
+    We want branch "branch1"
+  Synchronising for checkout:co.branch1.fred/changes_committed
+    We have a specific revision in the build description, "fred"
+    We do NOT want to follow the build description
+    We want revision "fred", branch "branch1"
+  Synchronising for checkout:co.bzr/changes_committed
+    Checkout is marked "no_follow"
+    We do NOT want to follow the build description
+    We want branch "master"
+  Synchronising for checkout:co.fred/changes_committed
+    We have a specific revision in the build description, "fred"
+    We do NOT want to follow the build description
+    We want revision "fred"
+  Synchronising for checkout:co1/changes_committed
+    The build description has "follow" set
+    The build description is checkout:builds/*
+    We want to follow the build description onto branch "branch.follow"
+
 
 What happens if there are sub-domains?
 ======================================

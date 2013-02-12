@@ -18,6 +18,7 @@ Contents:
    cmdline
    repositories
    instructions
+   lifecycle
    distribute
    release
    jottings

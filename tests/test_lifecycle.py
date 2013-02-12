@@ -148,22 +148,22 @@ def add_bzr_package(builder, pkg_name, role, co_name=None, revision=None):
 def describe_to(builder):
     builder.build_name = '{build_name}'
     add_package(builder, 'package1', 'x86', co_name='co1')
-    add_package(builder, 'package2', 'x86', co_name='co2', branch='branch1')
-    add_package(builder, 'package3', 'x86', co_name='co3', revision='fred')
+    add_package(builder, 'package2', 'x86', co_name='co.branch1', branch='branch1')
+    add_package(builder, 'package3', 'x86', co_name='co.fred', revision='fred')
     # This is naughty - the branch and revision are incompatible
     # Current muddle will choose to believe the revision
-    add_package(builder, 'package4', 'x86', co_name='co4', branch='branch1', revision='fred')
+    add_package(builder, 'package4', 'x86', co_name='co.branch1.fred', branch='branch1', revision='fred')
 """
 
-BZR_CO5_NO_REVISION = """\
-    add_bzr_package(builder, 'package5', 'x86', co_name='co5')
+BZR_CO_NO_REVISION = """\
+    add_bzr_package(builder, 'package5', 'x86', co_name='co.bzr')
 """
 
-BZR_CO5_WITH_REVISION = """\
+BZR_CO_WITH_REVISION = """\
     # Bazaar does not support our idea of branching, so if the build
     # description asks for us to "follow" it, we need to stop that by
     # specifying an explicit revision
-    add_bzr_package(builder, 'package5', 'x86', co_name='co5', revision='3')
+    add_bzr_package(builder, 'package5', 'x86', co_name='co.bzr', revision='3')
 """
 
 CO6_WHICH_HAS_NO_BRANCH_FOLLOW = """\
@@ -181,14 +181,14 @@ BUILD_NAME = 'test-build'
 NO_BZR_BUILD_DESC = MULTIPLEX_BUILD_DESC.format(build_name=BUILD_NAME)
 
 NONFOLLOW_BUILD_DESC = NO_BZR_BUILD_DESC + \
-                       BZR_CO5_NO_REVISION
+                       BZR_CO_NO_REVISION
 
 FOLLOW_BUILD_DESC = NO_BZR_BUILD_DESC + \
-                    BZR_CO5_WITH_REVISION + \
+                    BZR_CO_WITH_REVISION + \
                     FOLLOW_LINE
 
 def create_multiplex_repo(build_name):
-    """Creates repositories for checkouts 'builds', 'co1' .. 'co4'
+    """Creates repositories for checkouts 'builds', 'co1' .. 'co.branch1.fred'
 
     Assumes that we are already in an appropriate directory.
 
@@ -228,7 +228,7 @@ def create_multiplex_repo(build_name):
             touch('program1.c', EMPTY_C_FILE)
             git('add program1.c')
             git('commit -m "And a program"')
-        with NewDirectory('co2'):
+        with NewDirectory('co.branch1'):
             touch('Makefile.muddle', MUDDLE_MAKEFILE)
             git('init')
             git('add Makefile.muddle')
@@ -243,7 +243,7 @@ def create_multiplex_repo(build_name):
             touch('program2.c', EMPTY_C_FILE)
             git('add program2.c')
             git('commit -m "And a program"')
-        with NewDirectory('co3'):
+        with NewDirectory('co.fred'):
             touch('Makefile.muddle', MUDDLE_MAKEFILE)
             git('init')
             git('add Makefile.muddle')
@@ -260,7 +260,7 @@ def create_multiplex_repo(build_name):
             git('commit -m "And a program"')
             # --- tag fred
             git('tag fred')
-        with NewDirectory('co4'):
+        with NewDirectory('co.branch1.fred'):
             touch('Makefile.muddle', MUDDLE_MAKEFILE)
             git('init')
             git('add Makefile.muddle')
@@ -277,7 +277,7 @@ def create_multiplex_repo(build_name):
             git('commit -m "And a program"')
             # --- tag fred
             git('tag fred')
-        with NewDirectory('co5'):
+        with NewDirectory('co.bzr'):
             # -- revision 1
             touch('Makefile.muddle', MUDDLE_MAKEFILE)
             bzr('init')
@@ -365,7 +365,7 @@ def test_init_with_branch(root_d):
                 check_file_v_text('01.py', EMPTY_BUILD_DESC)
             # And our empty build description should not have checked any
             # of our checkouts out
-            for name in ('co1', 'co2', 'co3', 'co4'):
+            for name in ('co1', 'co.branch1', 'co.fred', 'co.branch1.fred'):
                 if os.path.isdir(name):
                     raise GiveUp('Unexpectedly found "%s" directory'%name)
 
@@ -380,25 +380,25 @@ def test_init_with_branch(root_d):
                 # -- root
                 check_specific_files_in_this_dir(['.git', 'Makefile.muddle'])
                 check_file_v_text('Makefile.muddle', MUDDLE_MAKEFILE)
-            with Directory('co2'):
+            with Directory('co.branch1'):
                 # -- branch1
                 check_specific_files_in_this_dir(['.git', 'Makefile.muddle', 'README.txt'])
                 check_file_v_text('Makefile.muddle', MUDDLE_MAKEFILE)
                 check_file_v_text('README.txt', EMPTY_README_TEXT)
-            with Directory('co3'):
+            with Directory('co.fred'):
                 # Revision 'fred' == tag on branch 'branch.follow'
                 check_specific_files_in_this_dir(['.git', 'Makefile.muddle', 'README.txt', 'program3.c'])
                 check_file_v_text('Makefile.muddle', MUDDLE_MAKEFILE)
                 check_file_v_text('README.txt', EMPTY_README_TEXT)
                 check_file_v_text('program3.c', EMPTY_C_FILE)
-            with Directory('co4'):
+            with Directory('co.branch1.fred'):
                 # Revision 'fred' and branch 'branch1' - the revision wins
                 # -- fred
                 check_specific_files_in_this_dir(['.git', 'Makefile.muddle', 'README.txt', 'program4.c'])
                 check_file_v_text('Makefile.muddle', MUDDLE_MAKEFILE)
                 check_file_v_text('README.txt', EMPTY_README_TEXT)
                 check_file_v_text('program4.c', EMPTY_C_FILE)
-            with Directory('co5'):
+            with Directory('co.bzr'):
                 # Since this is using bzr, we always get HEAD
                 check_specific_files_in_this_dir(['.bzr', 'Makefile.muddle', 'README.txt', 'program5.c'])
                 check_file_v_text('Makefile.muddle', MUDDLE_MAKEFILE)
@@ -436,8 +436,8 @@ def test_init_with_branch(root_d):
             raise GiveUp('Expected retcode 1 from "muddle checkout _all", got %d'%retcode)
         check_text_endswith(text, """\
 The build description wants checkouts to follow branch 'branch.follow',
-but checkout co5 uses VCS Bazaar for which we do not support branching.
-The build description should specify a revision for checkout co5.
+but checkout co.bzr uses VCS Bazaar for which we do not support branching.
+The build description should specify a revision for checkout co.bzr.
 """)
 
     with NewCountedDirectory('init.branch.with.branch1.nobranch.follow.error') as d:
@@ -475,10 +475,10 @@ def test_branch_tree(root_d):
         repo = create_multiplex_repo('test-build')
 
     with Directory(repo):
-        with Directory('co3'):
-            co3_revision = captured_muddle(['query', 'checkout-id']).strip()
-        with Directory('co4'):
-            co4_revision = captured_muddle(['query', 'checkout-id']).strip()
+        with Directory('co.fred'):
+            co_fred_revision = captured_muddle(['query', 'checkout-id']).strip()
+        with Directory('co.branch1.fred'):
+            co_branch1_fred_revision = captured_muddle(['query', 'checkout-id']).strip()
 
     with NewCountedDirectory('branch-tree.branch'):
         muddle(['init', '-branch', 'branch0', 'git+file://' + repo, 'builds/01.py'])
@@ -487,10 +487,10 @@ def test_branch_tree(root_d):
         # Our checkouts should be as in the build description
         check_branch('src/builds', 'branch0')
         check_branch('src/co1', 'master')
-        check_branch('src/co2', 'branch1')
-        check_revision('co3', co3_revision)
-        check_revision('co4', co4_revision)
-        # This branch of the build description doesn't have co5
+        check_branch('src/co.branch1', 'branch1')
+        check_revision('co.fred', co_fred_revision)
+        check_revision('co.branch1.fred', co_branch1_fred_revision)
+        # This branch of the build description doesn't have co.bzr
 
         retcode, text = captured_muddle2(['branch-tree', 'test-v0.1'])
         if retcode != 1:
@@ -498,9 +498,9 @@ def test_branch_tree(root_d):
                          " retcode 1, got %d"%retcode)
         check_text_endswith(text, """\
 Unable to branch-tree to test-v0.1, because:
-  checkout:co2/checked_out explicitly specifies branch "branch1" in the build description
-  checkout:co3/checked_out explicitly specifies revision "fred" in the build description
-  checkout:co4/checked_out explicitly specifies revision "fred" in the build description
+  checkout:co.branch1/checked_out explicitly specifies branch "branch1" in the build description
+  checkout:co.fred/checked_out explicitly specifies revision "fred" in the build description
+  checkout:co.branch1.fred/checked_out explicitly specifies revision "fred" in the build description
 """)
 
         # OK, force it
@@ -510,27 +510,27 @@ Unable to branch-tree to test-v0.1, because:
         # branched
         check_branch('src/builds', 'test-v0.1')
         check_branch('src/co1', 'test-v0.1')
-        check_branch('src/co2', 'branch1')
-        check_revision('co3', co3_revision)
-        check_revision('co4', co4_revision)
+        check_branch('src/co.branch1', 'branch1')
+        check_revision('co.fred', co_fred_revision)
+        check_revision('co.branch1.fred', co_branch1_fred_revision)
 
         # But if we sync...
         muddle(['sync', '_all'])
         # We should undo that...
         check_branch('src/builds', 'branch0')
         check_branch('src/co1', 'master')
-        check_branch('src/co2', 'branch1')
-        check_revision('co3', co3_revision)
-        check_revision('co4', co4_revision)
+        check_branch('src/co.branch1', 'branch1')
+        check_revision('co.fred', co_fred_revision)
+        check_revision('co.branch1.fred', co_branch1_fred_revision)
 
         # Try again
         muddle(['branch-tree', '-f', 'test-v0.1'])
 
         check_branch('src/builds', 'test-v0.1')
         check_branch('src/co1', 'test-v0.1')
-        check_branch('src/co2', 'branch1')
-        check_revision('co3', co3_revision)
-        check_revision('co4', co4_revision)
+        check_branch('src/co.branch1', 'branch1')
+        check_revision('co.fred', co_fred_revision)
+        check_revision('co.branch1.fred', co_branch1_fred_revision)
 
         # Now amend the build description so things follow it
         with Directory('src'):
@@ -547,9 +547,9 @@ Unable to branch-tree to test-v0.1, because:
         # allowed to
         check_branch('src/builds', 'test-v0.1')
         check_branch('src/co1', 'test-v0.1')
-        check_branch('src/co2', 'branch1')
-        check_revision('co3', co3_revision)
-        check_revision('co4', co4_revision)
+        check_branch('src/co.branch1', 'branch1')
+        check_revision('co.fred', co_fred_revision)
+        check_revision('co.branch1.fred', co_branch1_fred_revision)
 
         # If we make amendments to the checkouts that are "following", can
         # we push them?
@@ -570,9 +570,9 @@ Unable to branch-tree to test-v0.1, because:
 
         check_branch('src/builds', 'test-v0.1')
         check_branch('src/co1', 'test-v0.1')
-        check_branch('src/co2', 'branch1')
-        check_revision('co3', co3_revision)
-        check_revision('co4', co4_revision)
+        check_branch('src/co.branch1', 'branch1')
+        check_revision('co.fred', co_fred_revision)
+        check_revision('co.branch1.fred', co_branch1_fred_revision)
 
         with Directory('src'):
             with Directory('builds'):
@@ -591,9 +591,9 @@ Unable to branch-tree to test-v0.1, because:
 
         check_branch('src/builds', 'branch.follow')
         check_branch('src/co1', 'branch.follow')
-        check_branch('src/co2', 'branch1')
-        check_revision('co3', co3_revision)
-        check_revision('co4', co4_revision)
+        check_branch('src/co.branch1', 'branch1')
+        check_revision('co.fred', co_fred_revision)
+        check_revision('co.branch1.fred', co_branch1_fred_revision)
 
         muddle(['branch-tree', '-f', 'test-v0.1'])
 

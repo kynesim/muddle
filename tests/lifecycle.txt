@@ -26,6 +26,10 @@ will perform various checks, and then create a new branch called
    the build name, the version number, and some additional descriptive text
    (here, just "maintenance") seems sensible.
 
+.. note:: ``muddle branch-tree -check`` will just do the checks, and
+   ``muddle branch-tree -force`` will just do the branching, without any
+   checks. See `Coping with problems in muddle branch-tree`_ below
+
 We then need to tell the (branched) build description that all its checkouts
 should "follow" its branch (we'll see why furhter below). So we add the line::
 
@@ -279,26 +283,200 @@ This can be useful if you've been switching branches to look at alternative
 implementations of a checkout. How it actually decides what to do is slightly
 complex - see ``muddle help sync`` for details.
 
-Details of how ``muddle push`` and other commands work
-======================================================
+A worked example
+================
+This is basically following an example in the ``tests/test_lifecycle.py``
+test script.
 
-... the various muddle help commands
+Imagine that we have done::
 
-... forcing use of an existing branch (and why one might do that)
+  $ muddle init git+<repo> builds/01.py
 
-... ``muddle push``
+and the build description ``01.py`` looks like::
 
-... ``muddle pull``
+  def describe_to(builder):
+      builder.build_name = 'ExampleBuild'
+      add_package(builder, 'package1', 'x86', co_name='co1')
+      # ... more normal packages ...
+      add_package(builder, 'package2', 'x86', co_name='co.branch1', branch='branch1')
+      add_package(builder, 'package3', 'x86', co_name='co.fred', revision='fred')
+      add_package(builder, 'package4', 'x86', co_name='co.branch1.fred', branch='branch1', revision='fred')
+      add_bzr_package(builder, 'package5', 'x86', co_name='co.bzr')
 
-... ``muddle merge``
+where ``add_package`` and ``add_bzr_package`` do appropriate things, and the
+necessary ``import`` statements have been omitted.
 
-... ``muddle reparent``
+We have several checkouts:
 
-How do I tell a checkout to go (back) to the branch implicitly specified by
-this mechanism?
+* "co1" is a "normal" checkout - we haven't specified an explicit branch or
+  revision, and are expecting to work with HEAD of master. We would normally
+  expect to have more of these, as indicated by the comment.
+* "co.branch1" specifies an explicit branch.
+* "co.fred" specifies an explicit revision - in this case, a tag name.
+* "co.branch1.fred" specifies a branch and a revision. When cloning it out,
+  muddle will first checkout the branch, and then go to the revision if it
+  is not already there (i.e., if it is not HEAD of the branch).
+* Finally, "co.bzr" is a checkout using Bazaar, taken from some other
+  repository.
 
-... an example of a build with git and bzr checkouts in it, and how to cope
-(as mentioned in the introduction)
+We'll assume that the user has done::
+
+  $ muddle checkout _all
+
+and probably built everything, to check that the build tree works. 
+
+We can try branching the tree, but this will fail as follows::
+
+  $ muddle branch-tree Widget-v1.0-maintenance
+
+  Unable to branch-tree to Widget-v1.0-maintenance, because:
+    checkout:co.branch1.fred/checked_out explicitly specifies revision "fred" in the build description
+    checkout:co.branch1/checked_out explicitly specifies branch "branch1" in the build description
+    checkout:co.bzr/checked_out uses bzr, which does not support lightweight branching
+    checkout:co.fred/checked_out explicitly specifies revision "fred" in the build description
+
+all of which make sense, if one looks at the build description.
+
+As discussed in `Coping with problems in muddle branch-tree`_ (below), our
+best option in this particular case is to force a branch::
+
+  $ muddle branch-tree -force Widget-v1.0-maintenance
+  > git remote set-branches --add origin Widget-v1.0-maintenance
+  checkout:co.branch1.fred/checked_out explicitly specifies revision "fred" in the build description
+  checkout:co.bzr/checked_out uses bzr, which does not support lightweight branching
+  > git remote set-branches --add origin Widget-v1.0-maintenance
+  checkout:co.branch1/checked_out explicitly specifies branch "branch1" in the build description
+  checkout:co.fred/checked_out explicitly specifies revision "fred" in the build description
+  Successfully created  branch Widget-v1.0-maintenance in 2 out of 6 checkouts
+  Successfully selected branch Widget-v1.0-maintenance in 2 out of 6 checkouts
+  Unable to branch the following:
+    checkout:co.branch1.fred/checked_out (specific revision fred)
+    checkout:co.bzr/checked_out (VCS %s not supported)
+    checkout:co.branch1/checked_out (specific branch branch1)
+    checkout:co.fred/checked_out (specific revision fred)
+
+  If you want the tree branching to be persistent, remember to edit
+  the branched build description,
+    /home/tibs/sw/m3/tests/transient/example/src/builds/01.py
+  and add:
+
+    builder.follow_build_desc_branch = True
+
+  to the describe_to() function, and check it in/push it.
+
+That reiterates the problems we already knew we had, and reminds us to amend
+the build description.
+
+So, edit the build description as it asks, and we can then check that we have
+the expected results::
+
+  $ muddle query checkout-branches
+  ---------------  -----------------------  ---------------  -----------------------
+  Checkout         Current branch           Original branch  Branch to follow       
+  ---------------  -----------------------  ---------------  -----------------------
+  builds           Widget-v1.0-maintenance  <none>           <it's own>             
+  co.branch1       branch1                  branch1          <none>                 
+  co.branch1.fred  <none>                   branch1          <none>                 
+  co.bzr           <not supported>          ...              ...                    
+  co.fred          <none>                   <none>           <none>                 
+  co1              Widget-v1.0-maintenance  <none>           Widget-v1.0-maintenance
+
+We can see that our build description is on the right branch, and that so is
+our "normal" checkout, "co1". We can also see that both of those are now
+following the build description branch, as we wanted.
+
+As to the other checkouts:
+
+* "co.branch1" still names a specific branch in the build description, which
+  is thus its "original" and "current" branch. It is not "following" because
+  of that.
+* "co.branch1.fred" still names a specific revision and branch in the build
+  description. The "current" branch being ``<none>`` means that it is on a
+  detached HEAD. Again, it is not "following".
+* "co.fred" still names (just) a specific revision, and thus it too has a
+  "current" branch of ``<none>``, and is not "following".
+* "co.bzr" is using Bazaar, and muddle does not support branching it, so it
+  says that it does not support it, and is not "following".
+
+Coping with problems in muddle branch-tree
+==========================================
+``muddle branch-tree`` moves all of the checkouts in the current build tree
+to a specified branch, if possible.
+
+It does this in two phases:
+
+1. Check that there are no problems.
+2. Perform the branching.
+
+The ``-c`` or ``-check`` switch makes it just do the first, and the ``-f`` or
+``-force`` switch makes it just do the second.
+
+The problems that might occur are as follows:
+
+* A checkout uses a VCS that muddle does not know how to branch. Broadly,
+  this means "anything but git".
+
+  The solution for this is to "force" the branch anyway, and then edit the
+  branched build description to do something sensible. This is generally
+  either to specify a particular revision (the one that is current at the
+  time of branching the build tree), or to do whatever the VCS does instead
+  of branching (as muddle understands it), "by hand".
+
+  So for a Bazaar checkout, one would specify a particular revision, or a
+  different repository location (i.e., bzr's idea of a "branch").
+
+* The build description explicitly specifies a particular revision and/or
+  branch for a checkout.
+
+  If a specific revision is named, then this can generally be left as it is.
+  Care must, of course, be taken if it is ever changed, but the specific
+  revision was presumably named because it was not expected to change.
+
+  If a specific revision and branch are named, this is essentially the same
+  case.
+
+  If a specific branch is named, but without a revision, then there are two
+  possible solutions.
+ 
+  In both cases, first "force" a branch of the build tree, and then edit the
+  build description, to either:
+
+  * add a specific revision (the current revision on the named branch seems
+    most likely), or
+  * branch the checkout, by hand, to the same branch that is being "followed"
+    by everything else. Then either amend the build description to name that
+    branch instead of the original branch, or remove the explicit branch
+    entirely. The latter has the disadvantage that it is no longer clear that
+    this checkout was being "special cased" with an explicit branch.
+
+* A checkout is shallow - that is, it does not contain all of its history.
+
+  The best solution for this is probably as follows:
+
+  1. Amend the build description so the checkout is no longer marked as
+     shallow. Note that we are *not* going to commit this version of the
+     build description, and that we have not yet done our build tree branch.
+  2. Rename the checkout directory of the shallow checkout so muddle no longer
+     "sees" it (e.g., to the same directory name with ".orig" appended).
+  3. Do ``muddle unimport <checkout-name>``.
+  4. Do ``muddle checkout <checkout-name>`` to check it out again, but this
+     time not as a shallow checkout.
+  5. Use ``muddle query checkout-ids`` and note the current revision id (SHA1)
+     for the checkout.
+  6. Return the build description to its original state (with the checkout
+     marked as "shallow"). Also delete the new (non-shallow) checkout
+     directory, and put the old (``.orig``) directory back with its original
+     name.
+  7. "Force" the ``branch-tree`` operation.
+  8. Edit the build description to set the shallow checkout to have an
+     explicit revision of the revision id you noted above.
+
+* A checkout already has a branch of the name you wanted to use.
+
+  Either that's a true clash, and you need to come up with a new name for this
+  branch, or it's because the tree was already branched earlier, and you are
+  using ``branch-tree`` as a convenient way to move all the checkouts in a
+  non-branched tree to the (already extant) branch.
 
 Muddle commands in branched build trees
 =======================================
@@ -366,34 +544,10 @@ checkouts using git:
 
 What happens if there are sub-domains?
 ======================================
-Branched trees are not yet fully supported for subdomains.
+Subdomains always follow the top level build description.
 
-It is possible to do ``muddle branch-tree`` with subdomains, and the
-subdomains checkouts will be branched as appropriate.
-
-Setting the "follow" flag is only supported for the top-level build
-description - the value of ``builder.follow_build_desc_branch`` in subdomain
-build descriptions is ignored. This is the simplest possible useful decision -
-i.e., that all of the tree is branched for the same version - and is one of
-the reasons it is important to choose a good name for the branch.
-
-Restoring a branched tree using a version stamp should work, but doing
-``muddle init -branch`` on a build containing subdomains will not, at time of
-writing, actually branch the subdomains, so one would have to do::
-
-  $ muddle init -branch Widget-v1.0-maintenance <repo> builds/01.py
-  $ muddle checkout _all
-  $ muddle sync _all
-
-which should work (but is not tested), or, more precisely::
-
-  $ muddle init -branch Widget-v1.0-maintenance <repo> builds/01.py
-  $ muddle sync <subdomain-build1> <subdomain-build2> ...
-  $ muddle checkout _all
-
-This is unsatisfactory, as inclusion of subdomains is meant to be transparent.
-
-Probably, muddle should do that 'sync' for you...
+Setting the "follow" flag in a subdomain's build description will have no
+effect. It is only the top-level build description that can be followed.
 
 What happens with upstream repositories?
 ========================================
@@ -401,44 +555,13 @@ A local repository can be linked to several upstream repositories. Checkouts
 that use that local repository can then do push-upstream and/or pull-upstream
 commands to those upstreams.
 
-The local repository used is always as described in the build description.
-So if the build description describes upstream repositories for local
-repository R, and checkout C uses repository R (as described in the build
-description), it can do upstream operations "through" R.
+``muddle push-upstream`` and ``muddle pull-upstream`` always use refer to the
+repository as defined in the build description. Thus they continue to work
+in the same manner for a "following" build and a normal build.
 
-If checkout C is "following" the build description, and the build description
-is on branch <branch>, then normal muddle checkout operations will take
-account of branch <branch>, and so C will interact with branch <branch> of R.
-However, the upstream operations continue to relate C directly to R, and so
-the upstreams are found in the same way as a "normal" build.
-
-However, there are some caveats.
-
-Doing an
-
-
-Upstream repositories are remembered using a dictionary that is keyed by the
-"normal" Repository for a checkout, and holds the upstream Repository
-instances as the value for that key.
-
-Now, at the moment, the checkout repository is used directly as the key.
-This should be the same Repository object as in db.checkout_repositories.
-
-But when we make our checkout follow the build description branch, we want to
-change the .branch in the Repository (so the VCS stuff will "just work").
-
-Which will also *maybe* change the .branch in the Repository being used as a
-key, above. Which may or may not be what we want.
-
-I suspect not, as we don't know that the branch here maps to an upstream
-branch. In which case, add_upstream_repository should *probably* be taking a
-copy of each Repository (probably both keys and values) before inserting them
-into its dictionary.
-
-Does this apply elsewhere as well?
-
-...Probably want to add a .copy() method to Repository, to save using
-copy.deepcopy() explicitly ourselves.
-
+However, "in the same manner" does mean that pushing a branched checkout will
+push the branch, and pulling to a branched checkout will try to pull that
+branch, so whether these commands succeed depends on what branches exist in
+the remote repositories.
 
 .. vim: set filetype=rst tabstop=8 softtabstop=2 shiftwidth=2 expandtab:

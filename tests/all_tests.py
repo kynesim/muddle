@@ -8,6 +8,8 @@ With argument -short, ignores the BZR and SVN checkout tests (because they
 are slower).
 
 With argument -ignore <test>, ignore the test script <script>.
+
+With argument -list, lists the tests it would have run.
 """
 
 import os
@@ -40,6 +42,7 @@ def check_prerequisites():
 
 def run_tests(args):
     ignore = set()
+    just_list = False
     while args:
         word = args.pop(0)
         if word in ('-h', '-help', '--help'):
@@ -51,6 +54,10 @@ def run_tests(args):
         elif word == '-ignore':
             name = args.pop(0)
             ignore.add(name)
+        elif word == '-list':
+            just_list = True
+        else:
+            raise GiveUp('Unrecognised argument "%s"'%word)
 
     this_dir = os.path.split(__file__)[0]
     os.chdir(this_dir)
@@ -62,6 +69,8 @@ def run_tests(args):
         raise GiveUp('Asked to ignore %s, which do%s not exist'%(', '.join(unrecognised),
                                 'es' if len(unrecognised)==1 else ''))
 
+    tests = []
+
     for name in sorted(files):
         if not name.startswith('test_'):
             continue
@@ -72,6 +81,10 @@ def run_tests(args):
         if not os.stat(name).st_mode & S_IEXEC:
             continue
 
+        if just_list:
+            tests.append(name)
+            continue
+
         print
         print '======== %s ========'%name
         print
@@ -80,7 +93,13 @@ def run_tests(args):
         except ShellError as e:
             raise GiveUp('Test %s failed with return code %d'%(name, e.retcode))
         print
-    print 'All tests succeeded'
+
+    if just_list:
+        print 'The following tests would have been run:'
+        for name in tests:
+            print ' ', name
+    else:
+        print 'All tests succeeded'
 
     if (ignore):
         print '(NB: ignored %s)'%(', '.join(ignore))

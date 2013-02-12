@@ -770,6 +770,8 @@ class VersionControlHandler(object):
         co_data = builder.db.get_checkout_data(co_label)
         repo = co_data.repo
 
+        can_sync = True
+
         if builder.build_desc_label.match_without_tag(co_label):
             if verbose: print '  This is the build description'
             follow = builder.follow_build_desc_branch
@@ -792,13 +794,16 @@ class VersionControlHandler(object):
             elif 'no_follow' in co_data.options:
                 if verbose: print '  Checkout is marked "no_follow"'
                 follow = False
+                can_sync = False
             elif not self.vcs.supports_branching():
                 if verbose: print '  Changing branch is not supported for this' \
                                   ' VCS, %s'%self.vcs.short_name
                 follow = False
+                can_sync = False
             elif 'shallow_checkout' in co_data.options:
                 if verbose: print '  This is a shallow checkout'
                 follow = False
+                can_sync = False
             else:
                 follow = builder.follow_build_desc_branch
                 if verbose: print '  The build description %s "follow" set'%('has' if follow
@@ -812,7 +817,7 @@ class VersionControlHandler(object):
                               ' "%s"'%build_desc_branch
             branch = build_desc_branch
             revision = None
-        else:
+        elif can_sync:
             if verbose: print '  We do NOT want to follow the build description'
             # We are meant to keep to our own revision or branch, whatever that is
             if repo.revision is not None:
@@ -831,8 +836,10 @@ class VersionControlHandler(object):
                 if verbose: print '  We want branch "master"'
                 branch = 'master'
                 revision = None
+        else:
+            if verbose: print '  Not trying to do anything'
 
-        if sync:
+        if sync and can_sync:
             if revision is None:
                 self.goto_branch(builder, co_label, branch)
             else:

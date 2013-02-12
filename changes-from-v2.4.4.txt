@@ -54,6 +54,11 @@ branch back into "master":
   See the new lifecycle documentation (a new chapter in the normal muddle
   documentation), and also "muddle help" for each of the above.
 
+* Repository specifications no longer allow a revision of the form ``"a:b"``
+  to mean ``<branch>:<revision>``. This was a legacy from early repository
+  support. and clases with specifying Bazaar revision ids of the form
+  ``"branch:<path>"`` and so on.
+
 * A rewritten and more powerful "muddle doc" command. See "muddle help doc",
   and try::
 

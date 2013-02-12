@@ -9,6 +9,28 @@ does not (or did not at time of writing) support lightweight branching in
 the manner of git - i.e., separate branches stored within the same clone.
 Thus the "branch" argument of a Repository class is not supported for
 Bazaar.
+
+Available Bazaar specific options are:
+
+* no_follow: In a build description that has set::
+
+    builder.follow_build_desc_branch = True
+
+  then a Bazaar repository can either:
+
+      1. Specify a particular revision
+      2. Choose a different repository location (presumably a bazaar
+         "branch"), and set the no_follow option to True
+      3. Continue using the original repository without setting a revision
+         (almost certainly not sensible, but still), and set the no_follow
+         option to True.
+
+  If none of these are done, then muddle will fail with a complaint like::
+
+    The build description wants checkouts to follow branch '<branch-name>',
+    but checkout <co-name> uses VCS Bazaar for which we do not support branching.
+    The build description should specify a revision for checkout <co-name>.
+
 """
 
 import os
@@ -597,6 +619,6 @@ class Bazaar(VersionControlSystem):
         return ['.bzr', '.bzrignore']
 
 # Tell the version control handler about us..
-register_vcs("bzr", Bazaar(), __doc__)
+register_vcs("bzr", Bazaar(), __doc__, ['no_follow'])
 
 # End file.

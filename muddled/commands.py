@@ -6209,6 +6209,9 @@ class Sync(CheckoutCommand):
     * If the build description specifies a branch for this checkout,
       and the checkout VCS supports going to a specific branch, go to
       that branch
+    * If the build description specifies that this checkout should not
+      follow the build description (both Subversion and Bazaar support
+      the "no_follow" option), then go to "master".
     * If the build description specifies that this checkout is shallow,
       then give up.
     * If the checkout's VCS does not support lightweight branching, then

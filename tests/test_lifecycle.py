@@ -124,6 +124,7 @@ import os
 
 import muddled.pkgs.make
 
+from muddled.pkg import set_checkout_vcs_option
 from muddled.depend import checkout
 from muddled.version_control import checkout_from_repo
 from muddled.repository import Repository
@@ -137,13 +138,15 @@ def add_package(builder, pkg_name, role, co_name=None, branch=None, revision=Non
     checkout_from_repo(builder, checkout(co_name), repo)
     muddled.pkgs.make.simple(builder, pkg_name, role, co_name)
 
-def add_bzr_package(builder, pkg_name, role, co_name=None, revision=None):
+def add_bzr_package(builder, pkg_name, role, co_name=None, revision=None, no_follow=False):
     base_repo = builder.build_desc_repo
     if co_name is None:
         co_name = pkg_name
     repo = Repository('bzr', base_repo.base_url, co_name, revision=revision)
     checkout_from_repo(builder, checkout(co_name), repo)
     muddled.pkgs.make.simple(builder, pkg_name, role, co_name)
+    if no_follow:
+        set_checkout_vcs_option(builder, checkout(co_name), no_follow=True)
 
 def describe_to(builder):
     builder.build_name = '{build_name}'
@@ -164,6 +167,10 @@ BZR_CO_WITH_REVISION = """\
     # description asks for us to "follow" it, we need to stop that by
     # specifying an explicit revision
     add_bzr_package(builder, 'package5', 'x86', co_name='co.bzr', revision='3')
+"""
+
+BZR_CO_NO_FOLLOW = """\
+    add_bzr_package(builder, 'package5', 'x86', co_name='co.bzr', no_follow=True)
 """
 
 CO6_WHICH_HAS_NO_BRANCH_FOLLOW = """\
@@ -437,8 +444,24 @@ def test_init_with_branch(root_d):
         check_text_endswith(text, """\
 The build description wants checkouts to follow branch 'branch.follow',
 but checkout co.bzr uses VCS Bazaar for which we do not support branching.
-The build description should specify a revision for checkout co.bzr.
+The build description should specify a revision for checkout co.bzr,
+or specify the 'no_follow' option.
 """)
+
+    with NewCountedDirectory('init.branch.with.branch1.bzr.no_follow.option'):
+        muddle(['init', '-branch', 'branch.follow', 'git+file://' + repo, 'builds/01.py'])
+        # Now let us make a build description in which our Bazaar checkout
+        # specifically says it should not follow the build description
+        with Directory('src'):
+            with Directory('builds'):
+                touch('01.py', NO_BZR_BUILD_DESC +
+                               BZR_CO_NO_FOLLOW +
+                               FOLLOW_LINE)
+                # Then remove the .pyc file, because Python probably won't realise
+                # that this new 01.py is later than the previous version
+                os.remove('01.pyc')
+        # And our checkout _all should now be OK...
+        muddle(['checkout', '_all'])
 
     with NewCountedDirectory('init.branch.with.branch1.nobranch.follow.error') as d:
         muddle(['init', '-branch', 'branch.follow', 'git+file://' + repo, 'builds/01.py'])
@@ -498,9 +521,9 @@ def test_branch_tree(root_d):
                          " retcode 1, got %d"%retcode)
         check_text_endswith(text, """\
 Unable to branch-tree to test-v0.1, because:
+  checkout:co.branch1.fred/checked_out explicitly specifies revision "fred" in the build description
   checkout:co.branch1/checked_out explicitly specifies branch "branch1" in the build description
   checkout:co.fred/checked_out explicitly specifies revision "fred" in the build description
-  checkout:co.branch1.fred/checked_out explicitly specifies revision "fred" in the build description
 """)
 
         # OK, force it

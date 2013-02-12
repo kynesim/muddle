@@ -7,6 +7,28 @@ Note that Subversion does not support "branches" in the muddle sense.
 Subversion branches are handled by a different mechanism, and in a muddle
 sense are more like inner paths of a Repository. At the moment muddle does
 not provide any special support for Subversion branches.
+
+Available subversion specific options are:
+
+* no_follow: In a build description that has set::
+
+    builder.follow_build_desc_branch = True
+
+  then a Subversion repository can either:
+
+      1. Specify a particular revision
+      2. Choose a different repository location (presumably a subversion
+         "branch"), and set the no_follow option to True
+      3. Continue using the original repository without setting a revision
+         (almost certainly not sensible, but still), and set the no_follow
+         option to True.
+
+  If none of these are done, then muddle will fail with a complaint like::
+
+    The build description wants checkouts to follow branch '<branch-name>',
+    but checkout <co-name> uses VCS Subversion for which we do not support branching.
+    The build description should specify a revision for checkout <co-name>.
+
 """
 
 from muddled.version_control import register_vcs, VersionControlSystem
@@ -242,6 +264,6 @@ class Subversion(VersionControlSystem):
         return True
 
 # Tell the version control handler about us..
-register_vcs("svn", Subversion(), __doc__)
+register_vcs("svn", Subversion(), __doc__, ['no_follow'])
 
 # End file.

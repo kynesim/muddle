@@ -285,22 +285,9 @@ class VersionControlHandler(object):
     def branch_to_follow(self, builder, co_label):
         """Determine what branch is *actually* wanted.
 
-        If our Repository instance explicitly specifies a revision, or a branch
-        (i.e., the build description explicitly selected such), then we return
-        None, since we do not need to override it (a specific revision always
-        "wins" over a branch name, although perhaps we should check they match).
-
-            This also means that if our caller calls us, gets a branch name
-            back, sets that branch name as self.repo.branch, and then calls
-            us again later on, that second time we'll return None and the
-            caller will know the Repository (already) has the wanted branch.
-
-        Otherwise, if the build description set builder.follow_build_desc_branch,
-        and our VCS supports branching, we return the build description's
-        branch. If our VCS does not support branching, we raise an explanatory
-        GiveUp exception.
-
-        Otherwise we return None.
+        Returns a branch name or None. None means that the description of this
+        checkout in the build description is adequate - i.e., we do not need
+        to override it with the branch of the build description.
 
         BEWARE: this duplicates some of the code in sync().
         """
@@ -308,7 +295,7 @@ class VersionControlHandler(object):
         co_data = builder.db.get_checkout_data(co_label)
         repo = co_data.repo
 
-        # The build description is awkward
+        # The build description is awkward and special
         if builder.build_desc_label is None:
             # This can happen when we're unstamping
             return None
@@ -326,6 +313,11 @@ class VersionControlHandler(object):
             if DEBUG: print 'Branch already set to %s'%repo.branch
             return None         # we're happy with that we've got
         elif builder.follow_build_desc_branch:
+
+            if 'no_follow' in co_data.options:
+                if DEBUG: print 'Checkout is marked "no_follow"'
+                return None
+
             build_desc_branch = builder.get_build_desc_branch(verbose=DEBUG)
 
             if 'shallow_checkout' in co_data.options:
@@ -338,7 +330,8 @@ class VersionControlHandler(object):
             else:
                 raise GiveUp("The build description wants checkouts to follow branch '%s',\n"
                              "but checkout %s uses VCS %s for which we do not support branching.\n"
-                             "The build description should specify a revision for checkout %s."%(
+                             "The build description should specify a revision for checkout %s,\n"
+                             "or specify the 'no_follow' option."%(
                              build_desc_branch, co_label.name, self.long_name, co_label.name))
         else:
             if DEBUG: print 'Not following build description'
@@ -757,6 +750,9 @@ class VersionControlHandler(object):
         * If the build description specifies a branch for this checkout,
           and the checkout VCS supports going to a specific branch, go to
           that branch
+        * If the build description specifies that this checkout should not
+          follow the build description (both Subversion and Bazaar support
+          the "no_follow" option), then go to "master".
         * If the build description specifies that this checkout is shallow,
           then give up.
         * If the checkout's VCS does not support lightweight branching, then
@@ -791,12 +787,13 @@ class VersionControlHandler(object):
                 if verbose: print '  We have a specific branch in the build' \
                                   ' description, "%s"'%repo.branch
                 follow = False
+            elif 'no_follow' in co_data.options:
+                if verbose: print '  Checkout is marked "no_follow"'
+                follow = False
             elif not self.vcs.supports_branching():
                 if verbose: print '  Changing branch is not supported for this' \
                                   ' VCS, %s'%self.vcs.short_name
                 follow = False
-            # Shallow checkouts are not terribly well integrated - we do this
-            # very much by hand...
             elif 'shallow_checkout' in co_data.options:
                 if verbose: print '  This is a shallow checkout'
                 follow = False

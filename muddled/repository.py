@@ -144,14 +144,6 @@ class Repository(object):
     Finally, it is possible to specify a revision and branch. These are both
     handled as strings, with no defined interpretation (and are not always
     relevant to a particular VCS - see the discussion of Bazaar above).
-
-    For legacy reasons, a combined form is also supported:
-
-        >>> r = Repository('git', 'git@github.com:tibs', 'withdir', revision='branch2:rev99')
-        >>> r.branch
-        'branch2'
-        >>> r.revision
-        'rev99'
     """
 
     # A dictionary of specialised path handlers.
@@ -187,8 +179,6 @@ class Repository(object):
           regardless of what the VCS expects. It may look like an integer
           (e.g., "123") or an expression ("-r123" or "date:20120101")
           depending on the VCS.
-          For historical reasons, a revision may also be of the form
-          "<revision>:<branch>".
         - 'branch' is the branch to use.
         - 'handler' is either None, or "guess" (the default) or the name of
           a registered handler for constructing the full repository URL if
@@ -240,25 +230,9 @@ class Repository(object):
             #
             # Anyway, for various reasons which come down to "let's not try to
             # be too clever", we shall insist on a string-ish type of thing.
-            # Which, of course, we can test by finding out if the next call
-            # falls over at us...
-
-            # Check for the legacy mechanism for specifying a branch
-            # (i.e., as a revision of "<branch>:<revision>")
-            # This will clash with any branch specified as an argument
-            try:
-                maybe_branch, maybe_revision = self._parse_revision(revision)
-            except TypeError:
+            if not isinstance(revision, basestring):
                 raise GiveUp('VCS revision value should be a string,'
                              ' not %s'%type(revision))
-            if branch and maybe_branch:
-                raise GiveUp('VCS revision value "%s" specifies branch'
-                             ' "%s", but branch "%s" was specified'
-                             ' explicitly'%(revision, maybe_branch, branch))
-
-            revision = maybe_revision
-            if maybe_branch:
-                branch = maybe_branch
 
         self.revision = revision
         self.branch = branch
@@ -285,26 +259,6 @@ class Repository(object):
             self.url = handler_fn(self)
         else:
             self.url = self.default_path()
-
-    def _parse_revision(self, revision):
-        """
-        Legacy build descriptions may be passing the branch required as
-        part of the revision, i.e., as '<branch>:<revision>'. So we need
-        to support this, at least for a while.
-
-        Return <branch>, <revision>
-
-        If the given string *does* include a <branch> component, then
-        it overrides any 'branch' argument we may be given.
-        """
-        m = _branch_and_revision_re.match(revision)
-        if m:
-            branch = m.group(1)
-            revision = m.group(2)
-            # No need to adjust HEAD - git uses it too.
-            return branch, revision
-        else:
-            return None, revision
 
     def __repr__(self):
         if self.from_url_string:

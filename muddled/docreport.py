@@ -12,7 +12,8 @@ import imp
 import pydoc
 
 from inspect import getmembers, isfunction, isclass, ismethod, ismodule, \
-        isgenerator, getargspec, formatargspec, getmro, getdoc, getmodule
+        isgenerator, getargspec, formatargspec, getmro, getdoc, getmodule, \
+        getfile
 
 import utils
 
@@ -87,14 +88,6 @@ DEBUG = False
 def dissect(thing_name, thing, hash):
     for name, value in getmembers(thing):
         this_name = '%s.%s'%(thing_name, name)
-        #if name == 'all_roles':
-        #    print 'Looking at %s in %s'%(name, this_name)
-        #    print 'value           ', value
-        #    print 'getmodule(value)', getmodule(value)
-        #    print 'getmodule(thing)', getmodule(thing)
-        #    print 'getmodule(getmodule(value))', getmodule(getmodule(value))
-        #    print 'thing           ', thing
-        #    print 'ismethod(value) ', ismethod(value)
         if getmodule(value) != getmodule(thing):
             # Doesn't look like 'thing' defined this - presumably imported
             continue
@@ -228,7 +221,11 @@ def report_on_item_ourselves(name, value):
 def report_on_item(what, name, value, use_render_doc):
     lines = []
     lines.append('')
-    lines.append('%s -> %s'%(what, name))
+    lines.append('%s is %s'%(what, name))
+    try:
+        lines.append('%s in %s'%(' '*len(what), os.path.abspath(getfile(value))))
+    except TypeError:
+        lines.append('%s is <built-in>'%(' '*len(what)))
     lines.append('')
 
     if use_render_doc:

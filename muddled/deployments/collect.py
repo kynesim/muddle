@@ -19,7 +19,7 @@ import muddled.filespec as filespec
 import muddled.deployment as deployment
 
 from muddled.depend import Action, Label
-from muddled.utils import GiveUp
+from muddled.utils import GiveUp, MuddleBug
 
 class InstructionImplementor(object):
     def prepare(self, builder, instruction, role, path):
@@ -140,8 +140,8 @@ class AssemblyDescriptor(object):
         elif self.from_label.type == utils.LabelType.Deployment:
             return builder.deploy_path(self.from_label)
         else:
-            raise GiveUp("Label %s for %s action has unknown kind"%(self.from_label,
-                                                                    self.for_what))
+            raise MuddleBug("Label %s for action has unknown type %s"%(self.from_label,
+                                                                       self.from_label.type))
 
 class CollectDeploymentBuilder(Action):
     """

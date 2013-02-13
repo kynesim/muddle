@@ -2059,7 +2059,7 @@ class QueryCheckoutBranches(QueryCommand):
         co2       branch1          branch1          <none>
         co3       <none>           <none>           <none>
         co4       <none>           branch1          <none>
-        co5       <not supported>  ...              ...
+        co5       <not supported>  ...              <not following>
 
     This build tree was created using "muddle init -branch branch0", so the
     builds checkout shows "branch0" as its original branch. We can tell that
@@ -2085,7 +2085,9 @@ class QueryCheckoutBranches(QueryCommand):
     shows up as its original branch.
 
     Finally, "co5" is not using git (it was actually using bzr), and thus
-    muddle does not support branching it.
+    muddle does not support branching it. However, it has set the "no_follow"
+    VCS option in the build description, and thus the "Branch to follow"
+    column shows as "<not following>" instead of "...".
 
     (You can use "muddle query checkout-vcs" to see which VCS is being used
     for which checkout.)
@@ -2137,7 +2139,11 @@ class QueryCheckoutBranches(QueryCommand):
             else:
                 actual_branch = '<not supported>'
                 original_branch = '...'
-                follow_branch = '...'
+                options = builder.db.get_checkout_vcs_options(co_label)
+                if "no_follow" in options:
+                    follow_branch = '<not following>'
+                else:
+                    follow_branch = '...'
 
             line = (co_name(co_label), actual_branch, original_branch, follow_branch)
             for ii, word in enumerate(line):
@@ -6844,10 +6850,12 @@ class BranchTree(Command):
             if vcs_handler.branch_exists(builder, co, branch, show_pushd=verbose):
                 already_exists_in.append(co)
             else:
-                vcs_handler.create_branch(builder, co, branch, show_pushd=False)
+                vcs_handler.create_branch(builder, co, branch, show_pushd=False,
+                                          verbose=verbose)
                 created += 1
 
-            vcs_handler.goto_branch(builder, co, branch, show_pushd=False)
+            vcs_handler.goto_branch(builder, co, branch, show_pushd=False,
+                                    verbose=verbose)
             selected += 1
 
         print 'Successfully created  branch %s in %d out of %d checkout%s'%(branch,

@@ -271,7 +271,20 @@ class Git(VersionControlSystem):
         self._setup_remote(upstream, repo, verbose=verbose)
 
         # Retrieve changes from the remote repository to the local repository
-        utils.run_cmd("git fetch %s"%upstream, verbose=verbose)
+        # We want to get the output from this so we can put it into any exception,
+        # for instance if we try to fetch a branch that does not exist.
+        # This *does* mean there's a slight delay before the user sees the output,
+        # though
+        cmd = "git fetch %s"%upstream
+        rv, out, err = utils.get_cmd_data(cmd, verbose=verbose, fail_nonzero=False)
+        if rv:
+            raise utils.GiveUp('Error %d running "%s"\n%s'%(rv, cmd, out))
+        else:
+            # The older version of this code just used utils.run_cmd(), which
+            # runs the command in a sub-shell, and thus its output is always
+            # presented, regardless of the "verbose" setting. For the moment
+            # at least, we'll stay compatible with that.
+            print out.rstrip()
 
         if repo.branch is None:
             remote = 'remotes/%s/master'%(upstream)
@@ -579,7 +592,7 @@ class Git(VersionControlSystem):
         else:
             raise utils.GiveUp('Error running "git symbolic-ref -q HEAD" to determine current branch')
 
-    def create_branch(self, branch):
+    def create_branch(self, branch, verbose=False):
         """
         Create a branch of the given name.
 
@@ -594,14 +607,15 @@ class Git(VersionControlSystem):
         # name, we want the command to propagate 'sp ace' down as a single
         # word, so it gets reported with the appropriate error. Thus we need
         # to pass the command as a list.
-        retcode, out, err = utils.run_cmd_for_output(['git', 'branch', branch], fold_stderr=True)
+        retcode, out, err = utils.run_cmd_for_output(['git', 'branch', branch],
+                                                     fold_stderr=True, verbose=verbose)
         if retcode:
             raise utils.GiveUp('Error creating branch "%s": %s'%(branch, out))
 
         # Add this branch to the 'origin' remote for this checkout
-        utils.run_cmd("git remote set-branches --add origin %s"%branch)
+        utils.run_cmd("git remote set-branches --add origin %s"%branch, verbose=verbose)
 
-    def goto_branch(self, branch):
+    def goto_branch(self, branch, verbose=False):
         """
         Make the named branch the current branch.
 
@@ -610,7 +624,8 @@ class Git(VersionControlSystem):
         It is an error if the branch does not exist, in which case a GiveUp
         exception will be raised.
         """
-        retcode, out, err = utils.run_cmd_for_output(['git', 'checkout', branch], fold_stderr=True)
+        retcode, out, err = utils.run_cmd_for_output(['git', 'checkout', branch],
+                                                     fold_stderr=True, verbose=verbose)
         if retcode:
             raise utils.GiveUp('Error going to branch "%s": %s'%(branch, out))
 

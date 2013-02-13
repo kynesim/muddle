@@ -150,7 +150,7 @@ class VersionControlSystem(object):
         raise utils.Unsupported("VCS '%s' cannot determine the current branch"
                                 " of a checkout"%self.long_name)
 
-    def create_branch(self, branch):
+    def create_branch(self, branch, verbose=False):
         """
         Create a (new) branch of the given name.
 
@@ -163,7 +163,7 @@ class VersionControlSystem(object):
         raise utils.Unsupported("VCS '%s' cannot create a new current branch"
                                 " of a checkout"%self.long_name)
 
-    def goto_branch(self, branch):
+    def goto_branch(self, branch, verbose=False):
         """
         Make the named branch the current branch.
 
@@ -661,7 +661,7 @@ class VersionControlHandler(object):
         """
         with Directory(builder.db.get_checkout_path(co_label), show_pushd=show_pushd):
             try:
-                return self.vcs.create_branch(branch)
+                return self.vcs.create_branch(branch, verbose=verbose)
             except (GiveUp, Unsupported) as err:
                 raise GiveUp('Failure creating branch %s for %s in %s:\n%s'%(branch,
                              co_label, builder.db.get_checkout_location(co_label), err))
@@ -677,7 +677,7 @@ class VersionControlHandler(object):
         """
         with Directory(builder.db.get_checkout_path(co_label), show_pushd=show_pushd):
             try:
-                return self.vcs.goto_branch(branch)
+                return self.vcs.goto_branch(branch, verbose=verbose)
             except (GiveUp, Unsupported) as err:
                 raise GiveUp('Failure changing to branch %s for %s in %s:\n%s'%(branch,
                              co_label, builder.db.get_checkout_location(co_label), err))

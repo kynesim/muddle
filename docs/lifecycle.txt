@@ -55,6 +55,7 @@ At which stage, our remotes all have the branch, and our checkouts are still
 on it. That's probably a good time to record a stamp file::
 
   $ muddle stamp version
+  $ muddle stamp push
 
 Branching the build tree doesn't branch the "versions/" directory, but because
 we have set "follow" in the build description, the stamp file created will be
@@ -229,6 +230,7 @@ This means we would:
 6. As one might expect, it's then generally a good idea to take a stamp::
 
      $ muddle stamp version
+     $ muddle stamp push
 
    Since our build description sets "following", the version stamp file
    will be called::
@@ -511,6 +513,10 @@ we end up with an appropriately named file::
 
   $ ls versions
   ExampleBuild.Widget-v1.0-maintenance.stamp
+
+which we should remember to push::
+
+  $ muddle stamp push
 
 Since we've pushed our changes, we can create a new build using them::
 

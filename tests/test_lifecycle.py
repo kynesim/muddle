@@ -1021,6 +1021,29 @@ def test_lifecycle(root_d):
         check_text_lines_v_lines(actual_lines=this[3:],
                                  wanted_lines=that[3:])
 
+        # Now let's push a change
+        with Directory('src'):
+            with Directory('co1'):
+                append('Makefile.muddle', '# This, this is not a change\n')
+                git('commit Makefile.muddle -m "But a small thing"')
+                muddle(['push'])
+
+        co1_revision_id = captured_muddle(['query', 'checkout-id', 'co1']).strip()
+
+    # And pull it elsewhere
+    with Directory(d4a.join('src', 'co1')):
+        old_revision_id = captured_muddle(['query', 'checkout-id']).strip()
+        muddle(['pull'])
+        new_revision_id = captured_muddle(['query', 'checkout-id']).strip()
+
+        if old_revision_id == new_revision_id:
+            raise GiveUp('Pull did nothing')
+
+        if new_revision_id != co1_revision_id:
+            raise GiveUp('Result of pull was unexpected\n'
+                         'got: %s\nnot: %s'%(new_revision_id, co1_revision_id))
+
+
 
 def main(args):
 

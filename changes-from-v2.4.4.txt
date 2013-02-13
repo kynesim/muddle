@@ -1,4 +1,4 @@
-Changes since muddle v2.4.4
+Changes in v2.5 since muddle v2.4.4
 
 First, changes you'll already have if you've been keeping up-to-date with the
 current version of muddle:

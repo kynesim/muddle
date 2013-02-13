@@ -506,7 +506,7 @@ def set_checkout_vcs_option(builder, co_label, **kwargs):
     version control system <name> (see "muddle help vcs" for the supported
     version control systems).
     """
-    for key, value in kwargs:
+    for key, value in kwargs.items():
         builder.db.set_checkout_vcs_option(co_label, key, value)
 
 # End file.

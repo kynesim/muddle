@@ -1043,6 +1043,31 @@ def test_lifecycle(root_d):
             raise GiveUp('Result of pull was unexpected\n'
                          'got: %s\nnot: %s'%(new_revision_id, co1_revision_id))
 
+    # And let's be really awkward...
+    with Directory(d4.join('src', 'co1')):
+        git('checkout master')
+        rv, text = get_stdout2('git branch')
+        check_text_v_lines(text,
+                           ['  Widget-v0.1-maintenance',
+                            '* master'])
+        old_revision_id = captured_muddle(['query', 'checkout-id']).strip()
+
+        # We're fondly expecting "muddle pull" to put us back onto the
+        # "following" branch
+        muddle(['pull'])
+
+        rv, text = get_stdout2('git branch')
+        check_text_v_lines(text,
+                           ['* Widget-v0.1-maintenance',
+                            '  master'])
+        new_revision_id = captured_muddle(['query', 'checkout-id']).strip()
+
+        if old_revision_id == new_revision_id:
+            raise GiveUp('Pull did nothing')
+
+        if new_revision_id != co1_revision_id:
+            raise GiveUp('Result of pull was unexpected\n'
+                         'got: %s\nnot: %s'%(new_revision_id, co1_revision_id))
 
 
 def main(args):

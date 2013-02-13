@@ -18,6 +18,9 @@ current version of muddle:
 * A new "quickstart" section at the beginning of the documentation, for those
   who've just been given a build using muddle for the first time.
 
+  See http://muddle.readthedocs.org/en/latest/quickstart.html ("Quick start:
+  so you’ve been asked to work on a project using muddle")
+
 * The Invocation class is no more, it has been folded into Builder. Thus
   ``builder.invocation.XXX`` is now identical to ``builder.XXX`` in all cases.
   This basically makes build descriptions a bit simpler, and removes the
@@ -26,7 +29,8 @@ current version of muddle:
 
 * There has been an internal rewrite of the version control handler support
   and much of the "memory" of how checkouts work has been moved from there to
-  the Database class and db.py. This was a prequisite of the lifecycle work.
+  the Database class and db.py. This was a prequisite of the lifecycle work,
+  below.
 
 * There have been various minor fixes in license support, including not
   propagating GPL licenses to/through GPL licenses.
@@ -52,12 +56,13 @@ branch back into "master":
   now more robust and consistent as well.
 
   See the new lifecycle documentation (a new chapter in the normal muddle
-  documentation), and also "muddle help" for each of the above.
+  documentation, http://muddle.readthedocs.org/en/latest/lifecycle.html), and
+  also "muddle help" for each of the new commands above.
 
-* Repository specifications no longer allow a revision of the form ``"a:b"``
-  to mean ``<branch>:<revision>``. This was a legacy from early repository
-  support. and clases with specifying Bazaar revision ids of the form
-  ``"branch:<path>"`` and so on.
+* Repository specifications no longer treat a revision argument of the form
+  ``"a:b"`` as meaning ``<branch>:<revision>``. This was a legacy from early
+  repository support. and clashes with such things as specifying Bazaar
+  revision ids of the form ``"branch:<path>"`` or ``"revno:<number>"``.
 
 * The "no_follow" VCS option has been added for Subversion and Bazaar, and
   ``builder.db.set_checkout_vcs_option(co_label, name, value)`` may now be
@@ -70,6 +75,6 @@ branch back into "master":
      muddle doc Label -pydoc
      muddle doc -contains Directory
 
-* And a variety of other tidyings and bugfixes.
+* A variety of other tidyings and bugfixes.
 
 .. vim: set filetype=rst tabstop=8 softtabstop=2 shiftwidth=2 expandtab:

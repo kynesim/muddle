@@ -99,27 +99,25 @@ def test_git_simple_build():
                   '# A comment\n# Another comment\n')
             git('add fred.stamp')
             git('commit -m "New stamp file"')
-            # We have to associate it with a repository
-            git('remote add origin %s/versions'%root_repo)
-            git('push origin master')
+            # "muddle stamp push" knows how to setup the appropriate
+            # repository and push - i.e., if effectively does
+            #
+            #    git('remote add origin %s/versions'%root_repo)
+            #    git('push origin master')
+            #
+            muddle(['stamp', 'push'])
 
         with Directory('src/builds'):
             git('commit -m "New build"')
-            ##git('push %s/builds HEAD'%root_repo)
-            # We can use the big blunt stick of 'reparent',
-            # or we could use 'git remote add origin' directly
-            # TODO: muddle bootstrap should have done this for us
-            muddle(['reparent'])
             muddle(['push'])
 
         banner('Stamping simple build')
         muddle(['stamp', 'version'])
         with Directory('versions'):
-            git('add test_build.stamp')
+            # Muddle should already have done "git add" for us
+            # git('add test_build.stamp')
             git('commit -m "A proper stamp file"')
             cat('test_build.stamp')
-
-        # We should be able to use muddle to push the stamp file
         muddle(['stamp', 'push'])
 
     # We should be able to check everything out from the repository
@@ -168,6 +166,9 @@ def setup_new_build(root_repo, name):
         with Directory('src'):
             with Directory('builds'):
                 touch('01.py', CHECKOUT_BUILD_LEVELS)
+                # Then remove the .pyc file, because Python probably won't realise
+                # that this new 01.py is later than the previous version
+                os.remove('01.pyc')
                 git('add 01.py')
                 git('commit -m "New build"')
                 git('push %s/builds HEAD'%root_repo)
@@ -360,6 +361,9 @@ def test_just_pulled():
         with Directory('src'):
             with Directory('builds'):
                 append('01.py', '# Just a comment\n')
+                # Then remove the .pyc file, because Python probably won't realise
+                # that this new 01.py is later than the previous version
+                os.remove('01.pyc')
                 git('commit -a -m "A simple change"')
                 muddle(['push'])
             with Directory('twolevel'):

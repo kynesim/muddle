@@ -264,6 +264,9 @@ def make_old_build_tree():
         with Directory('src'):
             with Directory('builds'):
                 touch('01.py', DEPLOYMENT_BUILD_DESC_12)
+                # Then remove the .pyc file, because Python probably won't realise
+                # that this new 01.py is later than the previous version
+                os.remove('01.pyc')
 
             with NewDirectory('first_co'):
                 git('init')

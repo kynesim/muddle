@@ -205,6 +205,9 @@ def create_multiplex_repo(build_name):
     muddle(['bootstrap', 'git+file:///nowhere', 'test-build'])
     with Directory('src') as src:
         with Directory('builds') as builds:
+            # Remove the .pyc file, because Python probably won't realise
+            # that our new 01.py is/are later than the previous version
+            os.remove('01.pyc')
             touch('01.py', EMPTY_BUILD_DESC)
             git('commit -a -m "Empty-ish build description"')
             # ---- branch0
@@ -590,6 +593,9 @@ Unable to branch-tree to test-v0.1, because:
         with Directory('src'):
             with Directory('builds'):
                 append('01.py', '# This should make no difference\n')
+                # Then remove the .pyc file, because Python probably won't realise
+                # that this new 01.py is later than the previous version
+                os.remove('01.pyc')
                 git('commit -a -m "Add a comment at the end"')
                 muddle(['push'])
             with Directory('co1'):
@@ -664,6 +670,7 @@ def test_lifecycle(root_d):
         with Directory('src'):
             with Directory('builds'):
                 os.remove('01.py')
+                os.remove('01.pyc')
                 touch('01.py', BUILD_DESC.format(build_name=build_name))
                 git('add 01.py')  # Because we changed it since the last 'git add'
                 git('commit -m "First commit of build description"')

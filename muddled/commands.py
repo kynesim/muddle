@@ -1556,7 +1556,7 @@ class Init(Command):
         db.setup(repo, build, branch=branch_name)
 
         print
-        print "Checking out build description .. \n"
+        print "Loading build description .. \n"
         builder = mechanics.load_builder(current_dir, muddle_binary)
 
         # If our top level build description wants things to follow its
@@ -1723,7 +1723,17 @@ class Bootstrap(Command):
                     version_control.vcs_init_directory(vcs_name, [".gitignore"])
 
         print 'Telling muddle the build description is checked out'
-        db.set_tag(Label.from_string('checkout:builds/checked_out'))
+        build_desc_label = Label.from_string('checkout:builds/checked_out')
+        db.set_tag(build_desc_label)
+
+        # Now let's actually load the build description
+        print 'Loading it'
+        builder = mechanics.load_builder(root_path, None)
+
+        # And we can make sure that the build description is correctly
+        # associated with its remote repository
+        vcs_handler = builder.db.get_checkout_vcs(build_desc_label)
+        vcs_handler.reparent(builder, build_desc_label)
 
         print 'Setting up versions directory'
         with NewDirectory("versions"):

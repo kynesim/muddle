@@ -99,21 +99,19 @@ def test_bzr_simple_build():
                   '# A comment\n# Another comment\n')
             bzr('add fred.stamp')
             bzr('commit -m "New stamp file"')
-            bzr('push %s/versions'%root_repo)
+        # We should be able to use muddle to push the stamp file
+        muddle(['stamp', 'push'])
 
         with Directory('src/builds'):
             bzr('commit -m "New build"')
-            bzr('push %s/builds'%root_repo)
+            muddle(['push'])
 
         banner('Stamping simple build')
-        muddle(['reparent', 'builds'])  # Not sure why we need to do this
         muddle(['stamp', 'version'])
         with Directory('versions'):
-            bzr('add test_build.stamp')
+            # Muddle should have added the stamp file to bzr for us
             bzr('commit -m "A proper stamp file"')
             cat('test_build.stamp')
-
-        # We should be able to use muddle to push the stamp file
         muddle(['stamp', 'push'])
 
     # We should be able to check everything out from the repository
@@ -162,17 +160,22 @@ def setup_new_build(root_repo, name):
         with Directory('src'):
             with Directory('builds'):
                 touch('01.py', CHECKOUT_BUILD_LEVELS)
+                # Then remove the .pyc file, because Python probably won't realise
+                # that this new 01.py is later than the previous version
+                os.remove('01.pyc')
                 bzr('add 01.py')
                 bzr('commit -m "New build"')
-                bzr('push %s/builds'%root_repo)
+                # The obvious thing to do is to push with muddle
+                muddle(['push'])
 
             with NewDirectory('checkout1'):
                 touch('Makefile.muddle', MUDDLE_MAKEFILE)
                 bzr('init')
                 bzr('add Makefile.muddle')
                 bzr('commit -m "Add muddle makefile"')
+                muddle(['import', 'checkout1'])
+                # Or we can push by hand with bzr
                 bzr('push %s/checkout1'%root_repo)
-                muddle(['assert', 'checkout:checkout1/checked_out'])
 
             with NewDirectory('twolevel'):
                 with NewDirectory('checkout2'):
@@ -180,8 +183,8 @@ def setup_new_build(root_repo, name):
                     bzr('init')
                     bzr('add Makefile.muddle')
                     bzr('commit -m "Add muddle makefile"')
-                    bzr('push %s/twolevel/checkout2'%root_repo)
-                    muddle(['assert', 'checkout:checkout2/checked_out'])
+                    muddle(['import', 'checkout2'])
+                    muddle(['push'])
 
             with NewDirectory('multilevel'):
                 with NewDirectory('inner'):
@@ -190,8 +193,9 @@ def setup_new_build(root_repo, name):
                         bzr('init')
                         bzr('add Makefile.muddle')
                         bzr('commit -m "Add muddle makefile"')
+                        # If we push directly with BZR
                         bzr('push %s/multilevel/inner/checkout3'%root_repo)
-                        muddle(['assert', 'checkout:alice/checked_out'])
+                        muddle(['import', 'alice'])
 
 
 def test_bzr_checkout_build():
@@ -205,7 +209,6 @@ def test_bzr_checkout_build():
 
     with Directory('test_build1'):
         banner('Stamping checkout build')
-        muddle(['reparent', '_all'])  # Probably need to do this?
         muddle(['stamp', 'version'])
         with Directory('versions'):
             bzr('add checkout_test.stamp')
@@ -341,6 +344,9 @@ def test_just_pulled():
         with Directory('src'):
             with Directory('builds'):
                 append('01.py', '# Just a comment\n')
+                # Then remove the .pyc file, because Python probably won't realise
+                # that this new 01.py is later than the previous version
+                os.remove('01.pyc')
                 bzr('commit -m "A simple change"')
                 muddle(['push'])
             with Directory('twolevel'):

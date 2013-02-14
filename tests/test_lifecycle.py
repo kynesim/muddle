@@ -397,6 +397,12 @@ def test_init_with_branch(root_d):
                 check_file_v_text('Makefile.muddle', MUDDLE_MAKEFILE)
                 check_file_v_text('README.txt', EMPTY_README_TEXT)
                 check_file_v_text('program3.c', EMPTY_C_FILE)
+                # If we attempt to 'muddle pull' in the checkout, that should
+                # fail because we are already at the requested revision
+                # (even though that revision was specified as a tag)
+                text = captured_muddle(['pull', 'co.fred'], error_fails=False).strip()
+                if not text.endswith('checkout past the specified revision.'):
+                    raise GiveUp('Expected muddle pull to fail trying to go "past" revision:\n%s'%text)
             with Directory('co.branch1.fred'):
                 # Revision 'fred' and branch 'branch1' - the revision wins
                 # -- fred
@@ -404,6 +410,12 @@ def test_init_with_branch(root_d):
                 check_file_v_text('Makefile.muddle', MUDDLE_MAKEFILE)
                 check_file_v_text('README.txt', EMPTY_README_TEXT)
                 check_file_v_text('program4.c', EMPTY_C_FILE)
+                # If we attempt to 'muddle pull' in the checkout, that should
+                # fail because we are already at the requested revision
+                # (even though that revision was specified as a tag)
+                text = captured_muddle(['pull', 'co.fred'], error_fails=False).strip()
+                if not text.endswith('checkout past the specified revision.'):
+                    raise GiveUp('Expected muddle pull to fail trying to go "past" revision:\n%s'%text)
             with Directory('co.bzr'):
                 # Since this is using bzr, we always get HEAD
                 check_specific_files_in_this_dir(['.bzr', 'Makefile.muddle', 'README.txt', 'program5.c'])
@@ -719,8 +731,10 @@ def test_lifecycle(root_d):
         muddle(['init', repo_url, 'builds/01.py'])
         # But we want to specify the revision for our source checkout
         with Directory(d2.join('src', 'builds')):
+            # Note we don't need to specify ALL of the SHA1 string, we can
+            # just specify some non-ambiguous subset...
             touch('01.py',
-                  BUILD_DESC_WITH_REVISION.format(revision=checkout_rev_2,
+                    BUILD_DESC_WITH_REVISION.format(revision=checkout_rev_2[:8],
                                                   build_name=build_name))
             # Then remove the .pyc file, because Python probably won't realise
             # that this new 01.py is later than the previous version
@@ -729,8 +743,8 @@ def test_lifecycle(root_d):
 
         check_revision('co1', checkout_rev_2)
 
-        # If we attempt to pull in the checkout, that should fail because
-        # we are already at the requested revision
+        # If we attempt to 'muddle pull' in the checkout, that should fail
+        # because we are already at the requested revision
         text = captured_muddle(['pull', 'co1'], error_fails=False).strip()
         if not text.endswith('checkout past the specified revision.'):
             raise GiveUp('Expected muddle pull to fail trying to go "past" revision:\n%s'%text)

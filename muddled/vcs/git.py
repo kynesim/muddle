@@ -102,6 +102,7 @@ import re
 import muddled.utils as utils
 from muddled.version_control import register_vcs, VersionControlSystem
 from muddled.withdir import Directory
+from muddled.utils import GiveUp
 
 g_supports_ff_only = None
 
@@ -123,6 +124,15 @@ def git_supports_ff_only():
 
     return g_supports_ff_only
 
+def expand_revision(revision):
+    """Given something that names a revision, return its full SHA1.
+
+    Raises GiveUp if the revision appears non-existent or ambiguous
+    """
+    rv, out, err = utils.get_cmd_data('git rev-parse %s'%revision, fail_nonzero=False)
+    if rv:
+        raise GiveUp('Revision "%s" is either non-existant or ambiguous'%revision)
+    return out.strip()
 
 class Git(VersionControlSystem):
     """
@@ -177,7 +187,7 @@ class Git(VersionControlSystem):
             with Directory(co_leaf):
                 # Are we already at the correct revision?
                 actual_revision = self._git_rev_parse_HEAD()
-                if actual_revision != repo.revision:
+                if actual_revision != expand_revision(repo.revision):
                     # XXX Arguably, should use '--quiet', to suppress the warning
                     # XXX that we are ending up in 'detached HEAD' state, since
                     # XXX that is rather what we asked for...
@@ -201,8 +211,8 @@ class Git(VersionControlSystem):
                 text = ''
 
         if text:
-            raise utils.GiveUp("There are uncommitted changes/untracked files\n"
-                                "%s"%utils.indent(text,'    '))
+            raise GiveUp("There are uncommitted changes/untracked files\n"
+                         "%s"%utils.indent(text,'    '))
 
     def _shallow_not_allowed(self, options):
         """Checks to see if the current checkout is shallow, and refuses if so.
@@ -212,7 +222,6 @@ class Git(VersionControlSystem):
         if options.get('shallow_checkout'):
             if os.path.exists('.git/shallow'):
                 raise utils.Unsupported('Shallow checkouts cannot interact with their upstream repositories.')
-
 
     def _pull_or_merge(self, repo, options, upstream=None, verbose=True, merge=False):
         """
@@ -225,7 +234,12 @@ class Git(VersionControlSystem):
         else:
             cmd = 'pull'
 
-        if repo.revision and repo.revision == starting_revision:
+        if repo.revision:
+            revision = expand_revision(repo.revision)
+        else:
+            revision = None
+
+        if revision and revision == starting_revision:
 
             # XXX We really only want to grumble here if an unfettered pull
             # XXX would take us past this revision - if it would have had
@@ -244,7 +258,7 @@ class Git(VersionControlSystem):
             # would not know to mention this happening, which would mean that
             # for a joint pull of many checkouts, such messages might get lost.
             # So we'll go with (perhaps) slightly overkill approach.
-            raise utils.GiveUp(\
+            raise GiveUp(\
                 "The build description specifies revision %s... for this checkout,\n"
                 "and it is already at that revision. 'muddle %s' will not take the\n"
                 "checkout past the specified revision."%(repo.revision[:8], cmd))
@@ -278,7 +292,7 @@ class Git(VersionControlSystem):
         cmd = "git fetch %s"%upstream
         rv, out, err = utils.get_cmd_data(cmd, verbose=verbose, fail_nonzero=False)
         if rv:
-            raise utils.GiveUp('Error %d running "%s"\n%s'%(rv, cmd, out))
+            raise GiveUp('Error %d running "%s"\n%s'%(rv, cmd, out))
         else:
             # The older version of this code just used utils.run_cmd(), which
             # runs the command in a sub-shell, and thus its output is always
@@ -381,7 +395,7 @@ class Git(VersionControlSystem):
         self._shallow_not_allowed(options)
 
         if self._is_detached_HEAD():
-            raise utils.GiveUp('This checkout is in "detached HEAD" state, it is not\n'
+            raise GiveUp('This checkout is in "detached HEAD" state, it is not\n'
                          'on any branch, and thus "muddle push" is not alllowed.\n'
                          'If you really want to push, first choose a branch,\n'
                          'e.g., "git checkout -b <new-branch-name>"')
@@ -548,7 +562,7 @@ class Git(VersionControlSystem):
                     return orig_revision
             else:
                 text = '    (it failed with return code %d)'%retcode
-            raise utils.GiveUp("%s\n%s"%(utils.wrap("%s: 'git describe --long'"
+            raise GiveUp("%s\n%s"%(utils.wrap("%s: 'git describe --long'"
                 " could not determine a revision id for checkout:"%co_leaf),
                 text))
         return revision.strip()
@@ -566,7 +580,7 @@ class Git(VersionControlSystem):
             # HEAD is not a symbolic reference, but a detached HEAD
             return True
         else:
-            raise utils.GiveUp('Error running "git symbolic-ref -q HEAD" to detect detached HEAD')
+            raise GiveUp('Error running "git symbolic-ref -q HEAD" to detect detached HEAD')
 
     def supports_branching(self):
         return True
@@ -585,12 +599,12 @@ class Git(VersionControlSystem):
             if out.startswith('refs/heads'):
                 return out[11:]
             else:
-                raise utils.GiveUp('Error running "git symbolic-ref -q HEAD" to determine current branch\n  Got back "%s" instead of "refs/heads/<something>"'%out)
+                raise GiveUp('Error running "git symbolic-ref -q HEAD" to determine current branch\n  Got back "%s" instead of "refs/heads/<something>"'%out)
         elif retcode == 1:
             # HEAD is not a symbolic reference, but a detached HEAD
             return None
         else:
-            raise utils.GiveUp('Error running "git symbolic-ref -q HEAD" to determine current branch')
+            raise GiveUp('Error running "git symbolic-ref -q HEAD" to determine current branch')
 
     def create_branch(self, branch, verbose=False):
         """
@@ -610,7 +624,7 @@ class Git(VersionControlSystem):
         retcode, out, err = utils.run_cmd_for_output(['git', 'branch', branch],
                                                      fold_stderr=True, verbose=verbose)
         if retcode:
-            raise utils.GiveUp('Error creating branch "%s": %s'%(branch, out))
+            raise GiveUp('Error creating branch "%s": %s'%(branch, out))
 
         # Add this branch to the 'origin' remote for this checkout
         utils.run_cmd("git remote set-branches --add origin %s"%branch, verbose=verbose)
@@ -627,7 +641,7 @@ class Git(VersionControlSystem):
         retcode, out, err = utils.run_cmd_for_output(['git', 'checkout', branch],
                                                      fold_stderr=True, verbose=verbose)
         if retcode:
-            raise utils.GiveUp('Error going to branch "%s": %s'%(branch, out))
+            raise GiveUp('Error going to branch "%s": %s'%(branch, out))
 
     def goto_revision(self, revision, branch=None, repo=None, verbose=False):
         """
@@ -652,16 +666,16 @@ class Git(VersionControlSystem):
             try:
                 self.goto_branch(branch)
             except GiveUp as e:
-                raise utils.GiveUp('Error going to branch "%s" for'
-                                   ' revision "%s":\n%s'%(branch, revision, e))
+                raise GiveUp('Error going to branch "%s" for'
+                             ' revision "%s":\n%s'%(branch, revision, e))
             new_revision = self._git_rev_parse_HEAD()
-            if new_revision == revision:    # Heh, we're already there
+            if new_revision == expand_revision(revision): # Heh, we're already there
                 return
 
         retcode, out, err = utils.run_cmd_for_output(['git', 'checkout', revision],
                                                      fold_stderr=True, verbose=verbose)
         if retcode:
-            raise utils.GiveUp('Error going to revision "%s": %s'%(revision, out))
+            raise GiveUp('Error going to revision "%s": %s'%(revision, out))
 
     def branch_exists(self, branch):
         """
@@ -671,7 +685,7 @@ class Git(VersionControlSystem):
         """
         retcode, out, err = utils.get_cmd_data('git branch -a', fail_nonzero=False)
         if retcode:
-            raise utils.GiveUp('Error looking up existing branches: %s'%out)
+            raise GiveUp('Error looking up existing branches: %s'%out)
 
         lines = out.split('\n')
         for line in lines:
@@ -687,18 +701,18 @@ class Git(VersionControlSystem):
 
     def _git_rev_parse_HEAD(self):
         """
-        This returns a bare SHA1 object name for the current revision
+        This returns a bare SHA1 object name for the current HEAD
         """
         retcode, revision, ignore = utils.get_cmd_data('git rev-parse HEAD',
                                                        fail_nonzero=False)
         if retcode:
-            raise utils.GiveUp("'git rev-parse HEAD' failed with return code %d"%retcode)
+            raise GiveUp("'git rev-parse HEAD' failed with return code %d"%retcode)
         return revision.strip()
 
     def _calculate_revision(self, co_leaf, orig_revision, force=False,
                             before=None, verbose=True):
         """
-        This returns a bare SHA1 object name for the current revision
+        This returns a bare SHA1 object name for the current HEAD
 
         NB: if 'before' is specified, 'force' is ignored.
         """
@@ -712,7 +726,7 @@ class Git(VersionControlSystem):
                     text = utils.indent(revision.strip(),'    ')
                 else:
                     text = '    (it failed with return code %d)'%retcode
-                raise utils.GiveUp("%s\n%s"%(utils.wrap("%s:"
+                raise GiveUp("%s\n%s"%(utils.wrap("%s:"
                     " \"git rev-list -n 1 --before='%s' HEAD\"'"
                     " could not determine a revision id for checkout:"%(co_leaf, before)),
                     text))
@@ -731,7 +745,7 @@ class Git(VersionControlSystem):
                         return orig_revision
                 else:
                     text = '    (it failed with return code %d)'%retcode
-                raise utils.GiveUp("%s\n%s"%(utils.wrap("%s: 'git rev-parse HEAD'"
+                raise GiveUp("%s\n%s"%(utils.wrap("%s: 'git rev-parse HEAD'"
                     " could not determine a revision id for checkout:"%co_leaf),
                     text))
         return revision.strip()
@@ -770,7 +784,7 @@ class Git(VersionControlSystem):
         ##retcode, text, ignore = utils.get_cmd_data('git status', fail_nonzero=False)
         ##text = text.strip()
         ##if not self._git_status_text_ok(text):
-        ##    raise utils.GiveUp("%s\n%s"%(utils.wrap("%s: 'git status' suggests"
+        ##    raise GiveUp("%s\n%s"%(utils.wrap("%s: 'git status' suggests"
         ##        " checkout does not match master:"%co_leaf),
         ##        utils.indent(text,'    ')))
         if False:
@@ -779,7 +793,7 @@ class Git(VersionControlSystem):
             # better?
             try:
                 revision = self._git_describe_long(co_leaf, orig_revision, force, verbose)
-            except utils.GiveUp:
+            except GiveUp:
                 revision = self._calculate_revision(co_leaf, orig_revision, force, verbose)
         else:
             revision = self._calculate_revision(co_leaf, orig_revision, force,

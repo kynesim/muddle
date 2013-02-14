@@ -53,11 +53,11 @@ can, for instance, do::
 
 .. note:: Muddle is actively developed, and we normally assume that you will
    keep it up-to-date with the current state of that development. Unless your
-   project says to do otherwise, it's normally worth doing a ``git update``
+   project says to do otherwise, it's normally worth doing a ``git pull``
    once a week or so -- for instance::
 
       $ pushd ~/sw/muddle
-      $ git update
+      $ git pull
 
 Step 2: getting your project's build description
 ================================================

@@ -554,19 +554,9 @@ def test_guess_version_number(d, repo):
                                              'simple_v0.2.release',
                                              ])
 
-        touch('versions/Simple_v0.3.release', '')
-        muddle(['stamp', 'release', 'simple', '-next'])
-        with Directory('versions'):
-            check_specific_files_in_this_dir(['.git',
-                                             'simple_v0.0.release',
-                                             'simple_v0.01.release',
-                                             'simple_v0.2.release',
-                                             'Simple_v0.3.release',
-                                             'simple_v0.3.release',
-                                             ])
-
         # Whilst 0.03 and 0.3 are "the same" version, that doesn't matter
-        # as they already exist - we only care about the next version
+        # if they already exist - we only care about the next version
+        touch('versions/simple_v0.3.release', '')
         touch('versions/simple_v0.03.release', '')
         muddle(['stamp', 'release', 'simple', '-next'])
         with Directory('versions'):
@@ -574,13 +564,14 @@ def test_guess_version_number(d, repo):
                                              'simple_v0.0.release',
                                              'simple_v0.01.release',
                                              'simple_v0.2.release',
-                                             'Simple_v0.3.release',
+                                             'simple_v0.03.release',
                                              'simple_v0.3.release',
                                              'simple_v0.03.release',
                                              'simple_v0.4.release',
                                              ])
 
-        # We require major.minor, not any other variation
+        # We require major.minor, not any other variation - we won't
+        # take notice of a file that doesn't match
         touch('versions/simple_v3.release', '')
         muddle(['stamp', 'release', 'simple', '-next'])
         with Directory('versions'):
@@ -588,7 +579,7 @@ def test_guess_version_number(d, repo):
                                              'simple_v0.0.release',
                                              'simple_v0.01.release',
                                              'simple_v0.2.release',
-                                             'Simple_v0.3.release',
+                                             'simple_v0.03.release',
                                              'simple_v0.3.release',
                                              'simple_v0.03.release',
                                              'simple_v0.4.release',
@@ -602,7 +593,7 @@ def test_guess_version_number(d, repo):
                                              'simple_v0.0.release',
                                              'simple_v0.01.release',
                                              'simple_v0.2.release',
-                                             'Simple_v0.3.release',
+                                             'simple_v0.03.release',
                                              'simple_v0.3.release',
                                              'simple_v0.03.release',
                                              'simple_v0.4.release',
@@ -619,7 +610,7 @@ def test_guess_version_number(d, repo):
                                              'simple_v0.0.release',
                                              'simple_v0.01.release',
                                              'simple_v0.2.release',
-                                             'Simple_v0.3.release',
+                                             'simple_v0.03.release',
                                              'simple_v0.3.release',
                                              'simple_v0.03.release',
                                              'simple_v0.4.release',

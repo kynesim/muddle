@@ -2377,23 +2377,13 @@ class QueryDomains(QueryCommand):
         joined = ('join' in self.switches)
 
         domains = builder.all_domains()
-        a_list = list(domains)
-        a_list.sort()
-        if a_list[0] == '':
-            a_list = a_list[1:]
-        if joined:
-            print '%s'%" ".join(a_list)
-        else:
-            print '%s'%"\n".join(a_list)
-
-
+        if '' in domains:
+            domains.remove('')
         domains = utils.sort_domains(domains)
-        domains = map(utils.join_domain, domains)
-        print ''
-        if domains[0] == '':
-            domains = domains[1:]
-        for name in domains:
-            print ' ',name
+        if joined:
+            print '%s'%" ".join(domains)
+        else:
+            print '%s'%"\n".join(domains)
 
 @subcommand('query', 'packages', CAT_QUERY)
 class QueryPackages(QueryCommand):

@@ -1197,6 +1197,22 @@ def join_domain(domain_parts):
 
 def sort_domains(domains):
     """Given a sequence of domain names, return them sorted by depth.
+
+    So, given some random domain names (and we forgot to forbid strange
+    names starting with '+' or '-'):
+
+    >>> a = ['a', '+1', '-2', 'a(b(c2))', 'a(b(c1))', '+1(+2(+4(+4)))',
+    ...    'b(b)', 'b', 'b(a)', 'a(a)', '+1(+2)', '+1(+2(+4))', '+1(+3)']
+
+    sorting "alphabetically" gives the wrong result:
+
+    >>> sorted(a)
+    ['+1', '+1(+2(+4(+4)))', '+1(+2(+4))', '+1(+2)', '+1(+3)', '-2', 'a', 'a(a)', 'a(b(c1))', 'a(b(c2))', 'b', 'b(a)', 'b(b)']
+
+    so we needed this function:
+
+    >>> sort_domains(a)
+    ['+1', '+1(+2)', '+1(+2(+4))', '+1(+2(+4(+4)))', '+1(+3)', '-2', 'a', 'a(a)', 'a(b(c1))', 'a(b(c2))', 'b', 'b(a)', 'b(b)']
     """
     name_lists = []
     for domain in domains:
@@ -1211,7 +1227,7 @@ def sort_domains(domains):
 
     result = []
     for thing in domain_strings:
-        result.append(thing.split('~'))
+        result.append(join_domain(thing.split('~')))
 
     return result
 

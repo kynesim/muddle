@@ -45,7 +45,7 @@ import muddled.docreport
 from muddled.db import Database, InstructionFile
 from muddled.depend import Label, label_list_to_string
 from muddled.utils import GiveUp, MuddleBug, Unsupported, \
-        DirType, LabelTag, LabelType, find_label_dir
+        DirType, LabelTag, LabelType, find_label_dir, sort_domains
 from muddled.utils import split_vcs_url
 from muddled.version_control import checkout_from_repo
 from muddled.repository import Repository
@@ -1568,7 +1568,7 @@ class Init(Command):
         # out after the build description is "finished".
         if builder.follow_build_desc_branch:
             subdomain_build_descs = []
-            for domain in sorted(builder.all_domains()):
+            for domain in sort_domains(builder.all_domains()):
                 if domain == "":    # Nothing to do for the top-level
                     continue
                 build_desc = builder.db.get_domain_build_desc_label(domain)
@@ -2379,7 +2379,7 @@ class QueryDomains(QueryCommand):
         domains = builder.all_domains()
         if '' in domains:
             domains.remove('')
-        domains = utils.sort_domains(domains)
+        domains = sort_domains(domains)
         if joined:
             print '%s'%" ".join(domains)
         else:
@@ -4651,19 +4651,14 @@ class UnStamp(Command):
 
         Perhaps should be in utils.py...
         """
-        domain_parts = Label.split_domain(domain_name)
-        path_parts = [root_path]
-        for d in domain_parts:
-            path_parts.append('domains')
-            path_parts.append(d)
-        return os.path.join(*path_parts)
+        return os.path.join(root_path, utils.domain_subpath(domain_name))
 
     def restore_stamp(self, builder, current_dir, domains, checkouts):
         """
         Given the information from our stamp file, restore things.
         """
         domain_names = domains.keys()
-        domain_names.sort()
+        domain_names = sort_domains(domain_names)
         for domain_name in domain_names:
             domain_repo, domain_desc = domains[domain_name]
 
@@ -4708,7 +4703,7 @@ class UnStamp(Command):
         Given the information from our stamp file, update the current build.
         """
         domain_names = domains.keys()
-        domain_names.sort()
+        domain_names = sort_domains(domain_names)
         root_path = builder.db.root_path
         for domain_name in domain_names:
             domain_repo, domain_desc = domains[domain_name]

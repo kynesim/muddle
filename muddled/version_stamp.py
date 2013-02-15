@@ -221,7 +221,8 @@ from StringIO import StringIO
 from muddled.depend import Label
 from muddled.repository import Repository
 from muddled.utils import MuddleSortedDict, MuddleOrderedDict, \
-        HashFile, GiveUp, truncate, LabelType, LabelTag, split_vcs_url
+        HashFile, GiveUp, truncate, LabelType, LabelTag, split_vcs_url, \
+        sort_domains
 
 CheckoutTupleV1 = namedtuple('CheckoutTupleV1', 'name repo rev rel dir domain co_leaf branch')
 
@@ -501,7 +502,7 @@ class VersionStamp(object):
         if self.domains:
             config = make_RawConfigParser(sorted=True)
             domain_names = self.domains.keys()
-            for domain_name in domain_names:
+            for domain_name in sort_domains(domain_names):
                 domain_repo, domain_desc = self.domains[domain_name]
                 section = "DOMAIN %s"%domain_name
                 config.add_section(section)

@@ -17,7 +17,7 @@ import muddled.instr as instr
 from muddled.depend import Label, Action, normalise_checkout_label, label_list_to_string
 from muddled.utils import domain_subpath, GiveUp, MuddleBug, LabelType, LabelTag
 from muddled.repository import Repository
-from muddled.utils import split_vcs_url
+from muddled.utils import split_vcs_url, sort_domains
 from muddled.version_control import checkout_from_repo
 from muddled.version_stamp import ReleaseSpec
 
@@ -1839,7 +1839,7 @@ class Builder(object):
                     tags.add(l.tag)
             names = sorted(names)
             roles = sorted(roles)
-            domains = sorted(domains)
+            domains = sort_domains(domains)
             tags = sorted(tags)
             found_problem = False
             for d in domains:

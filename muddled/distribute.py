@@ -33,7 +33,7 @@ from fnmatch import fnmatchcase
 from muddled.depend import Action, Rule, Label, needed_to_build, label_list_to_string
 from muddled.utils import GiveUp, MuddleBug, LabelTag, LabelType, \
         copy_without, normalise_dir, find_local_relative_root, \
-        copy_file, domain_subpath
+        copy_file, domain_subpath, sort_domains
 from muddled.version_control import get_vcs_instance, vcs_special_files
 from muddled.mechanics import build_co_and_path_from_str
 from muddled.pkgs.make import MakeBuilder, deduce_makefile_name
@@ -1609,9 +1609,9 @@ def _add_build_descriptions(builder, name, domains, copy_vcs=False):
     extra_labels = []
 
     cumulative_domains = set()
-    for domain in sorted(domains):
-        if domain is None:
-            cumulative_domains.add(domain)
+    for domain in sort_domains(domains):
+        if domain is None or domain == '':
+            cumulative_domains.add('')
         else:
             parts = Label.split_domain(domain)
             for ii in range(1, 1+len(parts)):
@@ -1619,7 +1619,7 @@ def _add_build_descriptions(builder, name, domains, copy_vcs=False):
                 cumulative_domains.add(d)
 
     if DEBUG: print 'Adding build descriptions'
-    for domain in sorted(cumulative_domains):
+    for domain in sort_domains(cumulative_domains):
         co_label = _build_desc_label_in_domain(builder, domain, LabelTag.Distributed)
         if DEBUG: print '-- Build description', co_label
         distribute_build_desc(builder, name, co_label, copy_vcs)
@@ -1662,7 +1662,7 @@ def _copy_muddle_skeleton(builder, name, target_dir, domains):
     src_root = builder.db.root_path
     tgt_root = target_dir
 
-    for domain in sorted(domains):
+    for domain in sort_domains(domains):
         if DEBUG: print '.muddle skeleton for domain:', domain
 
         if not domain:

@@ -1162,7 +1162,15 @@ def split_domain(domain_name):
         ...
         GiveUp: Domain name "a(b(c)(d))" has 'sibling' sub-domains
 
+    If we're given '' or None, we return [''], "normalising" the domain name.
+
+        >>> split_domain('')
+        ['']
+        >>> split_domain(None)
+        ['']
     """
+    if domain_name is None:
+        return ['']
 
     if '(' not in domain_name:
         return [domain_name]
@@ -1213,11 +1221,13 @@ def sort_domains(domains):
 
     >>> sort_domains(a)
     ['+1', '+1(+2)', '+1(+2(+4))', '+1(+2(+4(+4)))', '+1(+3)', '-2', 'a', 'a(a)', 'a(b(c1))', 'a(b(c2))', 'b', 'b(a)', 'b(b)']
+
+    If we're given a domain name that is None, we'll replace it with ''.
     """
     name_lists = []
     for domain in domains:
         # 'fred(jim)' becomes ['fred', 'jim']
-        # '' becomes []
+        # '' and None become ['']
         name_lists.append(split_domain(domain))
 
     # ['fred', 'jim'] becomes 'fred~jim'

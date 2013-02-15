@@ -1180,6 +1180,41 @@ def split_domain(domain_name):
     parts[-1] = parts[-1][:- num_closing]
     return parts
 
+def join_domain(domain_parts):
+    """Re-join a domain name we split with split_domain.
+    """
+    if len(domain_parts) == 1:
+        return domain_parts[0]
+
+    start = domain_parts[0]
+    end = ''
+    domain_parts = domain_parts[1:]
+    while domain_parts:
+        start += '(' + domain_parts[0]
+        end += ')'
+        domain_parts = domain_parts[1:]
+    return start + end
+
+def sort_domains(domains):
+    """Given a sequence of domain names, return them sorted by depth.
+    """
+    name_lists = []
+    for domain in domains:
+        # 'fred(jim)' becomes ['fred', 'jim']
+        # '' becomes []
+        name_lists.append(split_domain(domain))
+
+    # ['fred', 'jim'] becomes 'fred~jim'
+    domain_strings = map('~'.join, name_lists)
+    # And sorting should now do what we want
+    domain_strings.sort()
+
+    result = []
+    for thing in domain_strings:
+        result.append(thing.split('~'))
+
+    return result
+
 def domain_subpath(domain_name):
     """Calculate the sub-path for a given domain name.
 

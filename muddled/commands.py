@@ -2386,6 +2386,15 @@ class QueryDomains(QueryCommand):
         else:
             print '%s'%"\n".join(a_list)
 
+
+        domains = utils.sort_domains(domains)
+        domains = map(utils.join_domain, domains)
+        print ''
+        if domains[0] == '':
+            domains = domains[1:]
+        for name in domains:
+            print ' ',name
+
 @subcommand('query', 'packages', CAT_QUERY)
 class QueryPackages(QueryCommand):
     """
@@ -5812,6 +5821,28 @@ class Pull(CheckoutCommand):
         not_needed  = []
 
         builder.db.just_pulled.clear()
+
+        # ====================================================================
+        lset = set(labels)
+        build_desc = builder.build_desc_label
+        if build_desc in lset:
+            # Consider building this first, and then reloading it
+            pass
+
+        # This gives us a set of domain names. If we split them and then sort
+        # them we should get a useful (reverse) ordering. For instance:
+        #
+        #
+        #       '+fred'
+        #       -fred
+        #       -fred
+        #       subdomain1
+        #       subdomain1(subdomain1.1)
+        #       subdomain2
+        #       subdomain2(subdomain2.1(subdomain2.2))
+        #       subdomain2(subdomain2.1)
+        subdomains = builder.all_domains()
+        # ====================================================================
 
         try:
             for co in labels:

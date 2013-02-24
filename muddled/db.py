@@ -1236,12 +1236,6 @@ class Database(object):
         self.VersionsRepository_pathfile.commit()
 
 
-    def clear_just_pulled(self):
-        """Clear our memory of which checkouts have just been pulled.
-        """
-        self.just_pulled = set()
-
-
 class PathFile(object):
     """
     Manipulates a file containing a single path name.
@@ -1718,6 +1712,21 @@ class JustPulledFile(object):
         """
         self.file_name = file_name
         self._just_pulled = set()
+
+    def sofar(self):
+        """Return the memory of what has just been pulled.
+
+        This is the transient memory, as is being accumulated for a 'commit'.
+        It returns a copy.
+
+        It is *always* safe to use the 'get' method.
+        """
+        return self._just_pulled.copy()
+
+    def clear_just_pulled(self):
+        """Clear our memory of which checkouts have just been pulled.
+        """
+        self.just_pulled = set()
 
     def get(self):
         """Retrieve the contents of the _just_pulled file as a list of labels.

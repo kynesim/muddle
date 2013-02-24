@@ -338,22 +338,38 @@ class CPDCommand(Command):
     classes using it (I coult have done a mixin class instead)
     """
 
+    # It may be useful to remember the contents of the command line after
+    # switches have been removed, but before labels (e.g., _all) have been
+    # expanded
+    original_labels = []
+
+    # We would also like to remember our "current" directory, i.e., our
+    # top-level directory, in case a subclass wants it
+    current_dir = None
+
     # Subclasses should override the following as necessary
     required_tag = None
     required_type = LabelType.Checkout
 
+    def expand_labels(self, builder, args):
+        if args:
+            # Expand out any labels that need it
+            labels = self.decode_args(builder, args, self.current_dir)
+        else:
+            # Decide what to do based on where we are
+            labels = self.default_args(builder, self.current_dir)
+        # We promised a sorted list
+        labels.sort()
+        return labels
+
     def with_build_tree(self, builder, current_dir, args):
 
         args = self.remove_switches(args)
-        if args:
-            # Expand out any labels that need it
-            labels = self.decode_args(builder, args, current_dir)
-        else:
-            # Decide what to do based on where we are
-            labels = self.default_args(builder, current_dir)
 
-        # We promised a sorted list
-        labels.sort()
+        self.original_labels = args[:]
+        self.current_dir = current_dir
+
+        labels = self.expand_labels(builder, args)
 
         if self.no_op():
             print 'Asked to %s:\n  %s'%(self.cmd_name,
@@ -5798,53 +5814,90 @@ class Pull(CheckoutCommand):
     def build_these_labels(self, builder, labels):
 
         if 'stop' in self.switches:
-            stop_on_problem = True
+            self.stop_on_problem = True
         else:
-            stop_on_problem = False
+            self.stop_on_problem = False
 
-        problems = []
-        not_needed  = []
+        self.problems = []
+        self.not_needed  = []
 
         builder.db.just_pulled.clear()
 
         # ====================================================================
-        lset = set(labels)
-        build_desc = builder.build_desc_label
-        if build_desc in lset:
-            # Consider building this first, and then reloading it
-            pass
+        # The following may, of necessity, be slow.
+        #
+        # We were given a list of labels to pull
+        # Find all of the build descriptions for our domains.
+        # Start with the first (the top level build description).
+        # - if it is in our list, then:
+        # - pull it
+        # - for each .py file in that checkout, delete the corresponding .pyc
+        #   file (so that we can guarantee to detect any changes - Python
+        #   doesn't use a very accurate clock to detect whether a .pyc file is
+        #   older than its .py file). Note we only do this for .pyc files that
+        #   have a .py file, in case some mad person has committed a standalone
+        #   .pyc file...
+        # - reload this new build description (the simplest thing is always
+        #   to just reload the top-level build description, in fact)
+        # - re-evaluate the command line, in case it had things like _all
+        #   or package:*{some-role} whose expansion may have changed
+        # - remove all the _just_pulled checkouts so far from that list
+        # - move on to the next build description, and REPEAT...
+        #
+        # This is slow because of the continual delete files, reload build
+        # description, recalculate arguments cycle. On the other hand, most
+        # pull commands will only have at most one build description in them.
 
-        # This gives us a set of domain names. If we split them and then sort
-        # them we should get a useful (reverse) ordering. For instance:
-        #
-        #
-        #       '+fred'
-        #       -fred
-        #       -fred
-        #       subdomain1
-        #       subdomain1(subdomain1.1)
-        #       subdomain2
-        #       subdomain2(subdomain2.1(subdomain2.2))
-        #       subdomain2(subdomain2.1)
-        subdomains = builder.all_domains()
+        print 'LABELS:    ', label_list_to_string(labels)
+
+        # Work out our build description checkout labels, ignoring any that
+        # have just been pulled (which is none so far)
+        build_desc_labels = self.calc_build_descriptions(builder)
+        print 'BUILD DESCS', label_list_to_string(build_desc_labels)
+
+        # Which build description labels that have not yet pulled are
+        # still remaining in our labels-to-build?
+        target_set = set(labels)
+        remaining = target_set.intersection(build_desc_labels)
+        print 'REMAINING: ', label_list_to_string(sorted(remaining))
+
+        done = set()
+        try:
+            while remaining:
+                # Find the first of those (remember, we are handling build
+                # descriptions in sorted domain order)
+                for co in build_desc_labels:
+                    if co in remaining:
+                        print
+                        print 'PULLING', co
+                        self.pull(builder, co)
+                        self.delete_pyc_files(builder, co)
+                        builder = mechanics.load_builder(self.current_dir, None)
+                        # Recalculate our command line's labels
+                        labels = self.expand_labels(builder, self.original_labels)
+                        print 'LABELS:    ', label_list_to_string(labels)
+                        # We might have gained or lost domains, too
+                        done.add(co)
+                        print 'PULLED:    ', label_list_to_string(done)
+                        build_desc_labels = self.calc_build_descriptions(builder, done)
+                        print 'BUILD DESCS', label_list_to_string(build_desc_labels)
+                        # Recalculate our aims
+                        target_set = set(labels)
+                        remaining = target_set.intersection(build_desc_labels)
+                        print 'REMAINING: ', label_list_to_string(sorted(remaining))
+        finally:
+            # Remember to commit the 'just pulled' information
+            builder.db.just_pulled.commit()
+
+        # And so to whatever remains...
+        labels = target_set.difference(done)
+        print
+        print 'FINAL LABELS:    ', label_list_to_string(labels)
         # ====================================================================
 
         try:
             for co in labels:
-                try:
-                    # First clear the 'pulled' tag
-                    builder.db.clear_tag(co)
-                    # And then build it again
-                    builder.build_label(co)
-                except Unsupported as e:
-                    print e
-                    not_needed.append(e)
-                except GiveUp as e:
-                    if stop_on_problem:
-                        raise
-                    else:
-                        print e
-                        problems.append(e)
+                self.pull(builder, co)
         finally:
             # Remember to commit the 'just pulled' information
             builder.db.just_pulled.commit()
@@ -5854,18 +5907,80 @@ class Pull(CheckoutCommand):
             print '\nThe following checkouts were pulled:\n ',
             print label_list_to_string(just_pulled, join_with='\n  ')
 
-        if not_needed:
+        if self.not_needed:
             print '\nThe following pulls were not needed:'
-            for e in not_needed:
+            for e in self.not_needed:
                 print
                 print str(e).rstrip()
 
-        if problems:
+        if self.problems:
             print '\nThe following problems occurred:'
-            for e in problems:
+            for e in self.problems:
                 print
                 print str(e).rstrip()
             raise GiveUp()
+
+    def calc_build_descriptions(self, builder, done=None):
+        """Calculate all the build descriptions in this build tree.
+
+        Remove any that have already been 'done'
+
+        Return a list of build description checkout labels, ordered by domain.
+        """
+        domains = builder.all_domains()
+        domains = sort_domains(domains)
+        build_desc_labels = []
+        for domain in domains:
+            label = builder.db.get_domain_build_desc_label(domain)
+            label = label.copy_with_tag(self.required_tag)
+            build_desc_labels.append(label)
+
+        if done:
+            print '... DESC', label_list_to_string(build_desc_labels)
+            print '... DONE', label_list_to_string(done)
+            for label in done:
+                # We strongly expect the label to be in our list, as the only
+                # reason it would not be is if the build description has changed
+                # to not include it any more, which we expect to be uncommon
+                try:
+                    build_desc_labels.remove(label)
+                except ValueError:
+                    pass
+            print '... DESC', label_list_to_string(build_desc_labels)
+
+        return build_desc_labels
+
+    def pull(self, builder, co_label):
+        """Do the work of pulling checkout 'co_label'
+        """
+        try:
+            # First clear the 'pulled' tag
+            builder.db.clear_tag(co_label)
+            # And then build it again
+            builder.build_label(co_label)
+        except Unsupported as e:
+            print e
+            self.not_needed.append(e)
+        except GiveUp as e:
+            if self.stop_on_problem:
+                raise
+            else:
+                print e
+                self.problems.append(e)
+
+    def delete_pyc_files(self, builder, co_label):
+        """Delete .pyc files in this checkout
+        """
+        top_dir = builder.db.get_checkout_path(co_label)
+        for root, dirs, files in os.walk(top_dir):
+            for file in files:
+                name, ext = os.path.splitext(file)
+                # Delete any .pyc file that has a corresponding .py file
+                if ext == '.pyc' and name+'.py' in files:
+                    print 'Found   ', os.path.join(root, name+'.py')
+                    path = os.path.join(root, file)
+                    print 'Deleting', path
+                    os.remove(path)
 
 @command('merge', CAT_CHECKOUT)
 class Merge(CheckoutCommand):

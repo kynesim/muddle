@@ -23,7 +23,7 @@ except ImportError:
     import muddled.cmdline
 
 from muddled.utils import GiveUp, normalise_dir, LabelType, LabelTag
-from muddled.withdir import Directory, NewDirectory, TransientDirectory
+from muddled.withdir import Directory, NewDirectory, TransientDirectory, NewCountedDirectory
 from muddled.depend import Label, label_list_to_string
 from muddled.version_stamp import VersionStamp, ReleaseStamp, ReleaseSpec
 
@@ -535,7 +535,7 @@ def test_ReleaseStamp_basics(d):
 def test_guess_version_number(d, repo):
     banner('TEST GUESS VERSION NUMBER')
     banner('Check out build tree, and stamp it as a release', 2)
-    with NewDirectory('build.version-number') as build1:
+    with NewCountedDirectory('build.version-number') as build1:
         r = 'git+file://{repo}/main'.format(repo=repo)
         d = 'builds/01.py'
         v = '{root}/versions'.format(root=r)
@@ -634,7 +634,7 @@ def test_guess_version_number(d, repo):
 def test_simple_release(d, repo):
     banner('TEST SIMPLE RELEASE')
     banner('Check out build tree, and stamp it as a release', 2)
-    with NewDirectory('build1') as build1:
+    with NewCountedDirectory('build1') as build1:
         r = 'git+file://{repo}/main'.format(repo=repo)
         d = 'builds/01.py'
         v = '{root}/versions'.format(root=r)
@@ -657,14 +657,14 @@ def test_simple_release(d, repo):
             raise GiveUp('Expected the MUDDLE_RELEASE_ values to be all (unset)')
 
     banner('Try "muddle release" using that stamp', 2)
-    with NewDirectory('build2') as build2:
+    with NewCountedDirectory('build2') as build2:
         muddle(['release', rfile])
         check_release_directory(build2)
 
 def test_test_release(d, repo):
     banner('TEST TEST RELEASE')
     banner('Check out build tree, and stamp it as a release', 2)
-    with NewDirectory('build-test') as test_build:
+    with NewCountedDirectory('build-test') as test_build:
         r = 'git+file://{repo}/main'.format(repo=repo)
         d = 'builds/01.py'
         v = '{root}/versions'.format(root=r)
@@ -847,6 +847,21 @@ def check_release_directory(release_dir):
                                           'second2',
                                          ])
 
+def test_issue_249_single_digit_version_number(d, repo):
+    banner('TEST ISSUE 249')
+    banner('Check out build tree, and stamp it as release version 1', 2)
+    with NewCountedDirectory('build.version-number') as build:
+        r = 'git+file://{repo}/main'.format(repo=repo)
+        d = 'builds/01.py'
+        v = '{root}/versions'.format(root=r)
+        muddle(['init', r, d])
+        muddle(['checkout', '_all'])
+        muddle(['stamp', 'release', 'simple', '1'])
+        with Directory('versions'):
+            check_specific_files_in_this_dir(['.git', 'simple_1.release'])
+            check_release_file_starts('simple_1.release', 'simple', '1',
+                                      'tar', 'gzip', r, d, v)
+
 def main(args):
 
     keep = False
@@ -870,6 +885,8 @@ def main(args):
         test_simple_release(root_d, repo)
         test_test_release(root_d, repo)
         test_guess_version_number(root_d, repo)
+
+        test_issue_249_single_digit_version_number(root_d, repo)
 
 
 if __name__ == '__main__':

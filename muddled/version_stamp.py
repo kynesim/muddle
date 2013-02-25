@@ -1014,7 +1014,8 @@ class ReleaseSpec(object):
     """
 
     # Actually, we use the same regular expression for release versions and names
-    version_re = re.compile(r"[A-Za-z0-9][A-Za-z0-9._-]+")
+    # (although one has to doubt the utility of a single character release *name*)
+    version_re = re.compile(r"[A-Za-z0-9][A-Za-z0-9._-]*")
     name_re = version_re
 
     # For both of these, the first value is the default

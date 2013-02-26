@@ -11,8 +11,8 @@ We're working with a structure as follows:
         <subdomain1>
             <subdomain3>
         <subdomain2>
-            <subdomain3>
             <subdomain4>
+            <subdomain5>
 """
 
 import os
@@ -174,12 +174,12 @@ def describe_to(builder):
     muddled.pkgs.make.medium(builder, "second_pkg", [role], "second_co")
 
     include_domain(builder,
-                   domain_name = "subdomain3",
+                   domain_name = "subdomain4",
                    domain_repo = "git+file://{repo}/subdomain3",
                    domain_desc = "builds/01.py")
 
     include_domain(builder,
-                   domain_name = "subdomain4",
+                   domain_name = "subdomain5",
                    domain_repo = "git+file://{repo}/subdomain4",
                    domain_desc = "builds/01.py")
 
@@ -232,6 +232,33 @@ def describe_to(builder):
 """
 
 SUBDOMAIN4_BUILD_DESC = """ \
+# A simple build description
+
+import muddled
+import muddled.pkgs.make
+import muddled.checkouts.simple
+import muddled.deployments.filedep
+from muddled.depend import Label
+
+def describe_to(builder):
+    role = 'x86'
+    deployment = 'everything'
+
+    muddled.pkgs.make.medium(builder, "main_pkg", [role], "main_co")
+    muddled.pkgs.make.medium(builder, "first_pkg", [role], "first_co")
+    muddled.pkgs.make.medium(builder, "second_pkg", [role], "second_co")
+
+    # The 'everything' deployment is built from our single role, and goes
+    # into deploy/everything.
+    muddled.deployments.filedep.deploy(builder, "", "everything", [role])
+
+    # If no role is specified, assume this one
+    builder.add_default_role(role)
+    # muddle at the top level will default to building this deployment
+    builder.by_default_deploy("everything")
+"""
+
+SUBDOMAIN5_BUILD_DESC = """ \
 # A simple build description
 
 import muddled
@@ -318,6 +345,22 @@ def check_cmd(command, expected='', unsure=False):
     if got != expected:
         raise GiveUp('Expected "{0}", got "{1}"'.format(expected, got))
 
+def make_checkout_bare():
+    """Use nasty trickery to turn our checkout bare...
+    """
+    # 1. Lose the working set
+    files = os.listdir('.')
+    for file in files:
+        if file != '.git':
+            os.remove(file)
+    # 2. Move the contents of .git/ up one level, and delete the empty .git/
+    files = os.listdir('.git')
+    for file in files:
+        os.rename(os.path.join('.git', file), file)
+    os.rmdir('.git')
+    # 3. Tell git what we've done
+    git('config --bool core.bare true')
+
 def make_build_desc(co_dir, file_content):
     """Take some of the repetition out of making build descriptions.
     """
@@ -328,6 +371,7 @@ def make_build_desc(co_dir, file_content):
     touch('.gitignore', GITIGNORE)
     git('add .gitignore')
     git('commit -m "Commit .gitignore"')
+    make_checkout_bare()
 
 def make_standard_checkout(co_dir, progname, desc):
     """Take some of the repetition out of making checkouts.
@@ -339,6 +383,7 @@ def make_standard_checkout(co_dir, progname, desc):
     git('add {progname}.c Makefile.muddle'.format(progname=progname))
     git('commit -a -m "Commit {desc} checkout {progname}"'.format(desc=desc,
         progname=progname))
+    make_checkout_bare()
 
 def make_repos_with_subdomain(root_dir):
     """Create git repositories for our subdomain tests.
@@ -390,82 +435,70 @@ def make_repos_with_subdomain(root_dir):
                 make_standard_checkout(d.where, 'first', 'first')
             with NewDirectory('second_co') as d:
                 make_standard_checkout(d.where, 'second', 'second')
+        with NewDirectory('subdomain5'):
+            with NewDirectory('builds') as d:
+                make_build_desc(d.where, SUBDOMAIN5_BUILD_DESC)
+            with NewDirectory('main_co') as d:
+                make_standard_checkout(d.where, 'subdomain5', 'subdomain5')
+            with NewDirectory('first_co') as d:
+                make_standard_checkout(d.where, 'first', 'first')
+            with NewDirectory('second_co') as d:
+                make_standard_checkout(d.where, 'second', 'second')
 
 def checkout_build_descriptions(root_dir, d):
 
     repo = os.path.join(root_dir, 'repo')
     muddle(['init', 'git+file://{repo}/main'.format(repo=repo), 'builds/01.py'])
 
+    check_original_build_descs(d)
+
+def check_original_build_descs(d):
+    """Check our build descriptions match the original specification.
+    """
     check_files([d.join('src', 'builds', '01.py'),
                  d.join('domains', 'subdomain1', 'src', 'builds', '01.py'),
                  d.join('domains', 'subdomain1', 'domains', 'subdomain3', 'src', 'builds', '01.py'),
                  d.join('domains', 'subdomain2', 'src', 'builds', '01.py'),
-                 d.join('domains', 'subdomain2', 'domains', 'subdomain3', 'src', 'builds', '01.py'),
                  d.join('domains', 'subdomain2', 'domains', 'subdomain4', 'src', 'builds', '01.py'),
+                 d.join('domains', 'subdomain2', 'domains', 'subdomain5', 'src', 'builds', '01.py'),
                 ])
 
-def checkout_all(d):
-    muddle(['checkout', '_all'])
-    check_checkout_files(d)
+def check_amended_build_descs(d):
+    """Check our build descriptions match the changed specification.
 
-def check_checkout_files(d):
-    """Check we have all the files we should have after checkout
-
-    'd' is the current Directory.
+    We'll have the original sub-subdomains, and the newer ones as well
     """
-    def check_dot_muddle(is_subdomain):
-        with Directory('.muddle') as m:
-            check_files([m.join('Description'),
-                         m.join('RootRepository'),
-                         m.join('VersionsRepository')])
+    check_files([d.join('src', 'builds', '01.py'),
+                 d.join('domains', 'subdomain1', 'src', 'builds', '01.py'),
+                 d.join('domains', 'subdomain1', 'domains', 'subdomain3', 'src', 'builds', '01.py'),
+                 d.join('domains', 'subdomain1', 'domains', 'subdomain4', 'src', 'builds', '01.py'),
+                 d.join('domains', 'subdomain1', 'domains', 'subdomain5', 'src', 'builds', '01.py'),
+                 d.join('domains', 'subdomain2', 'src', 'builds', '01.py'),
+                 d.join('domains', 'subdomain2', 'domains', 'subdomain3', 'src', 'builds', '01.py'),
+                 d.join('domains', 'subdomain2', 'domains', 'subdomain4', 'src', 'builds', '01.py'),
+                 d.join('domains', 'subdomain2', 'domains', 'subdomain5', 'src', 'builds', '01.py'),
+                ])
 
-            if is_subdomain:
-                check_files([m.join('am_subdomain')])
+def swap_subdomains(root_dir, d):
+    """Swap the build descriptions for subdomains 1 and 2.
+    """
 
-            with Directory(m.join('tags', 'checkout')) as c:
-                check_files([c.join('builds', 'checked_out'),
-                             c.join('first_co', 'checked_out'),
-                             c.join('main_co', 'checked_out'),
-                             c.join('second_co', 'checked_out')])
-
-    def check_src_files(main_c_file='main0.c'):
-        check_files([s.join('builds', '01.py'),
-                     s.join('main_co', 'Makefile.muddle'),
-                     s.join('main_co', main_c_file),
-                     s.join('first_co', 'Makefile.muddle'),
-                     s.join('first_co', 'first.c'),
-                     s.join('second_co', 'Makefile.muddle'),
-                     s.join('second_co', 'second.c')])
-
-    check_dot_muddle(is_subdomain=False)
-    with Directory('src') as s:
-        check_src_files('main0.c')
-
-    with Directory(d.join('domains', 'subdomain1', 'src')) as s:
-        check_src_files('subdomain1.c')
-    with Directory(d.join('domains', 'subdomain1')):
-        check_dot_muddle(is_subdomain=True)
-
-    with Directory(d.join('domains', 'subdomain1', 'domains', 'subdomain3', 'src')) as s:
-        check_src_files('subdomain3.c')
-    with Directory(d.join('domains', 'subdomain1', 'domains', 'subdomain3')):
-        check_dot_muddle(is_subdomain=True)
-
-    with Directory(d.join('domains', 'subdomain2', 'src')) as s:
-        check_src_files('subdomain2.c')
-
-    with Directory(d.join('domains', 'subdomain2')):
-        check_dot_muddle(is_subdomain=True)
-
-    with Directory(d.join('domains', 'subdomain2', 'domains', 'subdomain3', 'src')) as s:
-        check_src_files('subdomain3.c')
-    with Directory(d.join('domains', 'subdomain1', 'domains', 'subdomain3')):
-        check_dot_muddle(is_subdomain=True)
-
-    with Directory(d.join('domains', 'subdomain2', 'domains', 'subdomain4', 'src')) as s:
-        check_src_files('subdomain4.c')
-    with Directory(d.join('domains', 'subdomain2', 'domains', 'subdomain4')):
-        check_dot_muddle(is_subdomain=True)
+    repo = os.path.join(root_dir, 'repo')
+    with Directory('domains'):
+        with Directory('subdomain1'):
+            with Directory('src'):
+                with Directory('builds'):
+                    touch('01.py', SUBDOMAIN2_BUILD_DESC.format(repo=repo))
+                    git('commit 01.py -m "Swap build desc with subdomain2"')
+                    # We'd better push with git, since we've hacked the build description
+                    git('push origin HEAD')
+        with Directory('subdomain2'):
+            with Directory('src'):
+                with Directory('builds'):
+                    touch('01.py', SUBDOMAIN1_BUILD_DESC.format(repo=repo))
+                    git('commit 01.py -m "Swap build desc with subdomain1"')
+                    # We'd better push with git, since we've hacked the build description
+                    git('push origin HEAD')
 
 def main(args):
 
@@ -486,10 +519,47 @@ def main(args):
         banner('MAKE REPOSITORIES')
         make_repos_with_subdomain(root_dir)
 
-        with NewCountedDirectory('build') as d:
-            banner('CHECK REPOSITORIES OUT')
-            checkout_build_descriptions(root_dir, d)
-            checkout_all(d)
+        with NewCountedDirectory('build1') as d1:
+            banner('CHECK REPOSITORIES OUT INTO FIRST BUILD')
+            checkout_build_descriptions(root_dir, d1)
+            muddle(['checkout', '_all'])
+            first_dir = d1.where
+
+        with NewCountedDirectory('build2') as d2:
+            banner('CHECK REPOSITORIES OUT INTO SECOND BUILD')
+            checkout_build_descriptions(root_dir, d2)
+            muddle(['checkout', '_all'])
+            second_dir = d2.where
+
+        with NewCountedDirectory('build3') as d3:
+            banner('CHECK REPOSITORIES OUT INTO THIRD BUILD')
+            checkout_build_descriptions(root_dir, d3)
+            muddle(['checkout', '_all'])
+            third_dir = d3.where
+
+        with Directory(first_dir) as d:
+            banner('SWAP SUBDOMAIN BUILD DESCRIPTIONS IN FIRST BUILD AND PUSH')
+            swap_subdomains(root_dir, d)
+
+        with Directory(second_dir) as d:
+            banner('PULL IN THE ORIGINAL MANNER')
+            muddle(['pull', '_all'])
+            check_original_build_descs(d)
+            check_file_v_text(d.join('.muddle', '_just_pulled'),
+                              [
+                              'checkout:(subdomain1)builds/checked_out\n',
+                              'checkout:(subdomain2)builds/checked_out\n',
+                              ])
+
+        with Directory(third_dir) as d:
+            banner('PULL WITH BUILD DESCRIPTIONS PULLED FIRST')
+            muddle(['pull', '-slow', '_all'])
+            check_amended_build_descs(d)
+            check_file_v_text(d.join('.muddle', '_just_pulled'),
+                              [
+                              'checkout:(subdomain1)builds/checked_out\n',
+                              'checkout:(subdomain2)builds/checked_out\n',
+                              ])
 
 
 if __name__ == '__main__':

@@ -5861,18 +5861,18 @@ class Pull(CheckoutCommand):
             # description, recalculate arguments cycle. On the other hand, most
             # pull commands will only have at most one build description in them.
 
-            print 'LABELS:    ', label_list_to_string(labels)
+            print 'LABELS:    ', self.label_names(labels)
 
             # Work out our build description checkout labels, ignoring any that
             # have just been pulled (which is none so far)
             build_desc_labels = self.calc_build_descriptions(builder)
-            print 'BUILD DESCS', label_list_to_string(build_desc_labels)
+            print 'BUILD DESCS', self.label_names(build_desc_labels)
 
             # Which build description labels that have not yet pulled are
             # still remaining in our labels-to-build?
             target_set = set(labels)
             remaining = target_set.intersection(build_desc_labels)
-            print 'REMAINING: ', label_list_to_string(sorted(remaining))
+            print 'REMAINING: ', self.label_names(sorted(remaining))
 
             done = set()
             try:
@@ -5891,13 +5891,13 @@ class Pull(CheckoutCommand):
                             print 'LABELS:    ', label_list_to_string(labels)
                             # We might have gained or lost domains, too
                             done.add(co)
-                            print 'PULLED:    ', label_list_to_string(done)
+                            print 'PULLED:    ', self.label_names(done)
                             build_desc_labels = self.calc_build_descriptions(builder, done)
-                            print 'BUILD DESCS', label_list_to_string(build_desc_labels)
+                            print 'BUILD DESCS', self.label_names(build_desc_labels)
                             # Recalculate our aims
                             target_set = set(labels)
                             remaining = target_set.intersection(build_desc_labels)
-                            print 'REMAINING: ', label_list_to_string(sorted(remaining))
+                            print 'REMAINING: ', self.label_names(sorted(remaining))
             finally:
                 # Remember to commit the 'just pulled' information
                 builder.db.just_pulled.commit()
@@ -5905,7 +5905,7 @@ class Pull(CheckoutCommand):
             # And so to whatever remains...
             labels = target_set.difference(done)
             print
-            print 'FINAL LABELS:    ', label_list_to_string(labels)
+            print 'FINAL LABELS:    ', self.label_names(labels)
             # ====================================================================
 
         try:
@@ -5933,6 +5933,15 @@ class Pull(CheckoutCommand):
                 print str(e).rstrip()
             raise GiveUp()
 
+    def label_names(self, labels):
+        result = []
+        for label in labels:
+            if label.domain:
+                result.append('(%s)%s'%(label.domain, label.name))
+            else:
+                result.append(label.name)
+        return ', '.join(result)
+
     def calc_build_descriptions(self, builder, done=None):
         """Calculate all the build descriptions in this build tree.
 
@@ -5949,8 +5958,8 @@ class Pull(CheckoutCommand):
             build_desc_labels.append(label)
 
         if done:
-            print '... DESC', label_list_to_string(build_desc_labels)
-            print '... DONE', label_list_to_string(done)
+            print '... DESC', self.label_names(build_desc_labels)
+            print '... DONE', self.label_names(done)
             for label in done:
                 # We strongly expect the label to be in our list, as the only
                 # reason it would not be is if the build description has changed
@@ -5959,7 +5968,7 @@ class Pull(CheckoutCommand):
                     build_desc_labels.remove(label)
                 except ValueError:
                     pass
-            print '... DESC', label_list_to_string(build_desc_labels)
+            print '... DESC', self.label_names(build_desc_labels)
 
         return build_desc_labels
 

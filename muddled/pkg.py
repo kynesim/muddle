@@ -74,6 +74,8 @@ class VcsCheckoutBuilder(Action):
 
         if (target_tag == utils.LabelTag.CheckedOut):
             self.vcs.checkout(builder, co_label)
+            # For all intents and purposes, cloning is equivalent to pulling
+            builder.db.just_pulled.add(co_label)
         elif (target_tag == utils.LabelTag.Pulled):
             if self.vcs.pull(builder, co_label):
                 builder.db.just_pulled.add(co_label)

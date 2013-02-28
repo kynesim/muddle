@@ -349,6 +349,8 @@ class Database(object):
             labels.extend(not_against)
         # Or the checkout labels in the domain_build_desc_label values
         labels.extend(self.domain_build_desc_label.values())
+        # And there are the labels in our just_pulled set...
+        labels.extend(self.just_pulled.labels)
         return labels
 
     def include_domain(self, other_builder, other_domain_name):
@@ -387,6 +389,11 @@ class Database(object):
                 self.license_not_affected_by[pkg_label] = not_against
 
         self.nothing_builds_against.update(other_db.nothing_builds_against)
+
+        # If the subdomain just pulled stuff (as it will have done if it
+        # checked anything out, because that counts), then we need to add
+        # it to *our* set of just_pulled stuff
+        self.just_pulled.labels.update(other_db.just_pulled.labels)
 
     def _merge_subdomain_upstreams(self, other_domain_name, other_db):
         """Merge things from the subdomain that contain upstream repositories.
@@ -1711,22 +1718,7 @@ class JustPulledFile(object):
         """Set the path to the _just_pulled file.
         """
         self.file_name = file_name
-        self._just_pulled = set()
-
-    def sofar(self):
-        """Return the memory of what has just been pulled.
-
-        This is the transient memory, as is being accumulated for a 'commit'.
-        It returns a copy.
-
-        It is *always* safe to use the 'get' method.
-        """
-        return self._just_pulled.copy()
-
-    def clear_just_pulled(self):
-        """Clear our memory of which checkouts have just been pulled.
-        """
-        self.just_pulled = set()
+        self.labels = set()
 
     def get(self):
         """Retrieve the contents of the _just_pulled file as a list of labels.
@@ -1734,7 +1726,8 @@ class JustPulledFile(object):
         First clears the local memory, then reads the labels in the _just_pulled
         file into local memory, then returns that set as a sorted list.
         """
-        self._just_pulled.clear()
+        print 'XXX %s CLEAR AND GET JUST PULLED'%self.file_name
+        self.labels.clear()
         try:
             line_no = 0
             with open(self.file_name) as fd:
@@ -1748,9 +1741,9 @@ class JustPulledFile(object):
                     except GiveUp as e:
                         raise GiveUp('Error reading line %d of %s:\n%s'%(line_no,
                             self.file_name, e))
-                    self._just_pulled.add(label)
+                    self.labels.add(label)
 
-            return sorted(self._just_pulled)
+            return sorted(self.labels)
         except IOError as e:
             if e.errno == errno.ENOENT:
                 # File doesn't exist - so noone has created it yet
@@ -1761,7 +1754,8 @@ class JustPulledFile(object):
     def clear(self):
         """Clear the contents of the _just_pulled file, and our local memory.
         """
-        self._just_pulled.clear()
+        print 'XXX %s CLEAR JUST PULLED'%self.file_name
+        self.labels.clear()
         with open(self.file_name, 'w') as fd:
             pass
 
@@ -1771,7 +1765,8 @@ class JustPulledFile(object):
         The label is not added to the _just_pulled file until commit() is
         called.
         """
-        self._just_pulled.add(label.copy_with_tag(utils.LabelTag.CheckedOut))
+        print 'XXX %s ADD JUST PULLED %s'%(self.file_name, label)
+        self.labels.add(label.copy_with_tag(utils.LabelTag.CheckedOut))
 
     def commit(self):
         """Commit our local memory to the _just_pulled file.
@@ -1780,8 +1775,9 @@ class JustPulledFile(object):
 
         Leaves the local memory intact after writing (it does not clear it).
         """
+        print 'XXX %s COMMIT JUST PULLED'%self.file_name
         with open(self.file_name, 'w') as fd:
-            for label in sorted(self._just_pulled):
+            for label in sorted(self.labels):
                 fd.write('%s\n'%label)
 
 # End file

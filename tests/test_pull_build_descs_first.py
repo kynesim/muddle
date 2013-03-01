@@ -73,8 +73,6 @@ def describe_to(builder):
 
     # Checkout ..
     muddled.pkgs.make.medium(builder, "main_pkg", [role], "co0")
-    muddled.pkgs.make.medium(builder, "first_pkg", [role], "co1")
-    muddled.pkgs.make.medium(builder, "second_pkg", [role], "co2")
 
     # A package in a different role (which we never actually build)
     muddled.pkgs.make.simple(builder, "main_pkg", 'arm', "co0")
@@ -129,8 +127,6 @@ def describe_to(builder):
 
     # Checkout ..
     muddled.pkgs.make.medium(builder, "main_pkg", [role], "co0")
-    muddled.pkgs.make.medium(builder, "first_pkg", [role], "co1")
-    muddled.pkgs.make.medium(builder, "second_pkg", [role], "co2")
 
     include_domain(builder,
                    domain_name = "sub3",
@@ -170,8 +166,6 @@ def describe_to(builder):
 
     # Checkout ..
     muddled.pkgs.make.medium(builder, "main_pkg", [role], "co0")
-    muddled.pkgs.make.medium(builder, "first_pkg", [role], "co1")
-    muddled.pkgs.make.medium(builder, "second_pkg", [role], "co2")
 
     include_domain(builder,
                    domain_name = "sub4",
@@ -218,8 +212,6 @@ def describe_to(builder):
     deployment = 'everything'
 
     muddled.pkgs.make.medium(builder, "main_pkg", [role], "co0")
-    muddled.pkgs.make.medium(builder, "first_pkg", [role], "co1")
-    muddled.pkgs.make.medium(builder, "second_pkg", [role], "co2")
 
     # The 'everything' deployment is built from our single role, and goes
     # into deploy/everything.
@@ -245,8 +237,6 @@ def describe_to(builder):
     deployment = 'everything'
 
     muddled.pkgs.make.medium(builder, "main_pkg", [role], "co0")
-    muddled.pkgs.make.medium(builder, "first_pkg", [role], "co1")
-    muddled.pkgs.make.medium(builder, "second_pkg", [role], "co2")
 
     # The 'everything' deployment is built from our single role, and goes
     # into deploy/everything.
@@ -272,8 +262,6 @@ def describe_to(builder):
     deployment = 'everything'
 
     muddled.pkgs.make.medium(builder, "main_pkg", [role], "co0")
-    muddled.pkgs.make.medium(builder, "first_pkg", [role], "co1")
-    muddled.pkgs.make.medium(builder, "second_pkg", [role], "co2")
 
     # The 'everything' deployment is built from our single role, and goes
     # into deploy/everything.
@@ -395,55 +383,31 @@ def make_repos_with_subdomain(root_dir):
                 make_build_desc(d.where, TOPLEVEL_BUILD_DESC.format(repo=repo))
             with NewDirectory('co0') as d:
                 make_standard_checkout(d.where, 'main0', 'main')
-            with NewDirectory('co1') as d:
-                make_standard_checkout(d.where, 'first', 'first')
-            with NewDirectory('co2') as d:
-                make_standard_checkout(d.where, 'second', 'second')
         with NewDirectory('sub1'):
             with NewDirectory('builds') as d:
                 make_build_desc(d.where, sub1_BUILD_DESC.format(repo=repo))
             with NewDirectory('co0') as d:
                 make_standard_checkout(d.where, 'sub1', 'sub1')
-            with NewDirectory('co1') as d:
-                make_standard_checkout(d.where, 'first', 'first')
-            with NewDirectory('co2') as d:
-                make_standard_checkout(d.where, 'second', 'second')
         with NewDirectory('sub2'):
             with NewDirectory('builds') as d:
                 make_build_desc(d.where, sub2_BUILD_DESC.format(repo=repo))
             with NewDirectory('co0') as d:
                 make_standard_checkout(d.where, 'sub2', 'sub2')
-            with NewDirectory('co1') as d:
-                make_standard_checkout(d.where, 'first', 'first')
-            with NewDirectory('co2') as d:
-                make_standard_checkout(d.where, 'second', 'second')
         with NewDirectory('sub3'):
             with NewDirectory('builds') as d:
                 make_build_desc(d.where, sub3_BUILD_DESC)
             with NewDirectory('co0') as d:
                 make_standard_checkout(d.where, 'sub3', 'sub3')
-            with NewDirectory('co1') as d:
-                make_standard_checkout(d.where, 'first', 'first')
-            with NewDirectory('co2') as d:
-                make_standard_checkout(d.where, 'second', 'second')
         with NewDirectory('sub4'):
             with NewDirectory('builds') as d:
                 make_build_desc(d.where, sub4_BUILD_DESC)
             with NewDirectory('co0') as d:
                 make_standard_checkout(d.where, 'sub4', 'sub4')
-            with NewDirectory('co1') as d:
-                make_standard_checkout(d.where, 'first', 'first')
-            with NewDirectory('co2') as d:
-                make_standard_checkout(d.where, 'second', 'second')
         with NewDirectory('sub5'):
             with NewDirectory('builds') as d:
                 make_build_desc(d.where, sub5_BUILD_DESC)
             with NewDirectory('co0') as d:
                 make_standard_checkout(d.where, 'sub5', 'sub5')
-            with NewDirectory('co1') as d:
-                make_standard_checkout(d.where, 'first', 'first')
-            with NewDirectory('co2') as d:
-                make_standard_checkout(d.where, 'second', 'second')
 
 def checkout_build_descriptions(root_dir, d):
 
@@ -478,6 +442,17 @@ def check_amended_build_descs(d):
                  d.join('domains', 'sub2', 'domains', 'sub4', 'src', 'builds', '01.py'),
                  d.join('domains', 'sub2', 'domains', 'sub5', 'src', 'builds', '01.py'),
                 ])
+
+def amend_sub1_build_desc(root_dir, d):
+    repo = os.path.join(root_dir, 'repo')
+    with Directory('domains'):
+        with Directory('sub1'):
+            with Directory('src'):
+                with Directory('builds'):
+                    append('01.py', '\n# A harmless change\n')
+                    git('commit 01.py -m "A harmless change"')
+                    # We'd better push with git, since we've hacked the build description
+                    git('push origin HEAD')
 
 def swap_subdomains_and_push(root_dir, d):
     """Swap the build descriptions for subdomains 1 and 2.
@@ -519,30 +494,71 @@ def main(args):
         banner('MAKE REPOSITORIES')
         make_repos_with_subdomain(root_dir)
 
-        with NewCountedDirectory('build1') as d1:
+        with NewCountedDirectory('build.original') as d1:
             banner('CHECK REPOSITORIES OUT INTO FIRST BUILD')
             checkout_build_descriptions(root_dir, d1)
             muddle(['checkout', '_all'])
-            first_dir = d1.where
+            orig_dir = d1.where
 
-        with NewCountedDirectory('build2') as d2:
-            banner('CHECK REPOSITORIES OUT INTO SECOND BUILD')
+
+        banner('TEST A SIMPLE CHANGE')
+
+        with NewCountedDirectory('build.simple.normal.pull') as d2:
+            banner('CHECK REPOSITORIES OUT', 2)
             checkout_build_descriptions(root_dir, d2)
             muddle(['checkout', '_all'])
-            second_dir = d2.where
+            pass1_normal_dir = d2.where
 
-        with NewCountedDirectory('build3') as d3:
-            banner('CHECK REPOSITORIES OUT INTO THIRD BUILD')
+        with NewCountedDirectory('build.simple.slow.pull') as d3:
+            banner('CHECK REPOSITORIES OUT', 2)
             checkout_build_descriptions(root_dir, d3)
             muddle(['checkout', '_all'])
-            third_dir = d3.where
+            pass1_complex_dir = d3.where
 
-        with Directory(first_dir) as d:
-            banner('SWAP SUBDOMAIN BUILD DESCRIPTIONS IN FIRST BUILD AND PUSH')
+        with Directory(orig_dir) as d:
+            banner('AMEND SUB1 BUILD DESCRIPTION AND PUSH', 2)
+            amend_sub1_build_desc(root_dir, d)
+
+        with Directory(pass1_normal_dir) as d:
+            banner('PULL IN THE ORIGINAL MANNER', 2)
+            muddle(['pull', '_all'])
+            check_original_build_descs(d)
+            check_file_v_text(d.join('.muddle', '_just_pulled'),
+                              [
+                              'checkout:(sub1)builds/checked_out\n',
+                              ])
+
+        with Directory(pass1_complex_dir) as d:
+            banner('PULL WITH BUILD DESCRIPTIONS PULLED FIRST', 2)
+            muddle(['pull', '-slow', '_all'])
+            check_original_build_descs(d)
+            check_file_v_text(d.join('.muddle', '_just_pulled'),
+                              [
+                              'checkout:(sub1)builds/checked_out\n',
+                              ])
+
+        return
+
+        banner('TEST A MORE COMPLICATED CHANGE')
+
+        with NewCountedDirectory('build.swap.normal.pull') as d2:
+            banner('CHECK REPOSITORIES OUT', 2)
+            checkout_build_descriptions(root_dir, d2)
+            muddle(['checkout', '_all'])
+            pass2_simple_dir = d2.where
+
+        with NewCountedDirectory('build.swap.slow.pull') as d3:
+            banner('CHECK REPOSITORIES OUT', 2)
+            checkout_build_descriptions(root_dir, d3)
+            muddle(['checkout', '_all'])
+            pass2_complex_dir = d3.where
+
+        with Directory(orig_dir) as d:
+            banner('SWAP SUBDOMAIN BUILD DESCRIPTIONS AND PUSH', 2)
             swap_subdomains_and_push(root_dir, d)
 
-        with Directory(second_dir) as d:
-            banner('PULL IN THE ORIGINAL MANNER')
+        with Directory(pass2_simple_dir) as d:
+            banner('PULL IN THE ORIGINAL MANNER', 2)
             muddle(['pull', '_all'])
             check_original_build_descs(d)
             check_file_v_text(d.join('.muddle', '_just_pulled'),
@@ -551,8 +567,8 @@ def main(args):
                               'checkout:(sub2)builds/checked_out\n',
                               ])
 
-        with Directory(third_dir) as d:
-            banner('PULL WITH BUILD DESCRIPTIONS PULLED FIRST')
+        with Directory(pass2_complex_dir) as d:
+            banner('PULL WITH BUILD DESCRIPTIONS PULLED FIRST', 2)
             muddle(['pull', '-slow', '_all'])
             check_amended_build_descs(d)
             check_file_v_text(d.join('.muddle', '_just_pulled'),

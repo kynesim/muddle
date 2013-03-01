@@ -5884,19 +5884,26 @@ class Pull(CheckoutCommand):
                             print
                             print 'PULLING ', co
                             self.pull(builder, co)
-                            self.delete_pyc_files(builder, co)
-                            builder = mechanics.load_builder(self.current_dir, None)
-                            # Recalculate our command line's labels
-                            labels = self.expand_labels(builder, self.original_labels)
-                            print 'LABELS:     ', label_list_to_string(labels)
+                            # XXX If we can tell it didn't get changed, then
+                            # XXX we don't in fact need to reload it...
+                            if True:    # XXX But for the moment
+                                self.delete_pyc_files(builder, co)
+                                builder = mechanics.load_builder(self.current_dir, None)
+                                # Recalculate our command line's labels
+                                labels = self.expand_labels(builder, self.original_labels)
                             # We might have gained or lost domains, too
                             done.add(co)
-                            print 'PULLED:     ', self.label_names(done)
+                            print 'DONE:       ', self.label_names(done)
                             print 'JUST PULLED:', self.label_names(builder.db.just_pulled.labels)
-                            build_desc_labels = self.calc_build_descriptions(builder, done)
-                            print 'BUILD DESCS ', self.label_names(build_desc_labels)
+                            # XXX Similarly, if we didn't change our build description,
+                            # XXX we *could* just remove that from our build_desc_labels
+                            # XXX by hand...
+                            if True:    # XXX But for the moment
+                                build_desc_labels = self.calc_build_descriptions(builder, done)
+                            else:
+                                build_desc_labels.remove(co)    # XXX untested
+                            print 'BUILD DESCS:', self.label_names(build_desc_labels)
                             # Recalculate our aims
-                            target_set = set(labels)
                             remaining = target_set.intersection(build_desc_labels)
                             print 'REMAINING:  ', self.label_names(sorted(remaining))
             finally:
@@ -5959,8 +5966,6 @@ class Pull(CheckoutCommand):
             build_desc_labels.append(label)
 
         if done:
-            print '... DESC', self.label_names(build_desc_labels)
-            print '... DONE', self.label_names(done)
             for label in done:
                 # We strongly expect the label to be in our list, as the only
                 # reason it would not be is if the build description has changed
@@ -5969,7 +5974,6 @@ class Pull(CheckoutCommand):
                     build_desc_labels.remove(label)
                 except ValueError:
                     pass
-            print '... DESC', self.label_names(build_desc_labels)
 
         return build_desc_labels
 

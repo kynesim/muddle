@@ -2202,8 +2202,7 @@ def _init_without_build_tree(muddle_binary, root_path, repo_location, build_desc
     print "Initialised build tree in %s "%root_path
     print "Repository: %s"%repo_location
     print "Build description: %s"%build_desc
-    print "\n"
-
+    print
     print "Checking out build description .. \n"
     return load_builder(root_path, muddle_binary, domain_params)
 

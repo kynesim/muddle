@@ -394,6 +394,7 @@ class Database(object):
         # checked anything out, because that counts), then we need to add
         # it to *our* set of just_pulled stuff
         self.just_pulled.labels.update(other_db.just_pulled.labels)
+        print 'JUST PULLED FOR %s becomes %s'%(self.just_pulled.file_name[34:], ', '.join(map(str, self.just_pulled.labels)))
 
     def _merge_subdomain_upstreams(self, other_domain_name, other_db):
         """Merge things from the subdomain that contain upstream repositories.
@@ -1726,7 +1727,7 @@ class JustPulledFile(object):
         First clears the local memory, then reads the labels in the _just_pulled
         file into local memory, then returns that set as a sorted list.
         """
-        print 'XXX %s CLEAR AND GET JUST PULLED'%self.file_name
+        print 'XXX %s CLEAR AND GET JUST PULLED'%self.file_name[34:]
         self.labels.clear()
         try:
             line_no = 0
@@ -1754,7 +1755,7 @@ class JustPulledFile(object):
     def clear(self):
         """Clear the contents of the _just_pulled file, and our local memory.
         """
-        print 'XXX %s CLEAR JUST PULLED'%self.file_name
+        print 'XXX %s CLEAR JUST PULLED'%self.file_name[34:]
         self.labels.clear()
         with open(self.file_name, 'w') as fd:
             pass
@@ -1765,7 +1766,7 @@ class JustPulledFile(object):
         The label is not added to the _just_pulled file until commit() is
         called.
         """
-        print 'XXX %s ADD JUST PULLED %s'%(self.file_name, label)
+        print 'XXX %s ADD JUST PULLED %s'%(self.file_name[34:], label)
         self.labels.add(label.copy_with_tag(utils.LabelTag.CheckedOut))
 
     def commit(self):
@@ -1775,7 +1776,7 @@ class JustPulledFile(object):
 
         Leaves the local memory intact after writing (it does not clear it).
         """
-        print 'XXX %s COMMIT JUST PULLED'%self.file_name
+        print 'XXX %s COMMIT JUST PULLED'%self.file_name[34:]
         with open(self.file_name, 'w') as fd:
             for label in sorted(self.labels):
                 fd.write('%s\n'%label)

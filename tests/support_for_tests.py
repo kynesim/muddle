@@ -308,11 +308,14 @@ def banner(text, level=1):
     print '%s %s %s'%(endpoint_char, text, endpoint_char)
     print delim
 
-def check_file_v_text(filename, expected_text):
+def check_file_v_text(filename, expected_text, sort_first=False):
     """Check the content of the file against the expected text.
 
     The expected text should either be a string, or a list of strings which
     have been split into lines.
+
+    If 'sort_first' is True, then we'll sort the lines we're comparing
+    before doing the comparison.
     """
     if isinstance(expected_text, basestring):
         lines = expected_text.splitlines()

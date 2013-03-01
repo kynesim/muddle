@@ -5890,10 +5890,10 @@ class Pull(CheckoutCommand):
                                 save_just_pulled = builder.db.just_pulled.labels.copy()
                                 self.delete_pyc_files(builder, co)
                                 builder = mechanics.load_builder(self.current_dir, None)
-                                # Recalculate our command line's labels
-                                labels = self.expand_labels(builder, self.original_labels)
                                 # Don't forget what we already pulled
                                 builder.db.just_pulled.labels.update(save_just_pulled)
+                                # Recalculate the labels implied by our command line
+                                labels = self.expand_labels(builder, self.original_labels)
                             # We might have gained or lost domains, too
                             done.add(co)
                             print 'DONE:       ', self.label_names(done)
@@ -5914,6 +5914,7 @@ class Pull(CheckoutCommand):
                 builder.db.just_pulled.commit()
 
             # And so to whatever remains...
+            target_set = set(labels)
             labels = target_set.difference(done)
             print
             print 'FINAL LABELS:    ', self.label_names(labels)
@@ -5929,7 +5930,7 @@ class Pull(CheckoutCommand):
         just_pulled = builder.db.just_pulled.get()
         if just_pulled:
             print '\nThe following checkouts were pulled:\n ',
-            print label_list_to_string(just_pulled, join_with='\n  ')
+            print label_list_to_string(sorted(just_pulled), join_with='\n  ')
 
         if self.not_needed:
             print '\nThe following pulls were not needed:'

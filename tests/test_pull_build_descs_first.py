@@ -443,7 +443,7 @@ def check_amended_build_descs(d):
                  d.join('domains', 'sub2', 'domains', 'sub5', 'src', 'builds', '01.py'),
                 ])
 
-def amend_sub1_build_desc(root_dir, d):
+def amend_sub1_build_desc_and_push(root_dir, d):
     repo = os.path.join(root_dir, 'repo')
     with Directory('domains'):
         with Directory('sub1'):
@@ -475,6 +475,17 @@ def swap_subdomains_and_push(root_dir, d):
                     # We'd better push with git, since we've hacked the build description
                     git('push origin HEAD')
 
+def change_something_else_and_push(root_dir, d):
+    repo = os.path.join(root_dir, 'repo')
+    with Directory('domains'):
+        with Directory('sub1'):
+            with Directory('src'):
+                with Directory('co0'):
+                    append('sub1.c', '\n// A harmless change\n')
+                    git('commit sub1.c -m "A harmless change"')
+                    # We'd better be able to push with muddle!
+                    muddle(['push'])
+
 def main(args):
 
     keep = False
@@ -502,6 +513,8 @@ def main(args):
 
 
         banner('TEST A SIMPLE CHANGE')
+        # With an insignificant change, this should work identically by
+        # both mechanisms
 
         with NewCountedDirectory('build.simple.normal.pull') as d2:
             banner('CHECK REPOSITORIES OUT', 2)
@@ -517,7 +530,7 @@ def main(args):
 
         with Directory(orig_dir) as d:
             banner('AMEND SUB1 BUILD DESCRIPTION AND PUSH', 2)
-            amend_sub1_build_desc(root_dir, d)
+            amend_sub1_build_desc_and_push(root_dir, d)
 
         with Directory(pass1_normal_dir) as d:
             banner('PULL IN THE ORIGINAL MANNER', 2)
@@ -539,6 +552,8 @@ def main(args):
 
 
         banner('TEST A MORE COMPLICATED CHANGE')
+        # Since we're changing the layout of the build, this should
+        # work substantially differently by the two mechanisms
 
         with NewCountedDirectory('build.swap.normal.pull') as d2:
             banner('CHECK REPOSITORIES OUT', 2)
@@ -558,12 +573,24 @@ def main(args):
 
         with Directory(pass2_simple_dir) as d:
             banner('PULL IN THE ORIGINAL MANNER', 2)
+            banner('PULL THE FIRST', 3)
             muddle(['pull', '_all'])
             check_original_build_descs(d)
             check_file_v_text(d.join('.muddle', '_just_pulled'),
                               [
                               'checkout:(sub1)builds/checked_out\n',
                               'checkout:(sub2)builds/checked_out\n',
+                              ])
+            banner('PULL THE SECOND', 3)
+            # Our *second* pull should bring us to the same place as the
+            # single pull with -slow would achieve.
+            muddle(['pull', '_all'])
+            check_amended_build_descs(d)
+            check_file_v_text(d.join('.muddle', '_just_pulled'),
+                              [
+                              'checkout:(sub1(sub4))co0/checked_out\n',
+                              'checkout:(sub1(sub5))co0/checked_out\n',
+                              'checkout:(sub2(sub3))co0/checked_out\n',
                               ])
 
         with Directory(pass2_complex_dir) as d:
@@ -574,9 +601,50 @@ def main(args):
                               [
                               'checkout:(sub1)builds/checked_out\n',
                               'checkout:(sub1(sub4))builds/checked_out\n',
+                              'checkout:(sub1(sub4))co0/checked_out\n',
                               'checkout:(sub1(sub5))builds/checked_out\n',
+                              'checkout:(sub1(sub5))co0/checked_out\n',
                               'checkout:(sub2)builds/checked_out\n',
                               'checkout:(sub2(sub3))builds/checked_out\n',
+                              'checkout:(sub2(sub3))co0/checked_out\n',
+                              ])
+
+
+        banner('TEST NOT CHANGING THE BUILD DESCRIPTIONS')
+        # This should work identically by both mechanisms
+
+        with NewCountedDirectory('build.nodesc.normal.pull') as d2:
+            banner('CHECK REPOSITORIES OUT', 2)
+            checkout_build_descriptions(root_dir, d2)
+            muddle(['checkout', '_all'])
+            pass3_simple_dir = d2.where
+
+        with NewCountedDirectory('build.nodesc.slow.pull') as d3:
+            banner('CHECK REPOSITORIES OUT', 2)
+            checkout_build_descriptions(root_dir, d3)
+            muddle(['checkout', '_all'])
+            pass3_complex_dir = d3.where
+
+        with Directory(orig_dir) as d:
+            banner('CHANGE SOMETHING NOT A BUILD DESCRIPTION AND PUSH', 2)
+            change_something_else_and_push(root_dir, d)
+
+        with Directory(pass3_simple_dir) as d:
+            banner('PULL IN THE ORIGINAL MANNER', 2)
+            muddle(['pull', '_all'])
+            check_amended_build_descs(d)
+            check_file_v_text(d.join('.muddle', '_just_pulled'),
+                              [
+                              'checkout:(sub1)co1/checked_out\n',
+                              ])
+
+        with Directory(pass3_complex_dir) as d:
+            banner('PULL WITH BUILD DESCRIPTIONS PULLED FIRST', 2)
+            muddle(['pull', '-slow', '_all'])
+            check_amended_build_descs(d)
+            check_file_v_text(d.join('.muddle', '_just_pulled'),
+                              [
+                              'checkout:(sub1)co1/checked_out\n',
                               ])
 
 

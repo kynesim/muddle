@@ -84,6 +84,9 @@ pull`` or ``muddle merge`` command. The current value is always stored in the
 file ``.muddle/_just_pulled``. If that file doesn't exist, then nothing has
 yet been pulled/merged in the current build tree.
 
+.. note:: The labels in the _just_pulled file are stored one per line,
+   in label-sort order (so the order is predictable).
+
 ``muddle pull`` and ``muddle merge`` both:
 
 1. clear the ``_just_pulled`` file,

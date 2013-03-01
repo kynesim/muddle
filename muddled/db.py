@@ -1783,6 +1783,7 @@ class JustPulledFile(object):
         print 'XXX %s COMMIT JUST PULLED'%self.file_name[34:]
         with open(self.file_name, 'w') as fd:
             for label in sorted(self.labels):
+                print 'XXX %s'%label
                 fd.write('%s\n'%label)
 
 # End file

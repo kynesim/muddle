@@ -221,38 +221,39 @@ def string_cmp(a,b):
     else:
         return 1
 
-class RichComparisonMixin(object):
-    """Implement the other methods for rich comparison.
+# Total ordering class decorator.
+# From http://code.activestate.com/recipes/576685/
+# By Raymond Hettinger
+# This is provided in functools in Python 2.7 and 3.2
+def total_ordering(cls):
+    'Class decorator that fills-in missing ordering methods'
+    convert = {
+        '__lt__': [('__gt__', lambda self, other: other < self),
+                   ('__le__', lambda self, other: not other < self),
+                   ('__ge__', lambda self, other: not self < other)],
+        '__le__': [('__ge__', lambda self, other: other <= self),
+                   ('__lt__', lambda self, other: not other <= self),
+                   ('__gt__', lambda self, other: not self <= other)],
+        '__gt__': [('__lt__', lambda self, other: other > self),
+                   ('__ge__', lambda self, other: not other > self),
+                   ('__le__', lambda self, other: not self > other)],
+        '__ge__': [('__le__', lambda self, other: other >= self),
+                   ('__gt__', lambda self, other: not other >= self),
+                   ('__lt__', lambda self, other: not self >= other)]
+    }
+    if hasattr(object, '__lt__'):
+        roots = [op for op in convert if getattr(cls, op) is not getattr(object, op)]
+    else:
+        roots = set(dir(cls)) & set(convert)
+    assert roots, 'must define at least one ordering operation: < > <= >='
+    root = max(roots)       # prefer __lt __ to __le__ to __gt__ to __ge__
+    for opname, opfunc in convert[root]:
+        if opname not in roots:
+            opfunc.__name__ = opname
+            opfunc.__doc__ = getattr(int, opname).__doc__
+            setattr(cls, opname, opfunc)
+    return cls
 
-    Python 2.6 doesn't provide a more convenient way to do this.
-
-    Python 2.7 introduces the functool.total_ordering() class decorator,
-    which we can adopt if we give up on Python 2.6
-
-    This particular mixin is taken from
-
-      http://www.voidspace.org.uk/python/articles/comparison.shtml
-
-    because I am lazy, but it is, of course, obvious...
-    """
-
-    def __eq__(self, other):
-        raise NotImplementedError("Equality not implemented")
-
-    def __lt__(self, other):
-        raise NotImplementedError("Less than not implemented")
-
-    def __ne__(self, other):
-        return not self.__eq__(other)
-
-    def __gt__(self, other):
-        return not (self.__lt__(other) or self.__eq__(other))
-
-    def __le__(self, other):
-        return self.__eq__(other) or self.__lt__(other)
-
-    def __ge__(self, other):
-        return self.__eq__(other) or self.__gt__(other)
 
 def mark_as_domain(dir, domain_name):
     """

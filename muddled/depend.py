@@ -6,9 +6,10 @@ import re
 import copy
 
 from muddled.utils import GiveUp, MuddleBug, label_type_to_tag, LabelType, \
-        sort_domains, RichComparisonMixin
+        sort_domains, total_ordering
 
-class Label(RichComparisonMixin):
+@total_ordering
+class Label(object):
     """
     A label denotes an entity in muddle's dependency hierarchy.
 
@@ -539,6 +540,9 @@ class Label(RichComparisonMixin):
             return False
         else:
             return True
+
+    def __ne__(self, other):
+        return not self.__eq__(other)
 
     def __lt__(self, other):
         """

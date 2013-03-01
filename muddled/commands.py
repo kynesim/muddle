@@ -5887,10 +5887,13 @@ class Pull(CheckoutCommand):
                             # XXX If we can tell it didn't get changed, then
                             # XXX we don't in fact need to reload it...
                             if True:    # XXX But for the moment
+                                save_just_pulled = builder.db.just_pulled.labels.copy()
                                 self.delete_pyc_files(builder, co)
                                 builder = mechanics.load_builder(self.current_dir, None)
                                 # Recalculate our command line's labels
                                 labels = self.expand_labels(builder, self.original_labels)
+                                # Don't forget what we already pulled
+                                builder.db.just_pulled.labels.update(save_just_pulled)
                             # We might have gained or lost domains, too
                             done.add(co)
                             print 'DONE:       ', self.label_names(done)
@@ -5903,7 +5906,7 @@ class Pull(CheckoutCommand):
                             else:
                                 build_desc_labels.remove(co)    # XXX untested
                             print 'BUILD DESCS:', self.label_names(build_desc_labels)
-                            # Recalculate our aims
+                            # Recalculate which of we are still asked for
                             remaining = target_set.intersection(build_desc_labels)
                             print 'REMAINING:  ', self.label_names(sorted(remaining))
             finally:

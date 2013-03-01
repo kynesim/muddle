@@ -537,7 +537,6 @@ def main(args):
                               'checkout:(sub1)builds/checked_out\n',
                               ])
 
-        return
 
         banner('TEST A MORE COMPLICATED CHANGE')
 
@@ -574,7 +573,10 @@ def main(args):
             check_file_v_text(d.join('.muddle', '_just_pulled'),
                               [
                               'checkout:(sub1)builds/checked_out\n',
+                              'checkout:(sub1(sub4))builds/checked_out\n',
+                              'checkout:(sub1(sub5))builds/checked_out\n',
                               'checkout:(sub2)builds/checked_out\n',
+                              'checkout:(sub2(sub3))builds/checked_out\n',
                               ])
 
 

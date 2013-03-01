@@ -393,8 +393,12 @@ class Database(object):
         # If the subdomain just pulled stuff (as it will have done if it
         # checked anything out, because that counts), then we need to add
         # it to *our* set of just_pulled stuff
+        print 'JUST PULLED MERGING IN %s'%other_db.just_pulled.file_name[34:]
+        if self.just_pulled.labels or other_db.just_pulled.labels:
+            print 'JUST PULLED FOR %s was     %s'%(self.just_pulled.file_name[34:], ', '.join(map(str, self.just_pulled.labels)))
         self.just_pulled.labels.update(other_db.just_pulled.labels)
-        print 'JUST PULLED FOR %s becomes %s'%(self.just_pulled.file_name[34:], ', '.join(map(str, self.just_pulled.labels)))
+        if self.just_pulled.labels or other_db.just_pulled.labels:
+            print 'JUST PULLED FOR %s becomes %s'%(self.just_pulled.file_name[34:], ', '.join(map(str, self.just_pulled.labels)))
 
     def _merge_subdomain_upstreams(self, other_domain_name, other_db):
         """Merge things from the subdomain that contain upstream repositories.

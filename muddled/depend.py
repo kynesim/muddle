@@ -552,23 +552,22 @@ class Label(object):
 
         *Does* take the domains (if any) into account.
         """
-        if self._type < other._type:
-            return True
+        if self._type != other._type:
+            return self._type < other._type
 
         # Domain names are a little tricky to sort. Happily we already
         # solved that problem...
         if self._domain != other._domain:
             dsorted = sort_domains([self._domain, other._domain])
-            if dsorted[0] == self.domain:
-                return True
+            return dsorted[0] == self.domain
 
         # And the rest is simple...
-        if self._name < other._name:
-            return True
-        elif self._role < other._role:
-            return True
-        elif self._tag < other._tag:
-            return True
+        if self._name != other._name:
+            return self._name < other._name
+        elif self._role != other._role:
+            return self._role < other._role
+        elif self._tag != other._tag:
+            return self._tag < other._tag
         else:
             return False
 

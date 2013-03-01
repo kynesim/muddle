@@ -231,9 +231,9 @@ def depend_unit_test():
     assert str(rs).strip() == """\
 -----
 checkout:co_1{role_1}/checked_out <-NoAction-- [ ]
-package:pkg_1{role_1}/preconfig <-NoAction-- [ checkout:co_1{role_1}/pulled ]
-deployment:dep_1{role_2}/built <-NoAction-- [ package:pkg_1{role_1}/preconfig, checkout:co_1{role_1}/pulled ]
 checkout:co_1{role_1}/pulled <-NoAction-- [ checkout:co_1{role_1}/checked_out ]
+deployment:dep_1{role_2}/built <-NoAction-- [ checkout:co_1{role_1}/pulled, package:pkg_1{role_1}/preconfig ]
+package:pkg_1{role_1}/preconfig <-NoAction-- [ checkout:co_1{role_1}/pulled ]
 -----"""
 
     r3_required_for = depend.needed_to_build(rs, l3)

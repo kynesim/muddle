@@ -5,9 +5,10 @@ Dependency sets and dependency management
 import re
 import copy
 
-from muddled.utils import GiveUp, MuddleBug, label_type_to_tag, LabelType
+from muddled.utils import GiveUp, MuddleBug, label_type_to_tag, LabelType, \
+        sort_domains, RichComparisonMixin
 
-class Label(object):
+class Label(RichComparisonMixin):
     """
     A label denotes an entity in muddle's dependency hierarchy.
 
@@ -518,23 +519,54 @@ class Label(object):
 
         return rv
 
-    def __cmp__(self, other):
+    def __eq__(self, other):
         """
-        Compare two Labels.
+        Are two Labels "the same".
 
         Ignores the 'transient' and 'system' values (if any).
 
         *Does* take the domains (if any) into account.
         """
-        this_as_tuple = (self._type, self._domain, self._name, self._role, self._tag)
-        that_as_tuple = (other._type, other._domain, other._name, other._role, other._tag)
-
-        if this_as_tuple < that_as_tuple:
-            return -1
-        elif this_as_tuple > that_as_tuple:
-            return 1
+        if self._type != other._type:
+            return False
+        elif self._domain != other._domain:
+            return False
+        elif self._name != other._name:
+            return False
+        elif self._role != other._role:
+            return False
+        elif self._tag != other._tag:
+            return False
         else:
-            return 0
+            return True
+
+    def __lt__(self, other):
+        """
+        Is this Label less than the other?
+
+        Ignores the 'transient' and 'system' values (if any).
+
+        *Does* take the domains (if any) into account.
+        """
+        if self._type < other._type:
+            return True
+
+        # Domain names are a little tricky to sort. Happily we already
+        # solved that problem...
+        if self._domain != other._domain:
+            dsorted = sort_domains([self._domain, other._domain])
+            if dsorted[0] == self.domain:
+                return True
+
+        # And the rest is simple...
+        if self._name < other._name:
+            return True
+        elif self._role < other._role:
+            return True
+        elif self._tag < other._tag:
+            return True
+        else:
+            return False
 
     def __hash__(self):
         """

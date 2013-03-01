@@ -290,6 +290,43 @@ def vcs_unit_test():
     assert vcs == "cvs"
     assert url == "pserver://Foo.example.com/usr/cvs/foo"
 
+def label_domain_sort():
+    """Test sorting labels with domain names in them.
+    """
+
+    # Yes, apparently these are all legitimate label names
+    # The domain names are the same as those used in the docstring for
+    # utils.sort_domains()
+    labels = [
+            Label.from_string('checkout:(a)fred/*'),
+            Label.from_string('checkout:(+(1))fred/*'),
+            Label.from_string('checkout:(-(2))fred/*'),
+            Label.from_string('checkout:(a(b(c2)))fred/*'),
+            Label.from_string('checkout:(a(b(c1)))fred/*'),
+            Label.from_string('checkout:(+(1(+2(+4(+4)))))fred/*'),
+            Label.from_string('checkout:(b(b))fred/*'),
+            Label.from_string('checkout:(b)fred/*'),
+            Label.from_string('checkout:(b(a))fred/*'),
+            Label.from_string('checkout:(a(a))fred/*'),
+            Label.from_string('checkout:(+(1(+2)))fred/*'),
+            Label.from_string('checkout:(+(1(+2(+4))))fred/*'),
+            Label.from_string('checkout:(+(1(+3)))fred/*'),
+            ]
+
+    sorted_labels = sorted(labels)
+
+    string_labels = map(str, labels)
+    string_labels.sort()
+
+    # Our properly sorted labels have changed order from that given
+    assert sorted_labels != labels
+
+    # It's not the same order as we'd get by sorting the labels as strings
+    assert map(str, sorted_labels) != string_labels
+
+    # It is this order...
+    assert depend.label_list_to_string(sorted_labels) == "checkout:(+(1))fred/* checkout:(+(1(+2)))fred/* checkout:(+(1(+2(+4))))fred/* checkout:(+(1(+2(+4(+4)))))fred/* checkout:(+(1(+3)))fred/* checkout:(-(2))fred/* checkout:(a)fred/* checkout:(a(a))fred/* checkout:(a(b(c1)))fred/* checkout:(a(b(c2)))fred/* checkout:(b)fred/* checkout:(b(a))fred/* checkout:(b(b))fred/*"
+
 def run_tests():
     print "> cpio"
     cpio_unit_test()
@@ -305,7 +342,8 @@ def run_tests():
     vcs_unit_test()
     print "> Depends"
     depend_unit_test()
-    print "> Mechanics"
+    print "> Label domain sort"
+    label_domain_sort()
 
 if __name__ == '__main__':
     try:

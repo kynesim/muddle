@@ -1,3 +1,4 @@
+#! /usr/bin/env python
 """
 Tests the rest of muddled.
 """
@@ -325,7 +326,59 @@ def label_domain_sort():
     assert map(str, sorted_labels) != string_labels
 
     # It is this order...
-    assert depend.label_list_to_string(sorted_labels) == "checkout:(+(1))fred/* checkout:(+(1(+2)))fred/* checkout:(+(1(+2(+4))))fred/* checkout:(+(1(+2(+4(+4)))))fred/* checkout:(+(1(+3)))fred/* checkout:(-(2))fred/* checkout:(a)fred/* checkout:(a(a))fred/* checkout:(a(b(c1)))fred/* checkout:(a(b(c2)))fred/* checkout:(b)fred/* checkout:(b(a))fred/* checkout:(b(b))fred/*"
+    assert depend.label_list_to_string(sorted_labels) == (
+            "checkout:(+(1))fred/*"
+            " checkout:(+(1(+2)))fred/*"
+            " checkout:(+(1(+2(+4))))fred/*"
+            " checkout:(+(1(+2(+4(+4)))))fred/*"
+            " checkout:(+(1(+3)))fred/*"
+            " checkout:(-(2))fred/*"
+            " checkout:(a)fred/*"
+            " checkout:(a(a))fred/*"
+            " checkout:(a(b(c1)))fred/*"
+            " checkout:(a(b(c2)))fred/*"
+            " checkout:(b)fred/*"
+            " checkout:(b(a))fred/*"
+            " checkout:(b(b))fred/*")
+
+
+    labels = [
+              Label.from_string('checkout:(sub1)builds/checked_out'),
+              Label.from_string('checkout:(sub1(sub4))builds/checked_out'),
+              Label.from_string('checkout:(sub1(sub5))builds/checked_out'),
+              Label.from_string('checkout:(sub2)builds/checked_out'),
+              Label.from_string('checkout:(sub1(sub4))co0/checked_out'),
+              Label.from_string('checkout:(sub1(sub5))co0/checked_out'),
+              Label.from_string('checkout:(sub2(sub3))builds/checked_out'),
+              Label.from_string('checkout:(sub2(sub3))co0/checked_out'),
+             ]
+
+    sorted_labels = sorted(labels)
+
+    string_labels = map(str, labels)
+    string_labels.sort()
+
+    # Our properly sorted labels have changed order from that given
+    assert sorted_labels != labels
+
+    # It's not the same order as we'd get by sorting the labels as strings
+    assert map(str, sorted_labels) != string_labels
+
+    #print 'xxx'
+    #for label in sorted_labels:
+    #    print '  ', str(label)
+    #print 'xxx'
+
+    # It is this order...
+    assert depend.label_list_to_string(sorted_labels) == (
+              "checkout:(sub1)builds/checked_out"
+              " checkout:(sub1(sub4))builds/checked_out"
+              " checkout:(sub1(sub4))co0/checked_out"
+              " checkout:(sub1(sub5))builds/checked_out"
+              " checkout:(sub1(sub5))co0/checked_out"
+              " checkout:(sub2)builds/checked_out"
+              " checkout:(sub2(sub3))builds/checked_out"
+              " checkout:(sub2(sub3))co0/checked_out")
 
 def run_tests():
     print "> cpio"

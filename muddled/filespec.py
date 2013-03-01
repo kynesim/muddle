@@ -115,7 +115,7 @@ class FileSpec(object):
             #print "Match f  = %s against spec = %s"%(f, self.spec)
             if self.spec_re.match(f) is not None:
                 # Gotcha
-                print "Found match = %s"%os.path.join(self.root, f)
+                #print "Found match = %s"%os.path.join(self.root, f)
                 return_set.add(os.path.join(self.root, f))
 
         #print 'RETURN SET', return_set

@@ -2,43 +2,40 @@
 Tests the rest of muddled.
 """
 
-import depend
-import utils
-import version_control
-import env_store
-import mechanics
-import filespec
-import pkg
-import subst
-import cpiofile
+import os
+import sys
+import traceback
 
-from depend import Label
+from support_for_tests import get_parent_dir
 
-def unit_test():
-    print "> cpio"
-    cpio_unit_test()
-    print "> Utils"
-    utils_unit_test()
-    print "> env"
-    env_store_unit_test()
-    print "> subst"
-    subst_unit_test()
-    print "> filespec"
-    filespec_unit_test()
-    print "> VCS"
-    vcs_unit_test()
-    print "> Depends"
-    depend_unit_test()
-    print "> Mechanics"
-    mechanics_unit_test()
-    print "> All done."
+try:
+    import muddled.cmdline
+except ImportError:
+    # Try one level up
+    sys.path.insert(0, get_parent_dir(__file__))
+    import muddled.cmdline
+
+import muddled.depend as depend
+import muddled.utils as utils
+import muddled.version_control as version_control
+import muddled.env_store as env_store
+import muddled.mechanics as mechanics
+import muddled.filespec as filespec
+import muddled.pkg as pkg
+import muddled.subst as subst
+import muddled.cpiofile as cpiofile
+
+from muddled.depend import Label
 
 def cpio_unit_test():
     """
-    A brief test of the cpio module. Uses ``/tmp/test.cpio``.
+    A brief test of the cpio module. Uses ``<tempname>/test.cpio``.
     """
 
-    #f1 = cpiofile.file_from_fs("/var/run/motd")
+    tmpd = os.tempnam()
+    os.mkdir(tmpd)
+    tmpf = os.path.join(tmpd, 'test.cpio')
+
     f1 = cpiofile.file_from_fs(__file__)  # A file we're fairly sure exists
     f1.rename("foo")
     f2 = cpiofile.file_for_dir("bar")
@@ -47,12 +44,15 @@ def cpio_unit_test():
     f3.set_contents("Hello, World!\n")
 
     arc = cpiofile.Archive()
-    #arc.add_files([f1, f2, f3])
     arc.add_files([f1])
-    arc.render("/tmp/test.cpio", True)
+    arc.render(tmpf, True)
     # Now just make sure that cpio can read the data
 
-    rv = utils.run_cmd("cpio -i --to-stdout </tmp/test.cpio")
+    rv, out, err = utils.get_cmd_data("cpio -i --to-stdout <'%s'"%tmpf)
+
+    text = open(__file__).read()
+    assert out[:len(text)] == text
+    # Ignoring any extra lines about number of blocks...
 
 def env_store_unit_test():
     """
@@ -60,14 +60,14 @@ def env_store_unit_test():
     """
 
     ee = env_store.EnvExpr(env_store.EnvExpr.StringType, "a")
-    ee.append("b")
-    ee.append("c")
+    ee.append(r"\b")
+    ee.append("'c")
 
-    assert ee.to_sh(True) == '"a""b""c"'
-    assert ee.to_sh(False) == 'abc'
+    assert ee.to_sh(True) == r"a\\b\'c"
+    assert ee.to_sh(False) == r"a\b'c"
 
     ee = env_store.EnvExpr(env_store.EnvExpr.RefType, "a")
-    assert ee.to_sh(True) == '"$a"'
+    assert ee.to_sh(True) == '$a'
 
     # Now try something a bit more complex ..
     ee = env_store.EnvExpr(env_store.EnvExpr.CatType)
@@ -75,7 +75,7 @@ def env_store_unit_test():
     ee.append_ref("Soup")
     ee.append_str("Wombat")
 
-    assert ee.to_sh(True) == '"Fish""$Soup""Wombat"'
+    assert ee.to_sh(True) == 'Fish$SoupWombat'
 
     assert ee.to_value(env = { "Soup" : "X"}) == "FishXWombat"
 
@@ -134,36 +134,11 @@ def filespec_unit_test():
 
     fs1 = filespec.FileSpec("/", "(.*)b(.*)", allUnder = True, allRegex = True)
     results = fs1.match(lsp)
-    assert len(results) == 5
+    assert len(results) == 4
     assert "/d/bcee" in results
     assert "/a/b/c" in results
     assert "/a/b/cee" in results
     assert "/a/b" in results
-
-
-def mechanics_unit_test():
-    """
-    Check mechanics.
-    """
-
-    builder = mechanics.Builder("/tmp", None)
-    lbl = Label(utils.LabelType.Checkout, "bob", None, "*")
-    s1 = builder.get_environment_for(lbl)
-    s1.set_type("PATH", env_store.EnvType.Path)
-    s1.append("PATH", "a")
-    s1.set("FISH", "42")
-
-    lbl = Label(utils.LabelType.Checkout, "bob", None, "a")
-    s2 = builder.get_environment_for(lbl)
-    s2.set_type("PATH", env_store.EnvType.Path)
-    s2.append("PATH", "b")
-    s2.set("FISH", "shark")
-
-    in_env = { "FISH" : "x" , "PATH" :  "p" }
-    builder.setup_environment(lbl, in_env)
-    assert in_env["PATH"] == "p:a:b"
-    assert in_env["FISH"] == "shark"
-
 
 
 def depend_unit_test():
@@ -172,29 +147,27 @@ def depend_unit_test():
     """
 
     l1 = Label(utils.LabelType.Checkout, "co_1", "role_1", utils.LabelTag.CheckedOut)
-    l2 = Label(utils.LabelType.Checkout, "co_1", "role_1", utils.LabelTag.Fetched)
+    l2 = Label(utils.LabelType.Checkout, "co_1", "role_1", utils.LabelTag.Pulled)
     l3 = Label(utils.LabelType.Package, "pkg_1", "role_1", utils.LabelTag.PreConfig)
     l4 = Label(utils.LabelType.Deployment, "dep_1", "role_2", utils.LabelTag.Built)
 
     # Check label_from_string ..
     lx = Label.from_string("foo:bar{baz}/wombat[T]")
-
     lx_a = Label("foo", "bar", "baz", "wombat")
-    assert lx.__cmp__(lx_a) == 0
+    assert lx == lx_a
     assert lx.transient
     assert not lx.system
 
     lx = Label.from_string("foo:bar/wombat[T]")
     lx_a = Label("foo", "bar", None, "wombat")
-    assert lx.__cmp__(lx_a) == 0
+    assert lx == lx_a
     assert lx.transient
     assert not lx.system
 
     lx = Label.from_string("*:bar/wombat")
     assert (lx is not None)
     lx_a = Label("*", "bar", None, "wombat")
-    print "lx = %s\n lx_a = %s"%(lx,lx_a)
-    assert lx.__cmp__(lx_a) == 0
+    assert lx == lx_a
     assert not lx.transient
     assert not lx.system
 
@@ -202,40 +175,34 @@ def depend_unit_test():
     lx = Label.from_string("*:wombat/*")
     assert lx is not None
     lx_a = Label("*", "wombat", None, "*")
-    assert lx.__cmp__(lx_a) == 0
+    assert lx == lx_a
     assert not lx.transient
     assert not lx.system
 
     lx = Label.from_string(l1.__str__())
-    print "l1 str = %s"%l1.__str__()
-    assert (lx is not None)
-    assert (lx == l1)
+    assert lx is not None
+    assert lx == l1
 
     lx = Label.from_string(l2.__str__())
-    assert (lx is not None)
-    assert (lx == l2)
+    assert lx is not None
+    assert lx == l2
 
     lx = Label.from_string(l3.__str__())
-    assert (lx is not None)
-    assert (lx == l3)
+    assert lx is not None
+    assert lx == l3
 
     lx = Label.from_string(l4.__str__())
-    assert (lx is not None)
-    assert (lx == l4)
+    assert lx is not None
+    assert lx == l4
 
     # Let's check that label matching works the way we think it does ..
-    la1 = l1.copy()
-    la1.type = "*"
+    la1 = Label(type='*', name=l1.name, domain=l1.domain, role=l1.role, tag=l1.tag)
 
-    la2 = l1.copy()
-    la2.name = "*"
+    la2 = Label(type=l1.type, name='*', domain=l1.domain, role=l1.role, tag=l1.tag)
 
-    la3 = l1.copy()
-    la3.role = "*"
-    la3.name = "*"
+    la3 = Label(type=l1.type, name='*', domain=l1.domain, role='*', tag=l1.tag)
 
-    la4 = l1.copy()
-    la4.tag = "*"
+    la4 = l1.copy_with_tag('*')
 
     assert l1.match(l1) == 0
     assert l2.match(l1) is None
@@ -260,13 +227,19 @@ def depend_unit_test():
     rs.add(r2)
     rs.add(r3)
     rs.add(r4)
-    print "RuleSet = %s\n"%rs
+    assert str(rs).strip() == """\
+-----
+checkout:co_1{role_1}/checked_out <-NoAction-- [ ]
+package:pkg_1{role_1}/preconfig <-NoAction-- [ checkout:co_1{role_1}/pulled ]
+deployment:dep_1{role_2}/built <-NoAction-- [ package:pkg_1{role_1}/preconfig, checkout:co_1{role_1}/pulled ]
+checkout:co_1{role_1}/pulled <-NoAction-- [ checkout:co_1{role_1}/checked_out ]
+-----"""
 
     r3_required_for = depend.needed_to_build(rs, l3)
-    print "r3_for = %s\n"%(depend.rule_list_to_string(r3_required_for))
+    assert depend.rule_list_to_string(r3_required_for) == "[ checkout:co_1{role_1}/checked_out <-NoAction-- [ ], checkout:co_1{role_1}/pulled <-NoAction-- [ checkout:co_1{role_1}/checked_out ], package:pkg_1{role_1}/preconfig <-NoAction-- [ checkout:co_1{role_1}/pulled ],  ]"
 
     r2_required_by = depend.required_by(rs, l2)
-    print "r2_for = %s\n"%(depend.rule_list_to_string(r2_required_by))
+    assert depend.rule_list_to_string(r2_required_by) == "[ checkout:co_1{role_1}/pulled, deployment:dep_1{role_2}/built, package:pkg_1{role_1}/preconfig,  ]"
 
 def utils_unit_test():
     """
@@ -294,7 +267,6 @@ def utils_unit_test():
     assert s == ("a", "b/c")
 
     s = utils.split_path_left("/a/b/c")
-    print "s = %s %s"%s
     assert s == ("", "a/b/c")
 
     s = utils.replace_root_name("/a", "/b", "/a/c")
@@ -318,6 +290,29 @@ def vcs_unit_test():
     assert vcs == "cvs"
     assert url == "pserver://Foo.example.com/usr/cvs/foo"
 
-# End file.
+def run_tests():
+    print "> cpio"
+    cpio_unit_test()
+    print "> Utils"
+    utils_unit_test()
+    print "> env"
+    env_store_unit_test()
+    print "> subst"
+    subst_unit_test()
+    print "> filespec"
+    filespec_unit_test()
+    print "> VCS"
+    vcs_unit_test()
+    print "> Depends"
+    depend_unit_test()
+    print "> Mechanics"
 
-
+if __name__ == '__main__':
+    try:
+        run_tests()
+        print '\nGREEN light\n'
+    except Exception as e:
+        print
+        traceback.print_exc()
+        print '\nRED light\n'
+        sys.exit(1)

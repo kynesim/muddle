@@ -221,6 +221,39 @@ def string_cmp(a,b):
     else:
         return 1
 
+class RichComparisonMixin(object):
+    """Implement the other methods for rich comparison.
+
+    Python 2.6 doesn't provide a more convenient way to do this.
+
+    Python 2.7 introduces the functool.total_ordering() class decorator,
+    which we can adopt if we give up on Python 2.6
+
+    This particular mixin is taken from
+
+      http://www.voidspace.org.uk/python/articles/comparison.shtml
+
+    because I am lazy, but it is, of course, obvious...
+    """
+
+    def __eq__(self, other):
+        raise NotImplementedError("Equality not implemented")
+
+    def __lt__(self, other):
+        raise NotImplementedError("Less than not implemented")
+
+    def __ne__(self, other):
+        return not self.__eq__(other)
+
+    def __gt__(self, other):
+        return not (self.__lt__(other) or self.__eq__(other))
+
+    def __le__(self, other):
+        return self.__eq__(other) or self.__lt__(other)
+
+    def __ge__(self, other):
+        return self.__eq__(other) or self.__gt__(other)
+
 def mark_as_domain(dir, domain_name):
     """
     Mark the build in 'dir' as a (sub)domain

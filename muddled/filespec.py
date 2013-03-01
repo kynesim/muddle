@@ -229,20 +229,30 @@ class ListFileSpecDataProvider(object):
         # _really_ simple-minded ..
         result = [ ]
         for f in self.file_list:
-            if (f.startswith(dir)):
-                rest = f[len(dir):]
-                if (len(rest) > 0):
-                    if rest[0] == "/":
-                        rest = rest[1:]
-                    #print "f = %s rest = %s dir = %s"%(f,rest,dir)
-                    if (recursively):
-                        result.append(rest)
-                    else:
-                        if (rest.find("/") == -1):
-                            # Yep
-                            result.append(rest)
-        return result
+            d = dir
 
+            # Remove any common prefix
+            while d and f:
+                ld, restd = utils.split_path_left(d)
+                fd, restf = utils.split_path_left(f)
+                if ld != fd:
+                    break
+                d, f = restd, restf
+
+            if d:               # We don't actually start with 'dir'
+                continue
+
+            if not f:           # We *were* 'dir'
+                continue
+
+            if recursively:
+                result.append(f)
+            else:
+                if f.find("/") == -1:
+                    # Yep
+                    result.append(f)
+
+        return result
 
 
 class FSFileSpecDataProvider(object):

@@ -718,11 +718,6 @@ class Builder(object):
         The fundamental operation of a builder - build this label.
         """
 
-        # In actual use, this was never called as anything other than
-        # 'build_label(label)', so I've made it do *just* that, for
-        # simplicity of understanding...
-        #
-        # build_label_with_options() is retained as the original code
         rule_list = depend.needed_to_build(self.ruleset, label,
                                            useTags=True, useMatch=True)
 
@@ -1984,7 +1979,7 @@ class Builder(object):
         elif word == '_default_deployments':
             return self.default_deployment_labels
         elif word == '_just_pulled':
-            return self.db.just_pulled.get()
+            return self.db.just_pulled.get_from_disk()
         elif word == '_release':
             if self.what_to_release:
                 return self.expand_release()

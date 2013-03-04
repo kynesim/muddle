@@ -4811,7 +4811,9 @@ class UnStamp(Command):
             print 'Updating the changed checkouts'
             try:
                 p = Pull()
-                p.with_build_tree(builder, root_path, changed_checkouts)
+                # Demand that it just pulls the labels we give it, without
+                # trying to pull any build descriptions first.
+                p.with_build_tree(builder, root_path, ['-noreload'] + changed_checkouts)
             except GiveUp as e:
                 had_problems = True
 
@@ -5774,7 +5776,7 @@ class Push(CheckoutCommand):
 @command('pull', CAT_CHECKOUT, ['fetch', 'update'])   # we want to settle on one command
 class Pull(CheckoutCommand):
     """
-    :Syntax: muddle pull [-s[top]] [ <checkout> ... ]
+    :Syntax: muddle pull [-s[top]] [-noreload] [ <checkout> ... ]
 
     Pull the specified checkouts from their remote repositories. Any problems
     will be (re)reported at the end.
@@ -5808,21 +5810,51 @@ class Pull(CheckoutCommand):
     re-reporting any problems at the end. If '-s' or '-stop' is given, then
     it will instead stop at the first problem.
 
-    DEVELOPMENT: The (probably temporary) switch -slow can be used to ensure
-    that any build descriptions explicit or implicit in the checkouts to be
-    pulled are pulled *first*, then the (top level) build description is
-    reloaded and the command line is reinterpreted (and any build descriptions
-    that have not yet been pulled that are implicit in the new command line are
-    pulled first and then the build description is reloaded and so on), and
-    then the remaining labels are pulled. This means that there is no need to
-    do multiple muddle pulls if the build description has changed, but it can
-    be slower, and may (of course) give a different result than a single pull.
+    How build descriptions are treated specially
+    --------------------------------------------
+    If the build description is in the list of checkouts that should be
+    pulled, either explicitly or after expanding one of _all and friends,
+    then "muddle pull" will:
+
+        1. Remember exactly what the user asked for on the command line.
+        2. Pull the build description.
+        3. If the build description changed (i.e., was pulled), then reload
+           it, and re-expand the labels from the command line - so, for
+           instance, _all might change if the new build description has
+           added or removed checkouts.
+        4. Remove the build description from this (new) list of checkouts,
+           and pull any that are left.
+
+    Earlier versions of muddle (before v2.5.1) did not do this, which meant
+    that one might do "muddle pull _all" and then have to do it again if the
+    build description had changed. It was easy to forget to check for this,
+    which could leave a build tree not as up-to-date as one might think.
+
+    If you *do* want the older, simpler mechanism, then::
+
+        muddle pull -noreload <arguments>
+
+    can be used, which will just pull the labels on the command line,
+    without treating the build description specially.
+
+    What about subdomains?
+    ----------------------
+    If your build contains subdomains, then all of the subdomain build
+    descriptions will be treated specially. Specifically, each requested build
+    description is pulled in domain order, reloading the top-level build
+    description and re-evaluating the command line each time.
+
+    Other commands
+    --------------
+    Note that "muddle merge" and "muddle pull-upstream" do not behave in
+    this manner, as it is believed that they are used in a more direct
+    manner (with explicit labels).
     """
 
     required_tag = LabelTag.Pulled
     allowed_switches = {'-s': 'stop',
                         '-stop':'stop',
-                        '-slow':'slow'}
+                        '-noreload':'noreload'}
 
     def build_these_labels(self, builder, labels):
 
@@ -5836,7 +5868,7 @@ class Pull(CheckoutCommand):
 
         builder.db.just_pulled.clear()
 
-        if 'slow' in self.switches:
+        if 'noreload' not in self.switches:
             # ====================================================================
             # The following may, of necessity, be slow.
             #
@@ -5862,18 +5894,20 @@ class Pull(CheckoutCommand):
             # description, recalculate arguments cycle. On the other hand, most
             # pull commands will only have at most one build description in them.
 
-            print 'LABELS:     ', self.label_names(labels)
+            ##print 'LABELS:     ', self.label_names(labels)
 
             # Work out our build description checkout labels, ignoring any that
             # have just been pulled (which is none so far)
             build_desc_labels = self.calc_build_descriptions(builder)
-            print 'BUILD DESCS ', self.label_names(build_desc_labels)
+            ##print 'BUILD DESCS ', self.label_names(build_desc_labels)
 
             # Which build description labels that have not yet pulled are
             # still remaining in our labels-to-build?
             target_set = set(labels)
             remaining = target_set.intersection(build_desc_labels)
-            print 'REMAINING:  ', self.label_names(sorted(remaining))
+            ##print 'REMAINING:  ', self.label_names(sorted(remaining))
+
+            doing_build_descs_first = len(remaining) > 0
 
             done = set()
             try:
@@ -5883,7 +5917,7 @@ class Pull(CheckoutCommand):
                     for co in build_desc_labels:
                         if co in remaining:
                             print
-                            print 'PULLING ', co
+                            print 'Pulling build description %s'%co
                             self.pull(builder, co)
                             # That will have added 'co' to the just_pulled set
                             # *if* it actually changed it. So we can tell if
@@ -5900,26 +5934,28 @@ class Pull(CheckoutCommand):
                                 labels = self.expand_labels(builder, self.original_labels)
                             # Regardless, we've "done" this checkout
                             done.add(co)
-                            print 'DONE:       ', self.label_names(done)
-                            print 'JUST PULLED:', self.label_names(builder.db.just_pulled.labels)
+                            ##print 'DONE:       ', self.label_names(done)
+                            ##print 'JUST PULLED:', self.label_names(builder.db.just_pulled.labels)
                             # We might have gained or lost domains, too
                             if builder.db.just_pulled.is_pulled(co):
                                 build_desc_labels = self.calc_build_descriptions(builder, done)
                             else:
                                 build_desc_labels.remove(co)
-                            print 'BUILD DESCS:', self.label_names(build_desc_labels)
+                            ##print 'BUILD DESCS:', self.label_names(build_desc_labels)
                             # Recalculate which of we are still asked for
                             remaining = target_set.intersection(build_desc_labels)
-                            print 'REMAINING:  ', self.label_names(sorted(remaining))
+                            ##print 'REMAINING:  ', self.label_names(sorted(remaining))
             finally:
-                # Remember to commit the 'just pulled' information
                 builder.db.just_pulled.commit()
 
             # And so to whatever remains...
             target_set = set(labels)
             labels = target_set.difference(done)
-            print
-            print 'FINAL LABELS:    ', self.label_names(labels)
+
+            if doing_build_descs_first:
+                print
+                print 'Now pulling the rest of the checkouts'
+                ##print 'Pulling', self.label_names(labels)
             # ====================================================================
 
         try:
@@ -5950,10 +5986,7 @@ class Pull(CheckoutCommand):
     def label_names(self, labels):
         result = []
         for label in labels:
-            if label.domain:
-                result.append('(%s)%s'%(label.domain, label.name))
-            else:
-                result.append(label.name)
+            result.append(label.middle())
         return ', '.join(result)
 
     def calc_build_descriptions(self, builder, done=None):

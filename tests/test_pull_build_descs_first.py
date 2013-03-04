@@ -518,34 +518,34 @@ def main(args):
         # With an insignificant change, this should work identically by
         # both mechanisms
 
-        with NewCountedDirectory('build.simple.normal.pull') as d2:
+        with NewCountedDirectory('build.simple.noreload.pull') as d2:
             banner('CHECK REPOSITORIES OUT', 2)
             checkout_build_descriptions(root_dir, d2)
             muddle(['checkout', '_all'])
-            pass1_normal_dir = d2.where
+            pass1_noreload_dir = d2.where
 
-        with NewCountedDirectory('build.simple.slow.pull') as d3:
+        with NewCountedDirectory('build.simple.default.pull') as d3:
             banner('CHECK REPOSITORIES OUT', 2)
             checkout_build_descriptions(root_dir, d3)
             muddle(['checkout', '_all'])
-            pass1_complex_dir = d3.where
+            pass1_default_dir = d3.where
 
         with Directory(orig_dir) as d:
             banner('AMEND SUB1 BUILD DESCRIPTION AND PUSH', 2)
             amend_sub1_build_desc_and_push(root_dir, d)
 
-        with Directory(pass1_normal_dir) as d:
+        with Directory(pass1_noreload_dir) as d:
             banner('PULL IN THE ORIGINAL MANNER', 2)
-            muddle(['pull', '_all'])
+            muddle(['pull', '-noreload', '_all'])
             check_original_build_descs(d)
             check_file_v_text(d.join('.muddle', '_just_pulled'),
                               [
                               'checkout:(sub1)builds/checked_out\n',
                               ])
 
-        with Directory(pass1_complex_dir) as d:
+        with Directory(pass1_default_dir) as d:
             banner('PULL WITH BUILD DESCRIPTIONS PULLED FIRST', 2)
-            muddle(['pull', '-slow', '_all'])
+            muddle(['pull', '_all'])
             check_original_build_descs(d)
             check_file_v_text(d.join('.muddle', '_just_pulled'),
                               [
@@ -557,26 +557,26 @@ def main(args):
         # Since we're changing the layout of the build, this should
         # work substantially differently by the two mechanisms
 
-        with NewCountedDirectory('build.swap.normal.pull') as d2:
+        with NewCountedDirectory('build.swap.noreload.pull') as d2:
             banner('CHECK REPOSITORIES OUT', 2)
             checkout_build_descriptions(root_dir, d2)
             muddle(['checkout', '_all'])
-            pass2_simple_dir = d2.where
+            pass2_noreload_dir = d2.where
 
-        with NewCountedDirectory('build.swap.slow.pull') as d3:
+        with NewCountedDirectory('build.swap.default.pull') as d3:
             banner('CHECK REPOSITORIES OUT', 2)
             checkout_build_descriptions(root_dir, d3)
             muddle(['checkout', '_all'])
-            pass2_complex_dir = d3.where
+            pass2_default_dir = d3.where
 
         with Directory(orig_dir) as d:
             banner('SWAP SUBDOMAIN BUILD DESCRIPTIONS AND PUSH', 2)
             swap_subdomains_and_push(root_dir, d)
 
-        with Directory(pass2_simple_dir) as d:
+        with Directory(pass2_noreload_dir) as d:
             banner('PULL IN THE ORIGINAL MANNER', 2)
             banner('PULL THE FIRST', 3)
-            muddle(['pull', '_all'])
+            muddle(['pull', '-noreload', '_all'])
             check_original_build_descs(d)
             check_file_v_text(d.join('.muddle', '_just_pulled'),
                               [
@@ -585,8 +585,8 @@ def main(args):
                               ])
             banner('PULL THE SECOND', 3)
             # Our *second* pull should bring us to the same place as the
-            # single pull with -slow would achieve.
-            muddle(['pull', '_all'])
+            # single pull with the "slow" mechanism would achieve.
+            muddle(['pull', '-noreload', '_all'])
             # We should have files following the amended build description
             check_amended_build_descs(d)
             # But we have not deleted the files from the original description
@@ -598,9 +598,9 @@ def main(args):
                               'checkout:(sub2(sub3))co0/checked_out\n',
                               ])
 
-        with Directory(pass2_complex_dir) as d:
+        with Directory(pass2_default_dir) as d:
             banner('PULL WITH BUILD DESCRIPTIONS PULLED FIRST', 2)
-            muddle(['pull', '-slow', '_all'])
+            muddle(['pull', '_all'])
             # We should have files following the amended build description
             check_amended_build_descs(d)
             # But we have not deleted the files from the original description
@@ -621,34 +621,34 @@ def main(args):
         banner('TEST NOT CHANGING THE BUILD DESCRIPTIONS')
         # This should work identically by both mechanisms
 
-        with NewCountedDirectory('build.nodesc.normal.pull') as d2:
+        with NewCountedDirectory('build.nodesc.noreload.pull') as d2:
             banner('CHECK REPOSITORIES OUT', 2)
             checkout_amended_build_descriptions(root_dir, d2)
             muddle(['checkout', '_all'])
-            pass3_simple_dir = d2.where
+            pass3_noreload_dir = d2.where
 
-        with NewCountedDirectory('build.nodesc.slow.pull') as d3:
+        with NewCountedDirectory('build.nodesc.default.pull') as d3:
             banner('CHECK REPOSITORIES OUT', 2)
             checkout_amended_build_descriptions(root_dir, d3)
             muddle(['checkout', '_all'])
-            pass3_complex_dir = d3.where
+            pass3_default_dir = d3.where
 
         with Directory(orig_dir) as d:
             banner('CHANGE SOMETHING NOT A BUILD DESCRIPTION AND PUSH', 2)
             change_something_else_and_push(root_dir, d)
 
-        with Directory(pass3_simple_dir) as d:
+        with Directory(pass3_noreload_dir) as d:
             banner('PULL IN THE ORIGINAL MANNER', 2)
-            muddle(['pull', '_all'])
+            muddle(['pull', '-noreload', '_all'])
             check_amended_build_descs(d)
             check_file_v_text(d.join('.muddle', '_just_pulled'),
                               [
                               'checkout:(sub1)co0/checked_out\n',
                               ])
 
-        with Directory(pass3_complex_dir) as d:
+        with Directory(pass3_default_dir) as d:
             banner('PULL WITH BUILD DESCRIPTIONS PULLED FIRST', 2)
-            muddle(['pull', '-slow', '_all'])
+            muddle(['pull', '_all'])
             check_amended_build_descs(d)
             check_file_v_text(d.join('.muddle', '_just_pulled'),
                               [

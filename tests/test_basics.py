@@ -341,7 +341,7 @@ def label_domain_sort():
             " checkout:(b(a))fred/*"
             " checkout:(b(b))fred/*")
 
-
+    # A specific test, which we originally got wrong
     labels = [
               Label.from_string('checkout:(sub1)builds/checked_out'),
               Label.from_string('checkout:(sub1(sub4))builds/checked_out'),
@@ -379,6 +379,70 @@ def label_domain_sort():
               " checkout:(sub2)builds/checked_out"
               " checkout:(sub2(sub3))builds/checked_out"
               " checkout:(sub2(sub3))co0/checked_out")
+
+    # Another originally erroneous case
+
+    l1 = Label.from_string("checkout:(subdomain2(subdomain3))main_co/checked_out")
+    l2 = Label.from_string("checkout:first_co/checked_out")
+    print
+    print 'xx', l1
+    print 'xx', l2
+    print 'xx l2 < l1', l2 < l1
+    assert l2 < l1
+
+    labels = [
+              Label.from_string("checkout:main_co/checked_out"),
+              Label.from_string("checkout:(subdomain1)first_co/checked_out"),
+              Label.from_string("checkout:(subdomain1)main_co/checked_out"),
+              Label.from_string("checkout:(subdomain1)second_co/checked_out"),
+              Label.from_string("checkout:(subdomain1(subdomain3))first_co/checked_out"),
+              Label.from_string("checkout:(subdomain1(subdomain3))main_co/checked_out"),
+              Label.from_string("checkout:(subdomain1(subdomain3))second_co/checked_out"),
+              Label.from_string("checkout:(subdomain2)first_co/checked_out"),
+              Label.from_string("checkout:(subdomain2)main_co/checked_out"),
+              Label.from_string("checkout:(subdomain2(subdomain3))main_co/checked_out"),
+              Label.from_string("checkout:first_co/checked_out"),
+              Label.from_string("checkout:second_co/checked_out"),
+              Label.from_string("checkout:(subdomain2)second_co/checked_out"),
+              Label.from_string("checkout:(subdomain2(subdomain3))first_co/checked_out"),
+              Label.from_string("checkout:(subdomain2(subdomain3))second_co/checked_out"),
+              Label.from_string("checkout:(subdomain2(subdomain4))first_co/checked_out"),
+              Label.from_string("checkout:(subdomain2(subdomain4))main_co/checked_out"),
+              Label.from_string("checkout:(subdomain2(subdomain4))second_co/checked_out"),
+             ]
+
+    sorted_labels = sorted(labels)
+
+    string_labels = map(str, labels)
+    string_labels.sort()
+
+    # Our properly sorted labels have changed order from that given
+    assert sorted_labels != labels
+
+    # It's not the same order as we'd get by sorting the labels as strings
+    assert map(str, sorted_labels) != string_labels
+
+    # It is this order...
+    assert depend.label_list_to_string(sorted_labels) == (
+             "checkout:first_co/checked_out"
+             " checkout:main_co/checked_out"
+             " checkout:second_co/checked_out"
+             " checkout:(subdomain1)first_co/checked_out"
+             " checkout:(subdomain1)main_co/checked_out"
+             " checkout:(subdomain1)second_co/checked_out"
+             " checkout:(subdomain1(subdomain3))first_co/checked_out"
+             " checkout:(subdomain1(subdomain3))main_co/checked_out"
+             " checkout:(subdomain1(subdomain3))second_co/checked_out"
+             " checkout:(subdomain2)first_co/checked_out"
+             " checkout:(subdomain2)main_co/checked_out"
+             " checkout:(subdomain2)second_co/checked_out"
+             " checkout:(subdomain2(subdomain3))first_co/checked_out"
+             " checkout:(subdomain2(subdomain3))main_co/checked_out"
+             " checkout:(subdomain2(subdomain3))second_co/checked_out"
+             " checkout:(subdomain2(subdomain4))first_co/checked_out"
+             " checkout:(subdomain2(subdomain4))main_co/checked_out"
+             " checkout:(subdomain2(subdomain4))second_co/checked_out"
+            )
 
 def run_tests():
     print "> cpio"

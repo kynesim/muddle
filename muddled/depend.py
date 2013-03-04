@@ -172,7 +172,9 @@ class Label(object):
         relevant to this particular label.
 
         The domain may be None, indicating that the label belongs to the
-        current build. Do not specify domains unless you need to.
+        current build. If the domain is given as '' (empty string) then this
+        is equivalent to None, and is stored as such. Do not specify domains
+        unless you need to.
 
         The kind, name, role and tag may be wildcarded, by being set to '*'.
         When evaluating dependencies between labels, for instance, a wildcard
@@ -227,6 +229,8 @@ class Label(object):
         if role is not None:
             _check_part('role',role)
         _check_part('tag',tag)
+        if domain == '':
+            domain = None
         if domain is not None:
             Label.split_domain(domain)
 
@@ -314,8 +318,15 @@ class Label(object):
     def copy_with_domain(self, new_domain):
         """
         Return a copy of self, with the domain changed to new_domain.
+
+        Note that if 'new_domain' is given as "" (empty string) then that
+        is treated as if it were given as None.
         """
-        Label.split_domain(new_domain)
+        if new_domain == '':
+            new_domain = None
+        if new_domain is not None:
+            # Check it looks like a valid domain name
+            Label.split_domain(new_domain)
         cp = self.copy()
         cp._domain = new_domain
         return cp
@@ -559,7 +570,10 @@ class Label(object):
         # solved that problem...
         if self._domain != other._domain:
             dsorted = sort_domains([self._domain, other._domain])
-            return dsorted[0] == self.domain
+            if self.domain is None:
+                return dsorted[0] == ''
+            else:
+                return dsorted[0] == self.domain
 
         # And the rest is simple...
         if self._name != other._name:
@@ -860,7 +874,6 @@ class Label(object):
         if domain is None:
             domain = default_domain     # which may be None as well
 
-
         return Label(type, name, role, tag, domain=domain)
 
     def split_domains(self):
@@ -872,6 +885,8 @@ class Label(object):
         Raises a utils.GiveUp exception if the parentheses do not match up
         (the check is only fairly crude), or if there are two adjacent opening
         parentheses.
+
+        This is similar to utils.split_domain, but behaves somewhat differently.
         """
         dom = self._domain
         rv = []

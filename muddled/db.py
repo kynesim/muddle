@@ -1776,6 +1776,10 @@ class JustPulledFile(object):
         ##print 'XXX %s ADD JUST PULLED %s'%(self.file_name[34:], label)
         self.labels.add(label.copy_with_tag(utils.LabelTag.CheckedOut))
 
+    def is_pulled(self, label):
+        l = label.copy_with_tag(utils.LabelTag.CheckedOut)
+        return l in self.labels
+
     def commit(self):
         """Commit our local memory to the _just_pulled file.
 

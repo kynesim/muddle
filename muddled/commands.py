@@ -5885,27 +5885,28 @@ class Pull(CheckoutCommand):
                             print
                             print 'PULLING ', co
                             self.pull(builder, co)
-                            # XXX If we can tell it didn't get changed, then
-                            # XXX we don't in fact need to reload it...
-                            if True:    # XXX But for the moment
+                            # That will have added 'co' to the just_pulled set
+                            # *if* it actually changed it. So we can tell if
+                            # the checkout was changed. If it was not, we don't
+                            # need to re-read the build description...
+                            if builder.db.just_pulled.is_pulled(co):
                                 save_just_pulled = builder.db.just_pulled.labels.copy()
                                 self.delete_pyc_files(builder, co)
                                 builder = mechanics.load_builder(self.current_dir, None)
-                                # Don't forget what we already pulled
+                                # Don't forget what we already pulled - we need to
+                                # tell this (new) builder about it
                                 builder.db.just_pulled.labels.update(save_just_pulled)
                                 # Recalculate the labels implied by our command line
                                 labels = self.expand_labels(builder, self.original_labels)
-                            # We might have gained or lost domains, too
+                            # Regardless, we've "done" this checkout
                             done.add(co)
                             print 'DONE:       ', self.label_names(done)
                             print 'JUST PULLED:', self.label_names(builder.db.just_pulled.labels)
-                            # XXX Similarly, if we didn't change our build description,
-                            # XXX we *could* just remove that from our build_desc_labels
-                            # XXX by hand...
-                            if True:    # XXX But for the moment
+                            # We might have gained or lost domains, too
+                            if builder.db.just_pulled.is_pulled(co):
                                 build_desc_labels = self.calc_build_descriptions(builder, done)
                             else:
-                                build_desc_labels.remove(co)    # XXX untested
+                                build_desc_labels.remove(co)
                             print 'BUILD DESCS:', self.label_names(build_desc_labels)
                             # Recalculate which of we are still asked for
                             remaining = target_set.intersection(build_desc_labels)

@@ -1987,7 +1987,7 @@ class Builder(object):
                 return []
         else:
             raise GiveUp('Argument "%s" is not recognised as a "special" name'
-                         ' that expands to give labels'%word)
+                    ' that expands to give labels\nTry "muddle help labels _all"'%word)
 
 
 class BuildDescriptionAction(Action):

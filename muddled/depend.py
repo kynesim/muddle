@@ -531,6 +531,33 @@ class Label(object):
 
         return rv
 
+    def middle(self):
+        """Return the "middle" portion of our name, between type and tag.
+
+        That is, the domain, name and role (as appropriate).
+
+        For instance::
+
+            >>> checkout('fred').middle()
+            'fred'
+            >>> checkout('jim', domain='a(b)', tag='*').middle()
+            '(a(b))jim'
+            >>> package('fred', role='bob', domain='a').middle()
+            '(a)fred{bob}'
+        """
+        if self._role:
+            basename = "%s{%s}"%(self._name, self._role)
+        else:
+            basename = self._name
+
+        if self._domain:
+            domain = "(%s)"%self._domain
+        else:
+            domain = ""
+
+        return '%s%s'%(domain, basename)
+
+
     def __eq__(self, other):
         """
         Are two Labels "the same".

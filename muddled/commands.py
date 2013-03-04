@@ -5868,88 +5868,13 @@ class Pull(CheckoutCommand):
         builder.db.just_pulled.clear()
 
         try:
-            # ====================================================================
             if do_build_descriptions_first:
-                # The following may, of necessity, be slow.
-                #
-                # We were given a list of labels to pull
-                # Find all of the build descriptions for our domains.
-                # Start with the first (the top level build description).
-                # - if it is in our list, then:
-                # - pull it
-                # - for each .py file in that checkout, delete the corresponding .pyc
-                #   file (so that we can guarantee to detect any changes - Python
-                #   doesn't use a very accurate clock to detect whether a .pyc file is
-                #   older than its .py file). Note we only do this for .pyc files that
-                #   have a .py file, in case some mad person has committed a standalone
-                #   .pyc file...
-                # - reload this new build description (the simplest thing is always
-                #   to just reload the top-level build description, in fact)
-                # - re-evaluate the command line, in case it had things like _all
-                #   or package:*{some-role} whose expansion may have changed
-                # - remove all the _just_pulled checkouts so far from that list
-                # - move on to the next build description, and REPEAT...
-                #
-                # This is slow because of the continual delete files, reload build
-                # description, recalculate arguments cycle. On the other hand, most
-                # pull commands will only have at most one build description in them.
-
-                # Work out our build description checkout labels, ignoring any that
-                # have just been pulled (which is none so far)
-                build_desc_labels = self.calc_build_descriptions(builder)
-
-                # Which build description labels that have not yet pulled are
-                # still remaining in our labels-to-build?
-                target_set = set(labels)
-                remaining = target_set.intersection(build_desc_labels)
-
-                if remaining:
-
-                    done = set()
-                    while remaining:
-                        # Find the first of those (remember, we are handling build
-                        # descriptions in sorted domain order)
-                        for co in build_desc_labels:
-                            if co in remaining:
-                                print
-                                print 'Pulling build description %s'%co
-                                self.pull(builder, co)
-                                # That will have added 'co' to the just_pulled set
-                                # *if* it actually changed it. So we can tell if
-                                # the checkout was changed. If it was not, we don't
-                                # need to re-read the build description...
-                                if builder.db.just_pulled.is_pulled(co):
-                                    save_just_pulled = builder.db.just_pulled.labels.copy()
-                                    self.delete_pyc_files(builder, co)
-                                    builder = mechanics.load_builder(self.current_dir, None)
-                                    # Don't forget what we already pulled - we need to
-                                    # tell this (new) builder about it
-                                    builder.db.just_pulled.labels.update(save_just_pulled)
-                                    # Recalculate the labels implied by our command line
-                                    labels = self.expand_labels(builder, self.original_labels)
-                                # Regardless, we've "done" this checkout
-                                done.add(co)
-                                # We might have gained or lost domains, too
-                                if builder.db.just_pulled.is_pulled(co):
-                                    build_desc_labels = self.calc_build_descriptions(builder, done)
-                                else:
-                                    build_desc_labels.remove(co)
-                                # Recalculate which of we are still asked for
-                                remaining = target_set.intersection(build_desc_labels)
-
-                    # And so to whatever remains...
-                    target_set = set(labels)
-                    labels = target_set.difference(done)
-
-                    if labels:
-                        print
-                        print 'Now pulling the rest of the checkouts'
-            # ====================================================================
+                builder, labels = self.handle_build_descriptions_first(builder, labels)
 
             for co in labels:
                 self.pull(builder, co)
         finally:
-            # Remember to commit the 'just pulled' information
+            # Remember to commit the 'just pulled' information, whatever happens
             builder.db.just_pulled.commit()
 
         just_pulled = builder.db.just_pulled.get_from_disk()
@@ -5973,8 +5898,77 @@ class Pull(CheckoutCommand):
     def handle_build_descriptions_first(self, builder, labels):
         """Pull our build descriptions before anything else.
 
-        Returns an amended list of the checkout labels still to pull.
+        Returns:
+
+        * the new top-level builder
+        * an amended list of the checkout labels still to pull.
         """
+        # This is slow because of the continual delete files, reload build
+        # description, recalculate arguments cycle. On the other hand, most
+        # pull commands will only have at most one build description in them,
+        # so it's not *very* slow.
+
+        # Work out our build description checkout labels, ignoring any that
+        # have just been pulled (which is none so far)
+        build_desc_labels = self.calc_build_descriptions(builder)
+
+        # Which of those are in our labels-to-build?
+        target_set = set(labels)
+        remaining_build_descs = target_set.intersection(build_desc_labels)
+
+        if not remaining_build_descs:               # None, move along now
+            return builder, labels
+
+        done = set()
+        while remaining_build_descs:
+            # Find the first of those (remember, they're in sorted domain order)
+            for co in build_desc_labels:
+                if co in remaining_build_descs:
+                    print
+                    print 'Pulling build description %s'%co
+                    self.pull(builder, co)
+                    # That will have added 'co' to the just_pulled set
+                    # *if* it actually changed it.
+                    # If the it was not changed, we don't need to reload
+                    if builder.db.just_pulled.is_pulled(co):
+                        # Remember what that 'builder' knew was pulled
+                        save_just_pulled = builder.db.just_pulled.labels.copy()
+                        # Delete any .pyc files that match .py files - Python
+                        # uses a very coarse granularity on its timestamps, so
+                        # isn't very good at noticing that a .pyc is older than
+                        # the .py. We'll assume that we can ignore any .pyc files
+                        # that don't match a .py file (if some mad person has
+                        # committed such)
+                        self.delete_pyc_files(builder, co)
+                        # And reload the *top-level* build description, so that
+                        # we guarantee to get the proper version of the world
+                        builder = mechanics.load_builder(self.current_dir, None)
+                        # Don't forget what we already pulled - we need to
+                        # tell this (new) builder about it
+                        builder.db.just_pulled.labels.update(save_just_pulled)
+                        # And we can now recalculate the labels implied by our
+                        # command line (for instance, "_all" is likely to have
+                        # changed its meaning...)
+                        labels = self.expand_labels(builder, self.original_labels)
+                    # Regardless, we've "done" this checkout
+                    done.add(co)
+                    # We might have gained or lost domains, too
+                    if builder.db.just_pulled.is_pulled(co):
+                        build_desc_labels = self.calc_build_descriptions(builder, done)
+                    else:
+                        build_desc_labels.remove(co)
+                    # Recalculate which build descriptions are still asked for
+                    # and not yet done
+                    remaining_build_descs = target_set.intersection(build_desc_labels)
+
+        # And so to whatever remains...
+        target_set = set(labels)
+        labels = target_set.difference(done)
+
+        if labels:
+            print
+            print 'Now pulling the rest of the checkouts'
+        return builder, labels
 
     def label_names(self, labels):
         result = []

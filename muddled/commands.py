@@ -5867,45 +5867,45 @@ class Pull(CheckoutCommand):
 
         builder.db.just_pulled.clear()
 
-        if do_build_descriptions_first:
+        try:
             # ====================================================================
-            # The following may, of necessity, be slow.
-            #
-            # We were given a list of labels to pull
-            # Find all of the build descriptions for our domains.
-            # Start with the first (the top level build description).
-            # - if it is in our list, then:
-            # - pull it
-            # - for each .py file in that checkout, delete the corresponding .pyc
-            #   file (so that we can guarantee to detect any changes - Python
-            #   doesn't use a very accurate clock to detect whether a .pyc file is
-            #   older than its .py file). Note we only do this for .pyc files that
-            #   have a .py file, in case some mad person has committed a standalone
-            #   .pyc file...
-            # - reload this new build description (the simplest thing is always
-            #   to just reload the top-level build description, in fact)
-            # - re-evaluate the command line, in case it had things like _all
-            #   or package:*{some-role} whose expansion may have changed
-            # - remove all the _just_pulled checkouts so far from that list
-            # - move on to the next build description, and REPEAT...
-            #
-            # This is slow because of the continual delete files, reload build
-            # description, recalculate arguments cycle. On the other hand, most
-            # pull commands will only have at most one build description in them.
+            if do_build_descriptions_first:
+                # The following may, of necessity, be slow.
+                #
+                # We were given a list of labels to pull
+                # Find all of the build descriptions for our domains.
+                # Start with the first (the top level build description).
+                # - if it is in our list, then:
+                # - pull it
+                # - for each .py file in that checkout, delete the corresponding .pyc
+                #   file (so that we can guarantee to detect any changes - Python
+                #   doesn't use a very accurate clock to detect whether a .pyc file is
+                #   older than its .py file). Note we only do this for .pyc files that
+                #   have a .py file, in case some mad person has committed a standalone
+                #   .pyc file...
+                # - reload this new build description (the simplest thing is always
+                #   to just reload the top-level build description, in fact)
+                # - re-evaluate the command line, in case it had things like _all
+                #   or package:*{some-role} whose expansion may have changed
+                # - remove all the _just_pulled checkouts so far from that list
+                # - move on to the next build description, and REPEAT...
+                #
+                # This is slow because of the continual delete files, reload build
+                # description, recalculate arguments cycle. On the other hand, most
+                # pull commands will only have at most one build description in them.
 
-            # Work out our build description checkout labels, ignoring any that
-            # have just been pulled (which is none so far)
-            build_desc_labels = self.calc_build_descriptions(builder)
+                # Work out our build description checkout labels, ignoring any that
+                # have just been pulled (which is none so far)
+                build_desc_labels = self.calc_build_descriptions(builder)
 
-            # Which build description labels that have not yet pulled are
-            # still remaining in our labels-to-build?
-            target_set = set(labels)
-            remaining = target_set.intersection(build_desc_labels)
+                # Which build description labels that have not yet pulled are
+                # still remaining in our labels-to-build?
+                target_set = set(labels)
+                remaining = target_set.intersection(build_desc_labels)
 
-            if remaining:
+                if remaining:
 
-                done = set()
-                try:
+                    done = set()
                     while remaining:
                         # Find the first of those (remember, we are handling build
                         # descriptions in sorted domain order)
@@ -5936,19 +5936,16 @@ class Pull(CheckoutCommand):
                                     build_desc_labels.remove(co)
                                 # Recalculate which of we are still asked for
                                 remaining = target_set.intersection(build_desc_labels)
-                finally:
-                    builder.db.just_pulled.commit()
 
-                # And so to whatever remains...
-                target_set = set(labels)
-                labels = target_set.difference(done)
+                    # And so to whatever remains...
+                    target_set = set(labels)
+                    labels = target_set.difference(done)
 
-                if labels:
-                    print
-                    print 'Now pulling the rest of the checkouts'
+                    if labels:
+                        print
+                        print 'Now pulling the rest of the checkouts'
             # ====================================================================
 
-        try:
             for co in labels:
                 self.pull(builder, co)
         finally:

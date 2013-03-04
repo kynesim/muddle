@@ -416,6 +416,13 @@ def checkout_build_descriptions(root_dir, d):
 
     check_original_build_descs(d)
 
+def checkout_amended_build_descriptions(root_dir, d):
+
+    repo = os.path.join(root_dir, 'repo')
+    muddle(['init', 'git+file://{repo}/main'.format(repo=repo), 'builds/01.py'])
+
+    check_amended_build_descs(d)
+
 def check_original_build_descs(d):
     """Check our build descriptions match the original specification.
     """
@@ -429,18 +436,13 @@ def check_original_build_descs(d):
 
 def check_amended_build_descs(d):
     """Check our build descriptions match the changed specification.
-
-    We'll have the original sub-subdomains, and the newer ones as well
     """
     check_files([d.join('src', 'builds', '01.py'),
                  d.join('domains', 'sub1', 'src', 'builds', '01.py'),
-                 d.join('domains', 'sub1', 'domains', 'sub3', 'src', 'builds', '01.py'),
                  d.join('domains', 'sub1', 'domains', 'sub4', 'src', 'builds', '01.py'),
                  d.join('domains', 'sub1', 'domains', 'sub5', 'src', 'builds', '01.py'),
                  d.join('domains', 'sub2', 'src', 'builds', '01.py'),
                  d.join('domains', 'sub2', 'domains', 'sub3', 'src', 'builds', '01.py'),
-                 d.join('domains', 'sub2', 'domains', 'sub4', 'src', 'builds', '01.py'),
-                 d.join('domains', 'sub2', 'domains', 'sub5', 'src', 'builds', '01.py'),
                 ])
 
 def amend_sub1_build_desc_and_push(root_dir, d):
@@ -585,7 +587,10 @@ def main(args):
             # Our *second* pull should bring us to the same place as the
             # single pull with -slow would achieve.
             muddle(['pull', '_all'])
+            # We should have files following the amended build description
             check_amended_build_descs(d)
+            # But we have not deleted the files from the original description
+            check_original_build_descs(d)
             check_file_v_text(d.join('.muddle', '_just_pulled'),
                               [
                               'checkout:(sub1(sub4))co0/checked_out\n',
@@ -596,7 +601,10 @@ def main(args):
         with Directory(pass2_complex_dir) as d:
             banner('PULL WITH BUILD DESCRIPTIONS PULLED FIRST', 2)
             muddle(['pull', '-slow', '_all'])
+            # We should have files following the amended build description
             check_amended_build_descs(d)
+            # But we have not deleted the files from the original description
+            check_original_build_descs(d)
             check_file_v_text(d.join('.muddle', '_just_pulled'),
                               [
                               'checkout:(sub1)builds/checked_out\n',
@@ -615,13 +623,13 @@ def main(args):
 
         with NewCountedDirectory('build.nodesc.normal.pull') as d2:
             banner('CHECK REPOSITORIES OUT', 2)
-            checkout_build_descriptions(root_dir, d2)
+            checkout_amended_build_descriptions(root_dir, d2)
             muddle(['checkout', '_all'])
             pass3_simple_dir = d2.where
 
         with NewCountedDirectory('build.nodesc.slow.pull') as d3:
             banner('CHECK REPOSITORIES OUT', 2)
-            checkout_build_descriptions(root_dir, d3)
+            checkout_amended_build_descriptions(root_dir, d3)
             muddle(['checkout', '_all'])
             pass3_complex_dir = d3.where
 
@@ -635,7 +643,7 @@ def main(args):
             check_amended_build_descs(d)
             check_file_v_text(d.join('.muddle', '_just_pulled'),
                               [
-                              'checkout:(sub1)co1/checked_out\n',
+                              'checkout:(sub1)co0/checked_out\n',
                               ])
 
         with Directory(pass3_complex_dir) as d:
@@ -644,7 +652,7 @@ def main(args):
             check_amended_build_descs(d)
             check_file_v_text(d.join('.muddle', '_just_pulled'),
                               [
-                              'checkout:(sub1)co1/checked_out\n',
+                              'checkout:(sub1)co0/checked_out\n',
                               ])
 
 

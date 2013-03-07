@@ -5919,6 +5919,9 @@ class Pull(CheckoutCommand):
         if not remaining_build_descs:               # None, move along now
             return builder, labels
 
+        # Remember where our build tree is based, so we can reload it later on
+        build_root = builder.db.root_path
+
         done = set()
         while remaining_build_descs:
             # Find the first of those (remember, they're in sorted domain order)
@@ -5942,7 +5945,7 @@ class Pull(CheckoutCommand):
                         self.delete_pyc_files(builder, co)
                         # And reload the *top-level* build description, so that
                         # we guarantee to get the proper version of the world
-                        builder = mechanics.load_builder(self.current_dir, None)
+                        builder = mechanics.load_builder(build_root, None)
                         # Don't forget what we already pulled - we need to
                         # tell this (new) builder about it
                         builder.db.just_pulled.labels.update(save_just_pulled)

@@ -586,7 +586,12 @@ def main(args):
             banner('PULL THE SECOND', 3)
             # Our *second* pull should bring us to the same place as the
             # single pull with the "slow" mechanism would achieve.
-            muddle(['pull', '-noreload', '_all'])
+            #
+            # Note that it shouldn't matter where in the build tree we
+            # do this command from...
+            with Directory('src'):
+                with Directory('builds'):
+                    muddle(['pull', '-noreload', '_all'])
             # We should have files following the amended build description
             check_amended_build_descs(d)
             # But we have not deleted the files from the original description
@@ -600,7 +605,11 @@ def main(args):
 
         with Directory(pass2_default_dir) as d:
             banner('PULL WITH BUILD DESCRIPTIONS PULLED FIRST', 2)
-            muddle(['pull', '_all'])
+            # Note that it shouldn't matter where in the build tree we
+            # do this command from...
+            with Directory('src'):
+                with Directory('builds'):
+                    muddle(['pull', '_all'])
             # We should have files following the amended build description
             check_amended_build_descs(d)
             # But we have not deleted the files from the original description

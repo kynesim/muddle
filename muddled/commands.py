@@ -6356,7 +6356,7 @@ class Import(CheckoutCommand):
         for c in labels:
             builder.db.set_tag(c)
         # issue 143: Call reparent so the VCS is locked and loaded.
-        rep = g_command_dict['reparent']() # should be Reparent but go via the dict just in case
+        rep = Reparent()
         rep.set_options(self.options)
         rep.set_old_env(self.old_env)
         rep.with_build_tree(builder, self.current_dir, self.args)

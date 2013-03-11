@@ -61,6 +61,126 @@ Similarly, if I were editing source code in a checkout, I would:
 and it is possible that ``muddle merge`` may go away at some point in the
 future.)
 
+
+Creating a new checkout, and adding it to (for example) git
+===========================================================
+When developing a new system, it is periodically necessary to add a new
+checkout to the system as a whole.
+
+For the purpose of this illustration, I shall assume that the build is using
+git to store its repositories, and the muddle build was intialised using the
+command::
+
+  $ muddle init git+ssh://git@git.kynesim.co.uk/opt/projects/Fred builds/01.py
+
+(note that this is *not* a real command line, there is no such server).
+
+That is, we are expecting to connect to the server with SSH, all interaction
+is via the user ``git``, and project repositories are to be found as
+subdirectories of ``/opt/projects/Fred`` on the server (typically named to
+reflect the layout of checkouts in the build trees ``src/`` directory).
+
+Each user will normally have an SSH key allowing them access to the server
+machine, as user ``git`` (that is, their public key will be in the ``git``
+users ``.ssh/authorized_keys`` file).
+
+So, to add a new checkout, we start by creating the repository on the server.
+
+Logon to the server machine as ``git``, something like::
+
+  $ ssh git@git.kynesim.co.uk
+
+Then ``cd`` to the project root::
+
+  $ cd /opt/projects/Fred
+
+We will assume we are adding the ``libpng`` library, which will live in
+``src/libs``, and we thus want to put it into a ``libs`` subdirectory on the
+server. We're actually adding version 1.4.3 of the library, so we put that
+information into the checkout name (in fact, this will typically be how the
+directory would be named after retrieving it from its original home). This
+allows our build tree to change the version of a checkout in a clean fashion,
+later on.
+
+So, create the new directory::
+
+  git@git.kynesim.co.uk$ mkdir -p libs/libpng-1.4.3
+
+and tell ``git`` to set it up as a bare repository::
+
+  git@git.kynesim.co.uk$ cd libs/libpng-1.4.3
+  git@git.kynesim.co.uk$ git init --bare
+
+You can then log out of the server (I surely don't need to show that). 
+
+Back in the development tree, we can now add the new directory - in this
+instance we're unpacking an archive we'd already downloaded::
+
+  $ cd src/libs
+  $ tar -zxvf ~/Downloads/libpng-1.4.3.tar.gz
+  $ cd libpng-1.4.3
+
+It's best to add the files to git *exactly as received* before doing anything
+else::
+
+  $ git init
+  $ git add *
+  $ git commit
+
+and then in the editor, add a commit message something like::
+
+  New checkout libpng-1.4.3
+
+  Retrieved from http://www.libpng.org/pub/png/libpng.html, specifically
+  http://prdownloads.sourceforge.net/libpng/libpng-1.4.3.tar.gz?download
+
+Of course, if this is a new and original checkout, there won't be
+any content, and this stage will be omitted.
+
+Then we will need a muddle Makefile - it's best to add this as a separate
+transaction, to make it clear it is not part of the original code::
+
+  $ touch Makefile.muddle
+  $ git add Makefile.muddle
+  $ git commit Makefile.muddle -m 'A library needs a muddle Makefile'
+
+The content of the muddle Makefile can be sorted out later.
+
+The new library also needs to be added to the build description, or muddle
+won't know about it. So, in this case, we edit src/builds/01.py and add::
+
+   # This is the version of the PNG library that works with our other code
+   make.twolevel(builder, name='libpng', roles=[graphics_role],
+                 co_dir='libs', co_name='libpng-1.4.3')
+
+in an appropriate place.
+
+Note that the package name does not include the version number - again, this
+makes it easier if we change the version of ``libpng`` we are using.
+
+We can now use::
+
+  $ muddle query checkouts
+
+to make sure the checkout has been succesfullly added to the build description.
+If it has, then ``libpng-1.4.3`` should appear in the list that prints out. 
+
+Finally, we tell muddle that we have already checked this library out::
+
+  $ muddle import libpng-1.4.3
+
+and we can then push the contents of our new checkout to the server::
+
+  $ muddle push libpng-1.4.3
+
+The remaining tasks are:
+
+1. Add some dependencies on the library to the build description (there must
+   be something that depends on it, or we'd not have included it).
+2. Write the actual muddle Makefile for it.
+3. Try building it with ``muddle build libpng``.
+
+
 How I use terminal windows with muddle
 ======================================
 In a GUI environment (e.g., Gnome or whatever), I personally tend to have
@@ -74,7 +194,7 @@ several terminal windows open:
 * One for each checkout I'm working on, with the terminal ``cd``-ed into the
   appropriate source directory.
 
-  In these termainals, I can do ``muddle`` or ``muddle distrebuild`` or
+  In these terminals, I can do ``muddle`` or ``muddle distrebuild`` or
   whatever without needing to specify the checkout or package I'm working on.
   This also facilitates using the appropriate VCS commands directly, as
   discussed above, or doing ``muddle push`` when I believe I've reached an

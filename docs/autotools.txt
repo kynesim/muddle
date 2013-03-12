@@ -1,0 +1,189 @@
+=========================
+Issues with GNU autotools
+=========================
+
+Many source packages use GNU autotools to manage their building. You can
+typically recognise this because their build instructions tell you to::
+
+  ./configure; make; make install
+
+and you will typically see files called ``configure.ac`` and ``Makefile.in``
+in the source tree.
+
+The GNU autotools derive from a time when writing portable C code was quite
+difficult, and typically required hand-editing a Makefile (often derived from
+the X11 build system) in arcane ways. They have, in many ways, been a great
+success, and for most people, most of the time, are a good thing.
+
+However, their decision to rely only on ``bash``, ``m4`` and GNU ``make``
+renders the system somewhat cumbersome (the original designers did not want to
+add yet another tool which would need to be built and/or distributed - in
+retrospect a mistake). The lack of adequate documentation, the tendency of
+packages to "copy" mostly working autotools setups from other packages, and
+the way that changes to autotools propagate do not help (there's a rant there,
+which I shall try to avoid - it's very boring).
+
+Regardless, when one is assembling a muddle build system, various common
+problems keep reappearing, and this chapter of the documentation is meant to
+be a place where we can keep a note of such problems, and their solutions.
+
+Resources
+=========
+There are, at time of writing, two invaluable resources for learning about
+autotools.
+
+The first is:
+
+  | **Autotools: A practitioner's guide to GNU AUTOCONF, AUTOMAKE and LIBTOOL**
+  | John Calcote
+  | No Starch Press, 2010
+  | ISBN 1-59327-206-5
+
+This is an introduction to the toolset, with a worked explanation on how to
+setup a new project (or convert an existing one) to use autotools, written by
+someone who believes strongly in the system. If you need to use autotools it
+is worth finding a copy.
+
+The second is online:
+
+  | Autotools Mythbuster
+  | http://www.flameeyes.eu/autotools-mythbuster/
+  | Diego Elio “Flameeyes” Pettenò
+
+His blog, at http://blog.flameeyes.eu/, can also be fairly instructive.
+
+.. _`How to fix autotools failures`: http://www.gentoo.org/proj/en/qa/autofailure.xml
+
+Muddle won't pull because files have changed
+============================================
+Typically, muddle will grumble that::
+
+  Failure pulling checkout:SOMENAME/pulled[T] in src/libs/SOMENAME:
+  There are uncommitted changes/untracked files
+       M Makefile.in
+       M aclocal.m4
+       M configure
+       M include/Makefile.in
+
+Useful resources for an explanation include:
+
+* http://blog.flameeyes.eu/2008/06/maintaner-mode
+* http://www.flameeyes.eu/autotools-mythbuster/automake/maintainer.html
+* http://stackoverflow.com/questions/5731023/autotools-force-make-not-to-rebuild-configure-makefile
+
+There are several things going on that cause the problem:
+
+* Various revision control systems (the stackoverflow thread talks about CVS,
+  but this is true of git as well) do not preserve timestamps when creating
+  working files. This means that the relative timestamps of files in a newly
+  clone git directory are not necessarily predictable, and are certainly not
+  guaranteed to be related to the timestamps in the original checkin.
+
+* The main operating system may have a different version of autotools
+  installed (or its constituent packages) than are present/referenced in the
+  checkout SOMENAME.
+
+* There is a thing called "maintainer mode" in the autotools world. This can
+  cause various source files to be regenerated if the autotools system
+  believes this to be necessary. How it works has changed over time, as is
+  often the case with autotools.
+
+* The ``configure`` script is generated from ``configure.ac`` (which is much
+  more readable!), and the ``Makefile.in`` files are generated from
+  ``Makefile.am`` templates.
+
+So, it is probable that this source checkout SOMENAME has a ``configure.ac``
+which either does not contain the ``AM_MAINTAINER_MODE`` macro (causing it to
+default to enabled), or else does contain it but explicitly enables maintainer
+mode.
+
+Since maintainer mode is enabled, running ``./configure`` can trigger a check
+to see whether the ``configure`` script is "more recent" than its
+``configure.ac``, and similarly for other derived files. A check may also be
+made against the system autools setup. If the check makes it look as if
+something is out of date, then the autotools system can decide to regenerate
+files *in the source directory*, leading to our problem.
+
+There are three possible solutions, of varying complexity.
+
+1. The Makefile.muddle is building with reference to the source directory -
+   for instance::
+
+        config:
+                -mkdir -p $(MUDDLE_OBJ_OBJ)
+                (cd $(MUDDLE_OBJ_OBJ); \
+                    $(MUDDLE_SRC)/configure  --host=armv7-none-linux-gnueabi \
+                    --prefix=/  )
+
+   and thus the autotools system can overwrite files in that source directory.
+   So a simple, if blunt, solution is to copy the source tree first, and any
+   amendments will then be made in that copy::
+
+        config:
+                -mkdir -p $(MUDDLE_OBJ_OBJ)
+                $(MUDDLE) copywithout $(MUDDLE_SRC) $(MUDDLE_OBJ_OBJ) .git
+                (cd $(MUDDLE_OBJ_OBJ); \
+                    ./configure  --host=armv7-none-linux-gnueabi \
+                    --prefix=/  )
+
+   The snag with this approach is that if a file in the source directory is
+   edited, ``muddle reconfigure`` is needed to copy the entire source tree
+   over again.
+
+   However, this is undoubtedly the simplest and quickest solution.
+
+   .. note:: This is a traditional approach, which is known to work, although
+      with the disadvantages mentioned.
+
+2. If the ``configure.ac`` file *does* include the ``AM_MAINTAINER_MODE``
+   macro, then it *should* be possible to specify
+   ``--disable-maintainer-mode`` to the ``configure`` step::
+
+        config:
+                -mkdir -p $(MUDDLE_OBJ_OBJ)
+                (cd $(MUDDLE_OBJ_OBJ); \
+                    $(MUDDLE_SRC)/configure  --host=armv7-none-linux-gnueabi \
+                    --disable-maintainer-mode \
+                    --prefix=/  )
+
+   (Note that the GNU autotools documentation does not mention the limitation
+   that the ``AM_MAINTAINER_MODE`` macro needs to be present for this to
+   work).
+
+   Unfortunately, many packages do not include that macro in their
+   ``configure.ac``, and there is some debate in the community as to whether
+   it *should* be there or not (for instance, see
+   http://old.nabble.com/-PATCH-libwacom--Drop-AM_MAINTAINER_MODE-td34561358.html).
+
+   .. warning:: This approach should work, but I have not personally had
+      the opportunity to try it, as most of the packages I've had to fix
+      were either before I discovered this solution, or have not had
+      ``AM_MAINTAINER_MODE`` defined.
+
+3. If the ``configure.ac`` does *not* contain the ``AM_MAINTAINER_MODE``
+   macro, it is possible to add it, regenerate the autotools setup for the
+   package, and then commit the lot. The ``AM_MAINTAINER_MODE`` macro
+   can then either explicitly disable maintainer mode, or enable it and the
+   ``configure`` usage can disable it with the ``--disable-maintainer-mode``
+   switch.
+
+   As an example of someone external doing this sort of thing, see this pull
+   request on github: https://github.com/craftIk/craftIk/pull/12
+
+   To regenerate the ``configure`` and other files, use ``autoreconf`` - this
+   is silent without ``-v`` switch::
+
+     cd SOMENAME
+     autoreconf -v
+
+   Note that this will typically generate a diretory called
+   ``autom4te.cache``, which you should add to your ``.gitignore`` (and
+   perhaps also delete after use).
+
+   .. warning:: This is an inadequate summary of what to do, and may be
+      misleading. I hope to improve it in a later version of this document...
+
+     
+
+
+.. vim: set filetype=rst tabstop=8 softtabstop=2 shiftwidth=2 expandtab:

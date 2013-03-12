@@ -22,6 +22,7 @@ Contents:
    distribute
    release
    jottings
+   autotools
    muddle_patch.README
    muddle-useful
    muddle-package

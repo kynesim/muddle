@@ -5868,7 +5868,9 @@ class Pull(CheckoutCommand):
         builder.db.just_pulled.clear()
 
         try:
-            if do_build_descriptions_first:
+            # If we have a single label, we really don't care if it's a build
+            # description or not!
+            if do_build_descriptions_first and len(labels) > 1:
                 builder, labels = self.handle_build_descriptions_first(builder, labels)
 
             for co in labels:
@@ -5945,6 +5947,7 @@ class Pull(CheckoutCommand):
                         self.delete_pyc_files(builder, co)
                         # And reload the *top-level* build description, so that
                         # we guarantee to get the proper version of the world
+                        print 'Reloading build description'
                         builder = mechanics.load_builder(build_root, None)
                         # Don't forget what we already pulled - we need to
                         # tell this (new) builder about it

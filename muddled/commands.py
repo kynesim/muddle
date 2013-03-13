@@ -4804,7 +4804,7 @@ class UnStamp(Command):
 
         # Then use "muddle pull" to update them - this has the advantage
         # of reporting problems properly, and also updates _just_pulled
-        # for us. NB: We *could* propagate a '-stop' switch is we cared,
+        # for us. NB: We *could* propagate a '-stop' switch if we cared,
         # but currently we don't provide such...
         had_problems = False
         if changed_checkouts:
@@ -4812,7 +4812,10 @@ class UnStamp(Command):
             try:
                 p = Pull()
                 # Demand that it just pulls the labels we give it, without
-                # trying to pull any build descriptions first.
+                # trying to pull any build descriptions first. If we pull the
+                # build description *and reload it* then we will lose the build
+                # tree we have lovingly created above, which rather defeats
+                # the purpose.
                 p.with_build_tree(builder, root_path, ['-noreload'] + changed_checkouts)
             except GiveUp as e:
                 had_problems = True
@@ -5934,7 +5937,7 @@ class Pull(CheckoutCommand):
                     self.pull(builder, co)
                     # That will have added 'co' to the just_pulled set
                     # *if* it actually changed it.
-                    # If the it was not changed, we don't need to reload
+                    # If it was not changed, we don't need to reload
                     if builder.db.just_pulled.is_pulled(co):
                         # Remember what that 'builder' knew was pulled
                         save_just_pulled = builder.db.just_pulled.labels.copy()

@@ -1,3 +1,14 @@
+Changes in v2.5.1 since muddle v2.5
+
+If "muddle pull" is given a command line that includes the build description
+(implicitly or explicitly), it will pull the build description first, and if
+that pull changed things, will reload the build description and re-evaluate
+the command line, before pulling the other checkouts requested. See "muddle
+help pull" for a more complete description.
+
+As a consequence of this, the "_just_pulled" value is now set by "muddle
+checkout" as well as by "muddle pull".
+
 Changes in v2.5 since muddle v2.4.4
 
 First, changes you'll already have if you've been keeping up-to-date with the

@@ -354,6 +354,16 @@ def find_domain(root_dir, dir):
 
     return (domain_name, domain_dir)
 
+def well_formed_dot_muddle_dir(dir):
+    """Return True if this seems to be a well-formed .muddle directory
+
+    We're not trying to be absolutely rigorous, but do want to detect
+    (for instance) an erroneous file with that name, or an empty directory
+    """
+    return (os.path.exists(os.path.join(dir, 'Description')) and
+            os.path.exists(os.path.join(dir, 'RootRepository')))
+
+
 def find_root_and_domain(dir):
     """
     Find the build tree root containing 'dir', and find the domain of 'dir'.
@@ -377,7 +387,11 @@ def find_root_and_domain(dir):
 
     while True:
         # Might this be a tree root?
-        if os.path.exists(os.path.join(dir, ".muddle")):
+        potential = os.path.join(dir, ".muddle")
+        if os.path.exists(potential):
+            if not well_formed_dot_muddle_dir(potential):
+                raise GiveUp("Found '%s',\nwhich does not appear to be a proper"
+                             " .muddle directory. Giving up in confusion."%potential)
             if is_subdomain(dir):
                 new_domain = get_domain_name_from(dir)
 

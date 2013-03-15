@@ -25,6 +25,12 @@ checkouts, so I would do::
 
 which creates me a directory ``~/sw/muddle``.
 
+.. note:: Sometimes (luckily not often) the Google code repositories give
+   errors. If you can't clone muddle from code.google.com, try using the
+   mirror on github, which should normally be up-to-date::
+
+     git clone https://github.com/tibs/muddle.mirror.git muddle
+
 To *use* muddle, you can then either:
 
 1. just type ``~/sw/muddle/muddle`` - this is the simplest thing to do,

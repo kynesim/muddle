@@ -476,6 +476,24 @@ def main(args):
                                            '.muddle/tags/deployment',
                                           ])
 
+            # Issue 250
+            banner('TESTING DISTRIBUTE SOURCE RELEASE when in a subdirectory')
+            with Directory('src/builds'):
+                target_dir = os.path.join(root_dir, 'source-2')
+                muddle(['distribute', '_source_release', target_dir])
+                dt = DirTree(d.where, fold_dirs=['.git'])
+                dt.assert_same(target_dir, onedown=True,
+                               unwanted_files=['.git*',
+                                               'builds/01.pyc',
+                                               'obj',
+                                               'install',
+                                               'deploy',
+                                               'versions',
+                                               '.muddle/instructions',
+                                               '.muddle/tags/package',
+                                               '.muddle/tags/deployment',
+                                              ])
+
             banner('TESTING DISTRIBUTE SOURCE RELEASE WITH VCS')
             target_dir = os.path.join(root_dir, 'source-with-vcs')
             muddle(['distribute', '-with-vcs', '_source_release', target_dir])
@@ -783,6 +801,8 @@ def main(args):
                                            '.muddle/instructions/second_pkg/arm.xml',
                                            '.muddle/instructions/second_pkg/fred.xml',
                                          ])
+
+
 
 if __name__ == '__main__':
     args = sys.argv[1:]

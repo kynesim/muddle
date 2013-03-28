@@ -41,6 +41,7 @@ from muddled.licenses import get_gpl_checkouts, get_implicit_gpl_checkouts, \
         get_open_checkouts, get_binary_checkouts, get_prop_source_checkouts, \
         checkout_license_allowed, report_license_clashes, get_license, \
         report_license_clashes_in_role, ALL_LICENSE_CATEGORIES
+from muddled.withdir import Directory
 
 DEBUG=False
 VERBOSE=False       # should copy_without be quiet
@@ -871,11 +872,12 @@ def _actually_distribute_some_checkout_files(builder, label, target_dir, files):
     """As it says.
     """
     # Get the actual directory of the checkout
-    co_src_dir = builder.db.get_checkout_location(label)
+    co_src_dir = builder.db.get_checkout_path(label)
 
     # So we can now copy our source directory, ignoring the VCS directory if
     # necessary. Note that this can create the target directory for us.
-    co_tgt_dir = os.path.join(normalise_dir(target_dir), co_src_dir)
+    co_src_rel_to_root = builder.db.get_checkout_location(label)
+    co_tgt_dir = os.path.join(normalise_dir(target_dir), co_src_rel_to_root)
     co_tgt_dir = os.path.normpath(co_tgt_dir)
     if DEBUG:
         print 'Copying some files for checkout:'
@@ -898,7 +900,7 @@ def _actually_distribute_checkout(builder, label, target_dir, copy_vcs):
     """As it says.
     """
     # Get the actual directory of the checkout
-    co_src_dir = builder.db.get_checkout_location(label)
+    co_src_dir = builder.db.get_checkout_path(label)
 
     # If we're not doing copy_vcs, find the VCS special files for this
     # checkout, and them our "without" string
@@ -911,7 +913,8 @@ def _actually_distribute_checkout(builder, label, target_dir, copy_vcs):
 
     # So we can now copy our source directory, ignoring the VCS files if
     # necessary. Note that this can create the target directory for us.
-    co_tgt_dir = os.path.join(normalise_dir(target_dir), co_src_dir)
+    co_src_rel_to_root = builder.db.get_checkout_location(label)
+    co_tgt_dir = os.path.join(normalise_dir(target_dir), co_src_rel_to_root)
     co_tgt_dir = os.path.normpath(co_tgt_dir)
     if DEBUG:
         print 'Copying checkout:'
@@ -925,7 +928,7 @@ def _actually_distribute_checkout(builder, label, target_dir, copy_vcs):
     # directory
     _set_checkout_tags(builder, label, target_dir)
 
-def _actually_distribute_normal_build_desc(builder, label, co_src_dir, target_dir,
+def _actually_distribute_normal_build_desc(builder, label, target_dir,
                                            copy_vcs, private_files):
     """Copy the "normal" files for a build description
     """
@@ -935,6 +938,9 @@ def _actually_distribute_normal_build_desc(builder, label, co_src_dir, target_di
     #   * MAYBE no VCS files, depending
     #   * no private files
 
+    # Get the actual directory of the checkout
+    co_src_dir = builder.db.get_checkout_path(label)
+
     if copy_vcs:
         files_to_ignore = []
     else:
@@ -942,7 +948,8 @@ def _actually_distribute_normal_build_desc(builder, label, co_src_dir, target_di
         vcs_instance = get_vcs_instance(repo.vcs)
         files_to_ignore = vcs_instance.get_vcs_special_files()
 
-    co_tgt_dir = os.path.join(normalise_dir(target_dir), co_src_dir)
+    co_src_rel_to_root = builder.db.get_checkout_location(label)
+    co_tgt_dir = os.path.join(normalise_dir(target_dir), co_src_rel_to_root)
     if DEBUG:
         print 'Copying build description:'
         print '  from %s'%co_src_dir
@@ -956,7 +963,7 @@ def _actually_distribute_normal_build_desc(builder, label, co_src_dir, target_di
     # be paths relative to the root of the build tree
     new_private_files = set()
     for name in private_files:
-        new_private_files.add(os.path.join(co_src_dir, name))
+        new_private_files.add(os.path.join(co_src_rel_to_root, name))
     private_files = new_private_files
 
     files_to_ignore = set(files_to_ignore)
@@ -965,38 +972,51 @@ def _actually_distribute_normal_build_desc(builder, label, co_src_dir, target_di
     # private_files, however, must be a specific path relative to our checkout,
     # and is also not a directory.
 
-    for dirpath, dirnames, filenames in os.walk(co_src_dir):
+    # Remember to walk relative to the root of the build tree, so that our
+    # 'dirpath' values are also relative to the root of the build tree, and
+    # thus are applicable to both source and target...
+    with Directory(builder.db.root_path):
+        for dirpath, dirnames, filenames in os.walk(co_src_rel_to_root):
 
-        for name in filenames:
-            if DEBUG: print '--', name
-            if name in files_to_ignore:           # Maybe ignore VCS files
-                continue
-            base, ext = os.path.splitext(name)
-            if ext == '.pyc':                       # Ignore .pyc files
-                continue
-            src_path = os.path.join(dirpath, name)
+            if DEBUG: print '--', dirpath
+            for name in filenames:
+                if DEBUG: print '--', name
+                if name in files_to_ignore:           # Maybe ignore VCS files
+                    continue
+                base, ext = os.path.splitext(name)
+                if ext == '.pyc':                       # Ignore .pyc files
+                    continue
+                src_path = os.path.join(dirpath, name)
 
-            tgt_dir = os.path.join(target_dir, dirpath)
-            tgt_path = os.path.join(tgt_dir, name)
-            if not os.path.exists(tgt_dir):
-                os.makedirs(tgt_dir)
+                tgt_dir = os.path.join(target_dir, dirpath)
+                tgt_path = os.path.join(tgt_dir, name)
+                if not os.path.exists(tgt_dir):
+                    os.makedirs(tgt_dir)
 
-            if src_path in private_files:
-                if DEBUG: print 'Replacing private file', src_path
-                with open(tgt_path, 'w') as fd:
-                    fd.write("def describe_private(builder, *args, **kwargs):\n    pass\n")
-            else:
-                copy_file(src_path, tgt_path, preserve=True)
+                if DEBUG: print '--', src_path
+                if DEBUG: print '--', tgt_dir
+                if DEBUG: print '--', tgt_path
 
-        # Ignore VCS directories, if we were asked to do so
-        directories_to_ignore = files_to_ignore.intersection(dirnames)
-        for name in directories_to_ignore:
-            dirnames.remove(name)
+                if src_path in private_files:
+                    if DEBUG: print 'Replacing private file', src_path
+                    with open(tgt_path, 'w') as fd:
+                        fd.write("def describe_private(builder, *args, **kwargs):\n    pass\n")
+                else:
+                    copy_file(src_path, tgt_path, preserve=True)
 
-def _actually_distribute_replacement_build_desc(builder, label, co_src_dir, target_dir,
+            # Ignore VCS directories, if we were asked to do so
+            directories_to_ignore = files_to_ignore.intersection(dirnames)
+            for name in directories_to_ignore:
+                dirnames.remove(name)
+
+def _actually_distribute_replacement_build_desc(builder, label, target_dir,
                                                 replacement_build_desc):
     """Copy the replacement build description for a build description
     """
+
+    # Get the actual directory of the checkout
+    co_src_dir = builder.db.get_checkout_path(label)
+
     src_desc_file = os.path.join(co_src_dir, replacement_build_desc)
 
     # Now to work out the name of the target build description file
@@ -1013,7 +1033,6 @@ def _actually_distribute_replacement_build_desc(builder, label, co_src_dir, targ
     if not os.path.exists(tgt_desc_dir):
         os.makedirs(tgt_desc_dir)
 
-    print 'XXX COPY',src_desc_file,tgt_desc_file
     copy_file(src_desc_file, tgt_desc_file, preserve=True)
 
 
@@ -1021,18 +1040,11 @@ def _actually_distribute_build_desc(builder, label, target_dir, copy_vcs,
                                     private_files, replacement_build_desc):
     """Very similar to what we do for any other checkout, but with more arguments
     """
-    # Get the actual directory of the checkout
-    co_src_dir = builder.db.get_checkout_location(label)
-
     if replacement_build_desc:
-        print 'XXX replacement'
-        _actually_distribute_replacement_build_desc(builder, label,
-                                                    co_src_dir, target_dir,
+        _actually_distribute_replacement_build_desc(builder, label, target_dir,
                                                     replacement_build_desc)
     else:
-        print 'XXX actual'
-        _actually_distribute_normal_build_desc(builder, label,
-                                               co_src_dir, target_dir,
+        _actually_distribute_normal_build_desc(builder, label, target_dir,
                                                copy_vcs, private_files)
 
     # Set the appropriate tags in the target .muddle/ directory

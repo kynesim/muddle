@@ -9,7 +9,6 @@ import shlex
 # Proposed:
 #
 # run0(...) returns no arguments, raises an exception on error
-#           (maybe - I'm not sure if we want this one)
 # run1(...) returns the return code of the command
 # run2(...) returns the return code and stdout
 # run3(...) returns the return code, stdout and stderr
@@ -17,10 +16,145 @@ import shlex
 # (I can't see an obvious way of naming those better without getting MUCH
 # longer names...)
 
-def run3(thing):
+"""
+Things we're looking to replace - from muddled:utils.py:
+
+    run_cmd_for_output(cmd_array, env = None, useShell = False, fold_stderr=False, verbose = True)
+    returns (rc, out, err)
+
+    returns run_cmd(cmd, env=None, allowFailure=False, isSystem=False, verbose=True)
+    returns rc, raises on failure
+
+    run_cmd_list(cmdlist, env=None, allowFailure=False, isSystem=False, verbose=True)
+    returns rc, raises on failure
+
+    get_cmd_data(cmd, env=None, isSystem=False, fold_stderr=True,
+                 verbose=False, fail_nonzero=True)
+    returns (rc, out, err), may raise on failure
+
+I don't think we should ever allow 'useShell' (nor do I think it is actually
+needed inside muddle).
+
+  (The one exception *might* be the RunIn command, which may well want
+  to do shell expansion of stuff. But that calls subprocess.call() directly
+  itself, so isn't *trying* to be clever, and can thus be ignored here.)
+
+'isSystem' controls whether an error raises a MuddleBug (isSystem == True) or
+a GiveUp (isSystem == False). And the way to go may be to always raise either
+a ShellError, or the systems CalledProcessError, and let the caller of the
+function decide what to do with it...
+
+'allowFailure' should be done by calling run0() if an exception is wanted on
+non-zero return code, and runX otherwise (and deal with the non-zero return
+code as necessary).
+
+As it is, it's always a pain to remember how to use 'isSystem' and
+'allowFailure'.
+
+from tests/support_for_tests.py:
+
+    shell(cmd, verbose=True)
+    doesn't return anything, raises ShellError
+
+    get_stdout(cmd, verbose=True)
+    returns out, raises ShellError
+
+    get_stdout2(cmd, verbose=True)
+    returns rc, out
+
+    muddle(args, verbose=True)
+    doesn't return anything, raises ShellError
+
+    captured_muddle(args, verbose=True, error_fails=True)
+    returns out, raises CalledProcessError
+
+    captured_muddle2(args, verbose=True)
+    returns rc, out
+"""
+
+class GiveUp(Exception):
+    """
+    Use this to indicate that something has gone wrong and we are giving up.
+
+    This is not an error in muddle itself, however, so there is no need for
+    a traceback.
+
+    By default, a return code of 1 is indicated by the 'retcode' value - this
+    can be set by the caller to another value, which __main__.py should then
+    use as its return code if the exception reaches it.
+    """
+
+    # We provide a single attribute, which is used to specify the exit code
+    # to use when a command line handler gets back a GiveUp exception.
+    retcode = 1
+
+    def __init__(self, message=None, retcode=1):
+        self.message = message
+        self.retcode = retcode
+
+    def __str__(self):
+        if self.message is None:
+            return ''
+        else:
+            return self.message
+
+    def __repr__(self):
+        parts = []
+        if self.message is not None:
+            parts.append(repr(self.message))
+        if self.retcode != 1:
+            parts.append('%d'%self.retcode)
+        return 'GiveUp(%s)'%(', '.join(parts))
+
+class ShellError(GiveUp):
+    def __init__(self, cmd, retcode, output=None):
+        msg = "Shell command %s failed with retcode %d"%(repr(cmd), retcode)
+        if output:
+            msg = '%s\n%s'%(msg, output)
+        super(GiveUp, self).__init__(msg)
+
+        self.cmd = cmd
+        self.retcode = retcode
+        self.output = output
+
+"""
+subprocess.check_output(args, *, stdin=None, stderr=None, shell=False, universal_newlines=False)
+
+Run command with arguments and return its output as a byte string.
+
+If the return code was non-zero it raises a CalledProcessError. The
+CalledProcessError object will have the return code in the returncode attribute
+and any output in the output attribute.
+
+The arguments shown above are merely the most common ones, described below in
+Frequently Used Arguments (hence the slightly odd notation in the abbreviated
+signature). The full function signature is largely the same as that of the
+Popen constructor, except that stdout is not permitted as it is used
+internally. All other supplied arguments are passed directly through to the
+Popen constructor.
+
+Examples:
+>>>
+>>> subprocess.check_output(["echo", "Hello World!"])
+'Hello World!\n'
+
+>>> subprocess.check_output("exit 1", shell=True)
+Traceback (most recent call last):
+   ...
+subprocess.CalledProcessError: Command 'exit 1' returned non-zero exit status 1
+
+To also capture standard error in the result, use stderr=subprocess.STDOUT:
+>>>
+>>> subprocess.check_output(
+...     "ls non_existent_file; exit 0",
+...     stderr=subprocess.STDOUT,
+...     shell=True)
+'ls: non_existent_file: No such file or directory\n'
+"""
+
+def _stringify(thing):
     if isinstance(thing, basestring):
-        print '> %s'%thing
-        thing = shlex.split(thing)
+        return thing
     else:
         o = []
         for item in thing:
@@ -28,7 +162,27 @@ def run3(thing):
                 o.append(repr(item))
             else:
                 o.append(item)
-        print '> %s'%(' '.join(o))
+        return ' '.join(o)
+
+def _rationalise_cmd(thing, verbose=True):
+    if isinstance(thing, basestring):
+        thing = shlex.split(thing)
+    return thing
+
+def run0(thing, verbose=True):
+    thing = _rationalise_cmd(thing)
+    if verbose:
+        print '> %s'%_stringify(thing)
+    try:
+        subprocess.check_output(thing, stderr=subprocess.STDOUT)
+    except subprocess.CalledProcessError as e:
+        raise ShellError(cmd=_stringify(thing), retcode=e.returncode,
+                         output=e.output)
+
+def run3(thing, verbose=True):
+    thing = _rationalise_cmd(thing)
+    if verbose:
+        print '> %s'%_stringify(thing)
     text = ''
     error = ''
     print '=================='
@@ -50,18 +204,10 @@ def run3(thing):
     print 'Return code', proc.returncode
     return proc.returncode, text, error
 
-def run2(thing):
-    if isinstance(thing, basestring):
-        print '> %s'%thing
-        thing = shlex.split(thing)
-    else:
-        o = []
-        for item in thing:
-            if ' ' in item or '\t' in item:
-                o.append(repr(item))
-            else:
-                o.append(item)
-        print '> %s'%(' '.join(o))
+def run2(thing, verbose=True):
+    thing = _rationalise_cmd(thing)
+    if verbose:
+        print '> %s'%_stringify(thing)
     text = ''
     print '=================='
     proc = subprocess.Popen(thing, stdout=subprocess.PIPE, stderr=subprocess.STDOUT)
@@ -75,8 +221,8 @@ def run2(thing):
     print 'Return code', proc.returncode
     return proc.returncode, text
 
-def run1(thing):
-    rc, text = run2(thing)
+def run1(thing, verbose=True):
+    rc, text = run2(thing, verbose=verbose)
     return rc
 
 def main():
@@ -90,6 +236,12 @@ def main():
     print 'out:', out
     print 'err:', err
 
+    try:
+        run0(['ls', 'fred jim'])
+    except GiveUp as e:
+        print 'Got GiveUp'
+        print e.__class__.__name__
+        print e
 
 if __name__ == '__main__':
     main()

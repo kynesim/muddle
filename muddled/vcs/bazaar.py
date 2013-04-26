@@ -277,13 +277,17 @@ class Bazaar(VersionControlSystem):
         utils.run_cmd("bzr push %s"%self._normalised_repo(repo.url),
                       env=self._derive_env(), verbose=verbose)
 
-    def status(self, repo, options=None, branch=None, verbose=False):
+    def status(self, repo, options=None, branch=None, verbose=False, quick=False):
         """
         Will be called in the actual checkout's directory.
 
         Return status text or None if there is no interesting status.
         """
         env = self._derive_env()
+
+        #just return an error message, don't check anything
+        if quick:
+            return "muddle status -quick is not supported on bzr checkouts"
 
         # --quiet means only report warnings and errors
         cmd = 'bzr status --quiet -r branch:%s'%self._normalised_repo(repo.url),

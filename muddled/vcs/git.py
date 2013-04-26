@@ -416,7 +416,7 @@ class Git(VersionControlSystem):
 
         utils.run_cmd("git push %s %s"%(upstream, effective_branch), verbose=verbose)
 
-    def status(self, repo, options):
+    def status(self, repo, options, quick=False):
         """
         Will be called in the actual checkout's directory.
 
@@ -440,6 +440,9 @@ class Git(VersionControlSystem):
 
         if text:
             return text
+        elif quick:
+            #don't check the upstream repository
+            return None
 
         # git status will tell us if there uncommitted changes, etc., or if
         # we are ahead of or behind (the local idea of) the remote repository,

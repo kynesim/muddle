@@ -6157,11 +6157,21 @@ class Status(CheckoutCommand):
 
     At the end, if any checkouts need attention, their names are reported.
     With '-j', print them all on one line, separated by spaces.
+
+    The -quick argument drastically changes the behaviour of the command and
+    is only valid for git repositories, other repository types will return an
+    invalid message.
+
+    When -quick is used muddle will avoid the large overhead of network traffic
+    by only checking the head of tree against the last know state of the remote
+    branch. This will inform you if updates on the current branch have not been
+    pushed, but will not warn you if there are commits that need to be pulled.
     """
 
     required_tag = LabelTag.CheckedOut
     allowed_switches = {'-v': 'verbose',
                         '-j': 'join',
+                        '-quick' : 'quick'
                        }
 
     # This checkout command *is* allowed in a release build
@@ -6177,6 +6187,7 @@ class Status(CheckoutCommand):
 
         verbose = ('verbose' in self.switches)
         joined = ('join' in self.switches)
+        quick = ('quick' in self.switches)
 
         something_needs_doing = 0
         something = []
@@ -6186,7 +6197,7 @@ class Status(CheckoutCommand):
             except GiveUp:
                 print "Rule for label '%s' has no VCS - cannot find its status"%co
                 continue
-            text = vcs_handler.status(builder, co, verbose)
+            text = vcs_handler.status(builder, co, verbose, quick=quick)
             if text:
                 print
                 print text.strip()

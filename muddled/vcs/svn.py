@@ -155,12 +155,17 @@ class Subversion(VersionControlSystem):
         """
         utils.run_cmd("svn commit", verbose=verbose)
 
-    def status(self, repo, options):
+    def status(self, repo, options, quick=False):
         """
         Will be called in the actual checkout's directory.
 
         Return status text or None if there is no interesting status.
         """
+
+        #just return an error message, don't check anything
+        if quick:
+            return "muddle status -quick is not supported on svn checkouts"
+
         retcode, text, ignore = utils.get_cmd_data("svn status --show-updates --verbose")
 
         lines = text.split('\n')

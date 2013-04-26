@@ -70,8 +70,14 @@ from tests/support_for_tests.py:
 
     captured_muddle2(args, verbose=True)
     returns rc, out
+
+NOTE that we *also* want a 'quiet' argument, defaulting to False. If
+quiet is given as True, then we should *not* "tee" the output to the
+terminal, but should just use proc.communicate() to gather the final
+results.
 """
 
+# Copied from utils.py whilst we're working on this stuff
 class GiveUp(Exception):
     """
     Use this to indicate that something has gone wrong and we are giving up.
@@ -116,41 +122,6 @@ class ShellError(GiveUp):
         self.cmd = cmd
         self.retcode = retcode
         self.output = output
-
-"""
-subprocess.check_output(args, *, stdin=None, stderr=None, shell=False, universal_newlines=False)
-
-Run command with arguments and return its output as a byte string.
-
-If the return code was non-zero it raises a CalledProcessError. The
-CalledProcessError object will have the return code in the returncode attribute
-and any output in the output attribute.
-
-The arguments shown above are merely the most common ones, described below in
-Frequently Used Arguments (hence the slightly odd notation in the abbreviated
-signature). The full function signature is largely the same as that of the
-Popen constructor, except that stdout is not permitted as it is used
-internally. All other supplied arguments are passed directly through to the
-Popen constructor.
-
-Examples:
->>>
->>> subprocess.check_output(["echo", "Hello World!"])
-'Hello World!\n'
-
->>> subprocess.check_output("exit 1", shell=True)
-Traceback (most recent call last):
-   ...
-subprocess.CalledProcessError: Command 'exit 1' returned non-zero exit status 1
-
-To also capture standard error in the result, use stderr=subprocess.STDOUT:
->>>
->>> subprocess.check_output(
-...     "ls non_existent_file; exit 0",
-...     stderr=subprocess.STDOUT,
-...     shell=True)
-'ls: non_existent_file: No such file or directory\n'
-"""
 
 def _stringify(thing):
     if isinstance(thing, basestring):

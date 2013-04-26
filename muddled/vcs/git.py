@@ -469,7 +469,7 @@ class Git(VersionControlSystem):
                                   '#  Local  is %s'%local_head_ref,
                                   '#  last known origin/%s is %s'%(branch_name, ref),
                                   '#',
-                                  '# You probably need to pull with "muddle pull".'))
+                                  '# You probably need to push.'))
             else:
                 return None
 

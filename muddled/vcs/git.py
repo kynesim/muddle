@@ -440,14 +440,11 @@ class Git(VersionControlSystem):
 
         if text:
             return text
-        elif quick:
-            #don't check the upstream repository
-            return None
 
-        # git status will tell us if there uncommitted changes, etc., or if
+        # git status will tell us if there uncommitted changes, etc., but not if
         # we are ahead of or behind (the local idea of) the remote repository,
-        # but it cannot tell us if the remote repository is behind us (and our
-        # local idea of it).
+        # or it will, but not with --porcelain
+
 
         if detached_head:
             head_name = 'HEAD'
@@ -459,6 +456,22 @@ class Git(VersionControlSystem):
         # Now we can look up its SHA1, locally
         retcode, head_revision, ignore = utils.get_cmd_data("git rev-parse %s"%head_name)
         local_head_ref = head_revision.strip()
+
+        if quick:
+            retcode, branch_name, ignore = utils.get_cmd_data("git rev-parse --abbrev-ref HEAD")
+            retcode, text, ignore = utils.get_cmd_data("git show-ref origin/%s"%branch_name)
+            ref, what = text.split()
+            if(ref != local_head_ref):
+                return '\n'.join(('After checking local HEAD against remote HEAD',
+                                  '# The local repository does not match the remote:',
+                                  '#',
+                                  '#  HEAD   is %s'%head_name,
+                                  '#  Local  is %s'%local_head_ref,
+                                  '#  last known origin/%s is %s'%(branch_name, ref),
+                                  '#',
+                                  '# You probably need to pull with "muddle pull".'))
+            else:
+                return None
 
         # So look up the remote equivalents...
         retcode, text, ignore = utils.get_cmd_data("git ls-remote",

@@ -6163,8 +6163,8 @@ class Status(CheckoutCommand):
     invalid message.
 
     When -quick is used muddle will avoid the large overhead of network traffic
-    by only checking the head of tree against the last know state of the remote
-    branch. This will inform you if updates on the current branch have not been
+    by only checking the head of tree against the last know state of the remote branch
+    on 'origin' branch. This will inform you if updates on the current branch have not been
     pushed, but will not warn you if there are commits that need to be pulled.
     """
 

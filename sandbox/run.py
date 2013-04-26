@@ -14,7 +14,9 @@ def main():
         text += data
     proc.wait()
     print '=================='
-    print text
+    print text,
+    print '=================='
+    print 'Return code', proc.returncode
 
 
 if __name__ == '__main__':

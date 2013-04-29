@@ -139,7 +139,7 @@ def _stringify(thing):
                 o.append(item)
         return ' '.join(o)
 
-def _rationalise_cmd(thing, show_command=True):
+def _rationalise_cmd(thing):
     """Given a command, as either a string or sequence, return a sequence.
     """
     if isinstance(thing, basestring):

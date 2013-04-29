@@ -126,6 +126,8 @@ class ShellError(GiveUp):
         self.output = output
 
 def _stringify(thing):
+    """Given a command, as either a string or sequence, return a string.
+    """
     if isinstance(thing, basestring):
         return thing
     else:
@@ -137,24 +139,112 @@ def _stringify(thing):
                 o.append(item)
         return ' '.join(o)
 
-def _rationalise_cmd(thing, verbose=True):
+def _rationalise_cmd(thing, show_command=True):
+    """Given a command, as either a string or sequence, return a sequence.
+    """
     if isinstance(thing, basestring):
         thing = shlex.split(thing)
     return thing
 
-def run0(thing, verbose=True):
-    thing = _rationalise_cmd(thing)
-    if verbose:
-        print '> %s'%_stringify(thing)
-    try:
-        subprocess.check_output(thing, stderr=subprocess.STDOUT)
-    except subprocess.CalledProcessError as e:
-        raise ShellError(cmd=_stringify(thing), retcode=e.returncode,
-                         output=e.output)
+def run0(thing, show_command=True, show_output=True):
+    """Run the command 'thing'.
 
-def run3(thing, verbose=True):
+    'thing' may be a string (e.g., "ls -l") or a sequence (e.g., ["ls", "-l"]).
+    Internally, a string will be converted into a sequence before it is used.
+
+    If 'show_command' is true, then "> <thing>" will be printed out before
+    running the command.
+
+    If 'show_output' is true, then the output of the command (both stdout and
+    stderr) will be printed out as the command runs.
+
+    If the command returns a non-zero return code, then a ShellError will
+    be raised, containing the returncode, the command string and any output
+    that occurred.
+    """
+    rc, output = run2(thing, show_command=show_command, show_output=show_output)
+    if rc != 0:
+        raise ShellError(cmd=_stringify(thing), retcode=rc, output=output)
+
+def run1(thing, show_command=True, show_output=True):
+    """Run the command 'thing'.
+
+    'thing' may be a string (e.g., "ls -l") or a sequence (e.g., ["ls", "-l"]).
+    Internally, a string will be converted into a sequence before it is used.
+
+    If 'show_command' is true, then "> <thing>" will be printed out before
+    running the command.
+
+    If 'show_output' is true, then the output of the command (both stdout and
+    stderr) will be printed out as the command runs.
+
+    The output of the command (stdout and stderr) goes to the normal stdout
+    whilst the command is running.
+
+    The command return is returned.
+    """
+    rc, text = run2(thing, show_command=show_command, show_output=show_output)
+    return rc
+
+def run2(thing, show_command=True, show_output=True):
+    """Run the command 'thing'.
+
+    'thing' may be a string (e.g., "ls -l") or a sequence (e.g., ["ls", "-l"]).
+    Internally, a string will be converted into a sequence before it is used.
+
+    If 'show_command' is true, then "> <thing>" will be printed out before
+    running the command.
+
+    If 'show_output' is true, then the output of the command (both stdout and
+    stderr) will be printed out as the command runs.
+
+    The output of the command (stdout and stderr) goes to the normal stdout
+    whilst the command is running.
+
+    The command return code and output are returned as a tuple:
+
+        (retcode, output)
+    """
     thing = _rationalise_cmd(thing)
-    if verbose:
+    if show_command:
+        print '> %s'%_stringify(thing)
+    text = []
+    print '================== DURING'
+    proc = subprocess.Popen(thing, stdout=subprocess.PIPE, stderr=subprocess.STDOUT)
+    for data in proc.stdout:
+        if show_output:
+            sys.stdout.write(data)
+        text.append(data)
+    proc.wait()
+    text = ''.join(text)
+    print '================== AFTER'
+    if text:
+        print text,
+    print '=================='
+    print 'Return code', proc.returncode
+    return proc.returncode, text
+
+def run3(thing, show_command=True, show_output=True):
+    """Run the command 'thing'.
+
+    'thing' may be a string (e.g., "ls -l") or a sequence (e.g., ["ls", "-l"]).
+    Internally, a string will be converted into a sequence before it is used.
+
+    If 'show_command' is true, then "> <thing>" will be printed out before
+    running the command.
+
+    If 'show_output' is true, then the output of the command (both stdout and
+    stderr) will be printed out as the command runs.
+
+    The output of the command is shown whilst the command is running; its
+    stdout goes to the normal stdout, and its stderr to stderr.
+
+    The command return code, stdout and stderr are returned as a tuple:
+
+        (retcode, stdout, stderr)
+    """
+    thing = _rationalise_cmd(thing)
+    if show_command:
         print '> %s'%_stringify(thing)
     all_stdout_text = []
     all_stderr_text = []
@@ -183,7 +273,8 @@ def run3(thing, verbose=True):
             if stdout_text == '':
                 read_list.remove(proc.stdout)
             else:
-                sys.stdout.write(stdout_text)
+                if show_output:
+                    sys.stdout.write(stdout_text)
                 all_stdout_text.append(stdout_text)
         if proc.stderr in rlist:
             # Comment as above
@@ -191,7 +282,8 @@ def run3(thing, verbose=True):
             if stderr_text == '':
                 read_list.remove(proc.stderr)
             else:
-                sys.stderr.write(stderr_text)
+                if show_output:
+                    sys.stderr.write(stderr_text)
                 all_stderr_text.append(stderr_text)
     # Make sure proc.returncode gets set
     proc.wait()
@@ -208,40 +300,32 @@ def run3(thing, verbose=True):
     print 'Return code', proc.returncode
     return proc.returncode, all_stdout_text, all_stderr_text
 
-def run2(thing, verbose=True):
-    thing = _rationalise_cmd(thing)
-    if verbose:
-        print '> %s'%_stringify(thing)
-    text = []
-    print '================== DURING'
-    proc = subprocess.Popen(thing, stdout=subprocess.PIPE, stderr=subprocess.STDOUT)
-    for data in proc.stdout:
-        sys.stdout.write(data)
-        text.append(data)
-    proc.wait()
-    text = ''.join(text)
-    print '================== AFTER'
-    if text:
-        print text,
-    print '=================='
-    print 'Return code', proc.returncode
-    return proc.returncode, text
-
-def run1(thing, verbose=True):
-    rc, text = run2(thing, verbose=verbose)
-    return rc
-
 def main():
+    print
+    print "run1: 'ls -l'"
     run1('ls -l')
+
+    print
+    print "run1: ['ls', '-l']"
     run1(['ls', '-l'])
+
+    print
+    print "run2: 'ls \"fred jim\"'"
     run2('ls "fred jim"')
+
+    print
+    print "run2: ['ls', 'fred jim']"
     run2(['ls', 'fred jim'])
 
+    print
+    print "run3: ['ls', 'fred jim']"
     rc, out, err = run3(['ls', 'fred jim'])
     print 'rc:', rc
     print 'out:', out
     print 'err:', err
 
+    print
+    print "run0: ['ls', 'fred jim']"
     try:
         run0(['ls', 'fred jim'])
     except GiveUp as e:

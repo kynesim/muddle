@@ -5,6 +5,8 @@
 import sys
 import subprocess
 import shlex
+import select
+import errno
 
 # Proposed:
 #
@@ -154,40 +156,73 @@ def run3(thing, verbose=True):
     thing = _rationalise_cmd(thing)
     if verbose:
         print '> %s'%_stringify(thing)
-    text = ''
-    error = ''
-    print '=================='
+    all_stdout_text = []
+    all_stderr_text = []
+    print '================== DURING'
     proc = subprocess.Popen(thing, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
-    while proc.poll() is None:
-        data = proc.stdout.readline()
-        err = proc.stderr.readline()
-        if data:
-            sys.stdout.write(data)
-            text += data
-        if err:
-            sys.stderr.write(err)
-            error += err
-    print '=================='
-    print text,
-    print '------------------'
-    print error
+
+    # We use select here because poll is less portable (although at the moment
+    # we are only working on Linux, so perhaps I shouldn't care)
+    read_list = [proc.stdout, proc.stderr]
+    while read_list:
+        try:
+            rlist, wlist, xlist = select.select(read_list, [], [])
+        except select.error as e:
+            if e.args[0] == errno.EINTR:
+                continue
+            else:
+                raise GiveUp("Error selecting command output\n"
+                             "For: %s\n"
+                             "Error: %d %s %s"%(_stringify(thing),
+                                 e.args[0], errno.errorcode[e.args[0]], e.args[1]))
+        if proc.stdout in rlist:
+            # We don't use readline (which would be nicer) because
+            # we don't know whether the data we're being given *is*
+            # a line, and readline would wait for the EOL
+            stdout_text = proc.stdout.read(1024)
+            if stdout_text == '':
+                read_list.remove(proc.stdout)
+            else:
+                sys.stdout.write(stdout_text)
+                all_stdout_text.append(stdout_text)
+        if proc.stderr in rlist:
+            # Comment as above
+            stderr_text = proc.stderr.read(1024)
+            if stderr_text == '':
+                read_list.remove(proc.stderr)
+            else:
+                sys.stderr.write(stderr_text)
+                all_stderr_text.append(stderr_text)
+    # Make sure proc.returncode gets set
+    proc.wait()
+
+    all_stdout_text = ''.join(all_stdout_text)
+    all_stderr_text = ''.join(all_stderr_text)
+    print '================== AFTER'
+    if all_stdout_text:
+        print all_stdout_text,
+    print '------------------ stderr'
+    if all_stderr_text:
+        print all_stderr_text,
     print '=================='
     print 'Return code', proc.returncode
-    return proc.returncode, text, error
+    return proc.returncode, all_stdout_text, all_stderr_text
 
 def run2(thing, verbose=True):
     thing = _rationalise_cmd(thing)
     if verbose:
         print '> %s'%_stringify(thing)
-    text = ''
-    print '=================='
+    text = []
+    print '================== DURING'
     proc = subprocess.Popen(thing, stdout=subprocess.PIPE, stderr=subprocess.STDOUT)
     for data in proc.stdout:
         sys.stdout.write(data)
-        text += data
+        text.append(data)
     proc.wait()
-    print '=================='
-    print text,
+    text = ''.join(text)
+    print '================== AFTER'
+    if text:
+        print text,
     print '=================='
     print 'Return code', proc.returncode
     return proc.returncode, text

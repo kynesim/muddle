@@ -79,7 +79,20 @@ terminal, but should just use proc.communicate() to gather the final
 results.
 """
 
+# =============================================================================
 # Copied from utils.py whilst we're working on this stuff
+# =============================================================================
+def indent(text, indent):
+    """Return the text indented with the 'indent' string.
+
+    (i.e., place 'indent' in front of each line of text).
+    """
+    lines = text.split('\n')
+    stuff = []
+    for line in lines:
+        stuff.append('%s%s'%(indent,line))
+    return '\n'.join(stuff)
+
 class GiveUp(Exception):
     """
     Use this to indicate that something has gone wrong and we are giving up.
@@ -113,17 +126,18 @@ class GiveUp(Exception):
         if self.retcode != 1:
             parts.append('%d'%self.retcode)
         return 'GiveUp(%s)'%(', '.join(parts))
+# =============================================================================
 
 class ShellError(GiveUp):
     def __init__(self, cmd, retcode, output=None):
-        msg = "Shell command %s failed with retcode %d"%(repr(cmd), retcode)
-        if output:
-            msg = '%s\n%s'%(msg, output)
-        super(GiveUp, self).__init__(msg)
-
         self.cmd = cmd
         self.retcode = retcode
-        self.output = output
+        self.output = output.rstrip()   # Is this sensible to do here?
+
+        msg = "Shell command %s failed with retcode %d"%(repr(cmd), retcode)
+        if output:
+            msg = '%s:\n%s'%(msg, indent(output.rstrip(), "  "))
+        super(GiveUp, self).__init__(msg)
 
 def _stringify(thing):
     """Given a command, as either a string or sequence, return a string.
@@ -147,7 +161,7 @@ def _rationalise_cmd(thing):
     return thing
 
 def run0(thing, show_command=True, show_output=True):
-    """Run the command 'thing'.
+    """Run the command 'thing', returning nothing.
 
     'thing' may be a string (e.g., "ls -l") or a sequence (e.g., ["ls", "-l"]).
     Internally, a string will be converted into a sequence before it is used.
@@ -167,7 +181,7 @@ def run0(thing, show_command=True, show_output=True):
         raise ShellError(cmd=_stringify(thing), retcode=rc, output=output)
 
 def run1(thing, show_command=True, show_output=True):
-    """Run the command 'thing'.
+    """Run the command 'thing', returning the return code.
 
     'thing' may be a string (e.g., "ls -l") or a sequence (e.g., ["ls", "-l"]).
     Internally, a string will be converted into a sequence before it is used.
@@ -187,7 +201,7 @@ def run1(thing, show_command=True, show_output=True):
     return rc
 
 def run2(thing, show_command=True, show_output=True):
-    """Run the command 'thing'.
+    """Run the command 'thing', returning the return code and output.
 
     'thing' may be a string (e.g., "ls -l") or a sequence (e.g., ["ls", "-l"]).
     Internally, a string will be converted into a sequence before it is used.
@@ -209,7 +223,6 @@ def run2(thing, show_command=True, show_output=True):
     if show_command:
         print '> %s'%_stringify(thing)
     text = []
-    print '================== DURING'
     proc = subprocess.Popen(thing, stdout=subprocess.PIPE, stderr=subprocess.STDOUT)
     for data in proc.stdout:
         if show_output:
@@ -217,15 +230,10 @@ def run2(thing, show_command=True, show_output=True):
         text.append(data)
     proc.wait()
     text = ''.join(text)
-    print '================== AFTER'
-    if text:
-        print text,
-    print '=================='
-    print 'Return code', proc.returncode
     return proc.returncode, text
 
 def run3(thing, show_command=True, show_output=True):
-    """Run the command 'thing'.
+    """Run the command 'thing', returning the return code, stdout and stderr.
 
     'thing' may be a string (e.g., "ls -l") or a sequence (e.g., ["ls", "-l"]).
     Internally, a string will be converted into a sequence before it is used.
@@ -248,7 +256,6 @@ def run3(thing, show_command=True, show_output=True):
         print '> %s'%_stringify(thing)
     all_stdout_text = []
     all_stderr_text = []
-    print '================== DURING'
     proc = subprocess.Popen(thing, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
 
     # We use select here because poll is less portable (although at the moment
@@ -290,48 +297,60 @@ def run3(thing, show_command=True, show_output=True):
 
     all_stdout_text = ''.join(all_stdout_text)
     all_stderr_text = ''.join(all_stderr_text)
-    print '================== AFTER'
-    if all_stdout_text:
-        print all_stdout_text,
-    print '------------------ stderr'
-    if all_stderr_text:
-        print all_stderr_text,
-    print '=================='
-    print 'Return code', proc.returncode
     return proc.returncode, all_stdout_text, all_stderr_text
 
 def main():
     print
     print "run1: 'ls -l'"
-    run1('ls -l')
+    rc = run1('ls -l')
+    print 'Return code', rc
 
     print
     print "run1: ['ls', '-l']"
-    run1(['ls', '-l'])
+    rc = run1(['ls', '-l'])
+    print 'Return code', rc
 
     print
     print "run2: 'ls \"fred jim\"'"
-    run2('ls "fred jim"')
+    rc, out = run2('ls "fred jim"')
+    print 'Return code', rc
+    print '======================='
+    print out
+    print '======================='
 
     print
     print "run2: ['ls', 'fred jim']"
-    run2(['ls', 'fred jim'])
+    rc, out = run2(['ls', 'fred jim'])
+    print 'Return code', rc
+    print '======================='
+    print out
+    print '======================='
 
     print
     print "run3: ['ls', 'fred jim']"
     rc, out, err = run3(['ls', 'fred jim'])
-    print 'rc:', rc
+    print 'Return code:', rc
+    print '======================='
     print 'out:', out
+    print '-----------------------'
     print 'err:', err
+    print '======================='
 
     print
     print "run0: ['ls', 'fred jim']"
     try:
         run0(['ls', 'fred jim'])
     except GiveUp as e:
-        print 'Got GiveUp'
-        print e.__class__.__name__
+        print 'Exception:', e.__class__.__name__
+        print '======================='
         print e
+        print '~~~~~~~~~~~~~~~~~~~~~~~'
+        print repr(e)
+        print '~~~~~~~~~~~~~~~~~~~~~~~'
+        print e.cmd
+        print e.retcode
+        print e.output
+        print '======================='
 
 if __name__ == '__main__':
     main()

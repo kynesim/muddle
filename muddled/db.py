@@ -16,7 +16,7 @@ import muddled.depend as depend
 from muddled.utils import GiveUp, MuddleBug
 from muddled.utils import domain_subpath, split_vcs_url
 from muddled.depend import normalise_checkout_label
-
+from muddled.repository import Repository
 
 class CheckoutData(object):
     """
@@ -306,7 +306,10 @@ class Database(object):
             # everything in one monolithic entity)
             if vcs not in ('svn', ):
                 ##print 'setting versions repository'
-                self.VersionsRepository_pathfile.set(os.path.join(repo_location,"versions"))
+                # We go via Repository so that we get the correct handler for
+                # sites like Google Code
+                versions_repo = Repository(vcs, repo, "versions")
+                self.VersionsRepository_pathfile.set('%s+%s'%(vcs, versions_repo.url))
         else:
             self.VersionsRepository_pathfile.set(versions_repo)
         if branch is not None:

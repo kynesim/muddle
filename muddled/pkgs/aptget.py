@@ -35,10 +35,8 @@ class AptGetBuilder(pkg.PackageBuilder):
 
         So we do some fairly simple processing of the output...
         """
-        retval, stdout, stderr = utils.run_cmd_for_output([ "dpkg-query", "-W",
-                                                            "-f=\${Status}\\n'",
-                                                            pkg ],
-                                                          verbose=False)
+        retval, stdout = utils.run2([ "dpkg-query", "-W", "-f=\${Status}\\n'", pkg ],
+                                    show_command=False, show_output=False)
         if retval:
             # Assume it's not installed
             return False

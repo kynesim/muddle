@@ -113,7 +113,8 @@ def git_supports_ff_only():
     global g_supports_ff_only
 
     if (g_supports_ff_only is None):
-        retcode, stdout, stderr = utils.run_cmd_for_output("git --version", useShell = True)
+        retcode, stdout = utils.run2("git --version", show_command=False,
+                                     show_output=False)
         version = stdout
         m = re.search(r' ([0-9]+)\.([a0-9]+)', version)
         if (int(m.group(1)) <= 1 and int(m.group(2)) <= 6):
@@ -621,8 +622,8 @@ class Git(VersionControlSystem):
         # name, we want the command to propagate 'sp ace' down as a single
         # word, so it gets reported with the appropriate error. Thus we need
         # to pass the command as a list.
-        retcode, out, err = utils.run_cmd_for_output(['git', 'branch', branch],
-                                                     fold_stderr=True, verbose=verbose)
+        retcode, out = utils.run2(['git', 'branch', branch],
+                                  show_command=verbose, show_output=False)
         if retcode:
             raise GiveUp('Error creating branch "%s": %s'%(branch, out))
 
@@ -638,8 +639,8 @@ class Git(VersionControlSystem):
         It is an error if the branch does not exist, in which case a GiveUp
         exception will be raised.
         """
-        retcode, out, err = utils.run_cmd_for_output(['git', 'checkout', branch],
-                                                     fold_stderr=True, verbose=verbose)
+        retcode, out = utils.run2(['git', 'checkout', branch],
+                                  show_command=verbose, show_output=False)
         if retcode:
             raise GiveUp('Error going to branch "%s": %s'%(branch, out))
 
@@ -672,8 +673,8 @@ class Git(VersionControlSystem):
             if new_revision == expand_revision(revision): # Heh, we're already there
                 return
 
-        retcode, out, err = utils.run_cmd_for_output(['git', 'checkout', revision],
-                                                     fold_stderr=True, verbose=verbose)
+        retcode, out = utils.run2(['git', 'checkout', revision],
+                                  show_command=verbose, show_output=True)
         if retcode:
             raise GiveUp('Error going to revision "%s": %s'%(revision, out))
 

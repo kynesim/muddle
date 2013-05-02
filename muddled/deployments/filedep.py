@@ -34,10 +34,10 @@ class FIApplyMknod(InstructionImplementor):
             mknod_type = "b"
 
         abs_file = os.path.join(path, instr.file_name)
-        utils.run_cmd("mknod %s %s %s %s"%(abs_file, mknod_type,
-                                           instr.major, instr.minor))
-        utils.run_cmd("chown %s:%s %s"%(instr.uid, instr.gid, abs_file))
-        utils.run_cmd("chmod %s %s"%(instr.mode, abs_file))
+        utils.run0("mknod %s %s %s %s"%(abs_file, mknod_type,
+                                        instr.major, instr.minor))
+        utils.run0("chown %s:%s %s"%(instr.uid, instr.gid, abs_file))
+        utils.run0("chmod %s %s"%(instr.mode, abs_file))
 
     def needs_privilege(self, builder, instr, role, path):
         return True
@@ -168,11 +168,11 @@ class FileDeploymentBuilder(Action):
 
         if need_root_for:
             print "I need root to do %s - sorry! - running sudo .."%(', '.join(sorted(need_root_for)))
-            utils.run_cmd("sudo %s buildlabel '%s'"%(builder.muddle_binary,
-                                                     permissions_label))
+            utils.run0("sudo %s buildlabel '%s'"%(builder.muddle_binary,
+                                                  permissions_label))
         else:
-            utils.run_cmd("%s buildlabel '%s'"%(builder.muddle_binary,
-                                                permissions_label))
+            utils.run0("%s buildlabel '%s'"%(builder.muddle_binary,
+                                             permissions_label))
 
     def apply_instructions(self, builder, label):
 

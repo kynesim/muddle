@@ -48,7 +48,7 @@ class CollectApplyChmod(InstructionImplementor):
         files = dp.abs_match(instr.filespec)
         # @todo We _really_ need to use xargs here ..
         for f in files:
-            utils.run_cmd("chmod %s \"%s\""%(instr.new_mode, f))
+            utils.run0(["chmod", instr.new_mode, f])
         return True
 
     def needs_privilege(self, builder, instr, role, path):
@@ -74,11 +74,12 @@ class CollectApplyChown(InstructionImplementor):
         dp = filespec.FSFileSpecDataProvider(path)
         files = dp.abs_match(instr.filespec)
         if instr.new_user is None:
-            cmd = "chgrp %s"%(instr.new_group)
+            cmd = ["chgrp", instr.new_group]
         elif instr.new_group is None:
-            cmd = "chown --no-dereference %s"%(instr.new_user)
+            cmd = ["chown", "--no-dereference", instr.new_user]
         else:
-            cmd = "chown --no-dereference %s:%s"%(instr.new_user, instr.new_group)
+            cmd = ["chown", "--no-dereference",
+                   "%s:%s"%(instr.new_user, instr.new_group)]
 
         for f in files:
             if is_prepare:
@@ -88,9 +89,9 @@ class CollectApplyChown(InstructionImplementor):
                 #   sudo rm -rf dir
                 #   sudo chown -R <nonprivuser> dir
                 #   or just run the whole rsync under sudo.
-                utils.run_cmd("rm -f \"%s\""%f)
+                utils.run0(["rm", "-f", f])
             else:
-                utils.run_cmd("%s \"%s\""%(cmd, f))
+                utils.run0([cmd, f])
 
     def needs_privilege(self, builder, instr, role, path):
         return True
@@ -206,7 +207,7 @@ class CollectDeploymentBuilder(Action):
                     if xdst[-1] != "/":
                         xdst = xdst + "/"
 
-                    utils.run_cmd("rsync -avz \"%s/.\" \"%s\""%(src,xdst))
+                    utils.run0("rsync -avz \"%s/.\" \"%s\""%(src,xdst))
                 elif asm.recursive:
                     utils.recursively_copy(src, dst, object_exactly=asm.copy_exactly)
                 else:
@@ -251,13 +252,12 @@ class CollectDeploymentBuilder(Action):
                                   utils.LabelTag.InstructionsApplied,
                                   domain = label.domain)
 
+        cmd = [builder.muddle_binary, "buildlabel", str(permissions_label)]
         if need_root_for:
             print "I need root to do %s - sorry! - running sudo .."%(', '.join(sorted(need_root_for)))
-            utils.run_cmd("sudo %s buildlabel '%s'"%(builder.muddle_binary,
-                                                     permissions_label))
+            utils.run0(["sudo"] + cmd)
         else:
-            utils.run_cmd("%s buildlabel '%s'"%(builder.muddle_binary,
-                                                permissions_label))
+            utils.run0(cmd)
 
     def apply_instructions(self, builder, label, prepare, deploy_path):
 

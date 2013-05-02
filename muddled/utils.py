@@ -595,16 +595,65 @@ def _stringify(thing):
 
 def _rationalise_cmd(thing):
     """Given a command, as either a string or sequence, return a sequence.
+
+    If it is a sequence, convert any non-strings to strings using str()
     """
     if isinstance(thing, basestring):
         thing = shlex.split(thing)
+    else:
+        new = []
+        for item in thing:
+            if isinstance(item, basestring):
+                new.append(item)
+            else:
+                new.append(str(item))
+        thing = new
     return thing
 
-def run0(thing, show_command=True, show_output=True):
+def shell(thing, env=None, show_command=True):
+    """Run the command 'thing' in the shell, returning its output.
+
+    The output returned includes stderr as well as stdout.
+
+    'thing' must be a string (e.g., "ls -l").
+
+    If 'env' is given, then it is the environment to use when running 'thing',
+    otherwise 'os.environ' is used.
+
+    If 'show_command' is true, then "> <thing>" will be printed out before
+    running the command.
+
+    This function does not support printing the command output as the command
+    runs.
+
+    If the command returns a non-zero return code, then a ShellError will
+    be raised, containing the returncode, the command string and any output
+    that occurred.
+
+    Using this makes things like "cd" available in 'thing', but does not allow
+    showing the output of the command whilst it is in progress. Generally, the
+    Python subprocess module recommends against using the shell.
+    """
+    if not isinstance(thing, basestring):
+        raise MuddleBug('Argument to shell() must be a string, not %r'%thing)
+    if show_command:
+        print '> %s'%thing
+    if env is None: # so, for instance, an empty dictionary is allowed
+        env = os.environ
+    try:
+        return subprocess.check_output(thing, shell=True, env=env,
+                                       stderr=subprocess.STDOUT)
+    except subprocess.CalledProcessError as e:
+        raise ShellError(_stringify(thing), e.returncode, e.output)
+
+def run0(thing, env=None, show_command=True, show_output=False):
     """Run the command 'thing', returning nothing.
 
     'thing' may be a string (e.g., "ls -l") or a sequence (e.g., ["ls", "-l"]).
     Internally, a string will be converted into a sequence before it is used.
+
+    If 'env' is given, then it is the environment to use when running 'thing',
+    otherwise 'os.environ' is used.
 
     If 'show_command' is true, then "> <thing>" will be printed out before
     running the command.
@@ -612,19 +661,27 @@ def run0(thing, show_command=True, show_output=True):
     If 'show_output' is true, then the output of the command (both stdout and
     stderr) will be printed out as the command runs.
 
+      .. note:: The default for 'show_output' is False, unlike the other
+         'runX' commands.
+
     If the command returns a non-zero return code, then a ShellError will
     be raised, containing the returncode, the command string and any output
     that occurred.
     """
-    rc, output = run2(thing, show_command=show_command, show_output=show_output)
+    rc, output = run2(thing, env=env, show_command=show_command, show_output=show_output)
     if rc != 0:
         raise ShellError(cmd=_stringify(thing), retcode=rc, output=output)
 
-def run1(thing, show_command=True, show_output=True):
+def run1(thing, env=None, show_command=True, show_output=True):
     """Run the command 'thing', returning the return code.
 
     'thing' may be a string (e.g., "ls -l") or a sequence (e.g., ["ls", "-l"]).
     Internally, a string will be converted into a sequence before it is used.
+    Any non-string items in a 'thing' sequence will be converted to strings
+    using 'str()' (e.g., if a Label instance is given).
+
+    If 'env' is given, then it is the environment to use when running 'thing',
+    otherwise 'os.environ' is used.
 
     If 'show_command' is true, then "> <thing>" will be printed out before
     running the command.
@@ -637,14 +694,16 @@ def run1(thing, show_command=True, show_output=True):
 
     The command return is returned.
     """
-    rc, text = run2(thing, show_command=show_command, show_output=show_output)
+    rc, text = run2(thing, env=env, show_command=show_command, show_output=show_output)
     return rc
 
-def run2(thing, show_command=True, show_output=True):
+def run2(thing, env=None, show_command=True, show_output=True):
     """Run the command 'thing', returning the return code and output.
 
     'thing' may be a string (e.g., "ls -l") or a sequence (e.g., ["ls", "-l"]).
     Internally, a string will be converted into a sequence before it is used.
+    Any non-string items in a 'thing' sequence will be converted to strings
+    using 'str()' (e.g., if a Label instance is given).
 
     If 'show_command' is true, then "> <thing>" will be printed out before
     running the command.
@@ -662,8 +721,10 @@ def run2(thing, show_command=True, show_output=True):
     thing = _rationalise_cmd(thing)
     if show_command:
         print '> %s'%_stringify(thing)
+    if env is None: # so, for instance, an empty dictionary is allowed
+        env = os.environ
     text = []
-    proc = subprocess.Popen(thing, stdout=subprocess.PIPE, stderr=subprocess.STDOUT)
+    proc = subprocess.Popen(thing, env=env, stdout=subprocess.PIPE, stderr=subprocess.STDOUT)
     for data in proc.stdout:
         if show_output:
             sys.stdout.write(data)
@@ -672,11 +733,16 @@ def run2(thing, show_command=True, show_output=True):
     text = ''.join(text)
     return proc.returncode, text
 
-def run3(thing, show_command=True, show_output=True):
+def run3(thing, env=None, show_command=True, show_output=True):
     """Run the command 'thing', returning the return code, stdout and stderr.
 
     'thing' may be a string (e.g., "ls -l") or a sequence (e.g., ["ls", "-l"]).
     Internally, a string will be converted into a sequence before it is used.
+    Any non-string items in a 'thing' sequence will be converted to strings
+    using 'str()' (e.g., if a Label instance is given).
+
+    If 'env' is given, then it is the environment to use when running 'thing',
+    otherwise 'os.environ' is used.
 
     If 'show_command' is true, then "> <thing>" will be printed out before
     running the command.
@@ -694,9 +760,11 @@ def run3(thing, show_command=True, show_output=True):
     thing = _rationalise_cmd(thing)
     if show_command:
         print '> %s'%_stringify(thing)
+    if env is None: # so, for instance, an empty dictionary is allowed
+        env = os.environ
     all_stdout_text = []
     all_stderr_text = []
-    proc = subprocess.Popen(thing, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+    proc = subprocess.Popen(thing, env=env, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
 
     # We use select here because poll is less portable (although at the moment
     # we are only working on Linux, so perhaps I shouldn't care)
@@ -973,10 +1041,10 @@ def recursively_remove(a_dir):
     """
     Recursively demove a directory.
     """
-    if (os.path.exists(a_dir)):
+    if os.path.exists(a_dir):
         # Again, the most efficient way to do this is to tell UNIX to do it
         # for us.
-        run_cmd("rm -rf \"%s\""%(a_dir))
+        run0("rm -rf \"%s\""%(a_dir))
 
 
 def copy_file_metadata(from_path, to_path):

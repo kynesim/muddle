@@ -202,9 +202,9 @@ class CpioDeploymentBuilder(Action):
 
         if (self.compression_method is not None):
             if (self.compression_method == "gzip"):
-                utils.run_cmd("gzip -f %s"%deploy_file)
+                utils.run0(["gzip", "-f", deploy_file])
             elif (self.compression_method == "bzip2"):
-                utils.run_cmd("bzip2 -f %s"%deploy_file)
+                utils.run0(["bzip2", "-f", deploy_file])
             else:
                 raise GiveUp("Invalid compression method %s"%self.compression_method +
                              "specified for cpio deployment. Pick gzip or bzip2.")

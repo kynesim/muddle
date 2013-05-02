@@ -46,7 +46,7 @@ class Wget(VersionControlHandler):
     def check_out(self):
         utils.ensure_dir(self.checkout_path)
         os.chdir(self.checkout_path)
-        utils.run_cmd("wget %s --output-document=%s"%(self.url,self.filename))
+        utils.run0("wget %s --output-document=%s"%(self.url,self.filename))
 
     def pull(self):
         self.check_out()

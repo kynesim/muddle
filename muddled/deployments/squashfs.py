@@ -79,7 +79,7 @@ class SquashFSDeploymentBuilder(CollectDeploymentBuilder):
             if e.errno != errno.ENOENT: # Only re-raise if it wasn't file missing
                 raise
         cmd = "%s \"%s\" \"%s\" -noappend -all-root -info -comp xz"%(self.mksquashfs, my_tmp, final_tgt)
-        utils.run_cmd(cmd)
+        utils.run0(cmd)
 
     def build_label(self, builder, label):
         """

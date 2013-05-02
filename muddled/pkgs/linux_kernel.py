@@ -139,21 +139,21 @@ class LinuxKernel(PackageBuilder):
             else:
 		linux_src_path = os.path.join(co_path, self.linux_src)
             with Directory(os.path.join(linux_src_path)):
-                utils.run_cmd("%s bzImage"%make_cmd)
-                utils.run_cmd("%s modules"%make_cmd)
-                utils.run_cmd("%s INSTALL_HDR_PATH=\"%s\" headers_install"%(make_cmd, hdr_path))
-                utils.run_cmd("%s INSTALL_FW_PATH=\"%s\" firmware_install"%(make_cmd, fw_path))
-                utils.run_cmd("%s INSTALL_MOD_PATH=\"%s\" modules_install"%(make_cmd, modules_path))
+                utils.run0("%s bzImage"%make_cmd)
+                utils.run0("%s modules"%make_cmd)
+                utils.run0("%s INSTALL_HDR_PATH=\"%s\" headers_install"%(make_cmd, hdr_path))
+                utils.run0("%s INSTALL_FW_PATH=\"%s\" firmware_install"%(make_cmd, fw_path))
+                utils.run0("%s INSTALL_MOD_PATH=\"%s\" modules_install"%(make_cmd, modules_path))
 
                 # Now link up the kerneldir directory so that other people can build modules which
                 # depend on us.
-                utils.run_cmd("ln -fs %s %s"%(os.path.join(modules_path, "lib", "modules",
-                                                           self.kernel_version, "build"),
-                                              os.path.join(build_path, "kerneldir")))
+                utils.run0("ln -fs %s %s"%(os.path.join(modules_path, "lib", "modules",
+                                                        self.kernel_version, "build"),
+                                           os.path.join(build_path, "kerneldir")))
 
                 # .. and link kernelsource to the source directory.
-                utils.run_cmd("ln -fs %s %s"%(linux_src_path,
-                                              os.path.join(build_path, "kernelsource")))
+                utils.run0("ln -fs %s %s"%(linux_src_path,
+                                           os.path.join(build_path, "kernelsource")))
 
             # This was a doomed idea, and remains here to show you that it's doomed.
             # Really, really doomed.
@@ -163,7 +163,7 @@ class LinuxKernel(PackageBuilder):
             # Some - really irritating - kernel modules - require an include directory
             # which is the union of source and object kernel includes.
             #combined_include_path = os.path.join(build_path, "fake-kernel-source")
-            #utils.run_cmd("rm -rf \"%s\""%combined_include_path)
+            #utils.run0("rm -rf \"%s\""%combined_include_path)
 
             #actual_inc = os.path.join(combined_include_path, "include")
             #utils.ensure_dir(actual_inc)
@@ -180,20 +180,20 @@ class LinuxKernel(PackageBuilder):
             #                       actual_inc)
 
             # .. and this for the asm files themselves. Ugh.
-            #utils.run_cmd("cp -r -t %s %s"%(os.path.join(actual_inc, "asm"),
+            #utils.run0("cp -r -t %s %s"%(os.path.join(actual_inc, "asm"),
             #                                os.path.join(build_path, "include", "asm", "*")))
 
 
         elif (tag == utils.LabelTag.Installed):
             if (self.make_install):
                 with Directory(co_path):
-                    utils.run_cmd("make install")
+                    utils.run0("make install")
         elif (tag == utils.LabelTag.PostInstalled):
             # .. and postinstall
             pass
         elif (tag == utils.LabelTag.Clean):
             with Directory(os.path.join(co_path, self.linux_src)):
-                utils.run_cmd("%s clean"%make_cmd)
+                utils.run0("%s clean"%make_cmd)
         elif (tag == utils.LabelTag.DistClean):
             self.dist_clean(builder, label)
         else:

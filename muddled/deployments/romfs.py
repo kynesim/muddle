@@ -100,7 +100,7 @@ class RomFSDeploymentBuilder(CollectDeploymentBuilder):
         if (self.alignment is not None):
             cmd = cmd + " -a %d"%(int(self.alignment))
         cmd = cmd + " -d \"%s\""%(my_tmp)
-        utils.run_cmd(cmd)
+        utils.run0(cmd)
 
     def build_label(self, builder, label):
         """

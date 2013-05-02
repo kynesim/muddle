@@ -84,9 +84,10 @@ def extract_into_obj(inv, co_name, label, pkg_file):
     tmp = Label(utils.LabelType.Checkout, co_name, domain=label.domain)
     co_dir = inv.checkout_path(tmp)
     obj_dir = inv.package_obj_path(label)
-    dpkg_cmd = "dpkg-deb -X %s %s"%(os.path.join(co_dir, pkg_file),
-                                    os.path.join(obj_dir, "obj"))
-    utils.run_cmd(dpkg_cmd)
+    dpkg_cmd = ["dpkg-deb", "-X",
+                os.path.join(co_dir, pkg_file),
+                os.path.join(obj_dir, "obj")]
+    utils.run0(dpkg_cmd)
 
     # Now install any include or lib files ..
     installed_into = os.path.join(obj_dir, "obj")
@@ -178,8 +179,8 @@ class DebDevAction(PackageBuilder):
                 tmp = Label(utils.LabelType.Checkout, self.co_name, domain=label.domain)
                 co_path = inv.checkout_path(tmp)
                 with Directory(co_path):
-                    utils.run_cmd("make -f %s %s-postinstall"%(self.post_install_makefile,
-                                                               label.name))
+                    utils.run0(["make", "-f", self.post_install_makefile,
+                                "%s-postinstall"%(label.name)])
 
             # .. and now we rewrite any pkgconfig etc. files left lying
             # about.
@@ -265,9 +266,9 @@ class DebAction(PackageBuilder):
             co_dir = inv.checkout_path(tmp)
 
             # Using dpkg doesn't work here for many reasons.
-            dpkg_cmd = "dpkg-deb -X %s %s"%(os.path.join(co_dir, self.pkg_file),
-                                            inst_dir)
-            utils.run_cmd(dpkg_cmd)
+            dpkg_cmd = ["dpkg-deb", "-X", os.path.join(co_dir, self.pkg_file),
+                        inst_dir]
+            utils.run0(dpkg_cmd)
 
             # Pick up any instructions that got left behind
             instr_file = self.instr_name
@@ -287,8 +288,8 @@ class DebAction(PackageBuilder):
                 tmp = Label(utils.LabelType.Checkout, self.co_name, domain=label.domain)
                 co_path = inv.checkout_path(tmp)
                 with Directory(co_path):
-                    utils.run_cmd("make -f %s %s-postinstall"%(self.post_install_makefile,
-                                                               label.name))
+                    utils.run0(["make", "-f", self.post_install_makefile,
+                                "%s-postinstall"%label.name])
         elif (tag == utils.LabelTag.Clean or tag == utils.LabelTag.DistClean):#
             inv = builder
             admin_dir = os.path.join(inv.package_obj_path(label))

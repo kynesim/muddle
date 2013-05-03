@@ -43,7 +43,7 @@ except ImportError:
     from muddled.utils import GiveUp
     # This still fails? add the directory containing muddled to your PYTHONPATH
 
-from muddled.utils import run_cmd
+from muddled.utils import run0
 from muddled.cmdline import find_and_load
 from muddled.depend import normalise_checkout_label
 
@@ -293,7 +293,7 @@ class SshAccess(object):
         if dry_run:
             print "Would run: %s"%cmd
         else:
-            run_cmd(cmd)
+            run0(cmd)
 
     def ssh_remote_cmd(self, remote_cmd, dirs=None, dry_run=False):
         """SSH to our location, and run the command over the directories.
@@ -326,7 +326,7 @@ class SshAccess(object):
                 raise GiveUp("Error invoking the remote script, rc=%d"%p.returncode)
             print "Script exited successfully, output was:\n%s\n<<<END OUTPUT>>>\n"%stdoutdata
         else:
-            run_cmd(cmd)
+            run0(cmd)
 
 def parse_repo_url(url):
     """

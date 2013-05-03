@@ -42,7 +42,7 @@ except ImportError:
     from muddled.utils import GiveUp
     # This still fails? add the directory containing muddled to your PYTHONPATH
 
-from muddled.utils import run_cmd,get_cmd_data
+from muddled.utils import run0,get_cmd_data
 from muddled.cmdline import find_and_load
 import muddled.vcs.git
 
@@ -52,7 +52,7 @@ def maybe_run_cmd(cmd, dry_run, verbose):
     if dry_run:
         print "(DRY RUN) > %s"%cmd
     else:
-        run_cmd(cmd, verbose=verbose)
+        run0(cmd, show_output=verbose)
 
 def maybe_get_cmd_data(cmd, dry_run, verbose):
     if dry_run:
@@ -148,7 +148,7 @@ def _do_cmdline(args):
                             print "YOU MUST MERGE THESE INTO '%s' YOURSELF OR LOSE THEM!"%g.branch
                             #print "This script will not revisit this checkout."
                             print "The relevant changes are:"
-                            run_cmd("git log --oneline --topo-order --graph --decorate=short %s..%s"%(g.branch,bfrom))
+                            run0("git log --oneline --topo-order --graph --decorate=short %s..%s"%(g.branch,bfrom))
                             raise
                     else:
                         raise GiveUp("Error: %s wants a branch named '%s', does not have one, and does not have a '%s' either - I don't know how to fix this"%(co_dir, g.branch, bfrom))

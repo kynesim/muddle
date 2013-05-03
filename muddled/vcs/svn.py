@@ -60,16 +60,16 @@ class Subversion(VersionControlSystem):
         Will be called in the actual checkout's directory.
         """
         if files:
-            utils.run_cmd("svn add %s"%' '.join(files), verbose=verbose)
+            utils.run0(["svn", "add"] + list(files), show_command=verbose)
 
     def _r_option(self, revision):
         """
         Return the -r option to pass to svn commands, if any
         """
         if revision is None or revision == "HEAD":
-            return ""
+            return []
         else:
-            return "-r %s"%revision
+            return ["-r", revision]
 
     def checkout(self, repo, co_leaf, options, verbose=True):
         """
@@ -82,8 +82,8 @@ class Subversion(VersionControlSystem):
         if repo.branch:
             raise utils.GiveUp("Subversion does not support branch"
                                " in 'checkout' (branch='%s')"%repo.branch)
-        utils.run_cmd("svn checkout %s %s %s"%(self._r_option(repo.revision),
-                                               repo.url, co_leaf), verbose=verbose)
+        utils.run0(["svn", "checkout"] + self._r_option(repo.revision) +
+                   [repo.url, co_leaf], show_command=verbose)
 
     def pull(self, repo, options, upstream=None, verbose=True):
         """
@@ -108,7 +108,7 @@ class Subversion(VersionControlSystem):
 
         starting_revno = self._just_revno()
 
-        utils.run_cmd("svn update %s"%(self._r_option(repo.revision)), verbose=verbose)
+        utils.run0(["svn", "update"] + self._r_option(repo.revision), show_command=verbose)
 
         # We could try parsing the output of 'svn update' instead, but this is
         # simpler to do...
@@ -131,7 +131,8 @@ class Subversion(VersionControlSystem):
 
         starting_revno = self._just_revno()
 
-        utils.run_cmd("svn update %s"%(self._r_option(other_repo.revision)), verbose=verbose)
+        utils.run0(["svn", "update"] +  self._r_option(other_repo.revision),
+                   show_command=verbose)
 
         ending_revno = self._just_revno()
         # Did we update anything?
@@ -153,7 +154,7 @@ class Subversion(VersionControlSystem):
         This actually does a "svn commit", i.e., committing to the remote
         repository (which is the only one subversion has).
         """
-        utils.run_cmd("svn commit", verbose=verbose)
+        utils.run0(["svn", "commit"], show_command=verbose)
 
     def status(self, repo, options):
         """

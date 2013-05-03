@@ -851,38 +851,6 @@ def page_text(progname, text):
                     continue
     print text
 
-def run_cmd(cmd, env=None, allowFailure=False, isSystem=False, verbose=True):
-    """
-    Run a command via the shell, raising an exception on failure,
-
-    * env is the environment to use when running the command.  If this is None,
-      then ``os.environ`` is used.
-    * if allowFailure is true, then failure of the command will be ignored.
-    * otherwise, isSystem is used to decide what to do if the command fails.
-      If isSystem is true, then this is a command being run by the system and
-      failure should be reported by raising utils.MuddleBug. otherwise, it's being
-      run on behalf of the user and failure should be reported by raising
-      utils.GiveUp.
-    * if verbose is true, then print out the command before executing it
-
-    The command's stdout and stderr are redirected through Python's sys.stdout
-    and sys.stderr respectively.
-
-    Return the exit code of this command.
-    """
-    if env is None: # so, for instance, an empty dictionary is allowed
-        env = os.environ
-    if verbose:
-        print "> %s"%cmd
-    rv = subprocess.call(cmd, shell=True, env=env, stdout=sys.stdout, stderr=subprocess.STDOUT)
-    if allowFailure or rv == 0:
-        return rv
-    else:
-        if isSystem:
-            raise MuddleBug("Command '%s' execution failed - %d"%(cmd,rv))
-        else:
-            raise GiveUp("Command '%s' execution failed - %d"%(cmd,rv))
-
 
 def get_cmd_data(cmd, env=None, isSystem=False, fold_stderr=True,
                  verbose=False, fail_nonzero=True):

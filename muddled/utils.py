@@ -574,7 +574,7 @@ class ShellError(GiveUp):
         self.retcode = retcode
         self.output = output.rstrip()   # Is this sensible to do here?
 
-        msg = "Shell command %s failed with retcode %d"%(repr(cmd), retcode)
+        msg = "Command %s failed with retcode %d"%(repr(cmd), retcode)
         if output:
             msg = '%s:\n%s'%(msg, indent(output.rstrip(), "  "))
         super(GiveUp, self).__init__(msg)
@@ -610,7 +610,7 @@ def _rationalise_cmd(thing):
         thing = new
     return thing
 
-def shell(thing, env=None, show_command=True):
+def shell(thing, env=None, show_command=True, show_output=True):
     """Run the command 'thing' in the shell, returning its output.
 
     The output returned includes stderr as well as stdout.
@@ -623,16 +623,22 @@ def shell(thing, env=None, show_command=True):
     If 'show_command' is true, then "> <thing>" will be printed out before
     running the command.
 
-    This function does not support printing the command output as the command
-    runs.
+    If 'show_output' is true, then the output of the command (both stdout and
+    stderr) will be printed out as the command runs.
 
     If the command returns a non-zero return code, then a ShellError will
     be raised, containing the returncode, the command string and any output
     that occurred.
 
-    Using this makes things like "cd" available in 'thing', but does not allow
-    showing the output of the command whilst it is in progress. Generally, the
-    Python subprocess module recommends against using the shell.
+    Unlike the various 'runX' functions, this calls subprocess.Popen with
+    'shell=True'. This makes things like "cd" available in 'thing', and use of
+    shell specific things like value expansion. However, it can also make it a
+    lot harder to construct safe command lines.
+
+    NB: If you *do* want to do "cd xxx; yyy", you're probably better doing::
+
+        with Directory("xxx"):
+            run0("yyy")                 # or perhaps shell("yyy")
     """
     if not isinstance(thing, basestring):
         raise MuddleBug('Argument to shell() must be a string, not %r'%thing)
@@ -640,13 +646,21 @@ def shell(thing, env=None, show_command=True):
         print '> %s'%thing
     if env is None: # so, for instance, an empty dictionary is allowed
         env = os.environ
-    try:
-        return subprocess.check_output(thing, shell=True, env=env,
-                                       stderr=subprocess.STDOUT)
-    except subprocess.CalledProcessError as e:
-        raise ShellError(_stringify(thing), e.returncode, e.output)
 
-def run0(thing, env=None, show_command=True, show_output=False):
+    text = []
+    proc = subprocess.Popen(thing, shell=True,
+                            env=env, stdout=subprocess.PIPE, stderr=subprocess.STDOUT)
+    for data in proc.stdout:
+        if show_output:
+            sys.stdout.write(data)
+        text.append(data)
+    proc.wait()
+    text = ''.join(text)
+
+    if proc.returncode:
+        raise ShellError(thing, proc.returncode, text)
+
+def run0(thing, env=None, show_command=True, show_output=True):
     """Run the command 'thing', returning nothing.
 
     'thing' may be a string (e.g., "ls -l") or a sequence (e.g., ["ls", "-l"]).
@@ -660,9 +674,6 @@ def run0(thing, env=None, show_command=True, show_output=False):
 
     If 'show_output' is true, then the output of the command (both stdout and
     stderr) will be printed out as the command runs.
-
-      .. note:: The default for 'show_output' is False, unlike the other
-         'runX' commands.
 
     If the command returns a non-zero return code, then a ShellError will
     be raised, containing the returncode, the command string and any output

@@ -160,7 +160,7 @@ def _rationalise_cmd(thing):
         thing = shlex.split(thing)
     return thing
 
-def run0(thing, show_command=True, show_output=False):
+def run0(thing, show_command=True, show_output=True):
     """Run the command 'thing', returning nothing.
 
     'thing' may be a string (e.g., "ls -l") or a sequence (e.g., ["ls", "-l"]).
@@ -171,9 +171,6 @@ def run0(thing, show_command=True, show_output=False):
 
     If 'show_output' is true, then the output of the command (both stdout and
     stderr) will be printed out as the command runs.
-
-      .. note:: The default for 'show_output' is False, unlike the other
-         'runX' commands.
 
     If the command returns a non-zero return code, then a ShellError will
     be raised, containing the returncode, the command string and any output

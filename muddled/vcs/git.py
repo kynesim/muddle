@@ -154,7 +154,7 @@ class Git(VersionControlSystem):
         """
         # This is *really* hacky...
         if not os.path.exists('.git'):
-            utils.run_cmd("git init", verbose=verbose)
+            utils.run0(["git", "init"])
 
     def add_files(self, files=None, verbose=True):
         """
@@ -163,7 +163,7 @@ class Git(VersionControlSystem):
         Will be called in the actual checkout's directory.
         """
         if files:
-            utils.run_cmd("git add %s"%' '.join(files), verbose=verbose)
+            utils.run0(["git", "add"] + list(files), show_command=verbose)
 
     def checkout(self, repo, co_leaf, options, verbose=True):
         """
@@ -174,15 +174,16 @@ class Git(VersionControlSystem):
         Expected to create a directory called <co_leaf> therein.
         """
         if repo.branch:
-            args = "-b %s"%repo.branch
+            args = ["-b", repo.branch]
         else:
             # Explicitly use master if no branch specified - don't default
-            args = "-b master"
+            args = ["-b", "master"]
 
         if options.get('shallow_checkout'):
-            args="%s --depth 1"%args
+            args += ["--depth", "1"]
 
-        utils.run_cmd("git clone %s %s %s"%(args, repo.url, co_leaf), verbose=verbose)
+        utils.run0(["git", "clone"] + args + [repo.url, str(co_leaf)],
+                   show_command=verbose)
 
         if repo.revision:
             with Directory(co_leaf):
@@ -194,7 +195,7 @@ class Git(VersionControlSystem):
                     # XXX that is rather what we asked for...
                     # XXX Or maybe we want to leave the message, as the warning
                     # XXX it is meant to be
-                    utils.run_cmd("git checkout %s"%repo.revision)
+                    utils.run0(["git", "checkout", repo.revision])
 
     def _is_it_safe(self):
         """
@@ -316,10 +317,10 @@ class Git(VersionControlSystem):
             # operation, which is why the message doesn't say it's the build
             # description we're obeying
             print '++ Just changing to the revision explicitly requested for this checkout'
-            utils.run_cmd("git checkout %s"%repo.revision)
+            utils.run0(["git", "checkout", repo.revision])
         elif merge:
             # Just merge what we fetched into the current working tree
-            utils.run_cmd("git merge %s"%remote, verbose=verbose)
+            utils.run0(["git", "merge", remote], show_command=verbose)
         else:
             # Merge what we fetched into the working tree, but only if this is
             # a fast-forward merge, and thus doesn't require the user to do any
@@ -329,9 +330,9 @@ class Git(VersionControlSystem):
             # (See git-pull(1) and git-fetch(1): "without storing the remote
             # branch anywhere locally".)
             if (git_supports_ff_only()):
-                utils.run_cmd("git merge --ff-only %s"%remote, verbose=verbose)
+                utils.run0(["git", "merge", "--ff-only", remote], show_command=verbose)
             else:
-                utils.run_cmd("git merge --ff %s"%remote, verbose=verbose)
+                utils.run0(["git", "merge", "--ff", remote], show_command=verbose)
 
         ending_revision = self._git_rev_parse_HEAD()
 
@@ -384,7 +385,7 @@ class Git(VersionControlSystem):
         Does 'git commit -a' - i.e., this implicitly does 'git add' for you.
         This is a contentious choice, and needs review.
         """
-        utils.run_cmd("git commit -a", verbose=verbose)
+        utils.run0(["git", "commit", "-a"], show_command=verbose)
 
     def push(self, repo, options, upstream=None, verbose=True):
         """
@@ -415,7 +416,7 @@ class Git(VersionControlSystem):
         # repository...)
         self._setup_remote(upstream, repo, verbose=verbose)
 
-        utils.run_cmd("git push %s %s"%(upstream, effective_branch), verbose=verbose)
+        utils.run0(["git", "push", upstream, effective_branch], show_command=verbose)
 
     def status(self, repo, options):
         """
@@ -516,14 +517,15 @@ class Git(VersionControlSystem):
             if need_to_set_url:
                 # We don't want to do this unless it is necessary, because it
                 # will give an error if there is nothing for it to remove
-                utils.run_cmd("git remote rm %s"%remote_name, verbose=verbose, allowFailure=True)
+                rc = utils.run1(["git", "remote", "rm", remote_name], show_command=verbose)
         else:               # there were not
             need_to_set_url = True
 
         if need_to_set_url:
             # 'git remote add' sets up remote.origin.fetch and remote.origin.url
             # which are the minimum we should need
-            utils.run_cmd("git remote add %s %s"%(remote_name, remote_repo), verbose=verbose)
+            utils.run0(["git", "remote", "add", remote_name, remote_repo],
+                       show_command=verbose)
 
     def reparent(self, co_dir, remote_repo, options, force=False, verbose=True):
         """
@@ -628,7 +630,8 @@ class Git(VersionControlSystem):
             raise GiveUp('Error creating branch "%s": %s'%(branch, out))
 
         # Add this branch to the 'origin' remote for this checkout
-        utils.run_cmd("git remote set-branches --add origin %s"%branch, verbose=verbose)
+        utils.run0(["git", "remote", "set-branches", "--add", "origin", branch],
+                   show_command=verbose)
 
     def goto_branch(self, branch, verbose=False):
         """

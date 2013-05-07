@@ -54,14 +54,6 @@ def maybe_run_cmd(cmd, dry_run, verbose):
     else:
         run0(cmd, show_output=verbose)
 
-def maybe_get_cmd_data(cmd, dry_run, verbose):
-    if dry_run:
-        print "(DRY RUN) > %s"%cmd
-        return (0, "", "")
-    else:
-        return get_cmd_data(cmd, verbose=verbose)
-
-
 ##########################################################
 
 def _do_cmdline(args):

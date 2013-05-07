@@ -5,6 +5,7 @@ Tests the rest of muddled.
 
 import os
 import sys
+import subprocess
 import traceback
 
 from support_for_tests import get_parent_dir
@@ -49,7 +50,7 @@ def cpio_unit_test():
     arc.render(tmpf, True)
     # Now just make sure that cpio can read the data
 
-    rv, out, err = utils.get_cmd_data("cpio -i --to-stdout <'%s'"%tmpf)
+    out = subprocess.check_output("cpio -i --to-stdout <'%s'"%tmpf, shell=True)
 
     text = open(__file__).read()
     assert out[:len(text)] == text

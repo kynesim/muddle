@@ -817,6 +817,33 @@ def run3(thing, env=None, show_command=True, show_output=True):
     all_stdout_text = ''.join(all_stdout_text)
     all_stderr_text = ''.join(all_stderr_text)
     return proc.returncode, all_stdout_text, all_stderr_text
+
+def get_cmd_data(thing, env=None, show_command=False):
+    """
+    Run the command 'thing', and return its output.
+
+    'thing' may be a string (e.g., "ls -l") or a sequence (e.g., ["ls", "-l"]).
+    Internally, a string will be converted into a sequence before it is used.
+    Any non-string items in a 'thing' sequence will be converted to strings
+    using 'str()' (e.g., if a Label instance is given).
+
+    If 'env' is given, then it is the environment to use when running 'thing',
+    otherwise 'os.environ' is used.
+
+    Note that the output of the command is not shown whilst the command is
+    running.
+
+    If the command returns a non-zero exit code, then we raise a ShellError.
+    """
+    thing = _rationalise_cmd(thing)
+    if show_command:
+        print '> %s'%_stringify(thing)
+    if env is None: # so, for instance, an empty dictionary is allowed
+        env = os.environ
+    try:
+        return subprocess.check_output(thing, env=env)
+    except subprocess.CalledProcessError as e:
+        raise ShellErorr(_stringify(thing), e.returncode, e.output)
 # =============================================================================
 
 def page_text(progname, text):
@@ -850,40 +877,6 @@ def page_text(progname, text):
                     # so look for another candidate
                     continue
     print text
-
-
-def get_cmd_data(cmd, env=None, isSystem=False, fold_stderr=True,
-                 verbose=False, fail_nonzero=True):
-    """
-    Run the given command, and return its (returncode, stdout, stderr).
-
-    If 'fold_stderr', then "fold" stderr into stdout, and return
-    (returncode, stdout_data, NONE).
-
-    If 'fail_nonzero' then if the return code is non-0, raise an explanatory
-    exception (MuddleBug is 'isSystem', otherwise GiveUp).
-
-    And yes, that means the default use-case returns a tuple of the form
-    (0, <string>, None), but otherwise it gets rather awkward handling all
-    the options.
-    """
-    if env is None:
-        env = os.environ
-    if verbose:
-        print "> %s"%cmd
-    p = subprocess.Popen(cmd, shell=True, env=env,
-                         stdout=subprocess.PIPE,
-                         stderr=subprocess.STDOUT if fold_stderr
-                                                  else subprocess.PIPE)
-    stdoutdata, stderrdata = p.communicate()
-    returncode = p.returncode
-    if fail_nonzero and returncode:
-        if isSystem:
-            raise MuddleBug("Command '%s' execution failed - %d"%(cmd,returncode))
-        else:
-            raise GiveUp("Command '%s' execution failed - %d"%(cmd,returncode))
-    return returncode, stdoutdata, stderrdata
-
 
 def indent(text, indent):
     """Return the text indented with the 'indent' string.

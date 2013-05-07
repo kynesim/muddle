@@ -99,7 +99,7 @@ class Subversion(VersionControlSystem):
         if repo.branch:
             raise utils.GiveUp("Subversion does not support branch"
                                " in 'pull' (branch='%s')"%repo.branch)
-        retcode, text, ignore = utils.get_cmd_data("svn status")
+        text = utils.get_cmd_data("svn status")
         for line in text:
             if 'C' in (line[0], line[1], line[6]):
                 raise utils.GiveUp("%s: 'svn status' says there is a Conflict,"
@@ -162,7 +162,7 @@ class Subversion(VersionControlSystem):
 
         Return status text or None if there is no interesting status.
         """
-        retcode, text, ignore = utils.get_cmd_data("svn status --show-updates --verbose")
+        text = utils.get_cmd_data("svn status --show-updates --verbose")
 
         lines = text.split('\n')
         stuff = []
@@ -229,7 +229,7 @@ class Subversion(VersionControlSystem):
         if before:
             raise utils.GiveUp('%s: "before" argument not currently supported'%co_leaf)
 
-        retcode, revision, ignore = utils.get_cmd_data('svnversion', verbose=verbose)
+        revision = utils.get_cmd_data('svnversion', show_command=verbose)
         revision = revision.strip()
         if all([x.isdigit() for x in revision]):
             return revision
@@ -241,7 +241,7 @@ class Subversion(VersionControlSystem):
         """
         This returns the revision number for the working tree
         """
-        retcode, revision, ignore = utils.get_cmd_data('svnversion')
+        revision = utils.get_cmd_data('svnversion')
         return revision.strip()
 
     def allows_relative_in_repo(self):
@@ -254,9 +254,7 @@ class Subversion(VersionControlSystem):
         """
         Retrieve a file's content via Subversion.
         """
-        retcode, text, ignore = utils.get_cmd_data('svn cat %s'%url,
-                                                   fold_stderr=False,
-                                                   verbose=verbose)
+        text = utils.get_cmd_data('svn cat %s'%url, show_command=verbose)
         return text
 
     def must_pull_before_commit(self, options):

@@ -834,6 +834,8 @@ def get_cmd_data(thing, env=None, show_command=False):
     running.
 
     If the command returns a non-zero exit code, then we raise a ShellError.
+
+    (This is basically a muddle-flavoured wrapper around subprocess.check_output)
     """
     thing = _rationalise_cmd(thing)
     if show_command:
@@ -843,7 +845,7 @@ def get_cmd_data(thing, env=None, show_command=False):
     try:
         return subprocess.check_output(thing, env=env)
     except subprocess.CalledProcessError as e:
-        raise ShellErorr(_stringify(thing), e.returncode, e.output)
+        raise ShellError(_stringify(thing), e.returncode, e.output)
 # =============================================================================
 
 def page_text(progname, text):

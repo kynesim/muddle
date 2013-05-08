@@ -305,8 +305,9 @@ def check_cmd(command, expected='', unsure=False):
 
       and an error code.
     """
-    retcode, result = get_stdout2('{muddle} -n {cmd}'.format(muddle=MUDDLE_BINARY,
-                                                             cmd=command), True)
+    retcode, result = run2('{muddle} -n {cmd}'.format(muddle=MUDDLE_BINARY,
+                                                      cmd=command),
+                           show_output=False)
     result = result.strip()
     lines = result.split('\n  ')
 

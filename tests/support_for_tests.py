@@ -17,6 +17,21 @@ from difflib import unified_diff, ndiff
 from fnmatch import fnmatchcase
 from StringIO import StringIO
 
+__all__ = []
+
+def export(obj):
+    print 'obj name', obj.__name__
+    if obj.__name__ not in __all__:
+        __all__.append(obj.__name__)
+    return obj
+
+def export_names(names):
+    if isinstance(names, basestring):
+        names = [names]
+    for name in names:
+        if name not in __all__:
+            __all__.append(name)
+
 def get_parent_dir(this_file=None):
     """Determine the path of our parent directory.
 
@@ -39,7 +54,11 @@ except ImportError:
     sys.path.insert(0,PARENT_DIR)
     import muddled.cmdline
 
-from muddled.utils import GiveUp, MuddleBug
+from muddled.utils import GiveUp, MuddleBug, ShellError
+from muddled.utils import shell as shell
+
+export_names(['GiveUp', 'MuddleBug', 'ShellError'])
+export_names('shell')
 
 # We know (strongly assume!) that there should be a 'muddle' available
 # in the same directory as the 'muddled' package - we shall use that as
@@ -51,23 +70,9 @@ MUDDLE_BINARY = os.path.join(MUDDLE_BINARY_DIR, 'muddle')
 # Assume the location of muddle_patch.py relative to ourselves
 MUDDLE_PATCH_COMMAND = '%s/muddle_patch.py'%(PARENT_DIR)
 
-class ShellError(GiveUp):
-    def __init__(self, cmd, retcode, text=None):
-        msg = "Shell command '%s' failed with retcode %d"%(cmd, retcode)
-        if text:
-            msg = '%s\n%s'%(msg, text)
-        super(GiveUp, self).__init__(msg)
-        self.retcode=retcode
+export_names(['MUDDLE_BINARY', 'MUDDLE_PATCH_COMMAND'])
 
-def shell(cmd, verbose=True):
-    """Run a command in the shell
-    """
-    if verbose:
-        print '>> %s'%cmd
-    retcode = subprocess.call(cmd, shell=True)
-    if retcode:
-        raise ShellError(cmd, retcode)
-
+@export
 def get_stdout(cmd, verbose=True):
     """Run a command in the shell, and grab its (standard) output.
     """
@@ -81,6 +86,7 @@ def get_stdout(cmd, verbose=True):
         raise ShellError(cmd, retcode)
     return stdoutdata
 
+@export
 def get_stdout2(cmd, verbose=True):
     """Run a command in the shell, and grab its (standard) output and retcode
 
@@ -95,6 +101,7 @@ def get_stdout2(cmd, verbose=True):
     return retcode, stdoutdata
 
 
+@export
 def run_muddle_directly(args, verbose=True):
     """Pretend to be muddle
 
@@ -119,6 +126,7 @@ def run_muddle_directly(args, verbose=True):
         if old_pwd:
             os.environ['PWD'] = old_pwd
 
+@export
 def muddle(args, verbose=True):
     """Run a muddle command
     """
@@ -132,6 +140,7 @@ def muddle(args, verbose=True):
     if retcode:
         raise ShellError(' '.join(cmd_seq), retcode)
 
+@export
 def captured_muddle(args, verbose=True, error_fails=True):
     """Grab the output from a muddle command.
 
@@ -167,6 +176,7 @@ def captured_muddle(args, verbose=True, error_fails=True):
         else:
             return e.output
 
+@export
 def captured_muddle2(args, verbose=True):
     """Grab the exit code and output from a muddle command.
 
@@ -191,21 +201,25 @@ def captured_muddle2(args, verbose=True):
     except subprocess.CalledProcessError as e:
         return e.returncode, e.output
 
-def git(cmd, verbose=True):
+@export
+def git(cmd):
     """Run a git command
     """
-    shell('%s %s'%('git',cmd), verbose)
+    shell('%s %s'%('git',cmd))
 
-def bzr(cmd, verbose=True):
+@export
+def bzr(cmd):
     """Run a bazaar command
     """
-    shell('%s %s'%('bzr',cmd), verbose)
+    shell('%s %s'%('bzr',cmd))
 
-def svn(cmd, verbose=True):
+@export
+def svn(cmd):
     """Run a subversion command
     """
-    shell('%s %s'%('svn',cmd), verbose)
+    shell('%s %s'%('svn',cmd))
 
+@export
 def cat(filename):
     """Print out the contents of a file.
     """
@@ -216,6 +230,7 @@ def cat(filename):
             print line.rstrip()
         print '='*40
 
+@export
 def touch(filename, content=None, verbose=True):
     """Create a new file, and optionally give it content.
     """
@@ -225,6 +240,7 @@ def touch(filename, content=None, verbose=True):
         if content:
             fd.write(content)
 
+@export
 def append(filename, content, verbose=True):
     """Append 'content' to the given file
     """
@@ -233,6 +249,7 @@ def append(filename, content, verbose=True):
     with open(filename, 'a') as fd:
         fd.write(content)
 
+@export
 def same_content(filename, content=None, verbose=True):
     """Read a file, and check its content matches
     """
@@ -242,6 +259,7 @@ def same_content(filename, content=None, verbose=True):
         this_content = fd.read()
     return this_content == content
 
+@export
 def check_files(paths, verbose=True):
     """Given a list of paths, check they all exist.
     """
@@ -256,6 +274,7 @@ def check_files(paths, verbose=True):
     if verbose:
         print '++ All named files exist'
 
+@export
 def check_specific_files_in_this_dir(names, verbose=True):
     """Given a list of filenames, check they are the only files
     in the current directory
@@ -280,6 +299,7 @@ def check_specific_files_in_this_dir(names, verbose=True):
         if verbose:
             print '++ Only the requested files exist'
 
+@export
 def check_nosuch_files(paths, verbose=True):
     """Given a list of paths, check they do not exist.
     """
@@ -294,6 +314,7 @@ def check_nosuch_files(paths, verbose=True):
     if verbose:
         print '++ All named files do not exist'
 
+@export
 def banner(text, level=1):
     """Print a banner around the given text.
 
@@ -308,6 +329,7 @@ def banner(text, level=1):
     print '%s %s %s'%(endpoint_char, text, endpoint_char)
     print delim
 
+@export
 def check_file_v_text(filename, expected_text, sort_first=False):
     """Check the content of the file against the expected text.
 
@@ -333,6 +355,7 @@ def check_file_v_text(filename, expected_text, sort_first=False):
         raise GiveUp('Expected text does not match content of %s:\n%s'%(filename,
                      ''.join(difflines)))
 
+@export
 def check_text_lines_v_lines(actual_lines, wanted_lines, fold_whitespace=False):
     """Check two pieces of text are the same.
 
@@ -368,6 +391,7 @@ def check_text_lines_v_lines(actual_lines, wanted_lines, fold_whitespace=False):
         lines = ['Text did not match'] + list(difflines)
         raise GiveUp('\n'.join(lines))
 
+@export
 def check_text_v_lines(actual, wanted_lines):
     """Check two pieces of text are the same.
 
@@ -382,6 +406,7 @@ def check_text_v_lines(actual, wanted_lines):
     actual_lines = actual.splitlines()
     check_text_lines_v_lines(actual_lines, wanted_lines)
 
+@export
 def check_text(actual, wanted):
     """Check two pieces of text are the same.
 
@@ -395,6 +420,7 @@ def check_text(actual, wanted):
     wanted_lines = wanted.splitlines()
     check_text_lines_v_lines(actual_lines, wanted_lines)
 
+@export
 def check_text_endswith(text, should_end_with):
     """Check a text ends with another.
 
@@ -404,6 +430,7 @@ def check_text_endswith(text, should_end_with):
     if not text.endswith(should_end_with):
         check_text(text, should_end_with)  # which we thus know will fail
 
+@export
 class DirTree(object):
     """A tool for representing a directory tree in ASCII.
 

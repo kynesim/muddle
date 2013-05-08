@@ -19,6 +19,7 @@ implementation. What you get is what you get.
 
 import os
 import sys
+import traceback
 
 from subprocess import CalledProcessError
 
@@ -366,7 +367,7 @@ def broken_muddle(cmd_list, error=None, endswith=None):
     try:
         text = captured_muddle(cmd_list)
         raise GiveUp('Command unexpectedly worked, returned %r'%text)
-    except subprocess.CalledProcessError as e:
+    except CalledProcessError as e:
         stripped = e.output.strip()
         if error:
             check_text(stripped, error)

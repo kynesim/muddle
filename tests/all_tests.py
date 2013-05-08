@@ -14,8 +14,7 @@ With argument -list, lists the tests it would have run.
 
 import os
 import sys
-
-from stat import *
+import stat
 
 from support_for_tests import *
 
@@ -78,7 +77,7 @@ def run_tests(args):
             continue
         if name in ignore:
             continue
-        if not os.stat(name).st_mode & S_IEXEC:
+        if not os.stat(name).st_mode & stat.S_IEXEC:
             continue
 
         if just_list:

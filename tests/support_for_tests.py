@@ -20,7 +20,6 @@ from StringIO import StringIO
 __all__ = []
 
 def export(obj):
-    print 'obj name', obj.__name__
     if obj.__name__ not in __all__:
         __all__.append(obj.__name__)
     return obj

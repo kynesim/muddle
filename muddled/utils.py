@@ -568,6 +568,8 @@ def current_machine_name():
 # =============================================================================
 # Running commands (subprocess handling)
 # -----------------------------------------------------------------------------
+BUFSIZE=1024
+
 class ShellError(GiveUp):
     def __init__(self, cmd, retcode, output=None):
         self.cmd = cmd
@@ -579,7 +581,7 @@ class ShellError(GiveUp):
             msg = '%s:\n%s'%(msg, indent(output.rstrip(), "  "))
         super(GiveUp, self).__init__(msg)
 
-def _stringify(thing):
+def _stringify_cmd(thing):
     """Given a command, as either a string or sequence, return a string.
     """
     if isinstance(thing, basestring):
@@ -610,10 +612,9 @@ def _rationalise_cmd(thing):
         thing = new
     return thing
 
-def shell(thing, env=None, show_command=True, show_output=True):
-    """Run the command 'thing' in the shell, returning its output.
 
-    The output returned includes stderr as well as stdout.
+def shell(thing, env=None, show_command=True):
+    """Run the command 'thing' in the shell.
 
     'thing' must be a string (e.g., "ls -l").
 
@@ -622,9 +623,6 @@ def shell(thing, env=None, show_command=True, show_output=True):
 
     If 'show_command' is true, then "> <thing>" will be printed out before
     running the command.
-
-    If 'show_output' is true, then the output of the command (both stdout and
-    stderr) will be printed out as the command runs.
 
     If the command returns a non-zero return code, then a ShellError will
     be raised, containing the returncode, the command string and any output
@@ -646,19 +644,10 @@ def shell(thing, env=None, show_command=True, show_output=True):
         print '> %s'%thing
     if env is None: # so, for instance, an empty dictionary is allowed
         env = os.environ
-
-    text = []
-    proc = subprocess.Popen(thing, shell=True,
-                            env=env, stdout=subprocess.PIPE, stderr=subprocess.STDOUT)
-    for data in proc.stdout:
-        if show_output:
-            sys.stdout.write(data)
-        text.append(data)
-    proc.wait()
-    text = ''.join(text)
-
-    if proc.returncode:
-        raise ShellError(thing, proc.returncode, text)
+    try:
+        subprocess.check_call(thing, shell=True)
+    except subprocess.CalledProcessError as e:
+        raise ShellError(_stringify_cmd(thing), e.returncode, e.output)
 
 def run0(thing, env=None, show_command=True, show_output=True):
     """Run the command 'thing', returning nothing.
@@ -681,7 +670,7 @@ def run0(thing, env=None, show_command=True, show_output=True):
     """
     rc, output = run2(thing, env=env, show_command=show_command, show_output=show_output)
     if rc != 0:
-        raise ShellError(cmd=_stringify(thing), retcode=rc, output=output)
+        raise ShellError(cmd=_stringify_cmd(thing), retcode=rc, output=output)
 
 def run1(thing, env=None, show_command=True, show_output=True):
     """Run the command 'thing', returning the return code.
@@ -731,7 +720,7 @@ def run2(thing, env=None, show_command=True, show_output=True):
     """
     thing = _rationalise_cmd(thing)
     if show_command:
-        print '> %s'%_stringify(thing)
+        print '> %s'%_stringify_cmd(thing)
     if env is None: # so, for instance, an empty dictionary is allowed
         env = os.environ
     text = []
@@ -770,7 +759,7 @@ def run3(thing, env=None, show_command=True, show_output=True):
     """
     thing = _rationalise_cmd(thing)
     if show_command:
-        print '> %s'%_stringify(thing)
+        print '> %s'%_stringify_cmd(thing)
     if env is None: # so, for instance, an empty dictionary is allowed
         env = os.environ
     all_stdout_text = []
@@ -789,13 +778,13 @@ def run3(thing, env=None, show_command=True, show_output=True):
             else:
                 raise GiveUp("Error selecting command output\n"
                              "For: %s\n"
-                             "Error: %d %s %s"%(_stringify(thing),
+                             "Error: %d %s %s"%(_stringify_cmd(thing),
                                  e.args[0], errno.errorcode[e.args[0]], e.args[1]))
         if proc.stdout in rlist:
             # We don't use readline (which would be nicer) because
             # we don't know whether the data we're being given *is*
             # a line, and readline would wait for the EOL
-            stdout_text = proc.stdout.read(1024)
+            stdout_text = proc.stdout.read(BUFSIZE)
             if stdout_text == '':
                 read_list.remove(proc.stdout)
             else:
@@ -804,7 +793,7 @@ def run3(thing, env=None, show_command=True, show_output=True):
                 all_stdout_text.append(stdout_text)
         if proc.stderr in rlist:
             # Comment as above
-            stderr_text = proc.stderr.read(1024)
+            stderr_text = proc.stderr.read(BUFSIZE)
             if stderr_text == '':
                 read_list.remove(proc.stderr)
             else:
@@ -839,13 +828,13 @@ def get_cmd_data(thing, env=None, show_command=False):
     """
     thing = _rationalise_cmd(thing)
     if show_command:
-        print '> %s'%_stringify(thing)
+        print '> %s'%_stringify_cmd(thing)
     if env is None: # so, for instance, an empty dictionary is allowed
         env = os.environ
     try:
         return subprocess.check_output(thing, env=env)
     except subprocess.CalledProcessError as e:
-        raise ShellError(_stringify(thing), e.returncode, e.output)
+        raise ShellError(_stringify_cmd(thing), e.returncode, e.output)
 # =============================================================================
 
 def page_text(progname, text):

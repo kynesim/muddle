@@ -196,7 +196,13 @@ class CollectDeploymentBuilder(Action):
                                  " exist."%(label.name, src))
                 # Else no one cares :-)
             else:
-                if asm.using_rsync: # Rsync for great speed!
+                # If this is a file, just copy it.
+                if (not os.path.isdir(src)):
+                    if (asm.using_rsync):
+                        utils.run_cmd("rsync -avz \"%s\" \"%s\""%(src,dst))
+                    else:
+                        utils.copy_file(src,dst,object_exactly=asm.copy_exactly)
+                elif asm.using_rsync: # Rsync for great speed!
                     try:
                         os.makedirs(dst)
                     except OSError:

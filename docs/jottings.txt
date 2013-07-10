@@ -304,7 +304,7 @@ the following:
 
       # If we don't have KERNEL_DEEP_CLONES set in our environment, then we want
       # a shallow clone - this *much* reduces the time it takes to clone the
-      # kernel sources, but then means we can't "muddle fetch" to update them
+      # kernel sources, but then means we can't "muddle push" from it.
       #
       # Users can set KERNEL_DEEP_CLONES by, for instance, doing:
       #
@@ -418,11 +418,16 @@ How do I update a shallow checkout?
 ===================================
 Shallow checkouts (or clones) were discussed in `How do I build my kernel?`_.
 
-``muddle pull`` does not update shallow checkouts, so if a change occurs, it
-is necessary to retrieve it by hand.
+In older versions of muddle, ``muddle pull`` refused to update shallow
+checkouts, so if a change occurs, it was necessary to retrieve it by hand.
 
-The typical way of doing this, given a shallow checkout in
-``src/linux/kernel``, is something like::
+Newer versions of muddle will allow ``muddle pull`` (and ``muddle merge``),
+but still forbid ``muddle push`` (because git won't allow it).
+
+If you do need to update a shallow checkout, it is simplest to re-checkout as
+a "full" checkout, and then carry on as normal. For instance, edit the
+build description to remove the "shallow" flag for the checkout, and then
+(assuming we're working on ``src/linux/kernel``)::
 
   $ cd src/linux
   $ mv kernel kernel.save     # remove the directory (but save it just in case)

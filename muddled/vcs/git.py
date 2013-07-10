@@ -12,7 +12,15 @@ TODO: The following needs rewriting after work for issue 225
   ``git clone -b master``.
 
   If a shallow checkout is selected, then the ``--depth 1`` switch is added
-  to the clone command.
+  to the clone command. Note that there are some restrictions on what can be
+  done with a shallow checkout - git says::
+
+      A shallow repository has a number of limitations (*you cannot clone or
+      fetch from it, nor push from nor into it*), but is adequate if you are
+      only interested in the recent history of a large project with a long
+      history, and would want to send in fixes as patches.
+
+  (the emphasis is mine).
 
   If a revision is requested, then ``git checkout`` is used to check it out.
 
@@ -31,9 +39,8 @@ TODO: The following needs rewriting after work for issue 225
   If the build description specifies a particular revision, and the checkout
   is already at that revision, then an error will be reported, saying that.
 
-  If there are any local changes uncommitted, or untracked files, or if the
-  checkout is marked as "shallow", then appropriate error messages will also
-  be reported.
+  If there are any local changes uncommitted, or untracked files, then
+  appropriate error messages will also be reported.
 
   If the build description specified a branch for this repository (by whatever
   means), then we will first go to that branch. If no branch was specified,
@@ -92,8 +99,8 @@ Available git specific options are:
   modify the checkout in any way in the future (i.e., neither to push it
   nor to pull it again).
 
-  If 'shallow_checkout' is specified, then "muddle pull", "muddle merge"
-  and "muddle push" will refuse to do anything.
+  If 'shallow_checkout' is specified, then "muddle push" will refuse to do
+  anything.
 """
 
 import os
@@ -221,7 +228,8 @@ class Git(VersionControlSystem):
         """
         if options.get('shallow_checkout'):
             if os.path.exists('.git/shallow'):
-                raise utils.Unsupported('Shallow checkouts cannot interact with their upstream repositories.')
+                raise utils.Unsupported('Shallow checkouts cannot push to'
+                                        ' their upstream repositories.')
 
     def _pull_or_merge(self, repo, options, upstream=None, verbose=True, merge=False):
         """
@@ -265,9 +273,6 @@ class Git(VersionControlSystem):
 
         # Refuse to do anything if there are any local changes or untracked files.
         self._is_it_safe()
-
-        # Refuse to do anything if this was a shallow checkout
-        self._shallow_not_allowed(options)
 
         # Are we on the correct branch?
         this_branch = self.get_current_branch()

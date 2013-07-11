@@ -19,7 +19,9 @@ import traceback
 # hack.
 #
 # TODO: work out a better way to do it!
-this_dir = os.path.split(os.path.abspath(__file__))[0]
+this_file = os.path.realpath(__file__)  # follow any soft links
+this_file = os.path.abspath(this_file)
+this_dir = os.path.split(this_file)[0]
 parent_dir = os.path.split(this_dir)[0]
 sys.path.insert(0,parent_dir)
 

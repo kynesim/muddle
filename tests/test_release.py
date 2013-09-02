@@ -464,7 +464,7 @@ def check_program(d, path, progname, outname=None):
     fullname = d.join(fullpath, progname)
     if not os.path.exists(fullname):
         raise GiveUp('Program {0} does not exist'.format(fullname))
-    result = get_stdout(fullname)
+    result = run1(fullname, show_output=True)
     if result != 'Program {0}\n'.format(outname):
         raise GiveUp('Program {0} unexpectdly printed out "{1}"'.format(fullpath, result))
 

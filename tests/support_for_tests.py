@@ -54,10 +54,10 @@ except ImportError:
     import muddled.cmdline
 
 from muddled.utils import GiveUp, MuddleBug, ShellError
-from muddled.utils import shell as shell, run2
+from muddled.utils import shell, run1, run2, get_cmd_data
 
 export_names(['GiveUp', 'MuddleBug', 'ShellError'])
-export_names(['shell', 'run2'])
+export_names(['shell', 'run1', 'run2'])
 
 # We know (strongly assume!) that there should be a 'muddle' available
 # in the same directory as the 'muddled' package - we shall use that as
@@ -75,15 +75,7 @@ export_names(['MUDDLE_BINARY', 'MUDDLE_PATCH_COMMAND'])
 def get_stdout(cmd, verbose=True):
     """Run a command in the shell, and grab its (standard) output.
     """
-    if verbose:
-        print ">> %s"%cmd
-    p = subprocess.Popen(cmd, shell=True, stdout=subprocess.PIPE,
-                         stderr=subprocess.PIPE)
-    stdoutdata, stderrdata = p.communicate()
-    retcode = p.returncode
-    if retcode:
-        raise ShellError(cmd, retcode)
-    return stdoutdata
+    return get_cmd_data(cmd, show_command=verbose)
 
 @export
 def run_muddle_directly(args, verbose=True):

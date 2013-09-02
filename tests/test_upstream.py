@@ -781,7 +781,7 @@ Would pull checkout:co_repo1/checked_out from file://{root_dir}/repo/main/repo1.
     with Directory('src'):
         with Directory('co_repo1'):
             # None of that should have changed where *origin* points
-            text = get_stdout('git remote show origin')
+            text = run1('git remote show origin', show_output=True)
             check_text(text, """\
 * remote origin
   Fetch URL: file://{root_dir}/repo/main/repo1

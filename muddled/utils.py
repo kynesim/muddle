@@ -624,6 +624,8 @@ def shell(thing, env=None, show_command=True):
     If 'show_command' is true, then "> <thing>" will be printed out before
     running the command.
 
+    The output of the command will always be printed out as it runs.
+
     If the command returns a non-zero return code, then a ShellError will
     be raised, containing the returncode, the command string and any output
     that occurred.
@@ -662,7 +664,8 @@ def run0(thing, env=None, show_command=True, show_output=True):
     running the command.
 
     If 'show_output' is true, then the output of the command (both stdout and
-    stderr) will be printed out as the command runs.
+    stderr) will be printed out as the command runs. Note that this is the
+    default.
 
     If the command returns a non-zero return code, then a ShellError will
     be raised, containing the returncode, the command string and any output
@@ -672,8 +675,8 @@ def run0(thing, env=None, show_command=True, show_output=True):
     if rc != 0:
         raise ShellError(cmd=_stringify_cmd(thing), retcode=rc, output=output)
 
-def run1(thing, env=None, show_command=True, show_output=True):
-    """Run the command 'thing', returning the return code.
+def run1(thing, env=None, show_command=True, show_output=False):
+    """Run the command 'thing', returning its output.
 
     'thing' may be a string (e.g., "ls -l") or a sequence (e.g., ["ls", "-l"]).
     Internally, a string will be converted into a sequence before it is used.
@@ -689,15 +692,19 @@ def run1(thing, env=None, show_command=True, show_output=True):
     If 'show_output' is true, then the output of the command (both stdout and
     stderr) will be printed out as the command runs.
 
-    The output of the command (stdout and stderr) goes to the normal stdout
-    whilst the command is running.
+    If the command returns a non-zero return code, then a ShellError will
+    be raised, containing the returncode, the command string and any output
+    that occurred.
 
-    The command return is returned.
+    Otherwise, the command output (stdout and stderr combined) is returned.
     """
-    rc, text = run2(thing, env=env, show_command=show_command, show_output=show_output)
-    return rc
+    rc, output = run2(thing, env=env, show_command=show_command, show_output=show_output)
+    if rc == 0:
+        return output
+    else:
+        raise ShellError(cmd=_stringify_cmd(thing), retcode=rc, output=output)
 
-def run2(thing, env=None, show_command=True, show_output=True):
+def run2(thing, env=None, show_command=True, show_output=False):
     """Run the command 'thing', returning the return code and output.
 
     'thing' may be a string (e.g., "ls -l") or a sequence (e.g., ["ls", "-l"]).
@@ -733,7 +740,7 @@ def run2(thing, env=None, show_command=True, show_output=True):
     text = ''.join(text)
     return proc.returncode, text
 
-def run3(thing, env=None, show_command=True, show_output=True):
+def run3(thing, env=None, show_command=True, show_output=False):
     """Run the command 'thing', returning the return code, stdout and stderr.
 
     'thing' may be a string (e.g., "ls -l") or a sequence (e.g., ["ls", "-l"]).
@@ -835,6 +842,7 @@ def get_cmd_data(thing, env=None, show_command=False):
         return subprocess.check_output(thing, env=env)
     except subprocess.CalledProcessError as e:
         raise ShellError(_stringify_cmd(thing), e.returncode, e.output)
+
 # =============================================================================
 
 def page_text(progname, text):

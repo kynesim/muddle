@@ -113,8 +113,7 @@ def git_supports_ff_only():
     global g_supports_ff_only
 
     if (g_supports_ff_only is None):
-        retcode, stdout = utils.run2("git --version", show_command=False,
-                                     show_output=False)
+        retcode, stdout = utils.run2("git --version", show_command=False)
         version = stdout
         m = re.search(r' ([0-9]+)\.([a0-9]+)', version)
         if (int(m.group(1)) <= 1 and int(m.group(2)) <= 6):
@@ -130,8 +129,7 @@ def expand_revision(revision):
 
     Raises GiveUp if the revision appears non-existent or ambiguous
     """
-    rv, out = utils.run2('git rev-parse %s'%revision, show_command=False,
-                         show_output=False)
+    rv, out = utils.run2('git rev-parse %s'%revision, show_command=False)
     if rv:
         raise GiveUp('Revision "%s" is either non-existant or ambiguous'%revision)
     return out.strip()
@@ -205,11 +203,10 @@ class Git(VersionControlSystem):
         Raise an exception if there are (uncommitted) local changes or
         untracked files...
         """
-        retcode, text= utils.run2("git status --porcelain",
-                                  show_command=False, show_output=False)
+        retcode, text= utils.run2("git status --porcelain", show_command=False)
         if retcode == 129:
             print "Warning: Your git does not support --porcelain; you should upgrade it."
-            retcode, text = utils.run2("git status", show_command=False, show_output=False)
+            retcode, text = utils.run2("git status", show_command=False)
             if text.find("working directory clean") >= 0:
                 text = ''
 
@@ -293,7 +290,7 @@ class Git(VersionControlSystem):
         # This *does* mean there's a slight delay before the user sees the output,
         # though
         cmd = "git fetch %s"%upstream
-        rv, out = utils.run2(cmd, show_command=verbose, show_output=False)
+        rv, out = utils.run2(cmd, show_command=verbose)
         if rv:
             raise GiveUp('Error %d running "%s"\n%s'%(rv, cmd, out))
         else:
@@ -425,12 +422,10 @@ class Git(VersionControlSystem):
 
         Return status text or None if there is no interesting status.
         """
-        retcode, text = utils.run2("git status --porcelain",
-                                   show_command=False, show_output=False)
+        retcode, text = utils.run2("git status --porcelain", show_command=False)
         if retcode == 129:
             print "Warning: Your git does not support --porcelain; you should upgrade it."
-            retcode, text = utils.run2("git status",
-                                       show_command=False, show_output=False)
+            retcode, text = utils.run2("git status", show_command=False)
 
         detached_head = self._is_detached_HEAD()
 
@@ -455,17 +450,16 @@ class Git(VersionControlSystem):
         else:
             # First, find out what our HEAD actually is
             retcode, text = utils.run2("git rev-parse --symbolic-full-name HEAD",
-                                       show_command=False, show_output=False)
+                                       show_command=False)
             head_name = text.strip()
 
         # Now we can look up its SHA1, locally
         retcode, head_revision = utils.run2("git rev-parse %s"%head_name,
-                                            show_command=False, show_output=False)
+                                            show_command=False)
         local_head_ref = head_revision.strip()
 
         # So look up the remote equivalents...
-        retcode, text = utils.run2("git ls-remote",
-                                   show_command=False, show_output=False)
+        retcode, text = utils.run2("git ls-remote", show_command=False)
         lines = text.split('\n')
         if retcode:
             # Oh dear - something nasty happened
@@ -506,7 +500,7 @@ class Git(VersionControlSystem):
         need_to_set_url = False
         # Are there actually any values already stored for this remote?
         retcode, out = utils.run2("git config --get-regexp remote.%s.*"%remote_name,
-                                  show_command=False, show_output=False)
+                                  show_command=False)
         if retcode == 0:    # there were
             # Were the URLs OK?
             for line in out.split('\n'):
@@ -521,7 +515,7 @@ class Git(VersionControlSystem):
             if need_to_set_url:
                 # We don't want to do this unless it is necessary, because it
                 # will give an error if there is nothing for it to remove
-                rc = utils.run1(["git", "remote", "rm", remote_name], show_command=verbose)
+                utils.run0(["git", "remote", "rm", remote_name], show_command=verbose)
         else:               # there were not
             need_to_set_url = True
 
@@ -555,8 +549,7 @@ class Git(VersionControlSystem):
         This returns a "pretty" name for the revision, but only if there
         are annotated tags in its history.
         """
-        retcode, revision = utils.run2('git describe --long',
-                                       show_command=False, show_output=False)
+        retcode, revision = utils.run2('git describe --long', show_command=False)
         if retcode:
             if revision:
                 text = utils.indent(revision.strip(),'    ')
@@ -579,8 +572,7 @@ class Git(VersionControlSystem):
         Detect if the current checkout is 'detached HEAD'
         """
         # This is a documented usage of 'git symbolic-ref -q HEAD'
-        retcode, out = utils.run2('git symbolic-ref -q HEAD',
-                                  show_command=False, show_output=False)
+        retcode, out = utils.run2('git symbolic-ref -q HEAD', show_command=False)
         if retcode == 0:
             # HEAD is a symbolic reference - so not detached
             return False
@@ -601,8 +593,7 @@ class Git(VersionControlSystem):
 
         Returns None if we are not on a branch (e.g., a detached HEAD)
         """
-        retcode, out = utils.run2('git symbolic-ref -q HEAD',
-                                  show_command=False, show_output=False)
+        retcode, out = utils.run2('git symbolic-ref -q HEAD', show_command=False)
         if retcode == 0:
             out = out.strip()
             if out.startswith('refs/heads'):
@@ -630,8 +621,7 @@ class Git(VersionControlSystem):
         # name, we want the command to propagate 'sp ace' down as a single
         # word, so it gets reported with the appropriate error. Thus we need
         # to pass the command as a list.
-        retcode, out = utils.run2(['git', 'branch', branch],
-                                  show_command=verbose, show_output=False)
+        retcode, out = utils.run2(['git', 'branch', branch], show_command=verbose)
         if retcode:
             raise GiveUp('Error creating branch "%s": %s'%(branch, out))
 
@@ -648,8 +638,7 @@ class Git(VersionControlSystem):
         It is an error if the branch does not exist, in which case a GiveUp
         exception will be raised.
         """
-        retcode, out = utils.run2(['git', 'checkout', branch],
-                                  show_command=verbose, show_output=False)
+        retcode, out = utils.run2(['git', 'checkout', branch], show_command=verbose)
         if retcode:
             raise GiveUp('Error going to branch "%s": %s'%(branch, out))
 
@@ -693,8 +682,7 @@ class Git(VersionControlSystem):
 
         Will be called in the actual checkout's directory.
         """
-        retcode, out = utils.run2('git branch -a',
-                                  show_command=False, show_output=False)
+        retcode, out = utils.run2('git branch -a', show_command=False)
         if retcode:
             raise GiveUp('Error looking up existing branches: %s'%out)
 
@@ -714,8 +702,7 @@ class Git(VersionControlSystem):
         """
         This returns a bare SHA1 object name for the current HEAD
         """
-        retcode, revision = utils.run2('git rev-parse HEAD',
-                                       show_command=False, show_output=False)
+        retcode, revision = utils.run2('git rev-parse HEAD', show_command=False)
         if retcode:
             raise GiveUp("'git rev-parse HEAD' failed with return code %d"%retcode)
         return revision.strip()
@@ -730,7 +717,7 @@ class Git(VersionControlSystem):
         if before:
             print "git rev-list -n 1 --before='%s' HEAD"%before
             retcode, revision = utils.run2("git rev-list -n 1 --before='%s' HEAD"%before,
-                                           show_command=False, show_output=False)
+                                           show_command=False)
             print retcode, revision
             if retcode:
                 if revision:
@@ -742,8 +729,7 @@ class Git(VersionControlSystem):
                     " could not determine a revision id for checkout:"%(co_leaf, before)),
                     text))
         else:
-            retcode, revision = utils.run2('git rev-parse HEAD',
-                                           show_command=False, show_output=False)
+            retcode, revision = utils.run2('git rev-parse HEAD', show_command=False)
             if retcode:
                 if revision:
                     text = utils.indent(revision.strip(),'    ')

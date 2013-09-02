@@ -52,8 +52,7 @@ class Bazaar(VersionControlSystem):
     def _run2(self, cmd, env=None, verbose=False):
         """Run command, prune output, return return code and output.
         """
-        rc, output = utils.run2(cmd, env=env, show_command=verbose,
-                                show_output=False)
+        rc, output = utils.run2(cmd, env=env, show_command=verbose)
         return rc, self._prune_spurious_bzr_output(output)
 
     def _run1(self, cmd, env=None, verbose=False, fold_stderr=True):
@@ -62,11 +61,9 @@ class Bazaar(VersionControlSystem):
         If fold_stderr is False, then ignore any stderr output.
         """
         if fold_stderr:
-            rc, output = utils.run2(cmd, env=env, show_command=verbose,
-                                    show_output=False)
+            rc, output = utils.run2(cmd, env=env, show_command=verbose)
         else:
-            rc, output, errors = utils.run3(cmd, env=env, show_command=verbose,
-                                            show_output=False)
+            rc, output, errors = utils.run3(cmd, env=env, show_command=verbose)
         if rc:
             raise utils.ShellError(cmd, rc, output)
         else:

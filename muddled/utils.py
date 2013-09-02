@@ -570,6 +570,10 @@ def current_machine_name():
 # -----------------------------------------------------------------------------
 BUFSIZE=1024
 
+ick = None
+if not ick:
+    ick = open('/home/tibs/sw/ick.txt', 'a+')
+
 class ShellError(GiveUp):
     def __init__(self, cmd, retcode, output=None):
         self.cmd = cmd
@@ -643,7 +647,8 @@ def shell(thing, env=None, show_command=True):
     if not isinstance(thing, basestring):
         raise MuddleBug('Argument to shell() must be a string, not %r'%thing)
     if show_command:
-        print '> %s'%thing
+        sys.stdout.write('[shell]> %s\n'%thing)
+        ick.write('[shell]> %s\n'%thing) # XXX
     if env is None: # so, for instance, an empty dictionary is allowed
         env = os.environ
     try:
@@ -727,7 +732,9 @@ def run2(thing, env=None, show_command=True, show_output=False):
     """
     thing = _rationalise_cmd(thing)
     if show_command:
-        print '> %s'%_stringify_cmd(thing)
+        sys.stdout.write('> %s\n'%_stringify_cmd(thing))
+        sys.stdout.flush()
+        ick.write('> %s\n'%_stringify_cmd(thing)) # XXX
     if env is None: # so, for instance, an empty dictionary is allowed
         env = os.environ
     text = []
@@ -735,8 +742,11 @@ def run2(thing, env=None, show_command=True, show_output=False):
     for data in proc.stdout:
         if show_output:
             sys.stdout.write(data)
+            sys.stdout.flush()
+            ick.write(data) # XXX
         text.append(data)
     proc.wait()
+    sys.stdout.flush()
     text = ''.join(text)
     return proc.returncode, text
 
@@ -766,7 +776,8 @@ def run3(thing, env=None, show_command=True, show_output=False):
     """
     thing = _rationalise_cmd(thing)
     if show_command:
-        print '> %s'%_stringify_cmd(thing)
+        sys.stdout.write('> %s\n'%_stringify_cmd(thing))
+        ick.write('> %s\n'%_stringify_cmd(thing)) # XXX
     if env is None: # so, for instance, an empty dictionary is allowed
         env = os.environ
     all_stdout_text = []
@@ -797,6 +808,7 @@ def run3(thing, env=None, show_command=True, show_output=False):
             else:
                 if show_output:
                     sys.stdout.write(stdout_text)
+                    ick.write(stdout_text) # XXX
                 all_stdout_text.append(stdout_text)
         if proc.stderr in rlist:
             # Comment as above
@@ -806,6 +818,7 @@ def run3(thing, env=None, show_command=True, show_output=False):
             else:
                 if show_output:
                     sys.stderr.write(stderr_text)
+                    ick.write(stderr_text) # XXX
                 all_stderr_text.append(stderr_text)
     # Make sure proc.returncode gets set
     proc.wait()
@@ -835,7 +848,8 @@ def get_cmd_data(thing, env=None, show_command=False):
     """
     thing = _rationalise_cmd(thing)
     if show_command:
-        print '> %s'%_stringify_cmd(thing)
+        sys.stdout.write('> %s\n'%_stringify_cmd(thing))
+        ick.write('> %s\n'%_stringify_cmd(thing)) # XXX
     if env is None: # so, for instance, an empty dictionary is allowed
         env = os.environ
     try:

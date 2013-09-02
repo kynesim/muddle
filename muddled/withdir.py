@@ -6,6 +6,7 @@ uses muddle's MuddleBug exception instead of the withdir GiveUp.
 """
 
 import os
+import sys
 import shutil
 import tempfile
 
@@ -68,7 +69,7 @@ class Directory(object):
             os.environ['PWD'] = self.where
 
         if show_pushd:
-            print '++ pushd to %s'%self.where
+            sys.stdout.write('++ pushd to %s\n'%self.where)
 
     def join(self, *args):
         """Return ``os.path.join(self.where, *args)``.
@@ -85,7 +86,7 @@ class Directory(object):
                 del os.environ['PWD']
 
         if self.show_popd:
-            print '++ popd to  %s'%self.start
+            sys.stdout.write('++ popd to  %s\n'%self.start)
 
     def __enter__(self):
         return self
@@ -97,12 +98,12 @@ class Directory(object):
         else:
             # An exception occurred, so do any tidying up necessary
             if self.show_popd:
-                print '** Oops, an exception occurred - %s tidying up'%self.__class__.__name__
+                sys.stdout.write('** Oops, an exception occurred - %s tidying up\n'%self.__class__.__name__)
             # well, there isn't anything special to do, really
             if self.close_on_error:
                 self.close()
             if self.show_popd:
-                print '** ----------------------------------------------------------------------'
+                sys.stdout.write('** ----------------------------------------------------------------------\n')
             # And allow the exception to be re-raised
             return False
 
@@ -145,14 +146,14 @@ class NewDirectory(Directory):
             where = tempfile.mkdtemp()
             if show_dirops:     # Obviously, this is a bit of a bluff
                 # The extra spaces are to line up with 'pushd to'
-                print '++ mkdir    %s'%where
+                sys.stdout.write('++ mkdir    %s\n'%where)
         else:
             where = normalise_dir(where)
             if os.path.exists(where):
                 raise MuddleBug('Directory %s already exists'%where)
             if show_dirops:
                 # The extra spaces are to line up with 'pushd to'
-                print '++ mkdir    %s'%where
+                sys.stdout.write('++ mkdir    %s\n'%where)
             os.makedirs(where)
         super(NewDirectory, self).__init__(where, stay_on_error, show_pushd,
                                            show_popd, set_PWD)
@@ -213,7 +214,7 @@ class TransientDirectory(NewDirectory):
             if self.show_dirops:
                 # The extra space after 'rmtree' is so the directory name
                 # left aligns with any previous 'popd  to' message
-                print '++ rmtree   %s'%self.where
+                sys.stdout.write('++ rmtree   %s\n'%self.where)
             shutil.rmtree(self.where)
 
     def __exit__(self, etype, value, tb):
@@ -223,11 +224,11 @@ class TransientDirectory(NewDirectory):
         else:
             # An exception occurred, so do any tidying up necessary
             if self.show_popd:
-                print '** Oops, an exception occurred - %s tidying up'%self.__class__.__name__
+                sys.stdout.write('** Oops, an exception occurred - %s tidying up\n'%self.__class__.__name__)
             if self.close_on_error:
                 self.close(self.rmtree_on_error)
             if self.show_popd:
-                print '** ----------------------------------------------------------------------'
+                sys.stdout.write('** ----------------------------------------------------------------------\n')
             # And allow the exception to be re-raised
             return False
 

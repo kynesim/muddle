@@ -5157,7 +5157,8 @@ class Distribute(CPDCommand):
         deploy.with_build_tree(builder, current_dir, fragments)
         os.makedirs(target_dir)
         utils.copy_without(os.path.join(builder.db.root_path, 'deploy'),
-                           os.path.join(target_dir, 'deploy'))
+                           os.path.join(target_dir, 'deploy'),
+                           preserve=True)   # definitely want to preserve executable flag
         stamper = StampSave()
         stamper.with_build_tree(builder, current_dir,
                                 [os.path.join(target_dir, '%s.stamp'%(builder.build_name))])

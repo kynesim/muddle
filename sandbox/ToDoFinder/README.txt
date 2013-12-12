@@ -47,7 +47,7 @@ appropriate error message.
 
 Usage
 -----
-Simpy copy both ``pre-commit`` and ``FullCheckNames.py`` into ``.git/hooks/``
+Simply copy both ``pre-commit`` and ``FullCheckNames.py`` into ``.git/hooks/``
 and make sure they are executable (``chmod +x``).
 
 The default is to just report TODO messages [2]_, but to fail if there are

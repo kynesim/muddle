@@ -14,22 +14,23 @@ cd $thisdir/../..
 # because they are staged (have been "git add"ed) and are
 # not being deleted (or a couple of other oddities)
 gdiff='git diff --name-only --cached --diff-filter=ATCMRU'
-${gdiff}
-${gdiff}  -z | xargs -0 ./${thisdir}/FullCheckNames.py
+#${gdiff}
+${gdiff}  -z | ./${thisdir}/FullCheckNames.py --git
 retcode=$?
+echo "Returned $retcode"
 
 if [ $retcode == 0 ]
 then
   echo Success, no problems
-elif [ $retcode == 124 ]
+elif [ $retcode == 8 ]
 then
   echo Found some TODO comments
   # If you want that to be an error, then add an "exit 1" line below this line
-elif [ $retcode == 126 ]
+elif [ $retcode == 4 ]
 then
   echo Found some '//==' errors
   exit 1
-elif [ $retcode == 123 ]
+elif [ $retcode == 2 ]
 then
   echo Found unfinished comments
   exit 1

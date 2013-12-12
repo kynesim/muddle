@@ -16,23 +16,88 @@ fileList = []
 a = -1
 fileTypes = [".c", ".h", ".cpp"]  # If other file types must be added then add them here
 
+# The first version of this was run via a shell script using xargs to pass
+# file argument to us. This limits what we can return as an exit code - the
+# xargs man page says:
+#
+#    xargs exits with the following status:
+#    0 if it succeeds
+#    123 if any invocation of the command exited with status 1-125
+#    124 if the command exited with status 255
+#    125 if the command is killed by a signal
+#    126 if the command cannot be run
+#    127 if the command is not found
+#    1 if some other error occurred.
+#
+# but in fact exiting with 255 also outputs an error message, which it
+# doesn't seem possible to suppress.
+#
+# Unfortunately, GNU xargs appears to return:
+#
+#    126 -> 126
+#    127 -> 127
+#    128..254 -> 123
+#
+# and there's no way to get 1. So that's not really enough to let us know
+# what happened.
+#
+# The solution is to allow this program to read filenames separated by
+# '\0' bytes (as produced by "git diff -z") directly from stdin.
+
+# The following is taken from http://bugs.python.org/issue1152248#msg109117,
+# which is a (long) discussion on making it easy to do this in Python
+def fileLineIter(inputFile,
+                 inputNewline="\n",
+                 outputNewline=None,
+                 readSize=8192):
+   """Like the normal file iter but you can set what string indicates newline.
+
+   The newline string can be arbitrarily long; it need not be restricted to a
+   single character. You can also set the read size and control whether or not
+   the newline string is left on the end of the iterated lines.  Setting
+   newline to '\0' is particularly good for use with an input file created with
+   something like "os.popen('find -print0')".
+   """
+   if outputNewline is None: outputNewline = inputNewline
+   partialLine = ''
+   while True:
+       charsJustRead = inputFile.read(readSize)
+       if not charsJustRead: break
+       partialLine += charsJustRead
+       lines = partialLine.split(inputNewline)
+       partialLine = lines.pop()
+       for line in lines: yield line + outputNewline
+   if partialLine: yield partialLine
 
 def checkIsFile():
-    for root, dirs, files in os.walk(os.path.join(".")):
-        fileList = []
-        for lump in args.f:
-            if "/" in lump:
-                slash = lump.rfind("/")
-                lump = lump[slash+1:]
-            if lump in dirs:
-                startup(os.path.join(root, lump))
-                commentFind(os.path.join(root, lump))
-            if lump in files:
-                fileList.append(lump)
-                commentFind2(root, files, -1)
-        if fileList != []:
-            findLineNumbers(root, fileList)
-    return output()
+    if args.git:
+        # We expect to have been given specific files relative to the
+        # current directory
+        filenames = []
+        for name in fileLineIter(sys.stdin, '\0'):
+            if name[-1] == '\0':
+                filenames.append(name[:-1])
+            else:
+                filenames.append(name)
+        print 'XXX', filenames
+        findLineNumbers('.', filenames)
+        return output()
+    else:
+        for root, dirs, files in os.walk(os.path.join(".")):
+            fileList = []
+            for lump in args.f:
+                if "/" in lump:
+                    slash = lump.rfind("/")
+                    lump = lump[slash+1:]
+                if lump in dirs:
+                    startup(os.path.join(root, lump))
+                    commentFind(os.path.join(root, lump))
+                if lump in files:
+                    fileList.append(lump)
+                    commentFind2(root, files, -1)
+            if fileList != []:
+                findLineNumbers(root, fileList)
+        return output()
 
 
 def startup(directory):
@@ -194,11 +259,11 @@ def output():
         for x in range(0, len(commentList)):
             print "There is an un-finished comment on line "+str(commentList[x][2])+" in file "+str(commentList[x][1])
     if commentList != []:
-        return 1
+        return 2
     if johnsList != []:
-        return 126
+        return 4
     if listTodo != []:
-        return 255
+        return 8
 
 notInUse = '''\
 def function(directory, x="all"):  # Allows you to specify directory and choose what you want said directory checked for
@@ -214,15 +279,11 @@ import argparse
 parser = argparse.ArgumentParser()
 parser.add_argument("f", help="The files/directorys to be searched",  # Specify the directory from the cmd.
                     type=str, nargs='*')
+parser.add_argument("--git", help="Set if the files are specified by the ToDoFinder git pre-commit hook", nargs='?', const=True, default=False)
 parser.add_argument("--xxx", help="The type of thing to search for",   # Specify what you are searching for from
                     choices=["all", "comment", "todo"], default="all")  # within the cmd.
 
-#parser.add_argument("--fileType", help="file extensions of files you wish to have read aside from .c, .h and .cpp /"
-#                                       "Must be a list", type=list)
 args = parser.parse_args()
-#if args.fileType != []:
-#    for x in range(0,len(args.fileType)):  # Allows you to add more accepted file types from the cmd
-#        fileTypes.append(args.fileType[x])
 
 
 if __name__ == "__main__":

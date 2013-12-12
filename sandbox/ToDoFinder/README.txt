@@ -50,12 +50,22 @@ Installation
 The provided ``install.py`` script can be used to install the pre-commit
 hook and its associated Python script. See ``./install.py -help``.
 
+If you run it with '-n' then it will tell you what it would do, but not do it
+- I highly recommend doing this before actually letting it install files.
+
 Basically, use as::
 
   ./install.py  <target-dir>
 
 where the <target-dir> is the top-level of a git tree that does not already
-have a pre-commit hook installed. More than one <target-dir> can be specified.
+have a pre-commit hook installed. More than one <target-dir> can be specified,
+or::
+
+  ./install.py -muddle [<root-of-muddle-tree>]
+
+*Beware* that it strongly expects to be run as a file within the
+sandbox/ToDoFinder directory, as it looks two directories up for the "muddle"
+command.
 
 Usage
 -----

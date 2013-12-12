@@ -45,6 +45,18 @@ Unterminated comments
 If the program can't find the end of a comment, then it will fail with an
 appropriate error message.
 
+Installation
+------------
+The provided ``install.py`` script can be used to install the pre-commit
+hook and its associated Python script. See ``./install.py -help``.
+
+Basically, use as::
+
+  ./install.py  <target-dir>
+
+where the <target-dir> is the top-level of a git tree that does not already
+have a pre-commit hook installed. More than one <target-dir> can be specified.
+
 Usage
 -----
 Simply copy both ``pre-commit`` and ``FullCheckNames.py`` into ``.git/hooks/``

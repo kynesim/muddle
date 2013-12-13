@@ -37,6 +37,7 @@ from muddled.utils import GiveUp, MuddleBug, LabelTag, LabelType, \
 from muddled.version_control import get_vcs_instance, vcs_special_files
 from muddled.mechanics import build_co_and_path_from_str
 from muddled.pkgs.make import MakeBuilder, deduce_makefile_name
+from muddled.pkgs.aptget import AptGetBuilder
 from muddled.licenses import get_gpl_checkouts, get_implicit_gpl_checkouts, \
         get_open_checkouts, get_binary_checkouts, get_prop_source_checkouts, \
         checkout_license_allowed, report_license_clashes, get_license, \
@@ -811,8 +812,15 @@ def distribute_package(builder, name, label, obj=False, install=True,
             rule = builder.ruleset.rule_for_target(tmp_label)
             # Shall we assume it is a MakeBuilder? Let's not
             action = rule.action
+
+            # If this is an aptget action, then there is no Makefile.muddle,
+            # and also no install/<role> directory
+            if isinstance(rule.action, AptGetBuilder):
+                continue
+
             if not isinstance(action, MakeBuilder):
-                raise GiveUp('Tried to get MakeBuilder action for %s, got %s'%(pkg_label, action))
+                raise GiveUp('Tried to get MakeBuilder action'
+                             ' for %s, got %s'%(pkg_label, action))
 
             makefile_name = deduce_makefile_name(action.makefile_name,
                                                  action.per_role_makefiles,
@@ -1132,19 +1140,26 @@ def _actually_distribute_install(builder, label, target_dir):
     # works on "real" labels), so we shall get install/<role>.
     install_dir = builder.package_install_path(label)
 
-    root_path = normalise_dir(builder.db.root_path)
-    rel_install_dir = os.path.relpath(normalise_dir(install_dir), root_path)
-    tgt_install_dir = os.path.join(target_dir, rel_install_dir)
-    tgt_install_dir = normalise_dir(tgt_install_dir)
+    # For some packages, there is no installation directory.
+    # The obvious example is something like::
+    #
+    #    aptget.medium(builder, "aptget-pkg", "aptget-role", [...], [...])
+    #
+    # which does not actually create the directory install/aptget-role/aptget-pkg
+    if os.path.exists(install_dir):
+        root_path = normalise_dir(builder.db.root_path)
+        rel_install_dir = os.path.relpath(normalise_dir(install_dir), root_path)
+        tgt_install_dir = os.path.join(target_dir, rel_install_dir)
+        tgt_install_dir = normalise_dir(tgt_install_dir)
 
-    # If the target install directory already exists, we assume that some
-    # previous package has already copied its content (since the content
-    # is per-role, not per-package)
-    if not os.path.exists(tgt_install_dir):
-        if DEBUG:
-            print 'and from %s'%install_dir
-            print '      to %s'%tgt_install_dir
-        copy_without(install_dir, tgt_install_dir, preserve=True, verbose=VERBOSE)
+        # If the target install directory already exists, we assume that some
+        # previous package has already copied its content (since the content
+        # is per-role, not per-package)
+        if not os.path.exists(tgt_install_dir):
+            if DEBUG:
+                print 'and from %s'%install_dir
+                print '      to %s'%tgt_install_dir
+            copy_without(install_dir, tgt_install_dir, preserve=True, verbose=VERBOSE)
 
     # Set the appropriate package tags
     _set_package_tags(builder, label, target_dir,

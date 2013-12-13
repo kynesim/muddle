@@ -264,7 +264,8 @@ problems with not building entirely from scratch. In particular:
   directory, then the build tree may not be as clean as one thought (this is
   why we strongly recommend out-of-tree building for all packages).
 
-* If there are any shallow checkouts (typically specified in the build
+* *In older versions of muddle*:
+  If there are any shallow checkouts (typically specified in the build
   description as follows::
 
     pkg.set_checkout_vcs_option(builder, Label('checkout', 'kernel-source'),

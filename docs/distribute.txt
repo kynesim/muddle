@@ -65,6 +65,12 @@ a manner that something useful can be built.
    of its operation, and especially of the ``-no-muddle-makefile`` and
    ``-copy-vcs`` switches, may change.
 
+.. note:: The ``muddle distribute _deployment`` command is bundled as part of
+   ``muddle distribute``, but works rather differently, and does not
+   distribute any part of the source tree. See `Deployment distribution`_
+   below.
+
+
 What is a distribution?
 =======================
 A distribution is two things:
@@ -238,6 +244,53 @@ also distribute the ``versions`` directory, if it exists.
 Also, if ``-with-vcs`` is specified, the VCS "special" files for the build
 descriptions and the ``versions`` directory (if distributed) will also be
 included.
+
+Deployment distribution
+=======================
+Sometimes, a customer just wants the content of the ``deploy/`` directory.
+This can happen because they are not set up to deal with muddle, or because
+they really want to have just the results of a build, quickly.
+
+In some situations, it would then be sufficient just to zip up the ``deploy/``
+directory directly, and give that to the customer, but it is better practice
+to also include a stamp file indicating the status of the source tree from
+which the deployment was generated, and also some indication of what command
+was used to build the distribution.
+
+Thus ``muddle distribute _deployment`` is provided as a special case. It does
+not work with the same mechanisms as the other distribute commands (which, in
+particular, means that none of the switches are relevant). Instead::
+
+  muddle distribute _deployment <target_directory> <labels>
+
+acts more or less as if the user had done:
+
+* ``muddle deploy <labels>``
+* ``mkdir -p <target_directory>``
+* ``cp -a deploy <target_directory>``
+* ``muddle stamp save <target_directory>/`muddle query name`.stamp``
+* ``cat "muddle distribute _deployment <target_directory> <labels>" > <target_directory>/MANIFEST.txt``
+
+This results in a ``<target_directory>`` which contains:
+
+1. A copy of the ``deploy`` directory
+2. A version stamp
+3. A MANIFEST.txt file, reproducing the command line used
+
+which the command user can then zip or tar up as appropriate.
+
+.. note:: It is recommended that the user ensures that the ``deploy``
+   directory is created from scratch (so it doesn't have any previous build
+   artefacts left in it). The recommended way is either to make a new ``muddle
+   init`` in a clean directory, or to do a ``muddle veryclean``, before using
+   this command.
+
+So, for instance::
+
+     $ muddle veryclean
+     $ muddle distribute _deployment ../deploy-20130902 _all
+     $ cd ..
+     $ tar -zcf deploy-20130902.tgz deploy-20130902
 
 Filtering the labels distributed
 ================================
@@ -1393,18 +1446,5 @@ but, unfortunately::
       Directory /home/tibs/sw/m3/tests/transient/binary/src/main_co does not exist
 
 so we've now lost our "built" tags. Oh well. At least it told us.
-
-Why aren't deployments distributed?
------------------------------------
-We deliberately do not address distribution of the ``deploy`` directory.
-
-Deployments are already their own distribution mechanism - if a user wants to
-distribute some or all of a deployment, then this has normally been addressed
-outside the build tree. Also, just copying the ``deploy`` directory (with
-``cp`` or ``tar`` or whatever) is a perfectly appropriate thing to do.
-
-(muddle strongly encourages creation of the ``deploy`` directory content in a
-way that means it does not have trailing dependencies back into the rest of
-the build tree.)
 
 .. vim: set filetype=rst tabstop=8 softtabstop=2 shiftwidth=2 expandtab:

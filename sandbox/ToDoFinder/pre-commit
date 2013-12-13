@@ -1,0 +1,41 @@
+#!/bin/bash
+#
+# This is a git pre-commit hook.
+#
+# As such, copy it into the .git/hooks dirctory, and ensure that it is
+# executable (chmod +x)
+
+# Redirect output to stderr
+exec 1>&2
+thisdir=`dirname $0`
+# Put ourselves at the top of the working tree
+cd $thisdir/../..
+# Look for the names of those files which will be committed
+# because they are staged (have been "git add"ed) and are
+# not being deleted (or a couple of other oddities)
+gdiff='git diff --name-only --cached --diff-filter=ATCMRU'
+#${gdiff}
+${gdiff}  -z | ./${thisdir}/FullCheckNames.py --git
+retcode=$?
+echo "Returned $retcode"
+
+if [ $retcode == 0 ]
+then
+  echo Success, no problems
+elif [ $retcode == 8 ]
+then
+  echo Found some TODO comments
+  # If you want that to be an error, then add an "exit 1" line below this line
+elif [ $retcode == 4 ]
+then
+  echo Found some '//==' errors
+  exit 1
+elif [ $retcode == 2 ]
+then
+  echo Found unfinished comments
+  exit 1
+else
+  echo Something else is wrong
+  exit 1
+fi
+

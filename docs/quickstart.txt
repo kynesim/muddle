@@ -35,6 +35,7 @@ To *use* muddle, you can then either:
 
 1. just type ``~/sw/muddle/muddle`` - this is the simplest thing to do,
    but the longest to type.
+
 2. add an alias to your ``.bashrc`` or equivalent::
 
       alias muddle="${HOME}/sw/muddle/muddle"
@@ -42,6 +43,11 @@ To *use* muddle, you can then either:
 3. add ``~/sw/muddle`` to your PATH::
 
       export PATH=${PATH}:${HOME}/sw/muddle
+
+4. add a link - for instance, if you have ``~/bin`` on your path, do::
+
+     cd ~/bin
+     ln -s ~/sw/muddle/muddle .
 
 Personally, I use the second option, but all are sensible.
 

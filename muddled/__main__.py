@@ -19,13 +19,15 @@ import traceback
 # hack.
 #
 # TODO: work out a better way to do it!
-this_dir = os.path.split(os.path.abspath(__file__))[0]
+this_file = os.path.realpath(__file__)  # follow any soft links
+this_file = os.path.abspath(this_file)
+this_dir = os.path.split(this_file)[0]
 parent_dir = os.path.split(this_dir)[0]
 sys.path.insert(0,parent_dir)
 
 try:
     import muddled.cmdline
-    from muddled.utils import MuddleBug, GiveUp, ShellError
+    from muddled.utils import MuddleBug, GiveUp, ShellError, normalise_dir
 except ImportError:
     # Hah - maybe we're being run throught the 'muddle' soft link
     # from the same directory that contains the muddled/ package,
@@ -33,11 +35,11 @@ except ImportError:
     # to nothing - ho hum). So try:
     sys.path = [this_dir] + sys.path[1:]
     import muddled.cmdline
-    from muddled.utils import MuddleBug, GiveUp, ShellError
+    from muddled.utils import MuddleBug, GiveUp, ShellError, normalise_dir
 
 if __name__ == "__main__":
     try:
-        muddle_binary = __file__
+        muddle_binary = normalise_dir(__file__)
         muddled.cmdline.cmdline(sys.argv[1:], muddle_binary)
         sys.exit(0)
     except MuddleBug, e:

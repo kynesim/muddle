@@ -11,6 +11,12 @@ import os
 import sys
 import traceback
 
+# This is a bit draconian, but it really doesn't work with 2.6 or 3.x
+if sys.version_info.major != 2 or sys.version_info.minor < 7:
+    print("Muddle currently requires Python 2.7, not %d.%d.%d"%(sys.version_info.major,
+        sys.version_info.minor, sys.version_info.micro))
+    sys.exit(1)
+
 # Perform a nasty trick to enable us to import the package
 # that we are within. Unfortunately, if we're run via
 # 'python <this-directory>', then Python doesn't seem to
@@ -42,14 +48,14 @@ if __name__ == "__main__":
         muddle_binary = normalise_dir(__file__)
         muddled.cmdline.cmdline(sys.argv[1:], muddle_binary)
         sys.exit(0)
-    except MuddleBug, e:
-        print
-        print "%s"%e
+    except MuddleBug as e:
+        print()
+        print("%s"%e)
         traceback.print_exc()
         sys.exit(e.retcode)
     except GiveUp as e:
-        print
+        print()
         text = str(e)
         if text:
-            print text
+            print(text)
         sys.exit(e.retcode)

@@ -348,8 +348,8 @@ def check_cmd(command, expected='', unsure=False):
             if line0 == wanted:
                 return
             else:
-                raise GiveUp('Wanted "{0}" but got "{1} and'
-                             ' retcode {2}"'.format(wanted, line0, retcode))
+                raise GiveUp('Wanted "{0}" but got "{1}" and'
+                             ' retcode {2}'.format(wanted, line0, retcode))
         else:
             raise GiveUp('Expecting failure and "{0}",'
                          ' got "{1}"'.format(wanted, line0))

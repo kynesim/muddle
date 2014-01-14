@@ -49,12 +49,12 @@ if __name__ == "__main__":
         muddled.cmdline.cmdline(sys.argv[1:], muddle_binary)
         sys.exit(0)
     except MuddleBug as e:
-        print()
+        print("")
         print("%s"%e)
         traceback.print_exc()
         sys.exit(e.retcode)
     except GiveUp as e:
-        print()
+        print("")
         text = str(e)
         if text:
             print(text)

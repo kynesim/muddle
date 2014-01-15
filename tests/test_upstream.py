@@ -547,14 +547,14 @@ def test_builds_ok_upstream_1(root):
         text = captured_muddle(['query', 'upstream-repos'])
         check_text_endswith(text, """\
 > Upstream repositories ..
-Repository('git', 'http://example.com', 'repoFred')
-    Repository('git', 'http://example.com', 'repoFred-upstream')  abacus
 Repository('git', 'file://{root_dir}/repo/main', 'repo1') used by checkout:co_repo1/*, checkout:(subdomain_ok_upstream_1)co_repo1/*
     Repository('git', 'file://{root_dir}/repo/main', 'repo1.1')  rhubarb, wombat
     Repository('git', 'file://{root_dir}/repo/main', 'repo1.2', push=False)  insignificance, wombat
     Repository('git', 'file://{root_dir}/repo/main', 'repo1.3', pull=False)  platypus, rhubarb
 Repository('git', 'http://example.com', 'repo99')
     Repository('git', 'http://example.com', 'repo99-upstream')  abacus
+Repository('git', 'http://example.com', 'repoFred')
+    Repository('git', 'http://example.com', 'repoFred-upstream')  abacus
 """.format(root_dir=root.where))
 
 

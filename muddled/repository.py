@@ -335,9 +335,9 @@ class Repository(object):
         """We need this if we're to be sorted, which can be nice when printing.
         """
         for this, that in zip(self._comparables(), other._comparables()):
-            if this >= that:
-                return False
-        return True
+            if this != that:
+                return this < that
+        return False
 
     def _comparables(self):
         """What we use to identify ourself...

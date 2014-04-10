@@ -1,0 +1,42 @@
+=============================================
+Muddle and weld - how to use muddle with weld
+=============================================
+
+Muddle's normal workflow involves having one checkout per package. But
+sometimes, particularly in complex systems with limited sharing, you
+will want to store all your software in a single git repository so
+that bug fixes that cross packages are easier to track.
+
+Under these circumstances you can use a tool called weld, written
+by some of the same people who wrote muddle - 
+http://code.google.com/p/weld .
+
+Weld is essentially an automated tool for managing vendor branches
+in git.
+
+Muddle provides some limited facilities to allow the git repositories
+created by weld (known as welds) to be built using muddle.
+
+If you are interested in using weld, now is a good time to go and read
+the documentation that comes with weld.
+
+It does this by registering a special version control system called weld,
+which is always up to date. In future, muddle may well provide the ability
+to generate weld specifications from its build description or vice versa
+but for now, the build description and the weld specification are 
+separate entities.
+
+To use muddle with weld:
+
+1. Check out the weld as usual using git, into say, ``mydir``.
+2. Create a .muddle directory using ``cd mydir; muddle init weld+ssh://some/origin builds/01.py`` - assuming that your builds are in ``mydir/src/builds`` and that you want to use build description ``01.py``
+3. Use muddle as normal
+
+You will be unable to use the muddle revision control commands
+(``muddle push``, ``muddle pull`` etc.); this is in keeping with the
+weld idiom that you should use git commands to accomplish version
+control in welds and just use weld for vendor branch management.
+
+.. vim: set filetype=rst tabstop=8 softtabstop=2 shiftwidth=2 expandtab:
+
+

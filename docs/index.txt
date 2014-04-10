@@ -15,6 +15,7 @@ Contents:
    welcome
    muddle-dirs
    workflows
+   weld
    cmdline
    repositories
    instructions

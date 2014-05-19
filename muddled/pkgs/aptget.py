@@ -39,6 +39,9 @@ class AptGetBuilder(pkg.PackageBuilder):
 
           See utils.Choice for details on the Choice class.
 
+          Note that a choice resulting in None (i.e., where the default value
+          is None, and the default is selected) will not do anything.
+
           If 'os_version' is given, then it will be used as the version name,
           otherwise the result of calling utils.get_os_version_name() will be
           used.

@@ -1785,11 +1785,11 @@ class Choice(object):
               choice = Choice("libxml-dev2")
               assert choice.choose('any string at all') == 'libxml-dev2)
 
-        * a sequence of the form [ (pattern, value), ... ], that is a sequence
+        * a sequence of the form [ (pattern, value), ... ]; that is a sequence
           of one or more '(pattern, value)' pairs, where each 'pattern' is an
           fnmatch pattern (see below) and each 'value' is a string.
 
-          The patterns are compare to 'what_to_match' in turn, and if one
+          The patterns are compared to 'what_to_match' in turn, and if one
           matches, the corresponding 'value' is returned. If none match, a
           ValueError is raised.
 
@@ -1802,14 +1802,14 @@ class Choice(object):
               except ValueError:
                   print 'No package matched OS %s'%get_os_version_name()
 
-        * a sequence of the form [ (pattern, value), ..., default ], that is
+        * a sequence of the form [ (pattern, value), ..., default ]; that is
           a sequence of one or more pairs (as above), with a final "default"
           value, which must be a string or None.
 
-          The patterns are compare to 'what_to_match' in turn, and if one
+          The patterns are compared to 'what_to_match' in turn, and if one
           matches, the corresponding 'value' is returned. If none match, the
-          final default value is returned, presumably indicating that there
-          was no good choice.
+          final default value is returned. None is allowed so the caller can
+          easily tell that no choice was actually made.
 
               choice = Choice([ ('ubuntu-12.*', 'package-v12'),
                                 ('ubuntu-1?.*', 'package-v10'),
@@ -1824,18 +1824,21 @@ class Choice(object):
               if match is None:
                   return            # We know there was no given value
 
-        * as a result of the previous, we also allow [ default ], although
+        * as a result of the previous, we also allow [default], although
           [None] is of questionable utility.
 
               choice = Choice(["libxml-dev2"])
+              assert choice.choose('any string at all') == 'libxml-dev2)
+
               choice = Choice(["None"])
+              assert choice.choose('any string at all') is None
 
           (although that latter is the only way of "forcing" a Choice that
           will always return None, if you did need such a thing...)
 
     Why not just use a list of pairs (possibly with a default string at the
     end, essentially just what we pass to Choice)? Well, it turns out that
-    if you then want to do something like::
+    if you want to do something like::
 
         pkgs.apt_get(["fromble1",
                       Choice([ ('ubuntu-12.*', 'fromble'),
@@ -1848,10 +1851,10 @@ class Choice(object):
                       "libxml-dev2",
                     ])
 
-    it is (a) really hard to get it right as a user, and (b) terribly hard
-    to give useful error messages when the user doesn't get it right. There
-    are alreay enough brackets of various sorts, and if we don't have the
-    "Choice" delimiters, it just gets harder to keep track.
+    it is (a) really hard to type it right if it is just nested sequences, and
+    (b) terribly hard to give useful error messages when the user doesn't get
+    it right. There are already enough brackets of various sorts, and if we
+    don't have the "Choice" delimiters, it just gets harder to keep track.
     """
 
     def __init__(self, choices):

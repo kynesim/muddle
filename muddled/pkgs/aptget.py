@@ -37,7 +37,7 @@ class AptGetBuilder(pkg.PackageBuilder):
         * a Choice allowing a particular package to be selected according to
           the operating system.
 
-          See utils.Choice for details on the Choice class.
+          See "muddle doc Choice" for details on the Choice class.
 
           Note that a choice resulting in None (i.e., where the default value
           is None, and the default is selected) will not do anything.
@@ -142,13 +142,15 @@ def simple(builder, name, role, apt_pkgs, os_version=None):
     """
     Construct an apt-get package in the given role with the given apt_pkgs.
 
-    Note that apt_pkgs can be an OS package name or a choices sequence - see
-    the documentation for AptGetBuilder.
+    Note that apt_pkgs can be an OS package name or a Choice - see
+    the documentation for AptGetBuilder for more details.
 
     For instance (note: not a real example - the dependencies don't make
     sense!)::
 
-        aptget(builder, "host_packages", "host_environment",
+        from muddled.utils import Choice
+        from muddled.pkgs import aptget
+        aptget.simple(builder, "host_packages", "host_environment",
                [
                "gcc-multilib",
                "g++-multilib",

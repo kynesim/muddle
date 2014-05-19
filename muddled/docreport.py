@@ -203,7 +203,7 @@ def report_on_item_ourselves(name, value):
         lines.extend(report__doc__(value))
         lines.append('')
         lines.append(wrapargs('METHOD %s.__init__%s'%(name, formatargspec(*getargspec(value.__init__)))))
-        lines.extend(report__doc__(value))
+        lines.extend(report__doc__(value.__init__))
         lines.append('')
         lines.extend(describe_contents(name, value))
     elif ismodule(value):

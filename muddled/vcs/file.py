@@ -92,7 +92,7 @@ class File(VersionControlSystem):
         # See the comment in 'pull()' above
         return True
 
-    def commit(self, repo, options, verbose=True):
+    def commit(self, repo, options, verbose=True, quick = False):
         """
         Will be called in the actual checkout's directory.
         """
@@ -106,7 +106,7 @@ class File(VersionControlSystem):
         """
         pass
 
-    def status(self, repo, options, branch=None):
+    def status(self, repo, options, branch=None, quick=None):
         """Status is not supported for 'file'.
 
         Just report 'nothing important has happened'.

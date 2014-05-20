@@ -98,7 +98,7 @@ class VersionControlSystem(object):
         """
         pass
 
-    def status(self, repo, options):
+    def status(self, repo, options, quick=False):
         """
         Will be called in the actual checkout's directory.
 
@@ -520,7 +520,7 @@ class VersionControlHandler(object):
             raise GiveUp('Failure pushing %s in %s:\n%s'%(co_label,
                          builder.db.get_checkout_location(co_label), err))
 
-    def status(self, builder, co_label, verbose=False):
+    def status(self, builder, co_label, verbose=False, quick=False):
         """
         Report on the status of the checkout, in a VCS-appropriate manner
 
@@ -549,7 +549,7 @@ class VersionControlHandler(object):
             # If we try to go to a directory that doesn't exist, then
             # Directory will raise GiveUp with an explanatory message
             with Directory(builder.db.get_checkout_path(co_label), show_pushd=False):
-                status_text = self.vcs.status(repo, options)
+                status_text = self.vcs.status(repo, options, quick=quick)
                 if status_text:
                     full_text = '%s status for %s in %s:\n%s'%(self.vcs.short_name,
                                                  co_label,

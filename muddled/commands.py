@@ -6169,7 +6169,7 @@ class Merge(CheckoutCommand):
 @command('status', CAT_CHECKOUT)
 class Status(CheckoutCommand):
     """
-    :Syntax: muddle status [-v] [-j] [ <checkout> ... ]
+    :Syntax: muddle status [-v] [-j] [-quick] [ <checkout> ... ]
 
     Report on the status of checkouts that need attention.
 
@@ -6202,11 +6202,19 @@ class Status(CheckoutCommand):
 
     At the end, if any checkouts need attention, their names are reported.
     With '-j', print them all on one line, separated by spaces.
+
+    The '-quick' switch tells muddle not to make any (potentially slow) queries
+    across the network, and is only supported for "git". It will only look at
+    the local information it already has, which means that the information it
+    can gives depends upon whatever was last fetched into the local repository.
+    It can typically inform you if there are local updates to be pushed, but
+    will not (cannot) warn you if there are commits to be pulled.
     """
 
     required_tag = LabelTag.CheckedOut
     allowed_switches = {'-v': 'verbose',
                         '-j': 'join',
+                        '-quick' : 'quick'
                        }
 
     # This checkout command *is* allowed in a release build
@@ -6222,6 +6230,7 @@ class Status(CheckoutCommand):
 
         verbose = ('verbose' in self.switches)
         joined = ('join' in self.switches)
+        quick = ('quick' in self.switches)
 
         something = []
         for co in labels:
@@ -6239,7 +6248,7 @@ class Status(CheckoutCommand):
                 continue
 
             try:
-                text = vcs_handler.status(builder, co, verbose)
+                text = vcs_handler.status(builder, co, verbose, quick=quick)
             except MuddleBug as err:
                 raise MuddleBug('Giving up in %s because:\n%s'%(co,err))
             except GiveUp as err:

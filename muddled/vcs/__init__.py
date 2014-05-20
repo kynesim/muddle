@@ -7,4 +7,4 @@ import muddled.vcs.bazaar
 import muddled.vcs.file
 import muddled.vcs.git
 import muddled.vcs.svn
-
+import muddled.vcs.weld

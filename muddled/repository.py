@@ -7,12 +7,15 @@ import os
 import posixpath
 import re
 
+from functools import total_ordering
+
 from urlparse import urlparse, urljoin, urlunparse
 
 from muddled.utils import GiveUp
 
 _branch_and_revision_re = re.compile("([^:]*):(.*)$")
 
+@total_ordering
 class Repository(object):
     """The representation of a single repository.
 
@@ -316,6 +319,13 @@ class Repository(object):
                 return False
         return True
 
+    def __ne__(self, other):
+        """In Python2 we need to provide __ne__ as well as __eq__
+
+        (total_ordering doesn't seem to define "ne" for us)
+        """
+        return not self.__eq__(other)
+
     def __hash__(self):
         """We need this if we want to be in sets, or as dictionary keys.
         """
@@ -325,10 +335,8 @@ class Repository(object):
         """We need this if we're to be sorted, which can be nice when printing.
         """
         for this, that in zip(self._comparables(), other._comparables()):
-            if this < that:
-                return True
-            elif this > that:
-                return False
+            if this != that:
+                return this < that
         return False
 
     def _comparables(self):

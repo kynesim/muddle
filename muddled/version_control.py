@@ -366,15 +366,15 @@ class VersionControlHandler(object):
             repo = repo.copy_with_changed_branch(specific_branch)
 
         options = builder.db.get_checkout_vcs_options(co_label)
-        with Directory(parent_dir):
-            try:
+        try:
+            with Directory(parent_dir):
                 self.vcs.checkout(repo, co_leaf, options, verbose)
-            except MuddleBug as err:
-                raise MuddleBug('Error checking out %s in %s:\n%s'%(co_label,
-                                parent_dir, err))
-            except GiveUp as err:
-                raise GiveUp('Failure checking out %s in %s:\n%s'%(co_label,
-                             parent_dir, err))
+        except MuddleBug as err:
+            raise MuddleBug('Error checking out %s in %s:\n%s'%(co_label,
+                            parent_dir, err))
+        except GiveUp as err:
+            raise GiveUp('Failure checking out %s in %s:\n%s'%(co_label,
+                         parent_dir, err))
 
     def pull(self, builder, co_label, upstream=None, repo=None, verbose=True):
         """
@@ -405,18 +405,18 @@ class VersionControlHandler(object):
             print 'Specific branch %s in %s'%(specific_branch, co_label)
 
         options = builder.db.get_checkout_vcs_options(co_label)
-        with Directory(builder.db.get_checkout_path(co_label)):
-            try:
+        try:
+            with Directory(builder.db.get_checkout_path(co_label)):
                 return self.vcs.pull(repo, options, upstream=upstream, verbose=verbose)
-            except MuddleBug as err:
-                raise MuddleBug('Error pulling %s in %s:\n%s'%(co_label,
-                                builder.db.get_checkout_location(co_label), err))
-            except Unsupported as err:
-                raise Unsupported('Not pulling %s in %s:\n%s'%(co_label,
-                                  builder.db.get_checkout_location(co_label), err))
-            except GiveUp as err:
-                raise GiveUp('Failure pulling %s in %s:\n%s'%(co_label,
-                             builder.db.get_checkout_location(co_label), err))
+        except MuddleBug as err:
+            raise MuddleBug('Error pulling %s in %s:\n%s'%(co_label,
+                            builder.db.get_checkout_location(co_label), err))
+        except Unsupported as err:
+            raise Unsupported('Not pulling %s in %s:\n%s'%(co_label,
+                              builder.db.get_checkout_location(co_label), err))
+        except GiveUp as err:
+            raise GiveUp('Failure pulling %s in %s:\n%s'%(co_label,
+                         builder.db.get_checkout_location(co_label), err))
 
     def merge(self, builder, co_label, verbose=True):
         """
@@ -440,18 +440,18 @@ class VersionControlHandler(object):
             print 'Specific branch %s in %s'%(specific_branch, co_label)
 
         options = builder.db.get_checkout_vcs_options(co_label)
-        with Directory(builder.db.get_checkout_path(co_label)):
-            try:
+        try:
+            with Directory(builder.db.get_checkout_path(co_label)):
                 return self.vcs.merge(repo, options, verbose)
-            except MuddleBug as err:
-                raise MuddleBug('Error merging %s in %s:\n%s'%(co_label,
-                                builder.db.get_checkout_location(co_label), err))
-            except Unsupported as err:
-                raise Unsupported('Not merging %s in %s:\n%s'%(co_label,
-                                  builder.db.get_checkout_location(co_label), err))
-            except GiveUp as err:
-                raise GiveUp('Failure merging %s in %s:\n%s'%(co_label,
-                             builder.db.get_checkout_location(co_label), err))
+        except MuddleBug as err:
+            raise MuddleBug('Error merging %s in %s:\n%s'%(co_label,
+                            builder.db.get_checkout_location(co_label), err))
+        except Unsupported as err:
+            raise Unsupported('Not merging %s in %s:\n%s'%(co_label,
+                              builder.db.get_checkout_location(co_label), err))
+        except GiveUp as err:
+            raise GiveUp('Failure merging %s in %s:\n%s'%(co_label,
+                         builder.db.get_checkout_location(co_label), err))
 
     def commit(self, builder, co_label, verbose=True):
         """
@@ -462,15 +462,15 @@ class VersionControlHandler(object):
         """
         repo = builder.db.get_checkout_repo(co_label)
         options = builder.db.get_checkout_vcs_options(co_label)
-        with Directory(builder.db.get_checkout_path(co_label)):
-            try:
+        try:
+            with Directory(builder.db.get_checkout_path(co_label)):
                 self.vcs.commit(repo, options, verbose)
-            except MuddleBug as err:
-                raise MuddleBug('Error commiting %s in %s:\n%s'%(co_label,
-                                builder.db.get_checkout_location(co_label), err))
-            except (GiveUp, Unsupported) as err:
-                raise GiveUp('Failure commiting %s in %s:\n%s'%(co_label,
-                             builder.db.get_checkout_location(co_label), err))
+        except MuddleBug as err:
+            raise MuddleBug('Error commiting %s in %s:\n%s'%(co_label,
+                            builder.db.get_checkout_location(co_label), err))
+        except (GiveUp, Unsupported) as err:
+            raise GiveUp('Failure commiting %s in %s:\n%s'%(co_label,
+                         builder.db.get_checkout_location(co_label), err))
 
     def push(self, builder, co_label, upstream=None, repo=None, verbose=True):
         """
@@ -510,15 +510,15 @@ class VersionControlHandler(object):
         # XXX ----
 
         options = builder.db.get_checkout_vcs_options(co_label)
-        with Directory(builder.db.get_checkout_path(co_label)):
-            try:
+        try:
+            with Directory(builder.db.get_checkout_path(co_label)):
                 self.vcs.push(repo, options, upstream=upstream, verbose=verbose)
-            except MuddleBug as err:
-                raise MuddleBug('Error pushing %s in %s:\n%s'%(co_label,
-                                builder.db.get_checkout_location(co_label), err))
-            except (GiveUp, Unsupported) as err:
-                raise GiveUp('Failure pushing %s in %s:\n%s'%(co_label,
-                             builder.db.get_checkout_location(co_label), err))
+        except MuddleBug as err:
+            raise MuddleBug('Error pushing %s in %s:\n%s'%(co_label,
+                            builder.db.get_checkout_location(co_label), err))
+        except (GiveUp, Unsupported) as err:
+            raise GiveUp('Failure pushing %s in %s:\n%s'%(co_label,
+                         builder.db.get_checkout_location(co_label), err))
 
     def status(self, builder, co_label, verbose=False):
         """
@@ -545,8 +545,10 @@ class VersionControlHandler(object):
             print '>>', co_label
         repo = builder.db.get_checkout_repo(co_label)
         options = builder.db.get_checkout_vcs_options(co_label)
-        with Directory(builder.db.get_checkout_path(co_label), show_pushd=False):
-            try:
+        try:
+            # If we try to go to a directory that doesn't exist, then
+            # Directory will raise GiveUp with an explanatory message
+            with Directory(builder.db.get_checkout_path(co_label), show_pushd=False):
                 status_text = self.vcs.status(repo, options)
                 if status_text:
                     full_text = '%s status for %s in %s:\n%s'%(self.vcs.short_name,
@@ -556,12 +558,12 @@ class VersionControlHandler(object):
                     return full_text
                 else:
                     return None
-            except MuddleBug as err:
-                raise MuddleBug('Error finding status for %s in %s:\n%s'%(co_label,
-                                builder.db.get_checkout_location(co_label), err))
-            except GiveUp as err:
-                raise GiveUp('Failure finding status for %s in %s:\n%s'%(co_label,
-                             builder.db.get_checkout_location(co_label), err))
+        except MuddleBug as err:
+            raise MuddleBug('Error finding status for %s in %s:\n%s'%(co_label,
+                            builder.db.get_checkout_location(co_label), err))
+        except GiveUp as err:
+            raise GiveUp('Failure finding status for %s in %s:\n%s'%(co_label,
+                         builder.db.get_checkout_location(co_label), err))
 
     def reparent(self, builder, co_label, force=False, verbose=True):
         """
@@ -643,12 +645,12 @@ class VersionControlHandler(object):
         Raises a GiveUp exception if the VCS does not support this operation,
         or if something goes wrong.
         """
-        with Directory(builder.db.get_checkout_path(co_label), show_pushd=show_pushd):
-            try:
+        try:
+            with Directory(builder.db.get_checkout_path(co_label), show_pushd=show_pushd):
                 return self.vcs.get_current_branch()
-            except (GiveUp, Unsupported) as err:
-                raise GiveUp('Failure getting current branch for %s in %s:\n%s'%(co_label,
-                             builder.db.get_checkout_location(co_label), err))
+        except (GiveUp, Unsupported) as err:
+            raise GiveUp('Failure getting current branch for %s in %s:\n%s'%(co_label,
+                         builder.db.get_checkout_location(co_label), err))
 
     def create_branch(self, builder, co_label, branch, verbose=False, show_pushd=False):
         """
@@ -659,12 +661,12 @@ class VersionControlHandler(object):
         If 'show_pushd' is false, then we won't report as we "pushd" into the
         checkout directory.
         """
-        with Directory(builder.db.get_checkout_path(co_label), show_pushd=show_pushd):
-            try:
+        try:
+            with Directory(builder.db.get_checkout_path(co_label), show_pushd=show_pushd):
                 return self.vcs.create_branch(branch, verbose=verbose)
-            except (GiveUp, Unsupported) as err:
-                raise GiveUp('Failure creating branch %s for %s in %s:\n%s'%(branch,
-                             co_label, builder.db.get_checkout_location(co_label), err))
+        except (GiveUp, Unsupported) as err:
+            raise GiveUp('Failure creating branch %s for %s in %s:\n%s'%(branch,
+                         co_label, builder.db.get_checkout_location(co_label), err))
 
     def goto_branch(self, builder, co_label, branch, verbose=False, show_pushd=False):
         """
@@ -675,12 +677,12 @@ class VersionControlHandler(object):
         If 'show_pushd' is false, then we won't report as we "pushd" into the
         checkout directory.
         """
-        with Directory(builder.db.get_checkout_path(co_label), show_pushd=show_pushd):
-            try:
+        try:
+            with Directory(builder.db.get_checkout_path(co_label), show_pushd=show_pushd):
                 return self.vcs.goto_branch(branch, verbose=verbose)
-            except (GiveUp, Unsupported) as err:
-                raise GiveUp('Failure changing to branch %s for %s in %s:\n%s'%(branch,
-                             co_label, builder.db.get_checkout_location(co_label), err))
+        except (GiveUp, Unsupported) as err:
+            raise GiveUp('Failure changing to branch %s for %s in %s:\n%s'%(branch,
+                         co_label, builder.db.get_checkout_location(co_label), err))
 
     def goto_revision(self, builder, co_label, revision, branch=None, verbose=False, show_pushd=False):
         """
@@ -694,16 +696,16 @@ class VersionControlHandler(object):
         checkout directory.
         """
         repo = builder.db.get_checkout_repo(co_label)
-        with Directory(builder.db.get_checkout_path(co_label), show_pushd=show_pushd):
-            try:
+        try:
+            with Directory(builder.db.get_checkout_path(co_label), show_pushd=show_pushd):
                 return self.vcs.goto_revision(revision, branch, repo, verbose)
-            except (GiveUp, Unsupported) as err:
-                if branch:
-                    raise GiveUp('Failure changing to revision %s, branch %s, for %s in %s:\n%s'%(revision, branch,
-                                 co_label, builder.db.get_checkout_location(co_label), err))
-                else:
-                    raise GiveUp('Failure changing to revision %s for %s in %s:\n%s'%(revision,
-                                 co_label, builder.db.get_checkout_location(co_label), err))
+        except (GiveUp, Unsupported) as err:
+            if branch:
+                raise GiveUp('Failure changing to revision %s, branch %s, for %s in %s:\n%s'%(revision, branch,
+                             co_label, builder.db.get_checkout_location(co_label), err))
+            else:
+                raise GiveUp('Failure changing to revision %s for %s in %s:\n%s'%(revision,
+                             co_label, builder.db.get_checkout_location(co_label), err))
 
     def branch_exists(self, builder, co_label, branch, verbose=False, show_pushd=False):
         """
@@ -717,12 +719,12 @@ class VersionControlHandler(object):
         If 'show_pushd' is false, then we won't report as we "pushd" into the
         checkout directory.
         """
-        with Directory(builder.db.get_checkout_path(co_label), show_pushd=show_pushd):
-            try:
+        try:
+            with Directory(builder.db.get_checkout_path(co_label), show_pushd=show_pushd):
                 return self.vcs.branch_exists(branch)
-            except (GiveUp, Unsupported) as err:
-                raise GiveUp('Failure checking existence of branch %s for %s in %s:\n%s'%(branch,
-                             co_label, builder.db.get_checkout_location(co_label), err))
+        except (GiveUp, Unsupported) as err:
+            raise GiveUp('Failure checking existence of branch %s for %s in %s:\n%s'%(branch,
+                         co_label, builder.db.get_checkout_location(co_label), err))
 
     def sync(self, builder, co_label, verbose=False, sync=True):
         """

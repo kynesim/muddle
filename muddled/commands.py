@@ -6223,32 +6223,42 @@ class Status(CheckoutCommand):
         verbose = ('verbose' in self.switches)
         joined = ('join' in self.switches)
 
-        something_needs_doing = 0
         something = []
         for co in labels:
+            if not builder.db.is_tag(co):
+                print
+                print '%s is not checked out'%co
+                something.append(co)
+                continue
+
             try:
                 vcs_handler = builder.db.get_checkout_vcs(co)
             except GiveUp:
                 print "Rule for label '%s' has no VCS - cannot find its status"%co
+                something.append(co)
                 continue
-            text = vcs_handler.status(builder, co, verbose)
+
+            try:
+                text = vcs_handler.status(builder, co, verbose)
+            except MuddleBug as err:
+                raise MuddleBug('Giving up in %s because:\n%s'%(co,err))
+            except GiveUp as err:
+                print err
+                something.append(co)
+                continue
+
             if text:
                 print
                 print text.strip()
-                something_needs_doing += 1
                 something.append(co)
-        if something_needs_doing:
+
+        if something:
             if joined:
                 raise GiveUp('The following checkouts need attention:\n  '
                              '%s'%(label_list_to_string(something)))
             else:
                 raise GiveUp('The following checkouts need attention:\n  '
                              '%s'%(label_list_to_string(something, join_with='\n  ')))
-            #if something_needs_doing == 1:
-            #    raise GiveUp('Checkout %s needs attention'%something[0])
-            #else:
-            #    raise GiveUp('The following checkouts need attention:\n  '
-            #                 '%s'%(label_list_to_string(something, join_with='\n  ')))
         else:
             print 'All checkouts seemed clean'
 

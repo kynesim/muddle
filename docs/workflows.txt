@@ -5,6 +5,8 @@ Muddle workflows - or how to use muddle in real life
 This section is intended to give some examples of how one actually uses muddle
 in normal programming life.
 
+If you are using weld, see the chapter on working with weld.
+
 
 Working with version control systems
 ====================================

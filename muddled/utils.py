@@ -22,6 +22,7 @@ import traceback
 import xml.dom
 import xml.dom.minidom
 from collections import MutableMapping, Mapping, namedtuple
+from fnmatch import fnmatchcase
 from ConfigParser import RawConfigParser
 from StringIO import StringIO
 
@@ -1935,5 +1936,258 @@ def normalise_dir(dir):
 # It should really be called normalise_path - allow me to use that without
 # yet having replaced all occurrences...
 normalise_path = normalise_dir
+
+def parse_etc_os_release():
+    """Parse /etc/os-release and return a dictionary
+
+    This is *not* a good parser by any means - it is the quickest and
+    simplest thing I could do.
+
+    Note that a line like::
+
+        FRED='Fred\'s name'
+
+    will give us::
+
+        key 'Fred' -> value r"Fred\'s name"
+
+    i.e., we do not treat backslashes in a string in any way at all. In
+    fact, we don't do anything with strings other than throw away paired
+    outer "'" or '"'.
+
+    Oh, also we don't check whether the names before the '=' signs are those
+    that are expected, although we do provide a default value for 'ID' if it
+    is not given (as the documentation for /etc/os-release' specified).
+
+    (Note that the standard library platform.py (in 2.7) looks at
+    /etc/lsb-release, instead of /etc/os-release, which gives different
+    results.)
+    """
+    d = {}
+    with open('/etc/os-release') as fd:
+        for line in fd:
+            line = line.strip()
+            if line.startswith('#'):
+                continue
+            words = line.split('=')
+            name, rest = words[0].strip(), '='.join(words[1:]).strip()
+            if rest[0] == "'" and rest[-1] == "'":
+                rest = rest[1:-1]
+            elif rest[0] == '"' and rest[-1] == '"':
+                rest = rest[1:-1]
+            d[name] = rest
+
+    if 'ID' not in d:
+        d['ID'] = 'linux'   # apparently
+
+    return d
+
+def get_os_version_name():
+    """Retrieve a string identifying this version of the operating system
+
+    Looks in /etc/os-release, which gives a different result than platform.py,
+    which looks in /etc/lsb-release.
+    """
+    d = parse_etc_os_release()
+    id = d['ID']
+    version_id = d['VERSION_ID']
+    return '%s %s'%(id, version_id)
+
+class Choice(object):
+    """A choice "sequence".
+
+    A choice sequence is:
+
+        * a string, the only choice. For instance::
+
+              choice = Choice("libxml-dev2")
+              assert choice.choose('any string at all') == 'libxml-dev2)
+
+        * a sequence of the form [ (pattern, value), ... ]; that is a sequence
+          of one or more '(pattern, value)' pairs, where each 'pattern' is an
+          fnmatch pattern (see below) and each 'value' is a string.
+
+          The patterns are compared to 'what_to_match' in turn, and if one
+          matches, the corresponding 'value' is returned. If none match, a
+          ValueError is raised.
+
+          For instance::
+
+              choice = Choice([ ('ubuntu-12.*', 'package-v12'),
+                                ('ubuntu-1?.*', 'package-v10') ])
+              try:
+                  match = choice.choose_to_match_os()
+              except ValueError:
+                  print 'No package matched OS %s'%get_os_version_name()
+
+        * a sequence of the form [ (pattern, value), ..., default ]; that is
+          a sequence of one or more pairs (as above), with a final "default"
+          value, which must be a string or None.
+
+          The patterns are compared to 'what_to_match' in turn, and if one
+          matches, the corresponding 'value' is returned. If none match, the
+          final default value is returned. None is allowed so the caller can
+          easily tell that no choice was actually made.
+
+              choice = Choice([ ('ubuntu-12.*', 'package-v12'),
+                                ('ubuntu-1?.*', 'package-v10'),
+                                'package-v09' ])
+              # 'match' will always have a "sensible" value
+              match = choice.choose_to_match_os()
+
+              choice = Choice([ ('ubuntu-12.*', 'package-v12'),
+                                ('ubuntu-1?.*', 'package-v10'),
+                                None ])
+              match = choice.choose_to_match_os()
+              if match is None:
+                  return            # We know there was no given value
+
+        * as a result of the previous, we also allow [default], although
+          [None] is of questionable utility.
+
+              choice = Choice(["libxml-dev2"])
+              assert choice.choose('any string at all') == 'libxml-dev2)
+
+              choice = Choice(["None"])
+              assert choice.choose('any string at all') is None
+
+          (although that latter is the only way of "forcing" a Choice that
+          will always return None, if you did need such a thing...)
+
+    Why not just use a list of pairs (possibly with a default string at the
+    end, essentially just what we pass to Choice)? Well, it turns out that
+    if you want to do something like::
+
+        pkgs.apt_get(["fromble1",
+                      Choice([ ('ubuntu-12.*', 'fromble'),
+                               ('ubuntu-11.*', 'alex'),
+                               None ]),
+                      "ribbit",
+                      Choice([ ('ubuntu-12.*', 'package-v12'),
+                               ('ubuntu-1?.*', 'package-v10'),
+                               'package-v7' ]),
+                      "libxml-dev2",
+                    ])
+
+    it is (a) really hard to type it right if it is just nested sequences, and
+    (b) terribly hard to give useful error messages when the user doesn't get
+    it right. There are already enough brackets of various sorts, and if we
+    don't have the "Choice" delimiters, it just gets harder to keep track.
+    """
+
+    def __init__(self, choices):
+        self.choices = choices
+        self.only_choice = None
+        self.got_default = False
+        self._validate()
+
+    def _validate(self):
+        """Check that our choices make sense.
+
+        Raises a GiveUp error with an explanation if they do not
+        """
+        if isinstance(self.choices, basestring):
+            # A string is no choice at all, which is OK
+            self.only_choice = self.choices
+            return
+
+        if self.choices is None:
+            raise GiveUp('A choice sequence may not be None')
+
+        if len(self.choices) == 0:
+            raise GiveUp('A choice sequence may not be zero length')
+
+        if len(self.choices) == 1 and isinstance(self.choices[0], basestring):
+            # A sequence with only a default string choice is OK
+            self.only_choice = self.choices[0]
+            return
+
+        for index, pair in enumerate(self.choices[:-1]):
+            if pair is None:
+                raise GiveUp('Only the last item in a choice sequence may be None\n'
+                             '(found %r at index %d)\n'
+                             'Choices were:  %s'%(pair, index, self.choices))
+            if isinstance(pair, basestring):
+                raise GiveUp('Only the last item in a choice sequence may be a string\n'
+                             '(%r at index %d is a string)\n'
+                             'Choices were:  %s'%(pair, index, self.choices))
+            if len(pair) != 2:
+                raise GiveUp('All but the last item in a choice sequence must be pairs\n'
+                             '(%r at index %d has length %d)\n'
+                             'Choices were:  %s'%(pair, index, len(pair), self.choices))
+
+        # And as for that last item
+        if isinstance(self.choices[-1], basestring) or self.choices[-1] is None:
+            self.got_default = True
+        else:
+            # If it is not a string, we need to check it as well
+            if len(self.choices[-1]) != 2:
+                raise GiveUp('The last item in a choice sequence must be a string or a pair\n'
+                             '(the last item %r has length %d)\n'
+                             'Choices were:  %s'%(self.choices[-1],
+                                 len(self.choices[-1]), self.choices))
+
+    def __str__(self):
+        if self.only_choice:
+            return 'Choice(%r)'%self.only_choice
+        else:
+            return 'Choice(%s)'%self.choices
+
+    def choose(self, what_to_match):
+        """Try to match 'what_to_match', and return the appropriate value.
+
+        Raises ValueError if there is no match.
+
+        Returns None if (and only if) that was given as a fall-back default
+        value.
+        """
+        if self.only_choice:
+            return self.only_choice
+
+        for pattern, value in self.choices[:-1]:
+            if fnmatchcase(what_to_match, pattern):
+                return value
+
+        if self.got_default:
+            return self.choices[-1]
+        else:
+            pattern, value = self.choices[-1]
+            if fnmatchcase(what_to_match, pattern):
+                return value
+
+        raise ValueError('Nothing matched')
+
+    def choose_to_match_os(self, version_name=None):
+        """A special case of 'decide' to match OS id/version
+
+        If 'version_name' is None, then it looks up the system 'id' (the "name"
+        of the OS, e.g., "ubuntu"), and 'version' of the OS (e.g., "12.10")
+        from /etc/os-release, and concatenates them separated by a space (so
+        "ubuntu 12.10").
+
+        It returns the result of calling:
+
+            choose(version_name)
+
+        So, on an Ubuntu system (which also includes a Linux Mint system, since its
+        /etc/os-release identifies it as the underlying Ubuntu system), one might
+        do:
+
+            choice = Choice([ ('ubuntu-12.*', 'package-v12'),
+                              ('ubuntu-1?.*', 'package-v10'),
+                              'package-v7' ])
+            choice.choose_to_match_os()
+
+        to choose the appropriate version of "package" depending on the OS.
+        """
+
+        if version_name is None:
+            version_name = get_os_version_name()
+        try:
+            return self.choose(version_name)
+        except ValueError:
+            raise GiveUp('Given\n'
+                         '  %s\n'
+                         'and OS %r, cannot find a match'%(self, version_name))
 
 # End file.

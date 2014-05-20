@@ -71,6 +71,10 @@ MUDDLE_PATCH_COMMAND = '%s/muddle_patch.py'%(PARENT_DIR)
 
 export_names(['MUDDLE_BINARY', 'MUDDLE_PATCH_COMMAND'])
 
+def flushing_print(text):
+    sys.stdout.write(text)
+    sys.stdout.flush()
+
 @export
 def get_stdout(cmd, verbose=True):
     """Run a command in the shell, and grab its (standard) output.
@@ -90,7 +94,7 @@ def run_muddle_directly(args, verbose=True):
     (b) we could move to running MUDDLE_BINARY as an actual command.
     """
     if verbose:
-        print '++ muddle %s'%(' '.join(args))
+        flushing_print('++ muddle %s\n'%(' '.join(args)))
     # In order to cope with soft links in directory structures, muddle
     # tries to use the current PWD as set by the shell. Since we don't
     # know what called us, we need to do it by hand.
@@ -107,10 +111,10 @@ def muddle(args, verbose=True):
     """Run a muddle command
     """
     if verbose:
-        print '++ muddle %s'%(' '.join(args))
+        flushing_print('++ muddle %s\n'%(' '.join(args)))
     cmd_seq = [MUDDLE_BINARY] + args
     if verbose:
-        print ">> muddle %s"%(' '.join(args))
+        flushing_print(">> muddle %s\n"%(' '.join(args)))
     p = subprocess.Popen(cmd_seq)
     pid, retcode = os.waitpid(p.pid, 0)
     if retcode:
@@ -135,7 +139,7 @@ def captured_muddle(args, verbose=True, error_fails=True):
     """
     cmd_seq = [MUDDLE_BINARY] + args
     if verbose:
-        print ">> muddle %s"%(' '.join(args))
+        flushing_print(">> muddle %s\n"%(' '.join(args)))
 
     # Ask what we call not to use buffering on its outputs, so that we get
     # stdout and stderr folded together correctly, despite the fact that our
@@ -147,7 +151,7 @@ def captured_muddle(args, verbose=True, error_fails=True):
         return output
     except subprocess.CalledProcessError as e:
         if error_fails:
-            print e.output
+            flushing_print('%s\n'%e.output)
             raise
         else:
             return e.output
@@ -164,7 +168,7 @@ def captured_muddle2(args, verbose=True):
     """
     cmd_seq = [MUDDLE_BINARY] + args
     if verbose:
-        print ">> muddle %s"%(' '.join(args))
+        flushing_print(">> muddle %s\n"%(' '.join(args)))
 
     # Ask what we call not to use buffering on its outputs, so that we get
     # stdout and stderr folded together correctly, despite the fact that our
@@ -200,18 +204,18 @@ def cat(filename):
     """Print out the contents of a file.
     """
     with open(filename) as fd:
-        print '++ cat %s'%filename
-        print '='*40
+        flushing_print('++ cat %s\n'%filename)
+        flushing_print('%s\n'%('='*40))
         for line in fd.readlines():
-            print line.rstrip()
-        print '='*40
+            flushing_print('%s\n'%line.rstrip())
+        flushing_print('%s\n'%('='*40))
 
 @export
 def touch(filename, content=None, verbose=True):
     """Create a new file, and optionally give it content.
     """
     if verbose:
-        print '++ touch %s'%filename
+        flushing_print('++ touch %s\n'%filename)
     with open(filename, 'w') as fd:
         if content:
             fd.write(content)
@@ -221,7 +225,7 @@ def append(filename, content, verbose=True):
     """Append 'content' to the given file
     """
     if verbose:
-        print '++ append to %s'%filename
+        flushing_print('++ append to %s\n'%filename)
     with open(filename, 'a') as fd:
         fd.write(content)
 
@@ -230,7 +234,7 @@ def same_content(filename, content=None, verbose=True):
     """Read a file, and check its content matches
     """
     if verbose:
-        print '++ same_content %s'%filename
+        flushing_print('++ same_content %s\n'%filename)
     with open(filename) as fd:
         this_content = fd.read()
     return this_content == content
@@ -240,15 +244,15 @@ def check_files(paths, verbose=True):
     """Given a list of paths, check they all exist.
     """
     if verbose:
-        print '++ Checking files exist'
+        flushing_print('++ Checking files exist\n')
     for name in paths:
         if os.path.exists(name):
             if verbose:
-                print '  -- %s'%name
+                flushing_print('  -- %s\n'%name)
         else:
             raise GiveUp('File %s does not exist'%name)
     if verbose:
-        print '++ All named files exist'
+        flushing_print('++ All named files exist\n')
 
 @export
 def check_specific_files_in_this_dir(names, verbose=True):
@@ -259,8 +263,8 @@ def check_specific_files_in_this_dir(names, verbose=True):
     actual_files = set(os.listdir('.'))
 
     if verbose:
-        print '++ Checking only specific files exist in this directory'
-        print '++ Wanted files are: %s'%(', '.join(wanted_files))
+        flushing_print('++ Checking only specific files exist in this directory\n')
+        flushing_print('++ Wanted files are: %s\n'%(', '.join(wanted_files)))
 
     if wanted_files != actual_files:
         text = ''
@@ -273,22 +277,22 @@ def check_specific_files_in_this_dir(names, verbose=True):
         raise GiveUp('Required files are not matched\n%s'%text)
     else:
         if verbose:
-            print '++ Only the requested files exist'
+            flushing_print('++ Only the requested files exist\n')
 
 @export
 def check_nosuch_files(paths, verbose=True):
     """Given a list of paths, check they do not exist.
     """
     if verbose:
-        print '++ Checking files do not exist'
+        flushing_print('++ Checking files do not exist\n')
     for name in paths:
         if os.path.exists(name):
             raise GiveUp('File %s exists'%name)
         else:
             if verbose:
-                print '  -- %s'%name
+                sys.sydout.write('  -- %s\n'%name)
     if verbose:
-        print '++ All named files do not exist'
+        flushing_print('++ All named files do not exist\n')
 
 @export
 def banner(text, level=1):
@@ -301,9 +305,10 @@ def banner(text, level=1):
     delim_char = delimiters[level]
     endpoint_char = endpoints[level]
     delim = delim_char * (len(text)+4)
-    print delim
-    print '%s %s %s'%(endpoint_char, text, endpoint_char)
-    print delim
+    flushing_print('%s\n'%delim)
+    flushing_print('%s %s %s\n'%(endpoint_char, text, endpoint_char))
+    flushing_print('%s\n'%delim)
+    sys.stdout.flush()
 
 @export
 def check_file_v_text(filename, expected_text, sort_first=False):
@@ -345,11 +350,6 @@ def check_text_lines_v_lines(actual_lines, wanted_lines, fold_whitespace=False):
     Prints out the differences (if any) and then raises a GiveUp if there
     *were* differences
     """
-    #len_wanted_lines = len(wanted_lines)
-    #len_actual_lines = len(actual_lines)
-    #if len_wanted_lines != len_actual_lines:
-    #    print 'There are %d wanted line%s'%(len_wanted_lines, '' if len_wanted_lines==1 else 's')
-    #    print 'There are %d actual line%s'%(len_actual_lines, '' if len_actual_lines==1 else 's')
 
     if fold_whitespace:
         compare_lines = []
@@ -697,11 +697,11 @@ if __name__ == '__main__':
         run_muddle_directly(sys.argv[1:])
         sys.exit(0)
     except MuddleBug, why:
-        print "%s"%why
+        flushing_print("%s\n"%why)
         traceback.print_exc()
         sys.exit(1)
     except GiveUp as f:
-        print "%s"%f
+        flushing_print("%s\n"%f)
         sys.exit(1)
 
 # vim: set tabstop=8 softtabstop=4 shiftwidth=4 expandtab:

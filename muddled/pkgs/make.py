@@ -399,7 +399,9 @@ class ExpandingMakeBuilder(MakeBuilder):
         # Ideally, we'd have unpacked the directory as obj/, so that we can
         # refer to it as $(MUDDLE_OBJ_OBJ). However, with a little cunning...
 
-        utils.shell('cd %s; ln -sf %s obj'%(obj_dir, self.archive_dir))
+        with Directory(obj_dir):
+            utils.run0(['ln', '-sf', self.archive_dir, 'obj'],
+                       show_command=True, show_output=True)
 
     def build_label(self, builder, label):
         """Build our label.

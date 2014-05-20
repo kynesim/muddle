@@ -500,10 +500,7 @@ fatal: Remote branch branch.follow not found in upstream origin
 fatal: The remote end hung up unexpectedly
 
 Failure checking out checkout:co6/checked_out in {where}/src:
-Command 'git clone -b branch.follow file://{repo}/co6 co6' failed with retcode 128:
-  Cloning into 'co6'...
-  fatal: Remote branch branch.follow not found in upstream origin
-  fatal: The remote end hung up unexpectedly
+Command 'git clone -b branch.follow file://{repo}/co6 co6' failed with retcode 128
 """.format(where=d.where, repo=repo))
 
 

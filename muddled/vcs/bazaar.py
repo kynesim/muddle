@@ -142,7 +142,7 @@ class Bazaar(VersionControlSystem):
         """
         # This is *really* hacky...
         if not os.path.exists('.bzr'):
-            utils.run0("bzr init", env=self._derive_env(), show_command=verbose)
+            utils.shell("bzr init", env=self._derive_env(), show_command=verbose)
 
     def add_files(self, files=None, verbose=True):
         """
@@ -151,7 +151,7 @@ class Bazaar(VersionControlSystem):
         Will be called in the actual checkout's directory.
         """
         if files:
-            utils.run0("bzr add %s"%' '.join(files))
+            utils.shell("bzr add %s"%' '.join(files))
 
     def checkout(self, repo, co_leaf, options, verbose=True):
         """
@@ -169,7 +169,7 @@ class Bazaar(VersionControlSystem):
         if repo.branch:
             raise utils.GiveUp("Bazaar does not support branch (in the muddle sense)"
                                " in 'checkout' (branch='%s')"%repo.branch)
-        utils.run0("bzr branch %s %s %s"%(self._r_option(repo.revision),
+        utils.shell("bzr branch %s %s %s"%(self._r_option(repo.revision),
                                           self._normalised_repo(repo.url),
                                           co_leaf),
                    env=self._derive_env(), show_command=verbose)
@@ -256,7 +256,7 @@ class Bazaar(VersionControlSystem):
 
         starting_revno = self._just_revno()
 
-        utils.run0("bzr merge %s %s"%(rspec, self._normalised_repo(other_repo.url)),
+        utils.shell("bzr merge %s %s"%(rspec, self._normalised_repo(other_repo.url)),
                    env=env, show_command=verbose)
 
         ending_revno = self._just_revno()
@@ -269,7 +269,7 @@ class Bazaar(VersionControlSystem):
         """
         # Options: --strict means it will not commit if there are unknown
         # files in the working tree
-        utils.run0("bzr commit", allowFailure=True,
+        utils.shell("bzr commit", allowFailure=True,
                    env=self._derive_env(), show_command=verbose)
 
     def push(self, repo, options, upstream=None, verbose=True):
@@ -277,7 +277,7 @@ class Bazaar(VersionControlSystem):
         Will be called in the actual checkout's directory.
         """
 
-        utils.run0("bzr push %s"%self._normalised_repo(repo.url),
+        utils.shell("bzr push %s"%self._normalised_repo(repo.url),
                    env=self._derive_env(), show_command=verbose)
 
     def status(self, repo, options=None, branch=None, verbose=False):

@@ -6,6 +6,7 @@ import errno
 import hashlib
 import imp
 import os
+import pipes
 import pwd
 import re
 import select
@@ -571,15 +572,14 @@ def current_machine_name():
 # -----------------------------------------------------------------------------
 BUFSIZE=1024
 
-ick = None
-if not ick:
-    ick = open('/home/tibs/sw/ick.txt', 'a+')
-
 class ShellError(GiveUp):
     def __init__(self, cmd, retcode, output=None):
         self.cmd = cmd
         self.retcode = retcode
-        self.output = output.rstrip()   # Is this sensible to do here?
+        if output is not None:
+            self.output = output.rstrip()   # Is this sensible to do here?
+        else:
+            self.output = output
 
         msg = "Command %s failed with retcode %d"%(repr(cmd), retcode)
         if output:
@@ -588,17 +588,19 @@ class ShellError(GiveUp):
 
 def _stringify_cmd(thing):
     """Given a command, as either a string or sequence, return a string.
+
+    Uses pipes.quote() to quote each individual item in a sequence.
     """
     if isinstance(thing, basestring):
         return thing
     else:
-        o = []
+        parts = []
         for item in thing:
-            if ' ' in item or '\t' in item:
-                o.append(repr(item))
+            if isinstance(item, basestring):
+                parts.append(pipes.quote(item))
             else:
-                o.append(item)
-        return ' '.join(o)
+                parts.append(pipes.quote(str(item)))
+        return ' '.join(parts)
 
 def _rationalise_cmd(thing):
     """Given a command, as either a string or sequence, return a sequence.
@@ -621,13 +623,18 @@ def _rationalise_cmd(thing):
 def shell(thing, env=None, show_command=True):
     """Run the command 'thing' in the shell.
 
-    'thing' must be a string (e.g., "ls -l").
+    If 'thing' is a string (e.g., "ls -l"), then it will be used as it is
+    given.
+
+    If 'thing' is a sequence (e.g., ["ls", "-l"]), then each component will
+    be escaped with pipes.quote(), and the result concatenated (with spaces
+    between) to give the command line to run.
 
     If 'env' is given, then it is the environment to use when running 'thing',
     otherwise 'os.environ' is used.
 
-    If 'show_command' is true, then "> <thing>" will be printed out before
-    running the command.
+    If 'show_command' is true, then "> <thing>" will be printed out
+    before running the command.
 
     The output of the command will always be printed out as it runs.
 
@@ -637,28 +644,61 @@ def shell(thing, env=None, show_command=True):
 
     Unlike the various 'runX' functions, this calls subprocess.Popen with
     'shell=True'. This makes things like "cd" available in 'thing', and use of
-    shell specific things like value expansion. However, it can also make it a
-    lot harder to construct safe command lines.
+    shell specific things like value expansion. It also, morei mportantly for
+    muddle, allows commands like "git clone" to do their progress report
+    "rolling" output. However, the warnings in the Python subprocess
+    documentation should be heeded about not using unsafe command lines.
 
     NB: If you *do* want to do "cd xxx; yyy", you're probably better doing::
 
         with Directory("xxx"):
-            run0("yyy")                 # or perhaps shell("yyy")
+            shell("yyy")
     """
     if not isinstance(thing, basestring):
-        raise MuddleBug('Argument to shell() must be a string, not %r'%thing)
+        thing = _stringify_cmd(thing)
     if show_command:
-        sys.stdout.write('[shell]> %s\n'%thing)
-        ick.write('[shell]> %s\n'%thing) # XXX
+        sys.stdout.write('> %s\n'%thing)
     if env is None: # so, for instance, an empty dictionary is allowed
         env = os.environ
     try:
         subprocess.check_call(thing, shell=True)
     except subprocess.CalledProcessError as e:
+        # Unfortunately, e.output will actually be None, since it is only
+        # populated for check_output.
+        raise ShellError(thing, e.returncode, e.output)
+
+def get_cmd_data(thing, env=None, show_command=False):
+    """Run the command 'thing', and return its output.
+
+    'thing' may be a string (e.g., "ls -l") or a sequence (e.g., ["ls", "-l"]).
+    Internally, a string will be converted into a sequence before it is used.
+    Any non-string items in a 'thing' sequence will be converted to strings
+    using 'str()' (e.g., if a Label instance is given).
+
+    If 'env' is given, then it is the environment to use when running 'thing',
+    otherwise 'os.environ' is used.
+
+    Note that the output of the command is not shown whilst the command is
+    running.
+
+    If the command returns a non-zero exit code, then we raise a ShellError.
+
+    (This is basically a muddle-flavoured wrapper around subprocess.check_output)
+    """
+    thing = _rationalise_cmd(thing)
+    if show_command:
+        sys.stdout.write('> %s\n'%_stringify_cmd(thing))
+    if env is None: # so, for instance, an empty dictionary is allowed
+        env = os.environ
+    try:
+        return subprocess.check_output(thing, env=env)
+    except subprocess.CalledProcessError as e:
         raise ShellError(_stringify_cmd(thing), e.returncode, e.output)
 
 def run0(thing, env=None, show_command=True, show_output=True):
     """Run the command 'thing', returning nothing.
+
+    (Run and return 0 values)
 
     'thing' may be a string (e.g., "ls -l") or a sequence (e.g., ["ls", "-l"]).
     Internally, a string will be converted into a sequence before it is used.
@@ -683,6 +723,8 @@ def run0(thing, env=None, show_command=True, show_output=True):
 
 def run1(thing, env=None, show_command=True, show_output=False):
     """Run the command 'thing', returning its output.
+
+    (Run and return 1 value)
 
     'thing' may be a string (e.g., "ls -l") or a sequence (e.g., ["ls", "-l"]).
     Internally, a string will be converted into a sequence before it is used.
@@ -713,6 +755,8 @@ def run1(thing, env=None, show_command=True, show_output=False):
 def run2(thing, env=None, show_command=True, show_output=False):
     """Run the command 'thing', returning the return code and output.
 
+    (Run and return 2 values)
+
     'thing' may be a string (e.g., "ls -l") or a sequence (e.g., ["ls", "-l"]).
     Internally, a string will be converted into a sequence before it is used.
     Any non-string items in a 'thing' sequence will be converted to strings
@@ -735,7 +779,6 @@ def run2(thing, env=None, show_command=True, show_output=False):
     if show_command:
         sys.stdout.write('> %s\n'%_stringify_cmd(thing))
         sys.stdout.flush()
-        ick.write('> %s\n'%_stringify_cmd(thing)) # XXX
     if env is None: # so, for instance, an empty dictionary is allowed
         env = os.environ
     text = []
@@ -744,7 +787,6 @@ def run2(thing, env=None, show_command=True, show_output=False):
         if show_output:
             sys.stdout.write(data)
             sys.stdout.flush()
-            ick.write(data) # XXX
         text.append(data)
     proc.wait()
     sys.stdout.flush()
@@ -753,6 +795,8 @@ def run2(thing, env=None, show_command=True, show_output=False):
 
 def run3(thing, env=None, show_command=True, show_output=False):
     """Run the command 'thing', returning the return code, stdout and stderr.
+
+    (Run and return 3 values)
 
     'thing' may be a string (e.g., "ls -l") or a sequence (e.g., ["ls", "-l"]).
     Internally, a string will be converted into a sequence before it is used.
@@ -778,7 +822,6 @@ def run3(thing, env=None, show_command=True, show_output=False):
     thing = _rationalise_cmd(thing)
     if show_command:
         sys.stdout.write('> %s\n'%_stringify_cmd(thing))
-        ick.write('> %s\n'%_stringify_cmd(thing)) # XXX
     if env is None: # so, for instance, an empty dictionary is allowed
         env = os.environ
     all_stdout_text = []
@@ -809,7 +852,6 @@ def run3(thing, env=None, show_command=True, show_output=False):
             else:
                 if show_output:
                     sys.stdout.write(stdout_text)
-                    ick.write(stdout_text) # XXX
                 all_stdout_text.append(stdout_text)
         if proc.stderr in rlist:
             # Comment as above
@@ -819,7 +861,6 @@ def run3(thing, env=None, show_command=True, show_output=False):
             else:
                 if show_output:
                     sys.stderr.write(stderr_text)
-                    ick.write(stderr_text) # XXX
                 all_stderr_text.append(stderr_text)
     # Make sure proc.returncode gets set
     proc.wait()
@@ -827,36 +868,6 @@ def run3(thing, env=None, show_command=True, show_output=False):
     all_stdout_text = ''.join(all_stdout_text)
     all_stderr_text = ''.join(all_stderr_text)
     return proc.returncode, all_stdout_text, all_stderr_text
-
-def get_cmd_data(thing, env=None, show_command=False):
-    """
-    Run the command 'thing', and return its output.
-
-    'thing' may be a string (e.g., "ls -l") or a sequence (e.g., ["ls", "-l"]).
-    Internally, a string will be converted into a sequence before it is used.
-    Any non-string items in a 'thing' sequence will be converted to strings
-    using 'str()' (e.g., if a Label instance is given).
-
-    If 'env' is given, then it is the environment to use when running 'thing',
-    otherwise 'os.environ' is used.
-
-    Note that the output of the command is not shown whilst the command is
-    running.
-
-    If the command returns a non-zero exit code, then we raise a ShellError.
-
-    (This is basically a muddle-flavoured wrapper around subprocess.check_output)
-    """
-    thing = _rationalise_cmd(thing)
-    if show_command:
-        sys.stdout.write('> %s\n'%_stringify_cmd(thing))
-        ick.write('> %s\n'%_stringify_cmd(thing)) # XXX
-    if env is None: # so, for instance, an empty dictionary is allowed
-        env = os.environ
-    try:
-        return subprocess.check_output(thing, env=env)
-    except subprocess.CalledProcessError as e:
-        raise ShellError(_stringify_cmd(thing), e.returncode, e.output)
 
 # =============================================================================
 

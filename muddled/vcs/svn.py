@@ -60,7 +60,7 @@ class Subversion(VersionControlSystem):
         Will be called in the actual checkout's directory.
         """
         if files:
-            utils.run0(["svn", "add"] + list(files), show_command=verbose)
+            utils.shell(["svn", "add"] + list(files), show_command=verbose)
 
     def _r_option(self, revision):
         """
@@ -82,7 +82,7 @@ class Subversion(VersionControlSystem):
         if repo.branch:
             raise utils.GiveUp("Subversion does not support branch"
                                " in 'checkout' (branch='%s')"%repo.branch)
-        utils.run0(["svn", "checkout"] + self._r_option(repo.revision) +
+        utils.shell(["svn", "checkout"] + self._r_option(repo.revision) +
                    [repo.url, co_leaf], show_command=verbose)
 
     def pull(self, repo, options, upstream=None, verbose=True):
@@ -108,7 +108,7 @@ class Subversion(VersionControlSystem):
 
         starting_revno = self._just_revno()
 
-        utils.run0(["svn", "update"] + self._r_option(repo.revision), show_command=verbose)
+        utils.shell(["svn", "update"] + self._r_option(repo.revision), show_command=verbose)
 
         # We could try parsing the output of 'svn update' instead, but this is
         # simpler to do...
@@ -131,7 +131,7 @@ class Subversion(VersionControlSystem):
 
         starting_revno = self._just_revno()
 
-        utils.run0(["svn", "update"] +  self._r_option(other_repo.revision),
+        utils.shell(["svn", "update"] +  self._r_option(other_repo.revision),
                    show_command=verbose)
 
         ending_revno = self._just_revno()
@@ -154,7 +154,7 @@ class Subversion(VersionControlSystem):
         This actually does a "svn commit", i.e., committing to the remote
         repository (which is the only one subversion has).
         """
-        utils.run0(["svn", "commit"], show_command=verbose)
+        utils.shell(["svn", "commit"], show_command=verbose)
 
     def status(self, repo, options):
         """

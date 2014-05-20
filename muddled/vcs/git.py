@@ -464,8 +464,8 @@ class Git(VersionControlSystem):
         local_head_ref = head_revision.strip()
 
         if quick:
-            retcode, branch_name, ignore = utils.get_cmd_data("git rev-parse --abbrev-ref HEAD")
-            retcode, text, ignore = utils.get_cmd_data("git show-ref origin/%s"%branch_name)
+            branch_name= utils.get_cmd_data("git rev-parse --abbrev-ref HEAD")
+            text = utils.get_cmd_data("git show-ref origin/%s"%branch_name)
             ref, what = text.split()
             if(ref != local_head_ref):
                 return '\n'.join(('After checking local HEAD against remote HEAD',

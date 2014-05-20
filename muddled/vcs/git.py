@@ -464,18 +464,20 @@ class Git(VersionControlSystem):
         local_head_ref = head_revision.strip()
 
         if quick:
-            branch_name= utils.get_cmd_data("git rev-parse --abbrev-ref HEAD")
+            branch_name = utils.get_cmd_data("git rev-parse --abbrev-ref HEAD")
             text = utils.get_cmd_data("git show-ref origin/%s"%branch_name)
             ref, what = text.split()
-            if(ref != local_head_ref):
-                return '\n'.join(('After checking local HEAD against remote HEAD',
-                                  '# The local repository does not match the remote:',
-                                  '#',
-                                  '#  HEAD   is %s'%head_name,
-                                  '#  Local  is %s'%local_head_ref,
-                                  '#  last known origin/%s is %s'%(branch_name, ref),
-                                  '#',
-                                  '# You probably need to push.'))
+            if ref != local_head_ref:
+                return '\n'.join(
+                    ('After checking local HEAD against our local record of the remote HEAD',
+                     '# The local repository does not match the remote:',
+                     '#',
+                     '#  HEAD   is %s'%head_name,
+                     '#  Local  is %s'%local_head_ref,
+                     '#  last known origin/%s is %s'%(branch_name, ref),
+                     '#',
+                     '# You probably need to push or pull.',
+                     '# Use "muddle status" without "-quick" to get a better idea'))
             else:
                 return None
 

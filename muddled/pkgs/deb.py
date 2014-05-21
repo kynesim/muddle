@@ -336,8 +336,7 @@ def simple(builder, coName, name, roles,
                             pkgFile, instrFile,
                             postInstallMakefile)
 
-        pkg.add_package_rules(builder.ruleset,
-                              name, r, dep)
+        pkg.add_package_rules(builder.ruleset, name, r, dep)
         # We should probably depend on the checkout .. .
         pkg.package_depends_on_checkout(builder.ruleset,
                                         name, r, coName, dep)

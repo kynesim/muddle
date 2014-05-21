@@ -107,8 +107,7 @@ def simple(builder, name, roles,
     for r in roles:
         the_pkg = VersionBuilder(name, r, filename,
                                  swname, version, build, withDate, withUser, withMachine)
-        pkg.add_package_rules(builder.ruleset,
-                              name, r, the_pkg)
+        pkg.add_package_rules(builder.ruleset, name, r, the_pkg)
 
 
 

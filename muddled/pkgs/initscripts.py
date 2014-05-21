@@ -105,8 +105,7 @@ def simple(builder, name, role, script_name, deployments = [ ],
                                 deployments,
                                 writeSetvarsSh = writeSetvarsSh,
                                 writeSetvarsPy = writeSetvarsPy)
-    pkg.add_package_rules(builder.ruleset,
-                          name, role, the_pkg)
+    pkg.add_package_rules(builder.ruleset, name, role, the_pkg)
     setup_default_env(builder, get_env(builder, name, role))
 
 
@@ -122,8 +121,7 @@ def medium(builder, name, roles, script_name, deployments = [ ],
                                     deployments,
                                     writeSetvarsSh = writeSetvarsSh,
                                     writeSetvarsPy = writeSetvarsPy)
-        pkg.add_package_rules(builder.ruleset,
-                              name, role, the_pkg)
+        pkg.add_package_rules(builder.ruleset, name, role, the_pkg)
         setup_default_env(builder, get_env(builder, name, role))
 
 

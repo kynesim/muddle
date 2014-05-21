@@ -187,11 +187,9 @@ def simple(builder, name, role, checkout, rev=None, branch=None,
                           rewriteAutoconf = rewriteAutoconf,
                           execRelPath = execRelPath)
     # Add the standard dependencies ..
-    pkg.add_package_rules(builder.ruleset,
-                          name, role, the_pkg)
+    pkg.add_package_rules(builder.ruleset, name, role, the_pkg)
     # .. and make us depend on the checkout.
-    pkg.package_depends_on_checkout(builder.ruleset,
-                                    name, role, checkout, the_pkg)
+    pkg.package_depends_on_checkout(builder.ruleset, name, role, checkout, the_pkg)
     ###attach_env(builder, name, role, checkout)
 
 def medium(builder, name, roles, checkout, rev=None, branch=None,
@@ -469,8 +467,7 @@ def expanding_package(builder, name, archive_dir,
     pkg.add_package_rules(builder.ruleset, name, role, dep)
 
     # It depends on the checkout
-    pkg.package_depends_on_checkout(builder.ruleset, name, role,
-                                    co_name)
+    pkg.package_depends_on_checkout(builder.ruleset, name, role, co_name)
 
     # And maybe on other packages
     if deps:

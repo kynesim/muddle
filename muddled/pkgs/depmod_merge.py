@@ -218,8 +218,7 @@ def create(builder, name, role,
     action = MergeDepModBuilder(name, role, custom_depmod)
 
     pkg.add_package_rules(builder.ruleset, name, role, action)
-    pkg.do_depend(builder, name, [ role ],
-                  pkgs_and_roles)
+    pkg.do_depend(builder, name, [role], pkgs_and_roles)
 
     for (pname, role) in pkgs_and_roles:
         lbl = depend.Label(utils.LabelType.Package,

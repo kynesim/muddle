@@ -287,7 +287,15 @@ def package_depends_on_checkout(ruleset, pkg_name, role_name, co_name, action=No
     new_rule.add(checkout)
     ruleset.add(new_rule)
 
-    # We can't distclean a package until we've checked out its checkout
+    # We can't clean or distclean a package until we've checked out its checkout
+    # Both are transient, as we don't need to remember we've done them, and
+    # indeed they should be doable more than once
+    clean = depend.Label(utils.LabelType.Package,
+                         pkg_name, role_name,
+                         utils.LabelTag.Clean,
+                         transient = True)
+    ruleset.add(depend.depend_one(action, clean, checkout))
+
     distclean = depend.Label(utils.LabelType.Package,
                              pkg_name, role_name,
                              utils.LabelTag.DistClean,
@@ -331,21 +339,28 @@ def add_package_rules(ruleset, pkg_name, role_name, action):
                           utils.LabelTag.PostInstalled ],
                         ruleset)
 
-    # "clean" dependes on "preconfig", but is transient,
-    # since you don't want to remember you've done it ..
+    # "clean" is transient, since we don't want/need to remember that it
+    # has been done (doing "clean" more than once is rather requires to
+    # be harmless)
     #
-    # (and it avoids inverse rules which would be a bit
-    #  urgh)
-    ruleset.add(depend.depend_one(action,
-				   depend.Label(utils.LabelType.Package,
-				                pkg_name, role_name,
-						utils.LabelTag.Clean,
-						transient = True),
-				   depend.Label(utils.LabelType.Package,
-					        pkg_name, role_name,
-						utils.LabelTag.PreConfig,
-						transient = True)))
-    # "distclean" depedsn on the package's checkout(s) having
+    # "clean" used to depend on "preconfig", but this sometimes had strange
+    # results - for instance, if "preconfig" on A depended on "checked_out"
+    # of B.
+    #
+    # Instead, we will make "clean" depend on "checked_out", and as such this
+    # is done in package_depends_on_checkout, just as "distclean" always has
+    # been
+    if False:
+        ruleset.add(depend.depend_one(action,
+                                       depend.Label(utils.LabelType.Package,
+                                                    pkg_name, role_name,
+                                                    utils.LabelTag.Clean,
+                                                    transient = True),
+                                       depend.Label(utils.LabelType.Package,
+                                                    pkg_name, role_name,
+                                                    utils.LabelTag.CheckedOut,
+                                                    transient = True)))
+    # "distclean" depends on the package's checkout(s) having
     # been checked out, so is handled in ``package_depends_on_checkout()``
 
 

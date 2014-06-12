@@ -367,8 +367,14 @@ class VersionControlHandler(object):
 
         options = builder.db.get_checkout_vcs_options(co_label)
         try:
-            with Directory(parent_dir):
-                self.vcs.checkout(repo, co_leaf, options, verbose)
+            # A complete hack - checkout is kinda meaningless for weld, but
+            # we do want to make sure that the git repo is set up and correct.
+            if repo.vcs == "weld":
+                with Directory(builder.db.root_path):
+                    self.vcs.ensure_version(builder, repo, co_leaf, options, verbose)
+            else:
+                with Directory(parent_dir):
+                    self.vcs.checkout(repo, co_leaf, options, verbose)
         except MuddleBug as err:
             raise MuddleBug('Error checking out %s in %s:\n%s'%(co_label,
                             parent_dir, err))

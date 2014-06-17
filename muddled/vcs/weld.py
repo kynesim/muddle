@@ -31,8 +31,7 @@ class Weld(VersionControlSystem):
 
         NB: if 'before' is specified, 'force' is ignored.
         """
-        retcode, revision, ignore = utils.get_cmd_data('git rev-parse %s'%orig_revision,
-                                                       fail_nonzero=False)
+        retcode, revision, ignore = utils.run3('git rev-parse %s'%orig_revision)
         if retcode:
             if revision:
                 text = utils.indent(revision.strip(),'    ')
@@ -62,7 +61,10 @@ class Weld(VersionControlSystem):
         """
         if (os.path.exists(".git")):
             # Get the checkout revision.
-            rev = self._calculate_revision(self, repo.revision)
+            rr = repo.revision
+            if (rr is None):
+                rr = 'HEAD'
+            rev = self._calculate_revision(self, rr)
             # Now get the version we have .. 
             rev2 = self._calculate_revision(self, 'HEAD')
             if (rev != rev2):

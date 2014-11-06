@@ -10,7 +10,7 @@ import subprocess
 
 import muddled.pkg as pkg
 import muddled.depend as depend
-
+import os.path
 from muddled.utils import GiveUp, LabelTag, LabelType
 from muddled.utils import run2, Choice, get_os_version_name
 from muddled.utils import split_debian_version, debian_version_is
@@ -43,6 +43,26 @@ class AptAltBuilder(pkg.PackageBuilder):
                 actual_packages.append(pkg)
         self.pkgs_to_install = actual_packages
         
+    def current_version(self, pkg):
+        retval, stdout = run2([ "dpkg-query", "-W", 
+                                "-f=${Status} ${Version}\\n", pkg["name"] ],
+                                    show_command=True)
+        if retval:
+            # Assume it's not installed
+            return None
+
+        lines = stdout.splitlines()
+        if len(lines) == 0:
+            return None
+
+        words = lines[0].split()
+        if not (len(words) == 4 and words[2] == 'installed'):
+            return None
+        
+        vsn_text = words[3]
+        vsn = split_debian_version(words[3])
+        return vsn
+
     def already_installed(self, pkg):
         """
         Decide if a package is installed and the right version
@@ -109,38 +129,50 @@ class AptAltBuilder(pkg.PackageBuilder):
                     # Sadly, we need sudo quite a lot here.
                     print ">> Processing %s"%q["name"]
                     print "   : Remove old packages.\n"
-                    cmd_list = [ "sudo", "dpkg", "-r", q["name"] ]
+                    cmd_list = [ "sudo", "apt-get", "remove", q["name"] ]
                     rv = subprocess.call(cmd_list)
                     if (q["repo"] is not None):
-                        if (has_additional_repo(q["repo"])):
+                        if (has_additional_repo(builder, q["repo"])):
                             print "   : Already have repo %s"%q["repo"]
                         else:
-                            print "   : Adding repository %s", q["repo"]
+                            print "   : Adding repository %s"%q["repo"]
                             cmd_list = [ "sudo", "add-apt-repository",
                                          q["repo"] ]
                             rv = subprocess.call(cmd_list)
                             if (rv != 0):
                                 raise GiveUp("Cannot add repo '%s'"%q["repo"])
+                    print ">> Update package lists \n"
+                    cmd_list = [ "sudo", "apt-get" "update" ]
+                    rv = subprocess.call(cmd_list)
+                    # Ignore failures - just means some lists couldn't
+                    # be got.
                     to_install = q["name"]
                     if ("exact-version" in q):
                         to_install = "%s=%s"%(q["name"], q["exact-version"])                        
                     print ">> Installing %s"%to_install
-                    cmd = [ "sudo", "apt-get", "install", "%s-"%to_install ]
+                    cmd_list = [ "sudo", "apt-get", "install",
+                                 "%s"%to_install ]
                     rv = subprocess.call(cmd_list)
                     if (rv != 0):
                         raise GiveUp("Cannot install %s"%to_install)
                     # Now ..
                     if (not self.already_installed(q)):
                         raise GiveUp(("Installed %s, but I still don't " + 
-                                     "have the right version - spec %s")%(q["name"], q))
+                                      "have the right version - spec %s," + 
+                                      "installed:%s")%(q["name"], q, 
+                                                 self.current_version(q)))
             print ">> Installed %s"%(" ".join(map(lambda x: x["name"], self.pkgs_to_install)))
 
 def has_additional_repo(builder, repo):
-    with open("/etc/apt/sources.list.d/additional-repositories.list") as s:
-        lines = s.readlines()
-        for l in lines:
-            if (l.find(repo) != -1):
-                return True
+    for additional_sources in [
+            "/etc/apt/sources.list.d/additional-repositories.list",
+            "/etc/apt/sources.list" ]:
+        if (os.path.exists(additional_sources)):
+            with open(additional_sources, 'r') as s:
+                lines = s.readlines()
+                for l in lines:
+                    if (l.find(repo) != -1):
+                        return True
     return False
 
 def simple(builder, name, role, apt_pkgs, os_version=None):

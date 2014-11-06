@@ -142,7 +142,7 @@ class AptAltBuilder(pkg.PackageBuilder):
                             if (rv != 0):
                                 raise GiveUp("Cannot add repo '%s'"%q["repo"])
                     print ">> Update package lists \n"
-                    cmd_list = [ "sudo", "apt-get" "update" ]
+                    cmd_list = [ "sudo", "apt-get", "update" ]
                     rv = subprocess.call(cmd_list)
                     # Ignore failures - just means some lists couldn't
                     # be got.

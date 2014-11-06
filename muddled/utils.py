@@ -2009,14 +2009,14 @@ class Choice(object):
 
     A choice sequence is:
 
-        * a string, the only choice. For instance::
+        * a string or dictionary, the only choice. For instance::
 
               choice = Choice("libxml-dev2")
               assert choice.choose('any string at all') == 'libxml-dev2)
 
         * a sequence of the form [ (pattern, value), ... ]; that is a sequence
           of one or more '(pattern, value)' pairs, where each 'pattern' is an
-          fnmatch pattern (see below) and each 'value' is a string.
+          fnmatch pattern (see below) and each 'value' is a string or dict.
 
           The patterns are compared to 'what_to_match' in turn, and if one
           matches, the corresponding 'value' is returned. If none match, a
@@ -2033,7 +2033,7 @@ class Choice(object):
 
         * a sequence of the form [ (pattern, value), ..., default ]; that is
           a sequence of one or more pairs (as above), with a final "default"
-          value, which must be a string or None.
+          value, which must be a string or dict or None.
 
           The patterns are compared to 'what_to_match' in turn, and if one
           matches, the corresponding 'value' is returned. If none match, the
@@ -2097,8 +2097,8 @@ class Choice(object):
 
         Raises a GiveUp error with an explanation if they do not
         """
-        if isinstance(self.choices, basestring):
-            # A string is no choice at all, which is OK
+        if isinstance(self.choices, basestring) or isinstance(self.choices, dict):
+            # A string or dict is no choice at all, which is OK
             self.only_choice = self.choices
             return
 
@@ -2108,7 +2108,8 @@ class Choice(object):
         if len(self.choices) == 0:
             raise GiveUp('A choice sequence may not be zero length')
 
-        if len(self.choices) == 1 and isinstance(self.choices[0], basestring):
+        if len(self.choices) == 1 and (isinstance(self.choices[0], basestring) or
+                                       isinstance(self.choices[0], dict)):
             # A sequence with only a default string choice is OK
             self.only_choice = self.choices[0]
             return
@@ -2118,7 +2119,7 @@ class Choice(object):
                 raise GiveUp('Only the last item in a choice sequence may be None\n'
                              '(found %r at index %d)\n'
                              'Choices were:  %s'%(pair, index, self.choices))
-            if isinstance(pair, basestring):
+            if isinstance(pair, basestring) or isinstance(pair, dict):
                 raise GiveUp('Only the last item in a choice sequence may be a string\n'
                              '(%r at index %d is a string)\n'
                              'Choices were:  %s'%(pair, index, self.choices))
@@ -2128,7 +2129,8 @@ class Choice(object):
                              'Choices were:  %s'%(pair, index, len(pair), self.choices))
 
         # And as for that last item
-        if isinstance(self.choices[-1], basestring) or self.choices[-1] is None:
+        if isinstance(self.choices[-1], basestring) or isinstance(self.choices[-1], dict) or \
+                self.choices[-1] is None:
             self.got_default = True
         else:
             # If it is not a string, we need to check it as well
@@ -2200,5 +2202,55 @@ class Choice(object):
             raise GiveUp('Given\n'
                          '  %s\n'
                          'and OS %r, cannot find a match'%(self, version_name))
+
+
+def debian_version_is(test, ref):
+    """
+    Return 1 if test > ref, -1 if ref > test, 0 if they are equal
+    """
+    def compare_v(x,y):
+        """
+        Return 1 if x >y , -1 if x < y , 0 if x == y
+        """
+        if (x is None) and (y is not None):
+            return -1
+        if (x is not None) and (y is None):
+            return 1
+        if (x==y):
+            return 0
+        if (x>y): 
+            return 1
+        else:
+            return -1
+
+    for thing in [ "major", "minor", "subminor", "issue" ]:
+        q = compare_v(test[thing], ref[thing])
+        if (q != 0):
+            return q
+    return 0;
+
+
+def split_debian_version(v):
+    """
+    Takes a debian-style version string - <major>.<minor>.<subminor>-<issue><additional> - and
+    turns it into a dictionary with those keys.
+     """
+    m = re.match(r'([0-9]+)\.([0-9]+)(\.[0-9])?(-([0-9]+)(.*)$)?', v)
+    if (m is None):
+        raise GiveUp("'%s' is not a legal debian version"%v)
+    grps = m.groups()
+    rv = { }
+    rv["major"] = int(grps[0])
+    rv["minor"] = int(grps[1])
+    if (grps[2] is not None):
+        rv["subminor"] = int(grps[2][1:])
+    else:
+        rv["subminor"] = None
+    if (grps[4] is not None):
+        rv["issue"] = int(grps[4])
+    else:
+        rv["issue"] = None
+    rv["additional"] = grps[5]
+    return rv
 
 # End file.

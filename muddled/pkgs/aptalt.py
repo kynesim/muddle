@@ -112,7 +112,7 @@ class AptAltBuilder(pkg.PackageBuilder):
                     cmd_list = [ "sudo", "dpkg", "-r", q["name"] ]
                     rv = subprocess.call(cmd_list)
                     if (q["repo"] is not None):
-                        if (has_additional_repo(q["repo"])):
+                        if (has_additional_repo(builder, q["repo"])):
                             print "   : Already have repo %s"%q["repo"]
                         else:
                             print "   : Adding repository %s", q["repo"]

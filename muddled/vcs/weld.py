@@ -76,18 +76,18 @@ class Weld(VersionControlSystem):
             else:
                 br = "master"
             # Because there are files here, we need to be a bit cunning.
-            utils.run_cmd("git init", verbose=verbose)
-            utils.run_cmd("git remote add origin %s"%repo.base_url, verbose = verbose)
-            utils.run_cmd("git fetch origin")
+            utils.run0("git init")
+            utils.run0("git remote add origin %s"%repo.base_url)
+            utils.run0("git fetch origin")
             if repo.revision:
                 rev = repo.revision
                 br = None
             else:
                 rev = "HEAD"
             if (br is None):
-                utils.run_cmd("git checkout %s"%repo.revision, verbose = verbose)
+                utils.run0("git checkout %s"%repo.revision)
             else:
-                utils.run_cmd("git checkout -b %s --track origin/%s"%(br,br), verbose = verbose)
+                utils.run0("git checkout -b %s --track origin/%s"%(br,br))
 
 
 register_vcs("weld", Weld(), __doc__)

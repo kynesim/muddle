@@ -99,6 +99,9 @@ class MakeBuilder(PackageBuilder):
             #print "> removing PKG_CONFIG_LIBDIR from environment"
             del os.environ['PKG_CONFIG_LIBDIR']
 
+    def _make_command(self, builder, makefile_name):
+        return ['make', '-f', makefile_name]
+
     def build_label(self, builder, label):
         """
         Build the relevant label. We'll assume that the
@@ -120,7 +123,7 @@ class MakeBuilder(PackageBuilder):
                                                  self.per_role_makefiles,
                                                  label.role)
 
-            make_cmd = ['make', '-f', makefile_name]
+            make_cmd = self._make_command(builder, makefile_name)
 
             if (tag == utils.LabelTag.PreConfig):
                 # Preconfigure - nothing need be done

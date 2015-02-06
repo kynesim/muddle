@@ -1,0 +1,58 @@
+## Imagine we have a package that looks like so:
+##     .
+##     ├── include
+##     │   ├── asdf
+##     │   │   └── asdf.h
+##     │   └── common
+##     │       └── utils.h
+##     └── src
+##         ├── asdf.c
+##         ├── qwerty.c
+##         └── tests
+##             └── asdf_test.c
+##
+## This package is meant to compile a library (both shared & static) libasdf
+## from asdf.c, and a program called qwerty from asdf.c & qwerty.cpp. It also
+## needs to build some tests for libasdf, which are contained in
+## tests/asdf_test.c.
+##
+## Using a cxx package, we can define that easily like so:
+
+# PROGS defines the list of programs, LDLIBS is the list of dynamic libraries
+# and ARLIBS is the list of static libraries.
+PROGS  := qwerty
+LDLIBS := asdf
+ARLIBS := asdf
+
+# We then define our sources like so.
+# (Note that things in the lists above with the same name must share.)
+asdf_SOURCES    := asdf.c
+qwerty_SOURCES  := qwerty.c asdf.c
+
+# If you want to be able to test a program, without its main() function causing
+# problems with your tests, you can instead define a program like so:
+# qwerty_MAIN    := qwerty.c
+# qwerty_SOURCES := asdf.c
+# In this case, qwerty_MAIN is linked against qwerty_SOURCES to form the
+# program qwerty, and qwerty_TEST is linked against qwerty_SOURCES (but not
+# qwerty_MAIN) to form the test.
+
+# Add our tests...
+# (This defines the main test file, the files in asdf_SOURCES will also be
+# linked in.)
+asdf_TEST = tests/asdf_test.c
+
+# Add any extra FLAGS that are needed:
+EXTRA_CPPFLAGS += -Wall -Werror -Wextra -pedantic # Leave them all on, I dare you.
+EXTRA_CFLAGS   += -std=c11
+EXTRA_CXXFLAGS += -std=c++11
+
+# You can also add LDFLAGS for just one program:
+qwerty_LDLIBS := -lm
+
+# You can override the various directories that are used for build and install,
+# the complete list is at the top of rules.mk; cxx.mk sets these to the correct
+# values for muddle.
+
+# ... and finally
+include cxx.mk

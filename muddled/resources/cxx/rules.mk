@@ -19,7 +19,7 @@ INST_INCDIR ?= $(INSTALL_DIR)/include
 
 all: progs libs
 
-$(BINDIR) $(OBJDIR) $(LIBDIR) $(TSTDIR) $(INST_BINDIR) $(INST_LIBDIR):
+$(BUILD_DIR) $(BINDIR) $(OBJDIR) $(LIBDIR) $(TSTDIR) $(INST_BINDIR) $(INST_LIBDIR):
 	$(AT)$(MKDIR_P) $@
 
 config: $(BINDIR) $(OBJDIR) $(LIBDIR) $(TSTDIR)
@@ -127,14 +127,15 @@ $$(eval $$(call BASE_template,$(1)))
 
 $(1)_TEST_OBJS := $$($(1)_TEST:%=$$(OBJDIR)/%.o)
 $(1)_TEST_DEPS := $$($(1)_TEST_OBJS:.o=.d)
-$(1)_TEST_NAME := $$($(1)_TEST:%=$(BINDIR)/%)
+$(1)_TEST_NAME := $(1)
+$(1)_TEST_NAME := $$($(1)_TEST_NAME:%=$(TSTDIR)/%_test)
 TEST_NAMES += $$($(1)_TEST_NAME)
 
 -include $$($(1)_DEPS)
 
 $$($(1)_TEST_NAME): $$($(1)_OBJS) $$($(1)_TEST_OBJS) | $(TSTDIR)
 	$$(ECHO) "Creating test $$(@F)..."
-	$$(AT)$$(CC) -o $$@ $$^ $$(LDFLAGS) $$($(1)_LDFLAGS)
+	$$(AT)$$(CXX) -o $$@ $$^ $$(LDFLAGS) $$($(1)_LDFLAGS) $$($(1)_TEST_LDFLAGS)
 endef
 $(foreach TEST, $(TESTS), $(eval $(call TEST_template,$(TEST))))
 

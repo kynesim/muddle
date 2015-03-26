@@ -8,4 +8,5 @@ INST_INCDIR ?= $(MUDDLE_OBJ)/include
 
 BASE_DIR ?= $(MUDDLE_SRC)
 
-include rules.mk
+THIS_FILE := $(abspath $(lastword $(MAKEFILE_LIST)))
+include $(dir $(THIS_FILE))/rules.mk

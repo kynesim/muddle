@@ -32,9 +32,7 @@ Muddle is used internally at Kynesim, as well as by other people. If you have
 problems with it, or ideas on how it could be improved, please do raise an
 issue, or contact us directly. 
 
-The muddle source code lives at http://code.google.com/p/muddle/. There is a
-mirror at https://github.com/tibs/muddle.mirror, although that may not always
-be as up-to-date.
+The muddle source code lives at https://github.com/kynesim/muddle.
 
 Documentation lives at http://muddle.readthedocs.org/, thanks to ReadTheDocs_,
 who are wonderful people. The documentation should be updated every time a
@@ -42,17 +40,9 @@ change is pushed to the main source code repository.
 
 .. _ReadTheDocs: https://readthedocs.org/
 
-Some slides for a talk rrw gave on muddle are available in the Downloads_
-section. 
-
-.. _Downloads: http://code.google.com/p/muddle/downloads/list
-
 The `Kynesim blog`_ also periodically has articles on using muddle.
 
 .. _`Kynesim blog`: http://kynesim.blogspot.co.uk/
-
-Note: muddle currently requires Python 2.6 or 2.7, but the intention is to
-move to Python 3 at some point in 2013.
 
 -----------
 

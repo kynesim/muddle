@@ -1560,6 +1560,13 @@ class Init(Command):
 
         print "Initialising build tree in %s "%current_dir
         print "Repository: %s"%repo
+
+        # If you can't find the build description, and its
+        # first component is src/ , chop off the src/
+        if (build[:4] == 'src/' and not os.path.exists(os.path.join('src',
+                                                             build))):
+            build = build[4:]
+
         print "Build description: %s"%build
 
         if branch_name:

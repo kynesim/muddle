@@ -131,7 +131,7 @@ $(1)_TEST_NAME := $(1)
 $(1)_TEST_NAME := $$($(1)_TEST_NAME:%=$(TSTDIR)/%_test)
 TEST_NAMES += $$($(1)_TEST_NAME)
 
--include $$($(1)_DEPS)
+-include $$($(1)_TEST_DEPS)
 
 $$($(1)_TEST_NAME): $$($(1)_OBJS) $$($(1)_TEST_OBJS) | $(TSTDIR)
 	$$(ECHO) "Creating test $$(@F)..."

@@ -156,7 +156,7 @@ UTIL_NAMES += $$($(1)_UTIL_NAME)
 
 -include $$($(1)_UTIL_DEPS)
 
-$$($(1)_UTIL_NAME):  $$($(1)_UTIL_OBJS) $(UTIL_LIBS) | $(UTILDIR)
+$$($(1)_UTIL_NAME):  $$($(1)_UTIL_OBJS) | $(UTIL_LIBS) $(UTILDIR)
 	$$(ECHO) "Creating utility $$(@F)..."
 	$$(AT)$$(CXX) -o $$@ $$^ $$(LDFLAGS) $$($(1)_LDFLAGS) $$($(1)_UTIL_LDFLAGS) $(UTIL_LDFLAG_LIBS)
 endef

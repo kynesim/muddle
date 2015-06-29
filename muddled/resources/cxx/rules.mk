@@ -8,31 +8,35 @@ BINDIR ?= $(BUILD_DIR)/bin
 OBJDIR ?= $(BUILD_DIR)/obj
 LIBDIR ?= $(BUILD_DIR)/lib
 TSTDIR ?= $(OBJDIR)/tests
+UTILDIR ?= $(BUILD_DIR)/utils
 
 INSTALL_DIR ?= $(BASE_DIR)/install
 INST_BINDIR ?= $(INSTALL_DIR)/bin
 INST_LIBDIR ?= $(INSTALL_DIR)/lib
 INST_INCDIR ?= $(INSTALL_DIR)/include
 
-.PHONY: all progs libs test clean distclean config install
+.PHONY: all progs libs test util clean distclean config install
 .SUFFIXES:
 
-all: progs libs
+all: progs libs util
 
-$(BUILD_DIR) $(BINDIR) $(OBJDIR) $(LIBDIR) $(TSTDIR) $(INST_BINDIR) $(INST_LIBDIR):
+$(BUILD_DIR) $(BINDIR) $(OBJDIR) $(LIBDIR) $(TSTDIR) $(INST_BINDIR) $(INST_LIBDIR) $(UTILDIR):
 	$(AT)$(MKDIR_P) $@
 
-config: $(BINDIR) $(OBJDIR) $(LIBDIR) $(TSTDIR)
+config: $(BINDIR) $(OBJDIR) $(LIBDIR) $(TSTDIR) $(UTILDIR)
 
 install: progs libs $(INST_BINDIR) $(INST_LIBDIR)
 	$(foreach PROG, $(PROGS), $(call install-prog,$(PROG)))
 	$(foreach LIB, $(LDLIBS), $(call install-ldlib,$(LIB)))
 	$(foreach LIB, $(ARLIBS), $(call install-arlib,$(LIB)))
 
-
 progs: $(PROGS:%=$(BINDIR)/%)
 
 libs: $(LDLIBS:%=$(LIBDIR)/lib%.so) $(ARLIBS:%=$(LIBDIR)/lib%.a)
+
+tests: $(TESTS:%=$(TSTDIR)/%_test)
+
+util: $(UTILS:%=$(UTILDIR)/%)
 
 test: $(TESTS:%=$(TSTDIR)/%_test)
 	$(foreach TEST, $<, $(call execute-test,$(TEST)))
@@ -138,6 +142,26 @@ $$($(1)_TEST_NAME): $$($(1)_OBJS) $$($(1)_TEST_OBJS) | $(TSTDIR)
 	$$(AT)$$(CXX) -o $$@ $$^ $$(LDFLAGS) $$($(1)_LDFLAGS) $$($(1)_TEST_LDFLAGS)
 endef
 $(foreach TEST, $(TESTS), $(eval $(call TEST_template,$(TEST))))
+
+UTIL_LDFLAG_LIBS := -L$(LIBDIR) $(LDLIBS:%=-l%)
+UTIL_LIBS := $(LDLIBS:%=$(LIBDIR)/lib%.so)
+
+define UTIL_template
+$$(eval $$(call BASE_template,$(1)))
+$(1)_UTIL_OBJS := $$($(1)_SOURCES:%=$(OBJDIR)/utils/%.o)
+$(1)_UTIL_DEPS := $$($(1)_UTIL_OBJS:.o=.d)
+$(1)_UTIL_NAME := $(1)
+$(1)_UTIL_NAME := $$($(1)_UTIL_NAME:%=$(UTILDIR)/%)
+UTIL_NAMES += $$($(1)_UTIL_NAME)
+
+-include $$($(1)_UTIL_DEPS)
+
+$$($(1)_UTIL_NAME):  $$($(1)_UTIL_OBJS) $(UTIL_LIBS) | $(UTILDIR)
+	$$(ECHO) "Creating utility $$(@F)..."
+	$$(AT)$$(CXX) -o $$@ $$^ $$(LDFLAGS) $$($(1)_LDFLAGS) $$($(1)_UTIL_LDFLAGS) $(UTIL_LDFLAG_LIBS)
+endef
+$(foreach UTIL, $(UTILS), $(eval $(call UTIL_template,$(UTIL))))
+
 
 define PROG_template
 $$(eval $$(call BASE_template,$(1)))

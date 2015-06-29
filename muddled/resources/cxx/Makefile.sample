@@ -42,6 +42,8 @@ qwerty_SOURCES  := qwerty.c asdf.c
 # linked in.)
 asdf_TEST = tests/asdf_test.c
 
+asdf_UTIL = my_util.c
+
 # Add any extra FLAGS that are needed:
 EXTRA_CPPFLAGS += -Wall -Werror -Wextra -pedantic # Leave them all on, I dare you.
 EXTRA_CFLAGS   += -std=c11
@@ -50,9 +52,19 @@ EXTRA_CXXFLAGS += -std=c++11
 # You can also add LDFLAGS for just one program:
 qwerty_LDLIBS := -lm
 
+# If you want to build some programs for the target that don't get installed by default,
+# use UTILS:
+
+UTILS := wombat
+wombat_SOURCES := wombat.cpp # Goes in src/utils/wombat.cpp
+wombat_LDFLAGS := -lfish -Lmeeeble
+
+# Utils end up in $(MUDDLE_OBJ)/utils.
+
 # You can override the various directories that are used for build and install,
 # the complete list is at the top of rules.mk; cxx.mk sets these to the correct
 # values for muddle.
+
 
 # ... and finally
 include cxx.mk

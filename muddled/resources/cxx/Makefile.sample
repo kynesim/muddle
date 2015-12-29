@@ -24,6 +24,10 @@ PROGS  := qwerty
 LDLIBS := asdf
 ARLIBS := asdf
 
+# Verbose? Uncomment this to show the command lines as they
+# are executed.
+# V=1
+
 # We then define our sources like so.
 # (Note that things in the lists above with the same name must share.)
 asdf_SOURCES    := asdf.c

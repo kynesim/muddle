@@ -57,6 +57,10 @@ CXXFLAGS += $(EXTRA_CXXFLAGS)
 CFLAGS += $(EXTRA_CFLAGS)
 LDFLAGS += $(EXTRA_LDFLAGS)
 
+# Used to set LD_LIBRARY_PATH for running tests.
+space:=$(empty) $(empty)
+TEST_LDPATH := $(subst $(space),:,$(TEST_LDPATH_DIRS))
+
 # Verbosity toggling
 # By default we don't print the command being executed, we instead print short,
 # readable messages. Setting V=1 kills the messages and shows the actual
@@ -77,7 +81,7 @@ CP_A := cp -a
 # Note that this will abort on the first test to exit with a non-zero status.
 define execute-test
 $(ECHO) "Running test $(1)... "
-$(AT)$(1)
+LD_LIBRARY_PATH=$(LD_LIBRARY_PATH):$(TEST_LDPATH) $(AT)$(1)
 endef
 
 # Install a program

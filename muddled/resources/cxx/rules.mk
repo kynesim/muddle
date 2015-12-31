@@ -81,7 +81,7 @@ CP_A := cp -a
 # Note that this will abort on the first test to exit with a non-zero status.
 define execute-test
 $(ECHO) "Running test $(1)... "
-LD_LIBRARY_PATH=$(LD_LIBRARY_PATH):$(TEST_LDPATH) $(AT)$(1)
+$(AT)LD_LIBRARY_PATH=$(LD_LIBRARY_PATH):$(TEST_LDPATH) $(1)
 endef
 
 # Install a program
@@ -162,10 +162,9 @@ UTIL_NAMES += $$($(1)_UTIL_NAME)
 
 $$($(1)_UTIL_NAME):  $$($(1)_UTIL_OBJS) | $(UTIL_LIBS) $(UTILDIR)
 	$$(ECHO) "Creating utility $$(@F)..."
-	$$(AT)$$(CXX) -o $$@ $$^ $$(LDFLAGS) $$($(1)_LDFLAGS) $$($(1)_UTIL_LDFLAGS) $(UTIL_LDFLAG_LIBS)
+	$$(AT)$$(CXX) -o $$@ $$^ $$(LDFLAGS) $$($(1)_LDFLAGS) $$($(1)_UTIL_LDFLAGS) $(UTIL_LDFLAG_LIBS) $$($(1)_LIBS)
 endef
 $(foreach UTIL, $(UTILS), $(eval $(call UTIL_template,$(UTIL))))
-
 
 define PROG_template
 $$(eval $$(call BASE_template,$(1)))
@@ -177,7 +176,7 @@ $(1)_MAIN_DEP := $$($(1)_MAIN_OBJ:.o=.d)
 
 $$(BINDIR)/$(1): $$($(1)_OBJS) $$($(1)_MAIN_OBJ) | $(BINDIR)
 	$$(ECHO) "Creating program $$(@F)..."
-	$$(AT)$$(CXX) -o $$@ $$^ $$(LDFLAGS) $$($(1)_LDFLAGS)
+	$$(AT)$$(CXX) -o $$@ $$^ $$(LDFLAGS) $$($(1)_LDFLAGS) $$($(1)_LIBS)
 endef
 $(foreach PROG, $(PROGS), $(eval $(call PROG_template,$(PROG))))
 

@@ -24,6 +24,10 @@ PROGS  := qwerty
 LDLIBS := asdf
 ARLIBS := asdf
 
+# UTILS is a list of utilities, typically built with a library,
+#  they are not installed on the target.
+UTILS := spqr
+
 # Verbose? Uncomment this to show the command lines as they
 # are executed.
 # V=1
@@ -32,6 +36,10 @@ ARLIBS := asdf
 # (Note that things in the lists above with the same name must share.)
 asdf_SOURCES    := asdf.c
 qwerty_SOURCES  := qwerty.c asdf.c
+spqr_SOURCES := foo.c
+spqr_LDFLAGS := -L/foo
+spqr_LIBS := -lwombats
+
 
 # If you want to be able to test a program, without its main() function causing
 # problems with your tests, you can instead define a program like so:
@@ -45,8 +53,6 @@ qwerty_SOURCES  := qwerty.c asdf.c
 # (This defines the main test file, the files in asdf_SOURCES will also be
 # linked in.)
 asdf_TEST = tests/asdf_test.c
-
-asdf_UTIL = my_util.c
 
 # Add any extra FLAGS that are needed:
 EXTRA_CPPFLAGS += -Wall -Werror -Wextra -pedantic # Leave them all on, I dare you.

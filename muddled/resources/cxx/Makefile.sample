@@ -38,6 +38,9 @@ asdf_SOURCES    := asdf.c
 qwerty_SOURCES  := qwerty.c asdf.c
 spqr_SOURCES := foo.c
 spqr_LDFLAGS := -L/foo
+# Stuff raided from the main programs in obj/ - so you can have utilities
+# linking the same code as programs.
+spqr_EXTRA_OBJS := foo.cpp.o 
 spqr_LIBS := -lwombats
 
 

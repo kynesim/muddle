@@ -152,7 +152,7 @@ UTIL_LIBS := $(LDLIBS:%=$(LIBDIR)/lib%.so)
 
 define UTIL_template
 $$(eval $$(call BASE_template,$(1)))
-$(1)_UTIL_OBJS := $$($(1)_SOURCES:%=$(OBJDIR)/utils/%.o)
+$(1)_UTIL_OBJS := $$($(1)_SOURCES:%=$(OBJDIR)/utils/%.o) $$($(1)_EXTRA_OBJS:%=$(OBJDIR)/%)
 $(1)_UTIL_DEPS := $$($(1)_UTIL_OBJS:.o=.d)
 $(1)_UTIL_NAME := $(1)
 $(1)_UTIL_NAME := $$($(1)_UTIL_NAME:%=$(UTILDIR)/%)

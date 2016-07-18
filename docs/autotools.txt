@@ -47,10 +47,10 @@ is worth finding a copy.
 The second is online:
 
   | Autotools Mythbuster
-  | http://www.flameeyes.eu/autotools-mythbuster/
+  | https://autotools.io/
   | Diego Elio “Flameeyes” Pettenò
 
-His blog, at http://blog.flameeyes.eu/, can also be fairly instructive.
+His blog, at https://blog.flameeyes.eu/, can also be fairly instructive.
 
 .. _`How to fix autotools failures`: http://www.gentoo.org/proj/en/qa/autofailure.xml
 

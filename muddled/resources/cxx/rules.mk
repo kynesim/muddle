@@ -106,7 +106,7 @@ define install-arlib
 $(ECHO) "Installing lib$(1).a... "
 $(AT)install -m 0644 $(LIBDIR)/lib$(1).a $(INST_LIBDIR)/
 $(AT)$(MKDIR_P) $(INST_INCDIR)/$(1)
-$(AT)$(CP_A) $(INCLUDE_DIR)/$(1)/* $(INST_INCDIR)/$(1)
+$(AT)$(CP_A) $(INCDIR)/$(1)/* $(INST_INCDIR)/$(1)
 endef
 
 # Below is defined a set of macros that are used to build programs, static &

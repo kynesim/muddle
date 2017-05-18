@@ -1353,16 +1353,19 @@ class RuleSet(object):
         """
         result_set = set()
 
-        for v in self.map.values():
-            if useMatch:
+        # This is an exception to Don't Repeat Yourself, which saves 11% runtime.
+        if useMatch:
+            for v in self.map.values():
                 for dep in v.deps:
                     if dep.match(label) is not None:
                         result_set.add(v)
                         break
-            elif useTags:
+        elif useTags:
+            for v in self.map.values():
                 if (label in v.deps):
                     result_set.add(v)
-            else:
+        else:
+            for v in self.map.values():
                 for dep in v.deps:
                     if dep.match_without_tag(label):
                         result_set.add(v)

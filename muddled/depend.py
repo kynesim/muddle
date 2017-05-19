@@ -69,6 +69,11 @@ class Label(object):
     implementation does not currently enforce this. Please don't try to abuse
     this, as Bad Things will happen.
 
+    If you're implementing a new copy-constructor and changing the new
+    instance's label before returning it, don't forget to call rehash().
+    If you don't, Really Bad Things will happen.
+
+
     .. note:: The *flags* on a label are not immutable, and are regarded as
               transient annotations.
 
@@ -239,6 +244,7 @@ class Label(object):
         self._name = name
         self._role = role
         self._tag = tag
+        self.rehash()
 
         # Flags are *not* immutable
         self.transient = transient
@@ -293,6 +299,7 @@ class Label(object):
 
         new.system = target.system
         new.transient = target.transient
+        new.rehash()
         return new
 
     def copy_with_tag(self, new_tag, system = None, transient = None):
@@ -304,6 +311,7 @@ class Label(object):
         cp._tag = new_tag
         cp.system = system
         cp.transient = transient
+        cp.rehash()
         return cp
 
     def copy_with_role(self, new_role):
@@ -614,13 +622,24 @@ class Label(object):
 
     def __hash__(self):
         """
+        Returns the cached hashcode for a label (set up in __init__).
+        The relevant fields are immutable (see hashcode), so this is valid.
+
+        Note that there are a couple of mutating-copy-constructors lurking
+        in this class. If you add a new one you are on your honour to update
+        the cache by calling self._hashcode = self.hashcode().
+        """
+        return self._hashcode
+
+    def rehash(self):
+        """
         Calculate the hash for a label.
 
         Ignores the domain name (since that may be changed) and the
         transient and system flags (since they are defined to be, well,
         transient).
         """
-        return hash( (self._type, self._name, self._role, self._tag) )
+        self._hashcode = hash( (self._type, self._name, self._role, self._tag) )
 
     def _mark_unswept(self):
         """
@@ -1353,16 +1372,19 @@ class RuleSet(object):
         """
         result_set = set()
 
-        for v in self.map.values():
-            if useMatch:
+        # This is an exception to Don't Repeat Yourself, which saves 11% runtime.
+        if useMatch:
+            for v in self.map.values():
                 for dep in v.deps:
                     if dep.match(label) is not None:
                         result_set.add(v)
                         break
-            elif useTags:
+        elif useTags:
+            for v in self.map.values():
                 if (label in v.deps):
                     result_set.add(v)
-            else:
+        else:
+            for v in self.map.values():
                 for dep in v.deps:
                     if dep.match_without_tag(label):
                         result_set.add(v)
@@ -1823,6 +1845,7 @@ def normalise_checkout_label(label, tag='*'):
     else:
         new = label.copy_with_tag(tag)
         new._role = None    # a bit naughty, but the simplest way
+        new.rehash()
         return new
 
 # Some simple ways of constructing labels

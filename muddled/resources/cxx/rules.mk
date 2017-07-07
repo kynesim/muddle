@@ -166,7 +166,7 @@ UTIL_NAMES += $$($(1)_UTIL_NAME)
 
 $$($(1)_UTIL_NAME):  $$($(1)_UTIL_OBJS) | $(UTIL_LIBS) $(UTILDIR)
 	$$(ECHO) "Creating utility $$(@F)..."
-	$$(AT)$$(CXX) -o $$@ $$^ $$(LDFLAGS) $$($(1)_LDFLAGS) $$($(1)_UTIL_LDFLAGS) $(UTIL_LDFLAG_LIBS) $$($(1)_LIBS)
+	$$(AT)$$(CXX) -o $$@ $$^ $$(LDFLAGS) $$($(1)_LDFLAGS) $$($(1)_UTIL_LDFLAGS) $$(UTIL_LDFLAG_LIBS) $$($(1)_LIBS)
 endef
 $(foreach UTIL, $(UTILS), $(eval $(call UTIL_template,$(UTIL))))
 
@@ -180,7 +180,7 @@ $(1)_MAIN_DEP := $$($(1)_MAIN_OBJ:.o=.d)
 
 $$(BINDIR)/$(1): $$($(1)_OBJS) $$($(1)_MAIN_OBJ) | $(BINDIR)
 	$$(ECHO) "Creating program $$(@F)..."
-	$$(AT)$$(CXX) -o $$@ $$^ $$(LDFLAGS) $$($(1)_LDFLAGS) $$($(1)_LIBS)
+	$$(AT)$$(CXX) -o $$@ $$^ -L$(LIBDIR) $$(LDFLAGS) $$($(1)_LDFLAGS) $$($(1)_LIBS)
 endef
 $(foreach PROG, $(PROGS), $(eval $(call PROG_template,$(PROG))))
 

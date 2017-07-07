@@ -178,7 +178,7 @@ $(1)_MAIN_DEP := $$($(1)_MAIN_OBJ:.o=.d)
 
 -include $$($(1)_MAIN_DEP)
 
-$$(BINDIR)/$(1): $$($(1)_OBJS) $$($(1)_MAIN_OBJ) | $(BINDIR)
+$$(BINDIR)/$(1): $$($(1)_OBJS) $$($(1)_MAIN_OBJ) | $(UTIL_LIBS) $(BINDIR)
 	$$(ECHO) "Creating program $$(@F)..."
 	$$(AT)$$(CXX) -o $$@ $$^ -L$(LIBDIR) $$(LDFLAGS) $$($(1)_LDFLAGS) $$($(1)_LIBS)
 endef

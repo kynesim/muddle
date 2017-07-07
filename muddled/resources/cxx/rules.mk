@@ -102,7 +102,7 @@ define install-ldlib
 echo "Installing lib$(1).so... ";
 install -m 0644 $(LIBDIR)/lib$(1).so $(INST_LIBDIR)/;
 $(MKDIR_P) $(INST_INCDIR)/$(1);
-$(CP_A) $(INCDIR)/$(1)/* $(INST_INCDIR)/$(1);
+-$(CP_A) $(INCDIR)/$(1)/* $(INST_INCDIR)/$(1);
 endef
 
 # Install a static library and its header files.
@@ -110,7 +110,7 @@ define install-arlib
 echo "Installing lib$(1).a... ";
 install -m 0644 $(LIBDIR)/lib$(1).a $(INST_LIBDIR)/;
 $(MKDIR_P) $(INST_INCDIR)/$(1);
-$(CP_A) $(INCDIR)/$(1)/* $(INST_INCDIR)/$(1);
+-$(CP_A) $(INCDIR)/$(1)/* $(INST_INCDIR)/$(1);
 endef
 
 # Below is defined a set of macros that are used to build programs, static &

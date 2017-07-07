@@ -77,17 +77,21 @@ endif
 MKDIR_P := mkdir -p
 CP_A := cp -a
 
+# NOTE: If you're going to put recipe instructions in a define and call them
+# in a loop, they will be smushed into a single shell invocation.
+# So you need semicolons after each, and nothing that might expand to '@'.
+
 # Run a test.
 # Note that this will abort on the first test to exit with a non-zero status.
 define execute-test
-$(ECHO) "Running test $(1)... "
-$(AT)LD_LIBRARY_PATH=$(LD_LIBRARY_PATH):$(TEST_LDPATH) $(1)
+echo "Running test $(1)... ";
+LD_LIBRARY_PATH=$(LD_LIBRARY_PATH):$(TEST_LDPATH) $(1);
 endef
 
 # Install a program
 define install-prog
-$(ECHO) "Installing $(1)... "
-$(AT)install -m 0755 $(BINDIR)/$(1) $(INST_BINDIR)/$(1)
+echo "Installing $(1)... ";
+install -m 0755 $(BINDIR)/$(1) $(INST_BINDIR)/$(1);
 endef
 
 # Install a dynamic library and its header files.
@@ -95,18 +99,18 @@ endef
 # $(INCDIR)/LIBRARY_NAME, if you want private header files, put them somewhere
 # else.
 define install-ldlib
-$(ECHO) "Installing lib$(1).so... "
-$(AT)install -m 0644 $(LIBDIR)/lib$(1).so $(INST_LIBDIR)/
-$(AT)$(MKDIR_P) $(INST_INCDIR)/$(1)
-$(AT)$(CP_A) $(INCDIR)/$(1)/* $(INST_INCDIR)/$(1)
+echo "Installing lib$(1).so... ";
+install -m 0644 $(LIBDIR)/lib$(1).so $(INST_LIBDIR)/;
+$(MKDIR_P) $(INST_INCDIR)/$(1);
+$(CP_A) $(INCDIR)/$(1)/* $(INST_INCDIR)/$(1);
 endef
 
 # Install a static library and its header files.
 define install-arlib
-$(ECHO) "Installing lib$(1).a... "
-$(AT)install -m 0644 $(LIBDIR)/lib$(1).a $(INST_LIBDIR)/
-$(AT)$(MKDIR_P) $(INST_INCDIR)/$(1)
-$(AT)$(CP_A) $(INCDIR)/$(1)/* $(INST_INCDIR)/$(1)
+echo "Installing lib$(1).a... ";
+install -m 0644 $(LIBDIR)/lib$(1).a $(INST_LIBDIR)/;
+$(MKDIR_P) $(INST_INCDIR)/$(1);
+$(CP_A) $(INCDIR)/$(1)/* $(INST_INCDIR)/$(1);
 endef
 
 # Below is defined a set of macros that are used to build programs, static &

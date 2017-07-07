@@ -39,7 +39,7 @@ tests: $(TESTS:%=$(TSTDIR)/%_test)
 util: $(UTILS:%=$(UTILDIR)/%)
 
 test: $(TESTS:%=$(TSTDIR)/%_test)
-	$(foreach TEST, $<, $(call execute-test,$(TEST)))
+	$(foreach TEST, $^, $(call execute-test,$(TEST)))
 
 clean:
 	rm -rf $(OBJDIR)
@@ -85,7 +85,7 @@ CP_A := cp -a
 # Note that this will abort on the first test to exit with a non-zero status.
 define execute-test
 echo "Running test $(1)... ";
-LD_LIBRARY_PATH=$(LD_LIBRARY_PATH):$(TEST_LDPATH) $(1);
+LD_LIBRARY_PATH=$(LD_LIBRARY_PATH):$(TEST_LDPATH):$(LIBDIR) $(1);
 endef
 
 # Install a program
@@ -147,7 +147,7 @@ TEST_NAMES += $$($(1)_TEST_NAME)
 
 $$($(1)_TEST_NAME): $$($(1)_OBJS) $$($(1)_TEST_OBJS) | $(TSTDIR)
 	$$(ECHO) "Creating test $$(@F)..."
-	$$(AT)$$(CXX) -o $$@ $$^ $$(LDFLAGS) $$($(1)_LDFLAGS) $$($(1)_TEST_LDFLAGS)
+	$$(AT)$$(CXX) -o $$@ $$^ -L$(LIBDIR) $$(LDFLAGS) $$($(1)_LDFLAGS) $$($(1)_TEST_LDFLAGS)
 endef
 $(foreach TEST, $(TESTS), $(eval $(call TEST_template,$(TEST))))
 

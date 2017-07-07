@@ -39,7 +39,7 @@ tests: $(TESTS:%=$(TSTDIR)/%_test)
 util: $(UTILS:%=$(UTILDIR)/%)
 
 test: $(TESTS:%=$(TSTDIR)/%_test)
-	$(foreach TEST, $<, $(call execute-test,$(TEST)))
+	$(foreach TEST, $^, $(call execute-test,$(TEST)))
 
 clean:
 	rm -rf $(OBJDIR)
@@ -77,17 +77,21 @@ endif
 MKDIR_P := mkdir -p
 CP_A := cp -a
 
+# NOTE: If you're going to put recipe instructions in a define and call them
+# in a loop, they will be smushed into a single shell invocation.
+# So you need semicolons after each, and nothing that might expand to '@'.
+
 # Run a test.
 # Note that this will abort on the first test to exit with a non-zero status.
 define execute-test
-$(ECHO) "Running test $(1)... "
-$(AT)LD_LIBRARY_PATH=$(LD_LIBRARY_PATH):$(TEST_LDPATH) $(1)
+echo "Running test $(1)... ";
+LD_LIBRARY_PATH=$(LD_LIBRARY_PATH):$(TEST_LDPATH):$(LIBDIR) $(1);
 endef
 
 # Install a program
 define install-prog
-$(ECHO) "Installing $(1)... "
-$(AT)install -m 0755 $(BINDIR)/$(1) $(INST_BINDIR)/$(1)
+echo "Installing $(1)... ";
+install -m 0755 $(BINDIR)/$(1) $(INST_BINDIR)/$(1);
 endef
 
 # Install a dynamic library and its header files.
@@ -95,18 +99,18 @@ endef
 # $(INCDIR)/LIBRARY_NAME, if you want private header files, put them somewhere
 # else.
 define install-ldlib
-$(ECHO) "Installing lib$(1).so... "
-$(AT)install -m 0644 $(LIBDIR)/lib$(1).so $(INST_LIBDIR)/
-$(AT)$(MKDIR_P) $(INST_INCDIR)/$(1)
-$(AT)$(CP_A) $(INCDIR)/$(1)/* $(INST_INCDIR)/$(1)
+echo "Installing lib$(1).so... ";
+install -m 0644 $(LIBDIR)/lib$(1).so $(INST_LIBDIR)/;
+$(MKDIR_P) $(INST_INCDIR)/$(1);
+-$(CP_A) $(INCDIR)/$(1)/* $(INST_INCDIR)/$(1);
 endef
 
 # Install a static library and its header files.
 define install-arlib
-$(ECHO) "Installing lib$(1).a... "
-$(AT)install -m 0644 $(LIBDIR)/lib$(1).a $(INST_LIBDIR)/
-$(AT)$(MKDIR_P) $(INST_INCDIR)/$(1)
-$(AT)$(CP_A) $(INCDIR)/$(1)/* $(INST_INCDIR)/$(1)
+echo "Installing lib$(1).a... ";
+install -m 0644 $(LIBDIR)/lib$(1).a $(INST_LIBDIR)/;
+$(MKDIR_P) $(INST_INCDIR)/$(1);
+-$(CP_A) $(INCDIR)/$(1)/* $(INST_INCDIR)/$(1);
 endef
 
 # Below is defined a set of macros that are used to build programs, static &
@@ -143,7 +147,7 @@ TEST_NAMES += $$($(1)_TEST_NAME)
 
 $$($(1)_TEST_NAME): $$($(1)_OBJS) $$($(1)_TEST_OBJS) | $(TSTDIR)
 	$$(ECHO) "Creating test $$(@F)..."
-	$$(AT)$$(CXX) -o $$@ $$^ $$(LDFLAGS) $$($(1)_LDFLAGS) $$($(1)_TEST_LDFLAGS)
+	$$(AT)$$(CXX) -o $$@ $$^ -L$(LIBDIR) $$(LDFLAGS) $$($(1)_LDFLAGS) $$($(1)_TEST_LDFLAGS)
 endef
 $(foreach TEST, $(TESTS), $(eval $(call TEST_template,$(TEST))))
 
@@ -162,7 +166,7 @@ UTIL_NAMES += $$($(1)_UTIL_NAME)
 
 $$($(1)_UTIL_NAME):  $$($(1)_UTIL_OBJS) | $(UTIL_LIBS) $(UTILDIR)
 	$$(ECHO) "Creating utility $$(@F)..."
-	$$(AT)$$(CXX) -o $$@ $$^ $$(LDFLAGS) $$($(1)_LDFLAGS) $$($(1)_UTIL_LDFLAGS) $(UTIL_LDFLAG_LIBS) $$($(1)_LIBS)
+	$$(AT)$$(CXX) -o $$@ $$^ $$(LDFLAGS) $$($(1)_LDFLAGS) $$($(1)_UTIL_LDFLAGS) $$(UTIL_LDFLAG_LIBS) $$($(1)_LIBS)
 endef
 $(foreach UTIL, $(UTILS), $(eval $(call UTIL_template,$(UTIL))))
 
@@ -174,9 +178,9 @@ $(1)_MAIN_DEP := $$($(1)_MAIN_OBJ:.o=.d)
 
 -include $$($(1)_MAIN_DEP)
 
-$$(BINDIR)/$(1): $$($(1)_OBJS) $$($(1)_MAIN_OBJ) | $(BINDIR)
+$$(BINDIR)/$(1): $$($(1)_OBJS) $$($(1)_MAIN_OBJ) | $(UTIL_LIBS) $(BINDIR)
 	$$(ECHO) "Creating program $$(@F)..."
-	$$(AT)$$(CXX) -o $$@ $$^ $$(LDFLAGS) $$($(1)_LDFLAGS) $$($(1)_LIBS)
+	$$(AT)$$(CXX) -o $$@ $$^ -L$(LIBDIR) $$(LDFLAGS) $$($(1)_LDFLAGS) $$($(1)_LIBS)
 endef
 $(foreach PROG, $(PROGS), $(eval $(call PROG_template,$(PROG))))
 

@@ -26,6 +26,9 @@ Where <switches> are:
                     Omits the checkout nodes from the graph. This is recommended
                     in most cases.
 
+  -s[hort-labels]   Uses short node labels. This makes the graph easier to read,
+                    but can cause confusion in some cases.
+
   -f[ilter] <name>  Tell xdot.py to use the named graphviz filter (one of
                     dot, neato, twopi, circo or fdp). The default is dot.
 
@@ -49,7 +52,7 @@ import subprocess
 import sys
 
 def process(labels, reduce=False, filter='dot', keep_files=False,
-            verbose=False, outputfile=None, hideCheckouts=False):
+            verbose=False, outputfile=None, hideCheckouts=False, shortLabels=False):
 
     # The first program we want to run is in the sandbox with us
     thisdir = os.path.split(__file__)[0]
@@ -68,6 +71,8 @@ def process(labels, reduce=False, filter='dot', keep_files=False,
             labels2 = []
             if hideCheckouts:
                 labels2.append('--hide-checkouts')
+            if shortLabels:
+                labels2.append('--short-labels')
             for label in labels:
                 labels2.append("'%s'"%label)
             retcode = subprocess.call('%s %s'%(visualiser, ' '.join(labels2)),
@@ -144,6 +149,7 @@ def main(args):
     labels = []
     outputfile = None
     hideCheckouts = False
+    shortLabels = False
 
     while args:
         word = args.pop(0)
@@ -163,13 +169,15 @@ def main(args):
             args = args[1:]
         elif word in ('-c', '-hide-checkouts'):
             hideCheckouts = True
+        elif word in ('-s', '-short-labels'):
+            shortLabels = True
         elif word[0] == '-':
             print 'Unrecognised switch', word
             return
         else:
             labels.append(word)
 
-    process(labels, reduce, filter, keep_files, verbose, outputfile, hideCheckouts)
+    process(labels, reduce, filter, keep_files, verbose, outputfile, hideCheckouts, shortLabels)
     return 0
 
 if __name__ == '__main__':

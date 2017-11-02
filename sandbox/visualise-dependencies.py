@@ -6,6 +6,11 @@ muddle repositories.
 
 Run this script from somewhere within a muddle tree;
 provide a list of goal labels on the command-line.
+(If none is given, the default deployments will be used.)
+
+Options:
+    --hide-checkouts  Omits checkout directories from the graph
+                      (recommended in most cases)
 
 For example:
 	visualise-dependencies.py  package:*{linux}/postinstalled
@@ -62,6 +67,7 @@ class Node:
 		self.isAptGet = False
 		self.auxNames = set()
 		self.isGoal = isGoal
+                self.isCheckout = self.rawname.startswith('checkout:')
 		assert self.rawname not in Node.all_nodes
 		Node.all_nodes[self.rawname] = self
 	def todot(self):
@@ -172,12 +178,15 @@ def do_deps(gbuilder, goal):
 
 def process(args):
         goals = []
+        omitCheckouts = False
 
         while args:
             word = args.pop(0)
             if word in ('-h', '-help', '--help'):
                 print __doc__
                 return
+            elif word in ('--hide-checkouts'):
+                omitCheckouts = True
             elif word[0] == '-':
                 print 'Unrecognised switch',word
                 return
@@ -232,6 +241,16 @@ def process(args):
 		for k,n in Node.all_nodes.items():
 			if n.isAptGet:
 				del Node.all_nodes[k]
+
+        # Maybe don't bother with checkouts either
+        if omitCheckouts:
+            for k,e in Edge.all_edges.items():
+                if e.nodeFrom.isCheckout:
+                    del Edge.all_edges[k]
+            for k,n in Node.all_nodes.items():
+                if n.isCheckout:
+                    del Node.all_nodes[k]
+
 
 	# If we have A/preconfig -> A/configured -> A/built -> A/installed
 	# [ -> A/preinstalled], we can condense them into one.

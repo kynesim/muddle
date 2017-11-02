@@ -170,11 +170,19 @@ def do_deps(gbuilder, goal):
 			if newnode:
 					do_deps(gbuilder, str(dep))
 
-def process(goals):
+def process(args):
+        goals = []
 
-	if goals and goals[0] in ('-h', '-help', '--help'):
-		print __doc__
-		sys.exit(0)
+        while args:
+            word = args.pop(0)
+            if word in ('-h', '-help', '--help'):
+                print __doc__
+                return
+            elif word[0] == '-':
+                print 'Unrecognised switch',word
+                return
+            else:
+                goals.append(word)
 
 	## ... find a build tree
 	original_dir = os.getcwd()

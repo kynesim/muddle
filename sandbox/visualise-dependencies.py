@@ -11,6 +11,8 @@ provide a list of goal labels on the command-line.
 Options:
     --hide-checkouts  Omits checkout directories from the graph
                       (recommended in most cases)
+    --short-labels    Uses short, human-friendly label names (usually
+                      worthwhile but produces confusing output in some cases)
 
 For example:
 	visualise-dependencies.py  package:*{linux}/postinstalled
@@ -179,6 +181,7 @@ def do_deps(gbuilder, goal):
 def process(args):
         goals = []
         omitCheckouts = False
+        shortLabels = False
 
         while args:
             word = args.pop(0)
@@ -187,6 +190,8 @@ def process(args):
                 return
             elif word in ('--hide-checkouts'):
                 omitCheckouts = True
+            elif word in ('--short-labels'):
+                shortLabels = True
             elif word[0] == '-':
                 print 'Unrecognised switch',word
                 return
@@ -327,10 +332,16 @@ def process(args):
 		# else loop forever
 
 	# Now tidy up the conflated display names:
-	for n in Node.all_nodes.values():
-		if len(n.auxNames)>0:
-			tmp = n.displayname.rsplit('/',1)
-			n.displayname = '%s/\\n%s'%(tmp[0],tmp[1])
+        if shortLabels:
+            for n in Node.all_nodes.values():
+                n.displayname = n.displayname.rsplit('/',1)[0]
+                if n.displayname.startswith('package:'):
+                    n.displayname = n.displayname[8:]
+        else:
+            for n in Node.all_nodes.values():
+                    if len(n.auxNames)>0:
+                            tmp = n.displayname.rsplit('/',1)
+                            n.displayname = '%s/\\n%s'%(tmp[0],tmp[1])
 
 	print 'digraph muddle {'
 

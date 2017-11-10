@@ -6,6 +6,13 @@ muddle repositories.
 
 Run this script from somewhere within a muddle tree;
 provide a list of goal labels on the command-line.
+(If none is given, the default deployments will be used.)
+
+Options:
+    --hide-checkouts  Omits checkout directories from the graph
+                      (recommended in most cases)
+    --short-labels    Uses short, human-friendly label names (usually
+                      worthwhile but produces confusing output in some cases)
 
 For example:
 	visualise-dependencies.py  package:*{linux}/postinstalled
@@ -62,6 +69,7 @@ class Node:
 		self.isAptGet = False
 		self.auxNames = set()
 		self.isGoal = isGoal
+                self.isCheckout = self.rawname.startswith('checkout:')
 		assert self.rawname not in Node.all_nodes
 		Node.all_nodes[self.rawname] = self
 	def todot(self):
@@ -170,11 +178,25 @@ def do_deps(gbuilder, goal):
 			if newnode:
 					do_deps(gbuilder, str(dep))
 
-def process(goals):
+def process(args):
+        goals = []
+        omitCheckouts = False
+        shortLabels = False
 
-	if goals and goals[0] in ('-h', '-help', '--help'):
-		print __doc__
-		sys.exit(0)
+        while args:
+            word = args.pop(0)
+            if word in ('-h', '-help', '--help'):
+                print __doc__
+                return
+            elif word in ('--hide-checkouts'):
+                omitCheckouts = True
+            elif word in ('--short-labels'):
+                shortLabels = True
+            elif word[0] == '-':
+                print 'Unrecognised switch',word
+                return
+            else:
+                goals.append(word)
 
 	## ... find a build tree
 	original_dir = os.getcwd()
@@ -224,6 +246,16 @@ def process(goals):
 		for k,n in Node.all_nodes.items():
 			if n.isAptGet:
 				del Node.all_nodes[k]
+
+        # Maybe don't bother with checkouts either
+        if omitCheckouts:
+            for k,e in Edge.all_edges.items():
+                if e.nodeFrom.isCheckout:
+                    del Edge.all_edges[k]
+            for k,n in Node.all_nodes.items():
+                if n.isCheckout:
+                    del Node.all_nodes[k]
+
 
 	# If we have A/preconfig -> A/configured -> A/built -> A/installed
 	# [ -> A/preinstalled], we can condense them into one.
@@ -300,10 +332,16 @@ def process(goals):
 		# else loop forever
 
 	# Now tidy up the conflated display names:
-	for n in Node.all_nodes.values():
-		if len(n.auxNames)>0:
-			tmp = n.displayname.rsplit('/',1)
-			n.displayname = '%s/\\n%s'%(tmp[0],tmp[1])
+        if shortLabels:
+            for n in Node.all_nodes.values():
+                n.displayname = n.displayname.rsplit('/',1)[0]
+                if n.displayname.startswith('package:'):
+                    n.displayname = n.displayname[8:]
+        else:
+            for n in Node.all_nodes.values():
+                    if len(n.auxNames)>0:
+                            tmp = n.displayname.rsplit('/',1)
+                            n.displayname = '%s/\\n%s'%(tmp[0],tmp[1])
 
 	print 'digraph muddle {'
 

@@ -937,7 +937,7 @@ def num_cols():
                 return 70
             else:
                 return cols
-        except TypeError:
+        except (TypeError, curses.error):
             # We get this if stdout not an int, or does not have a fileno()
             # method, for instance if it has been redirected to a StringIO
             # object.
